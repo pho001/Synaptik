@@ -82,6 +82,7 @@ target/backend capabilities, configuration, and compatible cached decisions. It 
 | 0003 | [Prepare orchestration and validation](tasks/0003-prepare-orchestration-and-validation.md) | Complete | 0001–0002; Compiler 0006; Planning 0006; Runtime 0002–0014 | Composes exact compile projection, typed backend analysis/finalization, initialized constant representations, prepared-memory assignment, complete schedule assembly/validation, and final prepared execution without concrete backend logic. |
 | 0003A | [Immutable partition-local DAG analysis projection](tasks/0003a-immutable-partition-local-dag-analysis-projection.md) | Complete | 0001–0003; CPU 0008B–0008E as downstream evidence | Added one public immutable Prepare-owned projection for exactly one planned partition, made it `PrepareContext`'s sole node/topology source, precomputed precise structural occurrences and adjacency, and kept the complete cross-backend model DAG out of concrete backends. |
 | 0004 | [Opaque backend candidate-batch and selected-decision handoff](tasks/0004-opaque-backend-candidate-batch-and-selected-decision-handoff.md) | Complete | 0001–0003A; CPU 0010E | Added two method-free opaque roles and one immutable typed exact-partition handoff, then adopted them on CPU 0010E's existing batch and decision without shared interpretation, measurement, persistence, compatibility handling, or route selection. |
+| 0005 | [Producerless published-constant resource handoff and shared slot assignment](tasks/0005-producerless-published-constant-resource-handoff-and-shared-slot-assignment.md) | Complete | Compiler 0006B5; 0001–0004 | Contributed an explicit producerless published-constant resource to the complete preparation handoff and assigned its shared slot deterministically, without backend selection or physical geometry; preserved ordinary backend-analysis declarations and partition-connected projection. |
 
 ## Milestones
 
@@ -165,14 +166,27 @@ prerequisite: public `GraphPreparation.prepare(...)`, `PartitionPreparation`, an
 assembly. These public Prepare contracts are cross-module SPI; the later supported Engine user
 facade must not expose them in ordinary compile, prepare, run, or one-shot signatures.
 
+The later Engine 0006 prerequisite diagnosis found a distinct source-only publication gap and
+inserted detailed Prepare 0005 after Complete Compiler 0006B5. Prepare 0005 is now Complete. It
+adds the exact producerless, consumerless published-constant contribution, validates it before
+backend work, and appends deterministic shared buffer assignments after ordinary declarations
+without projecting the value into a partition or assigning it to a finalizer. The implementation
+context passed 23 focused and 52 full Prepare tests with no failures, errors, or skips. Clean
+documentation context `01a0a5b6-e42c-7211-a8df-4a02d857314d` finalized the Javadocs, package/API
+explanations, glossary, and planning evidence without changing executable Java or rerunning those
+tests. Detailed Ready CPU 0010H separately owns physical CPU declaration and initialized
+materialization in the current sole non-empty CPU composition; Draft Engine 0006 owns later wiring. No later Prepare
+task is detailed, Ready, or In progress.
+
 ## Open questions
 
 - Dynamic dimension binding remains deliberately unresolved. Complete task 0003 preserves the
   current fully-static `PrepareContext` boundary and fails before backend analysis when it cannot
   project exact geometry.
-- A zero-node pass-through graph cannot currently obtain byte geometry from a backend analysis.
-  Task 0003 fails closed on a requested value with no prepared buffer assignment instead of
-  inventing a shared allocation rule.
+- A producerless published compile-time constant remains outside partition projection. Complete
+  Prepare 0005 now accepts an exact externally declared resource and appends its shared assignment;
+  it does not enable a zero-node schedule or invent backend selection, physical geometry,
+  initialization, or materialization.
 - The smallest opaque candidate handoff is implemented by Complete task 0004. It exposes only
   nominal marker roles and one typed exact-partition transport; persistence and artifact
   validation remain downstream tools/tuning work.
@@ -236,6 +250,9 @@ facade must not expose them in ordinary compile, prepare, run, or one-shot signa
 - Prepare 0003 validates bindable-input, execution, representation-coordinate, and publication
   coverage before returning the exact Runtime `PreparedExecution`; concrete backends still own
   creators, transfers, executables, and their physical compatibility.
+- Complete Prepare 0005 owns producerless published-constant resource contribution to the complete
+  handoff and deterministic shared slot assignment only. It does not select a backend or define
+  physical geometry; CPU 0010H owns the current CPU declaration/materialization behavior.
 - Compile-time logical splats use the task-0003 `InitializedBuffer` origin: the backend creator
   materializes a fresh run-owned representation and Runtime records only that its contents start
   valid. Runtime receives no `ScalarValue`, graph value, or backend identity.

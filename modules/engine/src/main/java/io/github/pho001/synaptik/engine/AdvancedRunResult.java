@@ -70,12 +70,48 @@ public final class AdvancedRunResult implements AutoCloseable {
     }
 
     /**
+     * Returns the exact owning lifecycle coordinator to package-private ordinary orchestration.
+     *
+     * @return the non-null Engine owner retained for this result's complete lifetime
+     */
+    AdvancedEngine owner() {
+        return owner;
+    }
+
+    /**
      * Reports whether closure of this wrapper has begun, either directly or through its Engine.
      *
      * @return {@code true} before or during delegate cleanup after the first close call
      */
     public synchronized boolean isClosed() {
         return closed;
+    }
+
+    /**
+     * Materializes one ordinary occurrence while holding this result's lifecycle monitor.
+     * Result closure is checked before the selector or limit, and the monitor remains held through
+     * validation, representation borrowing, physical copy, and detached-value construction.
+     *
+     * @param result non-null ordinary result backed by this owner
+     * @param publication possibly null publication selector validated by the ordinary result only
+     *     after Engine and result lifecycle admission
+     * @param maximumBytes caller byte limit validated by the ordinary result after selector
+     *     authentication
+     * @param composition non-null owned composition used for the physical copy
+     * @return a fresh detached host value
+     * @throws IllegalStateException if result closure has begun
+     * @throws RuntimeException if outward validation or Runtime/CPU copying fails
+     * @throws Error if copying reports a fatal failure
+     */
+    synchronized HostTensorValue materializeUnderAdmission(
+            io.github.pho001.synaptik.engine.RunResult result,
+            io.github.pho001.synaptik.engine.RunResult.Publication publication,
+            long maximumBytes,
+            EngineBackendComposition composition) {
+        if (closed) {
+            throw new IllegalStateException("run result is closed");
+        }
+        return result.materializeOpen(publication, maximumBytes, delegate, composition);
     }
 
     /**

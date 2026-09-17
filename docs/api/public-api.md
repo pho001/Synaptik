@@ -18,12 +18,18 @@ Compiler orchestration now consumes those three operations and uses the public i
 `CompileArtifacts`, `PublicationPlan`, `CompileConstantPlan`, and `CompileDiagnostics` contracts.
 Public `GraphCompilationPort` exposes that complete constant-free pipeline as a narrow
 cross-module integration service-provider interface (SPI). The CPU backend now also exposes the
-supported cross-module `CpuBackendIntegration` SPI described below. The advanced Engine
-composition surface connects these contracts for one CPU-only, representation-level compile,
+supported cross-module `CpuBackendIntegration` SPI described below, including a bounded canonical
+host-byte copy for a CPU publication representation borrowed from an open Runtime result. The
+advanced Engine composition surface connects these contracts for one CPU-only,
+representation-level compile,
 prepare, and run lifecycle. The ordinary `Engine.standard()` surface constructs and owns one
 fresh CPU-only composition and now exposes owner-bound compile and prepared handles,
-`TensorId`-matched host-input binding, synchronous run, and metadata-only forward and gradient
-publication occurrences. Host value access remains planned. Reusable or public capability
+`TensorId`-matched host-input binding, synchronous run, forward and gradient publication
+occurrences, and explicit bounded materialization of one occurrence into a detached immutable
+host value. Its four one-shot `compute(...)` overloads automatically discover reachable
+provenance-free input leaves, then compose a fresh forward-only compile, prepare, run, complete
+publication and aggregate-byte preflight, ordered materialization, and cleanup under one Engine
+admission. Reusable or public capability
 matrices and a public graph-wide Planning workflow also remain planned.
 Prepare analysis, finalization, and complete graph-preparation contracts plus the initial Runtime
 geometry, prepared representation creation, per-run resource/validity, executable and transfer
@@ -484,10 +490,30 @@ One `CpuBackendIntegration.open()` call creates the fixed exact/default CPU comp
 reports the immutable `cpu/host` availability fact, exposes the retained capability provider,
 builds the positional preparation and schedule-assembler collaborations for exactly one non-empty
 maximal CPU-owned partition, and borrows intrinsically compatible `HostTensorStorage` as a
-non-owning Runtime buffer representation. It also attempts bounded automatic OpenBLAS discovery
-and qualification. That attempt may add an eligible native candidate; the portable route remains
-available when discovery or qualification fails, and OpenBLAS is neither guaranteed to be present
-nor guaranteed to be selected.
+non-owning Runtime buffer representation. Its
+`copyToCanonicalHostBytes(representation, descriptor, maximumBytes)` operation copies one exact
+current CPU publication representation into a fresh caller-owned mutable `byte[]`. This is
+Engine-facing SPI, not an ordinary application result API; the caller pairs the representation
+with the final descriptor from the same publication occurrence while the Runtime result lease is
+open. The adapter also attempts bounded automatic OpenBLAS discovery and qualification. That
+attempt may add an eligible native candidate; the portable route remains available when discovery
+or qualification fails, and OpenBLAS is neither guaranteed to be present nor guaranteed to be
+selected.
+
+The copy requires a fully static Shape, a present resolved layout, a non-negative byte limit, and
+one of the two exact current CPU representation implementations. It traverses logical coordinates
+in canonical row-major order, with the final axis changing fastest, through the descriptor's
+non-negative element offset and positive or zero strides. A rank-zero descriptor reads its offset
+element. A Shape with any zero extent returns a fresh empty array without source-element access.
+Repeated physical addresses from a zero stride are valid and produce repeated logical values.
+
+Segment-backed source elements are interpreted using the CPU's native-order unaligned primitive
+access, but the detached output format is always big-endian. `FLOAT64` and `FLOAT32` preserve raw
+NaN payloads and signed zeros; `BFLOAT16` preserves its exact stored 16 bits; `INT64` and `INT32`
+preserve their two's-complement bit patterns; and `BOOL` accepts only the exact stored byte `0` or
+`1`. No data-type conversion or BOOL normalization occurs. The checked logical byte count must
+not exceed either `maximumBytes` or `Integer.MAX_VALUE`; arithmetic overflow and a genuine JVM
+allocation failure remain distinct failures.
 
 The accepted graph shape is deliberately exact. A zero-node pass-through graph is rejected
 because current Prepare publication has no `PreparedBufferAssignment` for it. A mixed-owner or
@@ -503,8 +529,12 @@ while preparing or running recipes obtained from it and must coordinate closure 
 Borrowing transfers no storage ownership, and closing a borrowed wrapper does not close caller
 storage. The borrow operation validates only intrinsic storage consistency and current access; it
 cannot validate an expected logical input type, required span, or write role because those target
-facts are absent. Typed logical input binding, a simpler end-user execute surface, and typed or
-host-materialized results remain Engine work.
+facts are absent. A successful host-byte copy likewise does not close, retain, mutate, transfer,
+or change validity of its source. It is synchronous: the caller must keep the adapter, Runtime
+result lease, and representation open, keep storage accessible to the calling thread, and prevent
+source mutation or closure until return. Independent valid calls may run concurrently, but racing
+mutation has no atomic-snapshot guarantee. Typed logical input binding, a simpler end-user execute
+surface, and ordinary typed or host-materialized results remain Engine work.
 
 The adapter does not expose CPU internals, discover backends for Runtime, perform tuning, or turn
 OpenBLAS into another backend identity. CPU directly depends on Compiler only because this SPI
@@ -581,7 +611,19 @@ valid at the publication moment and changes only a one-shot local flag. It perfo
 fallback, transfer, conversion, or backend work. A complete ordered set of published occurrences
 constructs `RunResult`, which privately preserves result aliases and leases cleanup of the entire
 `RunState`. Empty results are valid; partial publication transfers no cleanup responsibility.
-`RunResult` exposes only its count and lifecycle, not a representation, Tensor, value, or state.
+While that exact Runtime lease is open, `RunResult.publicationRepresentation(resultIndex)` returns
+the borrowed exact `BufferRepresentation` selected for one dense occurrence. Repeated access and
+aliased occurrences preserve exact reference identity. The caller must not close, transfer, or
+retain the reference beyond result closure and must externally prevent access from racing result
+or state activity because Runtime `RunResult` is not thread-safe. The method performs no copy,
+wrapper construction, cast, validity query, transfer, or physical access; closed-state failure
+precedes index validation.
+
+This method is an inward Runtime service-provider interface (SPI), not an ordinary result-value
+API. A `BufferRepresentation` is only a nominal backend-owned lifecycle role: it is not host
+storage, a Tensor value, or guaranteed to be host-accessible. The ordinary Engine `RunResult`
+continues to expose metadata only, and `AdvancedRunResult` continues to expose only result count
+and lifecycle. Neither Engine result exposes the inward representation.
 
 One `PreparedExecution(memoryPlan, schedule)` now supplies the current reusable Runtime root. It
 retains both exact references and requires `schedule.memoryPlan() == memoryPlan`. It owns no
@@ -596,7 +638,7 @@ The runner is stateless and may serve concurrent calls; each call remains synchr
 distinct mutable state.
 
 These contracts contain no concrete backend implementation and do not provide physical access,
-output-value access, or Engine behavior. Creator callbacks leave physical allocation mechanics to
+host/Tensor value access, or Engine behavior. Creator callbacks leave physical allocation mechanics to
 the implementing backend, and binding owns no auxiliary closeable resource or ownership change.
 See the [Runtime API](runtime-api.md) for creation, validity, scheduling, selection, lifecycle,
 failure, and thread-safety details.
@@ -629,13 +671,23 @@ its exact `BufferSlot` and dense plan index. `PreparedScheduleContext` exposes t
 immutable finalized facts to one explicit `PreparedScheduleAssembler`, and
 `GraphPreparation.prepare(...)` returns the exact validated `PreparedExecution`.
 
+The four-argument preparation form additionally accepts a complete list of
+`ProducerlessPublishedConstantResource` contributions. One such value carries the exact graph and
+logical-requirement references plus externally supplied physical byte size and alignment for a
+fully static source-only published compile-time constant. Shared Prepare validates the exact role,
+canonicalizes contributions by final graph-value encounter order, and appends their buffer slots
+after ordinary declarations. The value remains outside partition-local analysis and receives no
+partition-finalizer assignment. The existing three-argument form contributes an empty list.
+
 The complete-set operation that validates coverage and source identity, assigns slots, constructs
 the shared memory plan, and invokes finalizers remains package-private behind the public graph
 operation. Its current conservative
 policy shares one buffer slot across declarations of the same `ValueId` using maximum geometry
 and gives every workspace declaration a distinct slot. It performs no physical allocation,
 closeable prepared-resource acquisition, run-state creation, invocation binding/execution,
-transfer, residency, materialization, or publication. The supplied assembler constructs an
+transfer, residency, constant initialization or materialization, or publication. Producerless
+contributions still require at least one non-empty planned partition and therefore do not make a
+zero-node graph executable. The supplied assembler constructs an
 immutable schedule recipe once; Prepare validates exact source, execution, coordinate, and
 publication coverage before constructing the prepared root. The advanced Engine now composes this
 operation with the exact CPU integration that it owns.
@@ -680,13 +732,134 @@ requested target identity, derivative order one, and the target's explicit list 
 not claim a generated gradient Tensor identity. Repeated gradient values and forward/gradient
 aliases remain distinct occurrence objects even when Runtime selects one physical
 representation. The metadata does not reveal physical aliasing, storage, or numerical values.
+While the result and Engine remain open, `materialize(publication, maximumBytes)` accepts only an
+exact occurrence object from that result and returns a fresh detached `HostTensorValue`. Repeated
+calls and aliased occurrences are copied independently; there is no cache or deduplication.
 
 Closing a result releases its Runtime lease and Engine-created wrappers but never caller storage.
 Closing the Engine closes still-open results in reverse successful-run order before the CPU
 integration. Result metadata remains readable after either close; compiled and prepared metadata
-also remains readable, but closed-Engine handles cannot start new work. Task 0004 owns host
-materialization and numerical value access. Tasks 0005–0006 own one-shot forward and
-scalar-objective backward convenience.
+also remains readable, and a completed `HostTensorValue` remains readable after either close, but
+closed-Engine handles cannot start new work. Materialization is current only for the fixed CPU
+composition and fully static resolved publication descriptors. It is not an implicit transfer,
+cross-backend format promise, Tensor, storage association, typed array, or persistence format.
+
+The current one-shot forms are exactly:
+
+```java
+HostTensorValue value = engine.compute(output);
+HostTensorValue boundedValue = engine.compute(output, maximumTotalBytes);
+List<HostTensorValue> values = engine.compute(outputs);
+List<HostTensorValue> boundedValues = engine.compute(outputs, maximumTotalBytes);
+```
+
+Each call transiently and iteratively inventories provenance-free leaves reachable through Model
+Tensor-expression provenance by exact object identity. After compilation,
+`CompiledGraph.inputs()` alone selects membership and order by `TensorId`; Engine does not traverse
+Compiler intermediate representation (IR), reconstruct liveness, or retain Tensor/provenance
+state. Parameters and buffers need no Engine-specific category: their current Tensor bindings are
+discovered like any other reachable provenance-free leaf. Each call freshly compiles with the
+ordinary fixed forward-only settings, prepares, runs once, verifies the complete forward-publication set,
+preflights the sum of canonical returned payload lengths before copying, materializes every
+occurrence in requested order, and closes its temporary result before returning. The ordered form
+returns an immutable list of immutable detached values; distinct occurrences are copied
+independently even if they select one inward representation. The limit covers returned canonical
+payload bytes only, not inputs, recipes, Runtime buffers or workspaces, object overhead, defensive
+copies, peak memory, or other allocation.
+
+One Engine admission covers that complete sequence. Engine closure waits for an admitted call,
+including its result cleanup; a call that loses admission observes the closed-Engine failure
+before argument validation. A failure returns no partial result. Temporary cleanup still runs,
+with a distinct cleanup failure suppressed on the primary failure. Selected leaf storage remains
+caller-owned and must stay live, accessible, and free from conflicting mutation until the
+synchronous call completes; unselected discovered storage is not inspected. There is no
+compile/prepared/result/value/Tensor-inventory cache, reuse, backward or
+implicit target/seed behavior, tuning, cross-backend transfer, or Tensor execution method.
+
+This complete supported example uses only the current CPU static/resolved `CONTIGUOUS` path:
+
+```java
+import io.github.pho001.synaptik.engine.Engine;
+import io.github.pho001.synaptik.engine.HostTensorValue;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Optional;
+
+static Tensor input(Arena arena, float... values) {
+    Shape shape = Shape.of(values.length);
+    TensorDescriptor descriptor = new TensorDescriptor(
+            DataType.FLOAT32,
+            shape,
+            Optional.of(LayoutDescriptor.contiguous(shape)),
+            false);
+    MemorySegment source = MemorySegment.ofArray(values);
+    MemorySegment storage = arena.allocate(source.byteSize(), Float.BYTES);
+    MemorySegment.copy(source, 0, storage, 0, source.byteSize());
+    return TensorFactory.create(
+            descriptor,
+            Optional.empty(),
+            Optional.of(new MemorySegmentStorage(
+                    DataType.FLOAT32, values.length, storage)));
+}
+
+List<HostTensorValue> retained;
+try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+    Tensor left = input(arena, 1.5f, -2.25f);
+    Tensor right = input(arena, 3.25f, 4.5f);
+    retained = engine.compute(
+            List.of(left.contiguous(), right.contiguous()),
+            4L * Float.BYTES);
+    assert retained.size() == 2;
+    assert retained.get(0).bytes().getFloat(0) == 1.5f;
+    assert retained.get(1).bytes().getFloat(0) == 3.25f;
+}
+ByteBuffer first = retained.get(0).bytes();
+assert first.isReadOnly();
+assert first.remaining() == 2 * Float.BYTES;
+```
+
+The expression leaves are discovered automatically, while the returned positions still follow
+the output request. Both values remain readable after Engine and caller arena closure, while the
+arena itself stayed caller-owned. Every call compiles and prepares afresh. Use the lower-level
+`compile -> prepare -> run -> materialize` lifecycle when a prepared recipe should be reused or
+only selected publications should be copied. Scalar-objective backward convenience remains task
+0006 and will require explicit targets.
+
+For a single already-constructed Tensor expression, the complete one-shot execution shape is:
+
+```java
+try (Engine engine = Engine.standard()) {
+    HostTensorValue result = engine.compute(output);
+}
+```
+
+Here `output` already retains the Model expression provenance leading to its leaves. The returned
+value is detached; closing the Engine does not invalidate it.
+
+An NN `Model` follows the same boundary. This conceptual example intentionally assumes only the
+existing `model`, `input`, and `Tensor` contracts and invents no construction or initialization
+API:
+
+```java
+Tensor output = model.forward(input);
+try (Engine engine = Engine.standard()) {
+    HostTensorValue result = engine.compute(output);
+}
+```
+
+`model.forward(input)` constructs the Tensor expression directed acyclic graph (DAG); it does not
+execute it. `engine.compute(output)` performs execution and host materialization. Repeated model
+execution should retain the expression and use `compile -> prepare -> run(prepared, explicit
+inputs)` rather than paying the one-shot compile and prepare cost on every call.
 
 `AdvancedEngine` is the current low-level composition root. Construction accepts the exact
 `CpuBackendIntegration` returned by `CpuBackendIntegration.open()` and takes ownership of it.
@@ -724,8 +897,8 @@ CPU integration. Compiled and prepared handles have no independent resource life
 unusable when their Engine closes.
 
 This advanced surface does not provide mixed-backend composition, backend discovery, typed
-logical input binding, typed publication metadata, host materialization, one-shot execution,
-backward convenience, tuning integration, or ordinary Engine exception translation. Supplying a
+logical input binding, typed publication metadata, host materialization, public one-shot
+execution, backward convenience, tuning integration, or ordinary Engine exception translation. Supplying a
 gradient request to `compile(...)` invokes the existing compiler mode/request contract; it does
 not add those later conveniences or guarantee that the current CPU-only prepare step can lower
 the resulting artifact.
@@ -740,16 +913,22 @@ output. A compile success therefore does not guarantee CPU preparation or execut
 
 The focused supported examples use `CONTIGUOUS` directly over resolved `FLOAT32` leaves. The
 seeded example reuses `seedLeaf.contiguous()` as the explicit seed for two outputs. It does not use
-`ADD`, whose current public expression result has unresolved layout, and it does not publish a
-pass-through seed leaf, for which current Prepare has no buffer assignment. See the
+`ADD`, whose current public expression result has unresolved layout, or publish a source-only
+compile-time constant. Shared Prepare can now assign that producerless resource only when concrete
+composition supplies its exact physical declaration, but the current CPU integration and Engine
+do not yet supply or wire it. See the
 [Runtime API ordinary examples](runtime-api.md#current-ordinary-engine-boundary) for the complete
 setup.
 
-Host materialization and numerical access remain Engine task 0004. One-shot ergonomics equivalent
-to `output.execute()` remain task 0005 and will stay Engine-owned rather than becoming a Tensor
-execution method. Scalar-objective `withBackward`-style convenience remains task 0006 and will
-still require explicit targets; no no-argument backward contract is promised. Tasks 0004–0006 are
-plans, not current callable APIs.
+Ordinary Engine host materialization is current through the CPU integration's canonical copy.
+Engine selects and authenticates the exact publication occurrence, serializes the synchronous
+copy against result closure, and returns detached immutable canonical bytes. The CPU operation
+itself still neither selects a publication nor obtains a representation, performs a transfer,
+synchronizes result closure, constructs a Tensor or `HostTensorStorage`, streams a payload, or
+generalizes the format across backends. Engine-owned one-shot forward execution is current through
+the four ordinary `Engine.compute(...)` overloads described above; it does not add an
+`output.execute()` Tensor method. Scalar-objective `withBackward`-style convenience remains task
+0006 and will still require explicit targets; no no-argument backward contract is promised.
 
 ## Compatibility expectations during development
 

@@ -58,6 +58,7 @@ class CpuInternalPackageInventoryTest {
                         "CpuCapabilityProvider.java", "CpuBackendIntegration.java", "package-info.java", "internal/package-info.java",
                         "internal/memory/CpuBorrowedBuffer.java", "internal/memory/CpuBufferArgument.java",
                         "internal/memory/CpuBufferRepresentation.java", "internal/memory/CpuNativeBuffer.java",
+                        "internal/memory/CpuHostSnapshotExporter.java",
                         "internal/memory/CpuContiguousWorkspace.java",
                         "internal/memory/CpuRepresentationRecipes.java",
                         "internal/memory/package-info.java", "internal/prepare/CpuPartitionAnalysisInputs.java",

@@ -95,6 +95,7 @@ publication coordinates, per-run bound publication state, and a whole-`RunState`
 | 0012 | [Run-state shared-throwable cleanup](tasks/0012-run-state-shared-throwable-cleanup.md) | Complete | 0003; 0007; 0009–0011 | Repaired `RUNTIME-CLEANUP-001`: closed-first reverse cleanup now skips impossible self-suppression when distinct owned resources throw the same exact primary `Throwable`, preserves that primary, and attempts all remaining owned resources. |
 | 0013 | [General architecture status correction](tasks/0013-general-architecture-status-correction.md) | Complete | 0011; 0012 | Corrected `DOCUMENTATION-STATUS-001` in four implicated explanatory documents, preserving authoritative architecture and leaving enforcement to task 0014. |
 | 0014 | [Runtime architecture enforcement](tasks/0014-runtime-architecture-enforcement.md) | Complete | 0011; 0012–0013 | Added one dependency-free focused architecture suite that locks Runtime's exact project edges, exhaustively classifies production sources, and rejects `Operation`/`CompiledNode` in the explicit hot path. |
+| [0015](tasks/0015-leased-publication-representation-access.md) | Leased publication representation access | Complete | 0009–0010; 0012; Engine 0003 | Added one result-indexed borrowed `BufferRepresentation` reference while the exact `RunResult` lease is open, preserving aliases and whole-state cleanup without adding host copying, concrete-backend knowledge, or ordinary Engine leakage. |
 
 ## Milestones
 
@@ -105,12 +106,24 @@ publication coordinates, per-run bound publication state, and a whole-`RunState`
 
 ## Current status
 
-Complete after [Runtime 0014](tasks/0014-runtime-architecture-enforcement.md) resolved
-`ARCHITECTURE-ENFORCEMENT-001`. The current public Runtime
+Complete through [Runtime 0015](tasks/0015-leased-publication-representation-access.md). The
+selected Runtime 0001–0014 closure milestone remains Complete after
+[Runtime 0014](tasks/0014-runtime-architecture-enforcement.md) resolved
+`ARCHITECTURE-ENFORCEMENT-001`, and 0015 completes the separately demonstrated bounded
+Engine-materialization prerequisite. The current public Runtime
 surface now includes immutable `runtime.memory` geometry, nominal `runtime.resource`
 buffer/workspace cleanup roles, the `runtime.run` ownership and one-run lifecycle foundation, the
 `runtime.execution` prepared-recipe/cold-bound-invocation boundary, and the `runtime.schedule`
 creation-plus-execution ordered recipe.
+
+Runtime 0015 adds only result-indexed borrowed representation access to the inward Runtime SPI.
+It does not materialize, transfer, convert, allocate, expose concrete backend storage, or change
+the result's whole-state lease. The returned reference is valid only while the exact result lease
+is open, preserves repeated and alias identity, and does not become an ordinary Engine value.
+CPU 0010G and Engine 0004 are `Complete`, so Runtime has no remaining host-materialization
+prerequisite work. Engine composes the two completed inward seams without changing Runtime: it
+borrows the indexed representation only under the open lease and delegates the concrete copy to
+CPU before returning a detached ordinary value.
 
 Runtime 0003's focused command passed three suites and 20 tests; the single final module command
 passed six suites and 45 tests with no failures, errors, or skips. The separate clean

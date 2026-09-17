@@ -13,6 +13,7 @@ import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.NodeId;
 import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
@@ -265,6 +266,61 @@ class BackendPartitionFinalizationHandoffTest {
                 "entries[0] executable memory plan does not match assigned memory plan",
                 () -> BackendPartitionFinalizationHandoff.finalizePartitions(
                         foreignFixture.partitions, foreignFixture.entries));
+    }
+
+    @Test
+    void appendsProducerlessBuffersWithoutChangingOrdinaryAssignmentsOrWorkspaces() {
+        Fixture fixture = fixture();
+        ProducerlessPublishedConstantResource resource = producerlessResource(90, 37, 32);
+
+        var result = BackendPartitionFinalizationHandoff.finalizePartitions(
+                fixture.partitions, fixture.entries, List.of(resource));
+        BackendPartitionFinalization<FakePlan> first = fixture.firstFinalizer.seen.getFirst();
+        BackendPartitionFinalization<FakePlan> second = fixture.secondFinalizer.seen.getFirst();
+
+        assertAll(
+                () -> assertEquals(4, result.memoryPlan().buffers().size()),
+                () -> assertEquals(2, result.memoryPlan().workspaces().size()),
+                () -> assertEquals(90, result.bufferAssignments().get(3).valueId().value()),
+                () -> assertEquals(3, result.bufferAssignments().get(3).slot().value()),
+                () -> assertEquals(3, result.bufferAssignments().get(3).planIndex()),
+                () -> assertEquals(37, result.memoryPlan().buffers().get(3).byteSize()),
+                () -> assertEquals(32, result.memoryPlan().buffers().get(3).byteAlignment()),
+                () -> assertEquals(3, first.assignments().size()),
+                () -> assertEquals(3, second.assignments().size()),
+                () -> assertEquals(
+                        List.of(0, 1, 2),
+                        result.memoryPlan().buffers().subList(0, 3).stream()
+                                .map(entry -> Math.toIntExact(entry.slot().value()))
+                                .toList()));
+    }
+
+    @Test
+    void rejectsProducerlessOverlapBeforeConstructingAPlanOrCallingFinalizers() {
+        Fixture fixture = fixture();
+        ProducerlessPublishedConstantResource overlap = producerlessResource(0, 1, 1);
+
+        assertFailure(
+                IllegalArgumentException.class,
+                "producerless resource overlaps ordinary buffer declaration: ValueId[value=0]",
+                () -> BackendPartitionFinalizationHandoff.finalizePartitions(
+                        fixture.partitions, fixture.entries, List.of(overlap)));
+        assertTrue(fixture.callOrder.isEmpty());
+    }
+
+    private static ProducerlessPublishedConstantResource producerlessResource(
+            long id, long byteSize, long byteAlignment) {
+        Shape shape = Shape.of(1);
+        TensorDescriptor descriptor = new TensorDescriptor(
+                DataType.FLOAT32,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                false);
+        GraphValue value = new GraphValue(new ValueId(id), descriptor);
+        LogicalMemoryRequirement requirement = new LogicalMemoryRequirement(
+                value.id(), descriptor, Optional.empty(), List.of(), true);
+        return new ProducerlessPublishedConstantResource(
+                value, requirement, byteSize, byteAlignment);
     }
 
     private static Fixture fixture() {

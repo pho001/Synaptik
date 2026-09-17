@@ -24,9 +24,12 @@ import java.util.Objects;
  * Performs the package-internal complete-set assignment and backend-finalization handoff.
  *
  * <p>The operation validates the complete ordered partition set before deriving any assignment,
+ * appends any canonical producerless published-constant declarations after ordinary buffers,
  * constructs every typed finalization before invoking a backend, and then invokes finalizers in
- * partition order. It creates immutable recipe associations only; it performs no physical
- * allocation, per-run binding, execution, scheduling, transfer, or publication.</p>
+ * partition order. Producerless declarations receive shared buffer assignments but no
+ * partition-finalizer assignment. The operation creates immutable recipe associations only; it
+ * performs no physical allocation, initialization, materialization, per-run binding, execution,
+ * scheduling, transfer, or publication.</p>
  */
 final class BackendPartitionFinalizationHandoff {
     private BackendPartitionFinalizationHandoff() {}
@@ -48,8 +51,37 @@ final class BackendPartitionFinalizationHandoff {
     static Result finalizePartitions(
             List<PlannedPartition> partitions,
             List<? extends Entry<?, ?>> entries) {
+        return finalizePartitions(partitions, entries, List.of());
+    }
+
+    /**
+     * Assigns a complete ordered analysis set plus canonical producerless resource contributions
+     * and finalizes partition-owned work against the resulting shared memory plan.
+     *
+     * @param partitions non-null ordered expected partitions; list structure is inspected only
+     *     and caller ownership is unchanged
+     * @param entries non-null ordered partition finalization entries; elements are retained only
+     *     for this synchronous call and caller ownership is unchanged
+     * @param producerlessResources non-null canonical producerless contributions to append after
+     *     all ordinary buffer declarations; elements must be non-null and must not overlap an
+     *     ordinary declaration; supplied geometry is copied unchanged into the immutable memory
+     *     plan and the list is neither retained nor mutated
+     * @return a non-null immutable complete handoff result retaining the exact shared memory-plan
+     *     reference and immutable snapshots of plan-ordered buffer assignments and prepared
+     *     partitions; never {@code null}
+     * @throws NullPointerException if a list or indexed element is null, a finalizer backend
+     *     identity is null, or a finalizer returns null
+     * @throws IllegalArgumentException if ordinary coverage, identity, backend, geometry, or
+     *     executable-plan validation fails, or a contribution overlaps an ordinary buffer
+     *     declaration or another contribution
+     */
+    static Result finalizePartitions(
+            List<PlannedPartition> partitions,
+            List<? extends Entry<?, ?>> entries,
+            List<ProducerlessPublishedConstantResource> producerlessResources) {
         Objects.requireNonNull(partitions, "partitions");
         Objects.requireNonNull(entries, "entries");
+        Objects.requireNonNull(producerlessResources, "producerlessResources");
 
         var observedPartitions = new HashSet<PlannedPartition>();
         for (int index = 0; index < partitions.size(); index++) {
@@ -67,10 +99,26 @@ final class BackendPartitionFinalizationHandoff {
             throw new IllegalArgumentException(
                     "entries size must equal partitions size " + partitions.size());
         }
+        for (int index = 0; index < producerlessResources.size(); index++) {
+            Objects.requireNonNull(
+                    producerlessResources.get(index), "producerlessResources[" + index + "]");
+        }
 
         var firstBufferSources = new LinkedHashMap<ValueId, Source>();
         for (int index = 0; index < entries.size(); index++) {
             validateEntry(index, partitions.get(index), entries.get(index), firstBufferSources);
+        }
+        var producerlessIds = new HashSet<ValueId>();
+        for (int index = 0; index < producerlessResources.size(); index++) {
+            ValueId valueId = producerlessResources.get(index).value().id();
+            if (firstBufferSources.containsKey(valueId)) {
+                throw new IllegalArgumentException(
+                        "producerless resource overlaps ordinary buffer declaration: " + valueId);
+            }
+            if (!producerlessIds.add(valueId)) {
+                throw new IllegalArgumentException(
+                        "producerlessResources[" + index + "] duplicates " + valueId);
+            }
         }
 
         var buffers = new LinkedHashMap<ValueId, BufferAggregate>();
@@ -106,6 +154,15 @@ final class BackendPartitionFinalizationHandoff {
                 }
             }
             assignmentLists.add(List.copyOf(assignments));
+        }
+        for (ProducerlessPublishedConstantResource resource : producerlessResources) {
+            buffers.put(
+                    resource.value().id(),
+                    new BufferAggregate(
+                            new BufferSlot(buffers.size()),
+                            buffers.size(),
+                            resource.byteSize(),
+                            resource.byteAlignment()));
         }
 
         var bufferEntries = new ArrayList<PreparedMemoryPlan.BufferEntry>(buffers.size());

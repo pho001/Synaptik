@@ -1,5 +1,6 @@
 package io.github.pho001.synaptik.compiler;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -19,6 +20,7 @@ import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.GraphPhase;
 import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -271,6 +273,10 @@ final class GraphCompilerTest {
         assertSame(
                 constantArtifacts.graph().inputs().getFirst(),
                 constantArtifacts.constants().constantSources().getFirst().valueId());
+        assertEquals(
+                LayoutDescriptor.contiguous(Shape.of(2)),
+                constantArtifacts.graph().values().getFirst().descriptor()
+                        .layout().orElseThrow());
 
         Tensor target = tensor();
         Tensor objective = target.mul(target).sum();
@@ -294,6 +300,48 @@ final class GraphCompilerTest {
         assertTrue(backwardArtifacts.graph().nodePhases().containsValue(GraphPhase.BACKWARD));
         assertEquals(target.id(),
                 backwardArtifacts.constants().bindableInputBindings().getFirst().tensorId());
+    }
+
+    @Test
+    void closesAbsentUnitSeedGradientAndCompleteLogicalMemoryTruth() {
+        Tensor objectiveAndTarget = scalarTensor();
+        CompileArtifacts artifacts = GraphCompiler.compile(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(objectiveAndTarget),
+                Optional.of(FunctionalGradientTestSupport.request(
+                        objectiveAndTarget, List.of(objectiveAndTarget))),
+                CompileTimeConstantGraph.Ingress.empty(),
+                GraphOptimizationConfig.standard(),
+                BackendIntent.unconstrained(),
+                PartitionScoringConfig.neutral(),
+                List.of(),
+                List.of());
+
+        ValueId gradientValue = artifacts.publication()
+                .gradientBindings().getFirst().valueId();
+        GraphValue gradient = artifacts.graph().values().stream()
+                .filter(value -> value.id().equals(gradientValue))
+                .findFirst()
+                .orElseThrow();
+        var requirement = artifacts.memory().requirements().stream()
+                .filter(candidate -> candidate.valueId().equals(gradientValue))
+                .findFirst()
+                .orElseThrow();
+
+        assertAll(
+                () -> assertTrue(artifacts.graph().inputs().contains(gradientValue)),
+                () -> assertTrue(artifacts.graph().outputs().contains(gradientValue)),
+                () -> assertTrue(artifacts.constants().constantSources().stream()
+                        .anyMatch(source -> source.valueId().equals(gradientValue))),
+                () -> assertEquals(LayoutDescriptor.contiguous(Shape.scalar()),
+                        gradient.descriptor().layout().orElseThrow()),
+                () -> assertTrue(artifacts.graph().nodes().stream()
+                        .noneMatch(node -> node.inputs().contains(gradientValue))),
+                () -> assertTrue(artifacts.partitions().isEmpty()),
+                () -> assertSame(gradient.descriptor(), requirement.descriptor()),
+                () -> assertTrue(requirement.producerPartition().isEmpty()),
+                () -> assertTrue(requirement.consumerPartitions().isEmpty()),
+                () -> assertTrue(requirement.graphOutput()));
     }
 
     @Test

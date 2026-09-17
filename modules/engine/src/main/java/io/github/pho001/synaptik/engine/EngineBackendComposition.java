@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.engine;
 import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
@@ -53,6 +54,32 @@ interface EngineBackendComposition extends AutoCloseable {
      * @throws Error if backend work reports a fatal failure
      */
     BufferRepresentation borrow(HostTensorStorage storage);
+
+    /**
+     * Copies one exact publication representation into detached canonical host bytes.
+     * The synchronous call performs no caching or ownership change. The caller keeps the result
+     * lease open and prevents source mutation or closure until return; implementations add no
+     * atomic-snapshot guarantee for racing mutation.
+     *
+     * @param representation non-null borrowed representation kept open and owned by its result
+     *     lease; not retained, mutated, transferred, or closed by this call
+     * @param descriptor non-null exact fully static resolved publication descriptor
+     * @param maximumBytes non-negative caller limit for the canonical payload
+     * @return fresh non-null caller-owned canonical row-major big-endian bytes
+     * @throws NullPointerException if {@code representation} or {@code descriptor} is null
+     * @throws IllegalArgumentException if the limit, descriptor, representation, carrier,
+     *     capacity, or BOOL encoding is unsupported or inconsistent
+     * @throws IllegalStateException if composition or representation closure has begun or the
+     *     representation is inaccessible to the calling thread
+     * @throws ArithmeticException if checked count or address arithmetic overflows
+     * @throws OutOfMemoryError if the otherwise valid fresh byte array cannot be allocated
+     * @throws RuntimeException if physical copying reports another unchecked failure
+     * @throws Error if copying reports a fatal failure
+     */
+    byte[] copyToCanonicalHostBytes(
+            BufferRepresentation representation,
+            TensorDescriptor descriptor,
+            long maximumBytes);
 
     /**
      * Closes resources owned by this composition after all Engine results have closed.

@@ -4,6 +4,7 @@ import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.prepare.GraphPreparation;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
@@ -37,7 +38,11 @@ final class CpuEngineBackendComposition implements EngineBackendComposition {
         availabilitySnapshots = List.of(integration.availabilitySnapshot());
     }
 
-    /** {@inheritDoc} */
+    /**
+     * Delegates canonical copying to the exact owned CPU integration without changing ownership.
+     *
+     * {@inheritDoc}
+     */
     @Override
     public List<BackendCapabilityProvider> capabilityProviders() {
         return capabilityProviders;
@@ -60,6 +65,15 @@ final class CpuEngineBackendComposition implements EngineBackendComposition {
     @Override
     public BufferRepresentation borrow(HostTensorStorage storage) {
         return integration.borrow(storage);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public byte[] copyToCanonicalHostBytes(
+            BufferRepresentation representation,
+            TensorDescriptor descriptor,
+            long maximumBytes) {
+        return integration.copyToCanonicalHostBytes(representation, descriptor, maximumBytes);
     }
 
     /** {@inheritDoc} */

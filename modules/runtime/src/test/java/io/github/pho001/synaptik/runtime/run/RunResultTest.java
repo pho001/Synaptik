@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -49,9 +50,13 @@ class RunResultTest {
                         Modifier.isPrivate(field.getModifiers())
                                 && Modifier.isFinal(field.getModifiers()))),
                 () -> assertEquals(
-                        List.of("close", "isClosed", "resultCount"),
+                        List.of("close", "isClosed", "publicationRepresentation", "resultCount"),
                         Arrays.stream(type.getDeclaredMethods())
                                 .map(method -> method.getName()).sorted().toList()),
+                () -> assertEquals(
+                        BufferRepresentation.class,
+                        type.getDeclaredMethod("publicationRepresentation", int.class)
+                                .getReturnType()),
                 () -> assertTrue(Arrays.stream(type.getDeclaredMethods())
                         .allMatch(method -> Modifier.isPublic(method.getModifiers()))));
     }
@@ -148,6 +153,69 @@ class RunResultTest {
     }
 
     @Test
+    void returnsExactBorrowedOccurrenceReferencesAndPreservesAliasIdentity() {
+        PreparedMemoryPlan plan = plan(1);
+        TrackingBuffer firstRepresentation = new TrackingBuffer();
+        TrackingBuffer distinctRepresentation = new TrackingBuffer();
+        RunState state = state(
+                plan, owned(firstRepresentation), owned(distinctRepresentation));
+        state.setBufferRepresentationValid(0, 0, true);
+        state.setBufferRepresentationValid(0, 1, true);
+        BoundPublication first = publication(state, 0, 0);
+        BoundPublication alias = publication(state, 0, 1);
+        BoundPublication distinct = publication(state, 1, 2);
+        first.publish();
+        alias.publish();
+        distinct.publish();
+        RunResult result = new RunResult(state, List.of(first, alias, distinct));
+
+        BufferRepresentation observedFirst = result.publicationRepresentation(0);
+        assertAll(
+                () -> assertSame(firstRepresentation, observedFirst),
+                () -> assertSame(observedFirst, result.publicationRepresentation(0)),
+                () -> assertSame(observedFirst, result.publicationRepresentation(1)),
+                () -> assertSame(distinctRepresentation, result.publicationRepresentation(2)),
+                () -> assertNotSame(observedFirst, result.publicationRepresentation(2)),
+                () -> assertEquals(0, firstRepresentation.closeCount),
+                () -> assertEquals(0, distinctRepresentation.closeCount));
+
+        result.close();
+        assertAll(
+                () -> assertEquals(1, firstRepresentation.closeCount),
+                () -> assertEquals(1, distinctRepresentation.closeCount));
+    }
+
+    @Test
+    void representationAccessValidatesOpenStateBeforeEitherIndexBound() {
+        PreparedMemoryPlan plan = plan(1);
+        TrackingBuffer representation = new TrackingBuffer();
+        RunState state = state(plan, borrowed(representation));
+        BoundPublication publication = publication(state, 0);
+        publication.publish();
+        RunResult result = new RunResult(state, List.of(publication));
+
+        assertAll(
+                () -> assertFailure(IndexOutOfBoundsException.class,
+                        "resultIndex out of range: -1",
+                        () -> result.publicationRepresentation(-1)),
+                () -> assertFailure(IndexOutOfBoundsException.class,
+                        "resultIndex out of range: 1",
+                        () -> result.publicationRepresentation(1)));
+
+        result.close();
+        assertAll(
+                () -> assertFailure(IllegalStateException.class, "run state is closed",
+                        () -> result.publicationRepresentation(0)),
+                () -> assertFailure(IllegalStateException.class, "run state is closed",
+                        () -> result.publicationRepresentation(-1)),
+                () -> assertFailure(IllegalStateException.class, "run state is closed",
+                        () -> result.publicationRepresentation(1)),
+                () -> assertEquals(1, result.resultCount()),
+                () -> assertTrue(result.isClosed()),
+                () -> assertEquals(0, representation.closeCount));
+    }
+
+    @Test
     void partialPublicationCannotConstructResultAndStateRemainsRunnerOwned() {
         PreparedMemoryPlan plan = plan(1);
         TrackingBuffer owned = new TrackingBuffer();
@@ -187,7 +255,13 @@ class RunResultTest {
     }
 
     private static BoundPublication publication(RunState state, int resultIndex) {
-        return new PreparedPublication(state.memoryPlan(), 0, 0, resultIndex).bind(state);
+        return publication(state, 0, resultIndex);
+    }
+
+    private static BoundPublication publication(
+            RunState state, int representationIndex, int resultIndex) {
+        return new PreparedPublication(
+                state.memoryPlan(), 0, representationIndex, resultIndex).bind(state);
     }
 
     private static PreparedMemoryPlan plan(int count) {

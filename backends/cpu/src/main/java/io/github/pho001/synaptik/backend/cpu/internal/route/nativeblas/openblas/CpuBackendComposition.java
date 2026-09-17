@@ -6,6 +6,7 @@ import io.github.pho001.synaptik.backend.contract.DeviceClass;
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuConcurrencyBudget;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBorrowedBuffer;
+import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuHostSnapshotExporter;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionFinalizer;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
@@ -13,6 +14,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPreparedSchedul
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.prepare.PartitionPreparation;
 import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
@@ -213,6 +215,39 @@ public final class CpuBackendComposition implements AutoCloseable {
         CpuBorrowedBuffer borrowed = CpuBorrowedBuffer.borrow(storage);
         borrowed.argument();
         return borrowed;
+    }
+
+    /**
+     * Copies one supported CPU publication representation to detached canonical host bytes.
+     *
+     * <p>The delegate reads the representation without retaining, closing, mutating, transferring,
+     * or changing its validity. The caller must keep this composition and the representation's
+     * result lease open, preserve current-thread accessibility, and prevent source mutation or
+     * closure for the synchronous call. Independent valid calls may execute concurrently, but a
+     * racing source mutation has no atomic-snapshot guarantee.</p>
+     *
+     * @param representation non-null exact current CPU publication representation borrowed from
+     *     its open result lease; ownership remains with that result
+     * @param descriptor non-null fully static resolved logical descriptor paired with that exact
+     *     publication occurrence; inspected but not retained or mutated
+     * @param maximumBytes non-negative caller payload limit in bytes
+     * @return fresh non-null caller-owned mutable bytes in canonical row-major logical order and
+     *     fixed big-endian element encoding; never {@code null}
+     * @throws NullPointerException if an object argument is {@code null}
+     * @throws IllegalStateException if this composition or the representation is closed, or the
+     *     representation is inaccessible to the current thread
+     * @throws IllegalArgumentException if the byte limit is negative; the shape is not fully static
+     *     or the layout is unresolved; the result exceeds the limit or JVM array ceiling; the
+     *     representation class, data type, element geometry, carrier, or capacity is incompatible;
+     *     or represented BOOL content is not exactly {@code 0} or {@code 1}
+     * @throws ArithmeticException if checked element-count, byte-count, or address arithmetic
+     *     overflows
+     * @throws OutOfMemoryError if the JVM cannot allocate the otherwise valid result array
+     */
+    public byte[] copyToCanonicalHostBytes(BufferRepresentation representation,
+            TensorDescriptor descriptor, long maximumBytes) {
+        requireOpen();
+        return CpuHostSnapshotExporter.copy(representation, descriptor, maximumBytes);
     }
 
     /**

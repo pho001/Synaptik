@@ -15,12 +15,15 @@ import java.util.Objects;
  * transfer to the caller.</p>
  *
  * <p>The ordinary surface compiles Tensor expressions, prepares immutable reusable recipes, binds
- * logical input Tensors by identity in arbitrary order, and returns metadata-only publication
- * leases. Forward publications retain requested-output identity; gradient publications retain
- * explicit target identity and position even when roles alias inwardly. Host values, implicit
- * targets, and one-shot execution remain outside the current surface. Lifecycle observation and
- * closure are thread-safe and inherit the owned lifecycle's idempotent, failure-retaining
- * semantics.</p>
+ * logical input Tensors by identity in arbitrary order, and returns publication leases whose
+ * exact occurrences can be materialized explicitly as detached immutable host values. A
+ * one-shot compute convenience discovers reachable expression leaves, then performs fresh
+ * compilation, preparation, execution, complete publication and aggregate-byte preflight,
+ * ordered host materialization, and cleanup in one synchronous call. Forward publications retain
+ * requested-output identity; gradient publications
+ * retain explicit target identity and position even when roles alias inwardly. Implicit targets
+ * and backward convenience remain outside the current surface. Lifecycle observation and closure
+ * are thread-safe and inherit the owned lifecycle's idempotent, failure-retaining semantics.</p>
  */
 public final class Engine implements AutoCloseable {
     private final AdvancedEngine delegate;
@@ -134,7 +137,8 @@ public final class Engine implements AutoCloseable {
      *
      * @param preparedExecution non-null prepared handle created by this exact Engine
      * @param inputs non-null list supplying every required logical Tensor exactly once
-     * @return a fresh non-null metadata-only result lease
+     * @return a fresh non-null publication lease supporting metadata access and explicit
+     *     per-occurrence host materialization while open
      * @throws NullPointerException if an argument or input element is {@code null}
      * @throws IllegalArgumentException if ownership, identity, descriptor, storage geometry, or
      *     inward binding is invalid
@@ -145,6 +149,149 @@ public final class Engine implements AutoCloseable {
      */
     public RunResult run(PreparedExecution preparedExecution, List<Tensor> inputs) {
         return delegate.runOrdinary(this, preparedExecution, inputs);
+    }
+
+    /**
+     * Computes one forward output without an aggregate caller byte limit.
+     *
+     * <p>This overload delegates to {@link #compute(Tensor, long)} with
+     * {@link Long#MAX_VALUE}. Checked aggregate arithmetic, the per-value JVM array ceiling, and
+     * all descriptor, storage, and inward execution constraints still apply.</p>
+     *
+     * @param output non-null forward output Tensor
+     * @return a fresh non-null detached immutable host value
+     * @throws NullPointerException if {@code output} is null
+     * @throws IllegalArgumentException if output metadata is invalid, a payload exceeds the JVM
+     *     array ceiling, or an inward compile, prepare, binding, or CPU validation rejects the
+     *     request
+     * @throws IllegalStateException if Engine closure has begun, reachable Tensor identity is
+     *     inconsistent, an authoritative compiled input has no reachable leaf, selected caller
+     *     storage is absent, dead, or inaccessible, or result metadata is inconsistent
+     * @throws ArithmeticException if checked logical byte-count arithmetic overflows
+     * @throws RuntimeException if inward execution, copying, or cleanup reports another unchecked
+     *     failure
+     * @throws Error if inward work, allocation, copying, or cleanup reports a fatal failure
+     */
+    public HostTensorValue compute(Tensor output) {
+        return compute(output, Long.MAX_VALUE);
+    }
+
+    /**
+     * Computes one forward output through a fresh complete CPU-only lifecycle and returns its
+     * detached canonical host value.
+     *
+     * <p>This is the singleton specialization of the ordered-output overload. One Engine
+     * admission spans argument validation, transient iterative discovery of provenance-free
+     * leaves, compilation, Compiler-authoritative input selection, preparation, logical input
+     * binding, execution, complete publication and aggregate-size preflight, copying, and
+     * temporary-result cleanup. Discovery follows immutable Tensor provenance by exact object
+     * identity; final {@link CompiledGraph#inputs()} metadata alone determines which discovered
+     * leaves are bound and in what order. No Tensor or provenance state is retained after the
+     * synchronous call. The call does not cache or reuse a compiled or prepared recipe; callers
+     * performing repeated runs or selective materialization should use {@link #compile(List)},
+     * {@link #prepare(CompiledGraph)}, {@link #run(PreparedExecution, List)}, and
+     * {@link RunResult#materialize}.</p>
+     *
+     * <p>The byte limit covers only the returned canonical payload, not inputs, intermediate or
+     * peak memory, recipes, object overhead, or backend workspace. The caller retains ownership
+     * of selected leaf host storage and must keep it live, accessible, and free from conflicting
+     * mutation through synchronous completion. Storage of an unselected discovered leaf is not
+     * inspected. The returned value is immutable, owns no closeable
+     * resource, and remains readable after this Engine closes. On failure, no value is returned;
+     * temporary-result cleanup still runs, and a distinct cleanup failure is suppressed on the
+     * primary failure.</p>
+     *
+     * @param output non-null forward output Tensor
+     * @param maximumTotalBytes non-negative aggregate upper bound, in bytes, for the returned
+     *     canonical payload
+     * @return a fresh non-null detached immutable host value
+     * @throws NullPointerException if {@code output} is null
+     * @throws IllegalArgumentException if the byte limit is negative, logical binding or output
+     *     metadata is invalid, the payload exceeds the limit or JVM array ceiling, or an inward
+     *     compile, prepare, binding, or CPU validation rejects the request
+     * @throws IllegalStateException if Engine closure has begun, reachable Tensor identity is
+     *     inconsistent, an authoritative compiled input has no reachable leaf, selected caller
+     *     storage is absent, dead, or inaccessible, or result metadata is inconsistent
+     * @throws ArithmeticException if checked logical byte-count arithmetic overflows
+     * @throws RuntimeException if inward execution, copying, or cleanup reports another unchecked
+     *     failure
+     * @throws Error if inward work, allocation, copying, or cleanup reports a fatal failure
+     */
+    public HostTensorValue compute(Tensor output, long maximumTotalBytes) {
+        return delegate.computeOrdinary(this, output, maximumTotalBytes);
+    }
+
+    /**
+     * Computes an ordered non-empty forward boundary without an aggregate caller byte limit.
+     *
+     * <p>This overload delegates to {@link #compute(List, long)} with
+     * {@link Long#MAX_VALUE}. Checked aggregate arithmetic, each value's JVM array ceiling, and all
+     * descriptor, storage, and inward execution constraints still apply.</p>
+     *
+     * @param outputs non-null non-empty ordered list of non-null identity-unique output Tensors;
+     *     the container is snapshotted and not retained or mutated
+     * @return a fresh non-null immutable ordered list of detached immutable host values
+     * @throws NullPointerException if {@code outputs} or an output element is null
+     * @throws IllegalArgumentException if outputs are empty or repeat an exact Tensor, output
+     *     metadata is invalid, an individual payload exceeds the JVM array ceiling, or inward
+     *     validation rejects the request
+     * @throws IllegalStateException if Engine closure has begun, reachable Tensor identity is
+     *     inconsistent, an authoritative compiled input has no reachable leaf, selected caller
+     *     storage is absent, dead, or inaccessible, or result metadata is inconsistent
+     * @throws ArithmeticException if checked logical or aggregate byte-count arithmetic overflows
+     * @throws RuntimeException if inward compilation, preparation, execution, copying, or cleanup
+     *     reports another unchecked failure
+     * @throws Error if inward work, allocation, copying, or cleanup reports a fatal failure
+     */
+    public List<HostTensorValue> compute(List<Tensor> outputs) {
+        return compute(outputs, Long.MAX_VALUE);
+    }
+
+    /**
+     * Computes an ordered non-empty forward boundary through one fresh complete CPU-only
+     * lifecycle and returns detached canonical host values in exact requested publication order.
+     *
+     * <p>One Engine admission spans argument validation, one transient identity-safe inventory of
+     * reachable provenance-free leaves, one compilation, Compiler-authoritative ordered input
+     * selection, one preparation, one run, complete
+     * aggregate-size preflight before any physical copy, one copy per forward occurrence, and
+     * temporary-result cleanup. Inventory traversal is iterative and carries no liveness or input
+     * ordering meaning; {@link CompiledGraph#inputs()} supplies both final membership and order.
+     * Unselected leaves are ignored without storage access, and no Tensor or provenance reference
+     * escapes the call. The returned list and values are immutable and lifecycle-independent.
+     * Distinct occurrences are copied independently even if they alias an inward representation.
+     * No compilation, preparation, result, Tensor-inventory, or byte cache is created. A
+     * failure returns no partial list; temporary-result cleanup still runs, and a distinct cleanup
+     * failure is suppressed on the primary failure.</p>
+     *
+     * <p>The aggregate byte limit covers only the sum of canonical returned payload lengths, not
+     * inputs, Runtime buffers or workspaces, recipes, object overhead, defensive copies, peak
+     * memory, or other allocation. Selected leaf storage remains caller-owned and must stay live,
+     * accessible, and free from conflicting mutation through synchronous completion. Current
+     * execution and host copying use the fixed CPU-only composition and require supported fully
+     * static outputs with resolved final layouts.</p>
+     *
+     * @param outputs non-null non-empty ordered list of non-null identity-unique output Tensors;
+     *     the container is snapshotted and not retained or mutated
+     * @param maximumTotalBytes non-negative aggregate upper bound, in bytes, for the sum of all
+     *     returned canonical payloads
+     * @return a fresh non-null immutable ordered list of detached immutable host values
+     * @throws NullPointerException if {@code outputs} or an output element is null
+     * @throws IllegalArgumentException if outputs are empty or repeat an exact Tensor, the byte
+     *     limit is negative, logical binding or output metadata is invalid, the aggregate exceeds
+     *     the limit, an individual payload exceeds the JVM array ceiling, or inward validation
+     *     rejects the request
+     * @throws IllegalStateException if Engine closure has begun, reachable Tensor identity is
+     *     inconsistent, an authoritative compiled input has no reachable leaf, selected caller
+     *     storage is absent, dead, or inaccessible, or result metadata is inconsistent
+     * @throws ArithmeticException if checked logical or aggregate byte-count arithmetic overflows
+     * @throws RuntimeException if inward compilation, preparation, execution, copying, or cleanup
+     *     reports another unchecked failure
+     * @throws Error if inward work, allocation, copying, or cleanup reports a fatal failure
+     */
+    public List<HostTensorValue> compute(
+            List<Tensor> outputs, long maximumTotalBytes) {
+        return delegate.computeOrdinary(this, outputs, maximumTotalBytes);
     }
 
     /**

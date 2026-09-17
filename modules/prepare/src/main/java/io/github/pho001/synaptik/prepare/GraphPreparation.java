@@ -54,24 +54,72 @@ public final class GraphPreparation {
     /**
      * Prepares one complete immutable compiled graph with explicit positional collaborators.
      *
-     * @param artifacts exact non-null compile artifacts to prepare
+     * <p>This source-compatible form contributes an empty producerless-resource list. It is
+     * therefore suitable for ordinary partition-connected graphs and continues to fail closed
+     * when the artifacts require a producerless published-constant assignment.</p>
+     *
+     * @param artifacts exact non-null immutable compile artifacts to inspect and retain through
+     *     the returned recipe; ownership is not transferred
      * @param preparations non-null positional preparation list, exactly one per compile
-     *     partition; membership is snapshotted before backend work
+     *     partition; list structure is snapshotted before backend work, elements are retained by
+     *     identity for the synchronous call, and caller ownership is unchanged
      * @param scheduleAssembler exact non-null synchronous immutable recipe assembler, invoked
-     *     once only after every finalizer succeeds and never retained
+     *     once only after every finalizer succeeds and never retained; caller ownership is
+     *     unchanged
      * @return one non-null immutable reusable prepared execution retaining the exact assigned
      *     memory plan and validated schedule
-     * @throws NullPointerException if a top-level input, preparation element, backend analysis,
-     *     or assembled schedule is null
-     * @throws IllegalArgumentException if positional coverage, projected analysis identity,
-     *     finalized associations, or schedule structure is inconsistent
+     * @throws NullPointerException if a top-level input or indexed preparation element is null,
+     *     or if a backend or assembler returns null
+     * @throws IllegalArgumentException if positional coverage, required producerless-resource
+     *     coverage, projected analysis identity, finalized associations, or schedule structure
+     *     is inconsistent
      */
     public static PreparedExecution prepare(
             CompileArtifacts artifacts,
             List<? extends PartitionPreparation<?, ?>> preparations,
             PreparedScheduleAssembler scheduleAssembler) {
+        return prepare(artifacts, preparations, List.of(), scheduleAssembler);
+    }
+
+    /**
+     * Prepares one complete immutable compiled graph with explicit positional collaborators and
+     * physical declarations for every required producerless published constant.
+     *
+     * <p>The call is synchronous and stateless. It validates and snapshots both supplied lists
+     * before backend-visible work. Valid producerless contributions remain outside every
+     * partition-local context and finalizer assignment; shared assignment appends them in final
+     * graph-value encounter order. The call creates immutable recipes only and performs no
+     * physical allocation, representation initialization, materialization, execution,
+     * publication, or ownership transfer.</p>
+     *
+     * @param artifacts exact non-null immutable compile artifacts to inspect and retain through
+     *     the returned recipe; ownership is not transferred
+     * @param preparations non-null positional preparation list, exactly one per compile
+     *     partition; list structure is snapshotted before backend work, elements are retained by
+     *     identity for the synchronous call, and caller ownership is unchanged
+     * @param producerlessResources non-null complete contribution list for source-only published
+     *     constants; elements are validated in caller order, snapshotted, and canonicalized by
+     *     final graph-value encounter order before backend work; contribution objects and their
+     *     exact graph/logical references are retained without ownership transfer
+     * @param scheduleAssembler exact non-null synchronous immutable recipe assembler, invoked
+     *     once only after every finalizer succeeds and never retained; caller ownership is
+     *     unchanged
+     * @return one non-null immutable reusable prepared execution retaining the exact assigned
+     *     memory plan and validated schedule
+     * @throws NullPointerException if a top-level input or indexed list element is null, or if a
+     *     backend or assembler returns null
+     * @throws IllegalArgumentException if positional coverage, producerless-resource coverage or
+     *     identity, projected analysis identity, finalized associations, or schedule structure
+     *     is inconsistent
+     */
+    public static PreparedExecution prepare(
+            CompileArtifacts artifacts,
+            List<? extends PartitionPreparation<?, ?>> preparations,
+            List<ProducerlessPublishedConstantResource> producerlessResources,
+            PreparedScheduleAssembler scheduleAssembler) {
         Objects.requireNonNull(artifacts, "artifacts");
         Objects.requireNonNull(preparations, "preparations");
+        Objects.requireNonNull(producerlessResources, "producerlessResources");
         Objects.requireNonNull(scheduleAssembler, "scheduleAssembler");
 
         for (int index = 0; index < preparations.size(); index++) {
@@ -83,6 +131,9 @@ public final class GraphPreparation {
                     "preparations size must equal compile partition count "
                             + artifacts.partitions().size());
         }
+
+        List<ProducerlessPublishedConstantResource> canonicalProducerlessResources =
+                validateProducerlessResources(artifacts, producerlessResources);
 
         Projection projection = new Projection(artifacts);
         var invocations = new ArrayList<AnalysisInvocation>(preparations.size());
@@ -103,7 +154,7 @@ public final class GraphPreparation {
 
         BackendPartitionFinalizationHandoff.Result handoff =
                 BackendPartitionFinalizationHandoff.finalizePartitions(
-                        artifacts.partitions(), entries);
+                        artifacts.partitions(), entries, canonicalProducerlessResources);
         PreparedScheduleContext context = new PreparedScheduleContext(
                 artifacts,
                 handoff.memoryPlan(),
@@ -113,6 +164,99 @@ public final class GraphPreparation {
                 scheduleAssembler.assemble(context), "scheduleAssembler returned null");
         validateSchedule(context, schedule);
         return new PreparedExecution(handoff.memoryPlan(), schedule);
+    }
+
+    private static List<ProducerlessPublishedConstantResource> validateProducerlessResources(
+            CompileArtifacts artifacts,
+            List<ProducerlessPublishedConstantResource> producerlessResources) {
+        var supplied = new ArrayList<ProducerlessPublishedConstantResource>(
+                producerlessResources.size());
+        for (int index = 0; index < producerlessResources.size(); index++) {
+            supplied.add(Objects.requireNonNull(
+                    producerlessResources.get(index),
+                    "producerlessResources[" + index + "]"));
+        }
+        supplied = new ArrayList<>(List.copyOf(supplied));
+
+        var graphValues = new LinkedHashMap<ValueId, GraphValue>();
+        for (GraphValue value : artifacts.graph().values()) {
+            graphValues.put(value.id(), value);
+        }
+        var logicalRequirements = new LinkedHashMap<ValueId, LogicalMemoryRequirement>();
+        for (LogicalMemoryRequirement requirement : artifacts.memory().requirements()) {
+            logicalRequirements.put(requirement.valueId(), requirement);
+        }
+
+        Set<ValueId> graphInputs = new HashSet<>(artifacts.graph().inputs());
+        Set<ValueId> graphOutputs = new HashSet<>(artifacts.graph().outputs());
+        Set<ValueId> constantSources = new HashSet<>();
+        for (CompileConstantPlan.ConstantSource source : artifacts.constants().constantSources()) {
+            constantSources.add(source.valueId());
+        }
+        Set<ValueId> consumedValues = new HashSet<>();
+        for (CompiledNode node : artifacts.graph().nodes()) {
+            consumedValues.addAll(node.inputs());
+        }
+
+        var required = new LinkedHashMap<ValueId, GraphValue>();
+        for (GraphValue value : artifacts.graph().values()) {
+            LogicalMemoryRequirement requirement = logicalRequirements.get(value.id());
+            if (graphInputs.contains(value.id())
+                    && graphOutputs.contains(value.id())
+                    && constantSources.contains(value.id())
+                    && !consumedValues.contains(value.id())
+                    && requirement.producerPartition().isEmpty()
+                    && requirement.consumerPartitions().isEmpty()
+                    && requirement.graphOutput()
+                    && value.descriptor().shape().isFullyStatic()
+                    && value.descriptor().layout().isPresent()) {
+                required.put(value.id(), value);
+            }
+        }
+
+        var contributions = new HashMap<ValueId, ProducerlessPublishedConstantResource>();
+        for (int index = 0; index < supplied.size(); index++) {
+            ProducerlessPublishedConstantResource resource = supplied.get(index);
+            ValueId valueId = resource.value().id();
+            if (graphValues.get(valueId) != resource.value()) {
+                throw new IllegalArgumentException(
+                        "producerlessResources[" + index
+                                + "] value reference does not match artifacts graph value: "
+                                + valueId);
+            }
+            if (logicalRequirements.get(valueId) != resource.logicalRequirement()) {
+                throw new IllegalArgumentException(
+                        "producerlessResources[" + index
+                                + "] logical requirement reference does not match artifacts memory requirement: "
+                                + valueId);
+            }
+            if (contributions.putIfAbsent(valueId, resource) != null) {
+                throw new IllegalArgumentException(
+                        "producerlessResources[" + index + "] duplicates " + valueId);
+            }
+            if (!required.containsKey(valueId)) {
+                throw new IllegalArgumentException(
+                        "producerlessResources[" + index
+                                + "] is not a required producerless published constant: "
+                                + valueId);
+            }
+        }
+
+        var canonical = new ArrayList<ProducerlessPublishedConstantResource>(required.size());
+        for (ValueId valueId : required.keySet()) {
+            ProducerlessPublishedConstantResource resource = contributions.get(valueId);
+            if (resource == null) {
+                throw new IllegalArgumentException(
+                        "producerlessResources has no contribution for required " + valueId);
+            }
+            canonical.add(resource);
+        }
+        if (!canonical.isEmpty()
+                && artifacts.partitions().stream().noneMatch(partition -> !partition.nodeIds().isEmpty())) {
+            throw new IllegalArgumentException(
+                    "producerless resources require at least one non-empty planned partition");
+        }
+        return List.copyOf(canonical);
     }
 
     /**

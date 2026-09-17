@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.engine.CompiledGraph;
 import io.github.pho001.synaptik.engine.Engine;
+import io.github.pho001.synaptik.engine.HostTensorValue;
 import io.github.pho001.synaptik.engine.PreparedExecution;
 import io.github.pho001.synaptik.engine.RunResult;
 import io.github.pho001.synaptik.model.tensor.Tensor;
@@ -22,7 +23,7 @@ final class EngineTypedPublicShapeTest {
     @Test
     void exposesOnlyTheSpecifiedOrdinaryLifecycleAndMetadata() throws Exception {
         for (Class<?> type : List.of(Engine.class, CompiledGraph.class, PreparedExecution.class,
-                RunResult.class, RunResult.Publication.class)) {
+                RunResult.class, HostTensorValue.class, RunResult.Publication.class)) {
             assertTrue(Modifier.isPublic(type.getModifiers()));
             assertTrue(Modifier.isFinal(type.getModifiers()));
         }
@@ -33,12 +34,14 @@ final class EngineTypedPublicShapeTest {
                 CompiledGraph.Input.class.getRecordComponents()).map(component -> component.getType())
                 .toList());
 
-        assertEquals(List.of("close", "compile", "compile", "isClosed", "prepare", "run",
-                "standard"), methodNames(Engine.class));
+        assertEquals(List.of("close", "compile", "compile", "compute", "compute", "compute",
+                "compute", "isClosed", "prepare", "run", "standard"), methodNames(Engine.class));
         assertEquals(List.of("inputs"), methodNames(CompiledGraph.class));
         assertEquals(List.of("compiledGraph"), methodNames(PreparedExecution.class));
-        assertEquals(List.of("close", "isClosed", "publications", "resultCount"),
+        assertEquals(List.of("close", "isClosed", "materialize", "publications", "resultCount"),
                 methodNames(RunResult.class));
+        assertEquals(List.of("byteSize", "bytes", "dataType", "elementCount", "shape"),
+                methodNames(HostTensorValue.class));
         assertEquals(List.of("derivativeOrder", "descriptor", "index", "isClosed", "role",
                 "targetIndex", "tensorId"), methodNames(RunResult.Publication.class));
         assertEquals(List.of("FORWARD", "GRADIENT"),
@@ -52,19 +55,39 @@ final class EngineTypedPublicShapeTest {
                 Engine.class.getMethod("prepare", CompiledGraph.class).getReturnType());
         assertEquals(RunResult.class,
                 Engine.class.getMethod("run", PreparedExecution.class, List.class).getReturnType());
+        assertEquals(HostTensorValue.class,
+                Engine.class.getMethod("compute", Tensor.class).getReturnType());
+        assertEquals(HostTensorValue.class,
+                Engine.class.getMethod("compute", Tensor.class, long.class).getReturnType());
+        var orderedCompute = Engine.class.getMethod("compute", List.class);
+        assertEquals(List.class, orderedCompute.getReturnType());
+        assertEquals("java.util.List<io.github.pho001.synaptik.engine.HostTensorValue>",
+                orderedCompute.getGenericReturnType().getTypeName());
+        var boundedOrderedCompute = Engine.class.getMethod("compute", List.class, long.class);
+        assertEquals(List.class, boundedOrderedCompute.getReturnType());
+        assertEquals("java.util.List<io.github.pho001.synaptik.engine.HostTensorValue>",
+                boundedOrderedCompute.getGenericReturnType().getTypeName());
+        org.junit.jupiter.api.Assertions.assertThrows(NoSuchMethodException.class,
+                () -> Engine.class.getMethod("forward", Tensor.class, List.class, long.class));
+        org.junit.jupiter.api.Assertions.assertThrows(NoSuchMethodException.class,
+                () -> Engine.class.getMethod("forward", List.class, List.class, long.class));
+        assertEquals(HostTensorValue.class,
+                RunResult.class.getMethod("materialize", RunResult.Publication.class, long.class)
+                        .getReturnType());
         assertEquals(OptionalInt.class,
                 RunResult.Publication.class.getMethod("derivativeOrder").getReturnType());
         assertEquals(OptionalInt.class,
                 RunResult.Publication.class.getMethod("targetIndex").getReturnType());
 
         for (Class<?> type : List.of(CompiledGraph.class, PreparedExecution.class, RunResult.class,
-                RunResult.Publication.class)) {
+                HostTensorValue.class, RunResult.Publication.class)) {
             assertEquals(0, Arrays.stream(type.getDeclaredConstructors())
                     .filter(constructor -> Modifier.isPublic(constructor.getModifiers())
                             || Modifier.isProtected(constructor.getModifiers())).count());
         }
         for (Class<?> type : List.of(Engine.class, CompiledGraph.class, PreparedExecution.class,
-                RunResult.class, RunResult.Publication.class, CompiledGraph.Input.class)) {
+                RunResult.class, HostTensorValue.class, RunResult.Publication.class,
+                CompiledGraph.Input.class)) {
             Arrays.stream(type.getDeclaredMethods()).filter(method -> Modifier.isPublic(
                     method.getModifiers())).forEach(method -> assertOrdinary(method.toGenericString()));
             Arrays.stream(type.getDeclaredFields()).filter(field -> Modifier.isPublic(
@@ -73,6 +96,13 @@ final class EngineTypedPublicShapeTest {
         }
         assertFalse(AutoCloseable.class.isAssignableFrom(CompiledGraph.class));
         assertFalse(AutoCloseable.class.isAssignableFrom(PreparedExecution.class));
+        assertFalse(AutoCloseable.class.isAssignableFrom(HostTensorValue.class));
+        assertEquals(1, HostTensorValue.class.getDeclaredConstructors().length);
+        var hostConstructor = HostTensorValue.class.getDeclaredConstructors()[0];
+        assertEquals(0, hostConstructor.getModifiers());
+        assertEquals(List.of(io.github.pho001.synaptik.model.datatype.DataType.class,
+                        io.github.pho001.synaptik.model.shape.Shape.class, byte[].class),
+                Arrays.asList(hostConstructor.getParameterTypes()));
     }
 
     @Test

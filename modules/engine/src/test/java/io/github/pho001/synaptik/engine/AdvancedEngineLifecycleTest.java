@@ -261,6 +261,12 @@ final class AdvancedEngineLifecycleTest {
         @Override public BufferRepresentation borrow(HostTensorStorage storage) {
             throw new AssertionError("unexpected borrow");
         }
+        @Override public byte[] copyToCanonicalHostBytes(
+                BufferRepresentation representation,
+                TensorDescriptor descriptor,
+                long maximumBytes) {
+            throw new AssertionError("unexpected copy");
+        }
         @Override public void close() {
             closeCount.incrementAndGet();
             if (closeOrder != null) closeOrder.add("backend");

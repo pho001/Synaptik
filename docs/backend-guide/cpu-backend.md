@@ -281,6 +281,92 @@ read-only or writable storage and transfers no ownership. Because the call has n
 binding, it cannot validate the target tensor type, required span, or write role. Typed logical
 binding and the simpler end-user execute/result surface remain at the Engine frontier.
 
+### Canonical caller-owned host snapshots
+
+`copyToCanonicalHostBytes(representation, descriptor, maximumBytes)` is the supported cold
+Engine-facing CPU service-provider interface (SPI) for copying one published CPU representation.
+It is not an ordinary application API. A composition caller must obtain the borrowed
+`BufferRepresentation` from an open Runtime `RunResult` and pair it with the exact final
+`TensorDescriptor` for that same publication occurrence.
+
+```text
+open Runtime result lease
+  -> borrow one publication representation by occurrence
+  -> pair it with that occurrence's final resolved descriptor
+  -> CPU validates and copies logical elements synchronously
+  -> fresh caller-owned canonical byte[]
+```
+
+The diagram separates ownership from copying: Runtime continues to own the representation lease,
+CPU owns physical compatibility and access, and the caller owns only the returned array. The copy
+does not retain, close, mutate, transfer, or change validity of the representation. Completed
+Engine task 0004 now owns ordinary publication selection, synchronization against result closure,
+and the immutable `HostTensorValue` wrapper; it delegates this exact CPU copy while the Runtime
+lease remains open.
+
+The descriptor must have a fully static Shape and a present resolved `LayoutDescriptor`. CPU uses
+the descriptor's non-negative element offset and its positive or zero element strides exactly. It
+visits logical coordinates in row-major order, so the final axis changes fastest. Rank zero reads
+the element at the layout offset. Any zero extent makes the logical result empty and causes no
+source-element access. A zero stride is a supported broadcast read: repeated logical occurrences
+may read the same physical address and appear repeatedly in the dense result. Negative strides
+cannot be constructed by the current Model layout contract.
+
+Source `MemorySegment` values use the matching unaligned Java primitive layout in native byte
+order, as CPU kernels do. Canonical destination bytes are always big-endian and have this exact
+meaning:
+
+| Data type | Bytes | Canonical representation |
+|---|---:|---|
+| `FLOAT64` | 8 | Raw `double` bits, including NaN payload/sign, infinities, and signed zero |
+| `FLOAT32` | 4 | Raw `float` bits, including NaN payload/sign, infinities, and signed zero |
+| `BFLOAT16` | 2 | Exact stored 16-bit payload; no widening, rounding, or NaN conversion |
+| `INT64` | 8 | Two's-complement 64-bit pattern |
+| `INT32` | 4 | Two's-complement 32-bit pattern |
+| `BOOL` | 1 | Exact byte `0` or `1`; every other byte fails rather than being normalized |
+
+#### Layout and encoding example
+
+Goal: show that source layout and source byte order do not determine result order or encoding.
+Assume an open CPU representation contains `INT32` elements `[10, 11, 12, 13, 14, 15, 16, 17]`
+in CPU-native storage. Pair it with Shape `[2, 2]`, element offset `1`, and strides `[3, 2]`.
+
+The logical coordinates select physical indices in this order:
+
+```text
+[0, 0] -> 1 -> 11
+[0, 1] -> 3 -> 13
+[1, 0] -> 4 -> 14
+[1, 1] -> 6 -> 16
+```
+
+With `maximumBytes` at least `16`, the result is a fresh 16-byte array containing the four values
+in that logical order, each encoded big-endian. On every platform its hexadecimal bytes are:
+
+```text
+00 00 00 0b  00 00 00 0d  00 00 00 0e  00 00 00 10
+```
+
+This proves row-major logical traversal, offset/stride interpretation, and fixed external byte
+order. Ordinary Engine materialization now composes this exact CPU behavior, but this example does
+not prove cross-backend export, automatic transfer, streaming, conversion, or a general
+backend-neutral byte contract.
+
+The operation first rejects a closed integration, then null arguments, a negative byte limit,
+non-static Shape, unresolved layout, checked count overflow, a result above the caller limit or
+the `Integer.MAX_VALUE` JVM array ceiling, an unsupported concrete representation, closed or
+current-thread-inaccessible storage, data-type or element-geometry disagreement, an incompatible
+carrier, insufficient referenced span, and a non-canonical BOOL byte as encountered. A genuine
+allocation failure may still surface as `OutOfMemoryError`. Checked element-count, byte-count,
+source-address, and destination-address overflow remains `ArithmeticException`.
+
+The call is synchronous and returns no partially observable array on failure. The integration
+owner and Runtime result lease must remain open for the complete call; storage must remain
+accessible to the calling thread and free from mutation or closure. Independent calls over valid
+representations may run concurrently because the exporter has no shared mutable state. One call
+adds no lock around the source, so concurrent mutation has no atomic-snapshot guarantee and racing
+closure or access may expose the original CPU or JDK failure.
+
 The adapter and immutable recipes may be reused concurrently, but each active run requires its
 own Runtime state. Keep the adapter open for every preparation and run that uses its recipes.
 Closing it rejects new access, quiesces admitted native calls, restores provider thread state, and
@@ -3555,6 +3641,8 @@ invocation completed without a reported failure. It does not establish particula
 | Two Java handles appear to have independent thread counts | Both may refer to the same loaded binary and mutable library/process state. | Conservatively coordinate their thread mutations together; do not infer sharing across independent copies or namespaces. |
 | A temporary thread setting remains after the Java owner closes | The provider owns only local lookup lifetime and does not retain or restore a prior value. | Capture a positive count, exclude competing native work, and restore explicitly through a still-open owner. |
 | Application code treats `CpuBackendIntegration` as the end-user execution API | A cross-module SPI was confused with the future Engine facade. | Let Engine own composition, typed logical binding, execution convenience, and result access; keep the adapter behind that boundary. |
+| A caller copies raw CPU storage bytes or assumes native byte order is portable | Physical layout/encoding was confused with the canonical logical snapshot contract. | Use the supported CPU integration copy with the exact publication descriptor and an explicit byte limit; interpret its result as row-major big-endian bytes. |
+| A caller closes or mutates a result representation while copying it | The fresh destination was mistaken for a lock or an extension of the source lease. | Keep the Runtime result and integration open and prevent source mutation or closure until the synchronous copy returns. |
 | A valid pass-through or mixed graph is expected to prepare through the CPU assembler | The adapter's exact one-partition complete-schedule domain was overlooked. | Use one non-empty all-CPU maximal partition today; leave pass-through publication and mixed-backend schedule composition to their future Prepare/Engine owners. |
 
 ## Toolchain and resources

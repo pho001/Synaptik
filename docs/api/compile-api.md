@@ -73,9 +73,16 @@ and compile does not read `Tensor.hostStorage()`.
 
 The ordinary handle deliberately exposes no `CompileArtifacts`, graph-local `ValueId`, partition,
 diagnostic, or advanced handle. It is not closeable. Its metadata remains readable after Engine
-closure, although the closed Engine rejects preparation and all other new work. Engine task 0004
-owns host materialization, while tasks 0005–0006 own one-shot forward and scalar-objective
-backward convenience.
+closure, although the closed Engine rejects preparation and all other new work. Completed Engine
+task 0004 adds materialization at the later run-result boundary without changing compilation.
+Completed task 0005A replaces task 0005's explicit-input one-shot methods with four ordinary
+`compute(...)` overloads. Each transiently inventories reachable provenance-free Model Tensor
+leaves, invokes this same fixed forward-only compilation afresh, and uses final
+`CompiledGraph.inputs()` metadata as the sole input-membership and ordering authority before
+prepare, run, complete publication/aggregate-byte preflight, ordered materialization, and cleanup.
+This is Model expression-provenance traversal, not Compiler IR traversal or Engine liveness
+reconstruction. It adds no compile cache, reusable hidden handle, new compile option, or Compiler
+API. Task 0006 owns later scalar-objective backward convenience.
 
 `AdvancedEngine.compile(...)` is the current public consumer of `GraphCompilationPort`. It
 requires a non-empty ordered output list and receives `BackendIntent`, `CompileMode`,
@@ -311,6 +318,30 @@ complete compiler entry transports the exact immutable facts into `CompileConsta
 only derived bindable inputs and exact logical-splat sources. Planning sees the unchanged logical
 graph. Future prepare/backend work owns physical splat materialization, storage allocation,
 lowering, and execution.
+
+After this final optimization has fixed the surviving topology, Compiler closes one narrower
+descriptor case before deriving forward or gradient bindings, publication, backend ownership,
+partitions, or logical memory. A final graph value receives the canonical contiguous logical
+layout for its fully static Shape only when it is all of the following: a graph input, an explicit
+compile-time splat, a graph output, absent from every final node input, and still layout-
+unresolved. This is a source-only published compile-time constant. Dynamic Shapes, consumed or
+unpublished constants, caller-bindable inputs, produced values, non-constants, and values with an
+already resolved layout are unchanged.
+
+The closure preserves the value's data type, Shape, gradient eligibility, `ValueId`, splat, and
+publication role. It also preserves graph and boundary order, exact node references, phases,
+deferred constraints, bindable Tensor identities, and derivative-order metadata. Scalars receive
+the Model's rank-zero span-one contiguous layout; static Shapes with a zero extent receive the
+same canonical layout factory's span-zero result; all other eligible static Shapes receive its
+checked row-major geometry. Overflow while deriving canonical strides or referenced span rejects
+compilation with the affected `ValueId` and the arithmetic failure as the cause.
+
+This closure is logical descriptor completion only. It creates no node, partition, byte or
+alignment declaration, slot, representation, initialized value, backend choice, caller binding,
+or executable publication. Planning therefore still reports a source-only published value as
+graph-output-required with no producer or consumer partition. The value is not yet preparable or
+executable: Prepare 0005 and CPU 0010H remain the downstream owners of resource handoff and
+physical materialization.
 
 ### Current package-private pre-capture autograd
 
@@ -1878,7 +1909,7 @@ CompiledGraph graph = engine.compile(List.of(output));
   explicit-state training-dropout construction with public output and next-state results and one
   non-public producer mask slot,
   are implemented;
-  additional ordinary compile options and host result values,
+  additional ordinary compile options,
   saved-statistic construction and gradient construction outside the closed support table above,
   optional
   softmax, layer-normalization, RMS-normalization, attention, or activation decomposition,
@@ -1963,8 +1994,9 @@ validate its bounded forward-only or combined first-order graph, query explicitl
 providers, select backend ownership, derive partitions and logical memory, and return
 `CompileArtifacts`. `AdvancedEngine` uses that port but keeps the artifacts opaque. The ordinary
 `Engine.standard()` facade also keeps artifacts opaque while providing its fixed forward-only and
-explicitly seeded first-order compile overloads; typed binding and metadata-only results continue
-through the [Runtime API](runtime-api.md#current-ordinary-engine-boundary).
+explicitly seeded first-order compile overloads; typed binding, publication metadata, and explicit
+detached host materialization continue through the
+[Runtime API](runtime-api.md#current-ordinary-engine-boundary).
 
 ## Related contracts
 

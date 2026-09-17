@@ -42,8 +42,8 @@ import java.util.Set;
  * The two backward-capable modes preflight one bounded one- or two-stage functional request,
  * construct gradients with public Tensor operations, and capture forward outputs and every
  * requested gradient root together once. Every mode then passes its single immutable graph
- * through inference, mandatory
- * canonicalization, bounded exact optional optimization, and final validation.</p>
+ * through inference, mandatory canonicalization, bounded exact optional optimization,
+ * validation, and source-only published-constant descriptor closure.</p>
  *
  * <p>The original direct entry returns internal graph-stage state. A package-private complete
  * overload additionally derives publication bindings, logical constants and diagnostics, selects
@@ -79,7 +79,7 @@ final class GraphCompiler {
      * @throws IllegalArgumentException if the forward boundary is empty or duplicates a Tensor or
      *     logical value, the mode/request matrix is invalid, preflight rejects the request,
      *     ingress is invalid, or capture, inference, validation, optimization, or final boundary
-     *     validation fails
+     *     validation or published-constant descriptor closure fails
      */
     static GraphCompilation compile(
             CompileMode mode,
@@ -104,8 +104,8 @@ final class GraphCompiler {
                     DerivativeGraphMetadata.forwardOnly(captured.graph());
             ValidatedGraph inferred =
                     CapturedGraphInference.inferAndValidate(captured, derivatives);
-            ValidatedGraph optimized =
-                    ForwardGraphOptimization.optimize(inferred, optimizationConfig);
+            ValidatedGraph optimized = PublishedCompileTimeConstantDescriptorClosure.close(
+                    ForwardGraphOptimization.optimize(inferred, optimizationConfig));
             List<ValueId> finalForward = List.copyOf(optimized.graph().outputs());
             return new GraphCompilation(
                     mode, optimized, finalForward, List.of(), optimized.derivatives());
@@ -154,8 +154,8 @@ final class GraphCompiler {
         ValidatedGraph inferred =
                 CapturedGraphInference.inferAndValidate(
                         captured.constantGraph(), captured.derivatives());
-        ValidatedGraph optimized =
-                ForwardGraphOptimization.optimize(inferred, optimizationConfig);
+        ValidatedGraph optimized = PublishedCompileTimeConstantDescriptorClosure.close(
+                ForwardGraphOptimization.optimize(inferred, optimizationConfig));
 
         List<ValueId> finalForward = List.copyOf(
                 optimized.graph().outputs().subList(0, captured.forwardOutputCount()));
@@ -186,8 +186,9 @@ final class GraphCompiler {
      * <p>All nine top-level arguments are validated in declaration order before graph
      * construction. The existing graph-stage compile entry is invoked exactly once. Publication,
      * constant, caller Tensor identity, and diagnostic snapshots are then built from its final
-     * graph before each node is queried in stored order, followed by maximal partitioning,
-     * logical-memory derivation, and final aggregate cross-validation.</p>
+     * graph, including any closed source-only published-constant layout, before each node is
+     * queried in stored order, followed by maximal partitioning, logical-memory derivation, and
+     * final aggregate cross-validation.</p>
      *
      * @param mode non-null graph-scope mode
      * @param forwardOutputs non-null, non-empty ordered requested forward boundary

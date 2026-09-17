@@ -6,16 +6,25 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
 import io.github.pho001.synaptik.prepare.analysis.BackendPreparationPlan;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.memory.BufferSlot;
 import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.DynamicDimension;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
+import io.github.pho001.synaptik.planning.partition.PlannedPartition;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class GraphPreparationPublicShapeTest {
@@ -23,6 +32,12 @@ class GraphPreparationPublicShapeTest {
     void exposesExactlyThePlannedRootOrchestrationTypes() throws Exception {
         Method prepare = GraphPreparation.class.getDeclaredMethod(
                 "prepare", CompileArtifacts.class, List.class, PreparedScheduleAssembler.class);
+        Method prepareWithProducerlessResources = GraphPreparation.class.getDeclaredMethod(
+                "prepare",
+                CompileArtifacts.class,
+                List.class,
+                List.class,
+                PreparedScheduleAssembler.class);
         Method assemble = PreparedScheduleAssembler.class.getDeclaredMethod(
                 "assemble", PreparedScheduleContext.class);
 
@@ -30,6 +45,7 @@ class GraphPreparationPublicShapeTest {
                 () -> assertPublicRecord(PartitionPreparation.class),
                 () -> assertPublicRecord(PreparedBufferAssignment.class),
                 () -> assertPublicRecord(PreparedScheduleContext.class),
+                () -> assertPublicRecord(ProducerlessPublishedConstantResource.class),
                 () -> assertTrue(Modifier.isPublic(PreparedScheduleAssembler.class.getModifiers())),
                 () -> assertTrue(PreparedScheduleAssembler.class.isInterface()),
                 () -> assertTrue(PreparedScheduleAssembler.class.isAnnotationPresent(
@@ -40,12 +56,19 @@ class GraphPreparationPublicShapeTest {
                 () -> assertTrue(Modifier.isPrivate(
                         GraphPreparation.class.getDeclaredConstructors()[0].getModifiers())),
                 () -> assertEquals(0, GraphPreparation.class.getDeclaredFields().length),
-                () -> assertEquals(1, Arrays.stream(GraphPreparation.class.getDeclaredMethods())
+                () -> assertEquals(2, Arrays.stream(GraphPreparation.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
                         .count()),
                 () -> assertTrue(Modifier.isPublic(prepare.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(prepare.getModifiers())),
                 () -> assertEquals(PreparedExecution.class, prepare.getReturnType()),
+                () -> assertTrue(Modifier.isPublic(
+                        prepareWithProducerlessResources.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(
+                        prepareWithProducerlessResources.getModifiers())),
+                () -> assertEquals(
+                        PreparedExecution.class,
+                        prepareWithProducerlessResources.getReturnType()),
                 () -> assertEquals(1, Arrays.stream(
                                 PreparedScheduleAssembler.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
@@ -63,6 +86,9 @@ class GraphPreparationPublicShapeTest {
                 () -> assertRecordComponents(
                         PreparedScheduleContext.class,
                         "artifacts", "memoryPlan", "partitions", "bufferAssignments"),
+                () -> assertRecordComponents(
+                        ProducerlessPublishedConstantResource.class,
+                        "value", "logicalRequirement", "byteSize", "byteAlignment"),
                 () -> assertEquals(
                         BackendAnalysisInputs.class,
                         PartitionPreparation.class.getTypeParameters()[0].getBounds()[0]),
@@ -133,6 +159,143 @@ class GraphPreparationPublicShapeTest {
                         IllegalArgumentException.class,
                         "planIndex must be non-negative",
                         () -> new PreparedBufferAssignment(new ValueId(0), slot, -1)));
+    }
+
+    @Test
+    void producerlessResourceHasExactSurfaceAndValidatesInInvariantOrder() {
+        TensorDescriptor descriptor = resolvedDescriptor();
+        GraphValue value = new GraphValue(new ValueId(10), descriptor);
+        LogicalMemoryRequirement valid = requirement(value, Optional.empty(), List.of(), true);
+        PlannedPartition partition = new PlannedPartition(
+                new io.github.pho001.synaptik.backend.contract.BackendId("cpu"),
+                List.of(new io.github.pho001.synaptik.model.graph.NodeId(1)));
+
+        assertAll(
+                () -> assertEquals(
+                        7,
+                        Arrays.stream(ProducerlessPublishedConstantResource.class.getDeclaredMethods())
+                                .filter(method -> Modifier.isPublic(method.getModifiers()))
+                                .count()),
+                () -> assertEquals(
+                        1,
+                        ProducerlessPublishedConstantResource.class.getDeclaredConstructors().length),
+                () -> assertFailure(
+                        NullPointerException.class,
+                        "value",
+                        () -> new ProducerlessPublishedConstantResource(null, null, -1, 0)),
+                () -> assertFailure(
+                        NullPointerException.class,
+                        "logicalRequirement",
+                        () -> new ProducerlessPublishedConstantResource(value, null, -1, 0)),
+                () -> assertFailure(
+                        IllegalArgumentException.class,
+                        "logicalRequirement.valueId must match value.id",
+                        () -> new ProducerlessPublishedConstantResource(
+                                value,
+                                new LogicalMemoryRequirement(
+                                        new ValueId(11), descriptor, Optional.empty(), List.of(), true),
+                                -1,
+                                0)),
+                () -> assertFailure(
+                        IllegalArgumentException.class,
+                        "logicalRequirement.descriptor must match value.descriptor",
+                        () -> new ProducerlessPublishedConstantResource(
+                                value,
+                                new LogicalMemoryRequirement(
+                                        value.id(), resolvedDescriptor(2), Optional.empty(), List.of(), true),
+                                -1,
+                                0)),
+                () -> assertFailure(
+                        IllegalArgumentException.class,
+                        "logicalRequirement must be producerless",
+                        () -> new ProducerlessPublishedConstantResource(
+                                value, requirement(value, Optional.of(partition), List.of(), true), -1, 0)),
+                () -> assertFailure(
+                        IllegalArgumentException.class,
+                        "logicalRequirement must be consumerless",
+                        () -> new ProducerlessPublishedConstantResource(
+                                value, requirement(value, Optional.empty(), List.of(partition), true), -1, 0)),
+                () -> assertFailure(
+                        IllegalArgumentException.class,
+                        "logicalRequirement must require graph output",
+                        () -> new ProducerlessPublishedConstantResource(
+                                value, requirement(value, Optional.empty(), List.of(), false), -1, 0)),
+                () -> {
+                    TensorDescriptor dynamic = new TensorDescriptor(
+                            DataType.FLOAT32,
+                            Shape.ofDimensions(new DynamicDimension("N")),
+                            Optional.empty(),
+                            false);
+                    GraphValue dynamicValue = new GraphValue(value.id(), dynamic);
+                    assertFailure(
+                            IllegalArgumentException.class,
+                            "value descriptor shape must be fully static",
+                            () -> new ProducerlessPublishedConstantResource(
+                                    dynamicValue,
+                                    requirement(dynamicValue, Optional.empty(), List.of(), true),
+                                    -1,
+                                    0));
+                },
+                () -> {
+                    TensorDescriptor unresolved = new TensorDescriptor(
+                            DataType.FLOAT32, Shape.of(1), Optional.empty(), false);
+                    GraphValue unresolvedValue = new GraphValue(value.id(), unresolved);
+                    assertFailure(
+                            IllegalArgumentException.class,
+                            "value descriptor layout must be resolved",
+                            () -> new ProducerlessPublishedConstantResource(
+                                    unresolvedValue,
+                                    requirement(unresolvedValue, Optional.empty(), List.of(), true),
+                                    -1,
+                                    0));
+                },
+                () -> assertFailure(
+                        IllegalArgumentException.class,
+                        "byteSize must be non-negative",
+                        () -> new ProducerlessPublishedConstantResource(value, valid, -1, 0)),
+                () -> assertFailure(
+                        IllegalArgumentException.class,
+                        "byteAlignment must be a positive power of two",
+                        () -> new ProducerlessPublishedConstantResource(value, valid, 0, 0)),
+                () -> assertFailure(
+                        IllegalArgumentException.class,
+                        "byteAlignment must be a positive power of two",
+                        () -> new ProducerlessPublishedConstantResource(value, valid, 0, 3)),
+                () -> {
+                    ProducerlessPublishedConstantResource resource =
+                            new ProducerlessPublishedConstantResource(value, valid, 0, 8);
+                    assertSameReferences(value, valid, resource);
+                });
+    }
+
+    private static void assertSameReferences(
+            GraphValue value,
+            LogicalMemoryRequirement requirement,
+            ProducerlessPublishedConstantResource resource) {
+        org.junit.jupiter.api.Assertions.assertSame(value, resource.value());
+        org.junit.jupiter.api.Assertions.assertSame(requirement, resource.logicalRequirement());
+    }
+
+    private static LogicalMemoryRequirement requirement(
+            GraphValue value,
+            Optional<PlannedPartition> producer,
+            List<PlannedPartition> consumers,
+            boolean graphOutput) {
+        return new LogicalMemoryRequirement(
+                value.id(), value.descriptor(), producer, consumers, graphOutput);
+    }
+
+    private static TensorDescriptor resolvedDescriptor() {
+        return resolvedDescriptor(1);
+    }
+
+    private static TensorDescriptor resolvedDescriptor(long extent) {
+        Shape shape = Shape.of(extent);
+        return new TensorDescriptor(
+                DataType.FLOAT32,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                false);
     }
 
     private static void assertPublicRecord(Class<?> type) {

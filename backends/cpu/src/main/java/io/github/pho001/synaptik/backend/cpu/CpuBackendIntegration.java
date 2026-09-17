@@ -4,6 +4,7 @@ import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuBackendComposition;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.prepare.PartitionPreparation;
 import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
@@ -126,6 +127,48 @@ public final class CpuBackendIntegration implements AutoCloseable {
      */
     public BufferRepresentation borrow(HostTensorStorage storage) {
         return composition.borrow(storage);
+    }
+
+    /**
+     * Copies one borrowed CPU publication representation into canonical detached host bytes.
+     *
+     * <p>Logical elements are traversed in row-major coordinate order through the supplied fully
+     * static, resolved descriptor, including its non-negative offset and positive or zero strides.
+     * {@code FLOAT64}, {@code FLOAT32}, {@code BFLOAT16}, {@code INT64}, and {@code INT32}
+     * represented bits are encoded big-endian without conversion; floating-point NaN payloads and
+     * signed zeros are preserved. {@code BOOL} accepts and copies only stored bytes {@code 0} and
+     * {@code 1}. Source segment values are interpreted in native byte order. The fresh mutable
+     * result belongs exclusively to the caller and is unaffected by later representation, result,
+     * or adapter closure.</p>
+     *
+     * <p>The call is synchronous and does not retain, close, mutate, or transfer the source. The
+     * caller must keep this adapter and the Runtime result lease open, keep the representation
+     * accessible to the calling thread, and prevent source mutation or closure for the complete
+     * call. Concurrent mutation has no atomic-snapshot guarantee.</p>
+     *
+     * @param representation non-null exact borrowed publication representation implemented by the
+     *     current CPU backend; ownership remains with its existing owner
+     * @param descriptor non-null exact resolved logical descriptor paired with that publication by
+     *     the caller; its shape must be fully static, its layout present, and its data type equal to
+     *     the representation data type; the descriptor is inspected but not retained or mutated
+     * @param maximumBytes non-negative caller limit for the canonical payload size in bytes
+     * @return a fresh non-null caller-owned mutable byte array in canonical row-major big-endian
+     *     form; rank-zero descriptors copy their offset element, and zero-element shapes return a
+     *     fresh empty array without source-element access
+     * @throws NullPointerException if {@code representation} or {@code descriptor} is {@code null}
+     * @throws IllegalStateException if this adapter is closed, or the CPU representation is closed
+     *     or inaccessible to the current thread
+     * @throws IllegalArgumentException if the byte limit is negative; shape or layout is
+     *     unsupported; the payload exceeds the caller limit or JVM array ceiling; the concrete
+     *     representation, data type, element geometry, carrier, or capacity is incompatible; or a
+     *     BOOL element is not canonical
+     * @throws ArithmeticException if logical count, byte count, or source/destination address
+     *     arithmetic overflows
+     * @throws OutOfMemoryError if the JVM cannot allocate the otherwise valid result array
+     */
+    public byte[] copyToCanonicalHostBytes(BufferRepresentation representation,
+            TensorDescriptor descriptor, long maximumBytes) {
+        return composition.copyToCanonicalHostBytes(representation, descriptor, maximumBytes);
     }
 
     /**

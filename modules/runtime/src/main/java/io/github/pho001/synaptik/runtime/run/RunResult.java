@@ -7,10 +7,11 @@ import java.util.Objects;
 /**
  * Leases the complete run state after every ordered publication occurrence completes.
  *
- * <p>The result snapshots the direct physical representation references privately in dense result
- * order, including intentional aliases, but exposes no representation, storage, value, or state
- * access. An empty publication list is valid. Successful construction transfers semantic cleanup
- * responsibility for the whole state to this result without changing individual resource
+ * <p>The result snapshots the direct physical representation references in dense result order,
+ * including intentional aliases. While the lease remains open, an inward Runtime consumer may
+ * borrow one exact representation by result index; the result exposes no storage, host value, or
+ * state access. An empty publication list is valid. Successful construction transfers semantic
+ * cleanup responsibility for the whole state to this result without changing individual resource
  * ownership. Constructor failure transfers nothing and closes nothing.
  *
  * <p>This class is not thread-safe. After successful construction callers close the leased state
@@ -71,6 +72,36 @@ public final class RunResult implements AutoCloseable {
      */
     public int resultCount() {
         return representations.length;
+    }
+
+    /**
+     * Returns the exact representation retained for one published result occurrence.
+     *
+     * <p>The reference is borrowed from this result and is usable only while the complete result
+     * lease remains open. The caller must not close it, transfer its ownership, or retain or use it
+     * after result closure. Repeated access to one occurrence returns the identical reference, and
+     * distinct result occurrences that intentionally alias also return the identical reference;
+     * alias identity does not grant ownership or a longer lifetime. This method performs no copy,
+     * wrapping, cast, storage access, validity query, transfer, mutation, or backend operation.
+     *
+     * <p>This result is not thread-safe. The caller must externally synchronize all result and
+     * retained-state activity so this access cannot race state activity or closure.
+     *
+     * @param resultIndex the dense zero-based published-result occurrence index
+     * @return the retained non-null representation reference, borrowed until result closure
+     * @throws IllegalStateException if closure of the leased run state has begun; this check occurs
+     *     before index validation and reports {@code run state is closed}
+     * @throws IndexOutOfBoundsException if {@code resultIndex} is negative or not less than
+     *     {@link #resultCount()}; the diagnostic includes the rejected index
+     */
+    public BufferRepresentation publicationRepresentation(int resultIndex) {
+        if (runState.isClosed()) {
+            throw new IllegalStateException("run state is closed");
+        }
+        if (resultIndex < 0 || resultIndex >= representations.length) {
+            throw new IndexOutOfBoundsException("resultIndex out of range: " + resultIndex);
+        }
+        return representations[resultIndex];
     }
 
     /**

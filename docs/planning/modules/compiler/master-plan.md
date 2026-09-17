@@ -113,6 +113,7 @@ cross-package/public orchestration boundary from a concrete consumer.
 | 0006B2 | [Pool3d and 3D-window gradient closure](tasks/0006b2-pool3d-and-3d-window-gradient-closure.md) | Complete | Model 0025K; 0006B1; 0005D | Closed the exact two NCDHW pooling gradients and three public `unfold3d`/`fold3d` adjoints through public Tensor algebra, moving first-order support from 37/107/128 to 38/111/133 while forward remains 40/115/137 and only recurrent ×3 plus Conv3d remain deferred. |
 | 0006B3 | [Engine-facing complete compile integration port](tasks/0006b3-public-constant-free-complete-compile-entry.md) | Complete | 0005; 0006B2; current Config 0001–0003 leaves; Engine frontier reassessment | Added one narrowly named public module-integration port in the Compiler package that delegates constant-free requests to the existing complete pipeline, while keeping `GraphCompiler`, both current entries, explicit-constant ingress, and all compile semantics package-private. |
 | 0006B4 | [Stable caller-input Tensor identity bindings](tasks/0006b4-stable-caller-input-tensor-identity-bindings.md) | Complete | 0005; 0006; 0006B3; blocked Engine 0003 reassessment | Added an immutable ordered `TensorId`/final-`ValueId` bindable-input view to `CompileConstantPlan` while preserving `bindableInputs()`, the eight-component artifact, publication contracts, and every Prepare/Runtime/Engine production consumer shape. |
+| 0006B5 | [Published compile-time constant descriptor closure](tasks/0006b5-published-compile-time-constant-descriptor-closure.md) | Complete | 0006; 0006B4; Planning 0005–0006; Engine 0006 prerequisite diagnosis | Resolves the logical layout of fully static source-only published compile-time splat constants after final optimization without allocation, topology changes, backend choice, caller binding, or publication-role changes; preserves dynamic, consumed, unpublished, bindable, produced, and already-resolved values. |
 | 0006C | Conv3d adjoint expressibility and gradient closure | Draft | 0006B; current public Tensor algebra; any separately selected Model prerequisite | Prove whether grouped NCDHW input/weight/bias cotangents are expressible through current public window, layout, matrix, reduction, and fold operations. Implement and add `CONV3D` to the closed derivative inventory only when exact group isolation, dilation/padding, overlap accumulation, symbolic Shape, and higher-order formula closure are representable; otherwise select the smallest Model-owned prerequisite first and keep the family fail-closed. |
 | 0007 | Exact constant identities and permission-aware algebra | Draft | 0006; Config 0006 before any relaxed rule | Reassess remaining graph-level exact constant/algebra identities and any explicitly permitted relaxed rewrites without changing completed 0001–0006 history: preserve current guarded scalar `POW(+1) -> input`, require complete exceptional-value/constant-sidecar/output/publication/phase/autograd/descriptor proof before an exact `POW(0)` typed shape-correct one-splat, and never infer Tensor constants from storage or factory history. |
 
@@ -166,18 +167,27 @@ higher-order path without implementing higher-order requests before 0006.
 - Stable caller-input Tensor identity bindings — Complete
   [task 0006B4](tasks/0006b4-stable-caller-input-tensor-identity-bindings.md), as the bounded
   Compiler-owned prerequisite for blocked Engine 0003.
+- Published compile-time constant descriptor closure — Complete
+  [task 0006B5](tasks/0006b5-published-compile-time-constant-descriptor-closure.md), as the
+  Compiler-owned logical-descriptor repair in the Engine 0006 prerequisite chain.
 
 ## Current status
 
-Complete through task 0006B4. Tasks 0001–0006B4 are Complete with recorded source, tests,
-documentation, and validation. Detailed
+Complete through task 0006B5. Tasks 0001–0006B5 are Complete with recorded source, tests,
+documentation, and validation. Detailed task 0006B5 closes only the logical descriptor of a fully
+static source-only published compile-time splat after final optimization; it adds no allocation,
+topology, backend, caller-binding, or publication-role behavior. Complete Prepare 0005 supplies
+the shared resource handoff and slot assignment. Detailed Ready CPU 0010H is the next operational
+prerequisite, and Draft Engine 0006 follows it. Runtime needs no prerequisite task because
+its current initialized-representation, validity, publication/alias, lease, and cleanup contracts
+are sufficient. Detailed
 [task 0006B4](tasks/0006b4-stable-caller-input-tensor-identity-bindings.md) preserves the existing
 eight-component `CompileArtifacts` and compatibility `CompileConstantPlan.bindableInputs()`
 surface while adding an ordered typed bindable entry that pairs each final graph input with the
 originating immutable `TensorId`. Capture projects identity without retaining Tensor/provenance,
 and the existing constant sidecar owns remapping through canonicalization, exact rewriting,
-folding, DCE, and CSE. Engine 0003 remains `Blocked` pending its required clean replan against the
-completed association; this task does not create Engine 0004. Detailed
+folding, DCE, and CSE. Engine 0003 subsequently completed against that association; Compiler
+0006B4 itself did not create Engine 0004. Detailed
 [task 0006A](tasks/0006a-fixed-recurrent-scan-forward-adoption-and-bptt-boundary.md) is Complete
 after accepted ADR 0012/NN 0021A and completed Model 0025E–0025F. It uses the existing ordinary
 `CompiledNode`, a dedicated package-private recurrent inference
@@ -209,9 +219,9 @@ same Java package, where it can delegate one constant-free request to package-pr
 composition. The port is technically callable because Java has no module-private public access,
 but it stays out of Engine user-facade signatures. CPU 0010F and Engine 0001–0002 subsequently
 completed. Their Engine 0003 reassessment exposed the missing caller-input identity association
-now delivered by Complete Compiler 0006B4. Draft 0006C and 0007 remain independent
-gradient/algebra side branches behind that inserted prerequisite rather than being silently
-skipped.
+now delivered by Complete Compiler 0006B4. Complete 0006B5 supplies the later source-only
+published-constant logical descriptor. Draft 0006C and 0007 remain independent gradient/algebra
+side branches rather than being silently skipped.
 Neither has a detailed specification. Compiler 0004, 0004A,
 and 0004B are Complete with
 recorded source, tests, documentation, and validation.

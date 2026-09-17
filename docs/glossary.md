@@ -52,9 +52,11 @@ current [`PreparedBufferTransfer`](#prepared-buffer-transfer--preparedbuffertran
 similarly create [`BoundBufferTransfer`](#bound-buffer-transfer--boundbuffertransfer) actions;
 current [`PreparedPublication`](#prepared-publication--preparedpublication) recipes create
 [`BoundPublication`](#bound-publication--boundpublication) occurrences, and current
-[`RunResult`](#run-result--runresult) leases complete states. The CPU backend supplies concrete
-borrowed and run-owned native buffer representations plus bounded fully static pointwise and
-affine-copy families. Its forty-eight-opcode pointwise vocabulary includes same-typed binary/scalar extrema, floating
+[`RunResult`](#run-result--runresult) leases complete states and permits inward borrowed access to
+one selected nominal representation while the exact lease remains open. The CPU backend supplies
+concrete borrowed and run-owned native buffer representations, supported canonical host-snapshot
+copying, and bounded fully static pointwise and affine-copy families. Its forty-eight-opcode
+pointwise vocabulary includes same-typed binary/scalar extrema, floating
 Tensor/Tensor DIV and POW, Tensor/scalar DIV and POW, first-class floating range CLAMP,
 canonical-BOOL AND/OR/NOT, all nineteen FLOAT32/FLOAT64/BFLOAT16 unary kinds, and three separate floating
 classifications, while its normalized access plans cover resolved
@@ -2282,6 +2284,26 @@ same-type cotangent or constructing one ordinary cast back to the source type. R
 cast-chain canonicalization, concrete backend support, and execution remain separate owning-layer
 concerns. A cast expression is therefore not converted storage, a compiler graph node, or proof
 that a requested conversion can execute. See [cast expressions](api/tensor-api.md#cast-expressions).
+
+### Canonical host snapshot
+
+A fresh caller-owned `byte[]` containing one tensor occurrence's logical elements in row-major
+coordinate order, with the final axis changing fastest and every multi-byte element encoded
+big-endian. The format is detached from the source representation and layout lifetime. Current
+CPU export preserves raw `FLOAT64`, `FLOAT32`, and `BFLOAT16` represented bits, preserves `INT64`
+and `INT32` two's-complement patterns, and accepts only exact BOOL bytes `0` and `1`.
+
+The current supported `CpuBackendIntegration.copyToCanonicalHostBytes(...)` Engine-facing
+service-provider interface (SPI) produces this snapshot from one exact CPU publication
+representation and its fully static resolved descriptor. It follows non-negative offsets and
+positive or zero strides, including repeated reads for zero-stride broadcast layouts. The caller
+must keep the Runtime result lease and CPU integration open and prevent source mutation or closure
+for the synchronous copy. The operation neither selects a publication nor performs transfer,
+conversion, synchronization, Tensor construction, or cross-backend materialization. Completed
+Engine task 0004 composes that inward SPI behind
+`RunResult.materialize(publication, maximumBytes)` and wraps each fresh copy in an immutable
+`HostTensorValue`; this remains CPU-only rather than a cross-backend promise. See
+[canonical caller-owned host snapshots](backend-guide/cpu-backend.md#canonical-caller-owned-host-snapshots).
 
 ### Canonical workload signature
 
@@ -4779,11 +4801,38 @@ coordinates ordered analysis and finalization, supplies one complete immutable
 `PreparedScheduleContext` to the assembler, validates the returned recipe, and returns the exact
 `PreparedExecution`.
 
+Its four-argument form also accepts the complete set of
+[`producerless published-constant resources`](#producerless-published-constant-resource--producerlesspublishedconstantresource)
+required by the artifacts. It validates and snapshots them before backend work, canonicalizes
+them by final graph-value encounter order, and includes their appended shared buffer assignments
+in the assembler context without adding them to any partition-local analysis or finalizer. The
+three-argument form supplies an empty set. Neither form makes a zero-node graph executable.
+
 Validation covers exact plan identity, caller-input order, initialized compile constants,
 executable coverage and order, representation coordinates, and forward-then-gradient publication
 occurrences. The operation invokes no creator, allocates no physical resource, executes no work,
 discovers no backend, and retains no collaborator. Concrete backend-facing contexts contain no
 Compiler aggregate; current Engine composition explicitly supplies the collaborators.
+
+### Producerless published-constant resource / `ProducerlessPublishedConstantResource`
+
+An implemented immutable Prepare composition value for one fully static compile-time constant
+that is both a graph input and requested graph output but has no producing or consuming graph
+node. It retains by identity the exact Compiler `GraphValue` and Planning
+`LogicalMemoryRequirement`, plus a concrete-composition-supplied non-negative physical byte size
+and positive power-of-two byte alignment. Its accessors return those retained references and
+primitive geometry unchanged.
+
+Shared [`graph preparation`](#graph-preparation--graphpreparation) proves exact artifact
+membership, constant-source and publication roles, complete unique coverage, and canonical final
+graph-value order before backend analysis. Shared assignment appends the resource after every
+ordinary partition-declared buffer. It receives a `PreparedBufferAssignment` but no
+`PreparationResourceAssignment`, because no partition or finalizer owns it.
+
+The value is a declaration and handoff only. It does not choose a backend, derive geometry,
+allocate storage, create or initialize a representation, materialize a scalar, execute work, or
+enable a zero-node schedule. CPU 0010H and Engine 0006 remain the planned concrete declaration,
+initialization, and wiring owners.
 
 ### Prepared execution / `PreparedExecution`
 
@@ -5068,8 +5117,10 @@ one, the target-list index, and the final gradient descriptor.
 Two occurrences remain distinct when repeated gradient values or a forward/gradient alias select
 one Runtime representation. Their list positions, Tensor identities, and Java object identities
 do not prove separate storage, while shared inward representation identity is not exposed. An
-occurrence has metadata and result-lifecycle observation only; it has no value accessor,
-independent close operation, Tensor gradient field, or training behavior.
+occurrence has metadata and result-lifecycle observation but no independent close operation,
+Tensor gradient field, or training behavior. The ordinary result may authenticate the exact
+occurrence object as a selector for explicit materialization; matching metadata or an equal index
+is not sufficient authority.
 
 ### Residency
 
@@ -5120,24 +5171,76 @@ The implemented closeable Runtime lease over one complete open [`RunState`](#run
 after all dense ordered bound publication occurrences have completed. Construction requires every
 occurrence to belong to that exact state, match its list position by result index, and report
 successful publication. It privately snapshots the direct representation references in result
-order, preserving intentional aliases, but exposes only result count and lifecycle state. An
-empty result is valid.
+order, preserving intentional aliases. An empty result is valid.
 
 Successful construction semantically transfers responsibility for closing the whole state to the
 result without changing any individual `RunResourceOwnership`. Constructor failure or partial
 publication transfers nothing and closes nothing. `close()` delegates to the state's idempotent,
 ownership-sensitive reverse cleanup; borrowed representations remain caller-owned for the entire
-lease. The result exposes no representation, storage, Tensor, value, or `RunState` accessor and is
-not thread-safe. Runtime representation/value access remains absent; `PreparedExecutionRunner` currently
-assembles this lease after successful traversal.
+lease.
+
+`publicationRepresentation(resultIndex)` is the sole inward representation accessor. While the
+exact lease remains open, it returns the exact retained `BufferRepresentation` for the dense
+publication occurrence. Repeated access returns the same reference, and aliased occurrences
+return the same exact reference without collapsing occurrence order. It performs no copy,
+wrapper construction, cast, validity query, transfer, mutation, backend operation, or physical
+access. Closed-state failure precedes index validation; result count and lifecycle metadata remain
+available after closure.
+
+The representation is borrowed from the result. Its caller must not close it, transfer its
+ownership, retain or use it after result closure, or infer ownership or a longer lifetime from
+alias identity. The result is not thread-safe, so the caller must externally prevent access from
+racing result or retained-state activity or closure. This Runtime service-provider interface
+(SPI) does not make the nominal representation host-accessible, storage, or a Tensor value and
+does not expose `RunState` or prepared coordinates. `PreparedExecutionRunner` assembles this lease
+after successful traversal.
 
 The ordinary Engine exposes a distinct final
 `io.github.pho001.synaptik.engine.RunResult` facade over that inward lease. It adds an immutable
 forward-then-gradient list of logical [publication occurrences](#publication-occurrence) and owns
 the Engine-created non-owning input wrappers. Closing it releases the Runtime lease and those
 wrappers but never caller storage. Engine closure closes still-open results. Its count,
-publication list, and immutable occurrence metadata remain readable after closure, but no
-numerical value, storage, representation, Tensor, or inward state is exposed.
+publication list, and immutable occurrence metadata remain readable after closure. While both it
+and its Engine are open, `materialize` copies one exact occurrence through the current CPU-only
+composition into a detached `HostTensorValue`; no storage, representation, Tensor, or inward state
+is exposed, and a completed value outlives both owners.
+
+### Host tensor value / `HostTensorValue`
+
+The implemented ordinary Engine value returned by explicit materialization of one exact
+publication occurrence. It retains the exact final logical `DataType` and fully static `Shape`,
+checked element and byte counts, and private canonical dense row-major big-endian bytes. Each
+`bytes()` call returns a fresh read-only `ByteBuffer` view with independent cursor state.
+
+The value owns no closeable resource and retains no Engine, result, Runtime representation,
+storage, arena, descriptor, or backend object. It remains readable concurrently after result or
+Engine closure and deliberately uses Java object identity rather than value equality. It is not a
+Tensor, host-storage association, typed array, scalar decoder, persistence format, cache,
+transfer request, training result, or cross-backend materialization contract.
+
+### One-shot forward execution
+
+The four implemented ordinary `Engine.compute(...)` overloads that synchronously turn one output
+Tensor or an ordered non-empty output list into detached immutable `HostTensorValue` results.
+They transiently inventory reachable provenance-free Model Tensor leaves by exact object identity,
+then join those leaves by `TensorId` to authoritative final `CompiledGraph.inputs()` membership
+and order. This is expression-provenance traversal, not Compiler intermediate-representation
+traversal or Engine liveness reconstruction. One Engine admission covers a fresh fixed-settings
+forward-only compile, prepare, run, complete publication and aggregate canonical-byte preflight,
+ordered materialization, and temporary-result cleanup. The ordered return list is immutable and
+preserves requested publication order.
+
+**One-shot** means that every invocation compiles and prepares afresh and returns no reusable
+handle or open result lease. It does not mean cached, eager Tensor execution, asynchronous work,
+backward execution, tuning, or cross-backend transfer. The no-limit overloads use
+`Long.MAX_VALUE`; checked arithmetic, per-value array ceilings, and inward limits remain. Selected
+leaf storage remains caller-owned through synchronous completion, and no Tensor/provenance state
+or cache survives the call. Current support
+is the same CPU-only, fully static, resolved-layout, one-non-empty-partition domain as the ordinary
+Engine lifecycle. The aggregate limit covers returned canonical payload lengths only. Use the
+explicit `compile -> prepare -> run(prepared, explicit inputs) -> materialize` lifecycle for repeated runs or selective
+publication copying. See [Public API](api/public-api.md#current-ordinary-and-advanced-cpu-lifecycle)
+and [Runtime API](api/runtime-api.md#current-ordinary-engine-boundary).
 
 ### Run state / `RunState`
 

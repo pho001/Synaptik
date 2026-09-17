@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
@@ -123,6 +124,14 @@ final class EngineStandardCompositionTest {
         @Override
         public BufferRepresentation borrow(HostTensorStorage storage) {
             throw new AssertionError("unexpected borrow");
+        }
+
+        @Override
+        public byte[] copyToCanonicalHostBytes(
+                BufferRepresentation representation,
+                TensorDescriptor descriptor,
+                long maximumBytes) {
+            throw new AssertionError("unexpected copy");
         }
 
         @Override

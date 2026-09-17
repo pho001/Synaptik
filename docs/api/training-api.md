@@ -15,10 +15,11 @@ cell-specific statically packed sequence containers. The typed `Model<I,O>` root
 functional topology now provide descriptive composition above those modules without adding a
 training or execution facade.
 `extensions/training` and optimizer behavior are not implemented. The ordinary Engine can now
-compile one explicitly seeded first-order request and return metadata-only gradient publication
-occurrences after a supported CPU run. Each occurrence identifies the requested target,
-derivative order one, target-list position, and final gradient descriptor, but exposes no
-numerical gradient value or storage. The compiler also provides a public immutable
+compile one explicitly seeded first-order request and return gradient publication occurrences
+after a supported CPU run. Each occurrence identifies the requested target, derivative order one,
+target-list position, and final gradient descriptor. While that result is open, the exact
+occurrence may be materialized explicitly into a detached immutable `HostTensorValue`; no storage
+or backend representation is exposed. The compiler also provides a public immutable
 functional-gradient request value and a bounded package-private one/two-stage reverse-mode
 integration path.
 
@@ -29,8 +30,8 @@ operations before one combined forward/backward capture. Model task 0025 and Com
 and 0006 are Complete.
 Public Tensors gain no gradient/backward lifecycle state. The current internal `TRAINING_STEP`
 mode uses the same `FunctionalGradientRequest` contract as `FORWARD_AND_BACKWARD`; it adds no
-optimizer update. General training preparation/execution, numerical gradient delivery to an
-optimizer, parameter updates, and training sessions remain planned.
+optimizer update. General training coordination, numerical-gradient mapping into an optimizer,
+parameter updates, and training sessions remain planned.
 
 Package-private `GraphCompiler` currently returns mode-neutral `GraphCompilation`. A
 `TRAINING_STEP` result may carry the same combined forward/backward graph as
@@ -488,10 +489,10 @@ Tensor values.
 - `Optimizer` implementations such as SGD, Adam, and AdamW will define mathematical updates without importing CPU, Metal, or CUDA modules.
 - `TrainingSession` and `TrainingStep` will coordinate forward/backward execution, gradient publication, and optimizer updates through shared lifecycle contracts.
 
-Current Engine gradient metadata does not satisfy this planned coordination boundary: a future
-training workflow still needs Engine task 0004 host value access or another explicitly owned
-numerical gradient handoff. One-shot `withBackward`-style convenience remains Engine task 0006
-and will require explicit targets.
+Current Engine materialization still does not satisfy this planned coordination boundary: it
+copies one caller-selected occurrence to canonical CPU host bytes but does not map gradients to
+parameters, update state, or define an optimizer handoff. One-shot `withBackward`-style
+convenience remains Engine task 0006 and will require explicit targets.
 
 No optimizer signatures, default hyperparameters, update sequencing, gradient-to-parameter
 mapping, persistent checkpoint format, or optimizer exception types are stable yet. They will be

@@ -24,6 +24,7 @@ import io.github.pho001.synaptik.model.graph.GraphPhase;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.NodeId;
 import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
@@ -33,6 +34,7 @@ import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorId;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryPlan;
+import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryPlanning;
 import io.github.pho001.synaptik.planning.partition.PlannedPartition;
 import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
@@ -470,6 +472,205 @@ class GraphPreparationTest {
                                 .toList()));
     }
 
+    @Test
+    void validatesAndSnapshotsProducerlessContributionsBeforeBackendWork() {
+        ProducerlessFixture fixture = producerlessFixture(1);
+        AtomicInteger analyses = new AtomicInteger();
+        AtomicInteger finalizers = new AtomicInteger();
+        AtomicInteger assemblers = new AtomicInteger();
+        PartitionPreparation<FakeInputs, FakePlan> preparation = producerlessPreparation(
+                fixture, analyses, finalizers, new ArrayList<>());
+        ProducerlessPublishedConstantResource resource = resource(fixture, 0, 12, 8);
+
+        assertAll(
+                () -> assertFailure(
+                        NullPointerException.class,
+                        "artifacts",
+                        () -> GraphPreparation.prepare(null, null, null, null)),
+                () -> assertFailure(
+                        NullPointerException.class,
+                        "preparations",
+                        () -> GraphPreparation.prepare(fixture.artifacts, null, null, null)),
+                () -> assertFailure(
+                        NullPointerException.class,
+                        "producerlessResources",
+                        () -> GraphPreparation.prepare(
+                                fixture.artifacts, List.of(preparation), null, null)),
+                () -> assertFailure(
+                        NullPointerException.class,
+                        "scheduleAssembler",
+                        () -> GraphPreparation.prepare(
+                                fixture.artifacts, List.of(preparation), List.of(resource), null)),
+                () -> {
+                    var preparations = new ArrayList<PartitionPreparation<?, ?>>();
+                    preparations.add(null);
+                    var resources = new ArrayList<ProducerlessPublishedConstantResource>();
+                    resources.add(null);
+                    assertFailure(
+                            NullPointerException.class,
+                            "preparations[0]",
+                            () -> GraphPreparation.prepare(
+                                    fixture.artifacts,
+                                    preparations,
+                                    resources,
+                                    context -> null));
+                },
+                () -> {
+                    var resources = new ArrayList<ProducerlessPublishedConstantResource>();
+                    resources.add(null);
+                    assertFailure(
+                            NullPointerException.class,
+                            "producerlessResources[0]",
+                            () -> GraphPreparation.prepare(
+                                    fixture.artifacts,
+                                    List.of(preparation),
+                                    resources,
+                                    context -> null));
+                },
+                () -> assertFailure(
+                        IllegalArgumentException.class,
+                        "producerlessResources has no contribution for required ValueId[value=70]",
+                        () -> GraphPreparation.prepare(
+                                fixture.artifacts,
+                                List.of(preparation),
+                                List.of(),
+                                context -> null)),
+                () -> assertFailure(
+                        IllegalArgumentException.class,
+                        "producerlessResources[1] duplicates ValueId[value=70]",
+                        () -> GraphPreparation.prepare(
+                                fixture.artifacts,
+                                List.of(preparation),
+                                List.of(resource, resource),
+                                context -> null)),
+                () -> {
+                    GraphValue equalValue = new GraphValue(
+                            resource.value().id(), resource.value().descriptor());
+                    ProducerlessPublishedConstantResource foreignValue =
+                            new ProducerlessPublishedConstantResource(
+                                    equalValue, resource.logicalRequirement(), 12, 8);
+                    assertFailure(
+                            IllegalArgumentException.class,
+                            "producerlessResources[0] value reference does not match artifacts graph value: ValueId[value=70]",
+                            () -> GraphPreparation.prepare(
+                                    fixture.artifacts,
+                                    List.of(preparation),
+                                    List.of(foreignValue),
+                                    context -> null));
+                },
+                () -> {
+                    LogicalMemoryRequirement logical = resource.logicalRequirement();
+                    LogicalMemoryRequirement equalRequirement = new LogicalMemoryRequirement(
+                            logical.valueId(),
+                            logical.descriptor(),
+                            logical.producerPartition(),
+                            logical.consumerPartitions(),
+                            logical.graphOutput());
+                    ProducerlessPublishedConstantResource foreignRequirement =
+                            new ProducerlessPublishedConstantResource(
+                                    resource.value(), equalRequirement, 12, 8);
+                    assertFailure(
+                            IllegalArgumentException.class,
+                            "producerlessResources[0] logical requirement reference does not match artifacts memory requirement: ValueId[value=70]",
+                            () -> GraphPreparation.prepare(
+                                    fixture.artifacts,
+                                    List.of(preparation),
+                                    List.of(foreignRequirement),
+                                    context -> null));
+                },
+                () -> {
+                    CompileArtifacts bindableArtifacts = resolvedBindableZeroNodeArtifacts();
+                    GraphValue bindableValue = bindableArtifacts.graph().values().getFirst();
+                    LogicalMemoryRequirement bindableRequirement =
+                            bindableArtifacts.memory().requirements().getFirst();
+                    ProducerlessPublishedConstantResource extra =
+                            new ProducerlessPublishedConstantResource(
+                                    bindableValue, bindableRequirement, 4, 4);
+                    assertFailure(
+                            IllegalArgumentException.class,
+                            "producerlessResources[0] is not a required producerless published constant: ValueId[value=81]",
+                            () -> GraphPreparation.prepare(
+                                    bindableArtifacts,
+                                    List.of(),
+                                    List.of(extra),
+                                    context -> null));
+                },
+                () -> assertEquals(0, analyses.get()),
+                () -> assertEquals(0, finalizers.get()),
+                () -> assertEquals(0, assemblers.get()));
+
+        var mutable = new ArrayList<>(List.of(resource));
+        GraphPreparation.prepare(
+                fixture.artifacts,
+                List.of(producerlessPreparation(
+                        fixture, new AtomicInteger(), new AtomicInteger(), new ArrayList<>())),
+                mutable,
+                context -> {
+                    mutable.clear();
+                    assemblers.incrementAndGet();
+                    return producerlessSchedule(context);
+                });
+        assertEquals(1, assemblers.get());
+    }
+
+    @Test
+    void appendsProducerlessAssignmentsInGraphValueOrderWithoutChangingPartitionInputs() {
+        ProducerlessFixture fixture = producerlessFixture(2);
+        AtomicInteger analyses = new AtomicInteger();
+        AtomicInteger finalizers = new AtomicInteger();
+        List<PrepareContext<FakeInputs>> contexts = new ArrayList<>();
+        ProducerlessPublishedConstantResource first = resource(fixture, 0, 13, 16);
+        ProducerlessPublishedConstantResource second = resource(fixture, 1, 29, 32);
+
+        PreparedExecution execution = GraphPreparation.prepare(
+                fixture.artifacts,
+                List.of(producerlessPreparation(fixture, analyses, finalizers, contexts)),
+                List.of(second, first),
+                GraphPreparationTest::producerlessSchedule);
+
+        assertAll(
+                () -> assertEquals(1, analyses.get()),
+                () -> assertEquals(1, finalizers.get()),
+                () -> assertEquals(1, contexts.size()),
+                () -> assertEquals(
+                        List.of(fixture.ordinaryInput, fixture.ordinaryOutput),
+                        contexts.getFirst().values()),
+                () -> assertTrue(contexts.getFirst().constants().isEmpty()),
+                () -> assertEquals(4, execution.memoryPlan().buffers().size()),
+                () -> assertEquals(13, execution.memoryPlan().buffers().get(2).byteSize()),
+                () -> assertEquals(16, execution.memoryPlan().buffers().get(2).byteAlignment()),
+                () -> assertEquals(29, execution.memoryPlan().buffers().get(3).byteSize()),
+                () -> assertEquals(32, execution.memoryPlan().buffers().get(3).byteAlignment()),
+                () -> assertEquals(
+                        1,
+                        execution.schedule().steps().stream()
+                                .filter(ExecutionStep.class::isInstance)
+                                .count()),
+                () -> assertEquals(3, execution.schedule().publicationCount()));
+    }
+
+    @Test
+    void rejectsProducerlessResourcesForPureZeroNodeGraphsBeforeAssembly() {
+        CompileArtifacts artifacts = producerlessZeroNodeArtifacts();
+        GraphValue value = artifacts.graph().values().getFirst();
+        LogicalMemoryRequirement requirement = artifacts.memory().requirements().getFirst();
+        AtomicInteger assemblers = new AtomicInteger();
+
+        assertFailure(
+                IllegalArgumentException.class,
+                "producerless resources require at least one non-empty planned partition",
+                () -> GraphPreparation.prepare(
+                        artifacts,
+                        List.of(),
+                        List.of(new ProducerlessPublishedConstantResource(
+                                value, requirement, 4, 4)),
+                        context -> {
+                            assemblers.incrementAndGet();
+                            return new PreparedSchedule(context.memoryPlan(), List.of());
+                        }));
+        assertEquals(0, assemblers.get());
+    }
+
     private static PartitionPreparation<FakeInputs, FakePlan> preparation(
             int index,
             Fixture fixture,
@@ -496,6 +697,35 @@ class GraphPreparationTest {
                     public PreparedExecutable finalizePartition(
                             BackendPartitionFinalization<FakePlan> finalization) {
                         events.add("finalize-" + index);
+                        return new TestExecutable(finalization.memoryPlan());
+                    }
+                });
+    }
+
+    private static PartitionPreparation<FakeInputs, FakePlan> producerlessPreparation(
+            ProducerlessFixture fixture,
+            AtomicInteger analyses,
+            AtomicInteger finalizers,
+            List<PrepareContext<FakeInputs>> contexts) {
+        return new PartitionPreparation<>(
+                new FakeInputs("producerless"),
+                context -> {
+                    analyses.incrementAndGet();
+                    contexts.add(context);
+                    return new BackendPartitionAnalysis<>(
+                            context.partition(), new FakePlan("route"), declarations(context));
+                },
+                new BackendPartitionFinalizer<>() {
+                    @Override
+                    public BackendId backendId() {
+                        return fixture.partition.owner();
+                    }
+
+                    @Override
+                    public PreparedExecutable finalizePartition(
+                            BackendPartitionFinalization<FakePlan> finalization) {
+                        finalizers.incrementAndGet();
+                        assertEquals(2, finalization.assignments().size());
                         return new TestExecutable(finalization.memoryPlan());
                     }
                 });
@@ -590,6 +820,35 @@ class GraphPreparationTest {
                         new ExecutionStep(context.partitions().get(1).executable()),
                         new PublicationStep(new PreparedPublication(
                                 context.memoryPlan(), outputBuffer, 0, 0))));
+    }
+
+    private static PreparedSchedule producerlessSchedule(PreparedScheduleContext context) {
+        var preparations = new ArrayList<List<PreparedRepresentationPlan.BufferPreparation>>();
+        for (PreparedBufferAssignment assignment : context.bufferAssignments()) {
+            if (assignment.valueId().equals(new ValueId(60))) {
+                preparations.add(List.of(new CallerInput()));
+            } else if (assignment.valueId().value() >= 70) {
+                preparations.add(List.of(new InitializedBuffer(FakeBuffer::new)));
+            } else {
+                preparations.add(List.of(new CreatedBuffer(FakeBuffer::new)));
+            }
+        }
+        PreparedRepresentationPlan representations = new PreparedRepresentationPlan(
+                context.memoryPlan(), preparations, List.of());
+        var steps = new ArrayList<PreparedSchedule.Step>();
+        steps.add(new RepresentationCreationStep(representations));
+        steps.add(new ExecutionStep(context.partitions().getFirst().executable()));
+        int resultIndex = 0;
+        for (ValueId valueId : context.artifacts().graph().outputs()) {
+            int bufferIndex = context.bufferAssignments().stream()
+                    .filter(assignment -> assignment.valueId().equals(valueId))
+                    .findFirst()
+                    .orElseThrow()
+                    .planIndex();
+            steps.add(new PublicationStep(new PreparedPublication(
+                    context.memoryPlan(), bufferIndex, 0, resultIndex++)));
+        }
+        return new PreparedSchedule(context.memoryPlan(), steps);
     }
 
     private static PublicationStep publication(
@@ -715,6 +974,149 @@ class GraphPreparationTest {
                 new DerivativeGraphMetadata(graph, Map.of()));
     }
 
+    private static ProducerlessFixture producerlessFixture(int constantCount) {
+        ValueId inputId = new ValueId(60);
+        ValueId outputId = new ValueId(61);
+        GraphValue input = new GraphValue(inputId, descriptor());
+        GraphValue output = new GraphValue(outputId, descriptor());
+        var values = new ArrayList<GraphValue>();
+        values.add(input);
+        var constants = new ArrayList<GraphValue>();
+        var constantSources = new ArrayList<CompileConstantPlan.ConstantSource>();
+        for (int index = 0; index < constantCount; index++) {
+            Shape shape = Shape.of(index + 1L);
+            TensorDescriptor descriptor = new TensorDescriptor(
+                    DataType.FLOAT32,
+                    shape,
+                    Optional.of(LayoutDescriptor.contiguous(shape)),
+                    false);
+            GraphValue constant = new GraphValue(new ValueId(70 + index), descriptor);
+            constants.add(constant);
+            values.add(constant);
+            constantSources.add(new CompileConstantPlan.ConstantSource(
+                    constant.id(), ScalarValue.float32(index + 1.0f)));
+        }
+        values.add(output);
+        CompiledNode node = node(60, List.of(inputId), outputId);
+        var outputs = new ArrayList<ValueId>();
+        outputs.add(outputId);
+        constants.forEach(value -> outputs.add(value.id()));
+        var inputs = new ArrayList<ValueId>();
+        inputs.add(inputId);
+        constants.forEach(value -> inputs.add(value.id()));
+        CompiledGraphModel graph = new CompiledGraphModel(
+                values,
+                List.of(node),
+                inputs,
+                outputs,
+                Map.of(node.id(), GraphPhase.FORWARD));
+        PlannedPartition partition = new PlannedPartition(
+                new BackendId("cpu"), List.of(node.id()));
+        List<PlannedPartition> partitions = List.of(partition);
+        CompileConstantPlan constantPlan = construct(
+                CompileConstantPlan.class,
+                new Class<?>[] {List.class, List.class},
+                List.of(new CompileConstantPlan.BindableInput(new TensorId(9060), inputId)),
+                constantSources);
+        var forwardBindings = new ArrayList<ForwardPublicationBinding>();
+        for (int index = 0; index < outputs.size(); index++) {
+            forwardBindings.add(new ForwardPublicationBinding(
+                    new TensorId(9600 + index), outputs.get(index)));
+        }
+        PublicationPlan publication = construct(
+                PublicationPlan.class,
+                new Class<?>[] {CompiledGraphModel.class, List.class, List.class},
+                graph,
+                forwardBindings,
+                List.of());
+        CompileArtifacts artifacts = new CompileArtifacts(
+                CompileMode.FORWARD_ONLY,
+                graph,
+                partitions,
+                LogicalMemoryPlanning.plan(graph, partitions),
+                publication,
+                constantPlan,
+                construct(CompileDiagnostics.class, new Class<?>[] {List.class}, List.of()),
+                new DerivativeGraphMetadata(graph, Map.of(node.id(), 0)));
+        return new ProducerlessFixture(artifacts, partition, input, output, constants);
+    }
+
+    private static ProducerlessPublishedConstantResource resource(
+            ProducerlessFixture fixture, int index, long byteSize, long byteAlignment) {
+        GraphValue value = fixture.constants.get(index);
+        LogicalMemoryRequirement requirement = fixture.artifacts.memory().requirements().stream()
+                .filter(candidate -> candidate.valueId().equals(value.id()))
+                .findFirst()
+                .orElseThrow();
+        return new ProducerlessPublishedConstantResource(
+                value, requirement, byteSize, byteAlignment);
+    }
+
+    private static CompileArtifacts producerlessZeroNodeArtifacts() {
+        Shape shape = Shape.of(1);
+        TensorDescriptor descriptor = new TensorDescriptor(
+                DataType.FLOAT32,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                false);
+        GraphValue value = new GraphValue(new ValueId(80), descriptor);
+        CompiledGraphModel graph = new CompiledGraphModel(
+                List.of(value), List.of(), List.of(value.id()), List.of(value.id()), Map.of());
+        CompileConstantPlan constants = construct(
+                CompileConstantPlan.class,
+                new Class<?>[] {List.class, List.class},
+                List.of(),
+                List.of(new CompileConstantPlan.ConstantSource(
+                        value.id(), ScalarValue.float32(1.0f))));
+        PublicationPlan publication = construct(
+                PublicationPlan.class,
+                new Class<?>[] {CompiledGraphModel.class, List.class, List.class},
+                graph,
+                List.of(new ForwardPublicationBinding(new TensorId(9080), value.id())),
+                List.of());
+        return new CompileArtifacts(
+                CompileMode.FORWARD_ONLY,
+                graph,
+                List.of(),
+                LogicalMemoryPlanning.plan(graph, List.of()),
+                publication,
+                constants,
+                construct(CompileDiagnostics.class, new Class<?>[] {List.class}, List.of()),
+                new DerivativeGraphMetadata(graph, Map.of()));
+    }
+
+    private static CompileArtifacts resolvedBindableZeroNodeArtifacts() {
+        Shape shape = Shape.of(1);
+        TensorDescriptor descriptor = new TensorDescriptor(
+                DataType.FLOAT32,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                false);
+        GraphValue value = new GraphValue(new ValueId(81), descriptor);
+        CompiledGraphModel graph = new CompiledGraphModel(
+                List.of(value), List.of(), List.of(value.id()), List.of(value.id()), Map.of());
+        CompileConstantPlan constants = construct(
+                CompileConstantPlan.class,
+                new Class<?>[] {List.class, List.class},
+                List.of(new CompileConstantPlan.BindableInput(new TensorId(9081), value.id())),
+                List.of());
+        PublicationPlan publication = construct(
+                PublicationPlan.class,
+                new Class<?>[] {CompiledGraphModel.class, List.class, List.class},
+                graph,
+                List.of(new ForwardPublicationBinding(new TensorId(9181), value.id())),
+                List.of());
+        return new CompileArtifacts(
+                CompileMode.FORWARD_ONLY,
+                graph,
+                List.of(),
+                LogicalMemoryPlanning.plan(graph, List.of()),
+                publication,
+                constants,
+                construct(CompileDiagnostics.class, new Class<?>[] {List.class}, List.of()),
+                new DerivativeGraphMetadata(graph, Map.of()));
+    }
+
     private static CompileArtifacts withAliasedResults(CompileArtifacts source) {
         ValueId output = source.graph().outputs().getFirst();
         PublicationPlan publication = construct(
@@ -747,6 +1149,13 @@ class GraphPreparationTest {
             List<CompiledNode> nodes,
             List<GraphValue> values,
             ScalarValue constantValue) {}
+
+    private record ProducerlessFixture(
+            CompileArtifacts artifacts,
+            PlannedPartition partition,
+            GraphValue ordinaryInput,
+            GraphValue ordinaryOutput,
+            List<GraphValue> constants) {}
 
     private record FakeInputs(String target) implements BackendAnalysisInputs {}
 

@@ -36,8 +36,12 @@ import java.util.Optional;
  *
  * <p>Closure rejects new work, waits uninterruptibly for admitted calls while restoring the
  * waiting thread's interrupt status, attempts all cleanup, and retains the first unchecked
- * cleanup failure. This API intentionally supplies no typed logical binding, publication access,
- * host materialization, discovery, tuning, one-shot execution, or backward convenience.</p>
+ * cleanup failure. This advanced API intentionally supplies no typed logical binding, publication
+ * access, host materialization, discovery, tuning, or backward convenience. The ordinary owner
+ * privately reuses this lifecycle gate for transient Tensor-expression leaf discovery, fresh
+ * compile, authoritative input selection, prepare, run, complete publication and aggregate-byte
+ * preflight, ordered materialization, and cleanup without widening this advanced public
+ * surface.</p>
  */
 public final class AdvancedEngine implements AutoCloseable {
     private static final String CLOSED_MESSAGE = "advanced engine is closed";
@@ -270,16 +274,7 @@ public final class AdvancedEngine implements AutoCloseable {
             Objects.requireNonNull(owner, "owner");
             List<Tensor> outputs = snapshotIdentityUnique(
                     forwardOutputs, "forwardOutputs", true);
-            CompileArtifacts artifacts = GraphCompilationPort.compile(
-                    CompileMode.FORWARD_ONLY,
-                    outputs,
-                    Optional.empty(),
-                    GraphOptimizationConfig.standard(),
-                    BackendIntent.unconstrained(),
-                    PartitionScoringConfig.neutral(),
-                    composition.capabilityProviders(),
-                    composition.availabilitySnapshots());
-            result = new CompiledGraph(owner, artifacts);
+            result = compileForwardOrdinaryOpen(owner, outputs);
         } catch (RuntimeException | Error failure) {
             finishFailure();
             throw failure;
@@ -340,8 +335,7 @@ public final class AdvancedEngine implements AutoCloseable {
             Objects.requireNonNull(owner, "owner");
             Objects.requireNonNull(compiledGraph, "compiledGraph");
             requireOrdinaryOwner(owner, compiledGraph.owner());
-            result = new io.github.pho001.synaptik.engine.PreparedExecution(
-                    owner, compiledGraph, composition.prepare(compiledGraph.artifacts()));
+            result = prepareOrdinaryOpen(owner, compiledGraph);
         } catch (RuntimeException | Error failure) {
             finishFailure();
             throw failure;
@@ -354,6 +348,182 @@ public final class AdvancedEngine implements AutoCloseable {
             io.github.pho001.synaptik.engine.PreparedExecution preparedExecution,
             List<Tensor> inputs) {
         beginOperation();
+        OrdinaryRun ordinaryRun;
+        try {
+            ordinaryRun = runOrdinaryOpen(owner, preparedExecution, inputs);
+        } catch (RuntimeException | Error failure) {
+            finishFailure();
+            throw failure;
+        }
+        synchronized (lifecycleLock) {
+            if (lifecycle == Lifecycle.OPEN) {
+                openResults.add(ordinaryRun.owner());
+                activeOperations--;
+                lifecycleLock.notifyAll();
+                return ordinaryRun.result();
+            }
+        }
+        IllegalStateException closed = closedFailure();
+        try {
+            ordinaryRun.owner().close();
+        } catch (RuntimeException | Error rollbackFailure) {
+            suppressDistinct(closed, rollbackFailure);
+        }
+        finishFailure();
+        throw closed;
+    }
+
+    HostTensorValue computeOrdinary(
+            Engine owner, Tensor output, long maximumTotalBytes) {
+        beginOperation();
+        try {
+            Objects.requireNonNull(owner, "owner");
+            Tensor outputSnapshot = Objects.requireNonNull(output, "output");
+            requireNonNegativeTotalLimit(maximumTotalBytes);
+            return computeOrdinaryOpen(
+                    owner, List.of(outputSnapshot), maximumTotalBytes).getFirst();
+        } finally {
+            finishFailure();
+        }
+    }
+
+    List<HostTensorValue> computeOrdinary(
+            Engine owner,
+            List<Tensor> outputs,
+            long maximumTotalBytes) {
+        beginOperation();
+        try {
+            Objects.requireNonNull(owner, "owner");
+            List<Tensor> outputSnapshot = snapshotIdentityUnique(outputs, "outputs", true);
+            requireNonNegativeTotalLimit(maximumTotalBytes);
+            return computeOrdinaryOpen(owner, outputSnapshot, maximumTotalBytes);
+        } finally {
+            finishFailure();
+        }
+    }
+
+    private List<HostTensorValue> computeOrdinaryOpen(
+            Engine owner,
+            List<Tensor> outputs,
+            long maximumTotalBytes) {
+        Map<TensorId, Tensor> leaves = inventoryReachableLeaves(outputs);
+        CompiledGraph compiled = compileForwardOrdinaryOpen(owner, outputs);
+        List<Tensor> selectedInputs = selectCompiledInputs(compiled, leaves);
+        io.github.pho001.synaptik.engine.PreparedExecution prepared =
+                prepareOrdinaryOpen(owner, compiled);
+        OrdinaryRun ordinaryRun = runOrdinaryOpen(owner, prepared, selectedInputs);
+        boolean cleanupAttempted = false;
+        try {
+            List<io.github.pho001.synaptik.engine.RunResult.Publication> publications =
+                    validateForwardPublications(ordinaryRun.result(), outputs);
+            long[] byteCounts = preflightCanonicalByteCounts(
+                    publications, maximumTotalBytes);
+            var values = new ArrayList<HostTensorValue>(publications.size());
+            for (int index = 0; index < publications.size(); index++) {
+                values.add(ordinaryRun.owner().materializeUnderAdmission(
+                        ordinaryRun.result(), publications.get(index), byteCounts[index], composition));
+            }
+            List<HostTensorValue> result = List.copyOf(values);
+            cleanupAttempted = true;
+            ordinaryRun.owner().close();
+            return result;
+        } catch (RuntimeException | Error failure) {
+            if (!cleanupAttempted) {
+                cleanupAttempted = true;
+                try {
+                    ordinaryRun.owner().close();
+                } catch (RuntimeException | Error cleanupFailure) {
+                    suppressDistinct(failure, cleanupFailure);
+                }
+            }
+            throw failure;
+        }
+    }
+
+    private CompiledGraph compileForwardOrdinaryOpen(Engine owner, List<Tensor> outputs) {
+        CompileArtifacts artifacts = GraphCompilationPort.compile(
+                CompileMode.FORWARD_ONLY,
+                outputs,
+                Optional.empty(),
+                GraphOptimizationConfig.standard(),
+                BackendIntent.unconstrained(),
+                PartitionScoringConfig.neutral(),
+                composition.capabilityProviders(),
+                composition.availabilitySnapshots());
+        return new CompiledGraph(owner, artifacts);
+    }
+
+    /**
+     * Iteratively inventories the exact provenance-free Tensor leaves reachable from outputs.
+     * Visitation uses object identity, while the returned transient lookup uses Tensor identity
+     * for later joining to compiled input metadata. A repeated Tensor ID on a different exact
+     * leaf is rejected rather than resolved arbitrarily.
+     *
+     * @param outputs prevalidated non-null output snapshot containing non-null Tensors
+     * @return a new mutable transient mapping from each reachable leaf ID to its exact Tensor
+     * @throws IllegalStateException if different exact leaf objects carry the same Tensor ID
+     */
+    static Map<TensorId, Tensor> inventoryReachableLeaves(List<Tensor> outputs) {
+        IdentityHashMap<Tensor, Boolean> visited = new IdentityHashMap<>();
+        Map<TensorId, Tensor> leaves = new HashMap<>();
+        var pending = new ArrayList<Tensor>(outputs);
+        while (!pending.isEmpty()) {
+            Tensor tensor = pending.removeLast();
+            if (visited.put(tensor, Boolean.TRUE) != null) {
+                continue;
+            }
+            Optional<io.github.pho001.synaptik.model.tensor.TensorProvenance> provenance =
+                    tensor.provenance();
+            if (provenance.isEmpty()) {
+                Tensor previous = leaves.putIfAbsent(tensor.id(), tensor);
+                if (previous != null && previous != tensor) {
+                    throw new IllegalStateException(
+                            "different Tensor objects share Tensor ID " + tensor.id());
+                }
+                continue;
+            }
+            List<Tensor> inputs = provenance.orElseThrow().inputs();
+            for (int index = inputs.size() - 1; index >= 0; index--) {
+                pending.add(inputs.get(index));
+            }
+        }
+        return leaves;
+    }
+
+    /**
+     * Selects reachable leaves in the exact authoritative compiled-input order.
+     * Inventory entries absent from the compiled metadata are ignored without storage access.
+     *
+     * @param compiled non-null compiled graph whose immutable inputs determine membership and order
+     * @param leaves non-null transient reachable-leaf inventory keyed by Tensor ID
+     * @return an immutable list containing the exact selected Tensor objects in compiled order
+     * @throws IllegalStateException if an authoritative compiled Tensor ID has no reachable leaf
+     */
+    static List<Tensor> selectCompiledInputs(
+            CompiledGraph compiled, Map<TensorId, Tensor> leaves) {
+        var selected = new ArrayList<Tensor>(compiled.inputs().size());
+        for (CompiledGraph.Input input : compiled.inputs()) {
+            Tensor tensor = leaves.get(input.tensorId());
+            if (tensor == null) {
+                throw new IllegalStateException(
+                        "compiled input has no reachable provenance-free Tensor: "
+                                + input.tensorId());
+            }
+            selected.add(tensor);
+        }
+        return List.copyOf(selected);
+    }
+
+    private io.github.pho001.synaptik.engine.PreparedExecution prepareOrdinaryOpen(
+            Engine owner, CompiledGraph compiledGraph) {
+        return new io.github.pho001.synaptik.engine.PreparedExecution(
+                owner, compiledGraph, composition.prepare(compiledGraph.artifacts()));
+    }
+
+    private OrdinaryRun runOrdinaryOpen(
+            Engine owner,
+            io.github.pho001.synaptik.engine.PreparedExecution preparedExecution,
+            List<Tensor> inputs) {
         var borrowed = new ArrayList<BufferRepresentation>();
         io.github.pho001.synaptik.runtime.run.RunResult inwardResult = null;
         boolean ownershipTransferred = false;
@@ -416,24 +586,8 @@ public final class AdvancedEngine implements AutoCloseable {
             AdvancedRunResult resultOwner = new AdvancedRunResult(this, inwardResult, borrowed);
             io.github.pho001.synaptik.engine.RunResult result =
                     new io.github.pho001.synaptik.engine.RunResult(resultOwner, specifications);
-            synchronized (lifecycleLock) {
-                if (lifecycle == Lifecycle.OPEN) {
-                    openResults.add(resultOwner);
-                    activeOperations--;
-                    lifecycleLock.notifyAll();
-                    ownershipTransferred = true;
-                    return result;
-                }
-            }
-            IllegalStateException closed = closedFailure();
-            try {
-                resultOwner.close();
-            } catch (RuntimeException | Error rollbackFailure) {
-                suppressDistinct(closed, rollbackFailure);
-            }
             ownershipTransferred = true;
-            finishFailure();
-            throw closed;
+            return new OrdinaryRun(resultOwner, result);
         } catch (RuntimeException | Error failure) {
             if (!ownershipTransferred) {
                 if (inwardResult != null) {
@@ -444,9 +598,125 @@ public final class AdvancedEngine implements AutoCloseable {
                     }
                 }
                 closeBorrowedReverse(borrowed, failure);
-                finishFailure();
             }
             throw failure;
+        }
+    }
+
+    private static List<io.github.pho001.synaptik.engine.RunResult.Publication>
+            validateForwardPublications(
+                    io.github.pho001.synaptik.engine.RunResult result, List<Tensor> outputs) {
+        List<io.github.pho001.synaptik.engine.RunResult.Publication> publications =
+                result.publications();
+        if (result.resultCount() != outputs.size()) {
+            throw new IllegalStateException(
+                    "forward result count does not match output count: expected="
+                            + outputs.size() + ", actual=" + result.resultCount());
+        }
+        if (publications.size() != outputs.size()) {
+            throw new IllegalStateException(
+                    "forward publication count does not match output count: expected="
+                            + outputs.size() + ", actual=" + publications.size());
+        }
+        for (int index = 0; index < publications.size(); index++) {
+            var publication = publications.get(index);
+            if (publication.index() != index) {
+                throw new IllegalStateException(
+                        "forward publication index mismatch at " + index + ": actual="
+                                + publication.index());
+            }
+            if (publication.role() != io.github.pho001.synaptik.engine.RunResult.Role.FORWARD) {
+                throw new IllegalStateException(
+                        "forward publication role mismatch at " + index + ": actual="
+                                + publication.role());
+            }
+            if (!publication.tensorId().equals(outputs.get(index).id())) {
+                throw new IllegalStateException(
+                        "forward publication Tensor ID mismatch at " + index);
+            }
+            if (publication.derivativeOrder().isPresent()) {
+                throw new IllegalStateException(
+                        "forward publication derivative order is present at " + index);
+            }
+            if (publication.targetIndex().isPresent()) {
+                throw new IllegalStateException(
+                        "forward publication target index is present at " + index);
+            }
+            Objects.requireNonNull(publication.descriptor(),
+                    "forward publication descriptor[" + index + "]");
+        }
+        return publications;
+    }
+
+    private static long[] preflightCanonicalByteCounts(
+            List<io.github.pho001.synaptik.engine.RunResult.Publication> publications,
+            long maximumTotalBytes) {
+        long[] byteCounts = new long[publications.size()];
+        long total = 0;
+        for (int index = 0; index < publications.size(); index++) {
+            var descriptor = publications.get(index).descriptor();
+            if (!descriptor.shape().isFullyStatic()) {
+                throw new IllegalArgumentException(
+                        "host snapshot requires a fully static shape: " + descriptor.shape());
+            }
+            if (descriptor.layout().isEmpty()) {
+                throw new IllegalArgumentException("host snapshot requires a resolved layout");
+            }
+            long elementCount = descriptor.shape().knownElementCount().orElseThrow();
+            long byteCount = Math.multiplyExact(elementCount, descriptor.dataType().byteWidth());
+            if (byteCount > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException(
+                        "canonical byte count exceeds JVM byte[] limit: " + byteCount);
+            }
+            byteCounts[index] = byteCount;
+            total = Math.addExact(total, byteCount);
+        }
+        if (total > maximumTotalBytes) {
+            throw new IllegalArgumentException(
+                    "total canonical byte count exceeds maximumTotalBytes: required=" + total
+                            + ", maximum=" + maximumTotalBytes);
+        }
+        return byteCounts;
+    }
+
+    private static void requireNonNegativeTotalLimit(long maximumTotalBytes) {
+        if (maximumTotalBytes < 0) {
+            throw new IllegalArgumentException(
+                    "maximumTotalBytes must be non-negative: " + maximumTotalBytes);
+        }
+    }
+
+    private record OrdinaryRun(
+            AdvancedRunResult owner, io.github.pho001.synaptik.engine.RunResult result) {}
+
+    /**
+     * Admits and synchronously materializes one occurrence under its registered result monitor.
+     * Engine admission precedes all argument inspection. The result monitor then rejects result
+     * closure and remains held through occurrence validation, Runtime lookup, CPU copy, and
+     * detached-value construction, so Engine close waits for an admitted call.
+     *
+     * @param resultOwner non-null registered result owner
+     * @param result non-null ordinary result backed by {@code resultOwner}
+     * @param publication possibly null occurrence selector validated after Engine and result
+     *     lifecycle admission
+     * @param maximumBytes caller byte limit validated after occurrence authentication
+     * @return a fresh detached host value ready before admission is released
+     * @throws IllegalStateException if Engine or result closure has begun; Engine closure wins
+     *     over argument validation
+     * @throws RuntimeException if validation or copying fails
+     * @throws Error if copying reports a fatal failure
+     */
+    HostTensorValue materializeOrdinary(
+            AdvancedRunResult resultOwner,
+            io.github.pho001.synaptik.engine.RunResult result,
+            io.github.pho001.synaptik.engine.RunResult.Publication publication,
+            long maximumBytes) {
+        beginOperation();
+        try {
+            return resultOwner.materializeUnderAdmission(
+                    result, publication, maximumBytes, composition);
+        } finally {
+            finishFailure();
         }
     }
 
