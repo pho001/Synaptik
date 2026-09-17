@@ -14,6 +14,10 @@ import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPreparedSchedul
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.compiler.CompileConstantPlan;
 import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
+import io.github.pho001.synaptik.model.graph.CompiledNode;
+import io.github.pho001.synaptik.model.graph.GraphValue;
+import io.github.pho001.synaptik.model.graph.NodeId;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
@@ -23,6 +27,9 @@ import io.github.pho001.synaptik.prepare.GraphPreparation;
 import io.github.pho001.synaptik.prepare.PartitionPreparation;
 import io.github.pho001.synaptik.prepare.ProducerlessPublishedConstantResource;
 import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
+import io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis;
+import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
+import io.github.pho001.synaptik.prepare.analysis.PartitionDag;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import java.util.ArrayList;
@@ -189,6 +196,90 @@ public final class CpuBackendComposition implements AutoCloseable {
         List<ProducerlessPublishedConstantResource> resources =
                 producerlessPublishedConstantResources(artifacts);
         return GraphPreparation.prepare(artifacts, preparations, resources, assembler);
+    }
+
+    /**
+     * Performs fresh CPU analysis and returns the current complete tunable batch, if any.
+     *
+     * @param artifacts non-null artifacts in the supported sole-CPU-partition domain
+     * @return the freshly analyzed immutable batch, or empty when the valid workload is not
+     *     currently tunable
+     * @throws NullPointerException if {@code artifacts} is {@code null}
+     * @throws IllegalStateException if this composition is closed
+     * @throws IllegalArgumentException if the artifacts are outside the supported domain
+     */
+    public Optional<CpuOpenBlasTuningBatch> tuningBatch(CompileArtifacts artifacts) {
+        requireOpen();
+        Objects.requireNonNull(artifacts, "artifacts");
+        validateSoleCpuPartition(artifacts);
+        return analyze(artifacts, Optional.empty()).plan().openBlasTuningBatch();
+    }
+
+    /**
+     * Re-analyzes and prepares one exact CPU-owned tuning decision without heuristic fallback.
+     *
+     * @param artifacts non-null exact artifacts retained by the supported tuning association
+     * @param decision non-null CPU decision to validate against fresh authoritative analysis
+     * @return a complete immutable prepared execution for exactly the selected candidate
+     * @throws NullPointerException if an argument is {@code null}
+     * @throws IllegalStateException if this composition is closed
+     * @throws IllegalArgumentException if the decision is stale, ineligible, or not selected by
+     *     the fresh batch
+     */
+    public PreparedExecution prepareSelected(CompileArtifacts artifacts,
+            CpuOpenBlasTuningDecision decision) {
+        requireOpen();
+        Objects.requireNonNull(artifacts, "artifacts");
+        Objects.requireNonNull(decision, "decision");
+        validateSoleCpuPartition(artifacts);
+        BackendPartitionAnalysis<io.github.pho001.synaptik.backend.cpu.internal.prepare
+                .CpuPartitionPreparationPlan> analysis = analyze(artifacts, Optional.of(decision));
+        var batch = analysis.plan().openBlasTuningBatch().orElseThrow(() ->
+                new IllegalArgumentException("CPU tuning decision is no longer eligible"));
+        var matched = decision.match(batch).orElseThrow(() ->
+                new IllegalArgumentException("CPU tuning decision is stale or incompatible"));
+        if (!analysis.plan().selectedOpenBlasTuningCandidate().orElseThrow()
+                .equals(matched.identity())) {
+            throw new IllegalArgumentException("CPU tuning decision was not selected");
+        }
+        var preparation = new PartitionPreparation<>(analysisInputs(artifacts,
+                Optional.of(decision)), preparer, finalizer);
+        return GraphPreparation.prepare(artifacts, List.of(preparation),
+                producerlessPublishedConstantResources(artifacts), assembler);
+    }
+
+    /**
+     * Reconstructs shared Prepare's authoritative partition projection and runs CPU analysis.
+     *
+     * @param artifacts non-null already validated sole-partition artifacts
+     * @param decision non-null optional exact decision to validate during analysis
+     * @return the fresh non-null immutable CPU analysis
+     */
+    private BackendPartitionAnalysis<io.github.pho001.synaptik.backend.cpu.internal.prepare
+            .CpuPartitionPreparationPlan> analyze(CompileArtifacts artifacts,
+            Optional<CpuOpenBlasTuningDecision> decision) {
+        var partition = artifacts.partitions().getFirst();
+        var nodesById = new HashMap<NodeId, CompiledNode>();
+        artifacts.graph().nodes().forEach(node -> nodesById.put(node.id(), node));
+        var requirementsById = new HashMap<ValueId, LogicalMemoryRequirement>();
+        artifacts.memory().requirements().forEach(value ->
+                requirementsById.put(value.valueId(), value));
+        var nodes = partition.nodeIds().stream().map(nodesById::get).toList();
+        var projectedIds = new HashSet<ValueId>();
+        nodes.forEach(node -> {
+            projectedIds.addAll(node.inputs());
+            projectedIds.addAll(node.outputs());
+        });
+        var values = artifacts.graph().values().stream()
+                .filter(value -> projectedIds.contains(value.id())).toList();
+        var requirements = values.stream().map(value -> requirementsById.get(value.id())).toList();
+        var constants = new LinkedHashMap<ValueId, ScalarValue>();
+        artifacts.constants().constantSources().stream()
+                .filter(source -> projectedIds.contains(source.valueId()))
+                .forEach(source -> constants.put(source.valueId(), source.value()));
+        var context = new PrepareContext<>(new PartitionDag(partition, nodes), values,
+                requirements, constants, analysisInputs(artifacts, decision));
+        return preparer.analyze(context);
     }
 
     /**
@@ -408,6 +499,18 @@ public final class CpuBackendComposition implements AutoCloseable {
      *     resolved descriptor
      */
     private CpuPartitionAnalysisInputs analysisInputs(CompileArtifacts artifacts) {
+        return analysisInputs(artifacts, Optional.empty());
+    }
+
+    /**
+     * Derives current immutable production analysis facts with an optional exact selection.
+     *
+     * @param artifacts non-null already validated artifacts; inspected but not mutated
+     * @param decision non-null optional decision retained only in immutable analysis input
+     * @return non-null complete CPU analysis inputs
+     */
+    private CpuPartitionAnalysisInputs analysisInputs(CompileArtifacts artifacts,
+            Optional<CpuOpenBlasTuningDecision> decision) {
         List<CpuPartitionAnalysisInputs.BoundaryStorageFact> storageFacts = List.of();
         var partition = artifacts.partitions().getFirst();
         if (partition.nodeIds().size() == 1) {
@@ -443,7 +546,9 @@ public final class CpuBackendComposition implements AutoCloseable {
         return new CpuPartitionAnalysisInputs(false, List.of(),
                 CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT,
                 CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED, false,
-                CpuPartitionAnalysisInputs.PartialReductionEvidence.NONE, storageFacts, route);
+                CpuPartitionAnalysisInputs.PartialReductionEvidence.NONE, storageFacts, route,
+                CpuOpenBlasTuningBatch.HardwareIdentity.UNSPECIFIED,
+                CpuOpenBlasTuningBatch.WorkloadCohort.DEFAULT, decision);
     }
 
     /**
@@ -455,6 +560,15 @@ public final class CpuBackendComposition implements AutoCloseable {
         if (closed.get()) {
             throw new IllegalStateException("CPU backend integration is closed");
         }
+    }
+
+    /**
+     * Rejects supported adapter work after this composition has closed.
+     *
+     * @throws IllegalStateException if this composition is closed
+     */
+    public void assertOpen() {
+        requireOpen();
     }
 
     /**

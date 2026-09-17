@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
+import io.github.pho001.synaptik.backend.cpu.CpuLocalWorkloadTuning;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.compiler.CompileConstantPlan;
 import io.github.pho001.synaptik.compiler.DerivativeGraphMetadata;
@@ -27,6 +28,7 @@ import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.model.tensor.TensorId;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryPlanning;
+import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan;
 import io.github.pho001.synaptik.runtime.run.PreparedExecutionRunner;
 import io.github.pho001.synaptik.runtime.schedule.PreparedSchedule;
@@ -232,6 +234,144 @@ final class CpuBackendCompositionTest {
         composition.close();
         assertEquals(1, closes.get());
         assertEquals(3, invocation.threads);
+    }
+
+    @Test
+    void supportedSessionCodecRejectsWrongOwnerAndPreparesExactSelection() {
+        AtomicInteger firstCloses = new AtomicInteger(), secondCloses = new AtomicInteger();
+        CpuBackendComposition firstComposition = CpuBackendComposition.open(
+                loadedSession(new ComputingInvocation(), firstCloses));
+        CpuBackendComposition secondComposition = CpuBackendComposition.open(
+                loadedSession(new ComputingInvocation(), secondCloses));
+        CpuLocalWorkloadTuning first = tuning(firstComposition);
+        CpuLocalWorkloadTuning second = tuning(secondComposition);
+        try {
+            var firstBatch = first.candidateHandoff(resolvedMatmul(firstComposition))
+                    .orElseThrow().candidateBatch();
+            var secondBatch = second.candidateHandoff(resolvedMatmul(secondComposition))
+                    .orElseThrow().candidateBatch();
+            var candidate = first.candidates(firstBatch).getFirst();
+            var decision = first.selectedDecision(firstBatch, candidate);
+            byte[] encoded = first.encodeDecision(decision);
+            assertAll(
+                    () -> assertEquals(CpuLocalWorkloadTuning.ReuseScope.SESSION,
+                            first.compatibility(firstBatch).reuseScope()),
+                    () -> assertEquals(decision,
+                            first.decodeCompatibleDecision(firstBatch, encoded).orElseThrow()),
+                    () -> assertTrue(second.decodeCompatibleDecision(secondBatch, encoded).isEmpty()),
+                    () -> assertThrows(IllegalArgumentException.class,
+                            () -> second.selectedDecision(secondBatch, candidate)),
+                    () -> assertTrue(first.decodeCompatibleDecision(firstBatch, new byte[0]).isEmpty()),
+                    () -> assertTrue(first.decodeCompatibleDecision(firstBatch,
+                            new byte[513]).isEmpty()),
+                    () -> assertNotNull(first.prepareTrial(firstBatch, candidate)),
+                    () -> assertNotNull(first.prepareSelected(firstBatch, decision)));
+            byte[] unsupported = encoded.clone();
+            unsupported[7] ^= 1;
+            assertTrue(first.decodeCompatibleDecision(firstBatch, unsupported).isEmpty());
+            assertTrue(first.decodeCompatibleDecision(firstBatch,
+                    java.util.Arrays.copyOf(encoded, encoded.length + 1)).isEmpty());
+        } finally {
+            firstComposition.close();
+            secondComposition.close();
+        }
+        assertEquals(1, firstCloses.get());
+        assertEquals(1, secondCloses.get());
+    }
+
+    @Test
+    void supportedPersistentCodecReassociatesWithoutCrossOwnerEquality() {
+        var target = new CpuOpenBlasQualification.TargetFingerprint(1,
+                CpuOpenBlasQualification.OperatingSystem.MACOS,
+                CpuOpenBlasQualification.Machine.AARCH64, 64, ByteOrder.LITTLE_ENDIAN);
+        var binary = new CpuOpenBlasQualification.BinaryIdentity(1, "SHA-256", "0".repeat(64),
+                1, CpuOpenBlasQualification.ExecutableFormat.MACH_O_64,
+                CpuOpenBlasQualification.Machine.AARCH64);
+        var qualification = new CpuOpenBlasQualification(
+                CpuOpenBlasQualification.Scope.PERSISTENT_BINARY, target, Optional.of(binary),
+                new CpuOpenBlasQualification.SessionKey());
+        CpuBackendComposition firstComposition = persistentCodecComposition(qualification);
+        CpuBackendComposition secondComposition = persistentCodecComposition(qualification);
+        try {
+            CpuLocalWorkloadTuning first = tuning(firstComposition);
+            CpuLocalWorkloadTuning second = tuning(secondComposition);
+            var firstBatch = first.candidateHandoff(resolvedMatmul(firstComposition))
+                    .orElseThrow().candidateBatch();
+            var secondBatch = second.candidateHandoff(resolvedMatmul(secondComposition))
+                    .orElseThrow().candidateBatch();
+            var decision = first.selectedDecision(firstBatch, first.candidates(firstBatch).getFirst());
+            byte[] encoded = first.encodeDecision(decision);
+            var reassociated = second.decodeCompatibleDecision(secondBatch, encoded).orElseThrow();
+            assertAll(
+                    () -> assertEquals(CpuLocalWorkloadTuning.ReuseScope.PERSISTENT,
+                            first.compatibility(firstBatch).reuseScope()),
+                    () -> assertEquals(first.compatibility(firstBatch),
+                            second.compatibility(secondBatch)),
+                    () -> assertNotEquals(decision, reassociated),
+                    () -> assertArrayEquals(encoded, second.encodeDecision(reassociated)));
+        } finally {
+            firstComposition.close();
+            secondComposition.close();
+        }
+    }
+
+    private static CpuBackendComposition persistentCodecComposition(
+            CpuOpenBlasQualification qualification) {
+        return construct(CpuBackendComposition.class,
+                new Class<?>[] {
+                    io.github.pho001.synaptik.backend.cpu.internal.executable
+                            .CpuConcurrencyBudget.class,
+                    Optional.class, Optional.class},
+                new io.github.pho001.synaptik.backend.cpu.internal.executable
+                        .CpuConcurrencyBudget(1),
+                Optional.empty(), Optional.of(qualification));
+    }
+
+    private static CpuLocalWorkloadTuning tuning(CpuBackendComposition composition) {
+        return construct(CpuLocalWorkloadTuning.class,
+                new Class<?>[] {CpuBackendComposition.class}, composition);
+    }
+
+    private static CompileArtifacts resolvedMatmul(CpuBackendComposition composition) {
+        Shape leftShape = Shape.of(2, 3), rightShape = Shape.of(3, 2);
+        Tensor left = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32, leftShape,
+                Optional.of(LayoutDescriptor.contiguous(leftShape)), false));
+        Tensor right = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32, rightShape,
+                Optional.of(LayoutDescriptor.contiguous(rightShape)), false));
+        BackendCapabilityProvider provider = new BackendCapabilityProvider() {
+            @Override public io.github.pho001.synaptik.backend.contract.BackendId backendId() {
+                return CpuCapabilityProvider.CPU_BACKEND_ID;
+            }
+            @Override public boolean supports(
+                    io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery query) {
+                return true;
+            }
+        };
+        CompileArtifacts base = GraphCompilationPort.compile(CompileMode.FORWARD_ONLY,
+                List.of(left.matmul(right)), Optional.empty(), GraphOptimizationConfig.disabled(),
+                BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider),
+                List.of(composition.availabilitySnapshot()));
+        var outputIds = java.util.Set.copyOf(base.graph().outputs());
+        var values = base.graph().values().stream().map(value -> {
+            if (!outputIds.contains(value.id())) return value;
+            var descriptor = value.descriptor();
+            return new GraphValue(value.id(), new TensorDescriptor(descriptor.dataType(),
+                    descriptor.shape(), Optional.of(LayoutDescriptor.contiguous(descriptor.shape())),
+                    descriptor.requiresGrad()));
+        }).toList();
+        var graph = new CompiledGraphModel(values, base.graph().nodes(), base.graph().inputs(),
+                base.graph().outputs(), base.graph().nodePhases());
+        var publication = construct(PublicationPlan.class,
+                new Class<?>[] {CompiledGraphModel.class, List.class, List.class}, graph,
+                base.publication().forwardBindings(), base.publication().gradientBindings());
+        var constants = construct(CompileConstantPlan.class,
+                new Class<?>[] {List.class, List.class}, List.of(), graph.inputs().stream()
+                        .map(id -> new CompileConstantPlan.ConstantSource(
+                                id, ScalarValue.float32(1.0f))).toList());
+        return new CompileArtifacts(base.mode(), graph, base.partitions(),
+                LogicalMemoryPlanning.plan(graph, base.partitions()), publication, constants,
+                base.diagnostics(), new DerivativeGraphMetadata(
+                        graph, base.derivatives().derivativeOrderByNode()));
     }
 
     private static CpuOpenBlasDiscoverySession loadedSession(CpuOpenBlasInvocation invocation,

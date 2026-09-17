@@ -55,7 +55,7 @@ class CpuInternalPackageInventoryTest {
                         "internal/route/portable", "internal/cache", "internal/executable",
                         "internal/reference", "internal/route/nativeblas/openblas"), packages),
                 () -> assertEquals(Set.of(
-                        "CpuCapabilityProvider.java", "CpuBackendIntegration.java", "package-info.java", "internal/package-info.java",
+                        "CpuCapabilityProvider.java", "CpuBackendIntegration.java", "CpuLocalWorkloadTuning.java", "package-info.java", "internal/package-info.java",
                         "internal/memory/CpuBorrowedBuffer.java", "internal/memory/CpuBufferArgument.java",
                         "internal/memory/CpuBufferRepresentation.java", "internal/memory/CpuNativeBuffer.java",
                         "internal/memory/CpuHostSnapshotExporter.java",

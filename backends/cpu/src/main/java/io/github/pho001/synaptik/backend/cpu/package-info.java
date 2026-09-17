@@ -1,5 +1,6 @@
 /**
- * Supplies the sole supported CPU capability provider and its stable {@code cpu} identity.
+ * Supplies the supported CPU lifecycle integration, capability provider, and stable {@code cpu}
+ * identity.
  * The provider truthfully reports the implemented fully static pointwise and affine occurrence
  * matrices plus bounded one-node movement, window-extraction, indexing, functional scatter,
  * slice-update, overlap-fold, stable ordering/selection, explicit-state random, and cumulative-
@@ -59,7 +60,12 @@
  * native-order segments, and mixed carriers. A cross-type CAST keeps its explicit boundary inside
  * a bounded pointwise directed acyclic graph and disables vector compute for that unit; same-type
  * vector eligibility is unchanged. The provider exposes no route, carrier, preparation, or
- * execution API.
+ * execution API. {@link io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration} is the
+ * supported lifecycle owner. Its retained
+ * {@link io.github.pho001.synaptik.backend.cpu.CpuLocalWorkloadTuning} collaboration exposes
+ * opaque CPU-local candidate preparation to outer composition code without exposing route,
+ * provider, representation, workspace, or coordination internals. It prepares recipes only;
+ * measurement, representative execution, cache policy, and fallback remain outside this package.
  *
  * <p>The {@code internal} namespace contains unsupported implementation contracts for complete-
  * partition lowering, code generation, storage, and execution. No type in that namespace is a

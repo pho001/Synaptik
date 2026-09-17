@@ -891,10 +891,11 @@ supplies stable model/profile evidence identities, already formed occurrences, b
 compatibility and candidate identities, complete candidate enumeration, a decision codec, and
 complete candidate execution. The tool performs cache-first deduplication, bounded warmup and
 sampling, integer-middle-median selection with encounter-order ties, and atomic workload-cache
-publication while returning richer raw evidence separately. There is no supported CPU adapter,
-model extraction, Engine integration, or second-phase graph/plan tuning yet. A separate current
-Config request facade holds only stable user-owned request data and performs none of this
-operational work.
+publication while returning richer raw evidence separately. The supported CPU-local adapter now
+supplies opaque candidate/decision and exact prepared-recipe operations, but it does not supply
+complete candidate execution, representative input binding, fallback, model extraction, Engine
+integration, or second-phase graph/plan tuning. A separate current Config request facade holds
+only stable user-owned request data and performs none of this operational work.
 
 Tuning is optional for correctness and never runs in the runtime hot path. Running the same
 workflow over a representative model corpus may eventually pre-seed the same workload cache; this
@@ -2315,9 +2316,10 @@ key. The first implemented internal instance is the CPU exact/default FLOAT32/FL
 MATMUL signature. It additionally retains qualification scope, caller-supplied CPU identity,
 expected-use cohort, concurrency, route/resource inputs, and policy versions. Session-only
 qualification has no persistent projection; persistently reusable compatibility requires the
-qualified binary identity. The shared exact-partition opaque transport and generic tuning tool's
-exact-value deduplication, measurement, and bounded persistent-cache use are implemented.
-Producing this identity through a supported CPU adapter or model/Engine path remains planned.
+qualified binary identity. The shared exact-partition opaque transport, generic tuning tool's
+exact-value deduplication, measurement and bounded persistent-cache use, and CPU 0010I supported
+compatibility projection are implemented. Producing occurrences and representative execution
+through a model/Engine path remains planned.
 
 ### Candidate generator
 
@@ -2328,10 +2330,10 @@ vocabulary. Shared tuning and prepare orchestration sees candidates opaquely; it
 generic parameter map, string dispatch, reflective annotations, or a central knob registry. The
 first implemented internal generator is the CPU exact/default FLOAT32/FLOAT64 OpenBLAS MATMUL
 producer. It emits the complete portable alternative followed by every realizable copy-mask and
-fitting configured-thread combination. The shared exact-partition opaque transport and generic
-caller-supplied workload-tuning orchestration are implemented. A backend-aware caller still
-supplies enumeration and identity; supported CPU/Engine integration and complete graph/plan
-orchestration remain planned.
+fitting configured-thread combination. The shared exact-partition opaque transport, generic
+caller-supplied workload-tuning orchestration, and supported CPU-local enumeration and identity
+collaboration are implemented. Engine still must supply representative execution/input binding
+and fallback; complete graph/plan orchestration remains planned.
 
 ### Selected tuning decision
 

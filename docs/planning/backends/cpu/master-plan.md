@@ -168,6 +168,7 @@ SIMD routes, optional native routes, storage, workspace, and execution.
 io.github.pho001.synaptik.backend.cpu/
   CpuCapabilityProvider       public truthful fail-closed CPU capability provider
   CpuBackendIntegration       supported Engine-facing lifecycle SPI
+  CpuLocalWorkloadTuning      supported CPU-owned local-tuning collaboration
   package-info.java           public package boundary and current status
   internal/
     memory/                   representations and cold binding
@@ -184,10 +185,11 @@ io.github.pho001.synaptik.backend.cpu/
 
 Task 0005A adopts this structure atomically. Java subpackages are separate access domains, not
 friends, so only the minimal cross-package contracts are technically public below `.internal` and
-are explicitly unsupported API. `CpuCapabilityProvider` and `CpuBackendIntegration` are the
-supported root-package CPU types; the latter is cross-module SPI rather than an ordinary user
-facade. No JPMS export, service locator, registry, broad facade, compatibility bridge, or retained
-flat pipeline is permitted.
+are explicitly unsupported API. `CpuCapabilityProvider`, `CpuBackendIntegration`, and
+`CpuLocalWorkloadTuning` are the current supported root-package CPU types. Complete task 0010I
+adds the tuning collaboration as a narrow cross-module composition SPI, not an ordinary user
+facade. No JPMS export, service locator, registry, broad facade, generic backend bridge, or
+retained flat pipeline is permitted.
 
 Later tasks add only their concrete leaves: `route/nativeblas/{openblas,accelerate,mkl,aocl}` for
 BLAS-compatible calls and `route/nativeops/{accelerate,mkl,onednn,aocl,zendnn}` for vDSP/vForce,
@@ -315,6 +317,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0010F | [Supported CPU lifecycle integration adapter](tasks/0010f-supported-cpu-lifecycle-integration-adapter.md) | Complete | 0010E; Prepare 0003–0004; Runtime 0010; Compiler 0006B3 | Published the smallest CPU-owned Engine integration adapter for exactly one non-empty maximal CPU partition, encapsulating capability/availability, current internal analysis and finalization, physical representation recipes, deterministic schedule assembly, and automatic OpenBLAS qualification/lifetime with portable fallback. It rejects zero-partition/pass-through and mixed/multi-partition artifacts before CPU analysis/assembly. Future Engine composition consumes it without `.internal` imports; ordinary users do not construct or name it. |
 | 0010G | [Canonical caller-owned host snapshot export](tasks/0010g-canonical-caller-owned-host-snapshot-export.md) | Complete | 0010F; Runtime 0015; Engine 0003 | Added `copyToCanonicalHostBytes(BufferRepresentation, TensorDescriptor, long)` to the supported integration SPI. It validates one current CPU representation and resolved static descriptor, then returns fresh big-endian canonical row-major bytes for all six current data types under the caller limit and JVM array ceiling. It exposes no CPU internal type, lease, arena, `MemorySegment`, Runtime coordinate, graph identity, or Engine type. |
 | [0010H](tasks/0010h-source-only-published-constant-cpu-materialization.md) | Source-only published-constant CPU materialization | Complete | Compiler 0006B5; Prepare 0005; 0010F–0010G | Derived canonical physical declarations in the current sole non-empty CPU composition, passed exact producerless published-constant resources through shared Prepare, and reused initialized-buffer recipes so each fresh RunState owns one newly initialized representation. Preserved rejection of zero-node and mixed/multi-partition compositions; added no Runtime mechanism. |
+| [0010I](tasks/0010i-supported-cpu-local-workload-tuning-composition-adapter.md) | Supported CPU local-workload tuning composition adapter | Complete | 0010E–0010H; Prepare 0004; tools/tuning 0001 consumer contract | Added one retained supported CPU-owned collaboration for exact eligible handoffs, portable-first opaque candidate enumeration/identity/compatibility, bounded persistent/session decision codecs, and fresh authoritative trial/final selected preparation. Ordinary heuristic preparation is unchanged; measurement, cache I/O, representative execution, fallback policy, Engine orchestration, Runtime selection, and cross-route generalization remain outside CPU. |
 | 0011 | Intel oneMKL BLAS and VML peer routes | Blocked | 0010E; 0005A; 0009; concrete Intel CPU use case and supported oneMKL ABI evidence | The ordered OpenBLAS sequence now precedes this row, and the repository still supplies neither Intel external gate. Once all dependencies exist, add distinct `route.nativeblas.mkl` BLAS and `route.nativeops.mkl` VML leaves over shared analysis while preserving portable Java as the semantic fallback. |
 | 0012 | Intel oneDNN partition peer routes | Draft | 0005A; 0009; stable common CPU lowering; concrete DNN/ML use case and supported oneDNN ABI evidence | Add `route.nativeops.onednn` as a distinct eligible partition route over common lowering/IR and whole-plan cost, without collapsing it into oneMKL or portable code generation. |
 | 0013 | Apple Accelerate peer routes | Draft | 0005A; 0009; concrete Apple CPU use case and supported Accelerate ABI evidence | Add `route.nativeblas.accelerate` for BLAS and `route.nativeops.accelerate` for vDSP/vForce over shared analysis; Apple Silicon is capability-selected, while MPSGraph and Metal kernels remain outside CPU. |
@@ -334,6 +337,9 @@ BFLOAT16. The acyclic FLOAT32/FLOAT64 tuning mainline is:
 CPU 0010E typed candidates and compatible-decision consumption
   -> Prepare 0004 opaque candidate/decision transport
   -> tools/tuning 0001 measurement, selection, cache persistence, and rich evidence
+  -> CPU 0010I supported local-workload composition adapter
+  -> later Engine representative-execution/fallback contract
+  -> reassessed Engine 0007 composition
 ```
 
 CPU 0010E is Complete. It confirms the earlier CPU-first direction while narrowing it: CPU
@@ -352,6 +358,16 @@ path does not depend on optional vendor peers or relaxed numerics. CPU 0010F is 
 0001–0005 are now Complete. The later Engine 0006 diagnosis added CPU 0010H after Complete
 Compiler 0006B5 and Prepare 0005 for the distinct source-only published-constant materialization
 gap.
+
+Complete [CPU 0010I](tasks/0010i-supported-cpu-local-workload-tuning-composition-adapter.md) closes
+the CPU prerequisite for eventually reassessing blocked Engine 0007. It wraps the existing 0010E
+route-specific values behind one supported root-package collaboration, repeats
+authoritative analysis for every trial and final selected preparation, and preserves the ordinary
+0010F/0010H safe-heuristic lifecycle. CPU continues to own no measurement or cache I/O and gains
+no tools/tuning or Engine dependency. The separate Engine representative-execution/fallback
+contract remains absent and is not planned by CPU 0010I, so Engine 0007 stays Blocked. No further
+CPU task becomes actionable: CPU 0011 remains externally Blocked, CPU 0012–0015 and 0017 remain
+Draft optional routes, and CPU 0016 remains Draft later cross-route generalization.
 
 Planning-time implementation context `01a09f3d-0012-72b3-ba71-38e2f5f6c279` proved that the fixed
 `preparations(CompileArtifacts)` method cannot compile through CPU's current declared dependencies.
@@ -1185,6 +1201,11 @@ composition and reuses existing initialized-buffer recipes so materialization oc
 per fresh RunState, not once per reusable PreparedExecution. It retains zero-node and mixed/multi-
 partition rejection. Prepare 0005 owns shared resource contribution and slot assignment; Runtime
 needs no new task.
+Complete [CPU 0010I](tasks/0010i-supported-cpu-local-workload-tuning-composition-adapter.md) now
+supplies the supported wrapper over the current 0010E exact/default local candidate contract and
+fresh 0010F/0010H preparation. It closes the CPU half of Engine 0007's prerequisites, but Engine
+representative execution, input binding, cleanup, and fallback remain separately unresolved, so
+Engine 0007 is still Blocked.
 CPU 0011 remains
 `Blocked` because no concrete Intel CPU use case or supported oneMKL BLAS/VML ABI evidence is
 present; CPU 0012–0015 are optional peer routes, CPU 0016 is later cross-route tuning integration,

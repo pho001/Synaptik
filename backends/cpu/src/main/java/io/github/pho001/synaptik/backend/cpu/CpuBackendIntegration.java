@@ -27,6 +27,7 @@ import java.util.Objects;
 public final class CpuBackendIntegration implements AutoCloseable {
     private final CpuCapabilityProvider capabilityProvider = new CpuCapabilityProvider();
     private final CpuBackendComposition composition;
+    private final CpuLocalWorkloadTuning localWorkloadTuning;
 
     /**
      * Retains one CPU-private composition owner for the lifetime of this adapter.
@@ -36,6 +37,7 @@ public final class CpuBackendIntegration implements AutoCloseable {
      */
     private CpuBackendIntegration(CpuBackendComposition composition) {
         this.composition = Objects.requireNonNull(composition, "composition");
+        this.localWorkloadTuning = new CpuLocalWorkloadTuning(composition);
     }
 
     /**
@@ -116,6 +118,21 @@ public final class CpuBackendIntegration implements AutoCloseable {
      */
     public PreparedExecution prepare(CompileArtifacts artifacts) {
         return composition.prepare(artifacts);
+    }
+
+    /**
+     * Returns the retained CPU-owned cold local-workload tuning collaboration.
+     *
+     * <p>The collaboration is an integration building block, not a tuning runner. It borrows this
+     * adapter's lifetime and provider coordination, performs no measurement or cache access, and
+     * has no independent close operation.</p>
+     *
+     * @return the same non-null collaboration on every call; ownership is not transferred
+     * @throws IllegalStateException if this adapter is closed
+     */
+    public CpuLocalWorkloadTuning localWorkloadTuning() {
+        composition.assertOpen();
+        return localWorkloadTuning;
     }
 
     /**

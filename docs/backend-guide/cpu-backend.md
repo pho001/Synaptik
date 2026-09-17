@@ -281,6 +281,48 @@ eligible under the current safe heuristic. It does not prove that OpenBLAS will 
 that it is faster. Failure retains the portable route and does not change the fixed `cpu/host`
 availability identity.
 
+### Cold local-workload tuning collaboration
+
+`CpuBackendIntegration.localWorkloadTuning()` returns the same retained
+`CpuLocalWorkloadTuning` collaboration while the integration is open. This is a supported
+composition SPI for the current exact/default FLOAT32/FLOAT64 bare-MATMUL tuning slice, not an
+application tuning runner. Given one artifact in the integration's supported sole non-empty CPU
+partition domain, `candidateHandoff(...)` performs fresh CPU analysis and returns a handoff only
+when that analysis finds the complete eligible OpenBLAS-versus-portable batch. A valid but
+non-tunable artifact returns an empty optional; unsupported partition shapes fail under the same
+domain rules as ordinary preparation.
+
+The handoff contains the exact partition and opaque typed batch, while candidates and selected
+decisions remain CPU-owned opaque values. Enumeration is immutable, complete, and stable in the
+authoritative portable-first order. Compatibility and candidate identity are exposed only as
+typed values with defensive canonical byte copies. Batch, candidate, and decision association is
+exact: a value from another batch or integration is rejected rather than structurally
+reinterpreted.
+
+Decision encoding is deterministic, bounded, and versioned. A persistent encoding is available
+only when the qualified binary and workload facts have the existing stable persistent projection;
+otherwise the encoding is bound to the current integration session. Decoding snapshots the
+caller's bytes and returns an empty optional for malformed, trailing, unsupported, stale,
+wrong-session, or unknown-candidate data. The collaboration neither reads nor writes a cache or
+file; an outer owner decides whether and where encoded decisions are retained.
+
+`prepareTrial(...)` and `prepareSelected(...)` create complete `PreparedExecution` recipes only
+after fresh authoritative CPU analysis accepts the exact requested candidate or decision. They do
+not treat the earlier enumeration as authority and do not silently fall back to a heuristic
+choice. Ordinary `CpuBackendIntegration.prepare(...)` remains the independent safe-heuristic path
+and is unchanged when tuning is absent or abandoned.
+
+The collaboration does not bind representative inputs, run a recipe, measure or benchmark it,
+choose a winner, manage warmups or samples, coordinate a cache, or decide strict-versus-heuristic
+fallback. Those orchestration responsibilities remain outside the CPU backend and still require
+an Engine-owned representative-execution, input-binding, cleanup, and fallback contract. Runtime
+receives only the final prepared recipe; it never sees candidates or selects among them.
+
+The collaboration has no independent close operation. It borrows the integration's provider,
+coordination, and lifecycle state, and its prepared recipes must not outlive that integration.
+Independent calls are supported while the owner remains open; closing the integration prevents
+new collaboration work and uses the existing provider quiescence, restoration, and cleanup rules.
+
 `borrow(HostTensorStorage)` checks only the storage's own type/carrier consistency, capacity and
 byte geometry, liveness, and current-thread segment access. It accepts intrinsically valid
 read-only or writable storage and transfers no ownership. Because the call has no expected logical
