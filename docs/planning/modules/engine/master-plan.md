@@ -107,8 +107,8 @@ advanced surface.
 
 ## Current status
 
-Tasks 0001–0005A are Complete. Detailed task 0006 remains Draft and waits for completed 0005A
-plus the separately Ready CPU 0010H source-only materialization prerequisite.
+Tasks 0001–0005A and the separate CPU 0010H source-only materialization prerequisite are Complete.
+Detailed task 0006 remains Draft and is the next task to reassess and plan.
 Compiler 0006B3, Prepare 0003–0004, Runtime 0010 and its closure hardening,
 and CPU 0010F supply the bounded CPU-only Engine lifecycle without shared-contract changes:
 `GraphCompilationPort` supplies complete compile artifacts, `GraphPreparation` accepts explicit
@@ -183,7 +183,7 @@ and no consumer partition. Planning correctly retains that publication obligatio
 projects only partition-node-connected values and assigns only backend-declared resources; CPU
 therefore receives no source or assignment. Even a fabricated assignment would leave Engine host
 copy preflight rejecting the unresolved layout. The ordered architecture-owned repair is Complete
-Compiler 0006B5 -> Complete Prepare 0005 -> Ready CPU 0010H. Complete Engine 0005A was independent of
+Compiler 0006B5 -> Complete Prepare 0005 -> Complete CPU 0010H. Complete Engine 0005A was independent of
 that source-only constant chain because Complete Compiler 0006B4 already supplies authoritative
 final ordered input bindings. Engine 0006 waits for both CPU 0010H and Engine 0005A. Runtime needs
 no new task because current initialization, validity, ordered publication/alias, lease, and
@@ -257,11 +257,11 @@ Detailed Engine 0005A is `Complete` after implementation context
 replaced the two explicit-input `forward(...)` overloads with four `compute(...)` overloads and
 uses transient Model-expression leaf inventory plus final Compiler binding selection. It executed
 before CPU 0010H under the recorded sequential ordering exception because it changed only
-Engine's ordinary convenience surface. Detailed Engine 0006 is
-`Draft` and must not begin until Engine 0005A, Compiler 0006B5, Prepare 0005, and CPU 0010H are
-Complete. Its selected outward `backward(...)` API remains valid without an explicit input list, but its proposed
-real scalar CPU fixture is not currently preparable and is future Engine-owned end-to-end
-evidence, not proof of present readiness. Engine 0005 remains `Complete`. Engine 0007–0008 remain
+Engine's ordinary convenience surface. Detailed Engine 0006 is `Draft`; all recorded prerequisites
+are now Complete, so it is the next task to reassess and plan before implementation. Its selected
+outward `backward(...)` API remains valid without an explicit input list, and its proposed real
+scalar CPU fixture remains future Engine-owned end-to-end evidence rather than evidence delivered
+by CPU 0010H. Engine 0005 remains `Complete`. Engine 0007–0008 remain
 `Draft` without detailed specifications.
 
 ## Open questions
@@ -272,8 +272,8 @@ evidence, not proof of present readiness. Engine 0005 remains `Complete`. Engine
 - Define mixed-backend schedule contributions only after a second concrete lifecycle adapter
   establishes a non-hypothetical consumer need. The current complete CPU assembler cannot be
   combined with another complete assembler.
-- Implement detailed task 0006 only after Engine 0005A, Compiler 0006B5, Prepare 0005,
-  and CPU 0010H are Complete, and only through its scalar-objective, explicit-target,
+- Reassess and plan detailed task 0006 next now that Engine 0005A, Compiler 0006B5, Prepare 0005,
+  and CPU 0010H are Complete, and retain its scalar-objective, explicit-target,
   absent-unit-seed, ERROR-policy surface; do not fold backward policy into the forward-only
   overloads.
 

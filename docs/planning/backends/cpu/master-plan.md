@@ -314,7 +314,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0010E | [FLOAT32/FLOAT64 OpenBLAS tuning candidates and compatible decisions](tasks/0010e-float32-float64-openblas-tuning-candidates-and-compatible-decisions.md) | Complete | 0010D | Added typed/versioned complete portable-versus-OpenBLAS thread and representation candidates, canonical CPU/workload compatibility facts, and deterministic consumption of one matching selected decision. Exact/default FLOAT32/FLOAT64 only; CPU performs no measurement or persistence and safe heuristic preparation remains available. Final validation passed 194 suites and 991 tests with 28 skips and zero failures/errors; the focused three-class run passed 3 suites and 20 tests. |
 | 0010F | [Supported CPU lifecycle integration adapter](tasks/0010f-supported-cpu-lifecycle-integration-adapter.md) | Complete | 0010E; Prepare 0003–0004; Runtime 0010; Compiler 0006B3 | Published the smallest CPU-owned Engine integration adapter for exactly one non-empty maximal CPU partition, encapsulating capability/availability, current internal analysis and finalization, physical representation recipes, deterministic schedule assembly, and automatic OpenBLAS qualification/lifetime with portable fallback. It rejects zero-partition/pass-through and mixed/multi-partition artifacts before CPU analysis/assembly. Future Engine composition consumes it without `.internal` imports; ordinary users do not construct or name it. |
 | 0010G | [Canonical caller-owned host snapshot export](tasks/0010g-canonical-caller-owned-host-snapshot-export.md) | Complete | 0010F; Runtime 0015; Engine 0003 | Added `copyToCanonicalHostBytes(BufferRepresentation, TensorDescriptor, long)` to the supported integration SPI. It validates one current CPU representation and resolved static descriptor, then returns fresh big-endian canonical row-major bytes for all six current data types under the caller limit and JVM array ceiling. It exposes no CPU internal type, lease, arena, `MemorySegment`, Runtime coordinate, graph identity, or Engine type. |
-| [0010H](tasks/0010h-source-only-published-constant-cpu-materialization.md) | Source-only published-constant CPU materialization | Ready | Compiler 0006B5; Prepare 0005; 0010F–0010G | In the current sole non-empty CPU composition, derive canonical physical declarations, pass exact producerless published-constant resources through shared Prepare, and reuse initialized-buffer recipes so each fresh RunState owns one newly initialized representation. Preserve rejection of zero-node and mixed/multi-partition compositions; add no Runtime mechanism. |
+| [0010H](tasks/0010h-source-only-published-constant-cpu-materialization.md) | Source-only published-constant CPU materialization | Complete | Compiler 0006B5; Prepare 0005; 0010F–0010G | Derived canonical physical declarations in the current sole non-empty CPU composition, passed exact producerless published-constant resources through shared Prepare, and reused initialized-buffer recipes so each fresh RunState owns one newly initialized representation. Preserved rejection of zero-node and mixed/multi-partition compositions; added no Runtime mechanism. |
 | 0011 | Intel oneMKL BLAS and VML peer routes | Blocked | 0010E; 0005A; 0009; concrete Intel CPU use case and supported oneMKL ABI evidence | The ordered OpenBLAS sequence now precedes this row, and the repository still supplies neither Intel external gate. Once all dependencies exist, add distinct `route.nativeblas.mkl` BLAS and `route.nativeops.mkl` VML leaves over shared analysis while preserving portable Java as the semantic fallback. |
 | 0012 | Intel oneDNN partition peer routes | Draft | 0005A; 0009; stable common CPU lowering; concrete DNN/ML use case and supported oneDNN ABI evidence | Add `route.nativeops.onednn` as a distinct eligible partition route over common lowering/IR and whole-plan cost, without collapsing it into oneMKL or portable code generation. |
 | 0013 | Apple Accelerate peer routes | Draft | 0005A; 0009; concrete Apple CPU use case and supported Accelerate ABI evidence | Add `route.nativeblas.accelerate` for BLAS and `route.nativeops.accelerate` for vDSP/vForce over shared analysis; Apple Silicon is capability-selected, while MPSGraph and Metal kernels remain outside CPU. |
@@ -349,7 +349,7 @@ OpenBLAS discovery, qualification, coordinator transfer, fixed untuned safe-heur
 portable fallback without Config, tuning, Runtime selection, reflection, service location, or a
 global singleton. Existing public Prepare and Runtime seams are sufficient. This exact/default
 path does not depend on optional vendor peers or relaxed numerics. CPU 0010F is Complete; Engine
-0001–0005 are now Complete. The later Engine 0006 diagnosis adds Ready CPU 0010H after Complete
+0001–0005 are now Complete. The later Engine 0006 diagnosis added CPU 0010H after Complete
 Compiler 0006B5 and Prepare 0005 for the distinct source-only published-constant materialization
 gap.
 
@@ -369,7 +369,7 @@ buffer assignment. Planning's maximal same-owner contract also means every non-e
 artifact contains exactly one CPU partition; any valid multi-partition artifact necessarily has
 another owner. CPU 0010F now supports precisely that one-partition CPU-only domain and rejects
 zero-partition/pass-through plus mixed/multi-partition artifacts before analysis or assembly.
-This removes no non-empty CPU-only executable capability. Ready CPU 0010H remains bounded to a
+This removes no non-empty CPU-only executable capability. Complete CPU 0010H remains bounded to a
 source-only published constant accompanying that one non-empty CPU partition after Complete
 Prepare 0005 contributes and assigns its resource; it does not enable the zero-node case. Mixed-backend
 schedule composition remains a later Engine/Prepare boundary question.
@@ -1178,7 +1178,7 @@ validation without advancing optional vendor-route work or exposing CPU internal
 implementation evidence is 14/14 focused tests and 1,010 full CPU tests with zero failures or
 errors and 28 skips; the clean documentation pass completed the Javadoc, guide, glossary, scope,
 surface, fixture, source-mechanism, status, and whitespace gates. Detailed
-[CPU 0010H](tasks/0010h-source-only-published-constant-cpu-materialization.md) is `Ready` as the
+[CPU 0010H](tasks/0010h-source-only-published-constant-cpu-materialization.md) is `Complete` as the
 CPU-owned third step in the Engine 0006 prerequisite repair after Complete Compiler 0006B5 and
 Prepare 0005. It defines canonical physical declaration in the current sole non-empty CPU
 composition and reuses existing initialized-buffer recipes so materialization occurs exactly once
@@ -1471,7 +1471,7 @@ not alter the ordered task rows or completed earlier CPU families.
 
 ## Open questions
 
-- Ready CPU 0010H must remain bounded to a source-only published constant accompanying the
+- Complete CPU 0010H remains bounded to a source-only published constant accompanying the
   current sole non-empty CPU composition. It must not turn the rejected zero-node case into a
   schedule, enable mixed/multi-partition composition, or duplicate Runtime initialization,
   validity, publication/alias, lease, or cleanup ownership.

@@ -23,7 +23,6 @@ import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
-import io.github.pho001.synaptik.prepare.GraphPreparation;
 import io.github.pho001.synaptik.prepare.PreparedBufferAssignment;
 import io.github.pho001.synaptik.prepare.PreparedPartition;
 import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
@@ -57,7 +56,8 @@ final class CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest {
                 .filter(constructor -> Modifier.isPublic(constructor.getModifiers())
                         || Modifier.isProtected(constructor.getModifiers())).count());
         assertEquals(List.of("availabilitySnapshot", "borrow", "capabilityProvider", "close",
-                        "copyToCanonicalHostBytes", "open", "preparations", "scheduleAssembler"),
+                        "copyToCanonicalHostBytes", "open", "preparations", "prepare",
+                        "scheduleAssembler"),
                 Arrays.stream(CpuBackendIntegration.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
                         .map(method -> method.getName()).sorted().toList());
@@ -110,8 +110,7 @@ final class CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest {
                         () -> assertEquals(expectedResultIndex, publication.resultIndex()));
             }
 
-            var execution = GraphPreparation.prepare(artifacts,
-                    integration.preparations(artifacts), assembler);
+            var execution = integration.prepare(artifacts);
             assertSame(execution.memoryPlan(), execution.schedule().memoryPlan());
             assertInstanceOf(PreparedSchedule.RepresentationCreationStep.class,
                     execution.schedule().steps().getFirst());
@@ -143,6 +142,7 @@ final class CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest {
                     List.of(integration.availabilitySnapshot()));
             assertTrue(zero.partitions().isEmpty());
             assertThrows(IllegalArgumentException.class, () -> integration.preparations(zero));
+            assertThrows(IllegalArgumentException.class, () -> integration.prepare(zero));
             PreparedMemoryPlan empty = new PreparedMemoryPlan(List.of(), List.of());
             assertThrows(IllegalArgumentException.class, () -> integration.scheduleAssembler()
                     .assemble(new PreparedScheduleContext(zero, empty, List.of(), List.of())));
@@ -152,6 +152,7 @@ final class CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest {
             CompileArtifacts nonCpu = compile(List.of(leaf().add(leaf())), List.of(provider),
                     List.of(snapshot(other)));
             assertThrows(IllegalArgumentException.class, () -> integration.preparations(nonCpu));
+            assertThrows(IllegalArgumentException.class, () -> integration.prepare(nonCpu));
             assertThrows(IllegalArgumentException.class, () -> integration.scheduleAssembler()
                     .assemble(context(nonCpu, empty)));
 
@@ -165,6 +166,7 @@ final class CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest {
                     List.of(snapshot(CpuCapabilityProvider.CPU_BACKEND_ID), snapshot(other)));
             assertEquals(2, mixed.partitions().size());
             assertThrows(IllegalArgumentException.class, () -> integration.preparations(mixed));
+            assertThrows(IllegalArgumentException.class, () -> integration.prepare(mixed));
             assertThrows(IllegalArgumentException.class, () -> integration.scheduleAssembler()
                     .assemble(context(mixed, empty)));
         }
@@ -206,6 +208,7 @@ final class CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest {
         assertThrows(IllegalStateException.class, () -> integration.borrow(
                 new MemorySegmentStorage(DataType.BOOL, 1, MemorySegment.ofArray(new byte[1]))));
         assertThrows(IllegalStateException.class, () -> integration.preparations(artifacts));
+        assertThrows(IllegalStateException.class, () -> integration.prepare(null));
         assertThrows(IllegalStateException.class, integration::scheduleAssembler);
     }
 

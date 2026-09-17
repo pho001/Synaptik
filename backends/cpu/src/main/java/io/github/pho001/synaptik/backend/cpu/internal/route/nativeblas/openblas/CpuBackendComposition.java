@@ -12,12 +12,23 @@ import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionFinali
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPreparedScheduleAssembler;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
+import io.github.pho001.synaptik.compiler.CompileConstantPlan;
+import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
+import io.github.pho001.synaptik.prepare.GraphPreparation;
 import io.github.pho001.synaptik.prepare.PartitionPreparation;
+import io.github.pho001.synaptik.prepare.ProducerlessPublishedConstantResource;
 import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
+import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -148,6 +159,46 @@ public final class CpuBackendComposition implements AutoCloseable {
     public List<PartitionPreparation<?, ?>> preparations(CompileArtifacts artifacts) {
         requireOpen();
         Objects.requireNonNull(artifacts, "artifacts");
+        validateSoleCpuPartition(artifacts);
+        return preparationsForValidatedArtifacts(artifacts);
+    }
+
+    /**
+     * Builds the complete reusable CPU execution recipe, including exact physical declarations
+     * for canonical source-only published constants.
+     *
+     * <p>The returned recipe owns no physical constant representation. Each fresh Runtime run
+     * state invokes its retained initializer recipe once and owns the resulting distinct
+     * representation. Source-only constants add no executable schedule occurrence, and this
+     * operation continues to reject pure zero-node graphs.</p>
+     *
+     * @param artifacts non-null compile artifacts containing exactly one non-empty CPU partition
+     * @return non-null immutable reusable execution recipe with no run-owned physical resource
+     * @throws NullPointerException if {@code artifacts} is {@code null}
+     * @throws IllegalStateException if this composition is closed
+     * @throws IllegalArgumentException if the CPU partition domain or a source-only constant's
+     *     role, descriptor, scalar type, or geometry is unsupported or inconsistent
+     * @throws ArithmeticException if canonical layout or byte-size arithmetic overflows
+     */
+    public PreparedExecution prepare(CompileArtifacts artifacts) {
+        requireOpen();
+        Objects.requireNonNull(artifacts, "artifacts");
+        validateSoleCpuPartition(artifacts);
+        List<PartitionPreparation<?, ?>> preparations =
+                preparationsForValidatedArtifacts(artifacts);
+        List<ProducerlessPublishedConstantResource> resources =
+                producerlessPublishedConstantResources(artifacts);
+        return GraphPreparation.prepare(artifacts, preparations, resources, assembler);
+    }
+
+    /**
+     * Validates the complete-schedule domain before any CPU fact derivation or backend analysis.
+     *
+     * @param artifacts non-null compile artifacts already admitted by the caller
+     * @throws IllegalArgumentException if partition coverage is not exactly one non-empty
+     *     CPU-owned maximal partition
+     */
+    private static void validateSoleCpuPartition(CompileArtifacts artifacts) {
         if (artifacts.partitions().size() != 1) {
             throw new IllegalArgumentException(
                     "CPU integration requires exactly one non-empty CPU partition");
@@ -158,12 +209,109 @@ public final class CpuBackendComposition implements AutoCloseable {
             throw new IllegalArgumentException(
                     "CPU integration requires exactly one non-empty CPU partition");
         }
+    }
 
+    /**
+     * Constructs the existing positional CPU preparation after complete-domain validation.
+     *
+     * @param artifacts non-null artifacts already accepted by
+     *     {@link #validateSoleCpuPartition(CompileArtifacts)}
+     * @return a non-null immutable singleton preparation retaining current CPU analysis order
+     * @throws IllegalArgumentException if CPU boundary analysis rejects incomplete facts
+     */
+    private List<PartitionPreparation<?, ?>> preparationsForValidatedArtifacts(
+            CompileArtifacts artifacts) {
         CpuPartitionAnalysisInputs inputs = analysisInputs(artifacts);
         PartitionPreparation<CpuPartitionAnalysisInputs,
                 io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan>
                 preparation = new PartitionPreparation<>(inputs, preparer, finalizer);
         return List.of(preparation);
+    }
+
+    /**
+     * Derives exact physical contributions for source-only published splats in graph-value order.
+     *
+     * @param artifacts non-null artifacts with an already validated executable CPU domain
+     * @return a non-null immutable ordered list retaining exact graph-value and logical-requirement
+     *     references; ordinary consumed or unpublished constants are excluded
+     * @throws IllegalArgumentException if source, publication, node-use, logical-memory, Shape,
+     *     layout, or scalar-type facts are contradictory or unsupported
+     * @throws ArithmeticException if canonical layout or checked byte-size arithmetic overflows
+     */
+    private static List<ProducerlessPublishedConstantResource>
+            producerlessPublishedConstantResources(CompileArtifacts artifacts) {
+        var inputs = new HashSet<>(artifacts.graph().inputs());
+        var publications = new HashSet<ValueId>();
+        artifacts.publication().forwardBindings()
+                .forEach(binding -> publications.add(binding.valueId()));
+        artifacts.publication().gradientBindings()
+                .forEach(binding -> publications.add(binding.valueId()));
+
+        var produced = new HashSet<ValueId>();
+        var consumed = new HashSet<ValueId>();
+        artifacts.graph().nodes().forEach(node -> {
+            produced.addAll(node.outputs());
+            consumed.addAll(node.inputs());
+        });
+
+        var sources = new LinkedHashMap<ValueId, CompileConstantPlan.ConstantSource>();
+        for (CompileConstantPlan.ConstantSource source : artifacts.constants().constantSources()) {
+            if (sources.putIfAbsent(source.valueId(), source) != null) {
+                throw new IllegalArgumentException(
+                        "CPU constant sources duplicate " + source.valueId());
+            }
+        }
+        var requirements = new HashMap<ValueId, LogicalMemoryRequirement>();
+        for (LogicalMemoryRequirement requirement : artifacts.memory().requirements()) {
+            if (requirements.putIfAbsent(requirement.valueId(), requirement) != null) {
+                throw new IllegalArgumentException(
+                        "CPU logical memory requirements duplicate " + requirement.valueId());
+            }
+        }
+
+        var resources = new ArrayList<ProducerlessPublishedConstantResource>();
+        for (var value : artifacts.graph().values()) {
+            CompileConstantPlan.ConstantSource source = sources.get(value.id());
+            if (source == null || !inputs.contains(value.id()) || !publications.contains(value.id())
+                    || consumed.contains(value.id()) || produced.contains(value.id())) {
+                continue;
+            }
+            LogicalMemoryRequirement requirement = requirements.get(value.id());
+            if (requirement == null
+                    || !requirement.descriptor().equals(value.descriptor())
+                    || requirement.producerPartition().isPresent()
+                    || !requirement.consumerPartitions().isEmpty()
+                    || !requirement.graphOutput()) {
+                throw new IllegalArgumentException(
+                        "CPU source-only published constant has contradictory logical memory: "
+                                + value.id());
+            }
+            var descriptor = value.descriptor();
+            var shape = descriptor.shape();
+            if (!shape.isFullyStatic()) {
+                throw new IllegalArgumentException(
+                        "CPU source-only published constant has dynamic shape: " + value.id());
+            }
+            if (descriptor.layout().isEmpty()) {
+                throw new IllegalArgumentException(
+                        "CPU source-only published constant has unresolved layout: " + value.id());
+            }
+            LayoutDescriptor layout = descriptor.layout().orElseThrow();
+            if (!layout.equals(LayoutDescriptor.contiguous(shape))) {
+                throw new IllegalArgumentException(
+                        "CPU source-only published constant has non-canonical layout: " + value.id());
+            }
+            if (source.value().dataType() != descriptor.dataType()) {
+                throw new IllegalArgumentException(
+                        "CPU source-only published constant scalar type disagrees with descriptor: "
+                                + value.id());
+            }
+            long byteSize = Math.multiplyExact(
+                    layout.referencedElementSpan(), descriptor.dataType().byteWidth());
+            resources.add(new ProducerlessPublishedConstantResource(
+                    value, requirement, byteSize, descriptor.dataType().byteWidth()));
+        }
+        return List.copyOf(resources);
     }
 
     /**

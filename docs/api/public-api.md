@@ -489,8 +489,11 @@ The public `backends:cpu` integration surface contains two supported types:
 One `CpuBackendIntegration.open()` call creates the fixed exact/default CPU composition. It
 reports the immutable `cpu/host` availability fact, exposes the retained capability provider,
 builds the positional preparation and schedule-assembler collaborations for exactly one non-empty
-maximal CPU-owned partition, and borrows intrinsically compatible `HostTensorStorage` as a
-non-owning Runtime buffer representation. Its
+maximal CPU-owned partition, and exposes `prepare(CompileArtifacts)` as the complete CPU-owned
+composition entry. That entry derives exact physical declarations for eligible fully static,
+canonical source-only published splat constants and passes them to shared Prepare; Engine delegates
+without interpreting constant roles or CPU geometry. The integration also borrows intrinsically
+compatible `HostTensorStorage` as a non-owning Runtime buffer representation. Its
 `copyToCanonicalHostBytes(representation, descriptor, maximumBytes)` operation copies one exact
 current CPU publication representation into a fresh caller-owned mutable `byte[]`. This is
 Engine-facing SPI, not an ordinary application result API; the caller pairs the representation
@@ -515,14 +518,16 @@ preserve their two's-complement bit patterns; and `BOOL` accepts only the exact 
 not exceed either `maximumBytes` or `Integer.MAX_VALUE`; arithmetic overflow and a genuine JVM
 allocation failure remain distinct failures.
 
-The accepted graph shape is deliberately exact. A zero-node pass-through graph is rejected
-because current Prepare publication has no `PreparedBufferAssignment` for it. A mixed-owner or
-multi-partition artifact is rejected before CPU analysis or schedule assembly because combining
-multiple backend contributions remains later Engine/Prepare work. For an accepted artifact, the
-assembler describes creation of fresh run-owned CPU buffers and workspaces, initialization of
-Compiler constants, one prepared CPU execution occurrence, and publications in Compiler order.
-Assembly performs none of that physical work; Runtime performs it per run from the immutable
-recipe.
+The accepted graph shape is deliberately exact. A pure zero-node constant or pass-through graph
+remains rejected because the CPU integration requires one non-empty maximal CPU partition. A
+mixed-owner or multi-partition artifact is rejected before CPU analysis or schedule assembly
+because combining multiple backend contributions remains later Engine/Prepare work. For an
+accepted artifact, the assembler describes creation of fresh run-owned CPU buffers and workspaces,
+initialization of Compiler constants, one prepared CPU execution occurrence, and publications in
+Compiler order. A source-only constant gains no executable schedule step. Assembly performs none
+of that physical work: `PreparedExecution` retains immutable recipes only, and creation of every
+fresh `RunState` invokes each initialized-buffer recipe exactly once. Sequential or concurrent
+runs therefore own distinct initialized representations.
 
 The adapter owns any qualified OpenBLAS coordinator until `close()`. Callers must keep it open
 while preparing or running recipes obtained from it and must coordinate closure with active runs.
@@ -913,10 +918,11 @@ output. A compile success therefore does not guarantee CPU preparation or execut
 
 The focused supported examples use `CONTIGUOUS` directly over resolved `FLOAT32` leaves. The
 seeded example reuses `seedLeaf.contiguous()` as the explicit seed for two outputs. It does not use
-`ADD`, whose current public expression result has unresolved layout, or publish a source-only
-compile-time constant. Shared Prepare can now assign that producerless resource only when concrete
-composition supplies its exact physical declaration, but the current CPU integration and Engine
-do not yet supply or wire it. See the
+`ADD`, whose current public expression result has unresolved layout. The current CPU integration
+does support a fully static canonical source-only published splat when it accompanies the required
+non-empty CPU partition: CPU supplies its physical declaration, shared Prepare assigns it, and
+each run initializes a distinct run-owned representation before binding and schedule traversal.
+Pure constant graphs remain unsupported because they have no non-empty partition. See the
 [Runtime API ordinary examples](runtime-api.md#current-ordinary-engine-boundary) for the complete
 setup.
 

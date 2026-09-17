@@ -177,8 +177,9 @@ Complete through task 0006B5. Tasks 0001–0006B5 are Complete with recorded sou
 documentation, and validation. Detailed task 0006B5 closes only the logical descriptor of a fully
 static source-only published compile-time splat after final optimization; it adds no allocation,
 topology, backend, caller-binding, or publication-role behavior. Complete Prepare 0005 supplies
-the shared resource handoff and slot assignment. Detailed Ready CPU 0010H is the next operational
-prerequisite, and Draft Engine 0006 follows it. Runtime needs no prerequisite task because
+the shared resource handoff and slot assignment. Complete CPU 0010H supplies the physical CPU
+declaration and per-run materialization. Draft Engine 0006 is the next task to reassess and plan.
+Runtime needs no prerequisite task because
 its current initialized-representation, validity, publication/alias, lease, and cleanup contracts
 are sufficient. Detailed
 [task 0006B4](tasks/0006b4-stable-caller-input-tensor-identity-bindings.md) preserves the existing

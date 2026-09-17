@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -508,13 +508,94 @@ Planning validation:
 - exact intended-path inspection against the pre-existing dirty worktree; and
 - `git diff --check`.
 
-Implementation evidence is pending.
+Executable implementation context `01a0b0fe-cbc1-7171-a219-b02db3c6954d` completed the bounded
+Java and test change at repository `HEAD` `d446e3ccfb9ee15a7710ac620e5bb591f7c770d4`.
+
+Executable validation reused by the documentation pass:
+
+- `./gradlew :backends:cpu:test :modules:engine:test` passed in 2 minutes 41 seconds: CPU reported
+  198 suites and 1,012 tests, Engine reported 5 suites and 36 tests, and the combined result was
+  203 suites and 1,048 tests with zero failures, zero errors, and 28 existing CPU skips.
+- `javap -public` confirmed that `CpuBackendIntegration` has exactly nine public operations,
+  including `prepare(CompileArtifacts)`, with no `.internal`, Engine, physical-carrier, or
+  producerless-resource type in its supported signatures.
+- The implementation context's exact seven-path scope, prohibited-area scans, and
+  `git diff --check` passed after executable Java stabilized.
+- One early compile attempt failed only because four new `java.util` imports were accidentally
+  placed after the class declaration. Moving those imports to the import section corrected the
+  source; subsequent compilation and the final tests passed. This was an import-placement error,
+  not a design or behavior defect.
+
+Clean documentation-focused context `/root` independently inspected the implementation and tests,
+then finalized the API/Javadoc, Backend Guide, Planning, and Example-profile concerns. It changed
+Javadoc only in three production files, changed no executable Java token, and did not edit the
+three test files. It finalized `docs/api/public-api.md`, `docs/backend-guide/cpu-backend.md`, and
+the six planning/status files. The pass made these boundaries explicit:
+
+- `PreparedExecution` owns immutable recipes only; each fresh `RunState` invokes each initialized
+  recipe once and owns a distinct physical representation;
+- source-only published constants gain no executable schedule step, and pure zero-node constant
+  graphs remain unsupported;
+- Engine delegates complete preparation without interpreting CPU roles or geometry; and
+- CPU 0010H is Complete while Engine 0006 remains Draft and is the next task to reassess and plan.
+
+Documentation validation:
+
+- `./gradlew :backends:cpu:javadoc :modules:engine:javadoc` passed. The output contained the two
+  existing incubating-module warnings and 92 pre-existing missing-`@param` warnings in unrelated
+  CPU internal records; no warning names an affected task-0010H declaration.
+- `javap -classpath <declared module outputs> -public
+  io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration` again showed the exact
+  nine-operation supported CPU surface and no internal-type leakage.
+- `javac --release 26 -cp <declared module outputs> -d
+  /tmp/synaptik-cpu-0010h-spi /tmp/CpuIntegrationSurfaceFixture.java` compiled a distinct-package
+  fixture importing `CpuBackendIntegration`, `CompileArtifacts`, and `PreparedExecution`.
+- `ruby /tmp/check_synaptik_0010h_docs.rb` passed local Markdown link/anchor, heading-order,
+  balanced-fence, trailing-whitespace, LF, and final-newline checks for all eight changed Markdown
+  files. `ruby /tmp/check_synaptik_0010h_scope.rb` passed the exact-path/status, public-delegation,
+  source/import, Runtime, build, architecture, conformance, and integration exclusions.
+- `git diff --check` passed for the final combined change.
+- The final worktree contains exactly the fifteen authorized paths. Runtime, Model,
+  `modules/planning`, build/dependency files, architecture pages/tests, backend conformance, integration tests,
+  generated code, tuning, provider behavior, and every non-allowlisted plan are unchanged.
+
+No-change review conclusions:
+
+- Runtime API and lifecycle documentation already defines initialized creators, initial validity,
+  per-run ownership, rollback, leases, aliases, and cleanup; this task composes those contracts
+  without changing them.
+- Compile API documentation already defines the canonical source-only constant role, and Compiler
+  0006B5 remains the completed logical-descriptor owner; no Compiler API change is needed.
+- Training API is unaffected because this task adds neither gradient policy nor training
+  orchestration.
+- The glossary already defines the reused project terms and no new reusable term was introduced;
+  adding an entry solely for this implementation would duplicate existing definitions.
+- Architecture pages and tests remain accurate because ownership and dependency direction did not
+  change. Backend-conformance and integration suites remain unchanged because the focused CPU SPI
+  test crosses the existing Compiler/Prepare/Runtime composition and Engine 0006 still owns the
+  later ordinary scalar-objective fixture.
+- CPU inventory and build files remain unchanged because no production file, operation, route,
+  dependency, or generated artifact was added.
 
 ## Completion summary
 
-Planning is complete and implementation has not begun. The specification fixes the eligible
-domain, supported CPU composition entry, canonical geometry, all-type/empty/scalar behavior,
-recipe-versus-run ownership, deterministic failure/cleanup/concurrency rules, bounded files,
-tests, documentation pass, and proportional validation. No architecture conflict is known.
+- Completed changes: added CPU-owned complete preparation, exact source-only resource derivation,
+  existing initialized-buffer recipe composition, Engine-only delegation, focused coverage, and
+  finalized lifecycle documentation/status.
+- Files changed or created: exactly the fifteen authorized existing paths; no file was added.
+- Tests and validation: reused the final 1,048-test implementation run; documentation Javadoc,
+  public-surface, distinct-package compilation, Markdown, scope, forbidden-change, status, and
+  whitespace gates passed.
+- Documentation-agent review: clean context `/root` finalized the affected Javadocs, public API,
+  CPU backend guide, and planning records without changing executable Java behavior.
+- Documentation impact: the supported source-only constant lifecycle and limitations are now
+  current in both explanatory documents.
+- Javadoc review: all four changed production files were reviewed; three received final wording,
+  while `CpuPreparedScheduleAssembler` already accurately documented recipe-only ownership and
+  per-run creation and required no further documentation-pass edit.
+- Glossary impact: no change; all terminology is existing and already defined where reusable.
+- Unresolved issues: None within task scope.
+- Follow-up required: Reassess and plan Draft Engine 0006; pure zero-node and mixed-backend
+  composition remain explicitly deferred.
 
-Status: Ready
+Status: Complete

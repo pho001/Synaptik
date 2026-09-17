@@ -242,32 +242,38 @@ runtime: invoke prepared CPU executable
 
 `CpuBackendIntegration.open()` owns one fixed exact/default CPU composition. It exposes the
 retained `CpuCapabilityProvider`, the immutable `cpu/host` availability snapshot, one positional
-preparation factory, one prepared-schedule assembler, and intrinsic-only borrowing of compatible
-host storage. CPU declares a direct dependency on Compiler because
-`preparations(CompileArtifacts)` consumes that public compile recipe; CPU still has no Engine
-dependency, and Engine remains the outer composition root.
+preparation factory, one prepared-schedule assembler, the complete
+`prepare(CompileArtifacts)` composition entry, and intrinsic-only borrowing of compatible host
+storage. CPU declares a direct dependency on Compiler because these preparation operations consume
+that public compile recipe; CPU still has no Engine dependency, and Engine remains the outer
+composition root. Engine delegates complete preparation and does not derive source-only roles,
+descriptors, scalar values, byte geometry, or initialization facts.
 
 The supported execution domain is exactly one non-empty maximal CPU-owned partition:
 
 ```text
 CompileArtifacts with one non-empty CPU partition
-  -> CpuBackendIntegration.preparations(...)
-  -> GraphPreparation with integration.scheduleAssembler()
+  -> CpuBackendIntegration.prepare(...)
+  -> CPU derives exact source-only constant resources
+  -> shared GraphPreparation and the retained assembler
   -> representation creation
   -> one prepared CPU executable
   -> forward publications, then gradient publications
 ```
 
 The diagram reads from immutable Compiler output through cold Prepare recipe construction to
-Runtime schedule order. Schedule assembly allocates, initializes, borrows, executes, and publishes
-nothing. Each Runtime invocation creates fresh run-owned buffers and workspaces, while a borrowed
-caller input remains caller-owned.
+Runtime schedule order. A fully static canonical source-only published splat is contributed in
+final graph-value order, assigned after ordinary buffers, and represented by one initialized-buffer
+recipe. It gains no executable schedule step. Schedule assembly allocates, initializes, borrows,
+executes, and publishes nothing. `PreparedExecution` owns only immutable recipes. Each fresh
+`RunState` invokes every initialized-buffer recipe exactly once, so sequential and concurrent runs
+own distinct initialized CPU representations; borrowed caller inputs remain caller-owned.
 
-A zero-node pass-through artifact is rejected because current Prepare publication has no
-`PreparedBufferAssignment` for its requested value. Mixed-owner and multi-partition artifacts are
-rejected before CPU analysis or assembly; combining backend-owned schedule contributions remains
-future Engine/Prepare composition work. Planning's maximal same-owner partitioning means this
-restriction still accepts every current non-empty all-CPU graph.
+A pure zero-node constant or pass-through artifact remains rejected because this integration
+requires one non-empty CPU partition. Mixed-owner and multi-partition artifacts are rejected before
+CPU resource derivation or analysis; combining backend-owned schedule contributions remains future
+Engine/Prepare composition work. Planning's maximal same-owner partitioning means this restriction
+still accepts every current non-empty all-CPU graph.
 
 Opening the integration attempts only the existing bounded automatic OpenBLAS discovery and
 qualification sequence. Success may make one single-thread FLOAT32/FLOAT64 native candidate

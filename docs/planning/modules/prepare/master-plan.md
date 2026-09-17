@@ -174,9 +174,9 @@ without projecting the value into a partition or assigning it to a finalizer. Th
 context passed 23 focused and 52 full Prepare tests with no failures, errors, or skips. Clean
 documentation context `01a0a5b6-e42c-7211-a8df-4a02d857314d` finalized the Javadocs, package/API
 explanations, glossary, and planning evidence without changing executable Java or rerunning those
-tests. Detailed Ready CPU 0010H separately owns physical CPU declaration and initialized
-materialization in the current sole non-empty CPU composition; Draft Engine 0006 owns later wiring. No later Prepare
-task is detailed, Ready, or In progress.
+tests. Complete CPU 0010H separately supplies physical CPU declaration and initialized
+materialization in the current sole non-empty CPU composition. Draft Engine 0006 is the next task
+to reassess and plan; no later Prepare task is detailed, Ready, or In progress.
 
 ## Open questions
 

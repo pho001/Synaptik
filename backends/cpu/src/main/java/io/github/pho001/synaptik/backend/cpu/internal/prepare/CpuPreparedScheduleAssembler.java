@@ -21,8 +21,9 @@ import java.util.function.BooleanSupplier;
  *
  * <p>The immutable assembler creates a representation-creation prefix, one exact finalized CPU
  * executable occurrence, and a forward-then-gradient publication suffix in Compiler publication
- * order. It constructs recipes only: no creator is invoked and no physical resource is allocated,
- * initialized, borrowed, executed, or published during assembly.</p>
+ * order. Source-only published constants use initialized-buffer recipes without gaining an
+ * executable occurrence. It constructs recipes only: no creator is invoked and no physical
+ * resource is allocated, initialized, borrowed, executed, or published during assembly.</p>
  */
 public final class CpuPreparedScheduleAssembler implements PreparedScheduleAssembler {
     private final BooleanSupplier ownerOpen;
@@ -43,8 +44,9 @@ public final class CpuPreparedScheduleAssembler implements PreparedScheduleAssem
      *
      * @param context the non-null validated context containing exactly one non-empty compiled and
      *     prepared CPU partition, complete dense buffer assignments, and one exact memory plan
-     * @return a non-null immutable schedule retaining the context's exact memory plan and
-     *     finalized executable
+     * @return a non-null immutable schedule retaining the context's exact memory plan, finalized
+     *     executable, and buffer-creation recipes; initialized recipes allocate and initialize
+     *     one fresh representation only when each new run state is created
      * @throws NullPointerException if {@code context} is {@code null}
      * @throws IllegalStateException if the outer CPU integration owner is closed
      * @throws IllegalArgumentException if the context does not contain exactly one non-empty

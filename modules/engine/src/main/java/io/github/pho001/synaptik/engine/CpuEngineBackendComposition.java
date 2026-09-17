@@ -6,7 +6,6 @@ import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
-import io.github.pho001.synaptik.prepare.GraphPreparation;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import java.util.List;
@@ -17,8 +16,9 @@ import java.util.Objects;
  *
  * <p>The adapter retains the exact CPU integration whose ownership was transferred to the
  * Engine. It delegates lowering, representation work, and complete one-partition schedule
- * assembly to CPU and shared Prepare without importing backend internals. Closing this
- * composition closes that integration; no other method transfers its ownership.</p>
+ * assembly to CPU and shared Prepare without importing backend internals or deriving CPU
+ * constant roles, descriptors, byte geometry, or initialization facts. Closing this composition
+ * closes that integration; no other method transfers its ownership.</p>
  */
 final class CpuEngineBackendComposition implements EngineBackendComposition {
     private final CpuBackendIntegration integration;
@@ -38,11 +38,7 @@ final class CpuEngineBackendComposition implements EngineBackendComposition {
         availabilitySnapshots = List.of(integration.availabilitySnapshot());
     }
 
-    /**
-     * Delegates canonical copying to the exact owned CPU integration without changing ownership.
-     *
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public List<BackendCapabilityProvider> capabilityProviders() {
         return capabilityProviders;
@@ -57,8 +53,7 @@ final class CpuEngineBackendComposition implements EngineBackendComposition {
     /** {@inheritDoc} */
     @Override
     public PreparedExecution prepare(CompileArtifacts artifacts) {
-        return GraphPreparation.prepare(
-                artifacts, integration.preparations(artifacts), integration.scheduleAssembler());
+        return integration.prepare(artifacts);
     }
 
     /** {@inheritDoc} */

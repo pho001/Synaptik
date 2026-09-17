@@ -7,6 +7,7 @@ import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.prepare.PartitionPreparation;
 import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
+import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import java.util.List;
 import java.util.Objects;
@@ -19,7 +20,9 @@ import java.util.Objects;
  * must remain open while preparing or running recipes obtained from it. Portable CPU preparation
  * remains available when the bounded optional-provider discovery or qualification attempt fails.
  * The adapter and its returned immutable collaborators may be used concurrently; each Runtime
- * invocation still owns an isolated run state and fresh run-owned representations.</p>
+ * invocation still owns an isolated run state and fresh run-owned representations. Preparation
+ * retains only immutable recipes, including initializer recipes for eligible source-only
+ * published constants; it never retains a run-owned physical representation.</p>
  */
 public final class CpuBackendIntegration implements AutoCloseable {
     private final CpuCapabilityProvider capabilityProvider = new CpuCapabilityProvider();
@@ -90,6 +93,29 @@ public final class CpuBackendIntegration implements AutoCloseable {
      */
     public List<PartitionPreparation<?, ?>> preparations(CompileArtifacts artifacts) {
         return composition.preparations(artifacts);
+    }
+
+    /**
+     * Prepares the complete immutable Runtime recipe for exactly one non-empty CPU partition.
+     *
+     * <p>CPU derives physical geometry for any fully static canonical source-only published
+     * constants and supplies those declarations to shared Prepare. The returned execution retains
+     * initializer recipes only: every run creates and initializes fresh run-owned CPU
+     * representations exactly once while creating its new run state. A source-only constant adds
+     * no executable schedule occurrence. Pure zero-node constant graphs remain outside this
+     * adapter's supported one-partition domain.</p>
+     *
+     * @param artifacts non-null immutable compile artifacts containing exactly one non-empty
+     *     maximal partition owned by CPU; inspected but not mutated
+     * @return a non-null immutable reusable prepared recipe containing no run-owned CPU resource
+     * @throws NullPointerException if {@code artifacts} is {@code null}
+     * @throws IllegalArgumentException if the artifacts or a required source-only constant role,
+     *     descriptor, scalar type, or physical geometry is unsupported or inconsistent
+     * @throws ArithmeticException if canonical layout or byte-size arithmetic overflows
+     * @throws IllegalStateException if this adapter is closed
+     */
+    public PreparedExecution prepare(CompileArtifacts artifacts) {
+        return composition.prepare(artifacts);
     }
 
     /**
