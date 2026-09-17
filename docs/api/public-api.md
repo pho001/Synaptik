@@ -29,7 +29,10 @@ occurrences, and explicit bounded materialization of one occurrence into a detac
 host value. Its four one-shot `compute(...)` overloads automatically discover reachable
 provenance-free input leaves, then compose a fresh forward-only compile, prepare, run, complete
 publication and aggregate-byte preflight, ordered materialization, and cleanup under one Engine
-admission. Reusable or public capability
+admission. Its one-shot `backward(objective, targets, maximumTotalBytes)` call applies automatic
+input discovery to one scalar floating gradient-eligible objective, fixes Compiler's absent
+positive-one scalar seed and disconnected-target `ERROR` policy, and returns a detached objective
+plus immutable target-aligned gradients. Reusable or public capability
 matrices and a public graph-wide Planning workflow also remain planned.
 Prepare analysis, finalization, and complete graph-preparation contracts plus the initial Runtime
 geometry, prepared representation creation, per-run resource/validity, executable and transfer
@@ -777,9 +780,40 @@ including its result cleanup; a call that loses admission observes the closed-En
 before argument validation. A failure returns no partial result. Temporary cleanup still runs,
 with a distinct cleanup failure suppressed on the primary failure. Selected leaf storage remains
 caller-owned and must stay live, accessible, and free from conflicting mutation until the
-synchronous call completes; unselected discovered storage is not inspected. There is no
-compile/prepared/result/value/Tensor-inventory cache, reuse, backward or
+synchronous call completes; unselected discovered storage is not inspected. The `compute(...)`
+forms create no compile/prepared/result/value/Tensor-inventory cache or reuse and add no backward,
 implicit target/seed behavior, tuning, cross-backend transfer, or Tensor execution method.
+
+The current one-shot backward form is:
+
+```java
+ScalarObjectiveBackwardResult result =
+        engine.backward(objective, targets, maximumTotalBytes);
+```
+
+`objective` must be a scalar floating gradient-eligible Tensor expression. `targets` is an
+explicit ordered non-empty list whose elements are unique by exact object identity; its order
+defines `result.gradients()`. Targets may be leaves, intermediates, or the objective itself when
+Compiler accepts their gradient semantics and differentiable connection. Engine inventories
+reachable provenance-free leaves before compilation, then lets final `CompiledGraph.inputs()`
+select authoritative input membership and order. It accepts no explicit input list, infers
+neither targets nor liveness, mutates no Tensor, and creates no eager tape.
+
+Every call freshly compiles one stage with an absent scalar cotangent seed and
+`DisconnectedPolicy.ERROR`, prepares, runs, validates the objective-first then target-ordered
+publications, and preflights every static/resolved per-value byte count plus the exact aggregate
+before the first copy. Each occurrence is copied independently, including inward aliases. The
+limit covers only the objective and gradient canonical payloads. Cleanup completes before return;
+Engine close waits through an admitted call, concurrent calls use isolated run state, and cleanup
+failures follow the ordinary primary/suppressed failure rules. The returned
+`ScalarObjectiveBackwardResult`, its objective, and all gradients are detached and remain readable
+after Engine and caller storage close.
+
+The fixed seed and policy keep this convenience narrow. Use ordinary explicit-seed
+`compile -> prepare -> run -> materialize` for reusable execution, explicit cotangent seeds, or
+multiple forward outputs. Use `AdvancedEngine.compile(...)` with a
+`FunctionalGradientRequest` for `ZERO`, two stages, higher-order construction, or the full policy
+surface.
 
 This complete supported example uses only the current CPU static/resolved `CONTIGUOUS` path:
 
@@ -836,8 +870,63 @@ The expression leaves are discovered automatically, while the returned positions
 the output request. Both values remain readable after Engine and caller arena closure, while the
 arena itself stayed caller-owned. Every call compiles and prepares afresh. Use the lower-level
 `compile -> prepare -> run -> materialize` lifecycle when a prepared recipe should be reused or
-only selected publications should be copied. Scalar-objective backward convenience remains task
-0006 and will require explicit targets.
+only selected publications should be copied.
+
+This complete one-shot backward example uses the currently supported resolved scalar `FLOAT32`
+CPU path. Its input storage remains caller-owned, while the two returned values remain readable
+after both the Engine and storage arena close:
+
+```java
+import io.github.pho001.synaptik.engine.Engine;
+import io.github.pho001.synaptik.engine.ScalarObjectiveBackwardResult;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Optional;
+
+ScalarObjectiveBackwardResult retainedBackward;
+try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+    Shape shape = Shape.scalar();
+    TensorDescriptor descriptor = new TensorDescriptor(
+            DataType.FLOAT32,
+            shape,
+            Optional.of(LayoutDescriptor.contiguous(shape)),
+            true);
+    MemorySegment source = MemorySegment.ofArray(new float[] {2.5f});
+    MemorySegment storage = arena.allocate(source.byteSize(), Float.BYTES);
+    MemorySegment.copy(source, 0, storage, 0, source.byteSize());
+    Tensor input = TensorFactory.create(
+            descriptor,
+            Optional.empty(),
+            Optional.of(new MemorySegmentStorage(DataType.FLOAT32, 1, storage)));
+    Tensor objective = input.contiguous();
+
+    retainedBackward = engine.backward(
+            objective,
+            List.of(input),
+            2L * Float.BYTES);
+    assert retainedBackward.objective().bytes().getFloat(0) == 2.5f;
+    assert retainedBackward.gradients().getFirst().bytes().getFloat(0) == 1.0f;
+}
+ByteBuffer objectiveBytes = retainedBackward.objective().bytes();
+ByteBuffer gradientBytes = retainedBackward.gradients().getFirst().bytes();
+assert objectiveBytes.getFloat(0) == 2.5f;
+assert gradientBytes.getFloat(0) == 1.0f;
+```
+
+`contiguous()` supplies the non-empty supported CPU operation. Compiler supplies the absent
+positive-one seed, which the completed Compiler 0006B5 -> Prepare 0005 -> CPU 0010H chain carries
+as a source-only publication beside that partition. This proves the scalar objective and its
+positive-one gradient on the current path; it does not promise pure zero-node or mixed-backend
+composition, broader operation support, optimizer behavior, or a training session.
 
 For a single already-constructed Tensor expression, the complete one-shot execution shape is:
 
@@ -933,8 +1022,9 @@ itself still neither selects a publication nor obtains a representation, perform
 synchronizes result closure, constructs a Tensor or `HostTensorStorage`, streams a payload, or
 generalizes the format across backends. Engine-owned one-shot forward execution is current through
 the four ordinary `Engine.compute(...)` overloads described above; it does not add an
-`output.execute()` Tensor method. Scalar-objective `withBackward`-style convenience remains task
-0006 and will still require explicit targets; no no-argument backward contract is promised.
+`output.execute()` Tensor method. Engine-owned one-shot scalar-objective backward execution is
+current through the explicit-target `Engine.backward(...)` method described above. It adds no
+no-argument backward contract, implicit targets, or Tensor mutation.
 
 ## Compatibility expectations during development
 

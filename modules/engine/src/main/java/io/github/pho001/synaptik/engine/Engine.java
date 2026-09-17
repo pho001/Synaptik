@@ -20,9 +20,10 @@ import java.util.Objects;
  * one-shot compute convenience discovers reachable expression leaves, then performs fresh
  * compilation, preparation, execution, complete publication and aggregate-byte preflight,
  * ordered host materialization, and cleanup in one synchronous call. Forward publications retain
- * requested-output identity; gradient publications
- * retain explicit target identity and position even when roles alias inwardly. Implicit targets
- * and backward convenience remain outside the current surface. Lifecycle observation and closure
+ * requested-output identity; gradient publications retain explicit target identity and position
+ * even when roles alias inwardly. A one-shot scalar-objective backward convenience accepts an
+ * explicit target list and returns detached objective and target-aligned gradient values without
+ * mutating any Tensor. Implicit targets remain outside the current surface. Lifecycle observation and closure
  * are thread-safe and inherit the owned lifecycle's idempotent, failure-retaining semantics.</p>
  */
 public final class Engine implements AutoCloseable {
@@ -292,6 +293,53 @@ public final class Engine implements AutoCloseable {
     public List<HostTensorValue> compute(
             List<Tensor> outputs, long maximumTotalBytes) {
         return delegate.computeOrdinary(this, outputs, maximumTotalBytes);
+    }
+
+    /**
+     * Computes one scalar objective and its first derivatives for explicit ordered targets.
+     *
+     * <p>One Engine admission spans structural validation, transient identity-safe discovery of
+     * reachable provenance-free leaves, exactly one Compiler functional-gradient request,
+     * Compiler-authoritative input selection, fresh preparation, one run, publication validation,
+     * complete aggregate byte preflight, independent objective-then-gradient copies, and cleanup.
+     * The Compiler receives one absent cotangent seed and
+     * {@link io.github.pho001.synaptik.compiler.FunctionalGradientRequest.DisconnectedPolicy#ERROR};
+     * it alone validates scalar, floating, gradient, connectivity, and derivative semantics.
+     * Callers needing explicit seeds, multiple outputs, another policy, reuse, or the full request
+     * surface should use the reusable ordinary compile lifecycle or {@link AdvancedEngine}.</p>
+     *
+     * <p>The limit covers the canonical bytes of the objective and every gradient, not inputs,
+     * recipes, Runtime resources, object overhead, or peak memory. All descriptor sizes and the
+     * complete sum are checked before any physical copy. Selected input storage remains
+     * caller-owned and must remain live, accessible, and free from conflicting mutation through
+     * synchronous cleanup. The returned carrier and values own no closeable resource and remain
+     * readable after Engine and caller storage closure. Each call compiles and prepares afresh and
+     * creates no cache or retained Tensor state.</p>
+     *
+     * @param objective non-null scalar floating gradient-eligible forward Tensor; semantic
+     *     eligibility is validated by Compiler
+     * @param targets non-null non-empty ordered list of non-null exact-object-identity-unique
+     *     differentiation targets; membership is snapshotted and target order defines gradient
+     *     order
+     * @param maximumTotalBytes non-negative aggregate upper bound, in bytes, for the detached
+     *     objective and all gradient payloads
+     * @return a fresh non-null immutable detached objective and target-aligned gradient result
+     * @throws NullPointerException if the objective, target list, or an indexed target is null
+     * @throws IllegalArgumentException if targets are empty or repeat an exact Tensor, the limit
+     *     is negative, Compiler rejects scalar/gradient/connectivity semantics, result metadata is
+     *     unsuitable for host copying, an individual payload exceeds the JVM array ceiling, the
+     *     aggregate exceeds the limit, or inward validation rejects the request
+     * @throws IllegalStateException if Engine closure has begun, reachable Tensor identity is
+     *     inconsistent, an authoritative compiled input has no reachable leaf, selected storage
+     *     is absent/dead/inaccessible, or publication metadata is inconsistent
+     * @throws ArithmeticException if checked logical or aggregate byte arithmetic overflows
+     * @throws RuntimeException if inward compilation, preparation, execution, copying, or cleanup
+     *     reports another unchecked failure
+     * @throws Error if inward work, allocation, copying, or cleanup reports a fatal failure
+     */
+    public ScalarObjectiveBackwardResult backward(
+            Tensor objective, List<Tensor> targets, long maximumTotalBytes) {
+        return delegate.backwardOrdinary(this, objective, targets, maximumTotalBytes);
     }
 
     /**

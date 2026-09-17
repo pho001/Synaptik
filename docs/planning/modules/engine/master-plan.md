@@ -68,7 +68,7 @@ io.github.pho001.synaptik.engine/
   RunResult                   public ordinary publication lease and explicit materialization owner
   HostTensorValue             public immutable detached canonical host payload
   ScalarObjectiveBackwardResult
-                               planned detached objective and target-aligned gradient values
+                               public detached objective and target-aligned gradient values
   AdvancedEngine              public advanced composition and lifecycle owner
   AdvancedCompiledGraph       public opaque owner-bound compile handle
   AdvancedPreparedExecution  public opaque owner-bound prepared handle
@@ -94,7 +94,7 @@ advanced surface.
 | [0004](tasks/0004-explicit-host-materialization-boundary.md) | Explicit host materialization boundary | Complete | 0003; Runtime 0015; CPU 0010G | Lazily copies one exact selected publication occurrence into a detached immutable bounded `HostTensorValue` with canonical row-major big-endian bytes. Serializes copying against result/Engine close and exposes no representation, backend storage, arena, `MemorySegment`, `ValueId`, or slot. |
 | [0005](tasks/0005-one-shot-forward-convenience.md) | Engine-owned one-shot forward convenience | Complete | 0002–0004; Runtime 0015; CPU 0010G | Added exact single-output and ordered-output `Engine.forward(...)` overloads with explicit logical inputs and one aggregate canonical-byte limit. Each call freshly compiles, prepares, runs, materializes every forward publication in order, and cleans up under one Engine admission; it adds no Tensor execution or cache. |
 | [0005A](tasks/0005a-automatic-input-discovery-and-compute-convenience.md) | Automatic input discovery and compute convenience | Complete | 0005; Compiler 0006B4 | Replaced the two explicit-input one-shot `forward(...)` methods with four `compute(...)` overloads. Inventories reachable provenance-free Tensor leaves transiently by object identity, then selects only matching Tensors in authoritative final `CompiledGraph.inputs()` order; adds no Compiler IR traversal, liveness inference, retained Tensor state, or cache. |
-| [0006](tasks/0006-one-shot-scalar-objective-backward-convenience.md) | Engine-owned one-shot scalar-objective backward convenience | Draft | 0005A; Compiler 0006B5; Prepare 0005; CPU 0010H | Add one explicit-target `Engine.backward(...)` call returning a detached scalar objective plus immutable target-aligned gradients. Reuse 0005A's transient leaf-inventory/final-binding selection seam with no explicit input list, and use Compiler's absent scalar unit seed and ERROR policy after the source-only constant chain completes; retain the explicit-seed ordinary compile and advanced full-request paths. |
+| [0006](tasks/0006-one-shot-scalar-objective-backward-convenience.md) | Engine-owned one-shot scalar-objective backward convenience | Complete | 0005A; Compiler 0006B5; Prepare 0005; CPU 0010H | Added one explicit-target `Engine.backward(...)` call returning a detached scalar objective plus immutable target-aligned gradients. Reuses 0005A's transient leaf-inventory/final-binding selection seam with no explicit input list and Compiler's absent scalar unit seed and ERROR policy through the completed source-only constant chain; retains the explicit-seed ordinary compile and advanced full-request paths. |
 | 0007 | Optional model-autotuning composition | Draft | 0002; 0005; Config 0006A; tools/tuning 0001; operational representative execution facts | Explicitly map Config's request into tuning's generic collaboration before preparation, retaining deterministic untuned fallback and keeping all tuning out of Runtime. This does not yet implement tools/tuning 0002 graph/plan search. |
 | 0008 | Engine lifecycle capability checkpoint | Draft | 0001–0006; Compiler 0006B; CPU 0008A | Validate standard and advanced composition, typed input/output ownership, host materialization, one-shot forward/backward lowering, cleanup, concurrency, architecture tests, documentation, and representative NCW Conv1d plus NCHW Conv2d and NCDHW Conv3d forward execution before persistence adapters or NN convolution integration depend on Engine. |
 
@@ -107,8 +107,8 @@ advanced surface.
 
 ## Current status
 
-Tasks 0001–0005A and the separate CPU 0010H source-only materialization prerequisite are Complete.
-Detailed task 0006 remains Draft and is the next task to reassess and plan.
+Tasks 0001–0006 and the complete source-only constant chain through CPU 0010H are Complete.
+Engine 0007–0008 remain Draft without detailed specifications.
 Compiler 0006B3, Prepare 0003–0004, Runtime 0010 and its closure hardening,
 and CPU 0010F supply the bounded CPU-only Engine lifecycle without shared-contract changes:
 `GraphCompilationPort` supplies complete compile artifacts, `GraphPreparation` accepts explicit
@@ -171,23 +171,24 @@ overloads. It transiently inventories provenance-free leaves from immutable Tens
 provenance, then lets Compiler's final ordered bindings select the actual run inputs. This is not
 Compiler IR traversal or Engine-owned liveness inference, and no Tensor reference survives the
 synchronous call.
-Task 0006 will lower backward convenience to Compiler's explicit functional gradient request. Its
-selected outward API remains restricted to a scalar objective with explicit gradient targets;
+Complete task 0006 lowers backward convenience to Compiler's explicit functional gradient
+request. Its outward API is restricted to a scalar objective with explicit gradient targets;
 0003's ordinary explicit-seed compile overload and the advanced full-request path remain
 available. Engine must not inspect the graph to guess targets or invent a no-argument backward
 promise whose seed/target meaning is undefined.
 
-Diagnosis context `01a0a570-06d4-7012-814b-ca71af8676e7` showed that the absent seed can survive
+Diagnosis context `01a0a570-06d4-7012-814b-ca71af8676e7` showed that the absent seed could survive
 as a source-only published compile-time constant with unresolved layout, no producer partition,
-and no consumer partition. Planning correctly retains that publication obligation, but Prepare
-projects only partition-node-connected values and assigns only backend-declared resources; CPU
-therefore receives no source or assignment. Even a fabricated assignment would leave Engine host
-copy preflight rejecting the unresolved layout. The ordered architecture-owned repair is Complete
-Compiler 0006B5 -> Complete Prepare 0005 -> Complete CPU 0010H. Complete Engine 0005A was independent of
-that source-only constant chain because Complete Compiler 0006B4 already supplies authoritative
-final ordered input bindings. Engine 0006 waits for both CPU 0010H and Engine 0005A. Runtime needs
-no new task because current initialization, validity, ordered publication/alias, lease, and
-cleanup contracts are sufficient.
+and no consumer partition. At that point Prepare projected only partition-node-connected values,
+CPU received no source or assignment, and even a fabricated assignment would have left Engine
+host-copy preflight rejecting the unresolved layout. The completed architecture-owned repair is
+Compiler 0006B5 -> Prepare 0005 -> CPU 0010H: Compiler closes the canonical logical descriptor,
+CPU contributes exact physical geometry through Prepare's complete source-only handoff and shared
+assignment, and CPU builds a fresh initialized representation for each Runtime run state. Complete
+Engine 0005A was independent of that chain because Complete Compiler 0006B4 already supplies
+authoritative final ordered input bindings. Engine 0006 uses both completed seams without
+an inward API change. Runtime needs no new task because current initialization, validity, ordered
+publication/alias, lease, isolated-state, and cleanup contracts are sufficient.
 
 Config 0006A mapping and tools/tuning 0001 integration belong to optional Engine 0007, not Engine
 0001 or the standard untuned path. Tools/tuning 0002 remains later bounded graph/plan tuning.
@@ -257,12 +258,14 @@ Detailed Engine 0005A is `Complete` after implementation context
 replaced the two explicit-input `forward(...)` overloads with four `compute(...)` overloads and
 uses transient Model-expression leaf inventory plus final Compiler binding selection. It executed
 before CPU 0010H under the recorded sequential ordering exception because it changed only
-Engine's ordinary convenience surface. Detailed Engine 0006 is `Draft`; all recorded prerequisites
-are now Complete, so it is the next task to reassess and plan before implementation. Its selected
-outward `backward(...)` API remains valid without an explicit input list, and its proposed real
-scalar CPU fixture remains future Engine-owned end-to-end evidence rather than evidence delivered
-by CPU 0010H. Engine 0005 remains `Complete`. Engine 0007–0008 remain
-`Draft` without detailed specifications.
+Engine's ordinary convenience surface. Detailed Engine 0006 is `Complete` after implementation
+context `01a0b11d-cc89-7590-8836-0555b05e7001` and clean documentation context
+`01a0b126-f60b-7a11-8d7c-621e532952f0`. Its exact outward `backward(...)` API has no explicit
+input list, fixes Compiler's absent positive-one scalar seed and ERROR policy, and returns a
+detached objective plus target-aligned gradients under one aggregate byte bound. The real scalar
+CPU fixture proves the objective and positive-one gradient through the completed source-only
+constant chain. Engine 0005 remains `Complete`. Engine 0007–0008 remain `Draft` without detailed
+specifications.
 
 ## Open questions
 
@@ -272,10 +275,8 @@ by CPU 0010H. Engine 0005 remains `Complete`. Engine 0007–0008 remain
 - Define mixed-backend schedule contributions only after a second concrete lifecycle adapter
   establishes a non-hypothetical consumer need. The current complete CPU assembler cannot be
   combined with another complete assembler.
-- Reassess and plan detailed task 0006 next now that Engine 0005A, Compiler 0006B5, Prepare 0005,
-  and CPU 0010H are Complete, and retain its scalar-objective, explicit-target,
-  absent-unit-seed, ERROR-policy surface; do not fold backward policy into the forward-only
-  overloads.
+- Reassess the Draft Engine 0007 optional autotuning frontier separately; do not create or specify
+  it as part of completed Engine 0006.
 
 ## Decisions made
 
@@ -313,7 +314,7 @@ by CPU 0010H. Engine 0005 remains `Complete`. Engine 0007–0008 remain
   forms delegate with `Long.MAX_VALUE`, while checked arithmetic and per-value JVM array ceilings
   remain. The implementation inventories reachable provenance-free leaves identity-safely and
   selects only matches in final `CompiledGraph.inputs()` order.
-- Draft Engine 0006 selects one explicit-target `Engine.backward(...)` method and one immutable
+- Complete Engine 0006 selects one explicit-target `Engine.backward(...)` method and one immutable
   `ScalarObjectiveBackwardResult` separating the detached scalar objective from target-aligned
   gradients. Compiler supplies the absent positive-one scalar seed and ERROR policy; existing
   explicit-seed ordinary compilation and the advanced full request remain unchanged.

@@ -13,8 +13,11 @@
  * materialization performs a synchronous CPU copy and provides neither caching nor implicit
  * transfer. One-shot compute freshly compiles, prepares, runs, preflights the complete publication
  * set and aggregate returned canonical byte count, materializes every ordered output, and cleans
- * up before return without retaining its leaf inventory; repeated execution and selective output
- * access should use the reusable explicit-input lifecycle instead.</p>
+ * up before return without retaining its leaf inventory. One-shot scalar-objective backward
+ * execution uses the same discovery and lifecycle seams, fixes Compiler's absent unit seed and
+ * disconnected-target error policy, and returns a detached objective plus target-aligned first
+ * derivatives. Repeated execution, explicit seeds, and selective output access should use the
+ * reusable explicit-input lifecycle instead.</p>
  *
  * <p>The advanced surface owns one explicitly supplied CPU integration and coordinates the
  * advanced {@code compile -> prepare -> run} lifecycle. Compiled and prepared recipes remain
@@ -23,7 +26,7 @@
  * representations remain caller-owned.</p>
  *
  * <p>Neither surface performs backend discovery, mixed-backend composition, or successful
- * zero-node preparation. Scalar backward convenience, tuning, and
- * cross-backend materialization are not current APIs.</p>
+ * zero-node preparation. Inferred backward targets, tuning, and cross-backend materialization are
+ * not current APIs.</p>
  */
 package io.github.pho001.synaptik.engine;

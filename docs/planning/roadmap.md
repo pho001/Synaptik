@@ -24,7 +24,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through Prepare 0005 | Compiler 0006B5 supplies a resolved producerless/consumerless published-constant descriptor while Planning preserves its graph-output obligation. | Prepare contributes that resource to the handoff and assigns a deterministic shared slot without backend selection or physical geometry. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Complete baseline; optional provider 0004 Blocked/deferred | Native interop conventions needed by the provider are decided. | Required FLOAT32/FLOAT64 remains complete; the optional direct BFLOAT16-output capability stays fail-closed until both proof gaps are resolved. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through 0010H (0010D1 Blocked/deferred optional) | Complete Compiler 0006B5 and Prepare 0005 supply canonical logical closure plus shared source-only publication handoff and assignment. | CPU 0010H supplies canonical physical declaration and per-RunState initialized materialization in the sole non-empty CPU composition while zero-node and mixed/multi-partition compositions remain rejected. |
-| 11 | [`modules/engine`](modules/engine/master-plan.md) | In progress (0001–0005A Complete; 0006–0008 Draft) | Compiler 0006B4 supplies stable final input bindings; Compiler 0006B5, Prepare 0005, and CPU 0010H form the separate source-only constant chain needed by Engine 0006. | Standard and advanced composition, typed lifecycle, host results, automatic input discovery, and Engine-owned one-shot forward/backward convenience work end to end on CPU. |
+| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0006; 0007–0008 Draft | Compiler 0006B4 supplies stable final input bindings; Compiler 0006B5, Prepare 0005, and CPU 0010H complete the separate source-only constant chain used by Engine 0006. | Standard and advanced composition, typed lifecycle, host results, automatic input discovery, and Engine-owned one-shot forward/backward convenience work end to end on CPU. |
 | 12 | [`backends/metal`](backends/metal/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | Metal passes the applicable backend-conformance suite. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | CUDA passes the applicable backend-conformance suite. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | The model representation and public tensor semantics are stable. | Selected import/export mappings and compatibility validation are complete. |
@@ -87,7 +87,7 @@ Compiler 0006B3 Engine-facing complete compile integration port (Complete)
   -> Engine 0005A automatic input discovery and compute convenience (Complete;
      user-authorized sequential interleave before CPU 0010H)
   -> CPU 0010H source-only published-constant CPU materialization (Complete)
-  -> Engine 0006 one-shot scalar-objective backward convenience (Draft, detailed)
+  -> Engine 0006 one-shot scalar-objective backward convenience (Complete)
   -> optional Engine 0007 Config 0006A/tuning 0001 integration
   -> later tools/tuning 0002
 ```
@@ -123,7 +123,7 @@ mixed/multi-partition artifact before CPU analysis or assembly. Zero-node reques
 remains rejected. The Engine 0006 diagnosis separately selected Complete Compiler 0006B5 and
 Prepare 0005, plus CPU 0010H, for a source-only published constant accompanying the current sole
 non-empty CPU composition. Compiler 0006B5, Prepare 0005, and CPU 0010H are Complete, and
-Engine 0006 remains Draft; none enables a zero-node schedule. Engine 0005A is independent of this
+Engine 0006 is Complete; none enables a zero-node schedule. Engine 0005A is independent of this
 source-only constant chain and does not change CPU zero-node behavior. Mixed-backend
 schedule composition remains a later Engine/Prepare boundary question.
 
@@ -158,7 +158,8 @@ metadata-only forward/gradient publication occurrences with exact target and ali
 real CPU examples use only CONTIGUOUS over resolved FLOAT32 leaves and use
 `seedLeaf.contiguous()` as the repeated explicit seed. Host values were reserved for 0004 and are
 now complete. Engine-owned one-shot forward convenience is complete in 0005 without adding
-`output.execute()`; `withBackward`-style convenience stays in Draft 0006.
+`output.execute()`; explicit-target one-shot scalar-objective backward convenience is complete in
+0006 without adding Tensor mutation or no-argument backward.
 Engine 0004 planning context `01a0a4b4-9b2f-7832-977e-ed984e291a4d` demonstrated two missing
 prerequisites for host materialization through Engine. Detailed
 [Runtime 0015 leased publication representation access](modules/runtime/tasks/0015-leased-publication-representation-access.md)
@@ -186,12 +187,15 @@ inventories reachable provenance-free leaves by exact Tensor identity, and selec
 Tensors in final `CompiledGraph.inputs()` order. It traverses Model expression provenance, not
 Compiler IR, and neither reconstructs liveness nor retains Tensor state. Detailed
 [Engine 0006 one-shot scalar-objective backward convenience](modules/engine/tasks/0006-one-shot-scalar-objective-backward-convenience.md)
-is `Draft`. It selects one explicit-target `Engine.backward(...)` call, Compiler's absent scalar
+is `Complete` after implementation context `01a0b11d-cc89-7590-8836-0555b05e7001` and clean
+documentation context `01a0b126-f60b-7a11-8d7c-621e532952f0`. It selects one explicit-target
+`Engine.backward(...)` call, Compiler's absent scalar
 unit seed and ERROR policy, a detached scalar objective, and immutable target-aligned gradients
 under one aggregate byte bound. Its revised outward API has no explicit input list, and
-implementation waits for
-Compiler 0006B5 -> Prepare 0005 -> CPU 0010H and completed Engine 0005A. The proposed scalar CPU fixture is final Engine
-end-to-end test ownership, not a currently preparable fixture. Runtime requires no new task.
+implementation uses the completed
+Compiler 0006B5 -> Prepare 0005 -> CPU 0010H chain and completed Engine 0005A. The real scalar CPU
+fixture proves the objective, positive-one gradient, aggregate bound, automatic input discovery,
+caller ownership, and detached post-close access. Runtime required no new task.
 Engine 0007–0008 remain `Draft` without detailed specifications.
 
 The Engine 0001 seam audit found a bounded actionable foundation, not a mixed-backend composition
@@ -2093,9 +2097,9 @@ the complete current model operation inventory before higher-order work:
 Compiler 0005A–0006B5 and their Model prerequisites are Complete. Compiler 0006B4 delivered the
 prerequisite inserted for the earlier Engine input-binding blocker, and detailed Compiler 0006B5
 closes the source-only published-constant logical descriptor found by the separate Engine 0006
-prerequisite diagnosis. Prepare 0005 and CPU 0010H are Complete; Draft Engine 0006 is the next task
-to reassess and plan. Complete Engine 0005A independently uses Compiler 0006B4's
-existing final bindings for automatic input discovery before Draft Engine 0006. Compiler 0006C
+prerequisite diagnosis. Prepare 0005, CPU 0010H, and Engine 0006 are Complete. Complete Engine
+0005A independently uses Compiler 0006B4's existing final bindings for automatic input discovery
+inside Engine 0006. Compiler 0006C
 and 0007 remain explicitly deferred Draft side branches without detailed
 specifications. Detailed
 [CPU 0010F](backends/cpu/tasks/0010f-supported-cpu-lifecycle-integration-adapter.md) is Complete.
@@ -2111,9 +2115,8 @@ Detailed
 `Complete`. It executed before CPU 0010H under the recorded user-authorized sequential exception;
 its Java scope was Engine-only and changed the ordinary convenience surface. Detailed
 [Engine 0006](modules/engine/tasks/0006-one-shot-scalar-objective-backward-convenience.md) is
-`Draft` with Complete Compiler 0006B5, Complete Prepare 0005, Complete CPU 0010H, and Complete
-Engine 0005A as its satisfied prerequisites; it is the next task to reassess and plan. Engine
-0007–0008 remain Draft without detailed task specifications.
+`Complete` with Complete Compiler 0006B5, Prepare 0005, CPU 0010H, and Engine 0005A as its
+prerequisites. Engine 0007–0008 remain Draft without detailed task specifications.
 Family tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator
 (RNG) state, mask, and configuration roles remain intentionally non-differentiable where

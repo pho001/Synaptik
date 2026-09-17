@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.HostTensorValue;
 import io.github.pho001.synaptik.engine.RunResult;
+import io.github.pho001.synaptik.engine.ScalarObjectiveBackwardResult;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -181,6 +182,30 @@ final class EngineTypedLifecycleIntegrationTest {
         assertArrayEquals(bytes(8).putFloat(1.5f).putFloat(-2.25f).array(), read(retained));
     }
 
+    @Test
+    void backwardDiscoversScalarInputAndReturnsDetachedObjectiveAndPositiveOneGradient() {
+        ScalarObjectiveBackwardResult retained;
+        try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+            Tensor input = scalarFloatTensor(arena, 2.5f, true);
+            Tensor objective = input.contiguous();
+
+            assertEquals(
+                    "total canonical byte count exceeds maximumTotalBytes: required=8, maximum=7",
+                    assertThrows(IllegalArgumentException.class,
+                            () -> engine.backward(objective, List.of(input), 7)).getMessage());
+            retained = engine.backward(objective, List.of(input), 8);
+            assertArrayEquals(bytes(4).putFloat(2.5f).array(), read(retained.objective()));
+            assertEquals(1, retained.gradients().size());
+            assertArrayEquals(bytes(4).putFloat(1.0f).array(),
+                    read(retained.gradients().getFirst()));
+            assertNotSame(retained.objective(), retained.gradients().getFirst());
+            assertTrue(input.hostStorage().orElseThrow().isAlive());
+        }
+        assertArrayEquals(bytes(4).putFloat(2.5f).array(), read(retained.objective()));
+        assertArrayEquals(bytes(4).putFloat(1.0f).array(),
+                read(retained.gradients().getFirst()));
+    }
+
     private static Tensor tensor(Arena arena, long elementCount, boolean requiresGrad) {
         Shape shape = Shape.of(elementCount);
         TensorDescriptor descriptor = new TensorDescriptor(DataType.FLOAT32, shape,
@@ -200,6 +225,18 @@ final class EngineTypedLifecycleIntegrationTest {
         MemorySegment.copy(source, 0, segment, 0, source.byteSize());
         return TensorFactory.create(descriptor, Optional.empty(), Optional.of(
                 new MemorySegmentStorage(DataType.FLOAT32, values.length, segment)));
+    }
+
+    private static Tensor scalarFloatTensor(
+            Arena arena, float value, boolean requiresGrad) {
+        Shape shape = Shape.scalar();
+        TensorDescriptor descriptor = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), requiresGrad);
+        MemorySegment source = MemorySegment.ofArray(new float[] {value});
+        MemorySegment segment = arena.allocate(source.byteSize(), Float.BYTES);
+        MemorySegment.copy(source, 0, segment, 0, source.byteSize());
+        return TensorFactory.create(descriptor, Optional.empty(), Optional.of(
+                new MemorySegmentStorage(DataType.FLOAT32, 1, segment)));
     }
 
     private static HostTensorValue assertMaterializes(

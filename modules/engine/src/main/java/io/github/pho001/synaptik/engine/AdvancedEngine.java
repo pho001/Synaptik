@@ -402,6 +402,41 @@ public final class AdvancedEngine implements AutoCloseable {
         }
     }
 
+    /**
+     * Admits one ordinary scalar-objective backward call and keeps the admission through cleanup.
+     * Structural validation occurs after admission and before any Compiler work.
+     *
+     * @param owner non-null ordinary Engine facade using this exact lifecycle owner
+     * @param objective non-null scalar objective whose semantic eligibility Compiler validates
+     * @param targets non-null non-empty exact-object-identity-unique ordered target list
+     * @param maximumTotalBytes non-negative aggregate returned-payload limit in bytes
+     * @return a fresh detached objective and target-aligned gradient carrier
+     * @throws NullPointerException if a reference or indexed target is null
+     * @throws IllegalArgumentException if local structure, the byte limit, Compiler semantics, or
+     *     an inward lifecycle boundary rejects the request
+     * @throws IllegalStateException if closure has begun or discovered input/publication/runtime
+     *     state is inconsistent
+     * @throws RuntimeException if inward work or cleanup reports another unchecked failure
+     * @throws Error if inward work, allocation, copying, or cleanup reports a fatal failure
+     */
+    ScalarObjectiveBackwardResult backwardOrdinary(
+            Engine owner,
+            Tensor objective,
+            List<Tensor> targets,
+            long maximumTotalBytes) {
+        beginOperation();
+        try {
+            Objects.requireNonNull(owner, "owner");
+            Tensor objectiveSnapshot = Objects.requireNonNull(objective, "objective");
+            List<Tensor> targetSnapshot = snapshotIdentityUnique(targets, "targets", true);
+            requireNonNegativeTotalLimit(maximumTotalBytes);
+            return backwardOrdinaryOpen(
+                    owner, objectiveSnapshot, targetSnapshot, maximumTotalBytes);
+        } finally {
+            finishFailure();
+        }
+    }
+
     private List<HostTensorValue> computeOrdinaryOpen(
             Engine owner,
             List<Tensor> outputs,
@@ -440,11 +475,97 @@ public final class AdvancedEngine implements AutoCloseable {
         }
     }
 
+    /**
+     * Performs one already-admitted backward lifecycle without nesting a public gate.
+     *
+     * @param owner non-null ordinary Engine facade
+     * @param objective non-null prevalidated objective reference
+     * @param targets non-null immutable non-empty prevalidated target snapshot
+     * @param maximumTotalBytes non-negative aggregate payload bound in bytes
+     * @return a fresh detached result after temporary run cleanup succeeds
+     * @throws RuntimeException if compilation, preparation, binding, execution, publication
+     *     validation, preflight, copying, construction, or cleanup fails
+     * @throws Error if inward work, allocation, copying, or cleanup reports a fatal failure
+     */
+    private ScalarObjectiveBackwardResult backwardOrdinaryOpen(
+            Engine owner,
+            Tensor objective,
+            List<Tensor> targets,
+            long maximumTotalBytes) {
+        Map<TensorId, Tensor> leaves = inventoryReachableLeaves(List.of(objective));
+        CompiledGraph compiled = compileScalarObjectiveBackwardOrdinaryOpen(
+                owner, objective, targets);
+        List<Tensor> selectedInputs = selectCompiledInputs(compiled, leaves);
+        io.github.pho001.synaptik.engine.PreparedExecution prepared =
+                prepareOrdinaryOpen(owner, compiled);
+        OrdinaryRun ordinaryRun = runOrdinaryOpen(owner, prepared, selectedInputs);
+        boolean cleanupAttempted = false;
+        try {
+            List<io.github.pho001.synaptik.engine.RunResult.Publication> publications =
+                    validateScalarObjectiveBackwardPublications(
+                            ordinaryRun.result(), objective, targets);
+            long[] byteCounts = preflightCanonicalByteCounts(
+                    publications, maximumTotalBytes);
+            HostTensorValue objectiveValue = ordinaryRun.owner().materializeUnderAdmission(
+                    ordinaryRun.result(), publications.getFirst(), byteCounts[0], composition);
+            var gradients = new ArrayList<HostTensorValue>(targets.size());
+            for (int index = 0; index < targets.size(); index++) {
+                gradients.add(ordinaryRun.owner().materializeUnderAdmission(
+                        ordinaryRun.result(), publications.get(index + 1),
+                        byteCounts[index + 1], composition));
+            }
+            ScalarObjectiveBackwardResult result =
+                    new ScalarObjectiveBackwardResult(objectiveValue, gradients);
+            cleanupAttempted = true;
+            ordinaryRun.owner().close();
+            return result;
+        } catch (RuntimeException | Error failure) {
+            if (!cleanupAttempted) {
+                cleanupAttempted = true;
+                try {
+                    ordinaryRun.owner().close();
+                } catch (RuntimeException | Error cleanupFailure) {
+                    suppressDistinct(failure, cleanupFailure);
+                }
+            }
+            throw failure;
+        }
+    }
+
     private CompiledGraph compileForwardOrdinaryOpen(Engine owner, List<Tensor> outputs) {
         CompileArtifacts artifacts = GraphCompilationPort.compile(
                 CompileMode.FORWARD_ONLY,
                 outputs,
                 Optional.empty(),
+                GraphOptimizationConfig.standard(),
+                BackendIntent.unconstrained(),
+                PartitionScoringConfig.neutral(),
+                composition.capabilityProviders(),
+                composition.availabilitySnapshots());
+        return new CompiledGraph(owner, artifacts);
+    }
+
+    /**
+     * Lowers one exact absent-seed, ERROR-policy functional-gradient stage to Compiler.
+     *
+     * @param owner non-null ordinary owner retained by the returned compile handle
+     * @param objective non-null exact singleton forward output and stage output
+     * @param targets non-null immutable ordered exact differentiation targets
+     * @return a fresh non-null ordinary compile handle over the complete artifacts
+     * @throws RuntimeException if Compiler or capability planning rejects the request
+     */
+    private CompiledGraph compileScalarObjectiveBackwardOrdinaryOpen(
+            Engine owner, Tensor objective, List<Tensor> targets) {
+        var stage = new FunctionalGradientRequest.Stage(
+                List.of(new FunctionalGradientRequest.ForwardTensorReference(objective)),
+                List.of(Optional.empty()),
+                targets,
+                false,
+                FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+        CompileArtifacts artifacts = GraphCompilationPort.compile(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(objective),
+                Optional.of(new FunctionalGradientRequest(List.of(stage))),
                 GraphOptimizationConfig.standard(),
                 BackendIntent.unconstrained(),
                 PartitionScoringConfig.neutral(),
@@ -646,6 +767,121 @@ public final class AdvancedEngine implements AutoCloseable {
                     "forward publication descriptor[" + index + "]");
         }
         return publications;
+    }
+
+    /**
+     * Validates the complete objective-first, target-ordered backward publication boundary.
+     *
+     * @param result non-null temporary ordinary result
+     * @param objective non-null exact requested objective
+     * @param targets non-null ordered requested targets
+     * @return the result's exact publication list after complete validation
+     * @throws IllegalStateException if count, role, identity, order, or metadata differs
+     */
+    private static List<io.github.pho001.synaptik.engine.RunResult.Publication>
+            validateScalarObjectiveBackwardPublications(
+                    io.github.pho001.synaptik.engine.RunResult result,
+                    Tensor objective,
+                    List<Tensor> targets) {
+        List<io.github.pho001.synaptik.engine.RunResult.Publication> publications =
+                result.publications();
+        int expectedCount = Math.addExact(1, targets.size());
+        if (result.resultCount() != expectedCount) {
+            throw new IllegalStateException(
+                    "backward result count mismatch: expected=" + expectedCount
+                            + ", actual=" + result.resultCount());
+        }
+        if (publications.size() != expectedCount) {
+            throw new IllegalStateException(
+                    "backward publication count mismatch: expected=" + expectedCount
+                            + ", actual=" + publications.size());
+        }
+        validateBackwardForwardPublication(publications.getFirst(), objective);
+        for (int targetIndex = 0; targetIndex < targets.size(); targetIndex++) {
+            validateBackwardGradientPublication(
+                    publications.get(targetIndex + 1), targets.get(targetIndex), targetIndex);
+        }
+        return publications;
+    }
+
+    /**
+     * Validates the exact forward role at backward result index zero.
+     *
+     * @param publication non-null index-zero publication occurrence
+     * @param objective non-null exact requested objective
+     * @throws IllegalStateException if role, index, identity, or derivative metadata differs
+     * @throws NullPointerException if the publication descriptor is unexpectedly null
+     */
+    private static void validateBackwardForwardPublication(
+            io.github.pho001.synaptik.engine.RunResult.Publication publication,
+            Tensor objective) {
+        if (publication.index() != 0) {
+            throw new IllegalStateException(
+                    "backward objective publication index mismatch: actual="
+                            + publication.index());
+        }
+        if (publication.role() != io.github.pho001.synaptik.engine.RunResult.Role.FORWARD) {
+            throw new IllegalStateException(
+                    "backward objective publication role mismatch: actual="
+                            + publication.role());
+        }
+        if (!publication.tensorId().equals(objective.id())) {
+            throw new IllegalStateException(
+                    "backward objective publication Tensor ID mismatch at 0");
+        }
+        if (publication.derivativeOrder().isPresent()) {
+            throw new IllegalStateException(
+                    "backward objective publication derivative order is present at 0");
+        }
+        if (publication.targetIndex().isPresent()) {
+            throw new IllegalStateException(
+                    "backward objective publication target index is present at 0");
+        }
+        Objects.requireNonNull(publication.descriptor(),
+                "backward publication descriptor[0]");
+    }
+
+    /**
+     * Validates one exact first-gradient role against its requested target position.
+     *
+     * @param publication non-null gradient publication occurrence
+     * @param target non-null exact requested target at {@code targetIndex}
+     * @param targetIndex non-negative requested target-list position
+     * @throws IllegalStateException if role, index, identity, derivative order, or target position
+     *     differs
+     * @throws NullPointerException if the publication descriptor is unexpectedly null
+     */
+    private static void validateBackwardGradientPublication(
+            io.github.pho001.synaptik.engine.RunResult.Publication publication,
+            Tensor target,
+            int targetIndex) {
+        int publicationIndex = targetIndex + 1;
+        if (publication.index() != publicationIndex) {
+            throw new IllegalStateException(
+                    "backward gradient publication index mismatch at " + publicationIndex
+                            + ": actual=" + publication.index());
+        }
+        if (publication.role() != io.github.pho001.synaptik.engine.RunResult.Role.GRADIENT) {
+            throw new IllegalStateException(
+                    "backward gradient publication role mismatch at " + publicationIndex
+                            + ": actual=" + publication.role());
+        }
+        if (!publication.tensorId().equals(target.id())) {
+            throw new IllegalStateException(
+                    "backward gradient publication Tensor ID mismatch at " + publicationIndex);
+        }
+        if (publication.derivativeOrder().orElse(-1) != 1) {
+            throw new IllegalStateException(
+                    "backward gradient publication derivative order mismatch at "
+                            + publicationIndex);
+        }
+        if (publication.targetIndex().orElse(-1) != targetIndex) {
+            throw new IllegalStateException(
+                    "backward gradient publication target index mismatch at "
+                            + publicationIndex);
+        }
+        Objects.requireNonNull(publication.descriptor(),
+                "backward publication descriptor[" + publicationIndex + "]");
     }
 
     private static long[] preflightCanonicalByteCounts(

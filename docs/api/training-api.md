@@ -45,9 +45,10 @@ unique targets, and ERROR/ZERO disconnected behavior. The compiler preflights ea
 selected slice before creating formulas, captures forward and all derivative roots once, and
 retains per-node derivative order beside unchanged graph phase. These facts do not expose a
 public training workflow, materialize a numerical gradient, choose a parameter update, select a
-backend, prepare a schedule, or execute training. The ordinary Engine's narrower first-order
-overload fixes one explicit stage and reports only publication metadata; it is not an optimizer
-or training API and does not provide implicit targets or no-argument backward.
+backend, prepare a schedule, or execute training. The ordinary Engine's reusable first-order
+compile overload fixes one explicit stage and reports publication metadata; its narrower one-shot
+`backward(...)` call additionally returns detached objective and gradient bytes. Neither is an
+optimizer or training API, and neither provides implicit targets or no-argument backward.
 
 ## Current NN typed Model composition contract
 
@@ -489,10 +490,13 @@ Tensor values.
 - `Optimizer` implementations such as SGD, Adam, and AdamW will define mathematical updates without importing CPU, Metal, or CUDA modules.
 - `TrainingSession` and `TrainingStep` will coordinate forward/backward execution, gradient publication, and optimizer updates through shared lifecycle contracts.
 
-Current Engine materialization still does not satisfy this planned coordination boundary: it
-copies one caller-selected occurrence to canonical CPU host bytes but does not map gradients to
-parameters, update state, or define an optimizer handoff. One-shot `withBackward`-style
-convenience remains Engine task 0006 and will require explicit targets.
+Current Engine materialization still does not satisfy this planned coordination boundary. The
+ordinary one-shot `Engine.backward(objective, targets, maximumTotalBytes)` call returns a detached
+scalar objective and explicit target-aligned first gradients, but it is not a training session,
+optimizer step, gradient-accumulation facility, `Parameter` mutation, or checkpoint state. It
+does not map gradients to parameters, retain an execution for another step, update optimizer or
+module state, or define an optimizer handoff. Training orchestration remains planned here even
+though the narrow Engine convenience is current.
 
 No optimizer signatures, default hyperparameters, update sequencing, gradient-to-parameter
 mapping, persistent checkpoint format, or optimizer exception types are stable yet. They will be

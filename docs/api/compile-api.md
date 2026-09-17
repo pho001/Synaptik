@@ -82,7 +82,23 @@ leaves, invokes this same fixed forward-only compilation afresh, and uses final
 prepare, run, complete publication/aggregate-byte preflight, ordered materialization, and cleanup.
 This is Model expression-provenance traversal, not Compiler IR traversal or Engine liveness
 reconstruction. It adds no compile cache, reusable hidden handle, new compile option, or Compiler
-API. Task 0006 owns later scalar-objective backward convenience.
+API.
+
+`Engine.backward(objective, targets, maximumTotalBytes)` is the current narrower one-shot
+Compiler mapping. It inventories reachable leaves, then issues exactly one
+`FORWARD_AND_BACKWARD` stage for the singleton objective with one absent seed,
+`createGraph == false`, and `DisconnectedPolicy.ERROR`. Compiler interprets that absent seed as
+exact typed positive one only when the objective is scalar, floating, and gradient-eligible; it
+also remains authoritative for target membership, differentiable connectivity, supported
+operations, and final bindable inputs. Targets are explicit, ordered, non-empty, and unique by
+exact Tensor identity; accepted targets may be leaves, intermediates, or the objective. Engine
+does not infer targets, inputs, liveness, or gradient semantics and retains no Tensor state.
+
+The call freshly compiles and prepares each time. Explicit seeds, multiple forward outputs,
+reusable execution, and selective publication materialization remain available through the
+ordinary three-list compile lifecycle. `ZERO`, a second stage, higher-order construction, and the
+complete request policy remain available through `AdvancedEngine.compile(...)` with an explicit
+`FunctionalGradientRequest`.
 
 `AdvancedEngine.compile(...)` is the current public consumer of `GraphCompilationPort`. It
 requires a non-empty ordered output list and receives `BackendIntent`, `CompileMode`,

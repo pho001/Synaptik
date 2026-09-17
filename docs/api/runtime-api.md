@@ -261,9 +261,25 @@ selective output copies. The explicit reusable `run(preparedExecution, inputs)` 
 continues to require caller-supplied logical inputs. Automatic discovery is only the one-shot
 convenience. Selected storage remains caller-owned through synchronous completion, no Tensor or
 provenance state escapes the call, and no cache is retained. This adds no `output.execute()` Tensor method, cross-backend transfer,
-tuning, cache, or backward behavior. Scalar-objective `withBackward`-style convenience remains
-task 0006 and will require explicit targets; there is no current or promised no-argument backward
-call. See the [complete one-shot example](public-api.md#current-ordinary-and-advanced-cpu-lifecycle).
+tuning, or cache.
+
+`Engine.backward(objective, targets, maximumTotalBytes)` is the current one-shot backward
+counterpart. It discovers candidate leaves from the objective expression, uses final compiled
+inputs as the authoritative selection, and runs one fresh absent-positive-one-seed,
+disconnected-target-`ERROR` request. The temporary Engine result must contain one forward
+objective followed by one first-order gradient occurrence per target in target-list order. Engine
+validates every occurrence, preflights all fully static/resolved per-value byte counts and their
+exact aggregate before the first physical copy, then copies objective first and gradients in
+order. Aliased occurrences are copied independently.
+
+One admission covers compile, prepare, isolated run state, preflight, copies, and cleanup. Engine
+close waits through that sequence; concurrent calls use distinct Runtime states. The returned
+`ScalarObjectiveBackwardResult` and its `HostTensorValue` components are detached and remain
+readable after temporary result, Engine, and caller storage close. No explicit input list, eager
+tape, Tensor mutation, inferred target, no-argument backward, or Runtime liveness inference is
+introduced. Explicit seeds, multiple outputs, reusable execution, `ZERO`, and higher-order/full
+request policies stay on the existing ordinary or advanced lower-level lifecycle. See the
+[complete one-shot examples](public-api.md#current-ordinary-and-advanced-cpu-lifecycle).
 
 ## Current advanced Engine prepare and run boundary
 
@@ -1118,9 +1134,9 @@ constant initialization or materialization, transfer, publication, or cleanup. I
 Compiler aggregate only in shared Prepare; concrete backend-facing `PrepareContext` values remain
 Compiler-free. The current ordinary Engine maps logical caller inputs and publication roles to
 these Runtime coordinates without exposing them. Prepare 0005 supplies only the shared handoff and
-assignment capability: the current CPU integration does not yet contribute the physical geometry
-or initialized representation recipe, and Engine does not yet wire this path. Those boundaries
-remain CPU 0010H and Engine 0006 respectively.
+assignment capability. CPU 0010H now contributes the physical geometry and initialized
+representation recipe, and Engine 0006 wires the supported source-only positive-one seed into the
+ordinary one-shot backward lifecycle. No new Runtime contract was required.
 
 ## Current aggregate and run orchestration
 

@@ -4831,8 +4831,9 @@ ordinary partition-declared buffer. It receives a `PreparedBufferAssignment` but
 
 The value is a declaration and handoff only. It does not choose a backend, derive geometry,
 allocate storage, create or initialize a representation, materialize a scalar, execute work, or
-enable a zero-node schedule. CPU 0010H and Engine 0006 remain the planned concrete declaration,
-initialization, and wiring owners.
+enable a zero-node schedule. CPU 0010H supplies the current concrete declaration and
+initialization, and Engine 0006 wires the supported source-only scalar seed into its one-shot
+backward lifecycle.
 
 ### Prepared execution / `PreparedExecution`
 
@@ -5241,6 +5242,31 @@ Engine lifecycle. The aggregate limit covers returned canonical payload lengths 
 explicit `compile -> prepare -> run(prepared, explicit inputs) -> materialize` lifecycle for repeated runs or selective
 publication copying. See [Public API](api/public-api.md#current-ordinary-and-advanced-cpu-lifecycle)
 and [Runtime API](api/runtime-api.md#current-ordinary-engine-boundary).
+
+### One-shot scalar-objective backward execution
+
+The implemented ordinary
+`Engine.backward(objective, targets, maximumTotalBytes)` operation that synchronously returns one
+detached scalar objective plus immutable first gradients aligned with an explicit ordered target
+list. The objective must be scalar, floating, and gradient-eligible. Targets are non-empty and
+unique by exact Tensor identity; Compiler may accept leaves, intermediates, or the objective.
+
+Engine inventories reachable provenance-free leaves, but final compiled inputs alone determine
+binding membership and order. The Compiler request has one absent positive-one scalar seed and
+`DisconnectedPolicy.ERROR`. Objective-first then target-ordered publications receive complete
+static/resolved, per-value, and exact aggregate byte preflight before any copy; aliased
+occurrences are copied independently. Every call freshly compiles, prepares, runs with isolated
+state, copies, and cleans up. The returned `ScalarObjectiveBackwardResult` owns no closeable
+resource and remains readable after Engine and caller storage close.
+
+This term does not mean Tensor mutation, an eager tape, inferred inputs or targets, a reusable
+prepared execution, gradient accumulation, an optimizer step, a training session, or checkpoint
+state. Explicit seeds, multiple outputs, `ZERO`, higher-order/full policies, selective copying,
+and reuse stay on the existing lower-level ordinary or advanced APIs. Current execution is
+CPU-only and requires a supported non-empty static/resolved composition; pure zero-node and mixed
+compositions remain unsupported. See
+[Public API](api/public-api.md#current-ordinary-and-advanced-cpu-lifecycle) and
+[Compile API](api/compile-api.md#current-ordinary-and-advanced-engine-compile-boundaries).
 
 ### Run state / `RunState`
 

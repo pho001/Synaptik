@@ -15,6 +15,7 @@ import io.github.pho001.synaptik.backend.contract.BackendDeviceId;
 import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.backend.contract.DeviceClass;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
+import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -44,6 +45,7 @@ import java.util.Optional;
 import java.nio.ByteOrder;
 import java.nio.ReadOnlyBufferException;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -648,6 +650,175 @@ final class EngineTypedLifecycleTest {
         }
     }
 
+    @Test
+    void backwardValidatesStructureInOrderAndUsesAbsentSeedErrorMapping() {
+        RecordingComposition composition = new RecordingComposition();
+        composition.copyBytes = new byte[4];
+        Engine engine = engine(composition);
+        Tensor input = scalarLeaf(true, true, 2.0f);
+        Tensor objective = input.contiguous();
+
+        assertAll(
+                () -> assertEquals("objective", assertThrows(NullPointerException.class,
+                        () -> engine.backward(null, null, -1)).getMessage()),
+                () -> assertEquals("targets", assertThrows(NullPointerException.class,
+                        () -> engine.backward(objective, null, -1)).getMessage()),
+                () -> assertEquals("targets[0]", assertThrows(NullPointerException.class,
+                        () -> engine.backward(objective,
+                                Collections.singletonList(null), -1)).getMessage()),
+                () -> assertEquals("targets must not be empty",
+                        assertThrows(IllegalArgumentException.class,
+                                () -> engine.backward(objective, List.of(), -1)).getMessage()),
+                () -> assertEquals("targets[1] duplicates targets[0]",
+                        assertThrows(IllegalArgumentException.class, () -> engine.backward(
+                                objective, List.of(input, input), -1)).getMessage()),
+                () -> assertEquals("maximumTotalBytes must be non-negative: -1",
+                        assertThrows(IllegalArgumentException.class,
+                                () -> engine.backward(objective, List.of(input), -1)).getMessage()));
+
+        ScalarObjectiveBackwardResult result =
+                engine.backward(objective, List.of(input), 8);
+        assertAll(
+                () -> assertEquals(4, result.objective().byteSize()),
+                () -> assertEquals(1, result.gradients().size()),
+                () -> assertEquals(4, result.gradients().getFirst().byteSize()),
+                () -> assertNotSame(result.objective(), result.gradients().getFirst()),
+                () -> assertThrows(UnsupportedOperationException.class,
+                        () -> result.gradients().add(result.objective())),
+                () -> assertEquals(CompileMode.FORWARD_AND_BACKWARD,
+                        composition.preparedArtifacts.mode()),
+                () -> assertEquals(1,
+                        composition.preparedArtifacts.publication().forwardBindings().size()),
+                () -> assertEquals(1,
+                        composition.preparedArtifacts.publication().gradientBindings().size()),
+                () -> assertEquals(input.id(), composition.preparedArtifacts.publication()
+                        .gradientBindings().getFirst().target()),
+                () -> assertEquals(1, composition.preparedArtifacts.constants()
+                        .bindableInputBindings().size()),
+                () -> assertEquals(input.id(), composition.preparedArtifacts.constants()
+                        .bindableInputBindings().getFirst().tensorId()),
+                () -> assertEquals(List.of(4L, 4L), composition.copyLimits),
+                () -> assertEquals(2, composition.copyCount.get()));
+        engine.close();
+    }
+
+    @Test
+    void backwardPreflightsAggregateBeforeCopyAndCopiesAliasedOccurrencesIndependently() {
+        RecordingComposition composition = new RecordingComposition();
+        composition.aliasPublications = true;
+        composition.copyBytes = new byte[4];
+        Engine engine = engine(composition);
+        Tensor left = scalarLeaf(true, true, 2.0f);
+        Tensor right = scalarLeaf(true, true, 3.0f);
+        Tensor objective = left.add(right).contiguous();
+
+        assertEquals(
+                "total canonical byte count exceeds maximumTotalBytes: required=12, maximum=11",
+                assertThrows(IllegalArgumentException.class,
+                        () -> engine.backward(objective, List.of(left, right), 11)).getMessage());
+        assertEquals(0, composition.copyCount.get());
+
+        ScalarObjectiveBackwardResult result =
+                engine.backward(objective, List.of(left, right), 12);
+        assertAll(
+                () -> assertEquals(2, result.gradients().size()),
+                () -> assertNotSame(result.gradients().get(0), result.gradients().get(1)),
+                () -> assertNotSame(result.objective(), result.gradients().get(0)),
+                () -> assertEquals(3, composition.copyCount.get()),
+                () -> assertSame(composition.copyRepresentations.get(0),
+                        composition.copyRepresentations.get(1)),
+                () -> assertSame(composition.copyRepresentations.get(1),
+                        composition.copyRepresentations.get(2)),
+                () -> assertEquals(List.of(4L, 4L, 4L), composition.copyLimits));
+        engine.close();
+    }
+
+    @Test
+    void backwardSuppressesCleanupFailureAndCloseWaitsThroughAllCopies() throws Exception {
+        RuntimeException copyFailure = new RuntimeException("backward copy failed");
+        Error cleanupFailure = new AssertionError("backward cleanup failed");
+        RecordingComposition failing = new RecordingComposition();
+        failing.copyBytes = new byte[4];
+        failing.copyFailure = copyFailure;
+        failing.runtimeCloseFailure = cleanupFailure;
+        Engine failedEngine = engine(failing);
+        Tensor failedInput = scalarLeaf(true, true, 2.0f);
+        RuntimeException actual = assertThrows(RuntimeException.class, () -> failedEngine.backward(
+                failedInput.contiguous(), List.of(failedInput), 8));
+        assertSame(copyFailure, actual);
+        assertArrayEquals(new Throwable[] {cleanupFailure}, actual.getSuppressed());
+        failedEngine.close();
+
+        RecordingComposition composition = new RecordingComposition();
+        composition.copyBytes = new byte[4];
+        composition.copyEntered = new CountDownLatch(1);
+        composition.copyRelease = new CountDownLatch(1);
+        Engine engine = engine(composition);
+        Tensor input = scalarLeaf(true, true, 2.0f);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var backward = executor.submit(
+                    () -> engine.backward(input.contiguous(), List.of(input), 8));
+            assertTrue(composition.copyEntered.await(10, TimeUnit.SECONDS));
+            var close = executor.submit(() -> { engine.close(); return null; });
+            while (!engine.isClosed()) Thread.onSpinWait();
+            assertFalse(close.isDone());
+            composition.copyRelease.countDown();
+            ScalarObjectiveBackwardResult result = backward.get(10, TimeUnit.SECONDS);
+            close.get(10, TimeUnit.SECONDS);
+            assertEquals(4, result.objective().byteSize());
+            assertEquals(4, result.gradients().getFirst().byteSize());
+            assertEquals("advanced engine is closed", assertThrows(IllegalStateException.class,
+                    () -> engine.backward(null, null, -1)).getMessage());
+        }
+    }
+
+    @Test
+    void concurrentBackwardCallsUseIsolatedRunRepresentations() throws Exception {
+        RecordingComposition composition = new RecordingComposition();
+        composition.copyBytes = new byte[4];
+        composition.copyEntered = new CountDownLatch(2);
+        composition.copyRelease = new CountDownLatch(1);
+        try (Engine engine = engine(composition)) {
+            Tensor input = scalarLeaf(true, true, 2.0f);
+            Tensor objective = input.contiguous();
+            try (var executor = Executors.newFixedThreadPool(2)) {
+                var first = executor.submit(
+                        () -> engine.backward(objective, List.of(input), 8));
+                var second = executor.submit(
+                        () -> engine.backward(objective, List.of(input), 8));
+                assertTrue(composition.copyEntered.await(10, TimeUnit.SECONDS));
+                composition.copyRelease.countDown();
+                assertEquals(4, first.get(10, TimeUnit.SECONDS).objective().byteSize());
+                assertEquals(4, second.get(10, TimeUnit.SECONDS).objective().byteSize());
+            }
+            IdentityHashMap<BufferRepresentation, Boolean> identities = new IdentityHashMap<>();
+            composition.copyRepresentations.forEach(
+                    representation -> identities.put(representation, Boolean.TRUE));
+            assertEquals(4, identities.size());
+        }
+    }
+
+    @Test
+    void scalarBackwardResultChecksComponentsAndSnapshotsMembership() {
+        HostTensorValue value = new HostTensorValue(
+                DataType.FLOAT32, Shape.scalar(), new byte[4]);
+        var gradients = new ArrayList<HostTensorValue>();
+        gradients.add(value);
+        ScalarObjectiveBackwardResult result =
+                new ScalarObjectiveBackwardResult(value, gradients);
+        gradients.clear();
+        assertAll(
+                () -> assertSame(value, result.objective()),
+                () -> assertEquals(List.of(value), result.gradients()),
+                () -> assertEquals("objective", assertThrows(NullPointerException.class,
+                        () -> new ScalarObjectiveBackwardResult(null, null)).getMessage()),
+                () -> assertEquals("gradients", assertThrows(NullPointerException.class,
+                        () -> new ScalarObjectiveBackwardResult(value, null)).getMessage()),
+                () -> assertEquals("gradients[0]", assertThrows(NullPointerException.class,
+                        () -> new ScalarObjectiveBackwardResult(value,
+                                Collections.singletonList(null))).getMessage()));
+    }
+
     private static Engine engine(RecordingComposition composition) {
         return new Engine(new AdvancedEngine(composition));
     }
@@ -677,6 +848,14 @@ final class EngineTypedLifecycleTest {
         return TensorFactory.fromFlatArray(descriptor, Optional.empty(), new float[] {1, 2});
     }
 
+    private static Tensor scalarLeaf(boolean requiresGrad, boolean storage, float value) {
+        Shape shape = Shape.scalar();
+        TensorDescriptor descriptor = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), requiresGrad);
+        if (!storage) return TensorFactory.create(descriptor);
+        return TensorFactory.fromFlatArray(descriptor, Optional.empty(), new float[] {value});
+    }
+
     private static final class RecordingComposition implements EngineBackendComposition {
         private final AtomicInteger compileQueries = new AtomicInteger();
         private final AtomicInteger borrowCount = new AtomicInteger();
@@ -699,6 +878,7 @@ final class EngineTypedLifecycleTest {
         private CountDownLatch copyRelease;
         private boolean returnNullBytes;
         private boolean aliasPublications;
+        private CompileArtifacts preparedArtifacts;
 
         @Override
         public List<BackendCapabilityProvider> capabilityProviders() {
@@ -719,6 +899,7 @@ final class EngineTypedLifecycleTest {
 
         @Override
         public PreparedExecution prepare(CompileArtifacts artifacts) {
+            preparedArtifacts = artifacts;
             int inputCount = artifacts.constants().bindableInputs().size();
             int publicationCount = artifacts.publication().forwardBindings().size()
                     + artifacts.publication().gradientBindings().size();

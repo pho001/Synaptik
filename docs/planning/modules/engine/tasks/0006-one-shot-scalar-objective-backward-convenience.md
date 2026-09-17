@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft
+Complete
 
 ## Goal
 
@@ -22,10 +22,9 @@ publications. Engine 0004 provides bounded detached host materialization, and En
 one-shot forward orchestration. Compiler 0006 already defines the missing scalar seed: an absent
 cotangent is legal only for an exact scalar floating gradient-eligible output and denotes an exact
 positive-one logical splat of that output type. The selected outward Engine mapping remains
-valid, but its source-only seed publication is not yet preparable or materializable. Compiler
-0006B5 and Prepare 0005 have closed the logical and shared-resource portions of that inward chain.
-Ready CPU 0010H remains the only outstanding prerequisite and must close physical declaration/
-materialization before this Engine-only task is implemented. Complete Engine 0005A already
+valid. Compiler 0006B5, Prepare 0005, and CPU 0010H now close the complete logical,
+shared-resource, and physical-materialization chain for that source-only publication. Complete
+Engine 0005A already
 supplies the transient expression-leaf inventory and authoritative compiled-input selection seam
 reused by this later convenience; Engine 0006 adds no input-classification or liveness rule.
 
@@ -44,18 +43,23 @@ scalar objective + explicit targets
 
 When the absent seed is itself the requested gradient, Compiler captures it as a compile-time
 constant graph input and graph output with no producer partition and no consumer partition.
-Planning correctly retains that producerless/consumerless graph-output obligation. Its final
-publication descriptor currently has unresolved layout.
+Planning correctly retains that producerless/consumerless graph-output obligation. The former
+blocker had three parts: the final descriptor had unresolved layout, Prepare accepted no complete
+resource contribution for a value outside partition-node projections, and CPU therefore had no
+assigned representation to initialize.
 
-Prepare projects only values connected to partition nodes and assigns shared slots only from
-backend analysis declarations, so the source never reaches CPU analysis and receives no
-`PreparedBufferAssignment`. Fabricating an assignment would not repair the pipeline: Engine's
-host-copy preflight would still reject the unresolved layout. The architecture-correct order is:
+The completed owner-ordered repair closes each part without changing Runtime. Compiler 0006B5
+assigns the canonical contiguous logical layout only to eligible fully static source-only
+published constant splats. CPU 0010H derives the exact physical geometry and contributes the
+resource through Prepare 0005's complete validated producerless-resource handoff; Prepare assigns
+its deterministic shared slot. CPU then emits an initialized-buffer recipe, and existing Runtime
+cold setup creates one fresh run-owned, initially valid representation per `RunState`. The
+architecture-correct order is:
 
 ```text
 Compiler 0006B5 logical descriptor closure (Complete)
   -> Prepare 0005 source-only publication resource handoff and assignment (Complete)
-  -> CPU 0010H source-only constant physical declaration/materialization (Ready; outstanding)
+  -> CPU 0010H source-only constant physical declaration/materialization (Complete)
   -> Engine 0006 outward convenience
 
 Engine 0005A automatic input discovery and compute convenience (Complete; seam available)
@@ -63,8 +67,10 @@ Engine 0005A automatic input discovery and compute convenience (Complete; seam a
 ```
 
 Runtime needs no new task. Its initialized representation, initial-validity, ordered
-publication/alias, result-lease, and cleanup contracts already cover the required lifecycle once
-Prepare and CPU supply the missing resource and materialization facts.
+publication/alias, result-lease, and cleanup contracts cover the required lifecycle. Compiler
+0006B5 supplies the resolved canonical descriptor, Prepare 0005 validates and assigns the complete
+source-only resource set, and CPU 0010H creates a fresh initialized, initially valid physical
+representation for each run state.
 
 ## Exact proposed public API
 
@@ -192,11 +198,12 @@ calls have isolated Runtime states. No async, cancellation, retry, or fallback i
 
 The intended support remains CPU-only: exactly one non-empty maximal CPU partition, supported
 kinds and types, fully static Shapes, and resolved compatible layouts. Compile success does not
-guarantee prepare/run success. After all prerequisites complete, the Engine-owned real
-fixture will use one resolved scalar FLOAT32 gradient-eligible leaf and its supported
+guarantee prepare/run success. The Engine-owned real fixture will use one resolved scalar FLOAT32
+gradient-eligible leaf and its supported
 `contiguous()` objective, discover the leaf automatically, and verify the scalar value and typed
-positive-one gradient without claiming broader CPU gradient coverage. That fixture is not
-preparable under the current contracts and must not be presented as current execution evidence.
+positive-one gradient without claiming broader CPU gradient coverage. Current contracts now make
+that non-empty CPU graph plus source-only seed publication preparable and materializable; the
+fixture remains Engine-owned implementation evidence rather than prerequisite-task evidence.
 
 ## Scope
 
@@ -237,7 +244,9 @@ preparable under the current contracts and must not be presented as current exec
   [0006B5](../../compiler/tasks/0006b5-published-compile-time-constant-descriptor-closure.md)
 - Runtime [0015](../../runtime/tasks/0015-leased-publication-representation-access.md) and CPU
   [0010G](../../../backends/cpu/tasks/0010g-canonical-caller-owned-host-snapshot-export.md)
-- Complete Prepare 0005 and Ready CPU 0010H in their owner plans
+- Prepare [0005](../../prepare/tasks/0005-producerless-published-constant-resource-handoff-and-shared-slot-assignment.md)
+  and CPU
+  [0010H](../../../backends/cpu/tasks/0010h-source-only-published-constant-cpu-materialization.md)
 
 ## Architecture constraints
 
@@ -303,20 +312,20 @@ inward contract, dependency/build edit, or other-module executable change.
   overflow/JVM ceiling, alias, and zero-copy-on-preflight-failure cases are covered.
 - Failures return no partial carrier and preserve cleanup/suppression identity.
 - Bounded-latch tests cover close/admission/concurrent isolated runs without sleeps.
-- After the remaining CPU 0010H prerequisite completes, alongside already Complete Compiler
-  0006B5, Prepare 0005, and Engine 0005A, real supported scalar CPU integration verifies
+- With Compiler 0006B5, Prepare 0005, CPU 0010H, and Engine 0005A Complete, real supported scalar
+  CPU integration verifies
   objective, positive-one gradient, byte bound, automatically selected input identity,
   caller ownership, and detached post-close access. Engine owns this final end-to-end test; the
   prerequisite tasks own their focused descriptor, handoff/assignment, and CPU materialization
   tests respectively.
 - Javadocs and Public/Compile/Runtime/Training/glossary docs explain exact semantics, limitations,
   lower-level alternatives, and no Tensor mutation/training implication.
-- Only allowlisted paths change; 0005 remains Complete; planned 0006 remains Draft until future
-  implementation; 0007–0008 remain Draft and unspecified.
+- Only allowlisted paths change; 0005 remains Complete; task 0006 reaches Complete only through
+  the normal implementation statuses; 0007–0008 remain Draft and unspecified.
 
 ## Tests / validation
 
-Future implementation final task-tier commands:
+Implementation task-tier commands:
 
 ```bash
 ./gradlew :modules:engine:test
@@ -340,11 +349,12 @@ run Java tests for this planning-only change.
 
 ## Dependencies
 
-Engine 0001–0005A, Compiler 0006/0006B4–0006B5, Prepare 0005, Runtime 0015, and CPU 0010G are
+Engine 0001–0005A, Compiler 0006/0006B4–0006B5, Prepare 0005, Runtime 0015, and CPU 0010G–0010H are
 Complete. Engine 0005A already supplies automatic reachable-leaf discovery plus selection in
-`CompiledGraph.inputs()` order. CPU 0010H is Ready and is the only outstanding prerequisite/
-blocker. Current
-Model scalar/type/Tensor/storage contracts and Runtime lifecycle contracts are sufficient; no
+`CompiledGraph.inputs()` order. Compiler 0006B5 supplies the resolved canonical descriptor,
+Prepare 0005 supplies complete source-only resource handoff and shared assignment, and CPU 0010H
+supplies physical declaration plus fresh per-run initialized materialization. Current Model
+scalar/type/Tensor/storage contracts and Runtime lifecycle contracts are sufficient; no
 Runtime task, architecture decision, or material outward API choice remains.
 
 ## Documentation-focused clean-context pass
@@ -407,9 +417,9 @@ gates pass.
 Exact scalar floating objective, explicit unique connected targets, fixed ERROR, CPU-only
 static/resolved supported execution, fresh compile/prepare, eager complete materialization,
 `Integer.MAX_VALUE` per value, non-atomic selected-input association snapshots, and no training/
-optimizer/checkpoint/transfer meaning. Current implementation is additionally blocked by Ready
-CPU 0010H. Engine 0005A is Complete and its automatic reachable-leaf discovery plus selection in
-`CompiledGraph.inputs()` order is already available.
+optimizer/checkpoint/transfer meaning. Engine 0005A's automatic reachable-leaf discovery plus
+selection in `CompiledGraph.inputs()` order and the complete source-only constant chain are
+already available.
 
 ## Validation evidence
 
@@ -423,42 +433,116 @@ Planning context: `01a0a557-092d-7cb0-baa4-d6ebb3527336`.
   the absent seed is a source-only published constant with unresolved layout, Prepare contributes
   and assigns only partition-analysis resources, CPU receives no assignment, and Engine preflight
   would reject unresolved layout even with a fabricated assignment.
-- Recorded Complete Compiler 0006B5 and Prepare 0005 as the finished logical/shared-resource
-  source-only repair, Complete Engine 0005A as the already available automatic-input seam, and
-  Ready CPU 0010H as Engine 0006's only outstanding prerequisite, with no Runtime task.
+- Reassessment at main commit `f2dfecbd653766eef19fa76306744067d4cdbd08` confirmed Complete
+  Compiler 0006B5 closes the canonical logical descriptor, Complete Prepare 0005 validates and
+  assigns the source-only resource, and Complete CPU 0010H contributes its geometry and builds a
+  fresh initialized, initially valid representation for each Runtime run state.
+- Confirmed current Engine 0005A leaf discovery/final-binding selection, publication metadata,
+  host-copy preflight, and cleanup helpers support the proposed Engine-only implementation without
+  a new inward API. Runtime's existing initialized-representation, ordered-publication, lease,
+  isolated-state, and cleanup contracts require no new task.
+- This clean planning/documentation reassessment changed exactly this task, the Engine master plan,
+  and the roadmap. `git diff --check`, exact three-path scope, Markdown relative-link/anchor,
+  heading/fence/whitespace/LF/final-newline, stale CPU-0010H wording, and cross-file
+  status/order/dependency checks all passed.
 - Preserved baseline copies/diffs for the pre-edited Engine master plan and roadmap.
 - Java tests/Javadoc were not run because this assignment is planning-only.
 
+Implementation context: `01a0b11d-cc89-7590-8836-0555b05e7001`.
+
+- Implemented the exact ordinary `Engine.backward(objective, targets, maximumTotalBytes)` surface,
+  package-private fixed request mapping, detached `ScalarObjectiveBackwardResult`, publication and
+  byte preflight, alias-copy, cleanup, close, and concurrency behavior within the eight Java/test
+  paths.
+- `./gradlew :modules:engine:test` passed with 41 tests and zero failures, errors, or skips.
+- The focused `EngineTypedLifecycleIntegrationTest` passed all 6 tests with zero failures, errors,
+  or skips. The focused `EngineCompositionContractTest` completed successfully; its report records
+  1 passing test.
+- `git diff --check`, `javap`, public-shape and source scans, exact eleven-path implementation
+  scope, and preservation of the initial three-path planning diff passed. No validation command
+  failed; a pre-final-review test-only latch threshold was corrected before the final tier.
+
+Documentation context: `01a0b126-f60b-7a11-8d7c-621e532952f0`.
+
+- Independently reviewed the final implementation and all four changed tests against every
+  acceptance criterion. The implementation fixes one absent positive-one scalar seed and
+  `DisconnectedPolicy.ERROR`, reuses automatic leaf discovery plus final compiled-input
+  selection, validates objective-first then target-ordered publications, preflights the complete
+  static/resolved per-value and aggregate byte set before copying, copies aliases independently,
+  and returns detached values after one fresh lifecycle and cleanup.
+- Finalized Public, Compile, Runtime, and Training API explanations, the existing one-shot
+  glossary family, status/evidence in this task, the Engine master plan, and the roadmap. The
+  complete public example uses `Engine.standard()`, caller-owned resolved scalar `FLOAT32`
+  storage, `contiguous()`, an explicit target list and aggregate bound, verifies objective and
+  positive-one gradient bytes, and reads both after Engine/storage closure.
+- The four production Javadocs were already accurate and were left byte-for-byte unchanged.
+  Their SHA-256 hashes remain the implementation hashes recorded in the handoff, so no executable
+  Java token comparison was necessary. All four test hashes likewise remain unchanged.
+- `./gradlew :modules:engine:javadoc`, generated-page inspection, `javap -public`, the
+  package-private result-constructor inspection, and a distinct-package public fixture all passed.
+  Markdown target/anchor, unique-heading, balanced-fence, trailing-whitespace, LF, final-newline,
+  exact sixteen-path, forbidden-change, status-agreement, stale-wording, signature-leak, and
+  `git diff --check` validations passed.
+- Reused the implementation Java-test evidence as required; no Java test suite was rerun because
+  executable Java and tests were unchanged during documentation finalization.
+
 ## Implementation notes
 
-Empty until implemented.
+- `Engine.backward(...)` admits once, snapshots and validates structural arguments, inventories
+  reachable provenance-free leaves, constructs one singleton absent-seed/ERROR Compiler request,
+  and binds only final compiled inputs in their authoritative order.
+- The result boundary requires exactly one objective publication followed by one derivative-order-
+  one publication for every target position. Complete byte preflight precedes objective-first and
+  target-ordered independent copies; returned values own no inward resource.
+- Existing ordinary explicit-seed compilation and advanced full-request compilation were not
+  widened or redirected. Pure zero-node and mixed/multi-partition compositions remain rejected.
+- No inward module, dependency, build, architecture, backend-conformance, Tensor/Model source, or
+  Engine 0007–0008 specification changed.
+- Tensor API and Model source required no change because Engine consumes existing immutable Tensor
+  identity, descriptor, provenance, and storage contracts without changing them.
+- Architecture, ADRs, and architecture-test source required no change because ownership,
+  dependency direction, and module boundaries are unchanged; the existing focused architecture
+  test passed unchanged.
+- Compiler, Prepare, Runtime, and CPU contracts and documentation beyond the allowed API pages
+  required no change because the completed 0006B5 -> Prepare 0005 -> CPU 0010H chain already
+  supplies every inward descriptor, assignment, initialized representation, publication, and copy
+  contract used here.
+- Build files and dependencies required no change because all named types are already available to
+  Engine and the integration test. Backend conformance required no change because this task adds
+  Engine orchestration, not backend behavior.
+- Other modules and plans required no change because the capability is confined to Engine; Engine
+  0007–0008 remain Draft and unspecified as required.
 
 ## Completion summary
 
-The future implementation task must replace this template with its concrete evidence:
-
-```text
 Completed changes:
-- <implemented API and behavior>
+- Added the exact one-shot scalar-objective backward API and detached objective/gradient carrier.
+- Implemented automatic input selection, fixed Compiler request lowering, publication defense,
+  complete aggregate preflight, independent copying, lifecycle cleanup, and concurrency behavior.
 
 Files changed or created:
-- <exact paths>
+- Four Engine production paths, three Engine test paths, and one integration-test path listed in
+  the allowlist.
+- `docs/api/public-api.md`, `docs/api/compile-api.md`, `docs/api/runtime-api.md`,
+  `docs/api/training-api.md`, `docs/glossary.md`, this task, the Engine master plan, and the
+  roadmap.
 
 Tests and validation performed:
-- <commands and results>
+- Reused 41 passing Engine tests, 6 passing focused integration tests, and 1 passing focused
+  architecture test from the implementation context.
+- The documentation context passed Engine Javadoc, generated-page and public-shape inspection,
+  fixture compilation, Markdown/format/scope/status scans, and `git diff --check`.
 
 Documentation impact:
-- <Javadoc, API documentation, glossary, and planning updates>
+- Existing production Javadocs were reviewed and remained accurate without edits. Public,
+  Compile, Runtime, and Training API pages now document the current call and its boundaries; the
+  glossary adds the smallest matching one-shot backward entry; planning status and evidence are
+  synchronized.
 
 Unresolved issues:
-- <none or exact issue>
+- None within Engine 0006.
 
 Required follow-up:
-- <none or exact follow-up>
+- None for this task. Engine 0007–0008 remain Draft and unspecified.
 
 Status: Complete
-```
-
-`Status: Complete` is permitted only after every acceptance criterion passes. Until then:
-
-Status: Draft
