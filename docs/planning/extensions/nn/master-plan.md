@@ -208,7 +208,7 @@ configurable merge, and another `ModuleFactory` recipe remain outside it.
 | 0022 | Valid-length recurrent API and Data integration | Draft | 0021B; Data 0001–0002 architecture and valid-length contracts | Consume Data-owned runtime valid lengths through the proven scan, derive zero states as selected, and deliberately migrate or retain the current static `long[]` compatibility contracts without presenting a host adapter as the target API. |
 | 0023 | Arbitrary dense validity-mask semantics | Draft | 0022; concrete attention/loss/recurrent consumer | Reassess an explicit Boolean mask only for validity patterns with holes; keep it derived or separately supplied for that consumer, never a second stored representation of ordinary right padding, and never a claim of skipped recurrent work. |
 | 0024 | Typed model/recurrent/data integration checkpoint | Draft | 0020–0022; 0023 only if selected; Checkpoint model-state and Training publication readiness | Validate model state paths, automatic-initialization/checkpoint compatibility, variable-batch behavior, recurrent continuation, autograd/training handoff, documentation, and integration without moving persistent checkpoint I/O into NN. |
-| 0025 | Channels-first Conv1d, Conv2d, and Conv3d layers | Draft | 0020B; Model 0025G–0025H; Compiler 0006B; CPU 0008–0008A; Engine 0001–0004 | Add separate final public `Conv1d`, `Conv2d`, and `Conv3d` unary modules plus stateless `ModuleFactory` recipes. Each infers only `inChannels` on first forward, while output channels, rank-specific kernel/stride/symmetric-padding/dilation geometry, groups, bias presence, floating data type, `ParameterInitialization`, and seed remain explicit. Preserve atomic reserved-state publication and strict dictionary binding; add no public `ConvNd`. |
+| [0025](tasks/0025-channels-first-conv1d-conv2d-conv3d-layers.md) | Channels-first Conv1d, Conv2d, and Conv3d layers | Ready | 0020B; Model 0025G–0025H; Compiler 0006B and 0006B6; CPU 0008–0008A; Engine 0008 | Add separate final public `Conv1d`, `Conv2d`, and `Conv3d` unary modules plus stateless `ModuleFactory` recipes. Each infers only `inChannels` on first forward, while output channels, rank-specific kernel/stride/symmetric-padding/dilation geometry, groups, bias presence, floating data type, `ParameterInitialization`, and seed remain explicit. Preserve checked group-aware fan derivation, atomic reserved-state publication, strict dictionary binding, visible rank-specific Tensor delegation, and the forward-only Conv3d boundary; add no public `ConvNd`. |
 | 0025A | Dimensional-convolution user-capability checkpoint | Draft | 0025; Compiler 0006C when training coverage is claimed; Engine 0004; CPU 0008A | Validate construction, state dictionaries, forward-only execution for all three channels-first ranks, grouped/bias geometry, cleanup/publication, and documentation through integration tests. Record Conv3d training as supported only if Compiler 0006C has closed its gradient inventory; otherwise verify the explicit fail-closed boundary. |
 
 ## Milestones
@@ -505,14 +505,16 @@ reused the frozen Java-test evidence; and passed final warning-free NN Javadoc/g
 public/protected surface, reflection, external-use, import/dependency, forbidden-mechanism,
 Markdown, exact seventeen-path, status/frontier, newline, no-index, whitespace, and diff gates.
 NN 0021A is Complete with accepted ADR 0012 and synchronized architecture evidence. NN
-0021B–0024 remain Draft without task specifications, and no NN task is Ready or In progress.
-Concurrent CPU/backend planning and global-roadmap changes remain outside this NN planning scope.
+0021B–0024 remain Draft without task specifications. Their order was the prior NN frontier before
+the global roadmap selected the isolated dimensional-convolution exception recorded below.
 
-NN 0025–0025A are additional concise Draft rows for the user-approved dimensional-convolution
-program and have no detailed task specifications. Their numeric placement does not authorize
-skipping recurrent tasks 0021B–0024: a later out-of-order execution would require an explicit
-recorded exception after Model, Compiler, CPU, and Engine prerequisites are complete and file
-isolation is rechecked. Until then the sole active global work remains the CPU frontier.
+Detailed [NN 0025](tasks/0025-channels-first-conv1d-conv2d-conv3d-layers.md) is `Ready` as the
+roadmap-selected frontier after completed Engine 0008. This is the explicit out-of-order exception
+relative to unrelated Draft NN 0021B–0024: every NN 0025 Model, Compiler, CPU, and Engine
+prerequisite is Complete; its bounded NN source/test/documentation paths do not implement or
+overlap those recurrent/Data rows; and it changes implementation order only, not architecture or
+dependency direction. NN 0025A remains a concise Draft row without a detailed specification and
+follows 0025 as the layer-level public Engine capability checkpoint.
 
 The proposed Data, Text, Vision, and Checkpoint master plans are also Draft: their modules do not
 exist in the architecture or build, so their first implementation must be a coordinated
