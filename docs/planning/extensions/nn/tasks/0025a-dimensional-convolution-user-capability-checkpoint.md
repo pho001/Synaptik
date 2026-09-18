@@ -34,6 +34,10 @@ The checkpoint adds no execution facade to NN and no layer knowledge to Engine. 
   public Model, NN, and Engine APIs.
 - Add the test project's narrow `testImplementation(project(":extensions:nn"))` dependency. This
   is test composition only; it creates no production dependency or transitive runtime facade.
+- Update `EngineCompositionContractTest.APPROVED_INTEGRATION` with exactly one trailing ordered
+  line, `testImplementation(project(":extensions:nn"))`, matching the integration build file.
+  Preserve the exact-list equality assertion, ordering, Engine inventory, reverse-dependency scan,
+  and every other test line; do not weaken, generalize, or replace the inventory guard.
 - Construct the three existing concrete layer types through a deliberately small mix of direct
   construction and `ModuleFactory.standard()`:
   - direct `Conv1d`, proving the concrete public constructor without bias;
@@ -106,8 +110,9 @@ The checkpoint adds no execution facade to NN and no layer knowledge to Engine. 
   `EngineConvolutionIntegrationTest`.
 - A new NN execution facade, `Module.execute`, Tensor execution method, implicit state binding,
   durable checkpoint format, host-storage ownership transfer, or facade over Engine.
-- Architecture-contract, ADR, architecture-test, backend-conformance, glossary, Javadoc, Gradle
-  convention/plugin, or other module changes.
+- Architecture-contract, focused architecture-documentation, ADR, backend-conformance, glossary,
+  Javadoc, Gradle convention/plugin, or other module changes. No architecture-test change is
+  allowed beyond the exact one-line ordered integration inventory update specified above.
 
 ## Architecture references
 
@@ -168,8 +173,18 @@ The checkpoint adds no execution facade to NN and no layer knowledge to Engine. 
 - `EngineConvolutionIntegrationTest` already proves raw Tensor-level public forward execution for
   all three ranks. It does not instantiate NN layers, load their state dictionaries, or connect
   layer-owned state to Engine discovery/binding.
-- `testing/integration-tests` currently has no dependency on `extensions/nn`; adding one test-only
-  project edge is necessary and compatible with its outward integration role.
+- The current uncommitted implementation adds
+  `testImplementation(project(":extensions:nn"))` after the existing CPU test dependency in
+  `testing/integration-tests/build.gradle.kts`; the new integration test consumes that exact edge.
+  This test-only project edge is necessary and compatible with the outward integration role.
+- The first `./gradlew test --rerun-tasks` checkpoint reached the architecture suite and exposed
+  one planned inventory mismatch, not a product-test failure:
+  `EngineCompositionContractTest.engineHasOnlyTheApprovedOrderedDirectDependencies()` still
+  expected the pre-NN six-line `APPROVED_INTEGRATION` list while the build file correctly reported
+  the new NN line seventh. Its XML records one test, one failure, and zero errors. This diagnosis
+  authorizes only the matching one-line expected-inventory addition and does not constitute final
+  checkpoint evidence; the final implementation context must rerun the complete repository
+  checkpoint after the inventory is synchronized.
 - `docs/api/training-api.md` explains the convolution layer/state contract and stops after
   expression construction. `docs/api/runtime-api.md` explains generic Engine lifecycle and
   storage ownership, but has no layer-state workflow.
@@ -231,22 +246,25 @@ Expected implementation/test/documentation paths:
 
 1. `testing/integration-tests/build.gradle.kts`
 2. `testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/NnConvolutionEngineIntegrationTest.java` (new)
-3. `docs/api/training-api.md`
-4. this task specification
-5. `docs/planning/extensions/nn/master-plan.md`
-6. `docs/planning/roadmap.md`
+3. `testing/architecture-tests/src/test/java/io/github/pho001/synaptik/testing/architecture/EngineCompositionContractTest.java`
+4. `docs/api/training-api.md`
+5. this task specification
+6. `docs/planning/extensions/nn/master-plan.md`
+7. `docs/planning/roadmap.md`
 
 Review without modification: NN convolution production/Javadocs and unit tests; Module,
 ModuleFactory, StateDictionary, and Parameter APIs; Engine production/Javadocs and existing
 integration fixtures; Tensor/Compile/Runtime APIs; architecture contracts/tests; backend
-conformance; glossary; Gradle settings/conventions; every other module and plan.
+conformance; glossary; Gradle settings/conventions; every other module and plan. For architecture
+tests, review all files but modify only the one exact `APPROVED_INTEGRATION` line above.
 
 ## Maximum scope
 
-At most the exact six paths above: one test-only dependency edit, one new integration test, one
-focused public API-documentation edit, and three synchronized planning records. If implementation
-needs another helper, production file, test owner, build file, documentation page, or architecture
-artifact, stop and amend this Draft specification before proceeding.
+At most the exact seven paths above: one test-only dependency edit, one new integration test, one
+one-line ordered architecture inventory update, one focused public API-documentation edit, and
+three synchronized planning records. If implementation needs another helper, production file,
+test owner, build file, documentation page, or architecture artifact, stop and amend this Draft
+specification before proceeding.
 
 ## Acceptance criteria
 
@@ -279,11 +297,13 @@ artifact, stop and amend this Draft specification before proceeding.
   expression construction from execution, identifies which leaves own host storage, explains
   detached results and cleanup, links to the reusable Runtime workflow, and keeps Conv3d
   forward-only wording explicit.
-- No production/Javadoc, glossary, architecture, conformance, settings, or other module path
-  changes. A separate clean documentation-focused pass finalizes the API text and reasoned
-  no-change conclusions without repeating stable Java tests.
+- `EngineCompositionContractTest` gains exactly the new NN test dependency as the seventh ordered
+  `APPROVED_INTEGRATION` entry. Its strict equality check and every other assertion remain intact.
+- No production/Javadoc, glossary, architecture contract/documentation/ADR, conformance, settings,
+  or other module path changes. A separate clean documentation-focused pass finalizes the API
+  text and reasoned no-change conclusions without repeating stable Java tests.
 - Focused integration validation and one repository-wide capability-checkpoint run pass. Links,
-  anchors, fences, terminology, exact six-path scope, empty staging, LF/final newlines, status
+  anchors, fences, terminology, exact seven-path scope, empty staging, LF/final newlines, status
   agreement, and `git diff --check` pass before the task can become Complete.
 
 ## Tests / validation
@@ -295,17 +315,20 @@ During implementation, run the focused new integration class while stabilizing e
   --tests io.github.pho001.synaptik.testing.integration.NnConvolutionEngineIntegrationTest
 ```
 
-After Java and the test dependency stabilize, run the capability checkpoint once:
+After Java, the test dependency, and the exact architecture inventory line stabilize, rerun the
+complete capability checkpoint. The earlier root run failed the stale expected inventory and is
+diagnostic only; it cannot be reused as the final repository result:
 
 ```bash
 ./gradlew test --rerun-tasks
 ```
 
-Record exact test totals from Gradle XML and confirm execution of the new integration class,
+Record exact test totals from the fresh final Gradle XML and confirm execution of the new
+integration class,
 `EngineConvolutionIntegrationTest`, the NN convolution/state/factory suites, Engine lifecycle
-suites, and architecture tests. The repository-wide command is required because this is a named
-capability checkpoint and changes a test-project dependency; do not separately rerun those stable
-suites afterward.
+suites, and architecture tests, including the passing strict ordered Engine composition inventory.
+The repository-wide command is required because this is a named capability checkpoint and changes
+a test-project dependency; do not separately rerun those stable suites afterward.
 
 Documentation-focused pass, after it finalizes the Training API and planning evidence:
 
@@ -317,7 +340,7 @@ git diff --cached --check
 
 Also validate local Markdown file links and heading anchors, unique headings, balanced fences,
 current-versus-planned terminology, exact state/failure names in the example, LF/final newlines,
-trailing whitespace, exact six-path scope, and status/dependency agreement. Confirm the index is
+trailing whitespace, exact seven-path scope, and status/dependency agreement. Confirm the index is
 empty. No Javadoc generation is required because no production Java or Javadoc changes; review
 the affected public Javadocs against the example and record that they remain accurate. Do not run
 Java tests in the documentation context unless it changes executable Java or identifies a
@@ -366,21 +389,27 @@ and files do not overlap this checkpoint.
   already describe the contracts consumed here; review them in the documentation pass.
 - Glossary: no change. The task introduces no new reusable term or changes the meaning of layer,
   state dictionary, convolution, publication, or host materialization.
-- Architecture contract/ADR: no change. The outward integration project composes established NN
-  and Engine APIs without changing ownership or dependency direction.
-- Architecture tests: no source change. The new edge is test-only in the integration-test module,
-  not a production NN-to-Engine dependency; the repository-wide checkpoint still executes the
-  existing architecture suite.
+- Architecture contract, focused architecture documentation, and ADRs: no change. The outward
+  integration project composes established NN and Engine APIs without changing ownership or
+  dependency direction.
+- Architecture tests: update only `EngineCompositionContractTest.APPROVED_INTEGRATION` with the
+  exact trailing NN test dependency already present in the integration build. Retain strict
+  ordered-list equality and all inward-dependency assertions. This records an approved outward
+  test composition edge, not a production NN-to-Engine dependency or architecture-rule change.
 - Backend conformance: no change. CPU behavior and raw operation conformance are already covered;
   this task verifies only public cross-module composition.
 - Production modules and Javadocs: no change because no defect or missing public seam is present.
 
 ## Architecture impact
 
-Expected impact: None. This task composes public NN, Model, and Engine contracts only from the
-outward integration-test project. If implementation reveals a missing production seam or a need
-for another dependency direction, stop and report the exact conflict rather than editing around
-it.
+Expected architecture-contract and dependency-direction impact: None. This task composes public
+NN, Model, and Engine contracts only from the outward integration-test project. Nevertheless,
+`EngineCompositionContractTest.APPROVED_INTEGRATION` must gain the exact one trailing
+`testImplementation(project(":extensions:nn"))` entry because that source inventory enforces the
+outward test project's approved ordered dependencies. Synchronizing this strict expected inventory
+is not an architecture rule, production dependency, module-ownership, or dependency-direction
+change. If implementation reveals a missing production seam or a need for another dependency
+direction, stop and report the exact conflict rather than editing around it.
 
 ## Implementation prompt
 
@@ -394,17 +423,20 @@ Compiler, and CPU prerequisites. Inspect the current public layers, ModuleFactor
 Engine lifecycle, host Tensor construction, existing convolution/lifecycle integration tests,
 build file, and affected API documentation.
 
-Implement exactly this Draft specification within its six-path ceiling. Add only the test-only NN
-dependency, one black-box integration test with independent primitive-array oracles, and the
+Implement exactly this Draft specification within its seven-path ceiling. Add only the test-only
+NN dependency, one black-box integration test with independent primitive-array oracles, the exact
+one-line trailing `APPROVED_INTEGRATION` inventory entry without weakening its test, and the
 focused Training API example. Preserve the explicit Conv3d fail-closed boundary and add no
 production API or behavior. Stop on architecture uncertainty or scope overflow.
 
-Run the focused integration class, then one final repository-wide checkpoint after executable work
-stabilizes. Hand the frozen diff and exact evidence to a distinct clean documentation-focused
-context. That pass must follow the General, API/Javadoc, Planning, and Example profiles; finalize
-the Training API and planning/no-change evidence; reuse stable Java evidence; and validate links,
-scope, statuses, index state, and whitespace. Update this task, master plan, and roadmap only after
-all gates pass; keep Compiler 0006C and unrelated NN 0021B–0024 Draft.
+Run the focused integration class, synchronize the exact architecture inventory, then rerun one
+final repository-wide checkpoint after executable work stabilizes; the earlier inventory failure
+is not final evidence. Hand the frozen diff and exact evidence to a distinct clean
+documentation-focused context. That pass must follow the General, API/Javadoc, Planning, and
+Example profiles; finalize the Training API and planning/no-change evidence; reuse stable Java
+evidence; and validate links, scope, statuses, index state, and whitespace. Update this task,
+master plan, and roadmap only after all gates pass; keep Compiler 0006C and unrelated NN
+0021B–0024 Draft.
 ```
 
 ## Local decisions
@@ -421,6 +453,9 @@ all gates pass; keep Compiler 0006C and unrelated NN 0021B–0024 Draft.
   Conv1d/Conv2d gradient execution is not needed to close this forward checkpoint.
 - The Training API receives the focused example; the Runtime API already owns the complete Engine
   lifecycle explanation and should be linked, not duplicated.
+- The architecture guard remains strict. Adding the exact seventh expected integration dependency
+  is preferable to excluding NN lines, sorting dynamically, weakening equality, or broadening an
+  allow pattern because the test intentionally locks both membership and order.
 
 ## Known limitations
 
@@ -434,12 +469,13 @@ all gates pass; keep Compiler 0006C and unrelated NN 0021B–0024 Draft.
 
 ## Validation evidence
 
-Not yet executed.
+Not yet finalized. The first root checkpoint's planned inventory mismatch is recorded only as
+current-state diagnosis above; a fresh complete repository checkpoint is still required.
 
 ## Implementation notes
 
-Not yet executed.
+Not yet finalized.
 
 ## Completion summary
 
-Not yet executed.
+Not yet finalized.
