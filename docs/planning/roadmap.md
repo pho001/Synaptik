@@ -24,7 +24,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through Prepare 0005 | Compiler 0006B5 supplies a resolved producerless/consumerless published-constant descriptor while Planning preserves its graph-output obligation. | Prepare contributes that resource to the handoff and assigns a deterministic shared slot without backend selection or physical geometry. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Complete baseline; optional provider 0004 Blocked/deferred | Native interop conventions needed by the provider are decided. | Required FLOAT32/FLOAT64 remains complete; the optional direct BFLOAT16-output capability stays fail-closed until both proof gaps are resolved. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through 0010I (0010D1 Blocked/deferred optional) | Complete CPU 0010E–0010H, Prepare 0004, and tools/tuning 0001 establish the current local-candidate, lifecycle, opaque-handoff, and tuning-consumer seams. | CPU 0010I supplies the supported typed CPU handoff/codec/trial-and-final selected-preparation collaboration while preserving ordinary heuristic preparation and external orchestration ownership. |
-| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0006A; 0007 Blocked; 0008 Draft | Compiler 0006B4 supplies stable final input bindings; Compiler 0006B5, Prepare 0005, and CPU 0010H complete the separate source-only constant chain used by Engine 0006; CPU 0010I completes the CPU tuning seam. | Engine 0006A completes package-private representative binding/execution, cleanup, failure isolation, and fallback. Engine 0007 is the next planning frontier but requires a separate clean reassessment before it can become Ready. |
+| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0006A; 0007 Ready; 0008 Draft | CPU 0010I and Engine 0006A complete the tuning and representative-lifecycle seams after the compiled-input and constant chains. | Detailed Engine 0007 is the next implementation frontier: CPU-only public request, caller model identity, sole occurrence mapping, Config/tuning composition, selected preparation, translated evidence, and safe fallback. |
 | 12 | [`backends/metal`](backends/metal/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | Metal passes the applicable backend-conformance suite. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | CUDA passes the applicable backend-conformance suite. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | The model representation and public tensor semantics are stable. | Selected import/export mappings and compatibility validation are complete. |
@@ -90,8 +90,7 @@ Compiler 0006B3 Engine-facing complete compile integration port (Complete)
   -> Engine 0006 one-shot scalar-objective backward convenience (Complete)
   -> CPU 0010I supported CPU local-workload tuning composition adapter (Complete)
   -> Engine 0006A representative tuning execution and safe fallback foundation (Complete)
-  -> blocked Engine 0007 Config 0006A/tuning 0001 integration
-     (requires a separate clean public-request and identity/evidence reassessment)
+  -> Engine 0007 optional model-autotuning composition (Ready)
   -> later tools/tuning 0002
 ```
 
@@ -206,8 +205,9 @@ and fallback foundation. Complete
 [CPU 0010I](backends/cpu/tasks/0010i-supported-cpu-local-workload-tuning-composition-adapter.md)
 now supplies the bounded CPU tuning handoff, codecs, and exact trial/selected recipe preparation,
 while Config 0006A still supplies identity rather than representative execution resources. Engine
-0007 is therefore the next planning frontier but remains `Blocked` without a detailed
-specification until a separate clean public-request and identity/evidence reassessment occurs.
+Detailed [Engine 0007](modules/engine/tasks/0007-optional-model-autotuning-composition.md) is the
+next implementation frontier and is `Ready` after the clean public-request and identity/evidence
+reassessment.
 Engine 0008 remains `Draft` without a detailed specification.
 
 The Engine 0001 seam audit found a bounded actionable foundation, not a mixed-backend composition
@@ -2133,9 +2133,10 @@ prerequisites. Complete
 now supplies the CPU tuning seam. Detailed
 [Engine 0006A](modules/engine/tasks/0006a-representative-tuning-execution-and-safe-fallback.md)
 is Complete and supplies the separate representative-execution, input-binding, cleanup,
-failure-isolation, and fallback foundation. Engine 0007 is the next planning frontier but remains
-Blocked without a detailed task specification until its public representative-request and
-identity/evidence boundaries are reassessed in a separate clean planning context.
+failure-isolation, and fallback foundation. Detailed
+[Engine 0007](modules/engine/tasks/0007-optional-model-autotuning-composition.md) is Ready with a
+CPU-only public request, caller-defined model identity, sole occurrence-0/weight-1 mapping,
+Config/tuning translation, selected/fallback preparation, and Engine-owned evidence boundary.
 Engine 0008 remains Draft without a detailed task specification.
 Family tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator

@@ -48,11 +48,17 @@ Provide the public lifecycle facade and explicit composition root for compiler, 
 - modules/config
 - modules/trace
 - concrete backend modules
+- tools/tuning
 
 Engine declares dependencies directly for every public contract its source names. Task 0001's
 advanced API names Model `Tensor` and `HostTensorStorage`, while its package-private composition
 seam names Planning `BackendCapabilityProvider`; direct Model and Planning dependencies are
 therefore required rather than inherited transitively through Compiler, Prepare, or CPU.
+Ready task 0007 adds a direct implementation dependency on `tools/tuning` because Engine's
+package-private composition invokes that module's owned cache/measurement workflow. No tuning
+type enters the ordinary public API, and the tool remains independent of Engine. This is a
+concrete realization of the existing composition-root and tuning ownership rules, not a new
+authoritative architecture decision.
 
 ## Forbidden dependencies
 
@@ -69,6 +75,8 @@ io.github.pho001.synaptik.engine/
   HostTensorValue             public immutable detached canonical host payload
   ScalarObjectiveBackwardResult
                                public detached objective and target-aligned gradient values
+  ModelAutotuningRequest      public representative-value and caller model-identity request
+  ModelAutotuningPreparation  public prepared handle, outcome, and translated tuning evidence
   AdvancedEngine              public advanced composition and lifecycle owner
   AdvancedCompiledGraph       public opaque owner-bound compile handle
   AdvancedPreparedExecution  public opaque owner-bound prepared handle
@@ -96,7 +104,7 @@ advanced surface.
 | [0005A](tasks/0005a-automatic-input-discovery-and-compute-convenience.md) | Automatic input discovery and compute convenience | Complete | 0005; Compiler 0006B4 | Replaced the two explicit-input one-shot `forward(...)` methods with four `compute(...)` overloads. Inventories reachable provenance-free Tensor leaves transiently by object identity, then selects only matching Tensors in authoritative final `CompiledGraph.inputs()` order; adds no Compiler IR traversal, liveness inference, retained Tensor state, or cache. |
 | [0006](tasks/0006-one-shot-scalar-objective-backward-convenience.md) | Engine-owned one-shot scalar-objective backward convenience | Complete | 0005A; Compiler 0006B5; Prepare 0005; CPU 0010H | Added one explicit-target `Engine.backward(...)` call returning a detached scalar objective plus immutable target-aligned gradients. Reuses 0005A's transient leaf-inventory/final-binding selection seam with no explicit input list and Compiler's absent scalar unit seed and ERROR policy through the completed source-only constant chain; retains the explicit-seed ordinary compile and advanced full-request paths. |
 | [0006A](tasks/0006a-representative-tuning-execution-and-safe-fallback.md) | Representative tuning execution and safe fallback foundation | Complete | 0003; 0006; Runtime 0010/0015; Prepare 0004; CPU 0010I; reviewed Config 0006A and tools/tuning 0001 contracts | Added package-private representative-input binding, synchronous complete trial execution, cleanup, failure isolation, fresh selected preparation, and deterministic strict/allowed fallback. Adds no public API, tuning algorithm, cache work, or tools/tuning dependency. |
-| 0007 | Optional model-autotuning composition | Blocked | 0002; 0005; [0006A](tasks/0006a-representative-tuning-execution-and-safe-fallback.md); Config 0006A; tools/tuning 0001; [CPU 0010I](../../backends/cpu/tasks/0010i-supported-cpu-local-workload-tuning-composition-adapter.md) | Map Config's request into tuning's generic collaboration before final production preparation, retaining deterministic untuned fallback and keeping all tuning out of Runtime. CPU 0010I and Engine 0006A supply the typed CPU and Engine lifecycle foundations. A separate clean planning reassessment must define the public representative-value request and remaining identity/evidence composition before 0007 can become Ready. This does not implement tools/tuning 0002 graph/plan search. |
+| [0007](tasks/0007-optional-model-autotuning-composition.md) | Optional model-autotuning composition | Ready | 0002; 0005; [0006A](tasks/0006a-representative-tuning-execution-and-safe-fallback.md); Config 0006A; tools/tuning 0001; [CPU 0010I](../../backends/cpu/tasks/0010i-supported-cpu-local-workload-tuning-composition-adapter.md) | Add one CPU-only public representative request with caller-defined model identity; map the sole handoff to occurrence 0/weight 1, invoke cache-first tuning, and return fresh selected preparation plus translated evidence or explicit safe fallback outside Runtime. |
 | 0008 | Engine lifecycle capability checkpoint | Draft | 0001–0006; Compiler 0006B; CPU 0008A | Validate standard and advanced composition, typed input/output ownership, host materialization, one-shot forward/backward lowering, cleanup, concurrency, architecture tests, documentation, and representative NCW Conv1d plus NCHW Conv2d and NCDHW Conv3d forward execution before persistence adapters or NN convolution integration depend on Engine. |
 
 
@@ -110,8 +118,7 @@ advanced surface.
 
 Tasks 0001–0006A, the source-only constant chain through CPU 0010H, and the CPU 0010I tuning
 collaboration prerequisite are Complete.
-Engine 0007 is the next planning frontier but remains Blocked without a detailed specification;
-it requires a separate clean reassessment before it may become Ready.
+Engine 0007 is the next implementation frontier and is Ready with a detailed specification.
 Engine 0008 remains Draft without a detailed specification.
 Compiler 0006B3, Prepare 0003–0004, Runtime 0010 and its closure hardening,
 and CPU 0010F supply the bounded CPU-only Engine lifecycle without shared-contract changes:
@@ -204,10 +211,9 @@ values. Config 0006A deliberately carries only a representative-profile identity
 representative Tensor values, a model fingerprint, occurrence weights/context, or ownership and
 cleanup rules for trial runs. Draft CPU 0016 instead generalizes tuning across later peer routes.
 Completed 0006A supplies the package-private representative binding/execution/cleanup and strict-
-versus-safe-heuristic fallback foundation without inventing the later public request. Engine 0007
-is now the next planning frontier, but its separate clean planning pass must select the public
-representative-value request plus model/occurrence identity and Config/tuning mapping before it
-can become Ready.
+versus-safe-heuristic fallback foundation. Detailed Engine 0007 now selects the public request,
+caller-defined model identity, sole occurrence-0/weight-1 mapping, Config/tuning translation, and
+Engine-owned result/evidence view without claiming graph/plan tuning.
 Tools/tuning 0002 remains later bounded graph/plan tuning and is not a substitute for either task.
 
 Model/training checkpoint persistence may consume the completed task 0004 host-value boundary,
@@ -281,8 +287,8 @@ context `01a0b11d-cc89-7590-8836-0555b05e7001` and clean documentation context
 input list, fixes Compiler's absent positive-one scalar seed and ERROR policy, and returns a
 detached objective plus target-aligned gradients under one aggregate byte bound. The real scalar
 CPU fixture proves the objective and positive-one gradient through the completed source-only
-constant chain. Engine 0005 and Engine 0006A remain `Complete`. Engine 0007 is the next planning
-frontier but remains `Blocked` without a detailed specification or clean reassessment; Engine
+constant chain. Engine 0005 and Engine 0006A remain `Complete`. Engine 0007 is the next
+implementation frontier and is `Ready` with a detailed specification; Engine
 0008 remains `Draft` without a detailed specification.
 
 ## Open questions
@@ -293,9 +299,8 @@ frontier but remains `Blocked` without a detailed specification or clean reasses
 - Define mixed-backend schedule contributions only after a second concrete lifecycle adapter
   establishes a non-hypothetical consumer need. The current complete CPU assembler cannot be
   combined with another complete assembler.
-- Reassess Engine 0007 in a separate clean planning context. CPU 0010I and Engine 0006A are
-  Complete, but 0007 must still define its public representative-value, model/occurrence identity,
-  Config/tuning mapping, and evidence boundaries without exposing CPU-private values.
+- Implement detailed Engine 0007 next. Its bounded CPU-only design exposes no CPU-private or
+  tool-generic handoff value.
 
 ## Decisions made
 
