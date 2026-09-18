@@ -114,6 +114,7 @@ cross-package/public orchestration boundary from a concrete consumer.
 | 0006B3 | [Engine-facing complete compile integration port](tasks/0006b3-public-constant-free-complete-compile-entry.md) | Complete | 0005; 0006B2; current Config 0001–0003 leaves; Engine frontier reassessment | Added one narrowly named public module-integration port in the Compiler package that delegates constant-free requests to the existing complete pipeline, while keeping `GraphCompiler`, both current entries, explicit-constant ingress, and all compile semantics package-private. |
 | 0006B4 | [Stable caller-input Tensor identity bindings](tasks/0006b4-stable-caller-input-tensor-identity-bindings.md) | Complete | 0005; 0006; 0006B3; blocked Engine 0003 reassessment | Added an immutable ordered `TensorId`/final-`ValueId` bindable-input view to `CompileConstantPlan` while preserving `bindableInputs()`, the eight-component artifact, publication contracts, and every Prepare/Runtime/Engine production consumer shape. |
 | 0006B5 | [Published compile-time constant descriptor closure](tasks/0006b5-published-compile-time-constant-descriptor-closure.md) | Complete | 0006; 0006B4; Planning 0005–0006; Engine 0006 prerequisite diagnosis | Resolves the logical layout of fully static source-only published compile-time splat constants after final optimization without allocation, topology changes, backend choice, caller binding, or publication-role changes; preserves dynamic, consumed, unpublished, bindable, produced, and already-resolved values. |
+| 0006B6 | [Final convolution logical-layout closure](tasks/0006b6-final-convolution-logical-layout-closure.md) | Ready | 0006B, 0006B3–0006B5; blocked Engine 0008 reassessment; current Model/Planning/CPU contracts | Close only fully static final Conv2d/Conv3d result layouts and the direct axis-two squeeze view required by visible Conv1d composition before Planning capability queries; preserve unresolved Model construction, dynamic Shapes, strict CPU admission, topology, identities, metadata, and backend-neutral ownership. |
 | 0006C | Conv3d adjoint expressibility and gradient closure | Draft | 0006B; current public Tensor algebra; any separately selected Model prerequisite | Prove whether grouped NCDHW input/weight/bias cotangents are expressible through current public window, layout, matrix, reduction, and fold operations. Implement and add `CONV3D` to the closed derivative inventory only when exact group isolation, dilation/padding, overlap accumulation, symbolic Shape, and higher-order formula closure are representable; otherwise select the smallest Model-owned prerequisite first and keep the family fail-closed. |
 | 0007 | Exact constant identities and permission-aware algebra | Draft | 0006; Config 0006 before any relaxed rule | Reassess remaining graph-level exact constant/algebra identities and any explicitly permitted relaxed rewrites without changing completed 0001–0006 history: preserve current guarded scalar `POW(+1) -> input`, require complete exceptional-value/constant-sidecar/output/publication/phase/autograd/descriptor proof before an exact `POW(0)` typed shape-correct one-splat, and never infer Tensor constants from storage or factory history. |
 
@@ -170,16 +171,33 @@ higher-order path without implementing higher-order requests before 0006.
 - Published compile-time constant descriptor closure — Complete
   [task 0006B5](tasks/0006b5-published-compile-time-constant-descriptor-closure.md), as the
   Compiler-owned logical-descriptor repair in the Engine 0006 prerequisite chain.
+- Final convolution logical-layout closure — Ready
+  [task 0006B6](tasks/0006b6-final-convolution-logical-layout-closure.md), as the bounded
+  Compiler-owned prerequisite for blocked Engine 0008 and its positive public NCW Conv1d,
+  grouped NCHW Conv2d, and grouped NCDHW Conv3d fixtures.
 
 ## Current status
 
 Complete through task 0006B5. Tasks 0001–0006B5 are Complete with recorded source, tests,
-documentation, and validation. Detailed task 0006B5 closes only the logical descriptor of a fully
-static source-only published compile-time splat after final optimization; it adds no allocation,
-topology, backend, caller-binding, or publication-role behavior. Complete Prepare 0005 supplies
-the shared resource handoff and slot assignment. Complete CPU 0010H supplies the physical CPU
-declaration and per-run materialization. Draft Engine 0006 is the next task to reassess and plan.
-Runtime needs no prerequisite task because
+documentation, and validation. Detailed
+[task 0006B6](tasks/0006b6-final-convolution-logical-layout-closure.md) is `Ready` as the next
+Compiler task under an explicit user-authorized prerequisite-order exception for blocked Engine
+0008. It selects one post-optimization, post-validation Compiler rewrite: close only fully static
+unresolved Conv2d/Conv3d result layouts, then derive only the direct axis-two squeeze view whose
+input is a Conv2d result newly closed by that pass. Model construction remains unresolved,
+dynamic Shapes remain unresolved, Planning remains a descriptor consumer, CPU admission remains
+strict, and Prepare/Runtime infer no layout. The same task owns exact positive public Engine NCW
+Conv1d, grouped NCHW Conv2d, and grouped NCDHW Conv3d numerical integration fixtures without any
+Engine or CPU production change. Engine 0008 remains `Blocked` until 0006B6 is Complete. This
+interleave returns from the selected Engine frontier to the owning Compiler prerequisite; within
+Compiler, 0006B6 is normally ordered immediately after 0006B5 and before Draft 0006C. It neither
+reorders nor implements 0006C.
+
+Detailed task 0006B5 closes only the logical descriptor of a fully static source-only published
+compile-time splat after final optimization; it adds no allocation, topology, backend,
+caller-binding, or publication-role behavior. Complete Prepare 0005 supplies the shared resource
+handoff and slot assignment. Complete CPU 0010H supplies the physical CPU declaration and per-run
+materialization. Runtime needs no prerequisite task because
 its current initialized-representation, validity, publication/alias, lease, and cleanup contracts
 are sufficient. Detailed
 [task 0006B4](tasks/0006b4-stable-caller-input-tensor-identity-bindings.md) preserves the existing
@@ -221,9 +239,10 @@ composition. The port is technically callable because Java has no module-private
 but it stays out of Engine user-facade signatures. CPU 0010F and Engine 0001–0002 subsequently
 completed. Their Engine 0003 reassessment exposed the missing caller-input identity association
 now delivered by Complete Compiler 0006B4. Complete 0006B5 supplies the later source-only
-published-constant logical descriptor. Draft 0006C and 0007 remain independent gradient/algebra
-side branches rather than being silently skipped.
-Neither has a detailed specification. Compiler 0004, 0004A,
+published-constant logical descriptor. Ready 0006B6 owns the separate final convolution logical-
+layout prerequisite exposed by the Engine 0008 audit. Draft 0006C and 0007 remain independent
+gradient/algebra side branches rather than being silently skipped. Neither has a detailed
+specification. Compiler 0004, 0004A,
 and 0004B are Complete with
 recorded source, tests, documentation, and validation.
 [Compiler 0004B](tasks/0004b-shared-algebra-cotangent-normalization-and-local-derivative-rules.md)
