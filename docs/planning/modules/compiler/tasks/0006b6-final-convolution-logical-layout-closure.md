@@ -140,6 +140,9 @@ Planning, Prepare, Runtime, Engine, or CPU production behavior.
 - Route forward-only and backward-capable graph compilation through it after 0006B5 closure.
 - Add focused Compiler coverage for positive, negative, dynamic, arithmetic-failure, metadata,
   topology, and Planning-query cases.
+- Update the existing `Conv3dCompilerTest` Planning-query assertion so it compares the query
+  output with the final compiled Conv3d node output descriptor rather than the intentionally
+  unresolved Model producer descriptor.
 - Add exact public Engine numerical integration fixtures for NCW Conv1d, grouped NCHW Conv2d,
   and grouped NCDHW Conv3d using only public Tensor and Engine APIs.
 - Update the Compile API and synchronized planning documents through the required separate clean
@@ -197,27 +200,28 @@ cross-module behavior and adds no Engine or CPU production surface.
 
 ## Affected files
 
-Exact future implementation allowlist (eleven paths):
+Exact future implementation allowlist (twelve paths):
 
 1. `modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/ConvolutionLogicalLayoutClosure.java` (new)
 2. `modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/GraphCompiler.java`
 3. `modules/compiler/src/test/java/io/github/pho001/synaptik/compiler/ConvolutionLogicalLayoutClosureTest.java` (new)
 4. `modules/compiler/src/test/java/io/github/pho001/synaptik/compiler/GraphCompilerTest.java`
-5. `testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineConvolutionIntegrationTest.java` (new)
-6. `docs/api/compile-api.md`
-7. this task
-8. `docs/planning/modules/compiler/master-plan.md`
-9. `docs/planning/modules/engine/master-plan.md`
-10. `docs/planning/modules/engine/tasks/0008-engine-lifecycle-capability-checkpoint.md`
-11. `docs/planning/roadmap.md`
+5. `modules/compiler/src/test/java/io/github/pho001/synaptik/compiler/Conv3dCompilerTest.java`
+6. `testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineConvolutionIntegrationTest.java` (new)
+7. `docs/api/compile-api.md`
+8. this task
+9. `docs/planning/modules/compiler/master-plan.md`
+10. `docs/planning/modules/engine/master-plan.md`
+11. `docs/planning/modules/engine/tasks/0008-engine-lifecycle-capability-checkpoint.md`
+12. `docs/planning/roadmap.md`
 
 Review without editing Model, Planning, Prepare, Runtime, Engine, CPU, Config, Backend Contract,
 Gradle, architecture/ADRs, architecture tests, backend conformance, other API guides, or glossary.
-If a required twelfth path appears, stop and replan rather than widening scope implicitly.
+If a required thirteenth path appears, stop and replan rather than widening scope implicitly.
 
 ## Maximum scope
 
-At most the eleven paths above: two Compiler production paths, two Compiler test paths, one public
+At most the twelve paths above: two Compiler production paths, three Compiler test paths, one public
 integration-test path, Compile API, and five synchronized task/master/roadmap paths. No production
 module outside Compiler changes.
 
@@ -267,6 +271,9 @@ only; do not request gradients or imply derivative support.
 - Recording capability-provider tests prove Planning queries receive resolved Conv2d, Conv1d
   squeeze, and Conv3d result descriptors from the final graph; dynamic convolution queries remain
   unresolved and unsupported rather than being silently closed.
+- Existing `Conv3dCompilerTest.passesExactPublicationDiagnosticsAndPlanningQueryWithoutProviderClaim`
+  compares `query.outputs()` with the final compiled Conv3d node output descriptor, while the
+  Model producer descriptor remains unresolved as required by the construction contract.
 - The exact three public Engine fixtures pass through typed binding and one-shot compute without
   inward-artifact construction or CPU-internal imports.
 - CPU capability remains strict and no Engine/CPU production behavior changes.
@@ -289,7 +296,9 @@ Focused Compiler tests must prove:
   and contextual failure handling for squeeze-view construction;
 - exact preservation of identities, topology, operations, constants, bindable IDs, constraints,
   phases, derivatives, publications, CSE/DCE results, and order; and
-- complete compilation builds each `OperationCapabilityQuery` from the final closed descriptors.
+- complete compilation builds each `OperationCapabilityQuery` from the final closed descriptors;
+  the existing Conv3d query test must assert that final descriptor instead of the unresolved
+  Model producer descriptor.
 
 Integration tests must execute the three exact numerical fixtures above through the public Engine
 typed lifecycle and `compute`, including reversed supplied input order for reusable runs, detached
@@ -299,7 +308,7 @@ test is added because backend semantics and strict capability are unchanged.
 Future implementation task-tier validation:
 
 ```bash
-./gradlew :modules:compiler:test --tests io.github.pho001.synaptik.compiler.ConvolutionLogicalLayoutClosureTest --tests io.github.pho001.synaptik.compiler.GraphCompilerTest
+./gradlew :modules:compiler:test --tests io.github.pho001.synaptik.compiler.ConvolutionLogicalLayoutClosureTest --tests io.github.pho001.synaptik.compiler.GraphCompilerTest --tests io.github.pho001.synaptik.compiler.Conv3dCompilerTest
 ./gradlew :testing:integration-tests:test --tests io.github.pho001.synaptik.testing.integration.EngineConvolutionIntegrationTest
 ./gradlew :modules:compiler:test
 ./gradlew :testing:integration-tests:test
@@ -308,7 +317,7 @@ git diff --check
 ```
 
 The clean documentation pass validates Markdown links, anchors, heading uniqueness, fences,
-whitespace/final newlines, exact eleven-path scope, package/public inventories, and task/master/
+whitespace/final newlines, exact twelve-path scope, package/public inventories, and task/master/
 roadmap status and order. Do not rerun successful Java suites in that pass unless it changes Java
 or finds a concrete executable discrepancy. Validation tier: affected Compiler module, affected
 integration-test suite, Compiler Javadoc, and documentation; no repository-wide or performance
@@ -330,6 +339,10 @@ checkpoint is justified.
   weaken CPU admission; the pass must create no representation or capability fact.
 - Marking Engine 0008 Ready before 0006B6 and all three public fixtures complete would recreate
   the checkpoint's original acceptance gap.
+- The recorded full Compiler failure shows the pre-existing Conv3d Planning-query test still
+  expects the unresolved Model producer descriptor even though the selected closure correctly
+  supplies the final canonical contiguous descriptor. That exact stale assertion must be updated,
+  so its test path is the required twelfth allowlisted path rather than an implicit scope overrun.
 
 ## Dependencies
 
@@ -380,7 +393,7 @@ architecture plan, planning guide, roadmap, Compiler and Engine master plans, th
 directly relevant Model/Compiler/Planning/CPU/Engine/integration source and test. Preserve the
 dirty worktree.
 
-Implement exactly the eleven-path allowlist. Add the package-private final convolution logical-
+Implement exactly the twelve-path allowlist. Add the package-private final convolution logical-
 layout closure after optimization and published-constant closure. Close only fully static
 unresolved Conv2d/Conv3d outputs to LayoutDescriptor.contiguous(shape), then propagate only the
 direct newly closed Conv2d -> SQUEEZE(axis=2) result through the existing checked view rule. Keep
@@ -391,8 +404,11 @@ production change, dependency, architecture edit, or work on 0006C.
 
 Add the focused negative/preservation/overflow/query tests and the three exact public Engine
 numerical fixtures specified by the task. Use only public Tensor/Engine typed binding and compute
-in integration tests; do not forge inward artifacts or import CPU internals. Run the specified
-focused/module/integration/Javadoc/scope gates once. Then hand stable evidence to a distinct clean
+in integration tests; do not forge inward artifacts or import CPU internals. In the existing
+`Conv3dCompilerTest.passesExactPublicationDiagnosticsAndPlanningQueryWithoutProviderClaim`, update
+only the stale query-output expectation to the final compiled Conv3d node output descriptor;
+retain the unresolved Model producer contract and all other assertions. Run the specified focused/
+module/integration/Javadoc/scope gates once. Then hand stable evidence to a distinct clean
 documentation-focused context. Mark 0006B6 Complete and return Engine 0008 to Ready only after all
 implementation, public fixtures, documentation, and status gates pass.
 ```
