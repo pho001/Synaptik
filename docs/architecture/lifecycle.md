@@ -2,7 +2,11 @@
 
 This document explains the compile, prepare, run, and training lifecycles defined by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract remains authoritative.
 
-These lifecycle stages are architecture contracts, not a claim that the complete public lifecycle is runnable today. The repository implements the Model, Planning, and Compiler portions of compile, staged Prepare contracts through backend finalization, and Runtime prepared-execution and per-run orchestration contracts. It does not yet provide concrete backend execution or the Engine composition needed for an end-to-end runnable lifecycle. The [roadmap](../planning/roadmap.md) records delivery status.
+The ordinary public lifecycle is runnable today through `Engine.standard()`, whose fixed current
+composition owns one fresh CPU integration. It implements the compile, staged prepare, run,
+publication, and explicit host-materialization path described below. The architecture is broader
+than that implementation: Metal, CUDA, mixed-owner schedules, and training orchestration remain
+planned. The [roadmap](../planning/roadmap.md) records delivery status.
 
 ## State across the lifecycle
 
@@ -112,6 +116,32 @@ The cold binding step is the only boundary where heterogeneous backend represent
 checked dynamically. It creates backend-owned typed objects with direct references before the hot
 path. Execution therefore needs no map lookup, reflection, string dispatch, graph inspection,
 service lookup, or repeated unsafe cast.
+
+## Current public Engine lifecycle
+
+The ordinary reusable path is:
+
+```text
+Tensor outputs -> engine.compile(...) -> engine.prepare(...)
+caller-owned input Tensors -> engine.run(...) -> leased RunResult
+exact publication occurrence -> result.materialize(...) -> detached HostTensorValue
+```
+
+`CompiledGraph.inputs()` supplies the authoritative caller-input membership and order. A caller
+may pass those Tensors to `run(...)` in any order because Engine matches exact Tensor identities.
+The prepared recipe is immutable and reusable; every run receives isolated mutable `RunState`.
+`RunResult` retains publication leases until it closes, while each `HostTensorValue` is a copied,
+immutable value that remains readable after the result, Engine, and caller storage close.
+
+`Engine.compute(...)` is a different lifetime choice: it discovers reachable expression leaves,
+then freshly compiles, prepares, runs, materializes, and cleans up during every call.
+`Engine.backward(...)` does the same for one scalar objective and explicit gradient targets. It
+does not install gradient state on Tensor. Use the reusable path when compilation or preparation
+should be amortized across runs.
+
+`AdvancedEngine.takeOwnership(...)` is the lower-level explicit-composition surface. Its caller
+supplies one supported CPU integration and transfers ownership to Engine. Neither ordinary nor
+advanced composition currently assembles mixed-owner schedules or discovers backends.
 
 ## Planned fixed recurrent scan through the lifecycle
 

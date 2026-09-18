@@ -1,93 +1,90 @@
-# Compile a graph (planned workflow)
+# Compile a graph
 
 ## Outcome
 
-This guide explains what graph compilation currently produces internally and how to interpret the
-planned public workflow. Public `Tensor` expression construction, four standalone
-compile-configuration values, Planning's three package-owned callable operations, and the public
-immutable compiler artifact types are current. The complete `GraphCompiler` entry remains
-package-private, while `CompileConfig` and the engine facade remain planned, so no user-callable
-compile command exists yet.
+This guide compiles current Tensor expressions into an immutable, Engine-owned
+`CompiledGraph`. Compilation captures meaning, validates it, closes eligible fully static
+convolution layouts, chooses CPU ownership, and produces logical execution recipes. It does not
+allocate physical buffers or run the graph.
 
-The current values can record a backend target, graph scope, optional-optimization permission, and
-soft coarse device-class preference:
+## Prerequisites
 
-```java
-import io.github.pho001.synaptik.backend.contract.BackendId;
-import io.github.pho001.synaptik.backend.contract.BackendIdRequirement;
-import io.github.pho001.synaptik.backend.contract.DeviceClass;
-import io.github.pho001.synaptik.config.compile.BackendIntent;
-import io.github.pho001.synaptik.config.compile.CompileMode;
-import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
-import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
+- JDK 26 and the repository's `:modules:engine` and `:modules:model` projects.
+- One open `Engine.standard()` instance.
+- A non-empty identity-unique ordered output list.
+- For current CPU execution, supported operations with fully static compatible descriptors.
 
-BackendIntent unconstrained = BackendIntent.unconstrained();
-BackendIntent requireCpu =
-        BackendIntent.requiring(
-                new BackendIdRequirement(new BackendId("cpu")));
-CompileMode graphScope = CompileMode.FORWARD_AND_BACKWARD;
-GraphOptimizationConfig optimization = GraphOptimizationConfig.standard();
-PartitionScoringConfig preferCpu = PartitionScoringConfig.preferring(DeviceClass.CPU);
-```
+## Compile forward computation
 
-These values are runnable metadata construction. The current package-private complete compiler
-entry accepts them directly, but no public entry point does.
-`unconstrained` promises neither default selection nor fallback, and `requireCpu` does not verify
-that CPU is available or capable. `graphScope` requests current internal compiler-owned autograd
-and a combined forward/backward graph; constructing the value does not perform either action.
-`optimization` permits the current internal standard semantics-preserving pipeline without
-selecting or exposing its passes. `preferCpu` records only a soft input for current ranking after
-hard eligibility. It does not filter
-an eligible accelerator, weaken `requireCpu` or another hard target, calculate a score, or promise
-that CPU ownership succeeds.
-
-Use `GraphOptimizationConfig.disabled()` to request skipping only optional compiler optimization.
-That setting cannot suppress inference, validation, mandatory canonical representation,
-mode-required autograd, publication binding, planning, preparation, or execution. Neither setting
-permits approximate mathematics, changed numerical semantics, or backend-specific fusion.
-
-## Current internal steps and planned public call
-
-1. Build a public tensor expression. Provenance on public tensor state will let graph capture discover producers and inputs without turning `Tensor` into an intermediate-representation node.
-2. Choose declarative compile configuration. Backend intent, compile mode, graph-optimization
-   permission, and the optional coarse class preference are current standalone values; cost
-   profiles and their `CompileConfig` aggregate remain planned.
-3. The current internal compiler captures, infers, validates, optimizes, optionally expands
-   automatic differentiation, creates publication/constant/diagnostic plans, and coordinates
-   backend-neutral ownership, partition, and logical-memory planning.
-4. The internal result is public immutable `CompileArtifacts`, but no public lifecycle object
-   currently returns it.
+Assume `input` is a caller-owned Tensor leaf with a resolved static descriptor and live host
+storage. This current call compiles one non-empty expression:
 
 ```java
-// Conceptual API; not currently runnable.
-CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
+try (Engine engine = Engine.standard()) {
+    Tensor output = input.contiguous();
+    CompiledGraph graph = engine.compile(List.of(output));
+
+    assert graph.inputs().size() == 1;
+    assert graph.inputs().getFirst().tensorId().equals(input.id());
+}
 ```
+
+`graph.inputs()` is authoritative after Compiler transformations. Each entry reports the exact
+caller Tensor identity and final descriptor that a later `run(...)` must bind. The output order
+also defines forward publication order.
+
+## Compile reusable gradients
+
+The reusable ordinary overload takes explicit output-aligned cotangent seeds and explicit ordered
+gradient targets:
+
+```java
+CompiledGraph graph = engine.compile(
+        List.of(output),
+        List.of(seed),
+        List.of(input));
+```
+
+The Compiler owns differentiation and validates seed, target, operation, and connectivity
+semantics. Engine does not infer targets, add Tensor gradient fields, or provide a no-argument
+backward lifecycle. For the narrower fresh scalar-objective case, use `Engine.backward(...)`.
+
+## Ordinary versus advanced compilation
+
+Ordinary `Engine.compile(...)` uses the current fixed settings and CPU-only standard composition.
+There is no current `CompileConfig` aggregate facade. `AdvancedEngine.compile(...)` is the
+lower-level integration surface for callers that intentionally own the four standalone compile
+settings and transfer one `CpuBackendIntegration` to `AdvancedEngine.takeOwnership(...)`.
+
+Neither surface discovers backends, accepts a generic backend registry, or promises Metal, CUDA,
+or mixed-owner execution. Compilation may succeed even when current CPU preparation later rejects
+the artifact.
 
 ## Expected result
 
-Current internal compilation produces an immutable recipe with exactly seven components: compile
-mode, the final graph model, partitions assigned to backend identities, logical memory,
-publication roles, constant/input roles, and deferred diagnostics. It does not create physical
-buffers or choose a CPU, Metal, or CUDA kernel.
-
-Forward publication bindings identify requested Tensor IDs and final graph values. Gradient
-bindings identify differentiation-target Tensor IDs and gradient values without adding gradient
-state to Tensor. Constant sources are exact logical splats rather than dense payloads. Diagnostics
-describe successful deferred constraints; they are not trace events or a public binding language.
-
-For example, a partition may record `owner = CPU`. That means CPU preparation is responsible for it; it does not mean compilation selected scalar, Vector API, or OpenBLAS execution.
+The result is an immutable owner-bound handle. Its metadata remains readable after Engine closure,
+but it cannot be prepared by another Engine or used to start work after its owner begins closing.
+It contains no caller Tensor storage reference and performs no execution.
 
 ## Common errors
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `CompiledGraph` or `CompileConfig` cannot be imported | The public compile lifecycle and aggregate are planned. | Follow the [roadmap](../planning/roadmap.md) and do not create substitute APIs in another module. |
-| `CompileArtifacts` can be imported but there is no public compile call | The artifact contract is current while its only producing entry remains package-private. | Treat it as output-only lifecycle data until the engine/compiler facade is implemented. |
-| A design puts buffers in compile artifacts | Compile-time and prepared state were mixed. | Keep allocation in prepare/backend/runtime layers. |
-| A planner chooses a kernel | Ownership and implementation selection were mixed. | Let planning choose a backend identity and backend prepare choose the route. |
+| Compilation rejects an empty or repeated output list | The public boundary must be non-empty and identity-unique. | Supply each exact requested output Tensor once. |
+| `prepare(...)` rejects a graph that compiled | Current CPU preparation requires exactly one non-empty maximal CPU partition. | Use supported CPU operations and fully static compatible descriptors; compile success alone is not an execution promise. |
+| A caller expects compilation to read input bytes | Compile operates on expression meaning and descriptors. | Keep storage live for `run(...)`, not for compilation itself. |
+| A caller expects `CompileConfig.auto()` | Config aggregate facades are not current. | Use ordinary fixed `Engine.compile(...)` or the explicitly advanced standalone settings. |
+
+## Limitations
+
+Current public composition is CPU-only. Model construction leaves Conv2d and Conv3d result layouts
+unresolved; Compiler closes only eligible fully static final convolution descriptors before
+Planning capability admission. Dynamic or partially dynamic convolution results remain
+unresolved. Conv3d forward execution is current, but Conv3d gradients are not.
 
 ## Related documentation
 
-- [Compile API status](../api/compile-api.md)
-- [Lifecycle](../architecture/lifecycle.md)
-- [Partition scoring](../architecture/partition-scoring.md)
+- [Prepare execution](preparing-execution.md)
+- [Run a prepared model](running-models.md)
+- [Public API status](../api/public-api.md)
+- [Lifecycle architecture](../architecture/lifecycle.md)

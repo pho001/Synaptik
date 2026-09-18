@@ -48,9 +48,9 @@ The package-private complete Compiler entry consumes all four compile-config lea
 `GraphCompilationPort` supplies them through its public integration call. No current
 `CompileConfig`, public capability-matrix or eligibility surface, or numeric scoring evaluator is
 callable. The ordinary Engine supplies fixed compile settings rather than those configurable
-surfaces. The model-autotuning
-request likewise has no current Engine or tuning integration. APIs may change through the ordered
-planning process.
+surfaces. The model-autotuning request is current through `Engine.prepareTuned(...)`, but only for
+the bounded CPU-local handoff described below. Generic graph/plan tuning remains planned. APIs
+may change through the ordered planning process.
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md) defines module boundaries, not source or binary
 compatibility.
 
@@ -178,8 +178,9 @@ matcher, or score. Configuration owns whether a requirement is present. Current 
 evaluates it with availability and capability facts; an empty hard-eligible result then fails in
 the internal selector with
 `IllegalStateException("no hard-eligible backend is available for ownership selection")`.
-That failure is not a public compile contract. Capability-provider implementations, concrete
-backends, registration, public planning, preparation, and execution remain planned.
+That internal message is not the ordinary public compile failure contract. Engine currently
+composes one CPU capability provider and complete CPU lifecycle. Generic provider registration,
+other executable backends, and a public graph-wide Planning surface remain planned.
 
 The implemented `modules:config` surface contains four standalone compile-configuration values:
 
@@ -288,16 +289,15 @@ values. Construction validates and retains policy data but does not inspect the 
 read or write a cache, enumerate candidates, prepare an executable, or perform Engine or Runtime
 work.
 
-Later outer composition may depend on Config and `tools/tuning` and map the objective and four
-budget values one-for-one, construct the tool-local profile fingerprint from the Config snapshot,
-and pass the requested cache path. That composition must separately supply the actual model
-fingerprint, tunable occurrences, representative input values and execution, and exact/default
-eligible backend candidates. It also interprets the fallback policy: strict mode reports the
-failed or unavailable complete tuning result, while safe-heuristic mode may continue through
-ordinary safe heuristic preparation. The latter grants no candidate eligibility, numerical
-relaxation, cache compatibility, partial-result acceptance, or suppression of an unrelated
-preparation failure. No such translation, fallback control flow, or Engine tuning integration is
-implemented yet; bounded graph/plan tuning also remains planned.
+Current `Engine.prepareTuned(...)` maps the objective and budget values one-for-one, supplies the
+request's caller-defined model and representative-profile identities, binds its live
+representative inputs, and passes the requested cache path to `tools/tuning`. The current bounded
+composition exposes exactly one CPU-local occurrence at occurrence index 0, partition index 0,
+and weight 1. Strict mode reports a failed or unavailable complete tuning result, while
+safe-heuristic mode may return a fresh ordinary safe preparation. The latter grants no candidate
+eligibility, numerical relaxation, cache compatibility, partial-result acceptance, or
+suppression of an unrelated preparation failure. Generic multiple-occurrence extraction and
+bounded graph/plan tuning remain planned.
 
 The public `modules:planning` surface contains eight backend-neutral compile-time declarations:
 

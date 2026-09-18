@@ -20,8 +20,9 @@ typed backend finalization input/collaboration, the minimal prepared-partition a
 compile projection, one immutable partition-local directed acyclic graph (DAG) per backend
 analysis context, explicit schedule assembly, complete schedule validation, and construction of
 the reusable prepared-execution root.
-Physical allocation and access implementations, public output-value access, public Prepare
-composition through Engine, and production concrete backends remain planned.
+The CPU backend now supplies the current physical allocation and access implementation, and
+Engine composes it into a public CPU-only prepare/run/materialization lifecycle. Other production
+backends and mixed-owner composition remain planned.
 The lifecycle flow therefore mixes current foundations with later stages; each focused section
 states its implementation status.
 [ADR 0011](../design/decisions/0011-per-run-runtime-resource-ownership.md) defines the

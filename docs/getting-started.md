@@ -2,16 +2,16 @@
 
 ## Outcome
 
-This guide gets a new contributor from a fresh checkout to a verified build and a small runnable use of the model module. Synaptik is still under development: the model value types shown below exist today, while the public compile, prepare, and run workflow is planned but not yet implemented.
-
-The mental model for the finished architecture is:
+This guide gets a new contributor from a fresh checkout to a verified build and one runnable
+CPU-only Engine computation. The current public lifecycle is:
 
 ```text
-compile              prepare                 run
-meaning and owner -> executable state -> one invocation
+Tensor expression -> compile -> prepare -> run -> materialize
+meaning             recipe     reusable  leased  detached value
 ```
 
-Only the model foundations used to describe meaning are currently available. See the [roadmap](planning/roadmap.md) for the exact implementation frontier.
+`Engine.compute(...)` performs those stages freshly in one synchronous convenience call. The
+reusable lifecycle is covered in the linked user guides.
 
 ## Prerequisites
 
@@ -21,7 +21,8 @@ Synaptik requires JDK 26. Confirm the active JDK before importing or building th
 java -version
 ```
 
-Import the repository as a Gradle project in IntelliJ IDEA and select a Java 26 SDK. The project uses the checked-in Gradle wrapper, so a separate Gradle installation is not required.
+Import the repository as a Gradle project in IntelliJ IDEA and select a Java 26 SDK. The project
+uses the checked-in Gradle wrapper, so a separate Gradle installation is not required.
 
 ## Verify the checkout
 
@@ -33,51 +34,82 @@ Run these commands from the repository root:
 ./gradlew build
 ```
 
-- `projects` confirms that Gradle can load the multi-module build and shows the available project paths.
-- `test` executes the current unit-test suite.
-- `build` compiles, tests, and packages every configured module.
+A successful command ends with `BUILD SUCCESSFUL`. The build verifies the repository under the
+active JDK. It does not imply that planned Metal, CUDA, mixed-backend, persistence, or training
+capabilities are available.
 
-A successful command ends with `BUILD SUCCESSFUL`. This proves that the checkout builds under the active JDK; it does not mean the planned compiler, runtime, or backends already exist.
+## Run one CPU computation
 
-## Try the implemented model API
-
-The following Java snippet uses the current `modules:model` API. In another repository module's `build.gradle.kts`, add:
+In another repository module, add the current Engine and Model projects:
 
 ```kotlin
 dependencies {
+    implementation(project(":modules:engine"))
     implementation(project(":modules:model"))
 }
 ```
 
-`implementation` makes model types available to that module's main source set. The project path selects the local model module rather than a published artifact.
+The following complete example creates a caller-owned `FLOAT32` input, constructs a non-empty
+`contiguous()` expression, computes it through the standard CPU composition, and reads the
+detached result:
 
 ```java
+import io.github.pho001.synaptik.engine.Engine;
+import io.github.pho001.synaptik.engine.HostTensorValue;
+import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.util.Optional;
 
-Shape shape = Shape.of(2, 3, 4);
-long elements = shape.knownElementCount().orElseThrow();
-LayoutDescriptor layout = LayoutDescriptor.contiguous(shape);
-long firstAxisStride = layout.stride(0);
+HostTensorValue retained;
+try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+    Shape shape = Shape.of(2);
+    TensorDescriptor descriptor = new TensorDescriptor(
+            DataType.FLOAT32,
+            shape,
+            Optional.of(LayoutDescriptor.contiguous(shape)),
+            false);
+    MemorySegment source = MemorySegment.ofArray(new float[] {1.5f, -2.25f});
+    MemorySegment storage = arena.allocate(source.byteSize(), Float.BYTES);
+    MemorySegment.copy(source, 0, storage, 0, source.byteSize());
+    Tensor input = TensorFactory.create(
+            descriptor,
+            Optional.empty(),
+            Optional.of(new MemorySegmentStorage(DataType.FLOAT32, 2, storage)));
+
+    retained = engine.compute(input.contiguous(), 2L * Float.BYTES);
+}
+
+assert retained.bytes().getFloat(0) == 1.5f;
+assert retained.bytes().getFloat(Float.BYTES) == -2.25f;
 ```
 
-`Shape.of(2, 3, 4)` creates a rank-3 static shape. Its element count is `2 × 3 × 4 = 24`. A canonical row-major layout has strides `[12, 4, 1]`, so moving one step on the first axis advances `12` elements. The resulting values are therefore `elements == 24` and `firstAxisStride == 12`.
-
-This example describes logical shape and layout only. It does not allocate tensor storage, compile a graph, or choose a backend.
+The input storage remains owned by the caller and must stay live through synchronous computation.
+The `HostTensorValue` owns an immutable canonical copy, so it remains readable after both the
+Engine and arena close. Every `compute(...)` call compiles and prepares afresh.
 
 ## Common setup problems
 
 | Symptom | Likely cause | Correction |
 |---|---|---|
-| Gradle reports an unsupported Java version | The wrapper is running with a JDK older than 26. | Set `JAVA_HOME` and the IDE Gradle JVM to JDK 26, then rerun `java -version`. |
-| An import under `io.github.pho001.synaptik.model` is missing | Model contracts live in responsibility subpackages. | Use the package names in the [Tensor API reference](api/tensor-api.md). |
-| A compile/prepare/run example does not compile | That public lifecycle is not implemented yet. | Treat lifecycle snippets in architecture documents as conceptual and follow the roadmap. |
+| Gradle reports an unsupported Java version | The wrapper is running with a JDK older than 26. | Set the IDE Gradle JVM and `JAVA_HOME` to JDK 26, then rerun `java -version`. |
+| `Engine.standard()` cannot prepare an expression | The current CPU composition requires one non-empty supported CPU partition with fully static compatible descriptors. | Start with the `contiguous()` example, then check the operation and descriptor constraints in the public API status. |
+| A detached result exceeds the caller limit | The canonical payload is larger than `maximumTotalBytes`. | Increase the explicit bound after checking the expected output shape and data type. |
+| A Metal, CUDA, or mixed-owner example fails | Those execution paths are not current public capabilities. | Use the fixed CPU composition and follow the roadmap for later backends. |
 
-Java preview features are disabled by default. Incubator or preview APIs are configured only by focused module tasks when the capability cannot be implemented through stable Java 26 APIs.
+Java preview features are disabled by default. Incubator or preview APIs are configured only by
+focused module tasks when stable Java 26 APIs are insufficient.
 
 ## Next reading
 
-- [Tensor API](api/tensor-api.md) documents the implemented model contracts.
-- [Architecture overview](architecture/overview.md) explains the planned system layers.
-- [Repository layout](developer-guide/repository-layout.md) helps contributors find code and tests.
+- [Compile graphs](user-guide/compiling-graphs.md) explains ordinary and advanced compilation.
+- [Prepare execution](user-guide/preparing-execution.md) explains reusable prepared state.
+- [Run models](user-guide/running-models.md) explains leases and detached values.
+- [Public API status](api/public-api.md) records current limitations and complete examples.
 - [Glossary](glossary.md) defines project-specific terms.

@@ -2,7 +2,11 @@
 
 This document explains the module responsibilities established by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract is authoritative when a summary here is incomplete.
 
-The boundaries apply to both implemented and planned modules. Model, Backend Contract, Planning, Compiler, Runtime, and the first Prepare contracts have substantive implementations; Config and Trace are partial. Engine, concrete backends, and most extensions and tools remain planned or placeholder-only. The [roadmap](../planning/roadmap.md) records exact delivery status.
+The boundaries apply to both implemented and planned modules. Model, Backend Contract, Planning,
+Compiler, Runtime, Prepare, Engine, and CPU have substantive implementations; Config and Trace are
+partial. The current public execution path is CPU-only. Other concrete backends and most
+extensions remain planned or incomplete. The [roadmap](../planning/roadmap.md) records exact
+delivery status.
 
 ## Shared modules
 
@@ -122,9 +126,18 @@ finalization through the existing staged lifecycle.
 
 ### `modules/engine`
 
-Owns the public lifecycle facade and composition root. It wires the compiler, prepare validators and orchestration, runtime, trace sinks, and explicitly registered concrete backends.
+Owns the public lifecycle facade and composition root. Current `Engine.standard()` constructs and
+owns one fresh fixed CPU composition. It exposes owner-bound compile and prepare handles, typed
+logical input binding, leased publication metadata, explicit detached host materialization,
+fresh one-shot compute/backward conveniences, and bounded optional CPU-local autotuning.
+`AdvancedEngine` instead takes explicit ownership of one supported CPU integration and exposes
+the lower-level representation lifecycle.
 
 Engine does not own kernels, backend internals, graph optimization passes, a runtime service locator, or reflective plugin discovery as the core backend mechanism. Concrete backends never depend on engine.
+
+The current fixed standard factory is explicit composition, not generic registration or
+discovery. Neither Engine surface currently combines multiple backend owners. Generic backend
+registration, Metal/CUDA execution, and mixed-owner schedule assembly remain future work.
 
 For a future runnable recurrent scan, Engine owns the checked typed mapping from the logical input
 Tensors, including `INT64[batch]` valid lengths, to ordered Runtime caller-input representations

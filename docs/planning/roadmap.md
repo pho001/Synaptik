@@ -24,7 +24,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through Prepare 0005 | Compiler 0006B5 supplies a resolved producerless/consumerless published-constant descriptor while Planning preserves its graph-output obligation. | Prepare contributes that resource to the handoff and assigns a deterministic shared slot without backend selection or physical geometry. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Complete baseline; optional provider 0004 Blocked/deferred | Native interop conventions needed by the provider are decided. | Required FLOAT32/FLOAT64 remains complete; the optional direct BFLOAT16-output capability stays fail-closed until both proof gaps are resolved. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through 0010I (0010D1 Blocked/deferred optional) | Complete CPU 0010E–0010H, Prepare 0004, and tools/tuning 0001 establish the current local-candidate, lifecycle, opaque-handoff, and tuning-consumer seams. | CPU 0010I supplies the supported typed CPU handoff/codec/trial-and-final selected-preparation collaboration while preserving ordinary heuristic preparation and external orchestration ownership. |
-| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0007; 0008 Ready | CPU 0010I, Engine 0006A, and Compiler 0006B6 complete the tuning, representative-lifecycle, and public dimensional-convolution prerequisites. | Engine 0008 performs the documentation-only lifecycle checkpoint with one fresh repository-wide validation; NN convolution integration remains ordered afterward. |
+| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0008 | CPU 0010I, Engine 0006A, and Compiler 0006B6 completed the tuning, representative-lifecycle, and public dimensional-convolution prerequisites. | The CPU-only Engine lifecycle checkpoint is closed; the already planned NN 0025 convolution-layer frontier and 0025A user-capability checkpoint remain downstream. |
 | 12 | [`backends/metal`](backends/metal/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | Metal passes the applicable backend-conformance suite. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | CUDA passes the applicable backend-conformance suite. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | The model representation and public tensor semantics are stable. | Selected import/export mappings and compatibility validation are complete. |
@@ -93,7 +93,8 @@ Compiler 0006B3 Engine-facing complete compile integration port (Complete)
   -> Engine 0007 optional model-autotuning composition (Complete)
   -> Compiler 0006B6 final convolution logical-layout closure and public Engine fixtures (Complete;
      user-authorized owning-prerequisite interleave)
-  -> Engine 0008 lifecycle capability checkpoint (Ready)
+  -> Engine 0008 lifecycle capability checkpoint (Complete)
+  -> already planned NN 0025 dimensional-convolution layers, then NN 0025A checkpoint
   -> later tools/tuning 0002
 ```
 
@@ -211,12 +212,13 @@ while Config 0006A still supplies identity rather than representative execution 
 Detailed [Engine 0007](modules/engine/tasks/0007-optional-model-autotuning-composition.md) is
 `Complete` after implementation, independent correctness review, and clean documentation
 finalization. Detailed
-[Engine 0008](modules/engine/tasks/0008-engine-lifecycle-capability-checkpoint.md) is the selected
-Engine frontier and is `Ready` as a validation-and-documentation checkpoint. Complete Compiler
-0006B6 closed the recorded prerequisite interleave: Model construction remains unresolved, while
-Compiler closes only eligible fully static final convolution descriptors before Planning's CPU
-capability query. Its positive public Conv1d/Conv2d/Conv3d numerical fixtures passed, so Engine
-0008 is the next actionable frontier.
+[Engine 0008](modules/engine/tasks/0008-engine-lifecycle-capability-checkpoint.md) is `Complete`.
+Its documentation-only checkpoint reused the clean repository-wide lifecycle evidence and
+reconciled current public workflows without executable or architecture changes. Complete Compiler
+0006B6 closed only eligible fully static final convolution descriptors before Planning's CPU
+capability query while Model construction remained unresolved; the positive public
+Conv1d/Conv2d/Conv3d fixtures passed. The already planned next dimensional-convolution frontier is
+NN 0025, followed by the NN 0025A user-capability checkpoint.
 
 The Engine 0001 seam audit found a bounded actionable foundation, not a mixed-backend composition
 contract. `GraphPreparation` accepts one complete schedule assembler, and the only supported
@@ -476,7 +478,7 @@ NON_PASSING; forks 1--4 were closed without rerun by user decision. CPU
 the visible Conv2d composition and adds direct Conv3d execution. CPU 0008B–0008E only then add
 general partition-DAG decomposition and bounded fusion, typed specialized-subgraph recognition,
 profitability decision facts, and bounded multi-input materialization in that order. Engine 0008
-must prove the same typed input/publication lifecycle for all three ranks. Complete Compiler
+proved the same typed input/publication lifecycle for all three ranks. Complete Compiler
 0006B6 closes the previously audited logical-layout admission gap between public compilation and
 CPU capability selection and supplies positive public Engine fixtures. Engine 0008 now consumes
 that evidence before NN 0025 adds `Conv1d`, `Conv2d`, and `Conv3d`
@@ -2158,11 +2160,11 @@ failure-isolation, and fallback foundation. Detailed
 CPU-only public request, caller-defined model identity, sole occurrence-0/partition-0/weight-1
 mapping, cache-first Config/tuning translation, fresh selected/fallback preparation, and an
 Engine-owned evidence boundary. Detailed
-[Engine 0008](modules/engine/tasks/0008-engine-lifecycle-capability-checkpoint.md) is the next
-Engine frontier and is Ready. Its checkpoint remains documentation-only and consumes Complete
-Compiler 0006B6's descriptor closure plus exact positive public Engine fixtures without excluding
-the original dimensional-convolution exit condition. NN convolution integration remains ordered
-after the checkpoint.
+[Engine 0008](modules/engine/tasks/0008-engine-lifecycle-capability-checkpoint.md) is Complete. Its
+documentation-only checkpoint consumed Complete Compiler 0006B6's descriptor closure plus exact
+positive public Engine fixtures without excluding the original dimensional-convolution exit
+condition. The existing Draft NN 0025 layer task and NN 0025A user-capability checkpoint are the
+next dimensional-convolution frontier; no new task is created here.
 Family tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator
 (RNG) state, mask, and configuration roles remain intentionally non-differentiable where

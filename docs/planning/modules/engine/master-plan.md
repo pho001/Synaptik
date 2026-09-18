@@ -105,7 +105,7 @@ advanced surface.
 | [0006](tasks/0006-one-shot-scalar-objective-backward-convenience.md) | Engine-owned one-shot scalar-objective backward convenience | Complete | 0005A; Compiler 0006B5; Prepare 0005; CPU 0010H | Added one explicit-target `Engine.backward(...)` call returning a detached scalar objective plus immutable target-aligned gradients. Reuses 0005A's transient leaf-inventory/final-binding selection seam with no explicit input list and Compiler's absent scalar unit seed and ERROR policy through the completed source-only constant chain; retains the explicit-seed ordinary compile and advanced full-request paths. |
 | [0006A](tasks/0006a-representative-tuning-execution-and-safe-fallback.md) | Representative tuning execution and safe fallback foundation | Complete | 0003; 0006; Runtime 0010/0015; Prepare 0004; CPU 0010I; reviewed Config 0006A and tools/tuning 0001 contracts | Added package-private representative-input binding, synchronous complete trial execution, cleanup, failure isolation, fresh selected preparation, and deterministic strict/allowed fallback. Adds no public API, tuning algorithm, cache work, or tools/tuning dependency. |
 | [0007](tasks/0007-optional-model-autotuning-composition.md) | Optional model-autotuning composition | Complete | 0002; 0005; [0006A](tasks/0006a-representative-tuning-execution-and-safe-fallback.md); Config 0006A; tools/tuning 0001; [CPU 0010I](../../backends/cpu/tasks/0010i-supported-cpu-local-workload-tuning-composition-adapter.md) | Added one CPU-only public representative request with caller-defined model identity; maps the sole handoff to occurrence 0/partition 0/weight 1, invokes cache-first tuning, and returns fresh selected preparation plus translated evidence or explicit safe fallback outside Runtime. |
-| [0008](tasks/0008-engine-lifecycle-capability-checkpoint.md) | Engine lifecycle capability checkpoint | Ready | 0001–0007; Compiler 0006B3–0006B6; Prepare 0003/0003A/0004/0005; Runtime 0010/0012/0014/0015; CPU 0008/0008A/0010F–0010I; Config 0006A; tools/tuning 0001 | Consolidate repository-wide evidence for the current standard, advanced, typed, materialized, one-shot forward/backward, optional tuning/fallback, cleanup, failure, concurrency, dependency, and representative NCW Conv1d/NCHW Conv2d/NCDHW Conv3d public execution boundaries; Compiler 0006B6 and its positive fixtures now satisfy the former blocker. |
+| [0008](tasks/0008-engine-lifecycle-capability-checkpoint.md) | Engine lifecycle capability checkpoint | Complete | 0001–0007; Compiler 0006B3–0006B6; Prepare 0003/0003A/0004/0005; Runtime 0010/0012/0014/0015; CPU 0008/0008A/0010F–0010I; Config 0006A; tools/tuning 0001 | Consolidated repository-wide evidence and current documentation for the standard, advanced, typed, materialized, one-shot forward/backward, bounded tuning/fallback, cleanup, failure, concurrency, dependency, and public dimensional-convolution execution boundaries. |
 
 
 ## Milestones
@@ -116,9 +116,9 @@ advanced surface.
 
 ## Current status
 
-Tasks 0001–0007 are Complete. Detailed Engine 0008 is the next Engine frontier and is `Ready` as
-a validation-and-documentation capability checkpoint. Its lifecycle dependencies are complete,
-and its implementation remains a documentation-only fourteen-path checkpoint. Complete
+The Engine foundation is Complete through task 0008. The final capability checkpoint reused one
+fresh clean repository-wide run, reconciled the fourteen authorized documentation paths, and
+confirmed the current CPU-only lifecycle without executable or architecture changes. Complete
 [Compiler 0006B6](../compiler/tasks/0006b6-final-convolution-logical-layout-closure.md) now
 satisfies the original positive public dimensional-convolution exit condition with exact public
 Engine integration evidence.
@@ -302,8 +302,7 @@ context `01a0b11d-cc89-7590-8836-0555b05e7001` and clean documentation context
 input list, fixes Compiler's absent positive-one scalar seed and ERROR policy, and returns a
 detached objective plus target-aligned gradients under one aggregate byte bound. The real scalar
 CPU fixture proves the objective and positive-one gradient through the completed source-only
-constant chain. Engine 0005, Engine 0006A, and Engine 0007 are `Complete`. Detailed Engine 0008 is
-the next Engine frontier and is `Ready` after the prerequisite and evidence above completed.
+constant chain. Engine 0005, Engine 0006A, Engine 0007, and Engine 0008 are `Complete`.
 
 ## Open questions
 
@@ -313,10 +312,9 @@ the next Engine frontier and is `Ready` after the prerequisite and evidence abov
 - Define mixed-backend schedule contributions only after a second concrete lifecycle adapter
   establishes a non-hypothetical consumer need. The current complete CPU assembler cannot be
   combined with another complete assembler.
-- Execute detailed Engine 0008 with its exact fourteen-path documentation scope and one
-  repository-wide validation run. It consumes Complete Compiler 0006B6's positive public Engine
-  Conv1d/Conv2d/Conv3d evidence; Planning remains the capability consumer and CPU remains strict.
-  NN convolution integration remains ordered after that checkpoint.
+- The already planned next dimensional-convolution frontier is NN 0025, followed by its 0025A
+  user-capability checkpoint. Those Draft rows own layer integration and must preserve Compiler
+  0006B6's descriptor boundary, strict CPU admission, and the explicit Conv3d-gradient limit.
 
 ## Decisions made
 

@@ -10,7 +10,12 @@ The authoritative architecture contract is [`ARCHITECTURE.md`](../ARCHITECTURE.m
 - [Current architecture documentation index](architecture/current-architecture-plan.md)
 - [Implementation plans](planning/README.md)
 
-The current implementation contains model value foundations only. Pages about compilation, preparation, runtime, backends, tracing, and training explain planned architecture unless they explicitly say an API is implemented.
+The current implementation includes a runnable CPU-only lifecycle through `Engine.standard()`:
+Tensor expressions can be compiled, prepared once, run repeatedly with isolated invocation state,
+and materialized as detached host values. One-shot forward computation and a bounded
+scalar-objective backward convenience are also current. Metal, CUDA, mixed-backend execution,
+training orchestration, persistence, and generic graph/plan tuning remain planned; each focused
+page distinguishes current contracts from those future capabilities.
 
 ## Contributor guides
 

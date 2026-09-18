@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -321,10 +321,11 @@ glossary should remain unchanged because all relevant terms already have establi
 
 ## Follow-up tasks
 
-- Execute this checkpoint next. Planning remains the consumer of final descriptors, CPU remains
-  strict, and this task creates no competing closure rule or Java fixture.
-- NN convolution integration and its end-to-end checkpoint remain ordered after the prerequisite
-  and this Engine checkpoint; they must not consume CPU-internal evidence as a substitute.
+- This checkpoint is complete. Planning remains the consumer of final descriptors, CPU remains
+  strict, and task 0008 introduced no competing closure rule or Java fixture.
+- Existing Draft NN 0025 owns dimensional-convolution layer integration, followed by NN 0025A's
+  end-to-end user-capability checkpoint; neither may substitute CPU-internal evidence for public
+  Engine execution.
 - Tools/tuning 0002 remains later graph/plan tuning.
 - Persistence, NN, Training, Metal/CUDA, and mixed-backend composition remain with their owners.
 - Compiler 0006C remains the separate Draft Conv3d gradient boundary.
@@ -387,50 +388,86 @@ evidence, notes, completion summary, and status only after every gate passes.
 
 ## Validation evidence
 
-- Independent review context: `01a0b33f-71f0-7710-882f-a703a379b35c`.
-- The planning-only audit read the required architecture, planning, completed Engine work,
-  directly relevant Compiler/Prepare/Runtime/CPU/tuning contracts, documentation rules/profiles,
-  current source/tests, and affected documentation.
-- Source inspection established that Model Conv2d/Conv3d outputs use unresolved layouts, Conv1d
-  visibly composes through Conv2d, CPU convolution admission requires resolved output layout, and
-  `contiguous()` resolves only its own result.
-- No Java test or Javadoc command was run while creating this planning specification.
-- `/tmp/validate_synaptik_markdown.py` passed for this task, the Engine master plan, and the
-  roadmap, checking local link targets and anchors, fences, LF line endings, terminal newlines,
-  and trailing whitespace.
-- Independent review found that the draft's `Ready` status silently removed the historical
-  positive public Conv1d/Conv2d/Conv3d exit condition. Source inspection confirms the exact blocker
-  occurs because Compiler supplies unresolved final convolution result layouts to Planning's
-  capability query and CPU requires resolved injective layouts.
-- At that planning-only audit, exact-scope validation found only the three expected planning paths
-  changed, with an empty staging area, and task/master/roadmap status reported 0008 `Blocked` on
-  the Compiler-owned prerequisite and positive public Engine evidence.
-- A later owning-frontier audit selected Compiler 0006B6 with a dedicated final graph closure and
-  exact public numerical fixtures. Compiler 0006B6 is now Complete; its 3-test public Engine
-  fixture selection passed, so this task, its master-plan row, and the roadmap now report 0008
-  `Ready`.
-- Heading/fence inspection passed, and `git diff --check` produced no diagnostic.
-- Implementation evidence remains empty until the separate checkpoint context runs.
+- Checkpoint evidence context: `01a0b444-f257-7651-b90e-9a89a5c78580`. Its one actual repository
+  checkpoint, `./gradlew test --rerun-tasks`, completed successfully in 2m 52s with all 70
+  actionable tasks executed. The 492 XML reports record 3,188 tests, zero failures, zero errors,
+  and 28 skips. Every skip belongs to optional CPU performance/evidence/persistence coverage;
+  every Engine, integration, architecture, Compiler convolution, Prepare, Runtime, and tuning
+  report consumed here has zero skips. No Java test was rerun in this documentation context.
+- The seven Engine unit suites report 67 tests. Named cross-module reports contain
+  `EngineAdvancedLifecycleIntegrationTest` 2, `EngineStandardCompositionIntegrationTest` 1,
+  `EngineTypedLifecycleIntegrationTest` 6, `EngineModelAutotuningIntegrationTest` 1,
+  `EngineConvolutionIntegrationTest` 3, and `EngineCompositionContractTest` 1. All report zero
+  failures, errors, and skips.
+- Supporting green report sets contain all nine architecture tests, 42 Compiler convolution
+  closure/GraphCompiler/Conv3d tests, 24 tools/tuning tests, 52 Prepare tests, and 148 Runtime
+  tests, again with zero failures, errors, or skips. These reports map the task's ownership,
+  reusable lifecycle, isolated-run, cleanup, tuning, and dependency claims to executed evidence.
+- The three public convolution fixtures use only Model and Engine APIs. They execute NCW Conv1d,
+  grouped NCHW Conv2d, and grouped NCDHW Conv3d forward requests through reusable
+  compile/prepare/run plus one-shot compute, reversed typed input order, publication, and detached
+  materialization. They import no CPU internals and construct no inward artifacts. Conv3d
+  gradients remain outside the claim.
+- Documentation-focused context: `01a0b44b-f58b-7d42-b4cb-f33bd50a2e13`. It read the required
+  architecture and planning contracts, General/Architecture/API/Javadoc/User-guide/Example/
+  Planning profiles, all eleven affected explanatory pages, relevant glossary entries, public
+  Engine source/Javadocs, and the saved unit/integration/architecture reports. It changed no
+  executable or authoritative architecture artifact.
+- `./gradlew :modules:engine:javadoc` ran exactly once after explanatory prose was final and
+  passed: `BUILD SUCCESSFUL in 1s`, 15 actionable tasks, one executed and 14 up-to-date. Inspection
+  of the generated Engine, RunResult, HostTensorValue, ModelAutotuning request/preparation, and
+  package pages confirmed current ownership, CPU-only, lease, detached-value, one-shot, and
+  tuning boundaries. Existing source Javadocs remain accurate; no source edit was needed.
+- `/tmp/validate_synaptik_markdown.py` passed all fourteen authorized paths, checking local links
+  and anchors, unique headings, balanced fences, LF line endings, terminal newlines, and trailing
+  whitespace. Manual review checked current/planned language and examples against public source
+  signatures. Final scope/status/staging and `git diff --check` checks also passed.
 
 ## Implementation notes
 
-Empty until the checkpoint is executed.
+- Reconciled the documentation index, contributor start, architecture status/lifecycle/boundaries,
+  public API status, and four lifecycle user guides with the current runnable CPU-only Engine.
+- Preserved ordinary `Engine.standard()` versus advanced ownership, reusable prepared execution
+  versus fresh one-shot calls, leased `RunResult` versus detached `HostTensorValue`, CPU-local
+  workload tuning versus future graph/plan tuning, current CPU execution versus future other or
+  mixed owners, and Model's unresolved convolution construction versus Compiler's bounded final
+  static closure and strict CPU admission.
+- Changed exactly the fourteen allowlisted documentation paths. Java, tests, resources, Gradle,
+  dependencies, `ARCHITECTURE.md`, ADRs, and every other document remain unchanged.
+- Javadoc source required no change because this checkpoint changes no API or behavior and the
+  existing contracts already describe parameters, results, failures, ownership, closure, and
+  current limitations consistently with source and tests.
+- The glossary required no change because all reusable terms and distinctions used here already
+  have current entries, including model autotuning, backend ownership/routes, compiled/prepared
+  state, publication occurrences, RunResult, HostTensorValue, and RunState.
+- Architecture/ADRs and architecture tests required no change because no owner, dependency,
+  lifecycle invariant, or module boundary changed. Java/tests/build/dependencies likewise needed
+  no change because this is a documentation-only checkpoint over existing behavior.
+- Backend conformance and performance evidence required no change or rerun: no backend behavior or
+  performance claim changed. Other documentation remains outside the focused stale-status scope.
+- The Engine foundation is Complete through 0008. The existing Draft NN 0025 convolution-layer
+  task, followed by NN 0025A's user-capability checkpoint, is the next dimensional-convolution
+  frontier; this checkpoint creates no new task.
 
 ## Completion summary
 
-Use this template after execution:
-
-```text
-- Completed changes: <checkpoint evidence and documentation reconciliation>
-- Files changed or created: <exact authorized paths>
-- Tests and validation: <commands, counts, outcomes, and report mapping>
-- Documentation-agent review: <clean context identity and result>
-- Documentation impact: <updated current-status and workflow pages>
-- Javadoc review: <generation result and no-change conclusion>
-- Glossary impact: <reasoned no-change conclusion>
-- Convolution readiness: <positive public Conv1d/Conv2d/Conv3d execution evidence>
-- Unresolved issues: <None or exact issue>
-- Follow-up required: <None for this checkpoint or exact owner-specific follow-up>
+- Completed changes: closed the lifecycle capability checkpoint and reconciled all eleven affected
+  explanatory pages plus task, Engine master plan, and roadmap status.
+- Files changed or created: exactly the fourteen authorized existing Markdown paths; no file was
+  created.
+- Tests and validation: reused the clean 3,188-test repository checkpoint with zero failures or
+  errors; generated Engine Javadoc exactly once; passed Markdown, scope, staging, status, and
+  whitespace validation.
+- Documentation-agent review: clean context `01a0b44b-f58b-7d42-b4cb-f33bd50a2e13`, Complete.
+- Documentation impact: current CPU-only compile/prepare/run/materialize, one-shot, advanced
+  ownership, and bounded autotuning workflows now replace obsolete planned-only prose.
+- Javadoc review: generated output passed inspection; source Javadocs remain accurate unchanged.
+- Glossary impact: unchanged because established entries already cover every term and distinction.
+- Convolution readiness: public NCW Conv1d, grouped NCHW Conv2d, and grouped NCDHW Conv3d forward
+  fixtures pass through both reusable and one-shot public Engine paths.
+- Unresolved issues: None for Engine 0008; documented future capabilities remain intentionally
+  unsupported.
+- Follow-up required: None for this checkpoint. Existing NN 0025 and 0025A remain the planned
+  downstream frontier.
 
 Status: Complete
-```
