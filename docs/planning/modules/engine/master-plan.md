@@ -105,7 +105,7 @@ advanced surface.
 | [0006](tasks/0006-one-shot-scalar-objective-backward-convenience.md) | Engine-owned one-shot scalar-objective backward convenience | Complete | 0005A; Compiler 0006B5; Prepare 0005; CPU 0010H | Added one explicit-target `Engine.backward(...)` call returning a detached scalar objective plus immutable target-aligned gradients. Reuses 0005A's transient leaf-inventory/final-binding selection seam with no explicit input list and Compiler's absent scalar unit seed and ERROR policy through the completed source-only constant chain; retains the explicit-seed ordinary compile and advanced full-request paths. |
 | [0006A](tasks/0006a-representative-tuning-execution-and-safe-fallback.md) | Representative tuning execution and safe fallback foundation | Complete | 0003; 0006; Runtime 0010/0015; Prepare 0004; CPU 0010I; reviewed Config 0006A and tools/tuning 0001 contracts | Added package-private representative-input binding, synchronous complete trial execution, cleanup, failure isolation, fresh selected preparation, and deterministic strict/allowed fallback. Adds no public API, tuning algorithm, cache work, or tools/tuning dependency. |
 | [0007](tasks/0007-optional-model-autotuning-composition.md) | Optional model-autotuning composition | Complete | 0002; 0005; [0006A](tasks/0006a-representative-tuning-execution-and-safe-fallback.md); Config 0006A; tools/tuning 0001; [CPU 0010I](../../backends/cpu/tasks/0010i-supported-cpu-local-workload-tuning-composition-adapter.md) | Added one CPU-only public representative request with caller-defined model identity; maps the sole handoff to occurrence 0/partition 0/weight 1, invokes cache-first tuning, and returns fresh selected preparation plus translated evidence or explicit safe fallback outside Runtime. |
-| [0008](tasks/0008-engine-lifecycle-capability-checkpoint.md) | Engine lifecycle capability checkpoint | Blocked | 0001–0007; Compiler 0006B3–0006B5; [Compiler 0006B6](../compiler/tasks/0006b6-final-convolution-logical-layout-closure.md) Complete; Prepare 0003/0003A/0004/0005; Runtime 0010/0012/0014/0015; CPU 0008/0008A/0010F–0010I; Config 0006A; tools/tuning 0001 | Consolidate repository-wide evidence for the current standard, advanced, typed, materialized, one-shot forward/backward, optional tuning/fallback, cleanup, failure, concurrency, dependency, and representative NCW Conv1d/NCHW Conv2d/NCDHW Conv3d public execution boundaries; reconcile stale lifecycle documentation only after Compiler 0006B6 and its positive fixtures complete. |
+| [0008](tasks/0008-engine-lifecycle-capability-checkpoint.md) | Engine lifecycle capability checkpoint | Ready | 0001–0007; Compiler 0006B3–0006B6; Prepare 0003/0003A/0004/0005; Runtime 0010/0012/0014/0015; CPU 0008/0008A/0010F–0010I; Config 0006A; tools/tuning 0001 | Consolidate repository-wide evidence for the current standard, advanced, typed, materialized, one-shot forward/backward, optional tuning/fallback, cleanup, failure, concurrency, dependency, and representative NCW Conv1d/NCHW Conv2d/NCDHW Conv3d public execution boundaries; Compiler 0006B6 and its positive fixtures now satisfy the former blocker. |
 
 
 ## Milestones
@@ -116,28 +116,25 @@ advanced surface.
 
 ## Current status
 
-Tasks 0001–0007 are Complete. Detailed Engine 0008 is the next Engine frontier but is `Blocked` as
-a validation-and-documentation capability checkpoint. Its non-convolution lifecycle dependencies
-and evidence are complete, and its future implementation remains a documentation-only fourteen-
-path checkpoint. It cannot become `Ready` until the original positive public dimensional-
-convolution exit condition is satisfied by Ready
-[Compiler 0006B6](../compiler/tasks/0006b6-final-convolution-logical-layout-closure.md) and its
-exact public Engine integration evidence.
+Tasks 0001–0007 are Complete. Detailed Engine 0008 is the next Engine frontier and is `Ready` as
+a validation-and-documentation capability checkpoint. Its lifecycle dependencies are complete,
+and its implementation remains a documentation-only fourteen-path checkpoint. Complete
+[Compiler 0006B6](../compiler/tasks/0006b6-final-convolution-logical-layout-closure.md) now
+satisfies the original positive public dimensional-convolution exit condition with exact public
+Engine integration evidence.
 
-The audit also corrects the earlier planned convolution claim. Model and Compiler preserve
-unresolved logical layouts for Conv2d and Conv3d results, including the Conv2d occurrence inside
-the visible Conv1d composition, while current CPU capability admission requires resolved
-convolution layouts. A later `contiguous()` result does not change the producer descriptor seen
-during ownership planning. CPU 0008/0008A provide real backend-internal numerical execution
-evidence, but no valid public Engine Conv1d/Conv2d/Conv3d fixture exists without new owner-specific
-layout behavior. Compiler owns final descriptors before Planning constructs capability queries;
-Planning consumes those descriptors and selects backend ownership. Compiler 0006B6 now selects a
-dedicated final graph closure after optimization and validation: static Conv2d/Conv3d results
-become canonical contiguous logical values, and only the direct axis-two squeeze of a newly closed
-Conv2d result receives the view layout needed by visible Conv1d composition. Model construction
-and dynamic Shapes remain unresolved, CPU admission remains strict, and Prepare/Runtime infer no
-layout. Task 0008 must not implement or obscure that boundary, and it remains `Blocked` until
-0006B6 is Complete with its exact positive fixtures.
+The audit also corrected the earlier planned convolution claim. Model construction and ordinary
+inference preserve unresolved logical layouts for Conv2d and Conv3d results, including the Conv2d
+occurrence inside the visible Conv1d composition, while current CPU capability admission requires
+resolved convolution layouts. A later `contiguous()` result does not change the producer
+descriptor seen during ownership planning. Compiler owns final descriptors before Planning
+constructs capability queries, and Complete Compiler 0006B6 now performs the bounded final graph
+closure after optimization and validation: fully static unresolved Conv2d/Conv3d results become
+canonical contiguous logical values, and only the direct axis-two squeeze of a newly closed
+Conv2d result receives the view layout needed by visible Conv1d composition. Dynamic Shapes
+remain unresolved, CPU admission remains strict, and Prepare/Runtime infer no layout. Its public
+Engine fixtures positively execute NCW Conv1d, grouped NCHW Conv2d, and grouped NCDHW Conv3d, so
+task 0008 consumes that evidence without reimplementing or obscuring the boundary.
 Compiler 0006B3, Prepare 0003–0004, Runtime 0010 and its closure hardening,
 and CPU 0010F supply the bounded CPU-only Engine lifecycle without shared-contract changes:
 `GraphCompilationPort` supplies complete compile artifacts, `GraphPreparation` accepts explicit
@@ -306,7 +303,7 @@ input list, fixes Compiler's absent positive-one scalar seed and ERROR policy, a
 detached objective plus target-aligned gradients under one aggregate byte bound. The real scalar
 CPU fixture proves the objective and positive-one gradient through the completed source-only
 constant chain. Engine 0005, Engine 0006A, and Engine 0007 are `Complete`. Detailed Engine 0008 is
-the next Engine frontier but is `Blocked` on the prerequisite and evidence above.
+the next Engine frontier and is `Ready` after the prerequisite and evidence above completed.
 
 ## Open questions
 
@@ -316,12 +313,10 @@ the next Engine frontier but is `Blocked` on the prerequisite and evidence above
 - Define mixed-backend schedule contributions only after a second concrete lifecycle adapter
   establishes a non-hypothetical consumer need. The current complete CPU assembler cannot be
   combined with another complete assembler.
-- Complete Compiler 0006B6 before Engine 0008 can become Ready. Its dedicated final closure
-  and public fixtures own the prerequisite; Planning remains the capability consumer, CPU remains
-  strict, and Engine 0008 must not substitute CPU-internal execution support.
-- After positive public Engine Conv1d/Conv2d/Conv3d forward evidence exists, execute detailed
-  Engine 0008 with its exact fourteen-path documentation scope and one repository-wide validation
-  run. NN convolution integration remains ordered after that checkpoint.
+- Execute detailed Engine 0008 with its exact fourteen-path documentation scope and one
+  repository-wide validation run. It consumes Complete Compiler 0006B6's positive public Engine
+  Conv1d/Conv2d/Conv3d evidence; Planning remains the capability consumer and CPU remains strict.
+  NN convolution integration remains ordered after that checkpoint.
 
 ## Decisions made
 

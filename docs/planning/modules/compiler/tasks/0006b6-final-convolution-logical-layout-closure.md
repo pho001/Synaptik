@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -278,8 +278,9 @@ only; do not request gradients or imply derivative support.
   inward-artifact construction or CPU-internal imports.
 - CPU capability remains strict and no Engine/CPU production behavior changes.
 - Public/package inventories, dependency declarations, and architecture tests remain unchanged.
-- The task stays `Ready` until implementation and the independent documentation pass complete;
-  Engine 0008 stays `Blocked` until this task is `Complete` with its positive fixtures.
+- The task is `Complete` only after implementation and the independent documentation pass
+  complete; Engine 0008 then returns to `Ready` with this prerequisite and its positive fixtures
+  satisfied.
 
 ## Tests and validation
 
@@ -350,7 +351,7 @@ checkpoint is justified.
 - Current Model Conv1d composition and Conv2d/Conv3d unresolved construction semantics — stable.
 - Current Planning capability-query handoff and strict CPU convolution capability — stable.
 - Engine 0001–0007 and CPU dimensional-convolution execution — Complete.
-- Engine 0008 — Blocked on this task and its public positive fixtures.
+- Engine 0008 — Ready after this task and its public positive fixtures completed.
 
 This task is a user-authorized prerequisite-order exception: after selection of blocked Engine
 0008, work returns to the Compiler plan for one bounded owning prerequisite. Within Compiler it is
@@ -369,9 +370,8 @@ architecture/ADRs; architecture and conformance tests; Gradle; and other modules
 
 ## Follow-up tasks
 
-- Engine 0008 becomes `Ready` only after this task is `Complete` and the exact public fixtures are
-  passing; its documentation-only repository checkpoint then consumes, rather than recreates,
-  that evidence.
+- Engine 0008 is now `Ready`; its documentation-only repository checkpoint consumes, rather than
+  recreates, this task's exact public fixture evidence.
 - NN convolution integration remains ordered after Engine 0008.
 - Compiler 0006C remains the separate Draft Conv3d gradient expressibility boundary.
 - Compiler 0007 remains a separate Draft algebra side branch.
@@ -436,12 +436,77 @@ physical-layout selection, or NN integration.
 
 ## Validation evidence
 
-Empty until implementation.
+- Implementation context `01a0b420-4b38-7533-995c-422d455cc66e` completed the Java and test work.
+  Replanning context `01a0b42a-6c55-7560-9a76-6ee6d0682362` amended the task in commit
+  `f5ca109a` after the initial full Compiler run exposed one stale Conv3d Planning-query
+  expectation; the replan added that existing test as the twelfth allowlisted path.
+- Reused implementation evidence because this documentation pass changed Javadoc and Markdown
+  only: the focused Compiler selection passed 42 tests (8 closure, 30 `GraphCompiler`, and 4
+  `Conv3dCompiler`); the public Engine convolution integration selection passed 3 tests; the full
+  Compiler suite passed 270 tests; and the full integration suite passed 13 tests, all without
+  failures, errors, or skips. No executable Java behavior changed after those runs.
+- Documentation-focused context `01a0b435-21ee-7eb3-a391-67c0952ea7ee` independently read the architecture
+  contract, planning and documentation rules/profiles, both affected module plans, both task
+  specifications, the Compile API, relevant glossary entries, every changed Java/test file, and
+  the actual diff. It finalized both production Javadocs and the Compile API under the General,
+  API/Javadoc, and Planning profiles.
+- `./gradlew :modules:compiler:javadoc` passed after the final Javadoc edits: 7 actionable tasks,
+  2 executed and 5 up-to-date.
+- Final documentation validation checked local Markdown targets and anchors, unique headings,
+  balanced fences, LF line endings, terminal newlines, trailing whitespace, synchronized task/
+  master/roadmap status and ordering, package/public import boundaries, exact twelve-path dirty
+  scope, and an empty staging area. `git diff --check` passed.
+- Architecture and ADR impact: none. The change uses Compiler's existing ownership of final
+  logical descriptors and the existing Planning query handoff; no module boundary, dependency
+  direction, or architectural decision changed.
+- Glossary impact: none. Existing entries already define Conv1d composition, Conv2d, Conv3d,
+  logical `TensorDescriptor` layout state, views, and operation capability queries; the new pass
+  changes no reusable term or definition.
+- Other documentation/API impact: no Tensor, Public, Runtime, Training, backend, or user-guide
+  contract changed. The Compile API is the sole explanatory surface affected because it owns the
+  ordering and boundary of final graph descriptors.
+- Test/build impact outside the allowlist: none. No backend-conformance or architecture test was
+  needed because backend semantics and dependency rules are unchanged; no Gradle file, generated
+  code, production module outside Compiler, or other module contract changed.
 
 ## Implementation notes
 
-Empty until implementation.
+- Added package-private `ConvolutionLogicalLayoutClosure` and invoked it in both graph-stage
+  branches after optimization and published-constant closure.
+- Fully static unresolved final Conv2d/Conv3d outputs close to canonical contiguous logical
+  layouts. Only the direct unresolved `SQUEEZE(axis=2)` whose Conv2d input was newly closed in the
+  same invocation receives the derived view layout. Dynamic, partially dynamic, already resolved,
+  and unrelated descriptors remain unchanged.
+- The implementation preserves graph topology and identities, constants, bindable Tensor IDs,
+  constraints, phases, derivative metadata, publications, optimization results, and order.
+  Planning/publication consume the resulting final descriptors; no physical or backend behavior
+  moved into Compiler.
+- Added the exact public NCW Conv1d, grouped NCHW Conv2d, and grouped NCDHW Conv3d Engine fixtures
+  through reusable typed binding and one-shot compute. Updated the pre-existing Conv3d query test
+  only to compare against the final compiled descriptor while retaining unresolved Model output.
 
 ## Completion summary
 
-Empty until implementation.
+- Completed changes: implemented bounded final convolution logical-layout closure, integrated it
+  into both compile branches, added focused preservation/query coverage and three public Engine
+  numerical fixtures, finalized Javadocs and the Compile API, and synchronized Compiler/Engine/
+  roadmap status.
+- Files changed or created: `ConvolutionLogicalLayoutClosure.java`, `GraphCompiler.java`,
+  `ConvolutionLogicalLayoutClosureTest.java`, `GraphCompilerTest.java`, `Conv3dCompilerTest.java`,
+  `EngineConvolutionIntegrationTest.java`, `docs/api/compile-api.md`, this task,
+  `docs/planning/modules/compiler/master-plan.md`, `docs/planning/modules/engine/master-plan.md`,
+  `docs/planning/modules/engine/tasks/0008-engine-lifecycle-capability-checkpoint.md`, and
+  `docs/planning/roadmap.md`.
+- Tests and validation: reused the stable 42-test focused Compiler, 3-test focused public Engine,
+  270-test full Compiler, and 13-test full integration results; final Compiler Javadoc and all
+  requested Markdown, scope, status/order, import, staging, and whitespace gates passed.
+- Documentation-agent review: clean context `01a0b435-21ee-7eb3-a391-67c0952ea7ee` completed the independent
+  General/API-Javadoc/Planning review and changed no executable semantics or tests.
+- Documentation impact: Compile API now documents exact ordering, eligibility, preservation,
+  failure behavior, final-descriptor consumption, and logical-only boundaries.
+- Javadoc review: both affected production contracts were finalized; Compiler Javadoc passed.
+- Glossary impact: no change because all affected terms and distinctions already exist.
+- Unresolved issues: None.
+- Follow-up required: execute the next planned task, Engine 0008; Compiler 0006C remains Draft.
+
+Status: Complete

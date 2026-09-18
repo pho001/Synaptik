@@ -2,7 +2,7 @@
 
 ## Status
 
-Blocked
+Ready
 
 ## Goal
 
@@ -15,18 +15,13 @@ workload tuning or safe fallback, cleanup, failure handling, and concurrent-run 
 This task consolidates evidence for behavior delivered by Engine tasks 0001 through 0007. It does
 not add another Engine behavior, API, test seam, backend route, or persistence facility.
 
-The required NCW Conv1d, NCHW Conv2d, and NCDHW Conv3d public Engine fixtures are not valid at the
-current boundary. Model and Compiler preserve unresolved logical layouts for the
-convolution results, including the Conv2d occurrence inside the visible Conv1d composition, while
-the current CPU capability provider admits these families only with resolved input and output
-layouts. A following `contiguous()` operation resolves its own output but does not retroactively
-resolve the convolution occurrence queried during ownership planning. Because positive public
-execution was an existing checkpoint exit condition, replacing it with a negative audit would
-silently weaken acceptance. This task is therefore blocked until Ready
-[Compiler 0006B6](../../compiler/tasks/0006b6-final-convolution-logical-layout-closure.md) closes
-the final logical descriptors before Planning queries backend capability and supplies the exact
-public Engine execution fixtures. The checkpoint must not reimplement that mechanism, weaken CPU
-admission, or treat backend-internal convolution tests as Engine execution.
+The required NCW Conv1d, NCHW Conv2d, and NCDHW Conv3d public Engine fixtures are now valid through
+Complete [Compiler 0006B6](../../compiler/tasks/0006b6-final-convolution-logical-layout-closure.md).
+Model construction and ordinary inference still preserve unresolved convolution layouts, while
+Compiler closes only eligible fully static final descriptors before Planning capability queries;
+the CPU provider remains strict. The completed prerequisite supplies the exact positive public
+Engine fixtures, so this checkpoint is now actionable. It must consume that evidence without
+reimplementing the mechanism, weakening CPU admission, or substituting backend-internal tests.
 
 ## Motivation and mental model
 
@@ -43,8 +38,8 @@ Compiler-owned convolution logical-layout prerequisite
   -> current-status documentation reconciliation
   -> Engine foundation checkpoint closure
 
-current blocker:
-  unresolved convolution result layout -> no CPU owner -> no public Engine execution
+resolved prerequisite:
+  eligible final convolution layout -> CPU owner -> positive public Engine execution
 ```
 
 ## Scope
@@ -78,9 +73,9 @@ current blocker:
   as runnable and distinguishes ordinary from advanced composition, reusable from one-shot work,
   result leases from detached values, bounded local tuning from generic tuning, and implemented
   CPU behavior from planned multi-backend composition.
-- Preserve the convolution blocker accurately until its prerequisite completes: Model
-  construction, Compiler forward adoption, and CPU-internal execution are current, but the
-  checkpoint cannot pass without positive public Engine numerical fixtures.
+- Preserve the completed convolution boundary accurately: Model construction remains unresolved,
+  Compiler owns bounded final static descriptor closure, and the public Engine fixtures now
+  provide the required positive evidence.
 - Keep this task, the Engine master plan, and repository roadmap synchronized through completion.
 
 ## Out of scope
@@ -156,21 +151,20 @@ current blocker:
   the local-workload tuning adapter.
 - Config 0006A and tools/tuning 0001 are Complete for the bounded optional tuning flow.
 
-### Blocking dependency
+### Satisfied convolution prerequisite
 
-Compiler currently hands Planning convolution occurrences whose final result descriptors retain
-unresolved layouts. Planning passes those descriptors unchanged in `OperationCapabilityQuery` and
-owns only capability evaluation and backend selection; CPU correctly admits only resolved,
-injective convolution outputs. Ready Compiler 0006B6 owns the missing final descriptor fact. It
-selects a dedicated rewrite after final optimization, validation, and published-constant closure:
-fully static Conv2d/Conv3d results receive canonical contiguous logical layout, and only a direct
-axis-two squeeze of a Conv2d result newly closed by that pass receives the exact view layout needed
-by visible Conv1d composition. It preserves unresolved Model construction and dynamic Shapes,
-keeps Planning backend-neutral and CPU strict, and adds the exact public Engine numerical fixtures.
+Complete Compiler 0006B6 now supplies Planning convolution occurrences with final resolved
+layouts exactly when the Conv2d/Conv3d result is fully static and was unresolved. Planning passes
+those descriptors unchanged in `OperationCapabilityQuery` and owns only capability evaluation and
+backend selection; CPU still admits only resolved, injective convolution outputs. The Compiler
+rewrite runs after final optimization, validation, and published-constant closure. Only a direct
+axis-two squeeze of a Conv2d result newly closed by that invocation receives the exact view layout
+needed by visible Conv1d composition. Model construction and dynamic Shapes remain unresolved,
+Planning remains backend-neutral, and the exact public Engine numerical fixtures pass.
 
-Until Compiler 0006B6 and its public Engine evidence are Complete, task 0008 is `Blocked` rather
-than an actionable validation-only task. This checkpoint does not choose or implement another
-closure rule, mutate Model semantics, relax CPU capability, or add a Planning layout policy.
+Task 0008 is therefore actionable as a validation-only task. It does not choose or implement
+another closure rule, mutate Model semantics, relax CPU capability, or add a Planning layout
+policy.
 
 ### Convolution fixture audit
 
@@ -181,10 +175,10 @@ closure rule, mutate Model semantics, relax CPU capability, or add a Planning la
 | NCDHW Conv3d | one first-class flat forward operation | direct grouped CPU execution exists | Positive public Engine grouped forward execution; backward remains deferred. |
 
 These are checkpoint requirements, not a claim that every Model expression with a backend-
-internal kernel must compile through standard Engine. The current failure is a known unmet exit
-condition: the public path cannot select CPU ownership for these convolution occurrences. The
-Compiler 0006B6 must close that exact boundary and pass its fixtures before this task can become
-`Ready`; NN convolution integration remains ordered afterward.
+internal kernel must compile through standard Engine. Compiler 0006B6 satisfied the former unmet
+exit condition by closing the exact final-descriptor boundary and passing the public fixtures.
+This checkpoint consumes that evidence without broadening it; NN convolution integration remains
+ordered afterward.
 
 ## Package impact
 
@@ -315,21 +309,20 @@ glossary should remain unchanged because all relevant terms already have establi
 - Engine 0001–0007 — Complete.
 - Compiler 0006B3–0006B5 — Complete.
 - [Compiler 0006B6](../../compiler/tasks/0006b6-final-convolution-logical-layout-closure.md) —
-  Ready; this task remains Blocked until it is Complete.
+  Complete, including its exact positive public Engine fixtures.
 - Prepare 0003, 0003A, 0004, and 0005 — Complete.
 - Runtime 0010, 0012, 0014, and 0015 — Complete.
 - CPU 0008, 0008A, and 0010F–0010I — Complete.
 - Config 0006A and tools/tuning 0001 — Complete.
 - Compiler-owned convolution logical-layout closure before Planning capability admission —
-  selected as Ready Compiler 0006B6; implementation remains pending.
+  complete in Compiler 0006B6.
 - Positive public Engine NCW Conv1d, NCHW Conv2d, and NCDHW Conv3d forward integration evidence —
-  owned by Compiler 0006B6 and pending its implementation.
+  supplied by Compiler 0006B6's three passing integration tests.
 
 ## Follow-up tasks
 
-- Complete Compiler 0006B6 before this task becomes `Ready`. Planning remains the consumer of
-  final descriptors, CPU remains strict, and this task creates no competing closure rule or Java
-  fixture.
+- Execute this checkpoint next. Planning remains the consumer of final descriptors, CPU remains
+  strict, and this task creates no competing closure rule or Java fixture.
 - NN convolution integration and its end-to-end checkpoint remain ordered after the prerequisite
   and this Engine checkpoint; they must not consume CPU-internal evidence as a substitute.
 - Tools/tuning 0002 remains later graph/plan tuning.
@@ -355,9 +348,8 @@ master plan, and task 0008 in full. Read the completed dependencies and inspect 
 Compiler, Prepare, Runtime, CPU, and tuning source/tests/reports/Javadocs plus directly affected
 documentation.
 
-Do not execute this checkpoint while it is Blocked. First verify that Compiler 0006B6 and its
-exact positive public Engine NCW Conv1d, grouped NCHW Conv2d, and grouped NCDHW Conv3d fixtures are
-Complete. Once the task is explicitly returned to Ready, execute the checkpoint exactly. Change
+Verify that Compiler 0006B6 and its exact positive public Engine NCW Conv1d, grouped NCHW Conv2d,
+and grouped NCDHW Conv3d fixtures remain Complete, then execute the checkpoint exactly. Change
 no Java, tests, resources, Gradle, architecture
 contract, ADR, glossary, or path outside its fourteen-path allowlist. Run one fresh repository-
 wide checkpoint, map executed tests to every claim, and stop if evidence or executable change is
@@ -372,16 +364,15 @@ evidence, notes, completion summary, and status only after every gate passes.
 
 ## Local decisions
 
-- Keep 0008 `Blocked`: the original positive dimensional-convolution exit condition is unmet, and
-  converting it into a negative audit would hide incomplete acceptance.
+- Return 0008 to `Ready` only after Compiler 0006B6 and its positive public dimensional-
+  convolution fixtures complete; that prerequisite is now satisfied.
 - Use existing tests plus one fresh repository run. A new checkpoint Java test would duplicate
   stable lifecycle assertions; Compiler 0006B6 owns the missing public convolution fixtures before
   this documentation-only checkpoint runs.
 - Include documentation reconciliation because entry points and lifecycle guides still claim
   Engine or concrete execution is absent.
-- Preserve public convolution success as an exit condition. Backend execution is real, but public
-  ownership planning still sees unresolved convolution layouts until Compiler 0006B6 is
-  implemented, so the checkpoint cannot yet run.
+- Preserve public convolution success as an exit condition. Complete Compiler 0006B6 now closes
+  eligible final layouts before ownership planning and supplies the required public fixtures.
 
 ## Known limitations
 
@@ -389,8 +380,8 @@ evidence, notes, completion summary, and status only after every gate passes.
   mixed/multi-owner preparation remain unsupported.
 - Ordinary compilation uses fixed settings; Config aggregate facades remain planned.
 - Model autotuning is bounded to one CPU-local handoff and is not generic graph/plan tuning.
-- Public Engine convolution execution is blocked by the recorded layout reason and remains a
-  required checkpoint input, not an accepted limitation.
+- Dynamic or partially dynamic convolution results remain unresolved; the required fully static
+  public Engine convolution executions are now available as checkpoint input.
 - No persistence, NN execution facade, training session, optimizer step, or second backend is
   delivered.
 
@@ -411,12 +402,13 @@ evidence, notes, completion summary, and status only after every gate passes.
   positive public Conv1d/Conv2d/Conv3d exit condition. Source inspection confirms the exact blocker
   occurs because Compiler supplies unresolved final convolution result layouts to Planning's
   capability query and CPU requires resolved injective layouts.
-- Exact-scope validation found only the three expected planning paths changed, with an empty
-  staging area. Task status, the master-plan row, and the roadmap project-area row now report
-  0008 `Blocked` on the Compiler-owned prerequisite and positive public Engine evidence.
-- A later owning-frontier audit selected Ready Compiler 0006B6 with a dedicated final graph
-  closure and exact public numerical fixtures. That planning selection does not satisfy this
-  checkpoint's blocker; 0006B6 must first become Complete.
+- At that planning-only audit, exact-scope validation found only the three expected planning paths
+  changed, with an empty staging area, and task/master/roadmap status reported 0008 `Blocked` on
+  the Compiler-owned prerequisite and positive public Engine evidence.
+- A later owning-frontier audit selected Compiler 0006B6 with a dedicated final graph closure and
+  exact public numerical fixtures. Compiler 0006B6 is now Complete; its 3-test public Engine
+  fixture selection passed, so this task, its master-plan row, and the roadmap now report 0008
+  `Ready`.
 - Heading/fence inspection passed, and `git diff --check` produced no diagnostic.
 - Implementation evidence remains empty until the separate checkpoint context runs.
 

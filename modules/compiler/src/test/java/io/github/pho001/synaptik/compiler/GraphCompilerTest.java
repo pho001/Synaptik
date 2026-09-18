@@ -21,6 +21,12 @@ import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.GraphPhase;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.operation.convolution.Conv1dAttrs;
+import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
+import io.github.pho001.synaptik.model.operation.convolution.Conv2dKind;
+import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
+import io.github.pho001.synaptik.model.operation.convolution.Conv3dKind;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -469,6 +475,150 @@ final class GraphCompilerTest {
         assertEquals(
                 "no hard-eligible backend is available for ownership selection",
                 failure.getCause().getMessage());
+    }
+
+    @Test
+    void completeCompileQueriesPlanningWithClosedConvolutionAndConv1dDescriptors() {
+        Tensor conv1dInput = staticTensor(Shape.of(1, 1, 4), false);
+        Tensor conv1dWeight = staticTensor(Shape.of(1, 1, 2), false);
+        Tensor conv1d = conv1dInput.conv1d(conv1dWeight, Conv1dAttrs.defaults());
+        Tensor conv2dInput = staticTensor(Shape.of(1, 2, 2, 2), false);
+        Tensor conv2dWeight = staticTensor(Shape.of(2, 1, 1, 1), false);
+        Tensor conv2d = conv2dInput.conv2d(
+                conv2dWeight, new Conv2dAttrs(1, 1, 0, 0, 1, 1, 2));
+        Tensor conv3dInput = staticTensor(Shape.of(1, 2, 2, 1, 2), false);
+        Tensor conv3dWeight = staticTensor(Shape.of(2, 1, 1, 1, 1), false);
+        Tensor conv3d = conv3dInput.conv3d(
+                conv3dWeight, new Conv3dAttrs(1, 1, 1, 0, 0, 0, 1, 1, 1, 2));
+        BackendId backendId = new BackendId("recording");
+        List<OperationCapabilityQuery> queries = new ArrayList<>();
+
+        CompileArtifacts artifacts = GraphCompiler.compile(
+                CompileMode.FORWARD_ONLY,
+                List.of(conv1d, conv2d, conv3d),
+                Optional.empty(),
+                CompileTimeConstantGraph.Ingress.empty(),
+                GraphOptimizationConfig.disabled(),
+                BackendIntent.unconstrained(),
+                PartitionScoringConfig.neutral(),
+                List.of(provider(backendId, queries, true)),
+                List.of(snapshot(backendId)));
+
+        OperationCapabilityQuery conv1dMapped = queries.stream()
+                .filter(query -> query.operation().kind() == Conv2dKind.CONV2D)
+                .findFirst().orElseThrow();
+        OperationCapabilityQuery squeeze = queries.stream()
+                .filter(query -> query.operation().kind() == AxisTransformKind.SQUEEZE)
+                .findFirst().orElseThrow();
+        OperationCapabilityQuery directConv2d = queries.stream()
+                .filter(query -> query.operation().kind() == Conv2dKind.CONV2D)
+                .skip(1).findFirst().orElseThrow();
+        OperationCapabilityQuery directConv3d = queries.stream()
+                .filter(query -> query.operation().kind() == Conv3dKind.CONV3D)
+                .findFirst().orElseThrow();
+        assertAll(
+                () -> assertTrue(conv1dMapped.outputs().getFirst().layout().isPresent()),
+                () -> assertTrue(squeeze.outputs().getFirst().layout().orElseThrow().isView()),
+                () -> assertEquals(LayoutDescriptor.contiguous(conv2d.descriptor().shape()),
+                        directConv2d.outputs().getFirst().layout().orElseThrow()),
+                () -> assertEquals(LayoutDescriptor.contiguous(conv3d.descriptor().shape()),
+                        directConv3d.outputs().getFirst().layout().orElseThrow()),
+                () -> assertEquals(LayoutDescriptor.of(
+                                conv1d.descriptor().shape(),
+                                LayoutDescriptor.contiguous(conv1d.descriptor().shape()).strides(),
+                                0,
+                                true),
+                        artifacts.publication().forwardBindings().stream()
+                                .filter(binding -> binding.tensorId().equals(conv1d.id()))
+                                .map(binding -> artifacts.graph().values().stream()
+                                        .filter(value -> value.id().equals(binding.valueId()))
+                                        .findFirst().orElseThrow().descriptor().layout().orElseThrow())
+                                .findFirst().orElseThrow()));
+    }
+
+    @Test
+    void dynamicConvolutionRemainsUnresolvedInRejectedCapabilityQuery() {
+        Shape inputShape = Shape.ofDimensions(
+                new StaticDimension(1), new StaticDimension(1),
+                new StaticDimension(2), new DynamicDimension("W"));
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, inputShape, Optional.empty(), false));
+        Tensor weight = staticTensor(Shape.of(1, 1, 1, 1), false);
+        Tensor output = input.conv2d(weight, Conv2dAttrs.defaults());
+        BackendId backendId = new BackendId("recording");
+        List<OperationCapabilityQuery> queries = new ArrayList<>();
+
+        assertThrows(IllegalStateException.class, () -> GraphCompiler.compile(
+                CompileMode.FORWARD_ONLY,
+                List.of(output),
+                Optional.empty(),
+                CompileTimeConstantGraph.Ingress.empty(),
+                GraphOptimizationConfig.disabled(),
+                BackendIntent.unconstrained(),
+                PartitionScoringConfig.neutral(),
+                List.of(provider(backendId, queries, false)),
+                List.of(snapshot(backendId))));
+
+        assertEquals(1, queries.size());
+        assertSame(Conv2dKind.CONV2D, queries.getFirst().operation().kind());
+        assertTrue(queries.getFirst().outputs().getFirst().layout().isEmpty());
+    }
+
+    @Test
+    void backwardCapableCompilationAlsoPublishesClosedConv2dLayout() {
+        Tensor input = staticTensor(Shape.of(1, 1, 2, 2), true);
+        Tensor weight = staticTensor(Shape.of(1, 1, 1, 1), true);
+        Tensor output = input.conv2d(weight, Conv2dAttrs.defaults());
+        Tensor objective = output.sum();
+
+        GraphCompilation compilation = GraphCompiler.compile(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(objective),
+                Optional.of(FunctionalGradientTestSupport.request(objective, List.of(input))),
+                CompileTimeConstantGraph.Ingress.empty(),
+                GraphOptimizationConfig.disabled());
+
+        var graph = compilation.validatedGraph().graph();
+        var conv = graph.nodes().stream()
+                .filter(node -> node.operation().kind() == Conv2dKind.CONV2D)
+                .findFirst().orElseThrow();
+        TensorDescriptor descriptor = graph.values().stream()
+                .filter(value -> value.id().equals(conv.outputs().getFirst()))
+                .findFirst().orElseThrow().descriptor();
+        assertEquals(LayoutDescriptor.contiguous(output.descriptor().shape()),
+                descriptor.layout().orElseThrow());
+        assertTrue(graph.nodePhases().containsValue(GraphPhase.BACKWARD));
+    }
+
+    @Test
+    void dynamicConv1dCompositionKeepsMappedConv2dAndSqueezeLayoutsUnresolved() {
+        Shape inputShape = Shape.ofDimensions(
+                new StaticDimension(1), new StaticDimension(1), new DynamicDimension("W"));
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, inputShape, Optional.empty(), false));
+        Tensor weight = staticTensor(Shape.of(1, 1, 2), false);
+        Tensor output = input.conv1d(weight, Conv1dAttrs.defaults());
+
+        GraphCompilation compilation = GraphCompiler.compile(
+                CompileMode.FORWARD_ONLY,
+                List.of(output),
+                Optional.empty(),
+                CompileTimeConstantGraph.Ingress.empty(),
+                GraphOptimizationConfig.disabled());
+
+        var graph = compilation.validatedGraph().graph();
+        Map<ValueId, TensorDescriptor> descriptors = graph.values().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        GraphValue::id, GraphValue::descriptor));
+        var conv = graph.nodes().stream()
+                .filter(node -> node.operation().kind() == Conv2dKind.CONV2D)
+                .findFirst().orElseThrow();
+        var squeeze = graph.nodes().stream()
+                .filter(node -> node.operation().kind() == AxisTransformKind.SQUEEZE)
+                .findFirst().orElseThrow();
+        assertAll(
+                () -> assertTrue(descriptors.get(conv.outputs().getFirst()).layout().isEmpty()),
+                () -> assertTrue(descriptors.get(squeeze.outputs().getFirst()).layout().isEmpty()));
     }
 
     @Test
@@ -992,6 +1142,14 @@ final class GraphCompilerTest {
     private static Tensor scalarTensor() {
         return TensorFactory.create(new TensorDescriptor(
                 DataType.FLOAT32, Shape.scalar(), Optional.empty(), true));
+    }
+
+    private static Tensor staticTensor(Shape shape, boolean requiresGrad) {
+        return TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                requiresGrad));
     }
 
     private static BackendCapabilityProvider provider(

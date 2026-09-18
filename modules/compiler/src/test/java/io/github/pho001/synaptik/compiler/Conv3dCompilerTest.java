@@ -217,6 +217,11 @@ final class Conv3dCompilerTest {
 
         OperationCapabilityQuery query = queries.getFirst();
         CompiledNode node = artifacts.graph().nodes().getFirst();
+        TensorDescriptor finalOutputDescriptor = artifacts.graph().values().stream()
+                .filter(value -> value.id().equals(node.outputs().getFirst()))
+                .findFirst()
+                .orElseThrow()
+                .descriptor();
         assertAll(
                 () -> assertEquals(1, queries.size()),
                 () -> assertSame(producer.operation(), query.operation()),
@@ -224,7 +229,8 @@ final class Conv3dCompilerTest {
                 () -> assertEquals(
                         producer.inputs().stream().map(Tensor::descriptor).toList(),
                         query.inputs()),
-                () -> assertEquals(producer.outputDescriptors(), query.outputs()),
+                () -> assertTrue(producer.outputDescriptors().getFirst().layout().isEmpty()),
+                () -> assertEquals(List.of(finalOutputDescriptor), query.outputs()),
                 () -> assertEquals(1, artifacts.publication().forwardBindings().size()),
                 () -> assertEquals(node.outputs().getFirst(), artifacts.graph().outputs().getFirst()),
                 () -> assertEquals(1, artifacts.partitions().size()),

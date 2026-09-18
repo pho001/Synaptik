@@ -16,8 +16,9 @@ The current stages are fail-closed autograd preflight, formula construction thro
 operations, one phase-aware capture, binding-free captured-graph verification with retained
 occurrence-local Shape predicates, mandatory dense
 canonicalization, explicit logical-splat facts, one bounded exact whole-graph optimization
-pipeline, publication-role validation, one owner selection per final graph node, maximal
-same-owner partitioning, logical-memory derivation, and immutable artifact assembly. Public
+pipeline, two bounded final logical-descriptor closures, publication-role validation, one owner
+selection per final graph node, maximal same-owner partitioning, logical-memory derivation, and
+immutable artifact assembly. Public
 `GraphCompilationPort` now exposes the complete constant-free pipeline as a narrow cross-module
 service-provider interface (SPI). It is not the recommended application API and does not provide
 the still-planned `CompileConfig` aggregate. `AdvancedEngine` uses
@@ -331,9 +332,9 @@ These are internal graph transformations, not a public compiler surface. They do
 casts, broader arithmetic, algebra, or views; construct autograd; derive publication, planning, or
 diagnostics; or affect trace, preparation, runtime, backend, or engine behavior. The current
 complete compiler entry transports the exact immutable facts into `CompileConstantPlan`, exposing
-only derived bindable inputs and exact logical-splat sources. Planning sees the unchanged logical
-graph. Future prepare/backend work owns physical splat materialization, storage allocation,
-lowering, and execution.
+only derived bindable inputs and exact logical-splat sources. Planning sees the topology and
+semantic operations left by those transformations. Prepare and backend work own physical splat
+materialization, storage allocation, lowering, and execution.
 
 After this final optimization has fixed the surviving topology, Compiler closes one narrower
 descriptor case before deriving forward or gradient bindings, publication, backend ownership,
@@ -356,8 +357,39 @@ This closure is logical descriptor completion only. It creates no node, partitio
 alignment declaration, slot, representation, initialized value, backend choice, caller binding,
 or executable publication. Planning therefore still reports a source-only published value as
 graph-output-required with no producer or consumer partition. The value is not yet preparable or
-executable: Prepare 0005 and CPU 0010H remain the downstream owners of resource handoff and
-physical materialization.
+executable from this Compiler fact alone: current Prepare and CPU behavior separately own resource
+handoff and physical materialization.
+
+The Compiler then performs one final convolution logical-layout closure. It visits final nodes in
+stored order and assigns `LayoutDescriptor.contiguous(shape)` if and only if a final `CONV2D` or
+`CONV3D` occurrence has its validated single output, the output Shape is fully static, and its
+layout remains unresolved. The replacement preserves the exact data type, Shape,
+`requiresGrad` value, `ValueId`, operation occurrence, and graph topology. Fully or partially
+dynamic outputs and already resolved outputs remain unchanged; the Compiler does not bind a
+dimension or inspect Tensor storage to make a Shape static.
+
+One additional rule carries this newly selected fact through the public Conv1d composition. An
+unresolved `SQUEEZE(axis=2)` output receives a view layout only when its exact input is a Conv2d
+output newly closed by the same invocation, that input has a fully static rank-four Shape with
+extent one at axis two, and the validated output is the corresponding rank-three Shape. The
+Compiler removes stride index two, preserves the input storage offset, and marks the result as a
+view. It does not identify a synthetic Conv1d operation or propagate layout through another
+squeeze, expand-dimensions, permutation, reshape, contiguous, slice, publication boundary, or
+unrelated operation.
+
+Both replacements use the Model's checked layout factories. Arithmetic overflow rejects
+compilation with operation-occurrence and value context while retaining the arithmetic failure as
+the cause. If neither rule is eligible, the exact validated graph state is returned. Otherwise
+only the changed graph-value descriptors are rebuilt; node and operation references, IDs,
+boundaries, phases, constants, caller-bindable Tensor IDs, deferred constraints, derivative-order
+values, publication identities, optimization results, and ordering are preserved.
+
+This convolution closure runs after final optimization, validation, and published compile-time
+constant descriptor closure, and before forward or gradient binding derivation, publication,
+Planning capability queries, partitioning, or logical-memory planning. Those consumers therefore
+observe the final descriptors. The closure asserts no backend capability and chooses no physical
+representation, allocation, storage, materialization, preparation, kernel, or execution behavior.
+It is not a general layout-inference or propagation policy.
 
 ### Current package-private pre-capture autograd
 
@@ -834,10 +866,14 @@ graph therefore asks no capability question, accepts unused list elements withou
 them, produces no partitions, and still receives one logical-memory requirement per graph value.
 Caller collections are neither retained nor mutated.
 
-After graph-stage success, Compiler performs this exact sequence:
+The end of graph-stage compilation and subsequent complete-artifact work follow this exact
+sequence:
 
 ```text
-final GraphCompilation
+optimized and validated graph
+  -> published compile-time constant descriptor closure
+  -> final convolution logical-layout closure
+  -> final GraphCompilation
   -> PublicationPlan
   -> CompileConstantPlan + CompileDiagnostics
   -> one OperationCapabilityQuery and owner selection per final node
@@ -1983,6 +2019,7 @@ forward Tensor outputs
   -> one phase-aware capture
   -> inference and validation
   -> canonicalization and one-shot exact whole-graph optimization
+  -> published-constant and final convolution logical-descriptor closure
   -> publication, backend ownership, partitions, and logical memory
   -> CompileArtifacts
 ```
