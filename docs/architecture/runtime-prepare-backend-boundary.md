@@ -156,7 +156,25 @@ the only layer that validates the decision against a freshly generated CPU batch
 
 This record is not wired into graph preparation, tuning measurement, or persistence. It contains
 no model-wide aggregation, cache schema, serialized form, corruption handling, executable, or
-Runtime state. Those operational collaborations remain downstream work.
+Runtime state. Engine now has a separate package-private representative-execution and safe-
+fallback lifecycle foundation, but no public model-autotuning composition wires these boundaries
+together yet; model-wide aggregation, measurement, and persistence remain downstream work.
+
+### Current representative-execution lifecycle
+
+Engine can now retain one lifecycle admission around a package-private synchronous representative
+session. Admission precedes owner and input inspection, then exact compiled-input binding
+snapshots every caller-owned host storage before borrowing non-owning wrappers. Each supplied
+complete trial recipe runs through the stateless Runtime runner in a fresh `RunState`, completes
+all publications, validates the result count, and closes the result without materializing output.
+
+The session closes wrappers once in reverse order before fresh selected or ordinary fallback
+preparation. Trial or cleanup failure invalidates the session and forbids either path. Required
+tuning propagates its recoverable failure without ordinary preparation; allowed fallback performs
+ordinary safe-heuristic preparation once only after successful cleanup. Engine closure waits for
+the admission, and a close race rejects the final selected or fallback recipe. This foundation
+does not interpret backend candidates, invoke the tuning tool, expose a public tuning request, or
+move tuning state into Runtime.
 
 ## The staged prepare handoff
 

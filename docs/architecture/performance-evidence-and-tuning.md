@@ -22,8 +22,12 @@ Benchmarking remains a separate report-only activity. Planning cost remains a se
 backend-neutral estimate used to prune or rank ownership choices. Runtime profiling remains
 passive observation.
 
-All contracts and artifacts on this page are planned. The diagram establishes ownership and
-boundaries; it does not declare a current Java API or physical file format.
+The complete two-phase model workflow and model-plan artifact remain planned. Current foundations
+include the explicit Config request, generic cache-first local-workload tuner, Prepare's opaque
+backend handoff, CPU's typed candidate and selected-preparation collaboration, and Engine's
+package-private synchronous representative-execution and safe-fallback lifecycle. These
+foundations are not yet composed into a public model-autotuning API, and this document does not
+declare a physical model-plan format.
 
 ## Benchmarking is fixed and observational
 
@@ -134,6 +138,14 @@ Model autotuning is optional for correctness. When tuning is disabled, a workloa
 absent, or an artifact is incompatible or corrupt, backend preparation uses safe heuristics and
 valid complete candidates. Cache-only preparation may reuse compatible entries without running a
 search.
+
+The current package-private Engine foundation admits one synchronous representative-input session
+before inspecting ownership or inputs. One admission spans complete trial executions in fresh
+Runtime state, result and borrowed-wrapper cleanup, and fresh selected or allowed safe-heuristic
+preparation. Any trial or cleanup failure invalidates the session and prevents fallback; required
+tuning never falls back, and a final Engine-close race rejects the newly prepared recipe. The
+later public composition must still supply representative values and stable model/occurrence
+identity, map Config into the tuning collaboration, and define its evidence/result surface.
 
 Runtime executes the selected prepared schedule. It performs no search, tuning-cache lookup or
 mutation, or hot-path graph inspection. Runtime profiling may passively describe actual execution

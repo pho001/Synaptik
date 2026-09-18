@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.engine;
 
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
+import io.github.pho001.synaptik.backend.cpu.CpuLocalWorkloadTuning;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.compiler.FunctionalGradientRequest;
 import io.github.pho001.synaptik.compiler.GraphCompilationPort;
@@ -371,6 +372,65 @@ public final class AdvancedEngine implements AutoCloseable {
         }
         finishFailure();
         throw closed;
+    }
+
+    /**
+     * Admits one synchronous representative-execution session after checking exact ownership.
+     * Engine lifecycle admission precedes owner and representative-input inspection; owner
+     * validation then precedes representative-input inspection. The returned package-private
+     * session retains that one admission across every trial, reverse cleanup, and the final
+     * selected or fallback preparation, so Engine closure waits for the complete operation.
+     *
+     * @param owner non-null ordinary Engine facade owning {@code compiledGraph}
+     * @param compiledGraph non-null compiled graph created by {@code owner}
+     * @param representativeInputs representative Tensors validated only after admission and owner
+     *     checks
+     * @return a non-null admitted session that must be closed if not completed by a final
+     *     preparation boundary
+     * @throws NullPointerException if an argument or representative element is null
+     * @throws IllegalArgumentException if the compiled graph belongs to another ordinary Engine
+     * @throws IllegalStateException if Engine closure has begun or representative storage is
+     *     absent, dead, or inaccessible
+     * @throws RuntimeException if binding, borrowing, or rollback reports another failure
+     * @throws Error if binding, borrowing, or rollback reports a fatal failure
+     */
+    RepresentativeExecutionSession openRepresentativeExecutionSession(
+            Engine owner,
+            CompiledGraph compiledGraph,
+            List<Tensor> representativeInputs) {
+        beginOperation();
+        try {
+            Objects.requireNonNull(owner, "owner");
+            Objects.requireNonNull(compiledGraph, "compiledGraph");
+            requireOrdinaryOwner(owner, compiledGraph.owner());
+            return new RepresentativeExecutionSession(
+                    this, compiledGraph, representativeInputs, composition, runner);
+        } catch (RuntimeException | Error failure) {
+            finishFailure();
+            throw failure;
+        }
+    }
+
+    /**
+     * Completes the exact admission retained by one representative session.
+     * This may release an Engine close that is waiting for the synchronous session.
+     */
+    void finishRepresentativeOperation() {
+        finishFailure();
+    }
+
+    /**
+     * Publishes one final representative-session recipe under the retained admission.
+     *
+     * @param execution non-null fresh selected or fallback production recipe
+     * @return the exact recipe if Engine closure has not begun
+     * @throws NullPointerException if {@code execution} is null
+     * @throws IllegalStateException if Engine closure won the final publication race
+     */
+    io.github.pho001.synaptik.runtime.execution.PreparedExecution
+            finishRepresentativePreparation(
+                    io.github.pho001.synaptik.runtime.execution.PreparedExecution execution) {
+        return finishHandle(execution);
     }
 
     HostTensorValue computeOrdinary(
@@ -1139,6 +1199,98 @@ public final class AdvancedEngine implements AutoCloseable {
         if (next != primary) {
             primary.addSuppressed(next);
         }
+    }
+
+    /**
+     * Closes representative borrowing before freshly preparing the selected production recipe.
+     * Cleanup failure prevents preparation. The retained Engine admission spans cleanup,
+     * preparation, and final publication; a close race rejects the fresh recipe. This
+     * package-private boundary performs no candidate interpretation or fallback.
+     *
+     * @param session non-null representative session whose cleanup must succeed first
+     * @param tuning non-null CPU-owned typed tuning collaboration
+     * @param batch non-null opaque batch that owns {@code decision}
+     * @param decision non-null exact selected decision
+     * @return a fresh non-null production recipe prepared after representative cleanup
+     * @throws NullPointerException if an argument or selected preparation result is null
+     * @throws IllegalStateException if the session is poisoned or not ready, or Engine closure
+     *     wins the final publication race
+     * @throws RuntimeException if cleanup or selected preparation reports another unchecked
+     *     failure
+     * @throws Error if cleanup or selected preparation reports a fatal failure
+     */
+    static io.github.pho001.synaptik.runtime.execution.PreparedExecution
+            prepareSelectedAfterRepresentativeCleanup(
+                    RepresentativeExecutionSession session,
+                    CpuLocalWorkloadTuning tuning,
+                    CpuLocalWorkloadTuning.CandidateBatch batch,
+                    CpuLocalWorkloadTuning.SelectedDecision decision) {
+        RepresentativeExecutionSession admittedSession =
+                Objects.requireNonNull(session, "session");
+        try {
+            admittedSession.cleanupForProductionPreparation();
+            var prepared = Objects.requireNonNull(tuning, "tuning").prepareSelected(
+                    Objects.requireNonNull(batch, "batch"),
+                    Objects.requireNonNull(decision, "decision"));
+            return admittedSession.completeProductionPreparation(prepared);
+        } finally {
+            admittedSession.releaseAdmission();
+        }
+    }
+
+    /**
+     * Resolves a recoverable tuning failure after representative cleanup.
+     * Required tuning rethrows the exact failure after successful cleanup. Allowed fallback
+     * invokes the existing ordinary preparation exactly once and only after cleanup proves the
+     * session unpoisoned. Cleanup failure forbids fallback: the exact tuning failure remains
+     * primary and receives the cleanup failure as a distinct suppression. If fallback preparation
+     * or final publication fails, that exact failure becomes primary and the tuning failure is
+     * suppressed when distinct. Callers must perform Engine admission and ownership checks before
+     * entering this boundary, so lifecycle or ownership rejection never becomes fallback input.
+     *
+     * @param session non-null representative session whose cleanup must succeed first
+     * @param tuningFailure non-null recoverable tuning failure; an {@link Error} cannot enter
+     * @param fallbackAllowed whether one ordinary safe-heuristic preparation is permitted
+     * @return a fresh non-null ordinary production recipe when fallback is allowed and succeeds
+     * @throws NullPointerException if {@code session} or {@code tuningFailure} is null
+     * @throws RuntimeException the exact tuning failure when fallback is forbidden or cleanup
+     *     fails; otherwise the exact fallback-preparation or final-publication unchecked failure
+     * @throws Error if ordinary preparation reports a fatal failure; the tuning failure is
+     *     suppressed on that exact primary error
+     */
+    static io.github.pho001.synaptik.runtime.execution.PreparedExecution
+            prepareAfterRecoverableTuningFailure(
+                    RepresentativeExecutionSession session,
+                    RuntimeException tuningFailure,
+                    boolean fallbackAllowed) {
+        Objects.requireNonNull(tuningFailure, "tuningFailure");
+        RepresentativeExecutionSession admittedSession =
+                Objects.requireNonNull(session, "session");
+        try {
+            admittedSession.cleanupForProductionPreparation();
+        } catch (RuntimeException | Error cleanupFailure) {
+            suppressDistinctOnce(tuningFailure, cleanupFailure);
+            admittedSession.releaseAdmission();
+            throw tuningFailure;
+        }
+        try {
+            if (!fallbackAllowed) throw tuningFailure;
+            return admittedSession.completeProductionPreparation(
+                    admittedSession.prepareOrdinaryFallback());
+        } catch (RuntimeException | Error preparationFailure) {
+            suppressDistinct(preparationFailure, tuningFailure);
+            throw preparationFailure;
+        } finally {
+            admittedSession.releaseAdmission();
+        }
+    }
+
+    private static void suppressDistinctOnce(Throwable primary, Throwable next) {
+        if (next == primary) return;
+        for (Throwable suppressed : primary.getSuppressed()) {
+            if (suppressed == next) return;
+        }
+        primary.addSuppressed(next);
     }
 
     private static IllegalStateException closedFailure() {
