@@ -29,7 +29,8 @@ final class EngineCompositionContractTest {
             "testImplementation(project(\":modules:runtime\"))",
             "testImplementation(project(\":modules:config\"))",
             "testImplementation(project(\":modules:model\"))",
-            "testImplementation(project(\":backends:cpu\"))");
+            "testImplementation(project(\":backends:cpu\"))",
+            "testImplementation(project(\":extensions:nn\"))");
 
     @Test
     void engineHasOnlyTheApprovedOrderedDirectDependencies() throws IOException {

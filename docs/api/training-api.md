@@ -302,10 +302,93 @@ The call has created parameter leaves and a fresh Tensor expression; it has not 
 output values. `Conv1d` visibly delegates through input/weight expansion, ordinary Conv2d, and
 squeeze, while `Conv2d` and `Conv3d` each delegate to their matching Tensor method.
 
+### Example: strict-load and execute a Conv2d layer
+
+The goal is to bind caller-owned host values as the complete state of a factory-created layer,
+construct its forward expression, and execute that expression through the standard Engine. This
+small helper creates a resolved contiguous `FLOAT32` leaf backed by the caller's array:
+
+```java
+import io.github.pho001.synaptik.engine.Engine;
+import io.github.pho001.synaptik.engine.HostTensorValue;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
+import io.github.pho001.synaptik.nn.layers.Conv2d;
+import io.github.pho001.synaptik.nn.module.ModuleFactory;
+import io.github.pho001.synaptik.nn.module.StateDictionary;
+import io.github.pho001.synaptik.nn.module.StateEntry;
+import io.github.pho001.synaptik.nn.module.StateKind;
+import java.lang.foreign.MemorySegment;
+import java.util.List;
+import java.util.Optional;
+
+static Tensor floatTensor(Shape shape, boolean requiresGrad, float... values) {
+    TensorDescriptor descriptor = new TensorDescriptor(
+            DataType.FLOAT32,
+            shape,
+            Optional.of(LayoutDescriptor.contiguous(shape)),
+            requiresGrad);
+    var storage = new MemorySegmentStorage(
+            DataType.FLOAT32, values.length, MemorySegment.ofArray(values));
+    return TensorFactory.create(descriptor, Optional.empty(), Optional.of(storage));
+}
+
+Conv2d layer = ModuleFactory.standard().conv2d(
+        1,                  // output channels
+        2, 2,               // kernel height and width
+        1, 1,               // stride height and width
+        0, 0,               // symmetric padding per side
+        1, 1,               // dilation height and width
+        1,                  // groups
+        true,               // bias
+        DataType.FLOAT32,
+        ParameterInitialization.zeros(),
+        41L);
+
+Tensor input = floatTensor(
+        Shape.of(1, 1, 3, 3), false,
+        1, 2, 3,
+        4, 5, 6,
+        7, 8, 9);
+Tensor weight = floatTensor(Shape.of(1, 1, 2, 2), true, 1, 0, 0, -1);
+Tensor bias = floatTensor(Shape.of(1), true, 0.5f);
+
+layer.loadStateDictionary(new StateDictionary(List.of(
+        new StateEntry("weight", StateKind.PARAMETER, weight),
+        new StateEntry("bias", StateKind.PARAMETER, bias))));
+
+Tensor output = layer.forward(input);
+HostTensorValue value;
+try (Engine engine = Engine.standard()) {
+    value = engine.compute(output);
+}
+
+float[] actual = new float[Math.toIntExact(value.elementCount())];
+value.bytes().asFloatBuffer().get(actual);
+```
+
+The dictionary is complete and strict: it binds the exact `weight` and `bias` Tensor references
+without running the configured zero initializer. Those two leaves and `input` retain their
+caller-owned host storage. `forward` creates the storage-free `[1,1,2,2]` expression; it does not
+execute it or load state automatically. `Engine.compute` discovers the reachable leaves, then
+compiles, prepares, runs, materializes, and cleans up its temporary result. The detached
+`HostTensorValue` owns no closeable resource, so `actual` can be read after the Engine closes; its
+four values are all `-3.5f`. Caller storage is never transferred to the Engine.
+
+For repeated execution, selective publication copies, or explicit input ordering, use the
+[reusable compile, prepare, run, and materialize workflow](runtime-api.md#current-ordinary-engine-boundary).
+
 The current boundary is deliberately forward-oriented. These NN layers do not compile, prepare,
 select a backend, execute values, or expose Engine behavior. Existing compiler rules cover the
 visible Conv1d composition and Conv2d; backward-capable compilation still rejects first-class
-Conv3d. Gradient-eligible Conv3d parameters therefore do not imply Conv3d training support.
+Conv3d. `Conv3d` therefore remains forward-only, and Compiler 0006C remains Draft.
+Gradient-eligible Conv3d parameters do not imply Conv3d training support.
 `ModuleFactory.standard()` supplies matching stateless `conv1d`, `conv2d`, and `conv3d` recipes,
 but each direct or factory-created layer has the same state, validation, and forwarding contract.
 

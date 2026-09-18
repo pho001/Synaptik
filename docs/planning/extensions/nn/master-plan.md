@@ -209,7 +209,7 @@ configurable merge, and another `ModuleFactory` recipe remain outside it.
 | 0023 | Arbitrary dense validity-mask semantics | Draft | 0022; concrete attention/loss/recurrent consumer | Reassess an explicit Boolean mask only for validity patterns with holes; keep it derived or separately supplied for that consumer, never a second stored representation of ordinary right padding, and never a claim of skipped recurrent work. |
 | 0024 | Typed model/recurrent/data integration checkpoint | Draft | 0020–0022; 0023 only if selected; Checkpoint model-state and Training publication readiness | Validate model state paths, automatic-initialization/checkpoint compatibility, variable-batch behavior, recurrent continuation, autograd/training handoff, documentation, and integration without moving persistent checkpoint I/O into NN. |
 | [0025](tasks/0025-channels-first-conv1d-conv2d-conv3d-layers.md) | Channels-first Conv1d, Conv2d, and Conv3d layers | Complete | 0020B; Model 0025G–0025H; Compiler 0006B and 0006B6; CPU 0008–0008A; Engine 0008 | Added separate final public `Conv1d`, `Conv2d`, and `Conv3d` unary modules plus stateless `ModuleFactory` recipes. Each infers only `inChannels` on first forward, while output channels, rank-specific kernel/stride/symmetric-padding/dilation geometry, groups, bias presence, floating data type, `ParameterInitialization`, and seed remain explicit. Checked group-aware fan derivation, atomic reserved-state publication, strict dictionary binding, visible rank-specific Tensor delegation, and the forward-only Conv3d boundary are preserved; there is no public `ConvNd`. |
-| [0025A](tasks/0025a-dimensional-convolution-user-capability-checkpoint.md) | Dimensional-convolution user-capability checkpoint | Draft | 0025; Compiler 0006C when training coverage is claimed; Engine 0004; CPU 0008A | Validate construction, state dictionaries, forward-only execution for all three channels-first ranks, grouped/bias geometry, cleanup/publication, and documentation through integration tests. Record Conv3d training as supported only if Compiler 0006C has closed its gradient inventory; otherwise verify the explicit fail-closed boundary. |
+| [0025A](tasks/0025a-dimensional-convolution-user-capability-checkpoint.md) | Dimensional-convolution user-capability checkpoint | Complete | 0025; Engine 0004; CPU 0008A | Validated strict-loaded direct Conv1d, factory grouped Conv2d, and direct grouped Conv3d through public one-shot and reusable Engine workflows, independent numerical oracles, publication/cleanup ownership, and the exact fail-closed Conv3d backward boundary. Compiler 0006C remains Draft, so no positive Conv3d-gradient or training capability is claimed. |
 
 ## Milestones
 
@@ -521,12 +521,15 @@ evidence without changing executable Java behavior or repeating stable Java test
 test-only context `01a0b51a-34a3-7732-a476-dfd0ca7977f9` then strengthened the accepted test
 evidence without changing production code, public APIs, Javadocs, or explanatory documentation;
 its 70-test focused run and 306-test, 41-suite NN run are the final controlling evidence. Detailed
-[NN 0025A](tasks/0025a-dimensional-convolution-user-capability-checkpoint.md) is now the selected
-next Draft specification and owns the layer-level public Engine capability checkpoint. Its bounded
-implementation adds one outward integration fixture, the integration project's test-only NN
-dependency, and one focused Training API example. It changes no production API or architecture
-boundary. Because Compiler 0006C remains Draft, the checkpoint requires positive forward evidence
-for all three ranks and an exact public Conv3d backward rejection rather than a training claim.
+[NN 0025A](tasks/0025a-dimensional-convolution-user-capability-checkpoint.md) is `Complete`. Its
+bounded seven-path checkpoint adds one outward integration fixture, the integration project's
+test-only NN dependency, the matching strict architecture inventory entry, and one focused
+Training API example. Strict-loaded direct Conv1d, factory grouped Conv2d, and direct grouped
+Conv3d now have positive public Engine forward evidence with independent numerical oracles,
+caller-storage/result-lifetime checks, and reusable grouped Conv2d execution. The checkpoint
+changes no production API or architecture boundary. Compiler 0006C remains Draft, so the current
+boundary is an exact public Conv3d backward rejection rather than a gradient or training claim.
+Unrelated NN 0021B–0024 remain Draft; the global frontier now returns to tools/tuning 0002.
 
 The proposed Data, Text, Vision, and Checkpoint master plans are also Draft: their modules do not
 exist in the architecture or build, so their first implementation must be a coordinated

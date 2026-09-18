@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft
+Complete
 
 ## Goal
 
@@ -182,9 +182,10 @@ The checkpoint adds no execution facade to NN and no layer knowledge to Engine. 
   `EngineCompositionContractTest.engineHasOnlyTheApprovedOrderedDirectDependencies()` still
   expected the pre-NN six-line `APPROVED_INTEGRATION` list while the build file correctly reported
   the new NN line seventh. Its XML records one test, one failure, and zero errors. This diagnosis
-  authorizes only the matching one-line expected-inventory addition and does not constitute final
-  checkpoint evidence; the final implementation context must rerun the complete repository
-  checkpoint after the inventory is synchronized.
+  authorized only the matching one-line expected-inventory addition and does not constitute final
+  checkpoint evidence. After synchronizing that exact inventory, the implementation context's
+  fresh complete repository run succeeded and is the controlling checkpoint evidence recorded
+  below.
 - `docs/api/training-api.md` explains the convolution layer/state contract and stops after
   expression construction. `docs/api/runtime-api.md` explains generic Engine lifecycle and
   storage ownership, but has no layer-state workflow.
@@ -469,13 +470,105 @@ master plan, and roadmap only after all gates pass; keep Compiler 0006C and unre
 
 ## Validation evidence
 
-Not yet finalized. The first root checkpoint's planned inventory mismatch is recorded only as
-current-state diagnosis above; a fresh complete repository checkpoint is still required.
+- Planning context `01a0b5f5-1cc0-7d42-b497-82c148a6d01b` selected this bounded seven-path
+  checkpoint. Implementation context `01a0b600-a3a8-79c3-a17a-00a41cb3f1d8` added the test-only
+  NN dependency, the public-API-only integration class, and the exact trailing strict architecture
+  inventory entry. Documentation context `01a0b611-62b6-70b0-a9a7-d3b6291b0fa6` independently
+  reviewed the frozen executable diff and finalized the Training API and planning records.
+- The implementation context's focused
+  `./gradlew :testing:integration-tests:test --tests io.github.pho001.synaptik.testing.integration.NnConvolutionEngineIntegrationTest`
+  run passed 3 tests with zero failures, errors, or skips. After the inventory amendment, the
+  focused `EngineCompositionContractTest` run passed its one test with zero failures, errors, or
+  skips.
+- The first repository-wide `./gradlew test --rerun-tasks` run is retained as diagnostic history:
+  it reached the strict architecture inventory and failed only because
+  `APPROVED_INTEGRATION` still described the prior six dependencies while the integration build
+  correctly contained the new seventh NN test dependency. The authorized one-line expected-list
+  amendment resolved that mismatch without weakening equality or changing another assertion.
+- The implementation context then ran a fresh controlling `./gradlew test --rerun-tasks` after
+  executable work stabilized. It completed successfully in 2 minutes 49 seconds with 70 tasks
+  executed. Fresh XML contained 498 suites and 3,217 tests: zero failures, zero errors, and 28
+  skips; all 498 XML files were rewritten by that final run.
+- The controlling XML confirms the new NN integration class passed 3/3 and the existing
+  `EngineConvolutionIntegrationTest` passed 3/3. NN `Conv1dTest` passed 3, `Conv2dTest` 4,
+  `Conv3dTest` 3, `ConvolutionInitializationTest` 8,
+  `ConvolutionStateDictionaryTest` 7, and `ModuleFactoryTest` 10, without skips. Engine advanced
+  lifecycle passed 6, typed lifecycle 26, standard composition 6, representative execution 24,
+  and the integration lifecycle/composition suites passed. The seven architecture suites passed
+  all nine tests without skips, including the strict ordered Engine composition inventory.
+- Structural review confirmed exactly the three executable paths, public Model/NN/Engine imports
+  only, independent primitive Java 1D/2D/3D oracles, no forbidden inward helper or import, and the
+  exact one-line architecture inventory change. LF/final-newline, empty-index, and executable diff
+  checks passed in the implementation context.
+- The documentation pass added one strict-loaded factory `Conv2d`-to-Engine example. It uses
+  caller-owned host-backed input, weight, and bias leaves; complete ordered parameter state;
+  storage-free `forward` expression construction; one-shot `Engine.compute`; and a detached
+  `[1,1,2,2]` host result whose four values are `-3.5f`. It links to Runtime's reusable lifecycle
+  and explicitly preserves the forward-only Conv3d/Compiler-0006C-Draft boundary.
+- Documentation validation checked every local Markdown file target and relevant heading anchor,
+  unique headings, balanced fences, glossary terminology, current-versus-planned wording, example
+  public names/signatures/state order/failure boundaries, status/dependency/frontier agreement,
+  LF/final newlines, trailing whitespace, exact seven-path combined scope, and empty staging.
+  `git diff --check` and `git diff --cached --check` passed. Java tests and Javadoc were not rerun:
+  this pass changed no executable Java or Javadoc, so it reused the fresh implementation evidence
+  as required by the documentation workflow.
+- SHA-256 hashes of the frozen executable paths were identical before and after documentation:
+  `e3305bd7b0fde58a987f34f62f08de9f4db6731dc3195bbab45c098fa40b3747` for the integration
+  build, `cac176b2eca027a348ac3109acfdb01c86c44cc72ae9baf137dac6ab57658611` for the new
+  integration class, and `1f32e81c5015b3c7de496d11f3330d8b84125b594cf5426bccba137a158c03fd`
+  for the architecture inventory test.
+- Final status checks confirm NN 0025 and 0025A are Complete, Compiler 0006C and NN 0021B–0024
+  remain Draft, tools/tuning 0002 is the next recorded frontier, and no detailed tools/tuning
+  0002 task was created.
 
 ## Implementation notes
 
-Not yet finalized.
+- Added the integration project's narrow test-only dependency on `extensions:nn` and recorded it
+  as the seventh ordered integration dependency in the unchanged strict architecture guard.
+- Added one public black-box integration class covering direct Conv1d, factory grouped Conv2d,
+  direct grouped Conv3d, complete strict state loading, exact state identity/order, automatic and
+  reusable Engine paths, detached materialization and cleanup, independent numerical oracles, and
+  the exact public Conv3d backward rejection. No production behavior or facade changed.
+- Added the focused Training API example and synchronized this task, the NN master plan, and the
+  global roadmap after the fresh full checkpoint passed.
+- Existing production Javadocs for `Conv1d`, `Conv2d`, `Conv3d`, `ModuleFactory`,
+  `StateDictionary`, `StateEntry`, `StateKind`, Tensor/host-storage APIs, and Engine compile/run/
+  materialization types remain accurate: the change composes their documented state, expression,
+  borrowed-storage, execution, and detached-value contracts without changing any signature or
+  behavior. No production Javadoc edit or generation is required.
+- The glossary already defines channels-first convolution layers, strict in-memory state,
+  standard module factory, host storage, publication occurrence, and host tensor value with the
+  meanings used here. The checkpoint introduces no reusable term or changed definition, so no
+  glossary edit is warranted.
+- No architecture contract, current architecture page, or ADR changed because the new edge is
+  outward test composition only and production dependency direction is unchanged. No backend-
+  conformance change is needed because backend operation behavior is unchanged. No production
+  Java, settings, convention, or other-module change is needed.
 
 ## Completion summary
 
-Not yet finalized.
+- Completed changes: Closed the dimensional-convolution user checkpoint with strict-loaded
+  Conv1d/Conv2d/Conv3d public Engine execution, independent expected values, lifecycle and
+  fail-closed Conv3d backward evidence, plus one concise user example.
+- Files changed or created: Exactly the seven paths listed in this task—three frozen executable
+  paths and four finalized documentation/planning paths.
+- Tests and validation: Reused the controlling 3-test focused integration pass, 1-test focused
+  architecture pass, and successful 3,217-test/498-suite repository checkpoint from implementation
+  context `01a0b600-a3a8-79c3-a17a-00a41cb3f1d8`; the documentation context passed all required
+  Markdown, scope, status, index, hash, newline, whitespace, and diff checks without running Java.
+- Documentation-agent review: Complete in clean context
+  `01a0b611-62b6-70b0-a9a7-d3b6291b0fa6` under the General, API/Javadoc, Planning, and Example
+  profiles.
+- Documentation impact: The Training API now connects strict NN state, caller host storage,
+  expression construction, standard Engine execution, detached results, and the reusable Runtime
+  workflow while preserving all current limitations.
+- Javadoc review: Existing affected public contracts remain accurate; no source change or Javadoc
+  run was required.
+- Glossary impact: No new or changed reusable terminology; existing entries remain accurate.
+- Architecture and conformance impact: None beyond the exact strict inventory record for the
+  outward integration-test dependency.
+- Unresolved issues: None.
+- Follow-up required: tools/tuning 0002 is the next recorded planning frontier; Compiler 0006C
+  remains the separate Draft prerequisite for any future positive Conv3d-gradient claim.
+
+Status: Complete

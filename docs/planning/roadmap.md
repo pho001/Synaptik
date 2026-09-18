@@ -24,7 +24,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through Prepare 0005 | Compiler 0006B5 supplies a resolved producerless/consumerless published-constant descriptor while Planning preserves its graph-output obligation. | Prepare contributes that resource to the handoff and assigns a deterministic shared slot without backend selection or physical geometry. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Complete baseline; optional provider 0004 Blocked/deferred | Native interop conventions needed by the provider are decided. | Required FLOAT32/FLOAT64 remains complete; the optional direct BFLOAT16-output capability stays fail-closed until both proof gaps are resolved. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through 0010I (0010D1 Blocked/deferred optional) | Complete CPU 0010E–0010H, Prepare 0004, and tools/tuning 0001 establish the current local-candidate, lifecycle, opaque-handoff, and tuning-consumer seams. | CPU 0010I supplies the supported typed CPU handoff/codec/trial-and-final selected-preparation collaboration while preserving ordinary heuristic preparation and external orchestration ownership. |
-| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0008 | CPU 0010I, Engine 0006A, and Compiler 0006B6 completed the tuning, representative-lifecycle, and public dimensional-convolution prerequisites. | The CPU-only Engine lifecycle checkpoint and NN 0025 convolution layers are complete; detailed [NN 0025A](extensions/nn/tasks/0025a-dimensional-convolution-user-capability-checkpoint.md) is the next Draft checkpoint. |
+| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0008 | CPU 0010I, Engine 0006A, and Compiler 0006B6 completed the tuning, representative-lifecycle, and public dimensional-convolution prerequisites. | The CPU-only Engine lifecycle checkpoint and NN 0025/0025A dimensional-convolution layers and user checkpoint are complete; tools/tuning 0002 is the next recorded frontier. |
 | 12 | [`backends/metal`](backends/metal/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | Metal passes the applicable backend-conformance suite. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | CUDA passes the applicable backend-conformance suite. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | The model representation and public tensor semantics are stable. | Selected import/export mappings and compatibility validation are complete. |
@@ -94,8 +94,9 @@ Compiler 0006B3 Engine-facing complete compile integration port (Complete)
   -> Compiler 0006B6 final convolution logical-layout closure and public Engine fixtures (Complete;
      user-authorized owning-prerequisite interleave)
   -> Engine 0008 lifecycle capability checkpoint (Complete)
-  -> Complete NN 0025 dimensional-convolution layers, then detailed Draft NN 0025A checkpoint
-  -> later tools/tuning 0002
+  -> NN 0025 dimensional-convolution layers (Complete)
+  -> NN 0025A dimensional-convolution user checkpoint (Complete)
+  -> tools/tuning 0002 (next recorded Draft frontier; no detailed specification)
 ```
 
 Detailed [Compiler 0006B3](modules/compiler/tasks/0006b3-public-constant-free-complete-compile-entry.md)
@@ -221,7 +222,8 @@ Conv1d/Conv2d/Conv3d fixtures passed. Detailed
 [NN 0025 channels-first Conv1d, Conv2d, and Conv3d layers](extensions/nn/tasks/0025-channels-first-conv1d-conv2d-conv3d-layers.md)
 is `Complete`; detailed
 [NN 0025A dimensional-convolution user-capability checkpoint](extensions/nn/tasks/0025a-dimensional-convolution-user-capability-checkpoint.md)
-is the selected next `Draft` task.
+is `Complete`. Tools/tuning 0002 is the next recorded Draft frontier; no detailed specification
+is created by this checkpoint.
 
 The Engine 0001 seam audit found a bounded actionable foundation, not a mixed-backend composition
 contract. `GraphPreparation` accepts one complete schedule assembler, and the only supported
@@ -312,8 +314,9 @@ NN 0001–0021A were completed through the bounded user-authorized interleaves r
 completed Engine 0008. This is an implementation-order exception around unrelated Draft NN
 0021B–0024, whose recurrent/Data contracts and files do not overlap NN 0025. Detailed
 [NN 0025A](extensions/nn/tasks/0025a-dimensional-convolution-user-capability-checkpoint.md)
-remains the following Draft checkpoint. Its test-only outward integration scope does not alter
-those recurrent/Data contracts or production dependency direction.
+is also `Complete`. Its test-only outward integration scope does not alter those recurrent/Data
+contracts or production dependency direction. Tools/tuning 0002 is now the next recorded Draft
+frontier, without a detailed task specification.
 
 The future sequence-padding program uses one valid sequence length per row as the sole canonical
 metadata for ordinary right padding. Data initially owns an immutable validated host value;
@@ -492,7 +495,8 @@ that evidence. Detailed
 [NN 0025](extensions/nn/tasks/0025-channels-first-conv1d-conv2d-conv3d-layers.md) is `Complete`
 with `Conv1d`, `Conv2d`, and `Conv3d` layers, while detailed
 [NN 0025A](extensions/nn/tasks/0025a-dimensional-convolution-user-capability-checkpoint.md)
-remains the following Draft owner of the layer-level end-to-end user capability.
+is `Complete` with strict-loaded layer-to-Engine evidence and the current fail-closed Conv3d
+backward boundary. Tools/tuning 0002 is the next recorded Draft frontier.
 
 This is an ordering and dependency correction within the already planned portable CPU route. It
 does not introduce a new portable route beginning at CPU 0008, change architecture, or make the
@@ -2177,7 +2181,8 @@ condition. Detailed
 [NN 0025](extensions/nn/tasks/0025-channels-first-conv1d-conv2d-conv3d-layers.md) is `Complete`
 under the recorded exception around unrelated Draft NN 0021B–0024; detailed
 [NN 0025A](extensions/nn/tasks/0025a-dimensional-convolution-user-capability-checkpoint.md)
-remains the next Draft user-capability checkpoint.
+is also `Complete`. Tools/tuning 0002 is the next recorded Draft frontier; Compiler 0006C and NN
+0021B–0024 remain Draft.
 Family tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator
 (RNG) state, mask, and configuration roles remain intentionally non-differentiable where
