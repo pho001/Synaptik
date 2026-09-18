@@ -752,6 +752,71 @@ closed-Engine handles cannot start new work. Materialization is current only for
 composition and fully static resolved publication descriptors. It is not an implicit transfer,
 cross-backend format promise, Tensor, storage association, typed array, or persistence format.
 
+Optional `prepareTuned(...)` is a cache-first CPU-only preparation path. This complete example
+uses a `CONTIGUOUS` expression, which has no eligible local tuning handoff in the current standard
+composition, so the allowed policy deterministically demonstrates explicit safe fallback:
+
+```java
+import io.github.pho001.synaptik.config.tuning.ModelAutotuningConfig;
+import io.github.pho001.synaptik.engine.CompiledGraph;
+import io.github.pho001.synaptik.engine.Engine;
+import io.github.pho001.synaptik.engine.ModelAutotuningPreparation;
+import io.github.pho001.synaptik.engine.ModelAutotuningRequest;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Optional;
+
+try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+    Shape shape = Shape.of(2);
+    TensorDescriptor descriptor = new TensorDescriptor(
+            DataType.FLOAT32, shape,
+            Optional.of(LayoutDescriptor.contiguous(shape)), false);
+    MemorySegment storage = arena.allocate(2L * Float.BYTES, Float.BYTES);
+    storage.setAtIndex(java.lang.foreign.ValueLayout.JAVA_FLOAT, 0, 1.0f);
+    storage.setAtIndex(java.lang.foreign.ValueLayout.JAVA_FLOAT, 1, 2.0f);
+    Tensor input = TensorFactory.create(descriptor, Optional.empty(), Optional.of(
+            new MemorySegmentStorage(DataType.FLOAT32, 2, storage)));
+    CompiledGraph graph = engine.compile(List.of(input.contiguous()));
+
+    ModelAutotuningConfig config = new ModelAutotuningConfig(
+            ModelAutotuningConfig.Objective.MIN_MEDIAN_ELAPSED_NANOS,
+            new ModelAutotuningConfig.Budget(1, 2, 1, 3),
+            new ModelAutotuningConfig.RepresentativeProfileIdentity(
+                    1, new byte[] {0x01}),
+            ModelAutotuningConfig.FallbackPolicy.ALLOW_SAFE_HEURISTIC,
+            Path.of("build", "example-workload-cache.bin"));
+    ModelAutotuningRequest request = new ModelAutotuningRequest(
+            config,
+            new ModelAutotuningRequest.ModelIdentity(1, new byte[] {0x42}),
+            List.of(input));
+
+    ModelAutotuningPreparation preparation = engine.prepareTuned(graph, request);
+    assert preparation.outcome()
+            == ModelAutotuningPreparation.Outcome.SAFE_HEURISTIC_FALLBACK;
+    assert preparation.evidence().isEmpty();
+    try (var result = engine.run(preparation.preparedExecution(), List.of(input))) {
+        assert result.publications().size() == 1;
+    }
+}
+```
+
+The request snapshots the list and identity bytes but retains the live caller-owned Tensor and
+storage. On an eligible cache miss, the configured one warmup and three timed samples apply per
+candidate; the lowest integer-middle median wins. Every trial uses fresh Runtime state, and the
+returned production handle is prepared afresh. A cache hit runs no trials. A tuned result has
+outcome `TUNED` and evidence for the sole current occurrence (index 0, partition 0, weight 1).
+Model/profile identities are caller-defined evidence labels, not workload-cache keys. Current
+scope excludes multiple workloads or occurrences and graph/plan tuning.
+
 The current one-shot forms are exactly:
 
 ```java

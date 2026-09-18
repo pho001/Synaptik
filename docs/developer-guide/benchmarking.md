@@ -54,11 +54,11 @@ an equal compatible decision before same-directory atomic cache publication. Ret
 evidence retains raw measured samples separately; cache-hit evidence has an empty candidate list
 and retains only the compact stored winner summary.
 
-This is a composition contract, not an out-of-the-box CPU or model API. There is no supported CPU
-adapter or Engine integration. The caller must supply complete execution and stable identities,
-while the backend retains semantic, compatibility, candidate-generation, decision-validation,
-route, and resource ownership. The current tool does not extract workloads from a model or perform
-the second graph/plan phase of model autotuning.
+Engine now supplies a bounded public CPU composition for one representative input set and at most
+one local workload. A compatible hit executes no trial. A miss uses the configured warmup and
+timed-sample counts, chooses the lowest integer-middle median with encounter-order ties, and then
+freshly prepares production state. The backend retains semantic, compatibility, candidate,
+decision, route, and resource ownership. Model extraction and graph/plan tuning remain planned.
 
 ## Current declarative Config request
 
@@ -75,15 +75,15 @@ Shapes, model fingerprint, occurrences, backend candidate batches, cache content
 resources do not enter Config. Constructing the facade performs no cache I/O, measurement,
 selection, preparation, Engine orchestration, or Runtime work.
 
-A later outer composition layer may depend on both modules. It can map the objective and four
-budget counts explicitly, construct the tool-local profile fingerprint from a Config accessor
-copy, and pass the exact requested path. That layer must separately supply the model fingerprint,
-occurrences, representative execution, and eligible candidates. It also owns fallback control
-flow: `REQUIRE_TUNED_RESULT` is strict, while `ALLOW_SAFE_HEURISTIC` permits abandoning a tuning
+Engine maps the objective and four budget counts explicitly, copies the profile identity, and
+passes the exact cache path. `ModelAutotuningRequest` separately supplies live representative
+Tensors and a caller-defined model identity. That identity labels evidence only; it is not a cache
+key or proof of equivalent model behavior. `REQUIRE_TUNED_RESULT` is strict, while
+`ALLOW_SAFE_HEURISTIC` permits abandoning a tuning
 transaction that cannot yield a complete result and continuing through ordinary safe heuristic
 preparation. Safe fallback does not make corrupt or incompatible cache data a hit, admit a
 candidate, relax numerical requirements, accept a partial result, or suppress an unrelated
-preparation failure. This mapping and control flow are planned, not current Engine behavior.
+preparation failure. `TUNED` carries evidence; `SAFE_HEURISTIC_FALLBACK` carries none.
 
 ## Benchmark workloads and reports
 
@@ -167,9 +167,9 @@ governs later harness and reporting work.
 
 The benchmark harness and report, full two-phase model-autotuning workflow, planning-cost model,
 and concrete runtime-profile payloads remain planned. The generic caller-supplied workload tuner,
-bounded persistent workload cache, and separate immutable Config request facade are current, but
-their supported CPU/Engine composition, model extraction, complete graph/plan search, concurrent
-writers, cache migration, and inspection remain deferred. Config owns request inputs only; it does
+bounded persistent workload cache, immutable Config request, and bounded CPU/Engine composition
+are current, but model extraction, multiple occurrences, graph/plan search, concurrent writers,
+cache migration, and inspection remain deferred. Config owns policy inputs only; it does
 not own the runner, search algorithm, cache behavior, live discovery, or mutable evidence. No
 benchmark runs in the runtime hot path.
 

@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.engine;
 
 import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
+import io.github.pho001.synaptik.backend.cpu.CpuLocalWorkloadTuning;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -36,6 +37,17 @@ final class CpuEngineBackendComposition implements EngineBackendComposition {
         this.integration = Objects.requireNonNull(integration, "integration");
         capabilityProviders = List.of(integration.capabilityProvider());
         availabilitySnapshots = List.of(integration.availabilitySnapshot());
+    }
+
+    /**
+     * Returns the retained CPU-owned local-workload tuning collaboration.
+     *
+     * @return the exact non-null collaboration owned by the retained CPU integration
+     * @throws RuntimeException if the CPU integration cannot expose its cold collaboration
+     * @throws Error if acquisition reports a fatal failure
+     */
+    CpuLocalWorkloadTuning localWorkloadTuning() {
+        return integration.localWorkloadTuning();
     }
 
     /** {@inheritDoc} */

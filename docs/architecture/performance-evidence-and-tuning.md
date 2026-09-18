@@ -22,12 +22,10 @@ Benchmarking remains a separate report-only activity. Planning cost remains a se
 backend-neutral estimate used to prune or rank ownership choices. Runtime profiling remains
 passive observation.
 
-The complete two-phase model workflow and model-plan artifact remain planned. Current foundations
-include the explicit Config request, generic cache-first local-workload tuner, Prepare's opaque
-backend handoff, CPU's typed candidate and selected-preparation collaboration, and Engine's
-package-private synchronous representative-execution and safe-fallback lifecycle. These
-foundations are not yet composed into a public model-autotuning API, and this document does not
-declare a physical model-plan format.
+The complete two-phase model workflow and model-plan artifact remain planned. The current public
+Engine composition implements only CPU-local Phase 1 for one representative input set and at most
+one eligible local workload. It joins Config, the cache-first tuner, Prepare's opaque handoff, and
+CPU's typed candidates behind `Engine.prepareTuned(...)`; it defines no model-plan format.
 
 ## Benchmarking is fixed and observational
 
@@ -139,13 +137,18 @@ absent, or an artifact is incompatible or corrupt, backend preparation uses safe
 valid complete candidates. Cache-only preparation may reuse compatible entries without running a
 search.
 
-The current package-private Engine foundation admits one synchronous representative-input session
-before inspecting ownership or inputs. One admission spans complete trial executions in fresh
-Runtime state, result and borrowed-wrapper cleanup, and fresh selected or allowed safe-heuristic
-preparation. Any trial or cleanup failure invalidates the session and prevents fallback; required
-tuning never falls back, and a final Engine-close race rejects the newly prepared recipe. The
-later public composition must still supply representative values and stable model/occurrence
-identity, map Config into the tuning collaboration, and define its evidence/result surface.
+The current Engine operation is cache-first: a compatible hit executes no trial. For a miss,
+`tools/tuning` runs the configured warmup count and timed-sample count per bounded candidate and
+selects the lowest integer-middle median, retaining encounter order for ties. Each trial uses a
+fresh preparation and fresh Runtime state. After a hit or measured winner, Engine cleans the
+representative session and freshly prepares production state; fallback also freshly performs
+ordinary safe preparation.
+
+`TUNED` carries authenticated immutable evidence. `SAFE_HEURISTIC_FALLBACK` records allowed safe
+preparation and carries no evidence. Caller-defined model and profile identities label evidence;
+they neither key the workload cache nor authorize compatibility. The current occurrence is always
+index 0 in partition 0 with weight 1. This is CPU-only tuning of one local workload, not model
+extraction, multi-occurrence weighting, graph/plan tuning, or model-plan persistence.
 
 Runtime executes the selected prepared schedule. It performs no search, tuning-cache lookup or
 mutation, or hot-path graph inspection. Runtime profiling may passively describe actual execution

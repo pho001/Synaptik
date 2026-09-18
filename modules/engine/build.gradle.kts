@@ -9,4 +9,5 @@ dependencies {
     implementation(project(":backends:cpu"))
     implementation(project(":backends:metal"))
     implementation(project(":backends:cuda"))
+    implementation(project(":tools:tuning"))
 }

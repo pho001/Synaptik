@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.engine.CompiledGraph;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.HostTensorValue;
+import io.github.pho001.synaptik.engine.ModelAutotuningPreparation;
+import io.github.pho001.synaptik.engine.ModelAutotuningRequest;
 import io.github.pho001.synaptik.engine.PreparedExecution;
 import io.github.pho001.synaptik.engine.RunResult;
 import io.github.pho001.synaptik.engine.ScalarObjectiveBackwardResult;
@@ -37,7 +39,7 @@ final class EngineTypedPublicShapeTest {
                 .toList());
 
         assertEquals(List.of("backward", "close", "compile", "compile", "compute", "compute",
-                "compute", "compute", "isClosed", "prepare", "run", "standard"),
+                "compute", "compute", "isClosed", "prepare", "prepareTuned", "run", "standard"),
                 methodNames(Engine.class));
         assertEquals(List.of("inputs"), methodNames(CompiledGraph.class));
         assertEquals(List.of("compiledGraph"), methodNames(PreparedExecution.class));
@@ -58,6 +60,9 @@ final class EngineTypedPublicShapeTest {
                 Engine.class.getMethod("compile", List.class, List.class, List.class).getReturnType());
         assertEquals(PreparedExecution.class,
                 Engine.class.getMethod("prepare", CompiledGraph.class).getReturnType());
+        assertEquals(ModelAutotuningPreparation.class,
+                Engine.class.getMethod("prepareTuned", CompiledGraph.class,
+                        ModelAutotuningRequest.class).getReturnType());
         assertEquals(RunResult.class,
                 Engine.class.getMethod("run", PreparedExecution.class, List.class).getReturnType());
         assertEquals(ScalarObjectiveBackwardResult.class,
@@ -96,7 +101,17 @@ final class EngineTypedPublicShapeTest {
         }
         for (Class<?> type : List.of(Engine.class, CompiledGraph.class, PreparedExecution.class,
                 RunResult.class, HostTensorValue.class, ScalarObjectiveBackwardResult.class,
-                RunResult.Publication.class,
+                RunResult.Publication.class, ModelAutotuningRequest.class,
+                ModelAutotuningRequest.ModelIdentity.class,
+                ModelAutotuningPreparation.class,
+                ModelAutotuningPreparation.Evidence.class,
+                ModelAutotuningPreparation.WorkloadEvidence.class,
+                ModelAutotuningPreparation.OccurrenceEvidence.class,
+                ModelAutotuningPreparation.CandidateEvidence.class,
+                ModelAutotuningPreparation.SampleSummary.class,
+                ModelAutotuningPreparation.CompatibilityIdentity.class,
+                ModelAutotuningPreparation.ContextIdentity.class,
+                ModelAutotuningPreparation.CandidateIdentity.class,
                 CompiledGraph.Input.class)) {
             Arrays.stream(type.getDeclaredMethods()).filter(method -> Modifier.isPublic(
                     method.getModifiers())).forEach(method -> assertOrdinary(method.toGenericString()));
@@ -108,6 +123,23 @@ final class EngineTypedPublicShapeTest {
         assertFalse(AutoCloseable.class.isAssignableFrom(PreparedExecution.class));
         assertFalse(AutoCloseable.class.isAssignableFrom(HostTensorValue.class));
         assertFalse(AutoCloseable.class.isAssignableFrom(ScalarObjectiveBackwardResult.class));
+        assertEquals(List.of("config", "modelIdentity", "representativeInputs"),
+                methodNames(ModelAutotuningRequest.class));
+        assertEquals(List.of("bytes", "equals", "hashCode", "schemaVersion", "toString"),
+                methodNames(ModelAutotuningRequest.ModelIdentity.class));
+        assertEquals(List.of("evidence", "outcome", "preparedExecution"),
+                methodNames(ModelAutotuningPreparation.class));
+        assertEquals(List.of("TUNED", "SAFE_HEURISTIC_FALLBACK"),
+                Arrays.stream(ModelAutotuningPreparation.Outcome.values()).map(Enum::name).toList());
+        assertEquals(List.of("CACHE_HIT", "MEASURED"),
+                Arrays.stream(ModelAutotuningPreparation.Source.values()).map(Enum::name).toList());
+        assertEquals(List.of("SESSION", "PERSISTENT"),
+                Arrays.stream(ModelAutotuningPreparation.ReuseScope.values()).map(Enum::name).toList());
+        assertEquals(0, Arrays.stream(ModelAutotuningPreparation.class.getDeclaredConstructors())
+                .filter(constructor -> Modifier.isPublic(constructor.getModifiers())
+                        || Modifier.isProtected(constructor.getModifiers())).count());
+        assertEquals(1, Arrays.stream(ModelAutotuningRequest.class.getDeclaredConstructors())
+                .filter(constructor -> Modifier.isPublic(constructor.getModifiers())).count());
         assertEquals(1, HostTensorValue.class.getDeclaredConstructors().length);
         var hostConstructor = HostTensorValue.class.getDeclaredConstructors()[0];
         assertEquals(0, hostConstructor.getModifiers());

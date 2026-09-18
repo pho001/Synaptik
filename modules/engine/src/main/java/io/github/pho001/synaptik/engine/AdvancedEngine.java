@@ -9,6 +9,7 @@ import io.github.pho001.synaptik.config.compile.BackendIntent;
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
+import io.github.pho001.synaptik.config.tuning.ModelAutotuningConfig;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorId;
@@ -22,6 +23,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import io.github.pho001.synaptik.prepare.analysis.BackendPartitionTuningHandoff;
+import io.github.pho001.synaptik.prepare.analysis.BackendTuningCandidateBatch;
+import io.github.pho001.synaptik.prepare.analysis.BackendTuningDecision;
+import io.github.pho001.synaptik.tools.tuning.BackendWorkloadTuning;
+import io.github.pho001.synaptik.tools.tuning.WorkloadTuning;
+import io.github.pho001.synaptik.tools.tuning.WorkloadTuningRequest;
+import io.github.pho001.synaptik.tools.tuning.WorkloadTuningResult;
 
 /**
  * Owns one advanced CPU compile, prepare, and representation-level run lifecycle.
@@ -51,11 +62,42 @@ public final class AdvancedEngine implements AutoCloseable {
 
     private final Object lifecycleLock = new Object();
     private final EngineBackendComposition composition;
+    private final ModelAutotuningTuning<?, ?, ?> tuningOverride;
     private final PreparedExecutionRunner runner = new PreparedExecutionRunner();
     private final ArrayList<AdvancedRunResult> openResults = new ArrayList<>();
     private Lifecycle lifecycle = Lifecycle.OPEN;
     private int activeOperations;
     private Throwable closeFailure;
+
+    /** Narrow typed cold-tuning seam implemented by CPU production composition and focused tests. */
+    interface ModelAutotuningTuning<C extends BackendTuningCandidateBatch,
+            D extends BackendTuningDecision, K> extends BackendWorkloadTuning<C, D, K> {
+        /**
+         * Obtains the optional CPU-local candidate handoff for the exact compile artifacts.
+         * @param artifacts non-null immutable artifacts for the admitted compiled graph
+         * @return a non-null optional containing the sole eligible handoff, or empty when tuning
+         *     is unavailable
+         */
+        Optional<BackendPartitionTuningHandoff<C, D>> candidateHandoff(CompileArtifacts artifacts);
+        /**
+         * Freshly prepares one complete trial recipe without starting Runtime execution.
+         * @param batch non-null backend-owned compatible candidate batch
+         * @param candidate non-null opaque candidate from that batch
+         * @return a fresh non-null complete trial recipe
+         * @throws Exception if cold trial preparation cannot complete
+         */
+        io.github.pho001.synaptik.runtime.execution.PreparedExecution prepareTrial(C batch, K candidate)
+                throws Exception;
+        /**
+         * Freshly prepares the final production recipe for an authenticated decision.
+         * @param batch non-null original backend-owned candidate batch
+         * @param decision non-null authenticated selected decision
+         * @return a fresh non-null production recipe
+         * @throws RuntimeException if selected preparation fails
+         * @throws Error if selected preparation reports a fatal failure
+         */
+        io.github.pho001.synaptik.runtime.execution.PreparedExecution prepareSelected(C batch, D decision);
+    }
 
     /**
      * Transfers cleanup ownership of one exact CPU integration to a new Engine.
@@ -81,7 +123,23 @@ public final class AdvancedEngine implements AutoCloseable {
      * @throws NullPointerException if {@code composition} is null
      */
     AdvancedEngine(EngineBackendComposition composition) {
+        this(composition, null);
+    }
+
+    /**
+     * Creates an Engine with a package-private focused tuning collaboration override.
+     * The override is retained without access and is first used only after representative-session
+     * construction under an existing admission.
+     *
+     * @param composition non-null owned Engine composition
+     * @param tuningOverride optional focused typed collaboration used instead of CPU production
+     *     adaptation; retained without invoking it
+     */
+    AdvancedEngine(
+            EngineBackendComposition composition,
+            ModelAutotuningTuning<?, ?, ?> tuningOverride) {
         this.composition = Objects.requireNonNull(composition, "composition");
+        this.tuningOverride = tuningOverride;
     }
 
     /**
@@ -431,6 +489,184 @@ public final class AdvancedEngine implements AutoCloseable {
             finishRepresentativePreparation(
                     io.github.pho001.synaptik.runtime.execution.PreparedExecution execution) {
         return finishHandle(execution);
+    }
+
+    /** Publishes a complete public autotuning result through one retained admission. */
+    ModelAutotuningPreparation finishRepresentativePreparation(
+            ModelAutotuningPreparation preparation) {
+        return finishHandle(preparation);
+    }
+
+    /**
+     * Admits one ordinary public tuning request before any argument, adapter, or composition
+     * inspection. Owner/request validation and already-admitted representative-session
+     * construction precede CPU adapter construction and acquisition. Adapter-setup failure keeps
+     * its exact throwable primary, closes representative wrappers, suppresses a distinct cleanup
+     * failure once, and releases the sole admission without entering fallback.
+     *
+     * @param owner raw ordinary facade reference forwarded by {@link Engine}
+     * @param compiledGraph raw owner-bound compile handle reference
+     * @param request raw public tuning request reference
+     * @return one completely constructed selected or safe-fallback preparation
+     * @throws RuntimeException if lifecycle, validation, tuning, preparation, publication, or
+     *     cleanup reports an unchecked failure
+     * @throws Error if inward work or cleanup reports a fatal failure
+     */
+    ModelAutotuningPreparation prepareTunedOrdinary(
+            Engine owner, CompiledGraph compiledGraph, ModelAutotuningRequest request) {
+        beginOperation();
+        return prepareTunedOrdinaryAlreadyAdmitted(
+                owner, compiledGraph, request, tuningOverride);
+    }
+
+    /**
+     * Focused typed test entry with the same first-statement admission and exact orchestration
+     * body as production. The supplied collaboration is not accessed until validation and
+     * representative-session construction succeed.
+     *
+     * @param owner raw ordinary facade reference
+     * @param compiledGraph raw compile handle reference
+     * @param request raw public request reference
+     * @param tuning non-null typed synthetic collaboration, retained until post-session use
+     * @param <C> opaque candidate-batch type
+     * @param <D> opaque selected-decision type
+     * @param <K> opaque candidate type
+     * @return one completely constructed selected or safe-fallback preparation
+     * @throws RuntimeException if lifecycle, validation, tuning, preparation, publication, or
+     *     cleanup reports an unchecked failure
+     * @throws Error if inward work or cleanup reports a fatal failure
+     */
+    <C extends BackendTuningCandidateBatch, D extends BackendTuningDecision, K>
+            ModelAutotuningPreparation prepareTunedOrdinary(
+                    Engine owner,
+                    CompiledGraph compiledGraph,
+                    ModelAutotuningRequest request,
+                    ModelAutotuningTuning<C, D, K> tuning) {
+        beginOperation();
+        return prepareTunedOrdinaryAlreadyAdmitted(owner, compiledGraph, request, tuning);
+    }
+
+    private ModelAutotuningPreparation prepareTunedOrdinaryAlreadyAdmitted(
+            Engine owner,
+            CompiledGraph compiledGraph,
+            ModelAutotuningRequest request,
+            ModelAutotuningTuning<?, ?, ?> suppliedTuning) {
+        RepresentativeExecutionSession session;
+        ModelAutotuningConfig config;
+        ModelAutotuningRequest.ModelIdentity modelIdentity;
+        try {
+            Objects.requireNonNull(compiledGraph, "compiledGraph");
+            requireOrdinaryOwner(owner, compiledGraph.owner());
+            Objects.requireNonNull(request, "request");
+            config = request.config();
+            modelIdentity = request.modelIdentity();
+            session = new RepresentativeExecutionSession(
+                    this, compiledGraph, request.representativeInputs(), composition, runner);
+        } catch (RuntimeException | Error failure) {
+            finishFailure();
+            throw failure;
+        }
+
+        ModelAutotuningTuning<?, ?, ?> tuning;
+        try {
+            tuning = suppliedTuning;
+            if (tuning == null) {
+                tuning = new CpuTuningAdapter((CpuEngineBackendComposition) composition);
+            }
+        } catch (RuntimeException | Error failure) {
+            closeWithSuppression(session, failure);
+            throw failure;
+        }
+        return prepareTunedOrdinaryWithSession(
+                owner, compiledGraph, config, modelIdentity, session, tuning);
+    }
+
+    private <C extends BackendTuningCandidateBatch, D extends BackendTuningDecision, K>
+            ModelAutotuningPreparation prepareTunedOrdinaryWithSession(
+                    Engine owner,
+                    CompiledGraph compiledGraph,
+                    ModelAutotuningConfig config,
+                    ModelAutotuningRequest.ModelIdentity modelIdentity,
+                    RepresentativeExecutionSession session,
+                    ModelAutotuningTuning<C, D, K> tuning) {
+        RuntimeException recoverable = null;
+        boolean selectionAuthenticated = false;
+        try {
+            var optionalHandoff = tuning.candidateHandoff(compiledGraph.artifacts());
+            if (optionalHandoff.isEmpty()) {
+                throw new IllegalStateException("no eligible CPU local-workload tuning handoff");
+            }
+            var handoff = optionalHandoff.orElseThrow();
+            byte[] context = ByteBuffer.allocate(8).putInt(0).putInt(0).array();
+            WorkloadTuningRequest<C, D> tuningRequest = tuningRequest(
+                            config, modelIdentity, handoff, context);
+            WorkloadTuningResult<C, D> result;
+            try {
+                result = WorkloadTuning.tune(tuningRequest, tuning,
+                        (batch, candidate) -> {
+                            var trial = tuning.prepareTrial(batch, candidate);
+                            session.execute(trial);
+                        });
+            } catch (RuntimeException failure) {
+                if (session.isRepresentativeExecutionFailure(failure)) throw failure;
+                throw failure;
+            } catch (IOException failure) {
+                throw new UncheckedIOException(failure);
+            } catch (Exception failure) {
+                throw new IllegalStateException("unexpected checked tuning failure", failure);
+            }
+            BackendPartitionTuningHandoff<C, D> selected = authenticate(
+                            result, handoff, tuningRequest, context);
+            selectionAuthenticated = true;
+            session.cleanupForProductionPreparation();
+            var inward = tuning.prepareSelected(
+                    selected.candidateBatch(), selected.selectedDecision().orElseThrow());
+            ModelAutotuningPreparation.Evidence evidence = translateEvidence(
+                    result.evidence(), config, modelIdentity, context);
+            var prepared = new io.github.pho001.synaptik.engine.PreparedExecution(
+                    owner, compiledGraph, inward);
+            var publicResult = new ModelAutotuningPreparation(
+                    prepared, ModelAutotuningPreparation.Outcome.TUNED, Optional.of(evidence));
+            return session.completeModelAutotuningPreparation(publicResult);
+        } catch (Error failure) {
+            if (!session.isRepresentativeExecutionFailure(failure)) closeWithSuppression(session, failure);
+            throw failure;
+        } catch (RuntimeException failure) {
+            if (session.isRepresentativeExecutionFailure(failure)) throw failure;
+            if (!canResolveRecoverableTuningFailure(session, selectionAuthenticated)) {
+                session.releaseAdmission();
+                throw failure;
+            }
+            recoverable = failure;
+        }
+
+        boolean allowed = config.fallbackPolicy()
+                == ModelAutotuningConfig.FallbackPolicy.ALLOW_SAFE_HEURISTIC;
+        try {
+            session.cleanupForProductionPreparation();
+        } catch (RuntimeException | Error cleanupFailure) {
+            suppressDistinctOnce(recoverable, cleanupFailure);
+            session.releaseAdmission();
+            throw recoverable;
+        }
+        if (!allowed) {
+            session.releaseAdmission();
+            throw recoverable;
+        }
+        try {
+            var inward = session.prepareOrdinaryFallback();
+            var prepared = new io.github.pho001.synaptik.engine.PreparedExecution(
+                    owner, compiledGraph, inward);
+            var result = new ModelAutotuningPreparation(prepared,
+                    ModelAutotuningPreparation.Outcome.SAFE_HEURISTIC_FALLBACK,
+                    Optional.empty());
+            return session.completeModelAutotuningPreparation(result);
+        } catch (RuntimeException | Error fallbackFailure) {
+            suppressDistinctOnce(fallbackFailure, recoverable);
+            throw fallbackFailure;
+        } finally {
+            session.releaseAdmission();
+        }
     }
 
     HostTensorValue computeOrdinary(
@@ -1291,6 +1527,214 @@ public final class AdvancedEngine implements AutoCloseable {
             if (suppressed == next) return;
         }
         primary.addSuppressed(next);
+    }
+
+    /**
+     * Observes the exact fallback boundary without inspecting a tuning result. Once selection is
+     * authenticated, cleanup, selected preparation, public translation/construction, and final
+     * publication failures are never recoverable tuning failures.
+     *
+     * @param session non-null admitted representative session
+     * @param selectionAuthenticated whether result authentication completed successfully
+     * @return whether a runtime failure may enter the recoverable cleanup/fallback state machine
+     */
+    static boolean canResolveRecoverableTuningFailure(
+            RepresentativeExecutionSession session, boolean selectionAuthenticated) {
+        return !selectionAuthenticated
+                && Objects.requireNonNull(session, "session")
+                        .canResolveRecoverableTuningFailure();
+    }
+
+    private static <C extends BackendTuningCandidateBatch, D extends BackendTuningDecision>
+            WorkloadTuningRequest<C, D> tuningRequest(
+                    ModelAutotuningConfig config,
+                    ModelAutotuningRequest.ModelIdentity modelIdentity,
+                    BackendPartitionTuningHandoff<C, D> handoff,
+                    byte[] context) {
+        Objects.requireNonNull(config, "config");
+        var profile = config.representativeProfile();
+        var budget = config.budget();
+        return new WorkloadTuningRequest<>(
+                new WorkloadTuningRequest.ModelFingerprint(
+                        modelIdentity.schemaVersion(), modelIdentity.bytes()),
+                new WorkloadTuningRequest.ProfileFingerprint(
+                        profile.schemaVersion(), profile.bytes()),
+                List.of(new WorkloadTuningRequest.Occurrence<>(handoff, 1, context)),
+                switch (config.objective()) {
+                    case MIN_MEDIAN_ELAPSED_NANOS ->
+                            WorkloadTuningRequest.Objective.MIN_MEDIAN_ELAPSED_NANOS;
+                },
+                new WorkloadTuningRequest.Budget(
+                        budget.maximumDistinctCacheMisses(),
+                        budget.maximumCandidatesPerMiss(),
+                        budget.warmupCount(), budget.timedSampleCount()),
+                config.workloadCache());
+    }
+
+    private static <C extends BackendTuningCandidateBatch, D extends BackendTuningDecision>
+            BackendPartitionTuningHandoff<C, D> authenticate(
+                    WorkloadTuningResult<C, D> result,
+                    BackendPartitionTuningHandoff<C, D> original,
+                    WorkloadTuningRequest<C, D> request,
+                    byte[] context) {
+        Objects.requireNonNull(result, "tuning result");
+        if (result.selectedHandoffs().size() != 1) {
+            throw new IllegalArgumentException("tuning result must contain exactly one handoff");
+        }
+        var selected = result.selectedHandoffs().getFirst();
+        if (selected.partition() != original.partition()
+                || selected.candidateBatch() != original.candidateBatch()
+                || selected.selectedDecision().isEmpty()) {
+            throw new IllegalArgumentException("selected handoff does not match the original handoff");
+        }
+        var evidence = result.evidence();
+        if (!evidence.modelFingerprint().equals(request.modelFingerprint())
+                || !evidence.profileFingerprint().equals(request.profileFingerprint())
+                || evidence.objective() != request.objective()
+                || !evidence.budget().equals(request.budget())
+                || evidence.workloads().size() != 1) {
+            throw new IllegalArgumentException("tuning result evidence does not match the request");
+        }
+        var workload = evidence.workloads().getFirst();
+        if (workload.totalWeight() != 1 || workload.occurrences().size() != 1
+                || workload.occurrences().getFirst().weight() != 1
+                || !java.util.Arrays.equals(
+                        workload.occurrences().getFirst().contextFingerprint(), context)) {
+            throw new IllegalArgumentException("tuning occurrence evidence does not match the request");
+        }
+        return selected;
+    }
+
+    private static ModelAutotuningPreparation.Evidence translateEvidence(
+            WorkloadTuningResult.Evidence inward,
+            ModelAutotuningConfig config,
+            ModelAutotuningRequest.ModelIdentity modelIdentity,
+            byte[] context) {
+        var workloads = new ArrayList<ModelAutotuningPreparation.WorkloadEvidence>();
+        for (Object value : inward.workloads()) {
+            var workload = (WorkloadTuningResult.WorkloadEvidence) value;
+            var compatibility = workload.compatibility();
+            var occurrences = new ArrayList<ModelAutotuningPreparation.OccurrenceEvidence>();
+            for (Object occurrenceValue : workload.occurrences()) {
+                var occurrence = (WorkloadTuningResult.OccurrenceEvidence) occurrenceValue;
+                if (!java.util.Arrays.equals(occurrence.contextFingerprint(), context)) {
+                    throw new IllegalArgumentException("unexpected occurrence context");
+                }
+                occurrences.add(new ModelAutotuningPreparation.OccurrenceEvidence(
+                        0, 0, occurrence.weight(),
+                        new ModelAutotuningPreparation.ContextIdentity(1, context)));
+            }
+            var candidates = new ArrayList<ModelAutotuningPreparation.CandidateEvidence>();
+            for (Object candidateValue : workload.candidates()) {
+                var candidate = (WorkloadTuningResult.CandidateEvidence) candidateValue;
+                candidates.add(new ModelAutotuningPreparation.CandidateEvidence(
+                        new ModelAutotuningPreparation.CandidateIdentity(
+                                candidate.identity().bytes()),
+                        candidate.elapsedSamplesNanos(), summary(candidate.summary())));
+            }
+            workloads.add(new ModelAutotuningPreparation.WorkloadEvidence(
+                    new ModelAutotuningPreparation.CompatibilityIdentity(
+                            compatibility.schemaVersion(), compatibility.bytes(),
+                            switch (compatibility.reuseScope()) {
+                                case SESSION -> ModelAutotuningPreparation.ReuseScope.SESSION;
+                                case PERSISTENT -> ModelAutotuningPreparation.ReuseScope.PERSISTENT;
+                            }),
+                    workload.totalWeight(), occurrences,
+                    switch (workload.source()) {
+                        case CACHE_HIT -> ModelAutotuningPreparation.Source.CACHE_HIT;
+                        case MEASURED -> ModelAutotuningPreparation.Source.MEASURED;
+                    },
+                    candidates,
+                    new ModelAutotuningPreparation.CandidateIdentity(
+                            workload.winnerIdentity().bytes()),
+                    summary(workload.winnerSummary())));
+        }
+        return new ModelAutotuningPreparation.Evidence(
+                modelIdentity, config.representativeProfile(), config.objective(), config.budget(),
+                workloads);
+    }
+
+    private static ModelAutotuningPreparation.SampleSummary summary(
+            WorkloadTuningResult.SampleSummary summary) {
+        return new ModelAutotuningPreparation.SampleSummary(
+                summary.minimumNanos(), summary.medianNanos(), summary.maximumNanos(),
+                summary.sampleCount());
+    }
+
+    private static void closeWithSuppression(
+            RepresentativeExecutionSession session, Throwable primary) {
+        try {
+            session.close();
+        } catch (RuntimeException | Error cleanupFailure) {
+            suppressDistinctOnce(primary, cleanupFailure);
+        }
+    }
+
+    private record CpuTuningAdapter(CpuEngineBackendComposition composition)
+            implements ModelAutotuningTuning<CpuLocalWorkloadTuning.CandidateBatch,
+                    CpuLocalWorkloadTuning.SelectedDecision,
+                    CpuLocalWorkloadTuning.Candidate> {
+        private CpuTuningAdapter {
+            Objects.requireNonNull(composition, "composition");
+        }
+
+        private CpuLocalWorkloadTuning tuning() { return composition.localWorkloadTuning(); }
+
+        @Override public Optional<BackendPartitionTuningHandoff<
+                CpuLocalWorkloadTuning.CandidateBatch, CpuLocalWorkloadTuning.SelectedDecision>>
+                candidateHandoff(CompileArtifacts artifacts) {
+            return tuning().candidateHandoff(artifacts);
+        }
+
+        @Override public io.github.pho001.synaptik.runtime.execution.PreparedExecution prepareTrial(
+                CpuLocalWorkloadTuning.CandidateBatch batch,
+                CpuLocalWorkloadTuning.Candidate candidate) {
+            return tuning().prepareTrial(batch, candidate);
+        }
+
+        @Override public io.github.pho001.synaptik.runtime.execution.PreparedExecution prepareSelected(
+                CpuLocalWorkloadTuning.CandidateBatch batch,
+                CpuLocalWorkloadTuning.SelectedDecision decision) {
+            return tuning().prepareSelected(batch, decision);
+        }
+
+        @Override public List<CpuLocalWorkloadTuning.Candidate> candidates(
+                CpuLocalWorkloadTuning.CandidateBatch batch) {
+            return tuning().candidates(batch);
+        }
+
+        @Override public WorkloadTuningRequest.WorkloadCompatibility compatibility(
+                CpuLocalWorkloadTuning.CandidateBatch batch) {
+            var value = tuning().compatibility(batch);
+            return new WorkloadTuningRequest.WorkloadCompatibility(
+                    value.schemaVersion(), value.bytes(), switch (value.reuseScope()) {
+                        case SESSION -> WorkloadTuningRequest.ReuseScope.SESSION;
+                        case PERSISTENT -> WorkloadTuningRequest.ReuseScope.PERSISTENT;
+                    });
+        }
+
+        @Override public WorkloadTuningRequest.CandidateIdentity candidateIdentity(
+                CpuLocalWorkloadTuning.Candidate candidate) {
+            return new WorkloadTuningRequest.CandidateIdentity(
+                    tuning().candidateIdentity(candidate).bytes());
+        }
+
+        @Override public CpuLocalWorkloadTuning.SelectedDecision selectedDecision(
+                CpuLocalWorkloadTuning.CandidateBatch batch,
+                CpuLocalWorkloadTuning.Candidate candidate) {
+            return tuning().selectedDecision(batch, candidate);
+        }
+
+        @Override public byte[] encodeDecision(
+                CpuLocalWorkloadTuning.SelectedDecision decision) {
+            return tuning().encodeDecision(decision);
+        }
+
+        @Override public Optional<CpuLocalWorkloadTuning.SelectedDecision>
+                decodeCompatibleDecision(
+                        CpuLocalWorkloadTuning.CandidateBatch batch, byte[] encodedDecision) {
+            return tuning().decodeCompatibleDecision(batch, encodedDecision);
+        }
     }
 
     private static IllegalStateException closedFailure() {

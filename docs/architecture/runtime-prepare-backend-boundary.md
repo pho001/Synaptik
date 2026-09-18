@@ -154,11 +154,11 @@ CPU OpenBLAS batch and decision adopt these nominal roles without changing their
 schema, candidate generation, matching, heuristic fallback, or execution behavior. CPU remains
 the only layer that validates the decision against a freshly generated CPU batch.
 
-This record is not wired into graph preparation, tuning measurement, or persistence. It contains
-no model-wide aggregation, cache schema, serialized form, corruption handling, executable, or
-Runtime state. Engine now has a separate package-private representative-execution and safe-
-fallback lifecycle foundation, but no public model-autotuning composition wires these boundaries
-together yet; model-wide aggregation, measurement, and persistence remain downstream work.
+The record itself contains no measurement, cache schema, serialized form, executable, or Runtime
+state. Current public CPU-only `Engine.prepareTuned(...)` obtains the sole eligible handoff, maps
+it to occurrence 0 in partition 0 with weight 1, and passes it opaquely to `tools/tuning`.
+Model-wide extraction, multiple occurrences, graph/plan search, and model-plan persistence remain
+downstream work.
 
 ### Current representative-execution lifecycle
 
@@ -172,9 +172,11 @@ The session closes wrappers once in reverse order before fresh selected or ordin
 preparation. Trial or cleanup failure invalidates the session and forbids either path. Required
 tuning propagates its recoverable failure without ordinary preparation; allowed fallback performs
 ordinary safe-heuristic preparation once only after successful cleanup. Engine closure waits for
-the admission, and a close race rejects the final selected or fallback recipe. This foundation
-does not interpret backend candidates, invoke the tuning tool, expose a public tuning request, or
-move tuning state into Runtime.
+the admission, and a close race rejects the final selected or fallback recipe. The public
+composition invokes tuning outside Runtime. Cache hits execute no trials; misses use configured
+warmups and timed samples, each through a freshly prepared trial and fresh `RunState`. Selected
+and fallback production recipes are prepared afresh. No tuning state, cache access, ranking, or
+route selection enters Runtime.
 
 ## The staged prepare handoff
 

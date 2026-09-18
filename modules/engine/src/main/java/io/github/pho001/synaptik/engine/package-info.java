@@ -17,7 +17,10 @@
  * execution uses the same discovery and lifecycle seams, fixes Compiler's absent unit seed and
  * disconnected-target error policy, and returns a detached objective plus target-aligned first
  * derivatives. Repeated execution, explicit seeds, and selective output access should use the
- * reusable explicit-input lifecycle instead.</p>
+ * reusable explicit-input lifecycle instead. Optional model-autotuning accepts one caller-defined
+ * model identity and one live representative input set, completes bounded CPU-local selection
+ * before production execution, and returns either authenticated immutable evidence with a fresh
+ * selected preparation or an explicit safe-heuristic fallback preparation.</p>
  *
  * <p>The advanced surface owns one explicitly supplied CPU integration and coordinates the
  * advanced {@code compile -> prepare -> run} lifecycle. Compiled and prepared recipes remain
@@ -26,7 +29,7 @@
  * representations remain caller-owned.</p>
  *
  * <p>Neither surface performs backend discovery, mixed-backend composition, or successful
- * zero-node preparation. Inferred backward targets, tuning, and cross-backend materialization are
- * not current APIs.</p>
+ * zero-node preparation. Inferred backward targets, multi-occurrence or graph-plan tuning, and
+ * cross-backend materialization are not current APIs.</p>
  */
 package io.github.pho001.synaptik.engine;

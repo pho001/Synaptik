@@ -54,7 +54,7 @@ Engine declares dependencies directly for every public contract its source names
 advanced API names Model `Tensor` and `HostTensorStorage`, while its package-private composition
 seam names Planning `BackendCapabilityProvider`; direct Model and Planning dependencies are
 therefore required rather than inherited transitively through Compiler, Prepare, or CPU.
-Ready task 0007 adds a direct implementation dependency on `tools/tuning` because Engine's
+Complete task 0007 adds a direct implementation dependency on `tools/tuning` because Engine's
 package-private composition invokes that module's owned cache/measurement workflow. No tuning
 type enters the ordinary public API, and the tool remains independent of Engine. This is a
 concrete realization of the existing composition-root and tuning ownership rules, not a new
@@ -104,7 +104,7 @@ advanced surface.
 | [0005A](tasks/0005a-automatic-input-discovery-and-compute-convenience.md) | Automatic input discovery and compute convenience | Complete | 0005; Compiler 0006B4 | Replaced the two explicit-input one-shot `forward(...)` methods with four `compute(...)` overloads. Inventories reachable provenance-free Tensor leaves transiently by object identity, then selects only matching Tensors in authoritative final `CompiledGraph.inputs()` order; adds no Compiler IR traversal, liveness inference, retained Tensor state, or cache. |
 | [0006](tasks/0006-one-shot-scalar-objective-backward-convenience.md) | Engine-owned one-shot scalar-objective backward convenience | Complete | 0005A; Compiler 0006B5; Prepare 0005; CPU 0010H | Added one explicit-target `Engine.backward(...)` call returning a detached scalar objective plus immutable target-aligned gradients. Reuses 0005A's transient leaf-inventory/final-binding selection seam with no explicit input list and Compiler's absent scalar unit seed and ERROR policy through the completed source-only constant chain; retains the explicit-seed ordinary compile and advanced full-request paths. |
 | [0006A](tasks/0006a-representative-tuning-execution-and-safe-fallback.md) | Representative tuning execution and safe fallback foundation | Complete | 0003; 0006; Runtime 0010/0015; Prepare 0004; CPU 0010I; reviewed Config 0006A and tools/tuning 0001 contracts | Added package-private representative-input binding, synchronous complete trial execution, cleanup, failure isolation, fresh selected preparation, and deterministic strict/allowed fallback. Adds no public API, tuning algorithm, cache work, or tools/tuning dependency. |
-| [0007](tasks/0007-optional-model-autotuning-composition.md) | Optional model-autotuning composition | Ready | 0002; 0005; [0006A](tasks/0006a-representative-tuning-execution-and-safe-fallback.md); Config 0006A; tools/tuning 0001; [CPU 0010I](../../backends/cpu/tasks/0010i-supported-cpu-local-workload-tuning-composition-adapter.md) | Add one CPU-only public representative request with caller-defined model identity; map the sole handoff to occurrence 0/weight 1, invoke cache-first tuning, and return fresh selected preparation plus translated evidence or explicit safe fallback outside Runtime. |
+| [0007](tasks/0007-optional-model-autotuning-composition.md) | Optional model-autotuning composition | Complete | 0002; 0005; [0006A](tasks/0006a-representative-tuning-execution-and-safe-fallback.md); Config 0006A; tools/tuning 0001; [CPU 0010I](../../backends/cpu/tasks/0010i-supported-cpu-local-workload-tuning-composition-adapter.md) | Added one CPU-only public representative request with caller-defined model identity; maps the sole handoff to occurrence 0/partition 0/weight 1, invokes cache-first tuning, and returns fresh selected preparation plus translated evidence or explicit safe fallback outside Runtime. |
 | 0008 | Engine lifecycle capability checkpoint | Draft | 0001–0006; Compiler 0006B; CPU 0008A | Validate standard and advanced composition, typed input/output ownership, host materialization, one-shot forward/backward lowering, cleanup, concurrency, architecture tests, documentation, and representative NCW Conv1d plus NCHW Conv2d and NCDHW Conv3d forward execution before persistence adapters or NN convolution integration depend on Engine. |
 
 
@@ -116,10 +116,8 @@ advanced surface.
 
 ## Current status
 
-Tasks 0001–0006A, the source-only constant chain through CPU 0010H, and the CPU 0010I tuning
-collaboration prerequisite are Complete.
-Engine 0007 is the next implementation frontier and is Ready with a detailed specification.
-Engine 0008 remains Draft without a detailed specification.
+Tasks 0001–0007 are Complete. Engine 0008 is the next frontier and remains Draft without a
+detailed specification.
 Compiler 0006B3, Prepare 0003–0004, Runtime 0010 and its closure hardening,
 and CPU 0010F supply the bounded CPU-only Engine lifecycle without shared-contract changes:
 `GraphCompilationPort` supplies complete compile artifacts, `GraphPreparation` accepts explicit
@@ -287,9 +285,8 @@ context `01a0b11d-cc89-7590-8836-0555b05e7001` and clean documentation context
 input list, fixes Compiler's absent positive-one scalar seed and ERROR policy, and returns a
 detached objective plus target-aligned gradients under one aggregate byte bound. The real scalar
 CPU fixture proves the objective and positive-one gradient through the completed source-only
-constant chain. Engine 0005 and Engine 0006A remain `Complete`. Engine 0007 is the next
-implementation frontier and is `Ready` with a detailed specification; Engine
-0008 remains `Draft` without a detailed specification.
+constant chain. Engine 0005, Engine 0006A, and Engine 0007 are `Complete`. Engine 0008 is the
+next frontier and remains `Draft` without a detailed specification.
 
 ## Open questions
 
@@ -299,8 +296,8 @@ implementation frontier and is `Ready` with a detailed specification; Engine
 - Define mixed-backend schedule contributions only after a second concrete lifecycle adapter
   establishes a non-hypothetical consumer need. The current complete CPU assembler cannot be
   combined with another complete assembler.
-- Implement detailed Engine 0007 next. Its bounded CPU-only design exposes no CPU-private or
-  tool-generic handoff value.
+- Define detailed Engine 0008 next as the lifecycle capability checkpoint; leave it Draft until
+  its dependencies and exact validation scope are reassessed.
 
 ## Decisions made
 

@@ -21,7 +21,8 @@ final class EngineCompositionContractTest {
             "implementation(project(\":modules:trace\"))",
             "implementation(project(\":backends:cpu\"))",
             "implementation(project(\":backends:metal\"))",
-            "implementation(project(\":backends:cuda\"))");
+            "implementation(project(\":backends:cuda\"))",
+            "implementation(project(\":tools:tuning\"))");
     private static final List<String> APPROVED_INTEGRATION = List.of(
             "implementation(project(\":modules:engine\"))",
             "testImplementation(project(\":modules:compiler\"))",
@@ -35,6 +36,8 @@ final class EngineCompositionContractTest {
         Path root = repositoryRoot();
         String engineBuild = Files.readString(root.resolve("modules/engine/build.gradle.kts"));
         assertEquals(APPROVED_ENGINE, projectDependencyLines(engineBuild));
+        String tuningBuild = Files.readString(root.resolve("tools/tuning/build.gradle.kts"));
+        assertFalse(tuningBuild.contains("project(\":modules:engine\")"));
 
         String integrationBuild = Files.readString(
                 root.resolve("testing/integration-tests/build.gradle.kts"));

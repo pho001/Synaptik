@@ -40,6 +40,7 @@ prepare
 backends/cpu
 backends/metal
 backends/cuda
+tools/tuning
   -> engine
 ```
 
@@ -60,6 +61,12 @@ declares direct `modules/engine -> modules/model` and
 concrete backend to expose those contracts transitively. These edges realize Engine's existing
 outer composition-root role; they do not move Model or Planning behavior into Engine and do not
 permit either inward module to depend back on Engine.
+
+The optional tuning operation directly invokes the workflow owned by `tools/tuning`, so Engine
+declares `modules/engine -> tools/tuning`. This realizes the existing composition-root rule; it
+does not move cache, measurement, or ranking ownership into Engine. The reverse
+`tools/tuning -> modules/engine` edge remains forbidden and absent, so this is not a new root
+architecture decision.
 
 Neural-network composition and training have a separate extension direction:
 
@@ -155,8 +162,8 @@ Tests under `testing/architecture-tests/` should fail when forbidden module or p
 - planning and compiler independence from runtime and concrete implementations;
 - runtime and prepare independence from concrete backends;
 - backend independence from engine;
-- Engine's exact direct dependency inventory, including direct Model and Planning dependencies
-  for the public and package-private contracts it names;
+- Engine's exact direct dependency inventory, including direct Model, Planning, and tuning
+  dependencies, plus tuning's absence of an Engine dependency;
 - the CPU backend's exact direct dependency set, including Compiler and excluding Engine;
 - the OpenBLAS provider's low-level leaf role;
 - absence of backend support APIs on `Operation`;

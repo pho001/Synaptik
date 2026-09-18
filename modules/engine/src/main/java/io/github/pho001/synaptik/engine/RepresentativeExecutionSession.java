@@ -42,6 +42,7 @@ final class RepresentativeExecutionSession implements AutoCloseable {
     private boolean inputsCleanupAttempted;
     private boolean admissionReleased;
     private Throwable retainedCleanupFailure;
+    private Throwable representativeExecutionFailure;
 
     /**
      * Validates and borrows one input set inside an already-admitted Engine operation.
@@ -130,6 +131,17 @@ final class RepresentativeExecutionSession implements AutoCloseable {
         expectedPublicationCount = compiledGraph.publicationSpecs().size();
     }
 
+    /** @return whether {@code failure} is the exact representative execution failure */
+    synchronized boolean isRepresentativeExecutionFailure(Throwable failure) {
+        return representativeExecutionFailure == failure;
+    }
+
+    /** @return whether a non-execution tuning failure may still enter cleanup/fallback */
+    synchronized boolean canResolveRecoverableTuningFailure() {
+        return !admissionReleased && state == State.OPEN && !poisoned
+                && representativeExecutionFailure == null;
+    }
+
     /**
      * Executes one freshly prepared complete trial recipe and consumes completion only.
      * Runtime creates fresh run-owned state and fresh result resources for this call. The session
@@ -165,6 +177,7 @@ final class RepresentativeExecutionSession implements AutoCloseable {
                 throw cleanupFailure;
             }
         } catch (RuntimeException | Error failure) {
+            representativeExecutionFailure = failure;
             if (result != null && !resultCleanupAttempted) {
                 try {
                     result.close();
@@ -251,6 +264,23 @@ final class RepresentativeExecutionSession implements AutoCloseable {
         }
         admissionReleased = true;
         return lifecycleOwner.finishRepresentativePreparation(preparedExecution);
+    }
+
+    /**
+     * Publishes one already-complete public autotuning result through the retained admission.
+     *
+     * @param result non-null complete result that must not escape if closure won the race
+     * @return the exact result when the Engine remains open
+     */
+    synchronized ModelAutotuningPreparation completeModelAutotuningPreparation(
+            ModelAutotuningPreparation result) {
+        Objects.requireNonNull(result, "result");
+        if (admissionReleased) {
+            throw new IllegalStateException(
+                    "representative execution session admission is released");
+        }
+        admissionReleased = true;
+        return lifecycleOwner.finishRepresentativePreparation(result);
     }
 
     /**

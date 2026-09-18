@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -417,8 +417,11 @@ runtime-boundary, and dependency-rule architecture explanations, benchmarking gu
 
 ## Maximum scope
 
-At most 22 paths: 8 Engine production/build, 5 Engine/architecture/integration test, 6 focused
-explanatory documentation, and 3 planning paths. The cohesive ceiling is justified by the public
+At most 23 paths: 8 Engine production/build, 6 Engine/architecture/integration test, 6 focused
+explanatory documentation, and 3 planning paths. The implemented inventory is one path above the
+planned 22 because the pre-existing `AdvancedEnginePublicShapeTest` also locks the ordinary
+`Engine` method inventory and necessarily changed for `prepareTuned`. Retaining that coverage is
+safer than dropping a required API-shape assertion. The cohesive ceiling is justified by the public
 lifecycle, new direct dependency, and required documentation/architecture-test synchronization.
 Stop for another module's production Java change, an architecture
 contract change, more public top-level types, or a generic backend abstraction.
@@ -538,12 +541,61 @@ completion rather than numerical equivalence; in-memory rich evidence; no graph/
 
 ## Validation evidence
 
-Empty until implemented.
+- Implementation context reused by this documentation pass ran
+  `./gradlew :modules:engine:test :testing:architecture-tests:test
+  :testing:integration-tests:test`: passed with Engine 67, architecture 9, and integration 10
+  tests (86 total), with zero failures, errors, or skips. Executable Java did not change during
+  documentation context `01a0b324-31c9-70d1-95c0-e0f9710b6571`, so the suites were not repeated.
+- Independent review context `01a0b316-61a5-7930-9374-86a3384149fd` reported no correctness
+  findings; this pass reused that result.
+- `./gradlew :modules:engine:javadoc`: passed after the final Javadoc edits with no warnings.
+- `./gradlew test`: passed the required repository checkpoint in 2m 46s; 70 actionable tasks,
+  10 executed and 60 up-to-date. The expected native-access and incubator-module warnings did not
+  fail the build.
+- `/tmp/validate_synaptik_markdown.py` over the six explanatory and three planning paths passed
+  relative targets and anchors, unique headings, balanced fences, final newlines, and trailing
+  whitespace.
+- A source-edit audit of the documentation pass confirmed its Java changes are confined to
+  comments/Javadoc; it changed no executable Java token. `git diff --check` passed.
+- Exact final inventory validation passed with 23 paths: 8 production/build, 6 test, 6 focused
+  explanatory documentation, and 3 planning paths. The extra test path is the recorded
+  `AdvancedEnginePublicShapeTest` method-inventory coverage adjustment.
+- Documentation types and profiles: `public-api.md` and Java contracts used General plus API and
+  Javadoc style and Example format; architecture explanations used General plus Architecture
+  style; `benchmarking.md` used General, Developer-guide, and Example profiles; the glossary used
+  General style; this task, master plan, and roadmap used General plus Planning style.
+- `ARCHITECTURE.md` and ADRs need no change: the direct `modules/engine -> tools/tuning` edge
+  realizes the existing Engine composition-root and tuning ownership contract. Runtime and other
+  modules need no change because tuning completes before Runtime and no inward contract changed.
 
 ## Implementation notes
 
-Empty until implemented.
+- Added exactly the requested public request/result surface and ordinary `prepareTuned` entry,
+  retaining CPU/tool/Prepare types behind Engine-owned translation.
+- Cache-first tuning maps the sole handoff to occurrence index 0, partition index 0, and weight 1.
+  Compatible hits run no trial; misses use configured warmups and timed samples with median winner
+  selection. Trials use fresh Runtime state and every successful tuned/fallback path freshly
+  prepares production state.
+- `TUNED` has authenticated immutable evidence; `SAFE_HEURISTIC_FALLBACK` has none. Caller model
+  and profile identities label evidence and do not authorize cache compatibility or selection.
+- Current limitations remain CPU-only, one representative set, at most one local workload, and no
+  graph/plan or multi-occurrence tuning.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: composed Config, tuning, CPU, Prepare, representative execution, fallback,
+  evidence translation, and the public ordinary Engine API.
+- Files changed or created: exact 23-path inventory recorded above.
+- Tests and validation: reused 86 focused tests and independent review; passed Engine Javadoc,
+  repository-wide tests, Markdown checks, source-token audit, scope audit, and whitespace checks.
+- Documentation-agent review: clean context `01a0b324-31c9-70d1-95c0-e0f9710b6571` finalized all
+  affected Javadocs, six explanatory paths, glossary terminology, and three planning paths.
+- Documentation impact: public lifecycle/example, tuning and runtime boundaries, dependency edge,
+  benchmarking guidance, glossary, status, and next frontier are synchronized.
+- Javadoc review: every affected public/package-private tuning contract was reviewed; new public
+  request/evidence ownership, immutability, lifecycle, result, and failure contracts are detailed.
+- Glossary impact: added the Engine request/result distinction and current bounded composition.
+- Unresolved issues: None.
+- Follow-up required: None. Engine 0008 remains the next Draft frontier.
+
+Status: Complete

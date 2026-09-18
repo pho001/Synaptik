@@ -131,6 +131,25 @@ public final class Engine implements AutoCloseable {
     }
 
     /**
+     * Performs one bounded CPU local-workload autotuning transaction and returns a fresh
+     * production preparation, or the explicitly permitted safe heuristic fallback.
+     *
+     * @param compiledGraph non-null compile handle created by this exact Engine
+     * @param request non-null configuration, identity, and live representative inputs
+     * @return a complete non-null preparation and its immutable outcome metadata
+     * @throws NullPointerException if an argument or required request value is null
+     * @throws IllegalArgumentException if ownership, representative binding, or tuning evidence
+     *     is invalid
+     * @throws IllegalStateException if closure has begun or required tuning cannot complete
+     * @throws RuntimeException if tuning, preparation, execution, or cleanup fails
+     * @throws Error if inward work or cleanup reports a fatal failure
+     */
+    public ModelAutotuningPreparation prepareTuned(
+            CompiledGraph compiledGraph, ModelAutotuningRequest request) {
+        return delegate.prepareTunedOrdinary(this, compiledGraph, request);
+    }
+
+    /**
      * Runs one prepared recipe using current caller-owned host associations matched by Tensor ID.
      *
      * <p>The input list may use any order. Associations are snapshotted once after complete

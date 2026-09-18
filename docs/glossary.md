@@ -892,11 +892,11 @@ compatibility and candidate identities, complete candidate enumeration, a decisi
 complete candidate execution. The tool performs cache-first deduplication, bounded warmup and
 sampling, integer-middle-median selection with encounter-order ties, and atomic workload-cache
 publication while returning richer raw evidence separately. The supported CPU-local adapter now
-supplies opaque candidate/decision and exact prepared-recipe operations. Engine now supplies a
-package-private synchronous representative-input execution, cleanup, and safe-fallback lifecycle,
-but no public composition yet joins these foundations or supplies model extraction and second-
-phase graph/plan tuning. A separate current Config request facade holds only stable user-owned
-request data and performs none of this operational work.
+supplies opaque candidate/decision and exact prepared-recipe operations. Engine now publicly
+joins these foundations for one CPU-local workload and one representative input set. It maps
+occurrence index 0, partition index 0, and weight 1, then returns a freshly prepared selected
+handle with evidence or explicit safe fallback without evidence. It supplies no model extraction,
+multiple-occurrence tuning, or second-phase graph/plan tuning.
 
 Tuning is optional for correctness and never runs in the runtime hot path. Running the same
 workflow over a representative model corpus may eventually pre-seed the same workload cache; this
@@ -922,9 +922,21 @@ budget, [`representative-profile identity`](#representative-profile-identity),
 
 The facade is declarative data. It retains the exact non-null path without normalization or I/O
 and owns no model fingerprint, representative inputs, occurrences, candidates, cache behavior,
-translation, measurement, selection, preparation, Engine integration, or Runtime state. A later
-outer composition owner may explicitly translate its matching values into the independent
-tool-local request while supplying the missing model and execution facts.
+translation, measurement, selection, preparation, or Runtime state. Current Engine composition
+translates it while `ModelAutotuningRequest` supplies the caller-defined model identity and live
+representative inputs.
+
+### Model-autotuning request / preparation result
+
+`ModelAutotuningRequest` joins one `ModelAutotuningConfig`, one caller-defined model identity, and
+an immutable list snapshot of live representative Tensor references. It does not copy or own
+Tensor storage. The model identity labels evidence under the caller's schema and revision
+discipline; it is neither a canonical graph fingerprint nor cache-compatibility authority.
+
+`ModelAutotuningPreparation` contains a fresh owner-bound `PreparedExecution`, an outcome, and
+evidence present exactly for `TUNED`. `SAFE_HEURISTIC_FALLBACK` identifies fresh ordinary safe
+preparation and has empty evidence. Both are CPU-only current contracts for one local workload,
+not graph/plan or multi-occurrence tuning.
 
 ### Representative-profile identity
 
@@ -2319,9 +2331,9 @@ expected-use cohort, concurrency, route/resource inputs, and policy versions. Se
 qualification has no persistent projection; persistently reusable compatibility requires the
 qualified binary identity. The shared exact-partition opaque transport, generic tuning tool's
 exact-value deduplication, measurement and bounded persistent-cache use, CPU 0010I supported
-compatibility projection, and Engine's package-private representative execution are implemented.
-Producing occurrences and joining these foundations through a public model/Engine path remains
-planned.
+compatibility projection, and Engine's representative execution are implemented. The public
+Engine path produces the sole occurrence-0/partition-0/weight-1 mapping. Model extraction and
+multiple-occurrence aggregation remain planned.
 
 ### Candidate generator
 
@@ -2334,9 +2346,8 @@ first implemented internal generator is the CPU exact/default FLOAT32/FLOAT64 Op
 producer. It emits the complete portable alternative followed by every realizable copy-mask and
 fitting configured-thread combination. The shared exact-partition opaque transport, generic
 caller-supplied workload-tuning orchestration, and supported CPU-local enumeration and identity
-collaboration are implemented. Engine's package-private representative execution/input binding
-and fallback lifecycle are also implemented; public Engine composition and complete graph/plan
-orchestration remain planned.
+collaboration and Engine's public bounded CPU-local composition are implemented. Multiple
+occurrences and complete graph/plan orchestration remain planned.
 
 ### Selected tuning decision
 
