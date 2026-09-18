@@ -218,12 +218,104 @@ runtime skipping. Future Text input preparation owns padding-token identity, and
 preparation owns canonical valid lengths; neither proposed boundary is current tokenizer/Data API
 or changes the NN parameter schema.
 
+## Current NN channels-first convolution contract
+
+`Conv1d`, `Conv2d`, and `Conv3d` are separate final `UnaryTensorModule` layers for NCW, NCHW,
+and NCDHW input respectively. Here `N` is batch, `C` is channel, and `W`, `H`, and `D` are width,
+height, and depth. The layers record grouped cross-correlation: stored kernels are used in their
+existing order rather than reversed as in mathematical convolution. Each constructor keeps output
+channels, rank-specific kernel/stride/symmetric-padding/dilation values, groups, bias presence,
+floating data type, `ParameterInitialization`, and seed explicit. There is no public `ConvNd`,
+array-valued geometry, configuration object, or geometry getter.
+
+The first compatible `forward(input)` or a complete strict state-dictionary load binds the only
+deferred fact: the positive static input-channel extent at axis 1. Parameter Shapes are:
+
+| Layer | Input Shape | Weight Shape | Optional bias | Result Shape |
+|---|---|---|---|---|
+| `Conv1d` | `[N,C_in,W]` | `[C_out,C_in/groups,K_w]` | `[C_out]` | `[N,C_out,W_out]` |
+| `Conv2d` | `[N,C_in,H,W]` | `[C_out,C_in/groups,K_h,K_w]` | `[C_out]` | `[N,C_out,H_out,W_out]` |
+| `Conv3d` | `[N,C_in,D,H,W]` | `[C_out,C_in/groups,K_d,K_h,K_w]` | `[C_out]` | `[N,C_out,D_out,H_out,W_out]` |
+
+Both input and output channels must be divisible by `groups`. Fan-based initialization uses the
+actual grouped connectivity: `fanIn = (C_in/groups) * kernelVolume` and
+`fanOut = (C_out/groups) * kernelVolume`. A random policy creates one fresh deterministic
+`L64X128MixRandom` source from the layer seed for each binding attempt. Zero and one policies
+create no source. Optional bias is always a fresh typed-zero parameter and consumes no random
+draw, regardless of the weight policy.
+
+Weight followed by optional bias is published as one complete layer-local group. Deterministic
+input and Shape validation precedes initializer work. If initialization, allocation, identifier
+creation, or publication fails before completion, no parameter wrapper becomes visible and a
+later compatible forward may retry from the same seed. Compatible simultaneous first calls bind
+once; this narrow publication guarantee does not make general module traversal, replacement,
+loading, or forward construction thread-safe. Before binding, parameter discovery and state
+export fail closed rather than expose partial state.
+
+A complete strict dictionary can instead bind exact compatible weight and bias Tensor references.
+The load validates the whole module tree before installation and performs no initialization,
+random draw, Tensor copy, or new Tensor-identifier allocation. After binding, the usual
+`Parameter.replace` contract accepts another exact-type, exact-Shape, gradient-eligible Tensor.
+Batch and spatial Dimensions may vary across later calls when their geometry remains valid, but
+the exact data type and bound input-channel count cannot change.
+
+### Example: construct a grouped Conv2d expression
+
+The goal is to construct an NCHW convolution expression and inspect the state schema established
+by its first compatible input. The example uses two groups, four input channels, six output
+channels, a `3 x 3` kernel, unit stride and dilation, one position of symmetric padding, and bias.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
+import io.github.pho001.synaptik.nn.layers.Conv2d;
+import io.github.pho001.synaptik.nn.module.ModuleFactory;
+import java.util.Optional;
+
+ModuleFactory modules = ModuleFactory.standard();
+Conv2d convolution = modules.conv2d(
+        6,                 // output channels
+        3, 3,              // kernel height and width
+        1, 1,              // stride height and width
+        1, 1,              // symmetric padding per side
+        1, 1,              // dilation height and width
+        2,                 // groups
+        true,              // bias
+        DataType.FLOAT32,
+        ParameterInitialization.glorotUniform(),
+        41L);
+
+Tensor input = TensorFactory.zeros(
+        Shape.of(2, 4, 8, 8), DataType.FLOAT32, Optional.empty(), false);
+Tensor output = convolution.forward(input);
+
+Shape weightShape = convolution.weight().value().descriptor().shape();
+Shape outputShape = output.descriptor().shape();
+```
+
+The input establishes `C_in = 4`, so each of the two groups receives two input channels.
+`weightShape` is `[6,2,3,3]`, the optional bias is `[6]`, and `outputShape` is `[2,6,8,8]`.
+The call has created parameter leaves and a fresh Tensor expression; it has not calculated the
+output values. `Conv1d` visibly delegates through input/weight expansion, ordinary Conv2d, and
+squeeze, while `Conv2d` and `Conv3d` each delegate to their matching Tensor method.
+
+The current boundary is deliberately forward-oriented. These NN layers do not compile, prepare,
+select a backend, execute values, or expose Engine behavior. Existing compiler rules cover the
+visible Conv1d composition and Conv2d; backward-capable compilation still rejects first-class
+Conv3d. Gradient-eligible Conv3d parameters therefore do not imply Conv3d training support.
+`ModuleFactory.standard()` supplies matching stateless `conv1d`, `conv2d`, and `conv3d` recipes,
+but each direct or factory-created layer has the same state, validation, and forwarding contract.
+
 ## Current NN unary composition contract
 
 `Module` remains the general owner of named state, children, and train/eval mode and has no
 universal forward method. `UnaryTensorModule` is the narrower public subtype for a module whose
 complete forward contract accepts one non-null Tensor and returns one non-null Tensor. Current
-`Linear`, `LayerNorm`, and `Embedding` layers participate. `BatchNorm` does not, because it
+`Linear`, `LayerNorm`, `Embedding`, `Conv1d`, `Conv2d`, and `Conv3d` layers participate.
+`BatchNorm` does not, because it
 requires an explicit `ForwardContext` and may transition running-statistic buffers. `Dropout`
 does not, because it requires both an explicit context and caller-threaded graph random-number-
 generator state and returns a result carrying output plus next state.

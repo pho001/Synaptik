@@ -2,6 +2,9 @@ package io.github.pho001.synaptik.nn.module;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
+import io.github.pho001.synaptik.nn.layers.Conv1d;
+import io.github.pho001.synaptik.nn.layers.Conv2d;
+import io.github.pho001.synaptik.nn.layers.Conv3d;
 import io.github.pho001.synaptik.nn.layers.Embedding;
 import io.github.pho001.synaptik.nn.layers.GruSequence;
 import io.github.pho001.synaptik.nn.layers.Linear;
@@ -30,7 +33,9 @@ import java.util.random.RandomGeneratorFactory;
  * behavior remain contracts of the returned concrete type.</p>
  *
  * <p>Embedding construction is eager. Linear and recurrent recipes retain their current automatic
- * input-width binding behavior. The Linear recipe selects the exact deterministic JDK
+ * input-width binding behavior. Convolution recipes similarly infer only a positive static input-
+ * channel extent and otherwise retain their complete rank-specific configuration. The Linear
+ * recipe selects the exact deterministic JDK
  * {@code L64X128MixRandom} factory; recurrent constructors already select that standard algorithm
  * for random policies. Direct constructors remain the advanced path for caller-supplied state,
  * cells, recurrent states and lengths, random generators, or deterministic generator factories.
@@ -119,6 +124,106 @@ public final class ModuleFactory {
                 weightInitialization,
                 RandomGeneratorFactory.<RandomGenerator>of("L64X128MixRandom"),
                 seed);
+    }
+
+    /**
+     * Creates one fresh automatic channels-first one-dimensional convolution layer.
+     *
+     * @param outChannels positive output-channel count divisible by {@code groups}
+     * @param kernelWidth positive kernel width
+     * @param stride positive output stride
+     * @param padding non-negative symmetric padding per side
+     * @param dilation positive kernel dilation
+     * @param groups positive group count dividing output and eventual input channels
+     * @param bias whether to own a typed-zero bias
+     * @param dataType non-null exact floating input and parameter type
+     * @param weightInitialization non-null weight policy
+     * @param seed any seed retained by the layer for random-policy attempts; accepted but unused
+     *     by zero and one policies
+     * @return a fresh non-null unowned automatic {@link Conv1d}
+     * @throws NullPointerException if {@code dataType} or {@code weightInitialization} is null
+     * @throws IllegalArgumentException if delegated convolution schema validation fails
+     * @throws ArithmeticException if delegated checked geometry or fan arithmetic overflows
+     */
+    public Conv1d conv1d(
+            long outChannels, long kernelWidth, long stride, long padding, long dilation,
+            long groups, boolean bias, DataType dataType,
+            ParameterInitialization weightInitialization, long seed) {
+        return new Conv1d(outChannels, kernelWidth, stride, padding, dilation, groups, bias,
+                dataType, weightInitialization, seed);
+    }
+
+    /**
+     * Creates one fresh automatic channels-first two-dimensional convolution layer.
+     *
+     * @param outChannels positive output-channel count divisible by {@code groups}
+     * @param kernelHeight positive kernel height
+     * @param kernelWidth positive kernel width
+     * @param strideHeight positive output-height stride
+     * @param strideWidth positive output-width stride
+     * @param paddingHeight non-negative symmetric height padding per side
+     * @param paddingWidth non-negative symmetric width padding per side
+     * @param dilationHeight positive height dilation
+     * @param dilationWidth positive width dilation
+     * @param groups positive group count dividing output and eventual input channels
+     * @param bias whether to own a typed-zero bias
+     * @param dataType non-null exact floating input and parameter type
+     * @param weightInitialization non-null weight policy
+     * @param seed any seed retained by the layer for random-policy attempts; accepted but unused
+     *     by zero and one policies
+     * @return a fresh non-null unowned automatic {@link Conv2d}
+     * @throws NullPointerException if {@code dataType} or {@code weightInitialization} is null
+     * @throws IllegalArgumentException if delegated convolution schema validation fails
+     * @throws ArithmeticException if delegated checked geometry or fan arithmetic overflows
+     */
+    public Conv2d conv2d(
+            long outChannels, long kernelHeight, long kernelWidth,
+            long strideHeight, long strideWidth, long paddingHeight, long paddingWidth,
+            long dilationHeight, long dilationWidth, long groups, boolean bias,
+            DataType dataType, ParameterInitialization weightInitialization, long seed) {
+        return new Conv2d(outChannels, kernelHeight, kernelWidth, strideHeight, strideWidth,
+                paddingHeight, paddingWidth, dilationHeight, dilationWidth, groups, bias,
+                dataType, weightInitialization, seed);
+    }
+
+    /**
+     * Creates one fresh automatic channels-first three-dimensional convolution layer.
+     *
+     * @param outChannels positive output-channel count divisible by {@code groups}
+     * @param kernelDepth positive kernel depth
+     * @param kernelHeight positive kernel height
+     * @param kernelWidth positive kernel width
+     * @param strideDepth positive output-depth stride
+     * @param strideHeight positive output-height stride
+     * @param strideWidth positive output-width stride
+     * @param paddingDepth non-negative symmetric depth padding per side
+     * @param paddingHeight non-negative symmetric height padding per side
+     * @param paddingWidth non-negative symmetric width padding per side
+     * @param dilationDepth positive depth dilation
+     * @param dilationHeight positive height dilation
+     * @param dilationWidth positive width dilation
+     * @param groups positive group count dividing output and eventual input channels
+     * @param bias whether to own a typed-zero bias
+     * @param dataType non-null exact floating input and parameter type
+     * @param weightInitialization non-null weight policy
+     * @param seed any seed retained by the layer for random-policy attempts; accepted but unused
+     *     by zero and one policies
+     * @return a fresh non-null unowned automatic {@link Conv3d}
+     * @throws NullPointerException if {@code dataType} or {@code weightInitialization} is null
+     * @throws IllegalArgumentException if delegated convolution schema validation fails
+     * @throws ArithmeticException if delegated checked geometry or fan arithmetic overflows
+     */
+    public Conv3d conv3d(
+            long outChannels, long kernelDepth, long kernelHeight, long kernelWidth,
+            long strideDepth, long strideHeight, long strideWidth,
+            long paddingDepth, long paddingHeight, long paddingWidth,
+            long dilationDepth, long dilationHeight, long dilationWidth, long groups,
+            boolean bias, DataType dataType,
+            ParameterInitialization weightInitialization, long seed) {
+        return new Conv3d(outChannels, kernelDepth, kernelHeight, kernelWidth,
+                strideDepth, strideHeight, strideWidth, paddingDepth, paddingHeight, paddingWidth,
+                dilationDepth, dilationHeight, dilationWidth, groups, bias,
+                dataType, weightInitialization, seed);
     }
 
     /**

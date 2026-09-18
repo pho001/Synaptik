@@ -15,6 +15,9 @@ import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
+import io.github.pho001.synaptik.nn.layers.Conv1d;
+import io.github.pho001.synaptik.nn.layers.Conv2d;
+import io.github.pho001.synaptik.nn.layers.Conv3d;
 import io.github.pho001.synaptik.nn.layers.Embedding;
 import io.github.pho001.synaptik.nn.layers.GruCell;
 import io.github.pho001.synaptik.nn.layers.GruSequence;
@@ -78,6 +81,21 @@ class ModuleFactoryTest {
                                         false),
                                 new MethodShape(
                                         "linear", Linear.class, recipeParameters(false), false),
+                                new MethodShape("conv1d", Conv1d.class, List.of(
+                                        long.class, long.class, long.class, long.class, long.class,
+                                        long.class, boolean.class, DataType.class,
+                                        ParameterInitialization.class, long.class), false),
+                                new MethodShape("conv2d", Conv2d.class, List.of(
+                                        long.class, long.class, long.class, long.class, long.class,
+                                        long.class, long.class, long.class, long.class, long.class,
+                                        boolean.class, DataType.class,
+                                        ParameterInitialization.class, long.class), false),
+                                new MethodShape("conv3d", Conv3d.class, List.of(
+                                        long.class, long.class, long.class, long.class, long.class,
+                                        long.class, long.class, long.class, long.class, long.class,
+                                        long.class, long.class, long.class, long.class,
+                                        boolean.class, DataType.class,
+                                        ParameterInitialization.class, long.class), false),
                                 new MethodShape(
                                         "rnn", RnnSequence.class, recipeParameters(false), false),
                                 new MethodShape(
@@ -105,6 +123,12 @@ class ModuleFactoryTest {
                 4, true, DataType.FLOAT32, ParameterInitialization.glorotUniform(), 13L);
         LstmSequence lstm = first.lstm(
                 4, true, DataType.FLOAT32, ParameterInitialization.glorotUniform(), 14L);
+        Conv1d conv1d = first.conv1d(4, 3, 1, 0, 1, 1, false,
+                DataType.FLOAT32, ParameterInitialization.glorotUniform(), 15L);
+        Conv2d conv2d = first.conv2d(4, 3, 3, 1, 1, 0, 0, 1, 1, 1, false,
+                DataType.FLOAT32, ParameterInitialization.glorotUniform(), 16L);
+        Conv3d conv3d = first.conv3d(4, 2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1,
+                false, DataType.FLOAT32, ParameterInitialization.glorotUniform(), 17L);
 
         assertAll(
                 () -> assertSame(first, second),
@@ -112,7 +136,10 @@ class ModuleFactoryTest {
                 () -> assertThrows(IllegalStateException.class, linear::weight),
                 () -> assertThrows(IllegalStateException.class, rnn.cell()::inputWeight),
                 () -> assertThrows(IllegalStateException.class, gru.cell()::inputWeight),
-                () -> assertThrows(IllegalStateException.class, lstm.cell()::inputWeight));
+                () -> assertThrows(IllegalStateException.class, lstm.cell()::inputWeight),
+                () -> assertThrows(IllegalStateException.class, conv1d::weight),
+                () -> assertThrows(IllegalStateException.class, conv2d::weight),
+                () -> assertThrows(IllegalStateException.class, conv3d::weight));
     }
 
     @Test
@@ -132,6 +159,14 @@ class ModuleFactoryTest {
         GruSequence secondGru = modules.gru(4, false, DataType.FLOAT32, policy, 24L);
         LstmSequence firstLstm = modules.lstm(4, false, DataType.FLOAT32, policy, 25L);
         LstmSequence secondLstm = modules.lstm(4, false, DataType.FLOAT32, policy, 25L);
+        Conv1d firstConv1d = modules.conv1d(4, 3, 1, 0, 1, 1, false,
+                DataType.FLOAT32, policy, 26L);
+        Conv1d secondConv1d = modules.conv1d(4, 3, 1, 0, 1, 1, false,
+                DataType.FLOAT32, policy, 26L);
+        Conv2d firstConv2d = modules.conv2d(4, 3, 3, 1, 1, 0, 0, 1, 1, 1, false,
+                DataType.FLOAT32, policy, 27L);
+        Conv3d firstConv3d = modules.conv3d(4, 2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1,
+                false, DataType.FLOAT32, policy, 28L);
 
         assertAll(
                 () -> assertNotSame(firstEmbedding, secondEmbedding),
@@ -150,7 +185,11 @@ class ModuleFactoryTest {
                 () -> assertSame(firstGru.cell(), firstGru.children().get("cell")),
                 () -> assertNotSame(firstLstm, secondLstm),
                 () -> assertNotSame(firstLstm.cell(), secondLstm.cell()),
-                () -> assertSame(firstLstm.cell(), firstLstm.children().get("cell")));
+                () -> assertSame(firstLstm.cell(), firstLstm.children().get("cell")),
+                () -> assertNotSame(firstConv1d, secondConv1d),
+                () -> assertThrows(IllegalStateException.class, firstConv1d::weight),
+                () -> assertThrows(IllegalStateException.class, firstConv2d::weight),
+                () -> assertThrows(IllegalStateException.class, firstConv3d::weight));
     }
 
     @Test
@@ -203,6 +242,48 @@ class ModuleFactoryTest {
                 () -> assertNotEquals(expected.weight().value().id(), actual.weight().value().id()),
                 () -> assertEquals(List.of("weight", "bias"),
                         List.copyOf(actual.parametersRecursively().keySet())));
+    }
+
+    @Test
+    void convolutionRecipesMatchDirectConstructionStateAndInitializedValuesForAllRanks() {
+        ModuleFactory modules = ModuleFactory.standard();
+        ParameterInitialization policy = ParameterInitialization.glorotUniform();
+        Conv1d actual1 = modules.conv1d(6, 3, 1, 1, 1, 2, true,
+                DataType.FLOAT32, policy, 141L);
+        Conv1d direct1 = new Conv1d(6, 3, 1, 1, 1, 2, true,
+                DataType.FLOAT32, policy, 141L);
+        Conv2d actual2 = modules.conv2d(6, 2, 3, 1, 1, 0, 1, 1, 1, 2, true,
+                DataType.FLOAT32, policy, 142L);
+        Conv2d direct2 = new Conv2d(6, 2, 3, 1, 1, 0, 1, 1, 1, 2, true,
+                DataType.FLOAT32, policy, 142L);
+        Conv3d actual3 = modules.conv3d(6, 2, 2, 3, 1, 1, 1, 0, 0, 1, 1, 1, 1, 2,
+                true, DataType.FLOAT32, policy, 143L);
+        Conv3d direct3 = new Conv3d(6, 2, 2, 3, 1, 1, 1, 0, 0, 1, 1, 1, 1, 2,
+                true, DataType.FLOAT32, policy, 143L);
+
+        Tensor input1 = tensor(Shape.of(2, 4, 7), DataType.FLOAT32, false);
+        Tensor input2 = tensor(Shape.of(2, 4, 5, 7), DataType.FLOAT32, false);
+        Tensor input3 = tensor(Shape.of(2, 4, 4, 5, 7), DataType.FLOAT32, false);
+        Tensor result1 = actual1.forward(input1);
+        Tensor directResult1 = direct1.forward(input1);
+        Tensor result2 = actual2.forward(input2);
+        Tensor directResult2 = direct2.forward(input2);
+        Tensor result3 = actual3.forward(input3);
+        Tensor directResult3 = direct3.forward(input3);
+
+        assertAll(
+                () -> assertConvolutionParity(actual1, direct1, result1, directResult1),
+                () -> assertConvolutionParity(actual2, direct2, result2, directResult2),
+                () -> assertConvolutionParity(actual3, direct3, result3, directResult3),
+                () -> assertTrue(actual1.children().isEmpty()),
+                () -> assertTrue(actual2.children().isEmpty()),
+                () -> assertTrue(actual3.children().isEmpty()),
+                () -> assertEquals(List.of("weight", "bias"),
+                        List.copyOf(actual1.parametersRecursively().keySet())),
+                () -> assertEquals(List.of("weight", "bias"),
+                        List.copyOf(actual2.parametersRecursively().keySet())),
+                () -> assertEquals(List.of("weight", "bias"),
+                        List.copyOf(actual3.parametersRecursively().keySet())));
     }
 
     @Test
@@ -274,6 +355,21 @@ class ModuleFactoryTest {
                         1, true, null, ParameterInitialization.ones(), 65L),
                 () -> modules.lstm(
                         1, true, null, ParameterInitialization.ones(), 65L));
+        assertSameFailure(
+                () -> new Conv1d(0, 3, 1, 0, 1, 1, false,
+                        DataType.FLOAT32, ParameterInitialization.ones(), 66L),
+                () -> modules.conv1d(0, 3, 1, 0, 1, 1, false,
+                        DataType.FLOAT32, ParameterInitialization.ones(), 66L));
+        assertSameFailure(
+                () -> new Conv2d(4, 0, 3, 1, 1, 0, 0, 1, 1, 1, false,
+                        DataType.FLOAT32, ParameterInitialization.ones(), 67L),
+                () -> modules.conv2d(4, 0, 3, 1, 1, 0, 0, 1, 1, 1, false,
+                        DataType.FLOAT32, ParameterInitialization.ones(), 67L));
+        assertSameFailure(
+                () -> new Conv3d(4, 2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, 3,
+                        false, DataType.FLOAT32, ParameterInitialization.ones(), 68L),
+                () -> modules.conv3d(4, 2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, 3,
+                        false, DataType.FLOAT32, ParameterInitialization.ones(), 68L));
 
         assertEquals(before, nextTensorId.get());
     }
@@ -382,6 +478,19 @@ class ModuleFactoryTest {
         assertEquals(expectedPaths, List.copyOf(actual.parametersRecursively().keySet()));
         assertEquals(expectedPaths, List.copyOf(expected.parametersRecursively().keySet()));
         for (String path : expectedPaths) {
+            Tensor actualValue = actual.parametersRecursively().get(path).value();
+            Tensor expectedValue = expected.parametersRecursively().get(path).value();
+            assertArrayEquals(storage(expectedValue), storage(actualValue), path);
+            assertNotSame(expectedValue, actualValue, path);
+            assertNotEquals(expectedValue.id(), actualValue.id(), path);
+        }
+    }
+
+    private static void assertConvolutionParity(
+            Module actual, Module expected, Tensor actualResult, Tensor expectedResult) {
+        assertEquals(expectedResult.descriptor(), actualResult.descriptor());
+        assertNotSame(expected, actual);
+        for (String path : List.of("weight", "bias")) {
             Tensor actualValue = actual.parametersRecursively().get(path).value();
             Tensor expectedValue = expected.parametersRecursively().get(path).value();
             assertArrayEquals(storage(expectedValue), storage(actualValue), path);

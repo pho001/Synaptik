@@ -2622,6 +2622,17 @@ output-cell ranges, and the bounded fusion/materialized-suffix forms documented 
 guide. Other backend algorithms and execution forms remain planned. See
 [Tensor API](api/tensor-api.md#grouped-nchw-conv2d-expressions).
 
+The current NN **channels-first convolution layers** are the separate final `Conv1d`, `Conv2d`,
+and `Conv3d` unary modules for NCW, NCHW, and NCDHW input. Each infers only the positive static
+axis-1 input-channel extent on its first compatible forward call or complete strict state load.
+Output channels, scalar rank-specific geometry, groups, bias presence, floating type,
+initialization policy, and seed remain construction facts. Weight Shapes are
+`[C_out,C_in/groups,K_w]`, `[C_out,C_in/groups,K_h,K_w]`, and
+`[C_out,C_in/groups,K_d,K_h,K_w]`; optional bias is `[C_out]`. Complete weight then optional bias
+is published atomically, and strict loading can retain exact compatible candidate Tensors without
+initializer or random-source work. The layers construct the corresponding Model expressions and
+do not execute values. There is no public `ConvNd` or public convolution-fan configuration.
+
 ### Conv3d / NCDHW
 
 Current `Tensor.conv3d` records one first-class grouped three-dimensional cross-correlation in
@@ -3461,12 +3472,13 @@ contract](api/training-api.md#current-nn-automatic-parameter-initialization-cont
 
 The implemented NN **standard module factory** is the final `ModuleFactory` returned by
 `ModuleFactory.standard()`. It is one shared, immutable, instance-field-free construction facade
-for the current initialized `Embedding`, automatic `Linear`, and automatic-cell `RnnSequence`,
-`GruSequence`, and `LstmSequence` families. Each recipe receives the complete per-call size, bias
-where applicable, floating data type, `ParameterInitialization`, and seed, delegates once to the
-matching existing public constructor, and returns one fresh exact concrete module. The Linear
-recipe selects the deterministic JDK `L64X128MixRandom` factory; recurrent and Embedding
-constructors retain their existing standard-source rules.
+for the current initialized `Embedding`; automatic `Linear`, `Conv1d`, `Conv2d`, and `Conv3d`;
+and automatic-cell `RnnSequence`, `GruSequence`, and `LstmSequence` families. Each recipe receives
+the complete per-call size and scalar geometry, bias where applicable, floating data type,
+`ParameterInitialization`, and seed, delegates once to the matching existing public constructor,
+and returns one fresh exact concrete module. The Linear recipe selects the deterministic JDK
+`L64X128MixRandom` factory; convolution, recurrent, and Embedding constructors retain their
+existing standard-source rules.
 
 The factory is not Model topology, ownership, registration, a provider or plugin boundary, a
 registry, a service locator, a configuration container, a random-number-generator owner, or a
@@ -3487,7 +3499,8 @@ forward signature is one non-null Tensor to one non-null Tensor. The nominal sub
 module ownership and unary invocation together at compile time without a cast, reflection,
 adapter, or generic `Module.forward(...)`. It defines no shared Shape, data type, freshness,
 numerical, mode, state-transition, compiler, backend, or execution rule; each concrete child keeps
-its own contract. Current `Linear`, `LayerNorm`, and `Embedding` layers participate.
+its own contract. Current `Linear`, `LayerNorm`, `Embedding`, `Conv1d`, `Conv2d`, and `Conv3d`
+layers participate.
 
 `BatchNorm`, `Dropout`, `RnnCell`, `GruCell`, and `LstmCell` deliberately remain outside this
 subtype. Batch

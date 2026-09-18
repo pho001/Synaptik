@@ -7,9 +7,22 @@
  * remains in {@code modules/model}. Calling a forward method builds storage-free expression
  * metadata. It does not evaluate values, compile a graph, select a backend, or execute work.</p>
  *
+ * <p>{@link io.github.pho001.synaptik.nn.layers.Conv1d},
+ * {@link io.github.pho001.synaptik.nn.layers.Conv2d}, and
+ * {@link io.github.pho001.synaptik.nn.layers.Conv3d} are channels-first unary modules. They infer
+ * only the positive static input-channel extent, publish {@code weight} and optional zero
+ * {@code bias} atomically, and delegate visibly to the matching Model Tensor convolution API.
+ * Their weight Shapes are respectively {@code [C_out,C_in/groups,K_w]},
+ * {@code [C_out,C_in/groups,K_h,K_w]}, and
+ * {@code [C_out,C_in/groups,K_d,K_h,K_w]}; optional bias is {@code [C_out]}. Grouped
+ * initialization uses the actual per-group fan-in and fan-out. Strict complete state loading can
+ * bind the exact parameter references without initializer or random-source work, while a failed
+ * first binding publishes no partial state and remains retryable. These layers construct
+ * expressions only; current Conv3d backward-capable compilation remains fail-closed.</p>
+ *
  * <p>{@link io.github.pho001.synaptik.nn.layers.Linear},
  * {@link io.github.pho001.synaptik.nn.layers.LayerNorm}, and
- * {@link io.github.pho001.synaptik.nn.layers.Embedding} are
+ * {@link io.github.pho001.synaptik.nn.layers.Embedding}, and the three convolution layers are
  * {@link io.github.pho001.synaptik.nn.module.UnaryTensorModule} instances and can be owned by
  * {@link io.github.pho001.synaptik.nn.module.Sequential}.
  * {@link io.github.pho001.synaptik.nn.layers.BatchNorm} and

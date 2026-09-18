@@ -24,7 +24,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through Prepare 0005 | Compiler 0006B5 supplies a resolved producerless/consumerless published-constant descriptor while Planning preserves its graph-output obligation. | Prepare contributes that resource to the handoff and assigns a deterministic shared slot without backend selection or physical geometry. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Complete baseline; optional provider 0004 Blocked/deferred | Native interop conventions needed by the provider are decided. | Required FLOAT32/FLOAT64 remains complete; the optional direct BFLOAT16-output capability stays fail-closed until both proof gaps are resolved. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through 0010I (0010D1 Blocked/deferred optional) | Complete CPU 0010E–0010H, Prepare 0004, and tools/tuning 0001 establish the current local-candidate, lifecycle, opaque-handoff, and tuning-consumer seams. | CPU 0010I supplies the supported typed CPU handoff/codec/trial-and-final selected-preparation collaboration while preserving ordinary heuristic preparation and external orchestration ownership. |
-| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0008 | CPU 0010I, Engine 0006A, and Compiler 0006B6 completed the tuning, representative-lifecycle, and public dimensional-convolution prerequisites. | The CPU-only Engine lifecycle checkpoint is closed; detailed Ready NN 0025 is the selected convolution-layer frontier and NN 0025A remains its following Draft checkpoint. |
+| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0008 | CPU 0010I, Engine 0006A, and Compiler 0006B6 completed the tuning, representative-lifecycle, and public dimensional-convolution prerequisites. | The CPU-only Engine lifecycle checkpoint and NN 0025 convolution layers are complete; NN 0025A remains the next Draft checkpoint. |
 | 12 | [`backends/metal`](backends/metal/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | Metal passes the applicable backend-conformance suite. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | CUDA passes the applicable backend-conformance suite. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | The model representation and public tensor semantics are stable. | Selected import/export mappings and compatibility validation are complete. |
@@ -94,7 +94,7 @@ Compiler 0006B3 Engine-facing complete compile integration port (Complete)
   -> Compiler 0006B6 final convolution logical-layout closure and public Engine fixtures (Complete;
      user-authorized owning-prerequisite interleave)
   -> Engine 0008 lifecycle capability checkpoint (Complete)
-  -> detailed Ready NN 0025 dimensional-convolution layers, then Draft NN 0025A checkpoint
+  -> Complete NN 0025 dimensional-convolution layers, then Draft NN 0025A checkpoint
   -> later tools/tuning 0002
 ```
 
@@ -219,8 +219,7 @@ reconciled current public workflows without executable or architecture changes. 
 capability query while Model construction remained unresolved; the positive public
 Conv1d/Conv2d/Conv3d fixtures passed. Detailed
 [NN 0025 channels-first Conv1d, Conv2d, and Conv3d layers](extensions/nn/tasks/0025-channels-first-conv1d-conv2d-conv3d-layers.md)
-is now `Ready` as the next dimensional-convolution frontier, followed by the concise Draft NN
-0025A user-capability checkpoint.
+is `Complete`; the concise Draft NN 0025A user-capability checkpoint remains next.
 
 The Engine 0001 seam audit found a bounded actionable foundation, not a mixed-backend composition
 contract. `GraphPreparation` accepts one complete schedule assembler, and the only supported
@@ -307,7 +306,7 @@ CPU frontier merely because its master plan exists.
 
 NN 0001–0021A were completed through the bounded user-authorized interleaves recorded in the
 [NN master plan](extensions/nn/master-plan.md). The roadmap now explicitly selects detailed
-[NN 0025](extensions/nn/tasks/0025-channels-first-conv1d-conv2d-conv3d-layers.md) as `Ready` after
+[NN 0025](extensions/nn/tasks/0025-channels-first-conv1d-conv2d-conv3d-layers.md) as `Complete` after
 completed Engine 0008. This is an implementation-order exception around unrelated Draft NN
 0021B–0024, whose recurrent/Data contracts and files do not overlap NN 0025. NN 0025A remains the
 following concise Draft checkpoint without a detailed task file.
@@ -486,8 +485,8 @@ proved the same typed input/publication lifecycle for all three ranks. Complete 
 0006B6 closes the previously audited logical-layout admission gap between public compilation and
 CPU capability selection and supplies positive public Engine fixtures. Engine 0008 now consumes
 that evidence. Detailed
-[NN 0025](extensions/nn/tasks/0025-channels-first-conv1d-conv2d-conv3d-layers.md) is `Ready` to
-add `Conv1d`, `Conv2d`, and `Conv3d` layers, while NN 0025A remains the following Draft owner of
+[NN 0025](extensions/nn/tasks/0025-channels-first-conv1d-conv2d-conv3d-layers.md) is `Complete`
+with `Conv1d`, `Conv2d`, and `Conv3d` layers, while NN 0025A remains the following Draft owner of
 the layer-level end-to-end user capability.
 
 This is an ordering and dependency correction within the already planned portable CPU route. It
@@ -2169,10 +2168,10 @@ Engine-owned evidence boundary. Detailed
 [Engine 0008](modules/engine/tasks/0008-engine-lifecycle-capability-checkpoint.md) is Complete. Its
 documentation-only checkpoint consumed Complete Compiler 0006B6's descriptor closure plus exact
 positive public Engine fixtures without excluding the original dimensional-convolution exit
-condition. Detailed Ready
-[NN 0025](extensions/nn/tasks/0025-channels-first-conv1d-conv2d-conv3d-layers.md) is the next
-dimensional-convolution frontier under the recorded exception around unrelated Draft NN
-0021B–0024; NN 0025A remains the following concise Draft user-capability checkpoint.
+condition. Detailed
+[NN 0025](extensions/nn/tasks/0025-channels-first-conv1d-conv2d-conv3d-layers.md) is `Complete`
+under the recorded exception around unrelated Draft NN 0021B–0024; NN 0025A remains the next
+concise Draft user-capability checkpoint.
 Family tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator
 (RNG) state, mask, and configuration roles remain intentionally non-differentiable where

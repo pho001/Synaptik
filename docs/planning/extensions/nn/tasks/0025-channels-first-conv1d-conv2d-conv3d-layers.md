@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -435,7 +435,7 @@ git diff --check
 Also validate local links/anchors, fences, LF/final newlines/trailing whitespace, exact 17 paths,
 empty staging, exact API with reflection/`javap` and external compilation, exact provenance, no
 `ConvNd`/array/public fan/helper/downstream import/dependency/resource/build edit, and status
-agreement (`0025` Ready until all gates, `0025A` Draft with no detailed file).
+agreement (`0025` Complete after all gates, `0025A` Draft with no detailed file).
 
 No Java/Javadoc run is required for this planning-only creation. The implementation documentation
 pass reuses stable final NN test evidence unless it changes executable Java afterward.
@@ -538,22 +538,95 @@ unresolved issues, and exact final Status.
 
 ## Validation evidence
 
-Empty until implemented.
+- Implementation context `01a0b4f8-4ad6-7ec2-a4cb-d6efba2b4cfc` passed the exact focused
+  selection with 56 tests and zero failures, errors, or skips. Its one authoritative
+  `./gradlew :extensions:nn:test` passed 292 tests in 41 suites with zero failures, errors, or
+  skips. This remains the original implementation evidence; the later corrective run below is
+  the final controlling test evidence.
+- The implementation pass also passed `javap`, reflection/public-surface checks,
+  external-package API compilation, forbidden-symbol/downstream-import/delegation/RNG/publication
+  scans, exact 12-Java-path scope, LF/final-newline checks, and `git diff --check`.
+- Documentation context `01a0b50a-a48a-7ed1-b48a-72b42b7b94d3` ran
+  `./gradlew :extensions:nn:javadoc` exactly once after documentation stabilized; it completed
+  successfully in two seconds with three actionable tasks, two executed and one up-to-date.
+  Generated pages for `Conv1d`, `Conv2d`, `Conv3d`, `ModuleFactory`, and the layers package were
+  inspected for the finalized contracts.
+- A documented external-package `Conv2d` factory example compiled and ran against the built Model
+  and NN public APIs, including its expected weight and output Shapes. Final `javap -public`
+  inspection confirmed each final convolution type has one scalar constructor plus `weight()`,
+  `bias()`, and `forward(Tensor)`, and confirmed the three factory recipes.
+- Final documentation validation passed local Markdown links and anchors, code fences,
+  terminology/status consistency, generated-page inspection, LF/final newlines, exact 17-path
+  scope, empty staging, and `git diff --check`. Every documentation-pass Java patch hunk was
+  confined to Javadoc or comments; a Java-aware lexical audit discarded comments and whitespace,
+  fingerprinted the remaining executable token streams, and confirmed that this pass introduced
+  no executable Java edit.
+- Corrective test-only context `01a0b51a-34a3-7732-a476-dfd0ca7977f9` changed only `Conv2dTest`,
+  `Conv3dTest`, `ConvolutionInitializationTest`, `ConvolutionStateDictionaryTest`, and
+  `ModuleFactoryTest`. It added independent group-aware fan oracles, preflight/no-ID and
+  constructor-order checks, compatible and incompatible first-binding races, identifier
+  exhaustion between weight and bias with deterministic retry, stricter state-load rollback and
+  boundary checks, all-rank variable-Shape checks, and direct/factory parity. Its focused
+  selection passed 70 tests in the same nine suites with zero failures, errors, or skips. Its new
+  single authoritative `./gradlew :extensions:nn:test` passed 306 tests in 41 suites with zero
+  failures, errors, or skips. The coordinator independently confirmed those XML totals and
+  reviewed the new tests against the acceptance criteria. These runs are the final controlling
+  test evidence; the corrective context changed no production code, API, Javadoc, explanatory
+  documentation, glossary semantics, architecture, or task scope and did not rerun Javadoc.
 
 ## Implementation notes
 
-Empty until implemented.
+- Added separate final channels-first `Conv1d`, `Conv2d`, and `Conv3d` layers with deferred
+  positive static input-channel binding, exact rank-specific state Shapes, atomic complete-state
+  publication, retryable failure, strict complete-state load, and stateless factory recipes.
+- Kept convolution fan calculation and policy dispatch package-private. Random policies use one
+  fresh `L64X128MixRandom` per attempt; zero/one avoid generator creation; optional bias is typed
+  zero and consumes no random draw.
+- Preserved Tensor provenance and ownership: `Conv1d` delegates to `Tensor.conv1d`, `Conv2d` and
+  `Conv3d` delegate to their matching Tensor methods, and every layer constructs expressions
+  without executing values. Conv3d backward-capable compilation remains fail-closed.
+- Documentation finalized all affected Javadocs, the layers package summary, the Training API
+  explanation and example, glossary context, master plan, roadmap, and this completion evidence.
+- No architecture contract or current-architecture-plan edit is needed because dependency
+  direction, module ownership, and lifecycle boundaries are unchanged. No ADR or architecture
+  test is needed because no architectural decision or dependency rule changed. No backend
+  conformance or integration test is needed because the layers add NN expression composition,
+  not backend execution; NN 0025A remains the Draft owner of Engine-facing layer fixtures.
+- No Gradle, dependency, or resource edit is needed because NN continues to depend only on Model.
+  Model, Compiler, CPU, Engine, and Training implementation APIs remain unchanged: existing Tensor
+  convolution operations are composed, and no execution or gradient capability is added.
+  `ParameterInitialization` and `ParameterInitializers` remain unchanged because group-aware fans
+  are a private layer concern. No other module needs modification for this bounded NN capability.
 
 ## Completion summary
 
-- Completed changes: Pending implementation.
-- Files changed or created: Pending implementation.
-- Tests and validation: Pending implementation.
-- Documentation-agent review: Pending implementation.
-- Documentation impact: Pending implementation.
-- Javadoc review: Pending implementation.
-- Glossary impact: Pending implementation.
-- Unresolved issues: None known at planning time.
-- Follow-up required: Implement NN 0025, then plan NN 0025A separately.
+- Completed changes: Implemented the three rank-specific channels-first convolution layers,
+  their private initialization support, stateless factory recipes, focused tests, complete
+  Javadocs, and user/planning documentation.
+- Files changed or created: Exactly the six production Java files, six focused test files, and
+  five documentation/planning files listed by this task's bounded scope.
+- Tests and validation: The final controlling corrective evidence is a passing 70-test focused
+  selection across the same nine suites and a passing 306-test/41-suite authoritative NN run,
+  both with zero failures, errors, or skips. The earlier 56-test and 292-test runs remain recorded
+  as implementation history. The documentation context passed its single NN Javadoc run,
+  generated-page review, external example compilation/run, public-surface inspection, and final
+  documentation/scope/hygiene gates; Javadoc was not repeated after test-only correction.
+- Documentation-agent review: Complete in clean context
+  `01a0b50a-a48a-7ed1-b48a-72b42b7b94d3`; no executable Java behavior changed and no stable Java
+  suite was repeated during that documentation pass. This resumed evidence synchronization found
+  no documentation semantic mismatch in corrective test-only context
+  `01a0b51a-34a3-7732-a476-dfd0ca7977f9`.
+- Documentation impact: `training-api.md` now explains construction versus execution, deferred
+  binding, state Shapes, groups, bias, initialization, state loading, factory use, and current
+  execution/gradient boundaries with a runnable example. Planning status and evidence are aligned.
+- Javadoc review: All affected public types, constructors, methods, the package summary, the
+  package-private helper, and factory recipes document inputs, results, failures, state,
+  ownership, retry, and threading where applicable.
+- Glossary impact: Existing convolution, standard-module-factory, and unary-module definitions
+  now include the precise channels-first/deferred-state context; no implementation-only term was
+  added.
+- Unresolved issues: None.
+- Follow-up required: NN 0025A remains the next concise Draft checkpoint and has no detailed task
+  file.
 
-Status: Ready
+Status: Complete
