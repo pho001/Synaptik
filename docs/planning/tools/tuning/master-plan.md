@@ -72,6 +72,7 @@ io.github.pho001.synaptik.tools.tuning/
   CompletePlanCorrectness      current opaque-reference exact comparison collaboration
   CompleteCandidateMeasurement current one-complete-plan action
   ModelPlanCacheFile           current package-private model-plan cache persistence
+  TuningInspection             next public read-only cache/evidence inspection namespace
 ```
 
 The root package remains the deliberate small public surface for both coordinated phases. Task
@@ -83,7 +84,7 @@ The root package remains the deliberate small public surface for both coordinate
 |---|---|---|---|---|
 | 0001 | [Exact/default model-guided workload tuning and reusable cache](tasks/0001-exact-default-model-guided-workload-tuning-and-reusable-cache.md) | Complete | CPU 0010E; Prepare 0004; caller-supplied stable identity, typed opaque collaboration, and operational cold measurement | Added the generic caller-supplied cold workload tuner, exact compatible-occurrence deduplication, bounded miss-only measurement, deterministic median selection, reusable bounded persistent cache, and separate rich evidence. Tool-local request inputs precede any later Config facade. |
 | 0002 | [Bounded complete-plan tuning and model-plan cache](tasks/0002-bounded-complete-plan-tuning-and-model-plan-cache.md) | Complete | 0001; Complete CPU 0010J and Engine 0008A evidence | Added the generic tools-only complete-plan transaction with checked execution budgets, opaque exact correctness, deterministic timing selection, strict SESSION no-I/O, authenticated PERSISTENT reuse, a compact selected-plan record/cache, and separate rich evidence. Later Config and Engine composition remain out of scope. |
-| 0003 | Cache and plan inspection | Draft | 0001–0002, stable artifact schemas | Inspect compatibility, provenance summaries, invalidation reasons, selected plans, and separate measurement evidence without executing payloads or mutating runtime state. |
+| 0003 | [Read-only cache, plan, and evidence inspection](tasks/0003-read-only-cache-plan-and-evidence-inspection.md) | Ready | 0001–0002, stable artifact schemas | Add bounded Path/byte inspection for both compact formats, redacted provenance and selected-candidate summaries, typed structural and exact-key mismatch reasons, and separate summaries of existing rich evidence without decoder, execution, or mutation. |
 
 ## Milestones
 
@@ -177,9 +178,13 @@ fallback policy, mutate Runtime, or rerun Phase-1 route ranking. Config 0006A cu
 or Phase-2 candidate-count meaning, so a later Config change may follow only after the Phase-2
 consumer contract is stable.
 
-Task 0003 cache and plan inspection is the next ordered tuning frontier. It remains Draft without
-a detailed specification. Separately planned Config extension and Engine-owned CPU composition
-remain prerequisites for public Phase-2 use, not unfinished parts of task 0002.
+Task 0003 read-only cache, plan, and evidence inspection is Ready as the next ordered tuning
+frontier. Its source-backed audit proved that one tools-only task can inspect both stable schema-1
+formats and summarize existing rich evidence without a backend decoder, Engine/CPU import,
+execution, or mutation. It reports exact key matches as requiring decoder authentication, redacts
+opaque values to schema/length/SHA-256 summaries, and preserves task-0001/task-0002 bytes and
+behavior. Separately planned Config extension and Engine-owned CPU composition remain follow-ups
+for public Phase-2 use, not prerequisites for inspection.
 
 ## Open questions
 
