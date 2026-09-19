@@ -64,7 +64,7 @@ measures bounded complete plan candidates, and writes explicit persistent artifa
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
 | 0001 | [Exact/default model-guided workload tuning and reusable cache](tasks/0001-exact-default-model-guided-workload-tuning-and-reusable-cache.md) | Complete | CPU 0010E; Prepare 0004; caller-supplied stable identity, typed opaque collaboration, and operational cold measurement | Added the generic caller-supplied cold workload tuner, exact compatible-occurrence deduplication, bounded miss-only measurement, deterministic median selection, reusable bounded persistent cache, and separate rich evidence. Tool-local request inputs precede any later Config facade. |
-| 0002 | Bounded graph and plan tuning | Draft | 0001, compiler graph candidates, planning ownership/partition candidates, complete prepare candidates, and operational engine paths | Measure a budget-bounded set of complete valid candidates end to end, reuse local results without repeating local search, and select an explicit model plan or prepared artifact. |
+| 0002 | Bounded graph and plan tuning | Blocked | 0001; Ready CPU 0010J must become Complete; then a fresh audit must resolve a truthful Phase-2 budget and model-plan artifact contract; later Engine composition | Measure a budget-bounded set of complete valid candidates end to end, reuse local results without repeating local search, and select an explicit model-plan record. CPU 0010J now specifies the missing owner producer, but 0002 remains Blocked with no specification until that producer is implemented and its actual evidence is re-audited. |
 | 0003 | Cache and plan inspection | Draft | 0001–0002, stable artifact schemas | Inspect compatibility, provenance summaries, invalidation reasons, selected plans, and separate measurement evidence without executing payloads or mutating runtime state. |
 
 ## Milestones
@@ -75,35 +75,50 @@ measures bounded complete plan candidates, and writes explicit persistent artifa
 
 ## Current status
 
-Task 0001 is Complete. CPU 0010E and Prepare 0004 remain Complete. The current repository has no
-Engine facade or general operational model-execution path, so task 0001 uses a narrow typed generic cold
-collaboration supplied explicitly by composition: the caller supplies stable model/profile
-identity, opaque candidate enumeration and decision encoding/decoding, and one complete
-candidate execution action; tuning owns timing, validation, deduplication, cache coordination,
-selection, evidence, and atomic persistence. The implementation passed its 24-test module gate,
-clean Javadoc and rendered-text inspection, documentation checks, and the 3,032-test repository
-checkpoint. This makes the local workflow operational without a
-concrete CPU dependency, shared interpretation, Runtime work, or an invented Engine facade.
+Task 0001, Config 0006A, CPU 0010I, Engine 0006A–0008, and Prepare 0004 are Complete. The current
+public Engine composition is operational but deliberately bounded to CPU-local Phase 1: it maps
+at most one eligible workload to occurrence 0 in partition 0 with weight 1, measures complete
+fresh trial executions, and freshly prepares the selected or safe-heuristic production recipe.
+The generic cache-first workflow remains independent of CPU internals.
 
-The initial slice remains exact/default and FLOAT32/FLOAT64 only. It does not wait for the blocked
-BFLOAT16 side branch or unfinished relaxed numerical configuration. Config 0006A is Complete and
-its public immutable objective, bounded sampling budget, representative-profile identity,
-fallback policy, and explicit workload-cache path are current declarative vocabulary. Mapping
-those values into tuning 0001 and supplying the missing model and execution facts remain deferred
-to later composition. The shortest Engine foundation path is Compiler 0006B3 -> CPU 0010F ->
-Engine 0001; it does not integrate tuning. Standard built-in Engine composition remains
-deterministic and tuning-free unless a later Engine-owned optional integration explicitly maps
-Config 0006A. Tuning 0002 still depends on operational typed Engine paths, while Config 0006A
-mapping into tuning 0001 belongs to that later outer-composition increment. Tuning 0002 and 0003
-remain Draft without detailed specifications.
+Task 0002 is blocked and has no detailed specification. The current producers cannot form a
+truthful Phase-2 candidate set: Compiler emits one optimized artifact for one request; Planning
+selects one owner per occurrence and one maximal partition list; shared Prepare only transports
+one exact-partition opaque backend batch; CPU 0010I exposes only the Phase-1 portable/OpenBLAS
+local-route batch; and Engine 0007 composes only that same batch. Treating those local candidates
+as plan candidates would repeat Phase-1 search, which the architecture forbids.
+
+Ready
+[CPU 0010J supported complete-plan candidate and decision producer](../../backends/cpu/tasks/0010j-supported-complete-plan-candidate-and-decision-producer.md)
+is now the smallest owning prerequisite. It specifies the retained CPU 0008D/0008E legal
+fusion/split and materialization alternatives as one bounded supported batch of complete opaque
+one-partition candidates and compatible selected decisions. It requires exact Phase-1 local
+decision reuse, preserves CPU ownership of private fields and resource validity, uses the existing
+method-free Prepare roles, and freshly prepares a complete recipe without measuring it. It does
+not wait for optional vendor peers or broaden CPU 0016's local cross-route cache role.
+
+After CPU 0010J is Complete, re-audit 0002 as a tools/tuning-only generic Phase-2 foundation;
+Engine composition remains a separate later owner task. Config 0006A currently provides
+`maximumDistinctCacheMisses`, `maximumCandidatesPerMiss`, `warmupCount`, and
+`timedSampleCount` for Phase 1. It has no maximum-total-executions field, model-plan-cache path,
+or Phase-2 candidate-count meaning, so a later Config change may follow only after the Phase-2
+consumer contract is stable.
+
+No compact model-plan record is implementable yet. There is no owner-produced plan decision,
+canonical cross-compilation model fingerprint, or complete-plan compatibility schema to persist.
+Any later record must remain separate from rich evidence, carry explicit schema/owner/target/model/
+profile/objective/constraint compatibility, reject corruption and incompatibility safely, publish
+atomically, and trigger fresh preparation on a hit; it must never serialize `PreparedExecution`
+or executable payloads.
 
 ## Open questions
 
-- Config 0006A's exact public request vocabulary is current. Its explicit translation into tuning
-  0001 and Engine or other outer composition remain deferred until those lifecycle paths are
-  implemented.
 - Prepared-executable serialization remains deliberately unresolved.
-- Task 0002's graph/plan budget and end-to-end Engine measurement boundary remain unresolved.
+- The future Phase-2 request still needs an owner for maximum plan-candidate count, maximum total
+  plan executions, and an explicit model-plan-cache path after the consumer stabilizes.
+- Engine's current representative session proves lifecycle completion and cleanup, not numerical
+  equivalence among distinct whole plans; the later Engine composition task must define its
+  correctness oracle or fail closed before measurement.
 
 ## Decisions made
 
@@ -156,8 +171,17 @@ remain Draft without detailed specifications.
   deferred until strict Synaptik-build, generator-schema, classfile/JDK, Vector API, target,
   validation, and corruption-handling compatibility is designed by the owning lifecycle.
 - Config 0006A owns the current declarative request vocabulary only. Later outer composition owns
-  its explicit mapping to tool-local tuning values, actual model and representative execution
-  facts, and fallback control flow; tuning 0002 and 0003 remain Draft.
+  any Phase-2 extension after the consumer stabilizes; it must not reinterpret Phase-1 miss and
+  per-miss candidate bounds as plan or total-execution bounds.
+- A generic Phase-2 tools foundation is not created before one current owner can supply complete
+  valid plan candidates. A caller-supplied abstraction without a production producer would be
+  speculative and would not prove Phase-1 reuse.
+- Ready CPU 0010J is the first truthful producer because CPU already retains bounded executable
+  fusion/split and materialization alternatives. Compiler and Planning remain architecture-only
+  future candidate roles until they expose more than their current single deterministic result.
+- Phase 2 may reuse a local selection only through an explicit typed handoff into complete-plan
+  generation. Current Engine selected preparation is not that handoff and must not be described
+  as reuse.
 
 ## Risks
 
@@ -166,6 +190,7 @@ remain Draft without detailed specifications.
 - Letting shared orchestration interpret private backend fields or invent a generic knob language.
 - Allowing implicit caches, unsafe deserialization, or stale compatibility matches.
 - Expanding an end-to-end search beyond the explicit tuning budget.
+- Persisting an ad hoc caller label as though it were a canonical model/plan compatibility key.
 
 ## Notes
 
