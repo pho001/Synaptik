@@ -1183,10 +1183,43 @@ public final class AdvancedEngine implements AutoCloseable {
     private static long[] preflightCanonicalByteCounts(
             List<io.github.pho001.synaptik.engine.RunResult.Publication> publications,
             long maximumTotalBytes) {
-        long[] byteCounts = new long[publications.size()];
+        var descriptors = new ArrayList<io.github.pho001.synaptik.model.tensor.TensorDescriptor>(
+                publications.size());
+        publications.forEach(publication -> descriptors.add(publication.descriptor()));
+        return preflightCanonicalDescriptorByteCounts(descriptors, maximumTotalBytes);
+    }
+
+    /**
+     * Validates every ordered publication occurrence and derives its canonical payload size
+     * before execution, allocation, or physical access. Repeated descriptors and aliases remain
+     * separate occurrences in the returned array. This is the single Engine-owned aggregate
+     * accounting contract shared by ordinary host snapshots and representative correctness
+     * capture.
+     *
+     * @param descriptors non-null ordered non-empty publication descriptors with non-null elements
+     * @param maximumTotalBytes non-negative aggregate canonical-payload limit in bytes
+     * @return a new non-null array of exact per-occurrence canonical byte counts in encounter
+     *     order, including zero for an empty value
+     * @throws NullPointerException if the list or an element is null
+     * @throws IllegalArgumentException if the list is empty, the limit is negative, a Shape is not
+     *     fully static, a layout is unresolved, an occurrence exceeds the JVM array ceiling, or
+     *     the aggregate exceeds the supplied limit
+     * @throws ArithmeticException if checked element, byte, or aggregate arithmetic overflows
+     */
+    static long[] preflightCanonicalDescriptorByteCounts(
+            List<io.github.pho001.synaptik.model.tensor.TensorDescriptor> descriptors,
+            long maximumTotalBytes) {
+        Objects.requireNonNull(descriptors, "descriptors");
+        requireNonNegativeTotalLimit(maximumTotalBytes);
+        if (descriptors.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "host snapshot requires at least one publication");
+        }
+        long[] byteCounts = new long[descriptors.size()];
         long total = 0;
-        for (int index = 0; index < publications.size(); index++) {
-            var descriptor = publications.get(index).descriptor();
+        for (int index = 0; index < descriptors.size(); index++) {
+            var descriptor = Objects.requireNonNull(
+                    descriptors.get(index), "descriptors[" + index + "]");
             if (!descriptor.shape().isFullyStatic()) {
                 throw new IllegalArgumentException(
                         "host snapshot requires a fully static shape: " + descriptor.shape());

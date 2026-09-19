@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -430,20 +430,107 @@ before that pass finishes. Do not commit or push unless explicitly instructed.
 
 ## Local decisions
 
-Empty until implemented.
+- The correctness model is one package-private final top-level type colocated with the
+  representative session. Its reference owns transferred detached arrays and exposes no accessor;
+  its comparison result has exactly `MATCH` and `MISMATCH`.
+- Ordinary host snapshots and correctness capture share one Engine-owned descriptor preflight so
+  fully static Shape, resolved layout, checked byte arithmetic, per-array ceiling, occurrence
+  order, and aggregate-limit behavior cannot drift.
+- Correctness capture stores the validated per-occurrence byte counts for later comparisons.
+  Candidate comparison therefore cannot introduce a different byte policy after the reference is
+  established.
+- Completion-only execution remains the Phase-1 measurement action. Correctness capture and
+  comparison are distinct package-private session actions and are not wired into current public
+  tuning composition.
 
 ## Known limitations
 
-Empty until implemented.
+- The oracle is package-private Engine machinery and has no public request or result surface.
+- Exact canonical represented-byte equality is the only policy. There is no tolerance, NaN
+  normalization, relaxed-math permission, or decoded numeric comparison.
+- No tools/tuning Phase-2 orchestration consumes the oracle yet. Task 0002 remains Blocked pending
+  a fresh post-0008A dependency/readiness audit and still has no detailed specification.
+- Model-plan persistence, Phase-2 budgets and timing order, candidate interpretation, selected
+  production preparation, evidence translation, and public fallback remain follow-up work.
 
 ## Validation evidence
 
-Empty until implemented.
+- Implementation context `01a0b91e-76ac-7ee3-a697-015e98495a1c` ran
+  `./gradlew :modules:engine:test --tests
+  io.github.pho001.synaptik.engine.RepresentativeExecutionSessionTest`: 34 tests, zero failures,
+  errors, or skips.
+- The same implementation context ran `./gradlew :modules:engine:test`: 77 tests, zero failures,
+  errors, or skips. Documentation context `01a0b937-c31b-7591-8c79-f8577d6264b2` changed no
+  executable Java token, so it did not repeat either successful Java suite.
+- The implementation context passed `./gradlew :modules:engine:javadoc` and the required
+  `javap`, reflection, import, public-surface, and source scans. Those checks confirmed one new
+  package-private top-level final type, no public/protected oracle surface, exactly two comparison
+  values, and no CPU-internal or new tools/tuning API dependency.
+- The implementation context also passed its diff, changed-path, and staging checks. It reported
+  no repository-wide checkpoint, architecture test, integration test, backend-conformance run, or
+  performance benchmark; none is claimed by this task.
+- Mandatory clean documentation context `01a0b937-c31b-7591-8c79-f8577d6264b2` independently
+  reviewed the complete source/test diff, finalized the three affected production Javadoc/comment
+  paths, the two focused architecture explanations, and the four planning/status paths, and
+  reviewed the central glossary. It used General plus API/Javadoc style for Java contracts,
+  General plus Architecture style for the focused explanations, and General plus Planning style
+  for planning files.
+- The documentation context ran `./gradlew :modules:engine:javadoc` after final comment edits and
+  passed. Its repository-relative Markdown validation over the six documentation/planning paths
+  passed local targets and anchors, unique headings, balanced fences, LF/final newlines, and
+  trailing-whitespace checks.
+- A documentation-pass source-delta audit reviewed all three permitted production Java paths.
+  `AdvancedEngine` and `RepresentativePlanCorrectness` required no documentation-pass edit;
+  every hunk added by this pass to `RepresentativeExecutionSession` was inside a Javadoc comment.
+  Therefore this pass changed no executable token. Final `git diff --check` and
+  `git diff --cached --check` passed; staging was empty.
+- Final inventory validation found exactly ten changed or new paths: three Engine production
+  paths, one existing Engine test, two architecture explanations, this task, the Engine master
+  plan, the tuning master plan, and the roadmap. Exactly one new top-level Java type exists.
+- `ARCHITECTURE.md`, ADRs, module dependencies, architecture tests, integration tests,
+  backend-conformance tests, Runtime/Prepare/CPU/Config/Compiler/Model contracts, and public Engine
+  API need no change because this task realizes the existing Engine-owned package-private
+  publication/copy/cleanup boundary without changing architecture or cross-module behavior.
+- Glossary no-change conclusion: the implementation adds no reusable public domain term. Its
+  opaque reference and two-valued result are private session mechanics, while the existing
+  complete-plan candidate and canonical host-snapshot terminology remains accurate.
 
 ## Implementation notes
 
-Empty until implemented.
+- Added `RepresentativePlanCorrectness`, an immutable package-private result model whose opaque
+  same-session reference owns detached canonical bytes and whose result exposes only exact
+  `MATCH` or `MISMATCH`.
+- Extended `RepresentativeExecutionSession` to snapshot ordered publication specifications,
+  capture one reference after complete preflight and fresh execution, and compare later fresh
+  executions only after all occurrence copies and result cleanup succeed. Aliases, empty values,
+  order, signed zero, and NaN payload bits remain observable.
+- Factored AdvancedEngine's canonical descriptor byte preflight for shared ordinary-host-snapshot
+  and correctness use. The existing Phase-1 completion-only action and public tuning composition
+  are unchanged.
+- Reused the existing execution-failure cleanup path so copy/count/length/result-cleanup failure
+  preserves primary and suppressed failures, poisons once, cleans borrowed wrappers once, and
+  releases admission. A clean mismatch does not poison the session.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: implemented and documented the bounded Engine-owned representative complete-
+  plan exact correctness primitive without public API, timing, cache, candidate, or fallback
+  integration.
+- Files changed or created: the exact ten-path inventory recorded in Validation evidence.
+- Tests and validation: reused the implementation context's passing 34 focused and 77 full Engine
+  tests; final Engine Javadoc, Markdown, no-executable-token source-delta, diff, staging, and scope
+  checks passed.
+- Documentation-agent review: clean context `01a0b937-c31b-7591-8c79-f8577d6264b2` finalized all
+  affected Javadocs/comments, focused explanations, planning evidence, and no-change reviews.
+- Documentation impact: current completion-only versus correctness behavior, exact byte semantics,
+  lifecycle/failure handling, task status, and next frontier are synchronized.
+- Javadoc review: all three affected production paths were reviewed; their ownership, lifecycle,
+  inputs, results, exact represented-byte semantics, preflight order, cleanup, and failures are
+  accurate.
+- Glossary impact: no change; the new concepts are package-private mechanics rather than reusable
+  public terminology.
+- Unresolved issues: Phase-2 composition and its readiness remain unaudited after this change.
+- Follow-up required: perform the required fresh tools/tuning 0002 dependency/readiness audit;
+  keep task 0002 Blocked until that audit supports a complete detailed specification.
+
+Status: Complete

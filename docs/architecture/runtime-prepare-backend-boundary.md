@@ -166,18 +166,37 @@ downstream work.
 Engine can now retain one lifecycle admission around a package-private synchronous representative
 session. Admission precedes owner and input inspection, then exact compiled-input binding
 snapshots every caller-owned host storage before borrowing non-owning wrappers. Each supplied
-complete trial recipe runs through the stateless Runtime runner in a fresh `RunState`, completes
-all publications, validates the result count, and closes the result without materializing output.
+complete recipe runs through the stateless Runtime runner in a fresh `RunState` and completes all
+publications. Existing Phase-1 trial actions remain completion-only: they validate the result
+count and close the result without inspecting publication payloads.
+
+The same session now also owns a distinct package-private correctness action for later complete-
+plan composition. Before the first correctness run, Engine validates every ordered compiled
+publication descriptor and the aggregate canonical-byte limit. The first fresh run copies every
+publication occurrence independently to detached canonical bytes while the result lease is open,
+including repeated aliases and empty values, then closes the result before returning an opaque
+same-session reference. Each later candidate uses another fresh `RunState`, completes all copies
+and result cleanup, and only then compares exact represented bytes. Order, byte length, signed
+zero, and NaN payload bits are significant. The comparison exposes only `MATCH` or `MISMATCH` and
+no bytes, Tensor metadata, Runtime representation, or backend value.
 
 The session closes wrappers once in reverse order before fresh selected or ordinary fallback
-preparation. Trial or cleanup failure invalidates the session and forbids either path. Required
-tuning propagates its recoverable failure without ordinary preparation; allowed fallback performs
-ordinary safe-heuristic preparation once only after successful cleanup. Engine closure waits for
-the admission, and a close race rejects the final selected or fallback recipe. The public
+preparation. Execution, correctness-copy, result-count, copied-length, or cleanup failure
+invalidates the session and preserves the existing primary, suppression, poisoning, admission,
+and once-only cleanup rules. A successfully completed correctness mismatch does not poison the
+session, although a later Phase-2 owner must stop rather than time or select that candidate set.
+Required tuning propagates its recoverable failure without ordinary preparation; allowed fallback
+performs ordinary safe-heuristic preparation once only after successful cleanup. Engine closure
+waits for the admission, and a close race rejects the final selected or fallback recipe. The public
 composition invokes tuning outside Runtime. Cache hits execute no trials; misses use configured
 warmups and timed samples, each through a freshly prepared trial and fresh `RunState`. Selected
 and fallback production recipes are prepared afresh. No tuning state, cache access, ranking, or
 route selection enters Runtime.
+
+The correctness primitive is not wired into that public Phase-1 composition and does not alter
+candidate interpretation, timing, caching, selected preparation, fallback policy, Runtime, or a
+backend contract. A fresh post-implementation tools/tuning audit remains required before Phase 2
+can become Ready.
 
 ## The staged prepare handoff
 

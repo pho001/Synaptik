@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.engine;
 
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorId;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
@@ -16,22 +17,28 @@ import java.util.Objects;
  * Owns one synchronous representative-input borrowing and trial-execution session.
  *
  * <p>The session snapshots every required caller storage before borrowing any representation and
- * borrows each input exactly once in the final compiled-input order. Each execution delegates to
- * the stateless Runtime runner, which creates a fresh isolated run state, completes every
- * publication, and returns a result that this session validates and immediately closes without
- * inspecting a publication payload.</p>
+ * borrows each input exactly once in the final compiled-input order. Every action delegates to
+ * the stateless Runtime runner, which creates a fresh isolated run state and completes every
+ * publication. The completion-only action validates the result count and closes the result
+ * without inspecting payloads. Correctness capture and comparison instead copy every ordered
+ * publication occurrence to fresh canonical bytes while the result lease is open, close the
+ * result, and only then publish a reference or exact match/mismatch outcome.</p>
  *
  * <p>The session is deliberately package-private and single-threaded. Its Engine admission begins
  * before owner or representative-input inspection and spans all trial executions, reverse-order
  * wrapper cleanup, and the final selected or fallback preparation. Engine closure therefore waits
  * for that entire admitted operation. Caller storage remains caller-owned and must stay live,
- * accessible, and unmodified until session cleanup completes. Any execution or cleanup failure
- * invalidates the session and prevents both selected preparation and fallback.</p>
+ * accessible, and unmodified until session cleanup completes. A correctness reference is opaque,
+ * owned by this session, and usable only while the same session remains open and healthy. Any
+ * execution, canonical-copy, or cleanup failure invalidates the session and prevents both
+ * selected preparation and fallback; a successfully completed mismatch does not.</p>
  */
 final class RepresentativeExecutionSession implements AutoCloseable {
     private enum State { OPEN, POISONED, CLOSED }
 
     private final List<BufferRepresentation> borrowedInputs;
+    private final List<CompiledGraph.PublicationSpec> publicationSpecs;
+    private final List<TensorDescriptor> publicationDescriptors;
     private final int expectedPublicationCount;
     private final PreparedExecutionRunner runner;
     private final EngineBackendComposition composition;
@@ -43,6 +50,8 @@ final class RepresentativeExecutionSession implements AutoCloseable {
     private boolean admissionReleased;
     private Throwable retainedCleanupFailure;
     private Throwable representativeExecutionFailure;
+    private RepresentativePlanCorrectness.Reference correctnessReference;
+    private long[] correctnessByteCounts;
 
     /**
      * Validates and borrows one input set inside an already-admitted Engine operation.
@@ -77,6 +86,11 @@ final class RepresentativeExecutionSession implements AutoCloseable {
         this.runner = Objects.requireNonNull(runner, "runner");
         this.lifecycleOwner = Objects.requireNonNull(lifecycleOwner, "lifecycleOwner");
         artifacts = compiledGraph.artifacts();
+        publicationSpecs = List.copyOf(compiledGraph.publicationSpecs());
+        var descriptors = new ArrayList<TensorDescriptor>(publicationSpecs.size());
+        publicationSpecs.forEach(specification -> descriptors.add(specification.descriptor));
+        publicationDescriptors = List.copyOf(descriptors);
+        expectedPublicationCount = publicationSpecs.size();
 
         List<Tensor> supplied = snapshotElements(inputs);
         List<CompiledGraph.Input> required = compiledGraph.inputs();
@@ -128,15 +142,25 @@ final class RepresentativeExecutionSession implements AutoCloseable {
             throw failure;
         }
         borrowedInputs = List.copyOf(borrowed);
-        expectedPublicationCount = compiledGraph.publicationSpecs().size();
     }
 
-    /** @return whether {@code failure} is the exact representative execution failure */
+    /**
+     * Reports whether one throwable is the exact failure retained from representative execution.
+     * Identity, rather than equality or causal association, determines the result.
+     *
+     * @param failure nullable throwable to compare by identity; not retained
+     * @return {@code true} only when {@code failure} is the exact retained execution failure
+     */
     synchronized boolean isRepresentativeExecutionFailure(Throwable failure) {
         return representativeExecutionFailure == failure;
     }
 
-    /** @return whether a non-execution tuning failure may still enter cleanup/fallback */
+    /**
+     * Reports whether a non-execution tuning failure may still enter cleanup and fallback.
+     *
+     * @return {@code true} only while admission is retained and this session is open, healthy,
+     *     and has recorded no representative execution failure
+     */
     synchronized boolean canResolveRecoverableTuningFailure() {
         return !admissionReleased && state == State.OPEN && !poisoned
                 && representativeExecutionFailure == null;
@@ -177,23 +201,177 @@ final class RepresentativeExecutionSession implements AutoCloseable {
                 throw cleanupFailure;
             }
         } catch (RuntimeException | Error failure) {
-            representativeExecutionFailure = failure;
-            if (result != null && !resultCleanupAttempted) {
-                try {
-                    result.close();
-                } catch (RuntimeException | Error cleanupFailure) {
-                    recordCleanupFailure(cleanupFailure);
-                    suppressDistinct(failure, cleanupFailure);
-                }
-            }
-            poisoned = true;
-            state = State.POISONED;
-            try {
-                cleanupInputs(failure);
-            } finally {
-                releaseAdmission();
-            }
+            poisonAfterExecutionFailure(result, resultCleanupAttempted, failure);
             throw failure;
+        }
+    }
+
+    /**
+     * Executes the first complete recipe and captures every ordered publication as detached
+     * canonical bytes after full descriptor and aggregate-limit preflight.
+     *
+     * <p>All compiled publication descriptors and the aggregate limit are preflighted before the
+     * supplied recipe executes once with fresh Runtime state. Every occurrence is copied
+     * independently while the result lease is open, including aliases and empty payloads, and the
+     * result is closed before the returned reference becomes observable. The first successful
+     * call owns the sole reference for this session. Preflight rejection runs nothing and leaves
+     * the session open; execution, copying, validation, allocation, or cleanup failure poisons
+     * and cleans the session under the ordinary representative failure protocol.</p>
+     *
+     * @param execution non-null immutable complete recipe freshly prepared for this capture
+     * @param maximumTotalBytes non-negative upper bound for the aggregate canonical payload bytes
+     * @return the new non-null opaque reference associated only with this live session
+     * @throws NullPointerException if {@code execution} is null
+     * @throws IllegalArgumentException if the limit or a publication descriptor is invalid, the
+     *     aggregate exceeds the limit, or no compiled publication exists
+     * @throws IllegalStateException if the session is not open, a reference was already captured,
+     *     Runtime returns a different count, or a copied payload has an inconsistent length
+     * @throws ArithmeticException if checked descriptor or aggregate arithmetic overflows
+     * @throws RuntimeException if Runtime, copying, or cleanup reports another unchecked failure
+     * @throws Error if allocation, Runtime, copying, or cleanup reports a fatal failure
+     */
+    synchronized RepresentativePlanCorrectness.Reference captureCorrectnessReference(
+            PreparedExecution execution,
+            long maximumTotalBytes) {
+        requireOpen();
+        Objects.requireNonNull(execution, "execution");
+        if (correctnessReference != null) {
+            throw new IllegalStateException("correctness reference is already captured");
+        }
+        long[] byteCounts = AdvancedEngine.preflightCanonicalDescriptorByteCounts(
+                publicationDescriptors, maximumTotalBytes);
+        byte[][] publications = executeAndCopy(execution, byteCounts);
+        try {
+            RepresentativePlanCorrectness.Reference reference =
+                    RepresentativePlanCorrectness.capture(this, publications);
+            correctnessByteCounts = byteCounts;
+            correctnessReference = reference;
+            return reference;
+        } catch (RuntimeException | Error failure) {
+            poisonAfterExecutionFailure(null, true, failure);
+            throw failure;
+        }
+    }
+
+    /**
+     * Executes one later complete recipe and compares all detached canonical publication bytes
+     * with this session's sole reference.
+     *
+     * <p>Comparison occurs only after every occurrence has copied successfully and the Runtime
+     * result has closed. Occurrence order, aliases, zero-length values, canonical byte lengths,
+     * and every represented bit are significant, so signed zero and distinct NaN payloads remain
+     * different. The result carries no bytes. A clean mismatch does not poison or close the
+     * session.</p>
+     *
+     * @param reference non-null exact opaque reference captured successfully by this session
+     * @param execution non-null immutable complete recipe freshly prepared for this comparison
+     * @return {@link RepresentativePlanCorrectness.Comparison#MATCH} for identical occurrence
+     *     lengths and bytes, otherwise
+     *     {@link RepresentativePlanCorrectness.Comparison#MISMATCH}
+     * @throws NullPointerException if an argument is null
+     * @throws IllegalArgumentException if {@code reference} belongs to another session
+     * @throws IllegalStateException if the session is not open, no reference has been captured,
+     *     the supplied reference is not this session's captured value, Runtime returns a different
+     *     count, or a copied payload has an inconsistent length
+     * @throws RuntimeException if Runtime, copying, or cleanup reports another unchecked failure
+     * @throws Error if allocation, Runtime, copying, or cleanup reports a fatal failure
+     */
+    synchronized RepresentativePlanCorrectness.Comparison compareCorrectness(
+            RepresentativePlanCorrectness.Reference reference,
+            PreparedExecution execution) {
+        requireOpen();
+        Objects.requireNonNull(reference, "reference");
+        Objects.requireNonNull(execution, "execution");
+        if (correctnessReference == null) {
+            throw new IllegalStateException("correctness reference has not been captured");
+        }
+        RepresentativePlanCorrectness.requireAssociation(reference, this);
+        if (reference != correctnessReference) {
+            throw new IllegalStateException(
+                    "correctness reference is not this session's captured reference");
+        }
+        byte[][] publications = executeAndCopy(execution, correctnessByteCounts);
+        return RepresentativePlanCorrectness.compare(reference, this, publications);
+    }
+
+    /**
+     * Runs one recipe, copies every publication under its result lease, and closes that lease.
+     * Any failure enters the shared poisoning and cleanup protocol before it is rethrown.
+     *
+     * @param execution non-null immutable complete recipe to execute once in fresh Runtime state
+     * @param byteCounts non-null exact preflighted per-occurrence canonical byte counts aligned
+     *     with the compiled publication snapshot; retained by neither Runtime nor backend
+     * @return new private detached canonical payload arrays after successful result cleanup
+     * @throws RuntimeException if execution, count validation, copying, or cleanup fails
+     * @throws Error if allocation or inward work reports a fatal failure
+     */
+    private byte[][] executeAndCopy(PreparedExecution execution, long[] byteCounts) {
+        io.github.pho001.synaptik.runtime.run.RunResult result = null;
+        boolean resultCleanupAttempted = false;
+        try {
+            result = runner.run(execution, borrowedInputs);
+            if (result.resultCount() != expectedPublicationCount) {
+                throw new IllegalStateException(
+                        "Runtime result count does not match publication count: expected="
+                                + expectedPublicationCount + ", actual=" + result.resultCount());
+            }
+            byte[][] publications = new byte[expectedPublicationCount][];
+            for (int index = 0; index < expectedPublicationCount; index++) {
+                byte[] bytes = Objects.requireNonNull(
+                        composition.copyToCanonicalHostBytes(
+                                result.publicationRepresentation(index),
+                                publicationSpecs.get(index).descriptor,
+                                byteCounts[index]),
+                        "canonicalBytes");
+                if (bytes.length != byteCounts[index]) {
+                    throw new IllegalStateException(
+                            "backend canonical byte count does not match descriptor: expected="
+                                    + byteCounts[index] + ", actual=" + bytes.length);
+                }
+                publications[index] = bytes;
+            }
+            resultCleanupAttempted = true;
+            try {
+                result.close();
+            } catch (RuntimeException | Error cleanupFailure) {
+                recordCleanupFailure(cleanupFailure);
+                throw cleanupFailure;
+            }
+            return publications;
+        } catch (RuntimeException | Error failure) {
+            poisonAfterExecutionFailure(result, resultCleanupAttempted, failure);
+            throw failure;
+        }
+    }
+
+    /**
+     * Preserves one execution-path primary while completing result, input, and admission cleanup.
+     * Repeated wrapper or admission cleanup is prevented by the session's existing once-only
+     * guards; distinct cleanup failures are retained and suppressed in encounter order.
+     *
+     * @param result nullable result whose cleanup is still required when not already attempted
+     * @param resultCleanupAttempted whether result cleanup has already begun
+     * @param failure non-null exact execution-path primary to retain
+     */
+    private void poisonAfterExecutionFailure(
+            io.github.pho001.synaptik.runtime.run.RunResult result,
+            boolean resultCleanupAttempted,
+            Throwable failure) {
+        representativeExecutionFailure = failure;
+        if (result != null && !resultCleanupAttempted) {
+            try {
+                result.close();
+            } catch (RuntimeException | Error cleanupFailure) {
+                recordCleanupFailure(cleanupFailure);
+                suppressDistinct(failure, cleanupFailure);
+            }
+        }
+        poisoned = true;
+        state = State.POISONED;
+        try {
+            cleanupInputs(failure);
+        } finally {
+            releaseAdmission();
         }
     }
 
@@ -271,6 +449,8 @@ final class RepresentativeExecutionSession implements AutoCloseable {
      *
      * @param result non-null complete result that must not escape if closure won the race
      * @return the exact result when the Engine remains open
+     * @throws NullPointerException if {@code result} is null
+     * @throws IllegalStateException if admission was already released or Engine closure wins
      */
     synchronized ModelAutotuningPreparation completeModelAutotuningPreparation(
             ModelAutotuningPreparation result) {

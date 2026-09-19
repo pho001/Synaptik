@@ -26,6 +26,10 @@ The complete two-phase model workflow and model-plan artifact remain planned. Th
 Engine composition implements only CPU-local Phase 1 for one representative input set and at most
 one eligible local workload. It joins Config, the cache-first tuner, Prepare's opaque handoff, and
 CPU's typed candidates behind `Engine.prepareTuned(...)`; it defines no model-plan format.
+Engine now also has the package-private correctness primitive needed by a later Phase-2
+composition, but the public workflow does not invoke it. That primitive captures one complete
+recipe's ordered publications as bounded detached canonical bytes and reports only exact
+`MATCH` or `MISMATCH` for later complete recipes in the same representative session.
 
 ## Benchmarking is fixed and observational
 
@@ -143,6 +147,22 @@ selects the lowest integer-middle median, retaining encounter order for ties. Ea
 fresh preparation and fresh Runtime state. After a hit or measured winner, Engine cleans the
 representative session and freshly prepares production state; fallback also freshly performs
 ordinary safe preparation.
+
+Separately, Engine's current package-private complete-plan correctness primitive preflights every
+ordered compiled publication descriptor and one aggregate canonical-byte limit before its first
+correctness execution. The first fresh execution copies every publication occurrence while the
+Runtime result lease is open, closes the result, and only then publishes an opaque same-session
+reference. A later fresh execution follows the same copy-and-close order before exact represented-
+byte comparison. Publication order, repeated aliases, empty values, signed zero, and NaN payload
+bits are significant. A mismatch carries no bytes and does not itself poison the representative
+session; execution, copy, count, length, or cleanup failure follows the existing session poisoning
+and once-only cleanup protocol.
+
+This primitive is not Phase 2. It does not enumerate or interpret candidates, order correctness
+against timing, select a winner, write a model-plan record, or apply public fallback. Tools/tuning
+task 0002 remains blocked pending the required fresh post-Engine-0008A dependency and readiness
+audit; completion of the primitive alone does not prove that the full Phase-2 composition is
+implementable.
 
 `TUNED` carries authenticated immutable evidence. `SAFE_HEURISTIC_FALLBACK` records allowed safe
 preparation and carries no evidence. Caller-defined model and profile identities label evidence;

@@ -15,6 +15,7 @@ import io.github.pho001.synaptik.backend.contract.DeviceClass;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.Tensor;
@@ -29,6 +30,7 @@ import io.github.pho001.synaptik.tools.tuning.WorkloadTuningRequest;
 import io.github.pho001.synaptik.config.tuning.ModelAutotuningConfig;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Modifier;
 import java.nio.file.Path;
 import io.github.pho001.synaptik.runtime.memory.BufferSlot;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
@@ -262,6 +264,301 @@ final class RepresentativeExecutionSessionTest {
             assertEquals(1, created.get(1).closeCount.get());
             assertEquals(List.of("result-0", "result-1", "borrow-0"),
                     composition.closeOrder);
+        }
+    }
+
+    @Test
+    void capturesDetachedReferenceAndMatchesExactCanonicalBytesAfterResultCleanup() {
+        RecordingComposition composition = new RecordingComposition();
+        try (Engine engine = engine(composition)) {
+            Tensor input = leaf(1, 2);
+            CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
+            byte[] source = {0, 0, 0, 0, 0x3f, (byte) 0x80, 0, 0};
+            TestBuffer[] capturedBuffer = new TestBuffer[1];
+
+            try (var session = openSession(composition, compiled, List.of(input))) {
+                var reference = session.captureCorrectnessReference(
+                        execution(1, 1, () -> capturedBuffer[0] = new TestBuffer(
+                                "reference", null, composition.closeOrder, source)),
+                        source.length);
+                assertEquals(1, capturedBuffer[0].closeCount.get());
+                source[0] = 1;
+
+                assertEquals(RepresentativePlanCorrectness.Comparison.MATCH,
+                        session.compareCorrectness(reference,
+                                executionWithBytes(1, composition.closeOrder,
+                                        new byte[] {0, 0, 0, 0, 0x3f, (byte) 0x80, 0, 0})));
+            }
+
+            assertEquals(List.of("reference", "result-0", "borrow-0"),
+                    composition.closeOrder);
+            assertEquals(2, composition.copyCount.get());
+        }
+    }
+
+    @Test
+    void comparesEveryOccurrenceInOrderIncludingAliasesAndEmptyPayloads() {
+        RecordingComposition composition = new RecordingComposition();
+        try (Engine engine = engine(composition)) {
+            Tensor first = leaf(1, 2).contiguous();
+            Tensor second = leaf(3, 4).contiguous();
+            CompiledGraph compiled = engine.compile(List.of(first, second));
+            Tensor firstInput = first.provenance().orElseThrow().inputs().getFirst();
+            Tensor secondInput = second.provenance().orElseThrow().inputs().getFirst();
+            byte[] payload = {1, 2, 3, 4, 5, 6, 7, 8};
+
+            try (var session = openSession(
+                    composition, compiled, List.of(firstInput, secondInput))) {
+                var reference = session.captureCorrectnessReference(
+                        aliasedExecution(2, 2, composition.closeOrder, payload), 16);
+                assertSame(composition.copiedRepresentations.get(0),
+                        composition.copiedRepresentations.get(1));
+                assertEquals(RepresentativePlanCorrectness.Comparison.MATCH,
+                        session.compareCorrectness(reference,
+                                executionWithBytes(2, composition.closeOrder,
+                                        payload, payload)));
+                assertEquals(RepresentativePlanCorrectness.Comparison.MISMATCH,
+                        session.compareCorrectness(reference,
+                                executionWithBytes(2, composition.closeOrder,
+                                        payload, new byte[] {1, 2, 3, 4, 5, 6, 7, 9})));
+                assertTrue(session.canResolveRecoverableTuningFailure());
+            }
+        }
+
+        RecordingComposition emptyComposition = new RecordingComposition();
+        try (Engine engine = engine(emptyComposition)) {
+            Tensor empty = emptyLeaf();
+            CompiledGraph compiled = engine.compile(List.of(empty.contiguous()));
+            try (var session = openSession(emptyComposition, compiled, List.of(empty))) {
+                var reference = session.captureCorrectnessReference(
+                        executionWithBytes(1, emptyComposition.closeOrder, new byte[0]), 0);
+                assertEquals(RepresentativePlanCorrectness.Comparison.MATCH,
+                        session.compareCorrectness(reference,
+                                executionWithBytes(1, emptyComposition.closeOrder, new byte[0])));
+            }
+        }
+    }
+
+    @Test
+    void exactComparisonDistinguishesSignedZeroAndNanPayloadBits() {
+        RecordingComposition composition = new RecordingComposition();
+        try (Engine engine = engine(composition)) {
+            Tensor input = leaf(1, 2);
+            CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
+            byte[] positiveZeroAndNan = {0, 0, 0, 0, 0x7f, (byte) 0xc0, 0, 1};
+            byte[] negativeZeroAndNan = {(byte) 0x80, 0, 0, 0, 0x7f, (byte) 0xc0, 0, 1};
+            byte[] otherNanPayload = {0, 0, 0, 0, 0x7f, (byte) 0xc0, 0, 2};
+
+            try (var session = openSession(composition, compiled, List.of(input))) {
+                var reference = session.captureCorrectnessReference(
+                        executionWithBytes(1, composition.closeOrder, positiveZeroAndNan), 8);
+                assertEquals(RepresentativePlanCorrectness.Comparison.MISMATCH,
+                        session.compareCorrectness(reference,
+                                executionWithBytes(1, composition.closeOrder,
+                                        negativeZeroAndNan)));
+                assertEquals(RepresentativePlanCorrectness.Comparison.MISMATCH,
+                        session.compareCorrectness(reference,
+                                executionWithBytes(1, composition.closeOrder,
+                                        otherNanPayload)));
+                assertEquals(RepresentativePlanCorrectness.Comparison.MATCH,
+                        session.compareCorrectness(reference,
+                                executionWithBytes(1, composition.closeOrder,
+                                        positiveZeroAndNan)));
+            }
+        }
+    }
+
+    @Test
+    void opaqueModelReportsLengthMismatchWithoutExposingPayload() {
+        RecordingComposition composition = new RecordingComposition();
+        try (Engine engine = engine(composition)) {
+            Tensor input = leaf(1, 2);
+            CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
+            try (var session = openSession(composition, compiled, List.of(input))) {
+                var reference = RepresentativePlanCorrectness.capture(
+                        session, new byte[][] {new byte[] {1}});
+                assertEquals(RepresentativePlanCorrectness.Comparison.MISMATCH,
+                        RepresentativePlanCorrectness.compare(
+                                reference, session, new byte[][] {new byte[] {1, 0}}));
+            }
+        }
+    }
+
+    @Test
+    void correctnessPreflightCompletesBeforeExecutionAndAllowsRetry() {
+        RecordingComposition composition = new RecordingComposition();
+        try (Engine engine = engine(composition)) {
+            Tensor input = leaf(1, 2);
+            CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
+            AtomicInteger creations = new AtomicInteger();
+            var execution = execution(1, 1, () -> {
+                creations.incrementAndGet();
+                return new TestBuffer("result", null, composition.closeOrder, new byte[8]);
+            });
+
+            try (var session = openSession(composition, compiled, List.of(input))) {
+                assertThrows(IllegalArgumentException.class,
+                        () -> session.captureCorrectnessReference(execution, -1));
+                assertThrows(IllegalArgumentException.class,
+                        () -> session.captureCorrectnessReference(execution, 7));
+                assertEquals(0, creations.get());
+                assertTrue(session.canResolveRecoverableTuningFailure());
+                session.captureCorrectnessReference(execution, 8);
+                assertEquals(1, creations.get());
+            }
+        }
+    }
+
+    @Test
+    void sharedPreflightRejectsEveryDescriptorAndAggregateBoundary() {
+        Shape dynamicShape = Shape.ofDimensions(new DynamicDimension("N"));
+        TensorDescriptor dynamic = new TensorDescriptor(
+                DataType.FLOAT32, dynamicShape, Optional.empty(), false);
+        Shape staticShape = Shape.of(2);
+        TensorDescriptor unresolved = new TensorDescriptor(
+                DataType.FLOAT32, staticShape, Optional.empty(), false);
+        Shape oversizedShape = Shape.of(Integer.MAX_VALUE);
+        TensorDescriptor oversized = new TensorDescriptor(
+                DataType.FLOAT32, oversizedShape,
+                Optional.of(LayoutDescriptor.contiguous(oversizedShape)), false);
+        TensorDescriptor ordinary = new TensorDescriptor(
+                DataType.FLOAT32, staticShape,
+                Optional.of(LayoutDescriptor.contiguous(staticShape)), false);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> AdvancedEngine.preflightCanonicalDescriptorByteCounts(List.of(), 0));
+        assertThrows(IllegalArgumentException.class,
+                () -> AdvancedEngine.preflightCanonicalDescriptorByteCounts(
+                        List.of(ordinary), -1));
+        assertThrows(IllegalArgumentException.class,
+                () -> AdvancedEngine.preflightCanonicalDescriptorByteCounts(
+                        List.of(dynamic), Long.MAX_VALUE));
+        assertThrows(IllegalArgumentException.class,
+                () -> AdvancedEngine.preflightCanonicalDescriptorByteCounts(
+                        List.of(unresolved), Long.MAX_VALUE));
+        assertThrows(IllegalArgumentException.class,
+                () -> AdvancedEngine.preflightCanonicalDescriptorByteCounts(
+                        List.of(oversized), Long.MAX_VALUE));
+        assertThrows(IllegalArgumentException.class,
+                () -> AdvancedEngine.preflightCanonicalDescriptorByteCounts(
+                        List.of(ordinary, ordinary), 15));
+        assertArrayEquals(new long[] {8, 8},
+                AdvancedEngine.preflightCanonicalDescriptorByteCounts(
+                        List.of(ordinary, ordinary), 16));
+    }
+
+    @Test
+    void rejectsRecaptureForeignReferenceComparisonBeforeCaptureAndUseAfterClose() {
+        RecordingComposition composition = new RecordingComposition();
+        try (Engine engine = engine(composition)) {
+            Tensor input = leaf(1, 2);
+            CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
+            var first = openSession(composition, compiled, List.of(input));
+            var second = openSession(composition, compiled, List.of(input));
+            var firstReference = first.captureCorrectnessReference(
+                    executionWithBytes(1, composition.closeOrder, new byte[8]), 8);
+
+            assertThrows(IllegalStateException.class,
+                    () -> first.captureCorrectnessReference(
+                            executionWithBytes(1, composition.closeOrder, new byte[8]), 8));
+            assertThrows(IllegalStateException.class,
+                    () -> second.compareCorrectness(firstReference,
+                            executionWithBytes(1, composition.closeOrder, new byte[8])));
+            var secondReference = second.captureCorrectnessReference(
+                    executionWithBytes(1, composition.closeOrder, new byte[8]), 8);
+            assertThrows(IllegalArgumentException.class,
+                    () -> first.compareCorrectness(secondReference,
+                            executionWithBytes(1, composition.closeOrder, new byte[8])));
+            first.close();
+            assertThrows(IllegalStateException.class,
+                    () -> first.compareCorrectness(firstReference,
+                            executionWithBytes(1, composition.closeOrder, new byte[8])));
+            second.close();
+        }
+    }
+
+    @Test
+    void engineCloseWaitsForCorrectnessCopyAndSessionCleanup() throws Exception {
+        RecordingComposition composition = new RecordingComposition();
+        Engine engine = engine(composition);
+        Tensor input = leaf(1, 2);
+        CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
+        RepresentativeExecutionSession session =
+                openSession(composition, compiled, List.of(input));
+        composition.copyEntered = new CountDownLatch(1);
+        composition.copyRelease = new CountDownLatch(1);
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var capture = executor.submit(() -> {
+                try (session) {
+                    return session.captureCorrectnessReference(
+                            executionWithBytes(1, composition.closeOrder, new byte[8]), 8);
+                }
+            });
+            assertTrue(composition.copyEntered.await(10, TimeUnit.SECONDS));
+            var close = executor.submit(() -> {
+                engine.close();
+                return null;
+            });
+            while (!engine.isClosed()) Thread.onSpinWait();
+            assertFalse(close.isDone());
+            composition.copyRelease.countDown();
+            assertTrue(capture.get(10, TimeUnit.SECONDS) != null);
+            close.get(10, TimeUnit.SECONDS);
+        } finally {
+            engine.close();
+        }
+        assertEquals(List.of("result-0", "borrow-0"), composition.closeOrder);
+        assertEquals(1, composition.closeCount.get());
+    }
+
+    @Test
+    void copyFailureKeepsPrimarySuppressesResultCleanupAndPoisonsOnce() {
+        RecordingComposition composition = new RecordingComposition();
+        RuntimeException copyFailure = new RuntimeException("copy");
+        RuntimeException resultCleanup = new RuntimeException("result cleanup");
+        Error wrapperCleanup = new AssertionError("wrapper cleanup");
+        composition.copyFailure = copyFailure;
+        composition.borrowCloseFailures.add(wrapperCleanup);
+        try (Engine engine = engine(composition)) {
+            Tensor input = leaf(1, 2);
+            CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
+            var session = openSession(composition, compiled, List.of(input));
+            var execution = execution(1, 1, () -> new TestBuffer(
+                    "result", resultCleanup, composition.closeOrder, new byte[8]));
+
+            RuntimeException observed = assertThrows(RuntimeException.class,
+                    () -> session.captureCorrectnessReference(execution, 8));
+            assertSame(copyFailure, observed);
+            assertArrayEquals(new Throwable[] {resultCleanup, wrapperCleanup},
+                    observed.getSuppressed());
+            assertFalse(session.canResolveRecoverableTuningFailure());
+            assertEquals(List.of("result", "borrow-0"), composition.closeOrder);
+            assertThrows(IllegalStateException.class,
+                    () -> session.captureCorrectnessReference(execution, 8));
+            RuntimeException closeFailure = assertThrows(RuntimeException.class, session::close);
+            assertSame(resultCleanup, closeFailure);
+            assertArrayEquals(new Throwable[] {wrapperCleanup},
+                    closeFailure.getSuppressed());
+            assertEquals(List.of("result", "borrow-0"), composition.closeOrder);
+        }
+    }
+
+    @Test
+    void correctnessModelAddsNoPublicOrProtectedSurface() {
+        assertFalse(Modifier.isPublic(RepresentativePlanCorrectness.class.getModifiers()));
+        assertTrue(Modifier.isFinal(RepresentativePlanCorrectness.class.getModifiers()));
+        assertFalse(Modifier.isPublic(
+                RepresentativePlanCorrectness.Reference.class.getModifiers()));
+        assertEquals(List.of(RepresentativePlanCorrectness.Comparison.MATCH,
+                        RepresentativePlanCorrectness.Comparison.MISMATCH),
+                List.of(RepresentativePlanCorrectness.Comparison.values()));
+        for (var method : RepresentativeExecutionSession.class.getDeclaredMethods()) {
+            if (method.getName().equals("captureCorrectnessReference")
+                    || method.getName().equals("compareCorrectness")) {
+                assertFalse(Modifier.isPublic(method.getModifiers()));
+                assertFalse(Modifier.isProtected(method.getModifiers()));
+            }
         }
     }
 
@@ -779,6 +1076,56 @@ final class RepresentativeExecutionSessionTest {
                 Optional.empty(), new float[] {first, second});
     }
 
+    private static Tensor emptyLeaf() {
+        Shape shape = Shape.of(0);
+        return TensorFactory.fromFlatArray(new TensorDescriptor(
+                DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false),
+                Optional.empty(), new float[0]);
+    }
+
+    private static io.github.pho001.synaptik.runtime.execution.PreparedExecution
+            executionWithBytes(
+                    int inputCount,
+                    List<String> closeOrder,
+                    byte[]... publications) {
+        AtomicInteger index = new AtomicInteger();
+        return execution(inputCount, publications.length, () -> {
+            int current = index.getAndIncrement();
+            return new TestBuffer("result-" + current, null, closeOrder,
+                    publications[current]);
+        });
+    }
+
+    private static io.github.pho001.synaptik.runtime.execution.PreparedExecution
+            aliasedExecution(
+                    int inputCount,
+                    int publicationCount,
+                    List<String> closeOrder,
+                    byte[] payload) {
+        int bufferCount = inputCount + 1;
+        var entries = new ArrayList<PreparedMemoryPlan.BufferEntry>();
+        var preparations =
+                new ArrayList<List<PreparedRepresentationPlan.BufferPreparation>>();
+        for (int index = 0; index < bufferCount; index++) {
+            entries.add(new PreparedMemoryPlan.BufferEntry(new BufferSlot(index), 8, 4));
+            preparations.add(index < inputCount
+                    ? List.of(new CallerInput())
+                    : List.of(new InitializedBuffer(() -> new TestBuffer(
+                            "alias-result", null, closeOrder, payload))));
+        }
+        PreparedMemoryPlan plan = new PreparedMemoryPlan(entries, List.of());
+        var creation = new PreparedRepresentationPlan(plan, preparations, List.of());
+        var steps = new ArrayList<PreparedSchedule.Step>();
+        steps.add(new PreparedSchedule.RepresentationCreationStep(creation));
+        for (int index = 0; index < publicationCount; index++) {
+            steps.add(new PreparedSchedule.PublicationStep(
+                    new PreparedPublication(plan, inputCount, 0, index)));
+        }
+        return new io.github.pho001.synaptik.runtime.execution.PreparedExecution(
+                plan, new PreparedSchedule(plan, steps));
+    }
+
     private static io.github.pho001.synaptik.runtime.execution.PreparedExecution execution(
             int inputCount,
             int publicationCount,
@@ -927,17 +1274,22 @@ final class RepresentativeExecutionSessionTest {
         private final AtomicInteger borrowCount = new AtomicInteger();
         private final AtomicInteger prepareCount = new AtomicInteger();
         private final AtomicInteger closeCount = new AtomicInteger();
+        private final AtomicInteger copyCount = new AtomicInteger();
         private final List<HostTensorStorage> borrowedStorages = new ArrayList<>();
         private final List<String> closeOrder = new ArrayList<>();
+        private final List<BufferRepresentation> copiedRepresentations = new ArrayList<>();
         private final List<Throwable> borrowCloseFailures = new ArrayList<>();
         private final io.github.pho001.synaptik.runtime.execution.PreparedExecution
                 preparedExecution = execution(0, 0, null);
         private int borrowFailureIndex = -1;
         private Throwable borrowFailure;
         private Throwable prepareFailure;
+        private Throwable copyFailure;
         private Runnable afterFirstBorrow;
         private CountDownLatch prepareEntered;
         private CountDownLatch prepareRelease;
+        private CountDownLatch copyEntered;
+        private CountDownLatch copyRelease;
         private AdvancedEngine lifecycleOwner;
         private Engine ordinaryOwner;
 
@@ -981,7 +1333,16 @@ final class RepresentativeExecutionSessionTest {
                 BufferRepresentation representation,
                 TensorDescriptor descriptor,
                 long maximumBytes) {
-            throw new AssertionError("unexpected copy");
+            copyCount.incrementAndGet();
+            copiedRepresentations.add(representation);
+            if (copyEntered != null) copyEntered.countDown();
+            if (copyRelease != null) await(copyRelease);
+            rethrow(copyFailure);
+            TestBuffer buffer = (TestBuffer) representation;
+            if (buffer.canonicalBytes == null) {
+                throw new AssertionError("test result has no canonical bytes");
+            }
+            return buffer.canonicalBytes.clone();
         }
 
         @Override
@@ -994,12 +1355,22 @@ final class RepresentativeExecutionSessionTest {
         private final String name;
         private final Throwable failure;
         private final List<String> closeOrder;
+        private final byte[] canonicalBytes;
         private final AtomicInteger closeCount = new AtomicInteger();
 
         private TestBuffer(String name, Throwable failure, List<String> closeOrder) {
+            this(name, failure, closeOrder, null);
+        }
+
+        private TestBuffer(
+                String name,
+                Throwable failure,
+                List<String> closeOrder,
+                byte[] canonicalBytes) {
             this.name = name;
             this.failure = failure;
             this.closeOrder = closeOrder;
+            this.canonicalBytes = canonicalBytes;
         }
 
         @Override

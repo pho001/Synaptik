@@ -64,7 +64,7 @@ measures bounded complete plan candidates, and writes explicit persistent artifa
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
 | 0001 | [Exact/default model-guided workload tuning and reusable cache](tasks/0001-exact-default-model-guided-workload-tuning-and-reusable-cache.md) | Complete | CPU 0010E; Prepare 0004; caller-supplied stable identity, typed opaque collaboration, and operational cold measurement | Added the generic caller-supplied cold workload tuner, exact compatible-occurrence deduplication, bounded miss-only measurement, deterministic median selection, reusable bounded persistent cache, and separate rich evidence. Tool-local request inputs precede any later Config facade. |
-| 0002 | Bounded graph and plan tuning | Blocked | 0001; Complete CPU 0010J; Ready Engine 0008A correctness-oracle prerequisite; fresh post-0008A audit | Coordinate a bounded opaque complete-plan batch, separate correctness executions from timing, select deterministically, return rich evidence, and produce a compact selected model-plan record. The post-CPU-0010J audit resolves the tools-owned contract but proves that Engine must first implement publication-aware correctness comparison. |
+| 0002 | Bounded graph and plan tuning | Blocked | 0001; Complete CPU 0010J; Complete Engine 0008A; fresh post-0008A audit | Coordinate a bounded opaque complete-plan batch, separate correctness executions from timing, select deterministically, return rich evidence, and produce a compact selected model-plan record. Engine now supplies the missing package-private exact correctness primitive, but the required fresh dependency/readiness audit has not yet proved or specified the complete Phase-2 composition. |
 | 0003 | Cache and plan inspection | Draft | 0001–0002, stable artifact schemas | Inspect compatibility, provenance summaries, invalidation reasons, selected plans, and separate measurement evidence without executing payloads or mutating runtime state. |
 
 ## Milestones
@@ -90,14 +90,21 @@ session-scoped compatibility and decisions, and freshly prepares a selected reci
 measuring it. It does not add Compiler graph alternatives, Planning ownership alternatives,
 multiple partitions, mixed backends, model-plan persistence, or Engine composition.
 
-The mandatory fresh post-CPU-0010J audit is complete. It resolves the generic Phase-2 contract but
-also proves that task 0002 cannot yet be specified truthfully: current Engine representative
-execution validates completion and cleanup while explicitly declining to inspect publications.
-Engine owns the compiled publication descriptors, representative values, canonical host-copy
-composition seam, Runtime result cleanup, and public fallback policy. Detailed
+The mandatory fresh post-CPU-0010J audit selected
 [Engine 0008A representative complete-plan correctness oracle](../../modules/engine/tasks/0008a-representative-complete-plan-correctness-oracle.md)
-is therefore the single Ready prerequisite. Tuning 0002 remains Blocked without a detailed
-specification until 0008A is implemented and freshly audited.
+as the missing owning prerequisite. Engine 0008A is now Complete. Its package-private
+representative-session primitive preflights the ordered publication boundary and aggregate byte
+limit, captures one opaque same-session reference from a fresh complete execution, and reports
+only exact `MATCH` or `MISMATCH` for later fresh complete executions after every copy and result
+cleanup succeed. It preserves aliases, empty values, order, signed zero, and NaN payload bits and
+does not alter current Phase-1 completion-only measurement.
+
+Tuning 0002 nevertheless remains Blocked without a detailed specification. This completion proves
+the missing Engine primitive, not the whole Phase-2 composition. The required fresh post-0008A
+audit must still verify the generic tools callback boundary against the implemented source,
+reconcile CPU 0010J association/lifetime with it, and confirm the complete budget, evidence,
+compact-record/cache, Config, and later Engine-composition dependency sequence before 0002 can
+become Ready.
 
 Clean planning/documentation audit context `01a0b895-efd8-7250-9d3f-ecf4a7220a80` passed its
 four-file planning-only Markdown, diff, and staging validation.
@@ -154,9 +161,10 @@ consumer contract is stable.
 ## Open questions
 
 - Prepared-executable serialization remains deliberately unresolved.
-- Engine 0008A must first prove the package-private exact-output reference/comparison seam through
+- Complete Engine 0008A proves the package-private exact-output reference/comparison seam through
   current publication, host-copy, result-cleanup, and representative-session contracts. A fresh
-  audit after implementation is the only remaining blocker to a Ready 0002 specification.
+  post-implementation dependency/readiness audit is the remaining blocker to a Ready 0002
+  specification.
 - The later Config follow-up must add distinct Phase-2 maximum-plan-candidate,
   maximum-total-plan-execution, maximum-correctness-byte, and explicit model-plan-cache inputs
   without changing the four Phase-1 budget meanings. The later Engine composition then owns CPU
@@ -239,10 +247,11 @@ consumer contract is stable.
   policy, and sampling facts, and stores only candidate identity, encoded decision, and compact
   summary. Rich evidence remains separate; backend decoding and fresh preparation authenticate
   every hit.
-- Engine 0008A is the smallest upstream prerequisite because output semantics, canonical copying,
-  Runtime result cleanup, and the reference lifecycle are Engine-owned. The later generic tuning
-  API accepts only opaque actions and typed match/mismatch results and imports no Engine or CPU
-  type.
+- Complete Engine 0008A is the smallest upstream prerequisite because output semantics, canonical
+  copying, Runtime result cleanup, and the reference lifecycle are Engine-owned. The later generic
+  tuning API is planned to accept only opaque actions and typed match/mismatch results and import
+  no Engine or CPU type; the fresh readiness audit must confirm that composition before 0002 is
+  specified.
 
 ## Risks
 
