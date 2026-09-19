@@ -3,8 +3,8 @@
 ## What you will learn
 
 This guide defines the evidence expected from future Synaptik benchmarks and separates
-benchmarking from workload tuning, the broader model-autotuning roadmap, planning cost, and
-runtime profiling. The
+benchmarking from the two implemented generic tuning transactions, their still-later Engine
+composition, planning cost, and runtime profiling. The
 `tools/benchmarks` project exists structurally, but no harness, `BenchmarkReport`, or workload is
 implemented.
 
@@ -17,10 +17,12 @@ designing a harness.
 - **Benchmarking** runs a fixed reproducible workload and reports measurements without changing
   production settings.
 - A **benchmark report** is the rich immutable evidence from one recorded benchmark run.
-- **Workload tuning** currently reuses or measures caller-supplied exact compatible workloads and
-  records selected backend-owned decisions in an explicit persistent cache.
-- **Model autotuning** is the broader two-phase roadmap: model-guided workload extraction and
-  reuse followed by bounded comparison of complete valid model plans.
+- **Phase-1 workload tuning** reuses or measures caller-supplied exact compatible local workloads
+  and records selected backend-owned decisions in an explicit persistent workload cache.
+- **Phase-2 complete-plan tuning** authenticates a reusable selected decision or checks and
+  measures every member of one caller-supplied bounded complete-plan batch.
+- **Model autotuning** is the broader workflow that composes Phase 1 and Phase 2 around a model,
+  representative inputs, target, policy, and later production preparation.
 - **Runtime profiling** passively observes actual prepared execution.
 
 ## Mental model
@@ -28,15 +30,18 @@ designing a harness.
 ```text
 correctness tests -> is the result valid?
 benchmark report  -> how did this fixed workload behave here?
-workload tuning   -> which supplied complete local candidate has the lowest median elapsed time?
-model autotuning  -> which compatible local results and complete plan best meet the objective?
+Phase-1 tuning    -> which supplied complete local candidate has the lowest median elapsed time?
+Phase-2 tuning    -> which supplied valid complete plan has the lowest median elapsed time?
+model autotuning  -> how are those transactions composed for a model and production preparation?
 runtime profiling -> what happened during actual prepared execution?
 ```
 
 A benchmark answers only the second question. It never substitutes for unit, conformance, or
 integration tests and never installs the fastest measured setting.
 
-## Current workload-tuning capability
+## Current tuning capabilities
+
+### Phase 1: local workload transaction
 
 `tools/tuning` currently provides a generic caller-supplied cold workload tuner and a reusable,
 bounded persistent workload cache. The caller supplies stable model and representative-profile
@@ -54,11 +59,60 @@ an equal compatible decision before same-directory atomic cache publication. Ret
 evidence retains raw measured samples separately; cache-hit evidence has an empty candidate list
 and retains only the compact stored winner summary.
 
-Engine now supplies a bounded public CPU composition for one representative input set and at most
+Engine supplies a bounded public CPU Phase-1 composition for one representative input set and at most
 one local workload. A compatible hit executes no trial. A miss uses the configured warmup and
 timed-sample counts, chooses the lowest integer-middle median with encounter-order ties, and then
 freshly prepares production state. The backend retains semantic, compatibility, candidate,
-decision, route, and resource ownership. Model extraction and graph/plan tuning remain planned.
+decision, route, and resource ownership. Model extraction and multiple-occurrence aggregation
+remain planned.
+
+### Phase 2: complete-plan transaction
+
+`tools/tuning` also provides a generic bounded complete-plan transaction. The caller supplies
+model, representative-profile, target, and policy fingerprints; an exact decision-empty Prepare
+handoff; a complete backend-owned candidate batch; a correctness collaboration; a fresh complete
+measurement action; and an explicit model-plan-cache path. The concrete producer owns candidate
+meaning, legality, stable order and identity, compatibility, reuse scope, selected decisions, and
+decision codecs. The caller owns representative inputs, preparation, execution, canonical
+publication copying, correctness-reference bytes, aggregate correctness-byte enforcement, and
+cleanup.
+
+On a measured transaction with `N` candidates, `W` warmups per candidate, and `S` timed samples
+per candidate, the tool checks the exact whole-transaction execution count before running work:
+
+```text
+N * (1 + W + S)
+    1 = one correctness execution per candidate
+    W = complete untimed warmups per candidate
+    S = complete timed samples per candidate
+```
+
+All `N` correctness actions finish before the first warmup or sample. The first candidate captures
+an opaque reference; every later candidate must exactly match it. A clean mismatch stops the
+transaction without timing, a result, or cache publication. Caller execution and cleanup failures
+remain failures rather than being reclassified as mismatches. After correctness succeeds, each
+candidate receives its complete warmups and samples. Selection uses the smallest integer-middle
+median elapsed nanoseconds and retains the first candidate on a tie.
+
+Reuse behavior is producer-declared. `SESSION` is a strict no-filesystem transaction: the cache
+path is retained in the request but is never inspected or published. `PERSISTENT` validates the
+entire bounded, checksummed cache before candidate enumeration. An exact-key entry is a hit only if
+the current producer decodes it as compatible. Such a hit performs no enumeration, correctness,
+warmup, or timing. A persistent miss is published only after the selected decision encodes within
+the bound and decodes back to an equal compatible decision.
+
+The persistent cache is compact: it contains opaque compatibility-key material, the selected
+decision and winner identities, and the winner's minimum/median/maximum/count summary. The
+returned evidence is deliberately richer. A measured result contains ordered correctness actions
+and every raw timing sample; a cache-hit result identifies its source and selected summary but has
+no fabricated candidate measurements. Neither artifact serializes an executable, Runtime state,
+representative publication bytes, or the opaque correctness reference.
+
+The generic Phase-2 transaction is current, but its public Engine/Config composition is not.
+Current CPU complete-plan batches declare `SESSION`, so they neither read nor write the persistent
+model-plan cache. A later Engine-owned adapter must join the CPU producer with Engine's existing
+exact correctness primitive, freshly prepare every trial and the selected production decision,
+and apply the existing fallback policy. The tools layer does not perform that composition itself.
 
 ## Current declarative Config request
 
@@ -127,9 +181,10 @@ or aggregated samples, and summary statistic.
 
 Running the same report definition on two commits permits a performance comparison. The faster
 result does not update a CPU route threshold, vector strategy, thread count, workload tuning
-cache, or model plan. The current explicit workload tuner may instead run a caller-supplied
-bounded local search and publish its own compact cache entry. It does not mutate settings as a
-consequence of this benchmark report, and it does not yet produce a model plan.
+cache, or model-plan cache. The current explicit tuning tools may instead run a caller-supplied
+bounded Phase-1 or Phase-2 transaction and, when the producer permits persistent reuse, publish
+their own compact cache entries. They do not mutate settings as a consequence of this benchmark
+report.
 
 ## Workload-tuning candidate spaces
 
@@ -162,16 +217,19 @@ governs later harness and reporting work.
 | A benchmark changes a later run's settings | Reporting was confused with tuning. | Remove side effects; use the explicit model-autotuning workflow. |
 | One vector or thread value is applied everywhere | Operation family was incorrectly used as a universal cache key. | Key reuse by canonical workload signature and keep candidate vocabulary backend-owned. |
 | Faster code changes numerical behavior | Performance was accepted without correctness evidence. | Run reference and conformance tests before interpreting speed. |
+| Complete plans are timed before comparison | Correctness and timing were mixed. | Complete every Phase-2 correctness action before the first warmup or timed sample. |
+| A session-only CPU plan creates a cache file | Reuse scope was ignored. | Treat `SESSION` as strict no-I/O; persistent reuse requires a producer that declares and authenticates it. |
 
 ## Limitations and boundaries
 
-The benchmark harness and report, full two-phase model-autotuning workflow, planning-cost model,
-and concrete runtime-profile payloads remain planned. The generic caller-supplied workload tuner,
-bounded persistent workload cache, immutable Config request, and bounded CPU/Engine composition
-are current, but model extraction, multiple occurrences, graph/plan search, concurrent writers,
-cache migration, and inspection remain deferred. Config owns policy inputs only; it does
+The benchmark harness and report, public Engine/Config Phase-2 composition, planning-cost model,
+and concrete runtime-profile payloads remain planned. The generic caller-supplied Phase-1 and
+Phase-2 transactions, bounded persistent cache formats, immutable Phase-1 Config request, and
+bounded CPU/Engine Phase-1 composition are current. Model extraction, multiple-occurrence
+aggregation, broader graph/plan generation, persistent CPU complete-plan reuse, concurrent cache
+writers, cache migration, and inspection remain deferred. Config owns policy inputs only; it does
 not own the runner, search algorithm, cache behavior, live discovery, or mutable evidence. No
-benchmark runs in the runtime hot path.
+benchmark or tuning action runs in the Runtime hot path.
 
 ## Related documentation
 

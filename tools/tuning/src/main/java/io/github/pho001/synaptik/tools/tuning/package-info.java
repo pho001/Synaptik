@@ -1,12 +1,27 @@
 /**
- * Coordinates explicit cache-first cold workload tuning while treating backend candidates and
- * decisions as opaque typed values.
+ * Coordinates explicit cold workload tuning and bounded complete-plan tuning while treating
+ * backend candidates and decisions as opaque typed values.
  *
- * <p>The current package accepts caller-supplied occurrences, stable model/profile evidence
- * identities, a backend-owned candidate/decision collaboration, complete candidate execution, and
- * an explicit cache path. It provides deterministic deduplication, bounded warmup and sampling,
- * integer-median selection with encounter-order ties, atomic persistent cache publication, and
- * separate rich evidence. Model extraction, a supported CPU adapter, Config or Engine facades,
- * and complete graph/plan tuning remain outside the current package.
+ * <p>Phase 1 accepts caller-supplied workload occurrences, stable model and representative-profile
+ * evidence identities, backend-owned compatibility and candidate identities, complete candidate
+ * enumeration and execution, and an explicit persistent cache path. It deduplicates compatible
+ * occurrences, measures cache misses with bounded warmups and samples, selects the lowest
+ * integer-middle median with encounter-order ties, atomically publishes compact decisions, and
+ * returns richer evidence separately.
+ *
+ * <p>Phase 2 is a separate generic transaction over a producer-supplied complete-plan batch. It
+ * checks every candidate for exact caller-defined correctness before timing any candidate,
+ * preflights the checked {@code N * (1 + W + S)} execution bound, and returns a decision-present
+ * Prepare handoff, a compact selected-plan record, and rich in-memory evidence. A
+ * session-scoped producer causes no filesystem operation. A persistent hit is usable only after
+ * the producer's codec authenticates it against the current batch; persistent misses are
+ * published only after an equal compatible codec round trip.
+ *
+ * <p>The caller still owns representative inputs, preparation, execution, publication copying,
+ * correctness-reference bytes, cleanup, and later preparation of the selected decision. The
+ * concrete producer owns candidate meaning, legality, compatibility, ordering, reuse scope,
+ * decision construction, and codecs. Current CPU complete-plan production is session-scoped, and
+ * no public Engine composition invokes the Phase-2 transaction yet. Config extension, Engine/CPU
+ * adaptation, multi-partition plan search, and executable persistence remain later work.
  */
 package io.github.pho001.synaptik.tools.tuning;

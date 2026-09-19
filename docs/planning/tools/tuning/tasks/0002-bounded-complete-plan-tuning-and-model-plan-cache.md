@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -477,12 +477,71 @@ criterion and the documentation pass succeed.
 
 ## Validation evidence
 
-Empty until implemented.
+- Stabilized executable validation was reused without rerunning Java tests because the independent
+  documentation pass changed no executable Java token: `./gradlew :tools:tuning:test` passed 8
+  suites and 51 tests with zero failures, zero errors, and zero skipped tests; the focused
+  complete-plan run passed 4 suites and 27 tests. Public-shape/reflection and `javap` inspection
+  also passed.
+- Final `./gradlew :tools:tuning:javadoc` passed. Generated package and public-type pages were
+  inspected for the Phase-1/Phase-2 boundary, ownership, bounds, callback order, lifecycle,
+  nullability, snapshotting, units, return semantics, and failure rendering; the final run emitted
+  no Javadoc errors or warnings.
+- Targeted Markdown validation passed for all five changed Markdown documents: every local target
+  and fragment resolved, headings were unique, and backtick/tilde fences were balanced. LF/final-
+  newline and trailing-whitespace checks passed.
+- Exact-scope validation found 17 changed paths: eight production/Javadoc paths, four unchanged
+  test paths from the implementation, two explanatory documentation paths, and exactly three
+  planning paths. Every path is permitted by this task and the 18-path ceiling is preserved.
+- Non-comment source comparison confirmed that the documentation pass changed no executable Java
+  token. `git diff --check` and `git diff --cached --check` passed, and the staging area remained
+  empty.
 
 ## Implementation notes
 
-Empty until implemented.
+- Added the six specified public complete-plan types plus package-private `ModelPlanCacheFile` in
+  the existing tuning package, without another public top-level type or package. The request owns
+  bounded immutable fingerprints and distinct Phase-2 ceilings; backend candidates and decisions
+  remain opaque Prepare-role values.
+- The measured transaction snapshots and validates the complete stable candidate list, preflights
+  checked `N * (1 + W + S)`, completes all exact correctness actions before timing, measures every
+  candidate with the configured warmups and odd sample count, selects the smallest integer-middle
+  median with encounter-order ties, and returns a decision-present exact handoff, compact record,
+  and separate rich evidence.
+- `SESSION` performs no filesystem operation. `PERSISTENT` validates the complete bounded,
+  canonical, checksummed cache before enumeration; authenticates hits through the current
+  producer decoder; and publishes a miss only after bounded encoding and an equal compatible
+  decode round trip. Cache entries contain compact opaque decision/winner state and a summary,
+  never raw samples, correctness references, publication bytes, or executable state.
+- Finalized Javadocs and package documentation on all eight production paths. The benchmarking
+  guide now explains both implemented generic transactions, caller/producer ownership,
+  correctness-before-timing, the exact execution formula, session versus persistent behavior,
+  compact cache versus rich evidence, and the still-planned Engine/Config Phase-2 composition.
+- Updated the reusable glossary terms because their former text incorrectly described generic
+  complete-plan correctness, measurement, and model-plan caching as wholly future work. The
+  correction explicitly preserves current CPU `SESSION` scope and the absence of public Engine
+  Phase-2 integration.
+- Independent review found no executable defect or architectural uncertainty. No change was
+  needed in `ARCHITECTURE.md`, an ADR, the focused performance/tuning or Runtime/Prepare/backend
+  architecture explanations, Config/Engine/CPU/Prepare plans or contracts, architecture tests,
+  backend conformance, integration tests, Gradle/build files, or other modules. The task realizes
+  the existing tools boundary and changes no dependency or architecture rule.
 
 ## Completion summary
 
-Empty until implemented.
+Completed the bounded generic Phase-2 transaction and its compact model-plan cache within the
+planned 17-path scope. Production/Javadoc changes are the package summary plus
+`BackendCompletePlanTuning`, `CompleteCandidateMeasurement`, `CompletePlanCorrectness`,
+`CompletePlanTuning`, `CompletePlanTuningRequest`, `CompletePlanTuningResult`, and
+`ModelPlanCacheFile`. The four specified complete-plan test paths remain the executable evidence;
+the documentation pass did not modify them. Explanatory changes are `benchmarking.md` and the
+reusable glossary corrections; planning changes are this task, the tuning master plan, and the
+roadmap.
+
+The generic tools capability is complete and validated. The next ordered tuning work is task 0003
+cache/plan inspection, which remains Draft without a detailed specification. Before public
+Phase-2 use, separately planned Config extension and Engine-owned CPU adaptation must provide the
+new request inputs, join CPU 0010J with Engine 0008A, freshly prepare the selected production
+decision, translate evidence, and apply fallback. Persistent CPU compatibility remains deferred.
+No unresolved issue remains in task 0002.
+
+Status: Complete

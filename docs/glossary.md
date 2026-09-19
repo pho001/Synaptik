@@ -895,22 +895,38 @@ publication while returning richer raw evidence separately. The supported CPU-lo
 supplies opaque candidate/decision and exact prepared-recipe operations. Engine now publicly
 joins these foundations for one CPU-local workload and one representative input set. It maps
 occurrence index 0, partition index 0, and weight 1, then returns a freshly prepared selected
-handle with evidence or explicit safe fallback without evidence. It supplies no model extraction,
-multiple-occurrence tuning, or second-phase graph/plan tuning.
+handle with evidence or explicit safe fallback without evidence. It supplies no model extraction
+or multiple-occurrence tuning.
+
+The current Phase-2 boundary is a separate generic complete-plan transaction in `tools/tuning`.
+It accepts one caller-supplied complete stable batch, checks the whole-transaction
+`N * (1 + W + S)` execution ceiling, completes caller-owned exact correctness for every candidate
+before timing, and deterministically selects the smallest integer-middle median. The producer owns
+candidate meaning, compatibility, reuse scope, decision construction, and codecs. The caller owns
+representative execution, canonical publication bytes, the opaque correctness reference, byte
+bounds, and cleanup. The result contains a decision-present Prepare handoff, a compact selected-
+plan record, and separate rich in-memory evidence.
 
 Tuning is optional for correctness and never runs in the runtime hot path. Running the same
 workflow over a representative model corpus may eventually pre-seed the same workload cache; this
-is not a separate platform-calibration subsystem. The full two-phase workflow and model-plan
-artifact remain planned.
+is not a separate platform-calibration subsystem. Public Engine/Config composition of both phases,
+model extraction, multiple-occurrence aggregation, and freshly preparing the Phase-2 winner for
+production remain planned.
 
 A **workload tuning cache** is the current explicit bounded file-backed reusable artifact keyed by
 backend-supplied canonical workload/target compatibility plus objective and sampling policy. Its
 versioned deterministic binary entries contain opaque decision and winner identities and a compact
 minimum/median/maximum/count summary; checksum and structure validation precede reuse, and changed
 state is published by same-directory atomic replacement. Raw samples remain only in returned rich
-evidence. A **model plan cache** or **prepared-plan record** is the planned model-specific artifact
-for the selected complete plan. Neither role is hidden global state, Java object serialization, or
-an assumed executable payload.
+evidence. A **model plan cache** is the current separate Phase-2 bounded file format keyed by
+producer/codec, model, profile, target, compatibility, objective, correctness/policy, and sampling
+identities. It contains only opaque selected-decision and winner bytes plus a compact timing
+summary, and a hit is usable only after the current producer decodes it as compatible. A
+session-scoped producer performs no model-plan-cache I/O; the current CPU complete-plan producer
+is session-scoped. A **selected-plan record** is the current immutable in-memory compatibility,
+winner-identity, and timing-summary value. Neither the cache nor the record is hidden global
+state, Java object serialization, a prepared executable, Runtime state, or rich measurement
+evidence.
 
 ### Model-autotuning request facade / `ModelAutotuningConfig`
 
@@ -2382,8 +2398,10 @@ or time it.
 
 This current term does not mean a model-wide candidate with Compiler graph alternatives,
 Planning ownership alternatives, multiple partitions, or mixed backends. Candidate-only copied
-representations are not ordinary automatic promotion. Measurement, comparison, model-plan
-persistence, correctness checking, fallback, and Engine composition remain later owners.
+representations are not ordinary automatic promotion. Generic tools-owned correctness ordering,
+measurement, deterministic comparison, and optional persistent selected-decision caching are
+current. The CPU producer remains session-scoped, while fallback and public Engine composition
+remain later owners.
 
 ### Selected tuning decision
 
@@ -2400,6 +2418,11 @@ and Phase-1 fingerprints. Decoding stale or incompatible bytes returns empty, wh
 prepare a mismatched live decision fails without heuristic substitution. A selected tuning
 decision contains no measurement, cache representation, executable, provider, native address,
 physical resource, or Runtime state.
+
+The generic Phase-2 tool may persist a decision only when its producer declares persistent reuse,
+supplies a bounded encoding, and decodes that encoding back to an equal compatible decision. That
+capability does not make the current CPU decision persistent and does not itself prepare the
+selected decision for production.
 
 ### Opaque backend tuning handoff
 
