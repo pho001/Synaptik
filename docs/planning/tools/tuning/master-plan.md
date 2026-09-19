@@ -64,7 +64,7 @@ measures bounded complete plan candidates, and writes explicit persistent artifa
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
 | 0001 | [Exact/default model-guided workload tuning and reusable cache](tasks/0001-exact-default-model-guided-workload-tuning-and-reusable-cache.md) | Complete | CPU 0010E; Prepare 0004; caller-supplied stable identity, typed opaque collaboration, and operational cold measurement | Added the generic caller-supplied cold workload tuner, exact compatible-occurrence deduplication, bounded miss-only measurement, deterministic median selection, reusable bounded persistent cache, and separate rich evidence. Tool-local request inputs precede any later Config facade. |
-| 0002 | Bounded graph and plan tuning | Blocked | 0001; Ready CPU 0010J must become Complete; then a fresh audit must resolve a truthful Phase-2 budget and model-plan artifact contract; later Engine composition | Measure a budget-bounded set of complete valid candidates end to end, reuse local results without repeating local search, and select an explicit model-plan record. CPU 0010J now specifies the missing owner producer, but 0002 remains Blocked with no specification until that producer is implemented and its actual evidence is re-audited. |
+| 0002 | Bounded graph and plan tuning | Blocked | 0001; Complete CPU 0010J; mandatory fresh re-audit of the implemented producer; unresolved truthful Phase-2 budget, correctness oracle, model-plan record/cache, tools-only scope, and later Engine composition | Measure a budget-bounded set of complete valid candidates end to end, reuse local results without repeating local search, and select an explicit model-plan record. CPU 0010J now supplies the first producer, but 0002 remains Blocked with no specification until a fresh evidence-based re-audit resolves every remaining owner and contract. |
 | 0003 | Cache and plan inspection | Draft | 0001–0002, stable artifact schemas | Inspect compatibility, provenance summaries, invalidation reasons, selected plans, and separate measurement evidence without executing payloads or mutating runtime state. |
 
 ## Milestones
@@ -81,31 +81,29 @@ at most one eligible workload to occurrence 0 in partition 0 with weight 1, meas
 fresh trial executions, and freshly prepares the selected or safe-heuristic production recipe.
 The generic cache-first workflow remains independent of CPU internals.
 
-Task 0002 is blocked and has no detailed specification. The current producers cannot form a
-truthful Phase-2 candidate set: Compiler emits one optimized artifact for one request; Planning
-selects one owner per occurrence and one maximal partition list; shared Prepare only transports
-one exact-partition opaque backend batch; CPU 0010I exposes only the Phase-1 portable/OpenBLAS
-local-route batch; and Engine 0007 composes only that same batch. Treating those local candidates
-as plan candidates would repeat Phase-1 search, which the architecture forbids.
-
-Ready
+Task 0002 is blocked and has no detailed specification. Complete
 [CPU 0010J supported complete-plan candidate and decision producer](../../backends/cpu/tasks/0010j-supported-complete-plan-candidate-and-decision-producer.md)
-is now the smallest owning prerequisite. It specifies the retained CPU 0008D/0008E legal
-fusion/split and materialization alternatives as one bounded supported batch of complete opaque
-one-partition candidates and compatible selected decisions. It requires exact Phase-1 local
-decision reuse, preserves CPU ownership of private fields and resource validity, uses the existing
-method-free Prepare roles, and freshly prepares a complete recipe without measuring it. It does
-not wait for optional vendor peers or broaden CPU 0016's local cross-route cache role.
+now supplies the first truthful owner-produced Phase-2 batch: retained CPU 0008D/0008E legal
+fusion/split and materialization alternatives form one bounded supported set of opaque complete
+one-partition candidates. The producer authenticates and reuses the exact Phase-1 result, exposes
+session-scoped compatibility and decisions, and freshly prepares a selected recipe without
+measuring it. It does not add Compiler graph alternatives, Planning ownership alternatives,
+multiple partitions, mixed backends, model-plan persistence, or Engine composition.
 
-After CPU 0010J is Complete, re-audit 0002 as a tools/tuning-only generic Phase-2 foundation;
-Engine composition remains a separate later owner task. Config 0006A currently provides
+A fresh evidence-based audit is now mandatory before task 0002 can become Ready or receive a
+detailed specification. That audit must resolve a truthful Phase-2 candidate/execution budget,
+the correctness oracle for comparing distinct complete plans, the model-plan record and cache
+compatibility/persistence contract, a genuinely tools/tuning-only generic scope, and the separate
+later Engine composition boundary. The mere existence of the CPU producer resolves none of those
+questions. Config 0006A currently provides
 `maximumDistinctCacheMisses`, `maximumCandidatesPerMiss`, `warmupCount`, and
 `timedSampleCount` for Phase 1. It has no maximum-total-executions field, model-plan-cache path,
 or Phase-2 candidate-count meaning, so a later Config change may follow only after the Phase-2
 consumer contract is stable.
 
-No compact model-plan record is implementable yet. There is no owner-produced plan decision,
-canonical cross-compilation model fingerprint, or complete-plan compatibility schema to persist.
+No compact model-plan record is implementable yet. CPU 0010J supplies only a session-scoped
+owner-produced decision for the current sole-partition CPU slice; there is still no canonical
+cross-compilation model fingerprint or persistent complete-plan compatibility schema.
 Any later record must remain separate from rich evidence, carry explicit schema/owner/target/model/
 profile/objective/constraint compatibility, reject corruption and incompatibility safely, publish
 atomically, and trigger fresh preparation on a hit; it must never serialize `PreparedExecution`
@@ -176,7 +174,7 @@ or executable payloads.
 - A generic Phase-2 tools foundation is not created before one current owner can supply complete
   valid plan candidates. A caller-supplied abstraction without a production producer would be
   speculative and would not prove Phase-1 reuse.
-- Ready CPU 0010J is the first truthful producer because CPU already retains bounded executable
+- Complete CPU 0010J is the first truthful producer because CPU already retains bounded executable
   fusion/split and materialization alternatives. Compiler and Planning remain architecture-only
   future candidate roles until they expose more than their current single deterministic result.
 - Phase 2 may reuse a local selection only through an explicit typed handoff into complete-plan

@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -625,12 +625,113 @@ criterion and the documentation pass succeed.
 
 ## Validation evidence
 
-Empty until implemented.
+- Implementation context `01a0b857-47f3-7551-bae3-642d5a6c7d6f` ran
+  `./gradlew :backends:cpu:test`: 1,022 tests, 28 skipped, zero failures. Its focused matrix passed
+  45 tests with 1 skip and zero failures. The mandatory clean documentation review reused this
+  evidence because it changed only Javadoc, Markdown, and planning text after that run.
+- The implementation context also passed `./gradlew :backends:cpu:javadoc` after correcting its
+  newly introduced warning; recorded output retained 94 pre-existing missing-parameter warnings
+  in old constructors. It passed `git diff --check`, confirmed empty staging, verified exactly 11
+  production and 5 test paths, and found zero generated/emitter changes.
+- The implementation context's public-surface and source checks found no internal type in a
+  supported signature and no Java serialization, filesystem, reflection, tools/tuning, or Engine
+  dependency in the new collaboration. Codec/identity checks found no graph-local ID magnitude
+  or live-object text, and existing generated specialization/class identities remained unchanged.
+- Mandatory clean documentation-focused review context
+  `01a0b877-dfe5-7c11-8180-beac3ddc71b9` read the
+  architecture contract, focused tuning/prepare architecture and ADR 0008, documentation rules
+  and General/API-Javadoc/Planning/Backend-guide profiles, planning guide and synchronized plans,
+  predecessor contracts, the complete worktree diff, all 11 changed production files, and all 5
+  changed/new tests. It reviewed actual source and tests rather than relying on the handoff.
+- Documentation context `01a0b877-dfe5-7c11-8180-beac3ddc71b9` ran
+  `./gradlew :backends:cpu:javadoc` after final Javadoc edits:
+  `BUILD SUCCESSFUL`; 94 warnings remain, all in the same unrelated old constructors in
+  `CpuPartitionLowering` and `CpuPartitionPreparationPlan`. No new warning belongs to 0010J.
+- Documentation context `01a0b877-dfe5-7c11-8180-beac3ddc71b9` inspected the rendered
+  `CpuCompletePlanTuning` and
+  `CpuBackendIntegration` pages and their nested-value pages under
+  `backends/cpu/build/docs/javadoc`; ownership, association, session scope, defensive bytes,
+  fresh preparation, failure behavior, and the no-execution boundary render correctly.
+- A targeted changed-Markdown validator passed for local targets, same-file and cross-file
+  anchors, canonical unique headings, balanced fences, LF endings, final newlines, and trailing
+  whitespace. Final `git diff --check`, `git diff --cached --check`, empty-staging, exact-path,
+  generated/emitter-zero, and `git status --short -uall` checks also passed.
+- Final scope is exactly 22 paths: 11 CPU production/Javadoc paths, 5 CPU test paths, 2
+  explanatory documentation paths, and 4 planning paths. No Java test was rerun by the
+  documentation context `01a0b877-dfe5-7c11-8180-beac3ddc71b9` because it changed no executable
+  Java token or test.
 
 ## Implementation notes
 
-Empty until implemented.
+- Added the retained `CpuCompletePlanTuning` collaboration and
+  `CpuBackendIntegration.completePlanTuning()`. The batch is complete only for the same exact
+  artifacts and sole CPU partition, one retained 0008D topology, one retained direct/single/
+  eligible-disjoint-pair 0008E representation, and the exact reused Phase-1 state.
+- Compatibility and candidate identities use bounded canonical projections and defensive bytes.
+  Current reuse is session-scoped. The bounded checksummed codec rejects malformed, corrupt,
+  stale, wrong-session, and incompatible encodings without side effects.
+- Trial and selected preparation repeat authoritative analysis and build fresh assignments,
+  finalization, schedules, and `PreparedExecution` recipes. They perform no execution or timing
+  and never fall back to ordinary heuristic selection.
+- Ordinary preparation and Phase-1 behavior remain unchanged. Candidate-only materializations
+  can be selected only through an exact complete-plan decision and are not automatically promoted.
+- Actual path deviations from the expected list were bounded and cohesive:
+  `CpuPartitionPreparationPlan.java` required a validation update, while the planned
+  `CpuPartitionAnalysisInputs.java` did not. The narrower `CpuPartitionPreparerTest.java` and
+  `CpuRepresentationPlannerTest.java` did not require edits; closed supported-surface/inventory/
+  decision-shape tests were updated instead. `CpuBackendCompositionTest.java` also remained
+  unchanged because its existing coverage and the new distinct-package public collaboration test
+  covered the composition boundary. No second production type or broader package was added.
+- Documentation review selected the Backend guide profile for `cpu-backend.md`, API/Javadoc for
+  Java contracts, and Planning for the task/master-plan/roadmap files. It added the missing
+  glossary entries for complete-plan candidate and candidate batch and corrected the selected
+  tuning decision, CPU portable preparation plan, and materialization entries because their prior
+  local-only/future-only descriptions were materially incomplete.
+- Architecture and ADR no-change conclusion: the implementation realizes existing concrete-
+  backend candidate ownership and opaque Prepare transport without changing authority, module
+  boundaries, dependency direction, or lifecycle order.
+- Public Tensor/Compile/Training and shared Prepare/Runtime API no-change conclusion: the feature
+  consumes current `CompileArtifacts`, method-free tuning roles, assignment/finalization, and
+  `PreparedExecution` contracts without widening them or changing model/training semantics.
+- Config, Engine, provider, generated-code, other backend-guide, architecture-test,
+  backend-conformance, integration, build/Gradle, and generated-emitter no-change conclusion:
+  0010J owns no Phase-2 request, representative execution, correctness oracle, fallback, cache,
+  provider ABI, generated schema/bytes, route, dependency, or cross-module behavior.
+- Javadocs in all changed production files were reviewed. This pass finalized the new supported
+  collaboration, integration accessor, Phase-1 authentication helpers, explicit selectors,
+  preparer values, and composition methods. Existing Javadocs in `package-info`, decision enums,
+  and `CpuPartitionPreparationPlan` remained accurate after review and required no further edit.
+- Tools/tuning 0002 remains `Blocked`. A fresh re-audit must resolve its Phase-2 budget,
+  correctness oracle, model-plan record/cache, tools-only generic scope, and later Engine
+  composition before a detailed task may be created.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: implemented and documented the supported opaque CPU complete-plan producer,
+  exact Phase-1 reuse, canonical session-scoped identity/codec boundary, and fresh exact recipe
+  preparation while preserving ordinary preparation.
+- Files changed or created by the documentation pass: Javadocs in
+  `CpuBackendIntegration.java`, `CpuCompletePlanTuning.java`, `CpuLocalWorkloadTuning.java`,
+  `CpuFusionProfitabilitySelector.java`, `CpuRepresentationPlanner.java`,
+  `CpuPartitionPreparer.java`, and `CpuBackendComposition.java`; explanatory updates in
+  `docs/backend-guide/cpu-backend.md` and `docs/glossary.md`; and planning updates in this task,
+  the CPU master plan, tuning master plan, and roadmap. The final combined worktree contains
+  exactly 22 changed/new paths.
+- Tests and validation: reused the implementation context's passing 1,022-test CPU suite and
+  45-test focused matrix; final CPU Javadoc, rendered-page inspection, Markdown validation,
+  whitespace checks, exact-scope checks, and empty-staging checks passed.
+- Documentation-agent review: completed in mandatory clean documentation context
+  `01a0b877-dfe5-7c11-8180-beac3ddc71b9` using the General, API/Javadoc, Planning, and Backend
+  guide profiles.
+- Documentation impact: CPU guide, glossary, and all four required planning paths are finalized.
+- Javadoc review: all 11 changed production paths were reviewed; seven received final Javadoc
+  edits and four were confirmed accurate without further changes.
+- Glossary impact: five required concepts were reviewed; missing/incomplete complete-plan,
+  candidate-batch, decision, portable-plan, and materialization descriptions were updated.
+- Unresolved issues: Phase-2 orchestration, correctness checking, budgets, persistent model-plan
+  records/cache, Compiler/Planning alternatives, multi-partition/mixed-backend plans, and Engine
+  composition remain deliberately unresolved under blocked tools/tuning 0002.
+- Follow-up required: perform the recorded fresh tools/tuning 0002 re-audit; do not create its
+  detailed specification until those unresolved contracts have owners and evidence.
+
+Status: Complete

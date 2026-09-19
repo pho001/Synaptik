@@ -48,7 +48,8 @@ class CpuFusionDecisionTest {
                         CpuFusionDecision.SelectionReason.CANONICAL_SPLIT,
                         CpuFusionDecision.SelectionReason.TIE_FALLBACK,
                         CpuFusionDecision.SelectionReason.UNCERTAINTY_FALLBACK,
-                        CpuFusionDecision.SelectionReason.ENUMERATION_BUDGET_FALLBACK},
+                        CpuFusionDecision.SelectionReason.ENUMERATION_BUDGET_FALLBACK,
+                        CpuFusionDecision.SelectionReason.EXPLICIT_COMPLETE_PLAN_SELECTION},
                         CpuFusionDecision.SelectionReason.values()));
     }
 

@@ -28,6 +28,7 @@ public final class CpuBackendIntegration implements AutoCloseable {
     private final CpuCapabilityProvider capabilityProvider = new CpuCapabilityProvider();
     private final CpuBackendComposition composition;
     private final CpuLocalWorkloadTuning localWorkloadTuning;
+    private final CpuCompletePlanTuning completePlanTuning;
 
     /**
      * Retains one CPU-private composition owner for the lifetime of this adapter.
@@ -38,6 +39,7 @@ public final class CpuBackendIntegration implements AutoCloseable {
     private CpuBackendIntegration(CpuBackendComposition composition) {
         this.composition = Objects.requireNonNull(composition, "composition");
         this.localWorkloadTuning = new CpuLocalWorkloadTuning(composition);
+        this.completePlanTuning = new CpuCompletePlanTuning(composition, localWorkloadTuning);
     }
 
     /**
@@ -133,6 +135,23 @@ public final class CpuBackendIntegration implements AutoCloseable {
     public CpuLocalWorkloadTuning localWorkloadTuning() {
         composition.assertOpen();
         return localWorkloadTuning;
+    }
+
+    /**
+     * Returns the retained CPU-owned complete-plan candidate collaboration.
+     *
+     * <p>The collaboration borrows this integration's lifetime and performs only cold candidate
+     * exposure, decision encoding, and fresh recipe preparation. It does not execute, measure,
+     * rerank Phase-1 choices, access a cache, or apply fallback policy. Its current candidates
+     * vary only retained CPU topology and representation choices for the same sole partition and
+     * exact Phase-1 state.</p>
+     *
+     * @return the same non-null collaboration on every call; ownership is not transferred
+     * @throws IllegalStateException if this adapter is closed
+     */
+    public CpuCompletePlanTuning completePlanTuning() {
+        composition.assertOpen();
+        return completePlanTuning;
     }
 
     /**

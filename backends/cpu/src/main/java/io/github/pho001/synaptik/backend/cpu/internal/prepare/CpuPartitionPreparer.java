@@ -14,6 +14,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRepresentationDecision;
 import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasRoutePlan;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasRouteSelector;
@@ -136,6 +137,72 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      */
     @Override public BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyze(
             PrepareContext<CpuPartitionAnalysisInputs> context) {
+        return finishOpenBlas(context, selectPlan(context, Optional.empty()).analysis());
+    }
+
+    /**
+     * Returns every complete retained topology/representation identity in stable rank order.
+     *
+     * <p>The result describes retained analysis alternatives only. It performs no route
+     * measurement, ranking, execution, or resource allocation.</p>
+     *
+     * @param context non-null complete CPU analysis context; inspected but not mutated
+     * @return a new immutable candidate-identity snapshot and its exact completeness outcome
+     * @throws NullPointerException if {@code context} is {@code null}
+     * @throws IllegalArgumentException if analysis facts are unsupported or inconsistent
+     * @throws ArithmeticException if exact candidate or resource arithmetic overflows
+     */
+    public CompletePlanCandidates completePlanCandidates(
+            PrepareContext<CpuPartitionAnalysisInputs> context) {
+        SelectionAnalysis selected = selectPlan(Objects.requireNonNull(context, "context"),
+                Optional.empty());
+        List<CpuRepresentationDecision.Variant>
+                variants = selected.representation().decisions().stream()
+                .filter(CpuRepresentationDecision.Variant.class::isInstance)
+                .map(CpuRepresentationDecision.Variant.class::cast)
+                .sorted(java.util.Comparator.comparingInt(
+                        CpuRepresentationDecision.Variant::stableTopologyRank))
+                .toList();
+        List<CpuRepresentationDecision.VariantIdentity>
+                identities = variants.stream().map(
+                        CpuRepresentationDecision.Variant::identity)
+                .distinct().toList();
+        return new CompletePlanCandidates(identities, selected.representation().complete());
+    }
+
+    /**
+     * Freshly selects one exact retained complete plan and performs current route evaluation.
+     *
+     * <p>The selected identity bypasses ordinary topology/representation ranking but does not
+     * grant legality. Current route evaluation must preserve the already authenticated Phase-1
+     * state carried by {@code context}.</p>
+     *
+     * @param context non-null complete CPU analysis context; inspected but not mutated
+     * @param selectedPlan non-null exact authenticated selected-plan input; retained only in the
+     *     scope of this analysis call
+     * @return a new exact immutable analysis with complete declarations for the selected retained
+     *     plan
+     * @throws NullPointerException if an argument is {@code null}
+     * @throws IllegalArgumentException if the selected identity is no longer retained
+     * @throws ArithmeticException if exact plan or resource arithmetic overflows
+     */
+    public BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeSelected(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
+            SelectedCompletePlan selectedPlan) {
+        Objects.requireNonNull(selectedPlan, "selectedPlan");
+        return finishOpenBlas(context, selectPlan(Objects.requireNonNull(context, "context"),
+                Optional.of(selectedPlan)).analysis());
+    }
+
+    private BackendPartitionAnalysis<CpuPartitionPreparationPlan> finishOpenBlas(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
+            BackendPartitionAnalysis<CpuPartitionPreparationPlan> portable) {
+        return openBlasSelector.evaluate(context, portable.plan(), representationPlanner)
+                .map(result -> withOpenBlasEvaluation(portable, result)).orElse(portable);
+    }
+
+    private SelectionAnalysis selectPlan(PrepareContext<CpuPartitionAnalysisInputs> context,
+            Optional<SelectedCompletePlan> explicitSelection) {
         Objects.requireNonNull(context, "context");
         List<CpuPartitionDagDecomposer.Unit> baseline = decomposer.decompose(context, lowering);
         BackendPartitionAnalysis<CpuPartitionPreparationPlan> baselineAnalysis =
@@ -154,17 +221,72 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             analyses.add(analysis);
             candidates.add(new CpuFusionProfitabilitySelector.Candidate(topology, analysis.plan()));
         }
-        CpuFusionProfitabilitySelector.Result selected = selector.select(context, enumeration,
-                candidates);
-        CpuRepresentationPlanner.Result representation = representationPlanner.select(context,
-                candidates, selected.decisions());
+        CpuFusionProfitabilitySelector.Result selected = explicitSelection.isPresent()
+                ? selector.selectExact(context, enumeration, candidates,
+                        explicitSelection.orElseThrow().identity().topology())
+                : selector.select(context, enumeration, candidates);
+        CpuRepresentationPlanner.Result representation = explicitSelection.isPresent()
+                ? representationPlanner.selectExact(context, candidates, selected.decisions(),
+                        explicitSelection.orElseThrow().identity())
+                : representationPlanner.select(context, candidates, selected.decisions());
         BackendPartitionAnalysis<CpuPartitionPreparationPlan> represented = withRepresentation(
                 analyses.get(representation.candidateIndex()), representation);
         BackendPartitionAnalysis<CpuPartitionPreparationPlan> portable = withMetadata(
                 context, represented, recognition, selected.decisions());
-        return openBlasSelector.evaluate(context, portable.plan(), representationPlanner)
-                .map(result -> withOpenBlasEvaluation(portable, result)).orElse(portable);
+        return new SelectionAnalysis(portable, representation);
     }
+
+    /**
+     * Complete bounded retained candidates; an incomplete result must not escape publicly.
+     * @param identities non-null ordered retained topology/representation identities;
+     *     defensively snapshotted
+     * @param complete whether every bounded alternative was proved complete
+     */
+    public record CompletePlanCandidates(
+            List<CpuRepresentationDecision.VariantIdentity> identities,
+            boolean complete) {
+        /**
+         * Validates and snapshots the ordered identities.
+         *
+         * @throws NullPointerException if {@code identities} or an element is {@code null}
+         */
+        public CompletePlanCandidates { identities = List.copyOf(identities); }
+    }
+
+    /**
+     * Immutable authenticated request to select one exact already-retained complete CPU plan.
+     * The value owns no resource and retains only immutable identity/fingerprint data.
+     *
+     * @param schemaVersion positive complete-plan schema version
+     * @param identity non-null exact retained topology/representation identity
+     * @param phaseOneFingerprint non-null non-empty unsigned canonical fingerprint octets;
+     *     defensively snapshotted
+     */
+    public record SelectedCompletePlan(int schemaVersion,
+            CpuRepresentationDecision.VariantIdentity identity,
+            List<Integer> phaseOneFingerprint) {
+        /**
+         * Validates and snapshots the exact selection input.
+         *
+         * @throws NullPointerException if {@code identity}, {@code phaseOneFingerprint}, or an
+         *     octet is {@code null}
+         * @throws IllegalArgumentException if the schema is not positive, the fingerprint is
+         *     empty, or an octet is outside {@code [0, 255]}
+         */
+        public SelectedCompletePlan {
+            Objects.requireNonNull(identity, "identity");
+            phaseOneFingerprint = List.copyOf(phaseOneFingerprint);
+            if (schemaVersion <= 0 || phaseOneFingerprint.isEmpty()
+                    || phaseOneFingerprint.stream().anyMatch(value -> value == null
+                            || value < 0 || value > 255)) {
+                throw new IllegalArgumentException("CPU complete-plan selection input is invalid");
+            }
+        }
+    }
+
+    private record SelectionAnalysis(
+            BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis,
+            CpuRepresentationPlanner.Result representation) { }
 
     private static BackendPartitionAnalysis<CpuPartitionPreparationPlan> withOpenBlasEvaluation(
             BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis,

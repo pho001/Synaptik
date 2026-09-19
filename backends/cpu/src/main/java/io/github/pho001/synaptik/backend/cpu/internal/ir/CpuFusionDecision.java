@@ -101,7 +101,9 @@ public sealed interface CpuFusionDecision permits CpuFusionDecision.LegalCandida
         /** No comparable alternative clears the required margin. */ CANONICAL_SPLIT,
         /** Best comparable fused alternative ties split. */ TIE_FALLBACK,
         /** At least one candidate score is uncertain. */ UNCERTAINTY_FALLBACK,
-        /** Candidate or pair ceiling prevented complete enumeration. */ ENUMERATION_BUDGET_FALLBACK
+        /** Candidate or pair ceiling prevented complete enumeration. */ ENUMERATION_BUDGET_FALLBACK,
+        /** An authenticated outer CPU owner selected this exact retained complete topology. */
+        EXPLICIT_COMPLETE_PLAN_SELECTION
     }
 
     /**

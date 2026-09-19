@@ -56,8 +56,8 @@ final class CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest {
                 .filter(constructor -> Modifier.isPublic(constructor.getModifiers())
                         || Modifier.isProtected(constructor.getModifiers())).count());
         assertEquals(List.of("availabilitySnapshot", "borrow", "capabilityProvider", "close",
-                        "copyToCanonicalHostBytes", "localWorkloadTuning", "open", "preparations", "prepare",
-                        "scheduleAssembler"),
+                        "completePlanTuning", "copyToCanonicalHostBytes", "localWorkloadTuning",
+                        "open", "preparations", "prepare", "scheduleAssembler"),
                 Arrays.stream(CpuBackendIntegration.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
                         .map(method -> method.getName()).sorted().toList());

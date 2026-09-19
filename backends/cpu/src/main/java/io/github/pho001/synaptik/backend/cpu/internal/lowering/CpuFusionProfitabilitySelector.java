@@ -122,6 +122,35 @@ public final class CpuFusionProfitabilitySelector {
      */
     public Result select(PrepareContext<CpuPartitionAnalysisInputs> context,
             CpuPartitionDagDecomposer.Enumeration enumeration, List<Candidate> candidates) {
+        return select(context, enumeration, candidates, Optional.empty());
+    }
+
+    /**
+     * Selects one exact retained topology while preserving the ordinary candidate facts.
+     *
+     * <p>This operation authenticates an outer complete-plan choice; it does not rerank the
+     * retained legal set or relabel the result as an ordinary profitability winner.</p>
+     *
+     * @param context non-null complete CPU analysis context; inspected but not mutated
+     * @param enumeration non-null complete or explicitly incomplete bounded topology enumeration
+     * @param candidates non-null legal prepared candidates aligned with discovery order; copied
+     *     before validation
+     * @param selectedIdentity non-null exact already-retained legal topology identity
+     * @return a new immutable exact selection and unchanged retained legal/rejection facts
+     * @throws NullPointerException if an argument or candidate element is {@code null}
+     * @throws IllegalArgumentException if discovery order, identity, or retained facts disagree
+     * @throws ArithmeticException if exact comparison arithmetic overflows
+     */
+    public Result selectExact(PrepareContext<CpuPartitionAnalysisInputs> context,
+            CpuPartitionDagDecomposer.Enumeration enumeration, List<Candidate> candidates,
+            CandidateIdentity selectedIdentity) {
+        return select(context, enumeration, candidates,
+                Optional.of(Objects.requireNonNull(selectedIdentity, "selectedIdentity")));
+    }
+
+    private Result select(PrepareContext<CpuPartitionAnalysisInputs> context,
+            CpuPartitionDagDecomposer.Enumeration enumeration, List<Candidate> candidates,
+            Optional<CandidateIdentity> explicitSelection) {
         Objects.requireNonNull(context, "context");
         Objects.requireNonNull(enumeration, "enumeration");
         candidates = List.copyOf(candidates);
@@ -145,13 +174,20 @@ public final class CpuFusionProfitabilitySelector {
         for (Assessed value : assessed) legalCandidates.add(new LegalCandidate(value.identity(),
                 value.facts(), value.score(), rankOf(ranked, value.candidate()),
                 value.candidate() == split, value.candidate() == baseline));
-        int selectedIndex = selectedCandidateIndex(legalCandidates, enumeration.complete());
+        int selectedIndex = explicitSelection.map(identity -> {
+            for (int index = 0; index < legalCandidates.size(); index++) {
+                if (legalCandidates.get(index).identity().equals(identity)) return index;
+            }
+            throw new IllegalArgumentException("explicit CPU topology is not retained");
+        }).orElseGet(() -> selectedCandidateIndex(legalCandidates, enumeration.complete()));
         Candidate selected = candidates.get(selectedIndex);
         Assessed selectedAssessed = assessed.get(selectedIndex);
         boolean uncertain = assessed.stream().anyMatch(value -> value.score().isEmpty());
         Optional<CandidateIdentity> tiedBest = selected == split && enumeration.complete()
                 && !uncertain ? tiedBestIdentity(legalCandidates) : Optional.empty();
-        SelectionReason selectionReason = !enumeration.complete()
+        SelectionReason selectionReason = explicitSelection.isPresent()
+                ? SelectionReason.EXPLICIT_COMPLETE_PLAN_SELECTION
+                : !enumeration.complete()
                 ? SelectionReason.ENUMERATION_BUDGET_FALLBACK
                 : uncertain ? SelectionReason.UNCERTAINTY_FALLBACK
                 : selected != split ? SelectionReason.PROFITABLE_FUSION

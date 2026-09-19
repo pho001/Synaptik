@@ -55,7 +55,9 @@ public sealed interface CpuRepresentationDecision permits CpuRepresentationDecis
         /** A direct representation of a profitable topology is selected. */
         DIRECT_PROFITABLE_TOPOLOGY,
         /** A copied representation is explicitly selected by a compatible non-ordinary owner. */
-        COPIED_PROFITABLE
+        COPIED_PROFITABLE,
+        /** An authenticated outer CPU owner selected this exact retained representation. */
+        EXPLICIT_COMPLETE_PLAN_SELECTION
     }
 
     /**
@@ -229,6 +231,7 @@ public sealed interface CpuRepresentationDecision permits CpuRepresentationDecis
             Objects.requireNonNull(canonicalDirect, "canonicalDirect");
             Objects.requireNonNull(reason, "reason");
             if (stableRank < 0 || reason != SelectionReason.COPIED_PROFITABLE
+                    && reason != SelectionReason.EXPLICIT_COMPLETE_PLAN_SELECTION
                     && reason != SelectionReason.DIRECT_PROFITABLE_TOPOLOGY
                     && reason != SelectionReason.DIRECT_POLICY_DISABLED
                     && reason != SelectionReason.DIRECT_MATERIALIZATION_UNPROVED

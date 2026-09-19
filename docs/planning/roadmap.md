@@ -23,8 +23,8 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete through 0006B6 | Model and Planning prerequisites for the compile frontier are complete; Engine 0008 authorized one completed owning Compiler interleave. | Compiler 0006B6 closes static final convolution layouts and supplies positive public Engine dimensional-convolution fixtures; 0006C and 0007 remain independent Draft side branches. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through Prepare 0005 | Compiler 0006B5 supplies a resolved producerless/consumerless published-constant descriptor while Planning preserves its graph-output obligation. | Prepare contributes that resource to the handoff and assigns a deterministic shared slot without backend selection or physical geometry. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Complete baseline; optional provider 0004 Blocked/deferred | Native interop conventions needed by the provider are decided. | Required FLOAT32/FLOAT64 remains complete; the optional direct BFLOAT16-output capability stays fail-closed until both proof gaps are resolved. |
-| 10 | [`backends/cpu`](backends/cpu/master-plan.md) | 0010J Ready after Complete 0010I | Complete CPU 0010E–0010I, Prepare 0004, and tools/tuning 0001 establish the current local-candidate, lifecycle, opaque-handoff, and tuning-consumer seams. | Complete CPU 0010J's bounded supported producer over retained 0008D/0008E alternatives with exact Phase-1 selection reuse, then re-audit blocked tuning 0002. |
-| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0008 | CPU 0010I, Engine 0006A, and Compiler 0006B6 completed the tuning, representative-lifecycle, and public dimensional-convolution prerequisites. | The CPU-only Engine lifecycle checkpoint and NN 0025/0025A dimensional-convolution layers and user checkpoint are complete; tuning 0002 is blocked on Ready CPU 0010J becoming Complete, a fresh re-audit, and later separate Engine Phase-2 composition. |
+| 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through 0010J | Complete CPU 0010E–0010I, Prepare 0004, and tools/tuning 0001 establish the current local-candidate, lifecycle, opaque-handoff, and tuning-consumer seams. | CPU 0010J now supplies the bounded supported producer over retained 0008D/0008E alternatives with exact Phase-1 selection reuse; blocked tuning 0002 requires a fresh re-audit. |
+| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0008 | CPU 0010I, Engine 0006A, and Compiler 0006B6 completed the tuning, representative-lifecycle, and public dimensional-convolution prerequisites. | The CPU-only Engine lifecycle checkpoint and NN 0025/0025A dimensional-convolution layers and user checkpoint are complete; CPU 0010J is Complete, while tuning 0002 remains blocked on a fresh re-audit and later separate Engine Phase-2 composition. |
 | 12 | [`backends/metal`](backends/metal/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | Metal passes the applicable backend-conformance suite. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | CUDA passes the applicable backend-conformance suite. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | The model representation and public tensor semantics are stable. | Selected import/export mappings and compatibility validation are complete. |
@@ -35,7 +35,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 19 | [`extensions/training`](extensions/training/master-plan.md) | Draft | NN parameter contracts, config, compiler autograd, and runtime publication contracts are stable. | Backend-independent optimizer/session behavior and strict resume-state snapshots are complete. |
 | 20 | [`extensions/checkpoint`](extensions/checkpoint/master-plan.md) | Draft (architecture decision required) | Engine exposes typed host materialization, NN lazy/state schemas are stable, and the optional Training adapter waits for Training snapshots. | Durable strict model checkpointing and any selected optional exact-training-resume adapter are complete. |
 | 21 | [`tools/benchmarks`](tools/benchmarks/master-plan.md) | Draft | Engine and selected execution paths are operational. | Fixed reproducible workload suites and observational reporting are complete. |
-| 22 | [`tools/tuning`](tools/tuning/master-plan.md) | Blocked after 0001 | CPU 0010E, Prepare 0004, Config 0006A, CPU 0010I, and Engine 0006A–0008 complete the bounded Phase-1 path. | Task 0002 has no truthful Ready specification until an owner supplies complete plan candidates with explicit Phase-1-selection reuse; task 0003 remains downstream. |
+| 22 | [`tools/tuning`](tools/tuning/master-plan.md) | Blocked after 0001 | CPU 0010J now supplies the first complete-plan producer after the bounded Phase-1 path. | Task 0002 has no truthful Ready specification until a fresh audit resolves its Phase-2 budget, correctness oracle, model-plan record/cache, tools-only scope, and later Engine composition; task 0003 remains downstream. |
 | 23 | [`tools/cli`](tools/cli/master-plan.md) | Draft | Engine and diagnostic contracts are stable. | Selected diagnostic and execution commands are complete. |
 
 The order above is the default delivery sequence, not a new dependency rule. Allowed and forbidden dependencies remain defined only by `ARCHITECTURE.md`.
@@ -97,7 +97,7 @@ Compiler 0006B3 Engine-facing complete compile integration port (Complete)
   -> Engine 0008 lifecycle capability checkpoint (Complete)
   -> NN 0025 dimensional-convolution layers (Complete)
   -> NN 0025A dimensional-convolution user checkpoint (Complete)
-  -> CPU 0010J supported complete-plan candidate/decision producer (Ready)
+  -> CPU 0010J supported complete-plan candidate/decision producer (Complete)
   -> tools/tuning 0002 (Blocked; no detailed specification)
 ```
 
@@ -226,7 +226,8 @@ is `Complete`; detailed
 [NN 0025A dimensional-convolution user-capability checkpoint](extensions/nn/tasks/0025a-dimensional-convolution-user-capability-checkpoint.md)
 is `Complete`. The subsequent audit blocks tools/tuning 0002 and selects detailed
 [CPU 0010J](backends/cpu/tasks/0010j-supported-complete-plan-candidate-and-decision-producer.md)
-as the Ready complete-plan producer prerequisite; no 0002 specification exists.
+as the now-Complete complete-plan producer prerequisite. Task 0002 remains Blocked without a
+specification until its fresh evidence-based re-audit resolves the remaining Phase-2 contracts.
 
 The Engine 0001 seam audit found a bounded actionable foundation, not a mixed-backend composition
 contract. `GraphPreparation` accepts one complete schedule assembler, and the only supported
@@ -318,9 +319,9 @@ completed Engine 0008. This is an implementation-order exception around unrelate
 0021B–0024, whose recurrent/Data contracts and files do not overlap NN 0025. Detailed
 [NN 0025A](extensions/nn/tasks/0025a-dimensional-convolution-user-capability-checkpoint.md)
 is also `Complete`. Its test-only outward integration scope does not alter those recurrent/Data
-contracts or production dependency direction. The subsequent tuning audit blocks tools/tuning
-0002 on Ready CPU 0010J becoming Complete and a fresh evidence-based re-audit, without a detailed
-0002 specification.
+contracts or production dependency direction. Complete CPU 0010J now resolves the missing
+producer prerequisite, but tools/tuning 0002 remains Blocked pending a fresh evidence-based
+re-audit and still has no detailed specification.
 
 The future sequence-padding program uses one valid sequence length per row as the sole canonical
 metadata for ordinary right padding. Data initially owns an immutable validated host value;
@@ -358,8 +359,8 @@ remains a complete executable candidate, but ordinary preparation selects CPU 00
 topology with a typed unproved-materialization reason. Cross-unit reuse is candidate metadata,
 not promotion proof. No timing constant, blacklist, carrier change, retry, generated owner/form,
 schema, or architecture rule is authorized. CPU 0010E, Prepare 0004, and Tuning 0001 completed
-the local phase; Ready CPU 0010J must expose these retained alternatives before blocked Tuning
-0002 can be re-audited for compatible end-to-end promotion. The first full corrective CPU rerun is
+the local phase; Complete CPU 0010J now exposes these retained alternatives. Blocked Tuning 0002
+requires a fresh audit before compatible end-to-end promotion can be specified. The first full corrective CPU rerun is
 historical diagnostic evidence:
 544 tests, 3 skips, and 9 stale selected-copy failures in exactly seven existing test owners.
 The cohesive 0008E task authorized only those seven owners to inspect or execute retained
@@ -501,8 +502,8 @@ that evidence. Detailed
 with `Conv1d`, `Conv2d`, and `Conv3d` layers, while detailed
 [NN 0025A](extensions/nn/tasks/0025a-dimensional-convolution-user-capability-checkpoint.md)
 is `Complete` with strict-loaded layer-to-Engine evidence and the current fail-closed Conv3d
-backward boundary. Tools/tuning 0002 is blocked on Ready CPU 0010J becoming Complete and the
-required subsequent Phase-2 re-audit.
+backward boundary. CPU 0010J is Complete; tools/tuning 0002 remains blocked on the required fresh
+Phase-2 re-audit.
 
 This is an ordering and dependency correction within the already planned portable CPU route. It
 does not introduce a new portable route beginning at CPU 0008, change architecture, or make the
@@ -1518,8 +1519,8 @@ representation selection while materialization promotion remains unproved.
 CPU 0010E first owns exact/default FLOAT32/FLOAT64 OpenBLAS candidates and canonical compatibility,
 Prepare 0004 then transports those candidates and compatible decisions opaquely, and tools/tuning
 0001 owns measurement, selection, persistence, and rejection of corrupt or incompatible cache
-entries. Ready CPU 0010J, followed by blocked tuning 0002 only after re-audit, may later extend
-the workflow to eligible complete materialized candidates only when model autotuning
+entries. Complete CPU 0010J supplies those eligible complete materialized candidates. Blocked
+tuning 0002 may consume them only after a fresh re-audit and only when model autotuning
 is explicitly requested before Runtime. The tuning workflow
 measures copy plus complete consumer execution end to end rather than
 ranking an isolated kernel or moving materialization legality out of CPU. This future promotion
@@ -2188,8 +2189,8 @@ condition. Detailed
 [NN 0025](extensions/nn/tasks/0025-channels-first-conv1d-conv2d-conv3d-layers.md) is `Complete`
 under the recorded exception around unrelated Draft NN 0021B–0024; detailed
 [NN 0025A](extensions/nn/tasks/0025a-dimensional-convolution-user-capability-checkpoint.md)
-is also `Complete`. Tools/tuning 0002 is Blocked on Ready CPU 0010J becoming Complete and a fresh
-re-audit; Compiler 0006C and NN 0021B–0024 remain Draft.
+is also `Complete`. CPU 0010J is Complete; tools/tuning 0002 remains Blocked pending a fresh
+re-audit. Compiler 0006C and NN 0021B–0024 remain Draft.
 Family tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator
 (RNG) state, mask, and configuration roles remain intentionally non-differentiable where

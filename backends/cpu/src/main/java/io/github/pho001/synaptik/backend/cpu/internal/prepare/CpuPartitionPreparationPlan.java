@@ -2209,7 +2209,9 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                             && value.score().equals(selection.canonicalSplitScore()))
                 || legal.stream().filter(CpuFusionDecision.LegalCandidate::compatibilityBaseline)
                     .noneMatch(value -> value.identity().equals(selection.compatibilityBaseline()))
-                || selection.reason() != CpuFusionDecision.SelectionReason.PROFITABLE_FUSION
+                || selection.reason()
+                        != CpuFusionDecision.SelectionReason.EXPLICIT_COMPLETE_PLAN_SELECTION
+                    && selection.reason() != CpuFusionDecision.SelectionReason.PROFITABLE_FUSION
                     && !selection.selected().equals(selection.canonicalSplit())
                 || selection.reason() == CpuFusionDecision.SelectionReason.PROFITABLE_FUSION
                     && selection.selected().equals(selection.canonicalSplit())) {

@@ -323,6 +323,61 @@ coordination, and lifecycle state, and its prepared recipes must not outlive tha
 Independent calls are supported while the owner remains open; closing the integration prevents
 new collaboration work and uses the existing provider quiescence, restoration, and cleanup rules.
 
+### Cold complete-plan candidate collaboration
+
+`CpuBackendIntegration.completePlanTuning()` returns the same retained
+`CpuCompletePlanTuning` collaboration while the integration is open. Its current meaning of a
+**complete-plan candidate** is deliberately narrower than the future multi-backend model-plan
+space:
+
+```text
+same CompileArtifacts
+  -> same sole non-empty CPU partition
+  -> one retained legal 0008D fused/split topology
+  -> one retained 0008E direct, single-copy, or eligible disjoint-two-copy representation
+  -> exact reused Phase-1 route/configuration decision, or freshly proved Phase-1 ineligibility
+  -> fresh complete PreparedExecution recipe
+```
+
+The candidate does not change the Compiler graph, Planning owner or partition boundary, logical
+memory, or publication semantics. It contains every CPU-owned choice needed by the currently
+supported one-partition lifecycle, but it is not a complete mixed-backend or multi-partition
+model plan. Compiler graph alternatives, Planning ownership alternatives, a model-plan cache,
+and a user-facing Phase-2 Engine API remain unimplemented.
+
+`candidateHandoff(artifacts, phaseOneDecision)` first authenticates the exact artifact and
+integration association. When the artifact has an eligible Phase-1 local workload, the caller
+must supply the exact selected `CpuLocalWorkloadTuning.SelectedDecision`; when it does not, the
+optional must be empty. Phase 2 keeps that state fixed. Fresh validation may regenerate the
+Phase-1 batch to prove compatibility, but it does not enumerate, rank, time, or substitute local
+route candidates. Thus Phase 2 never repeats Phase-1 search.
+
+The returned batch contains every retained legal topology/representation combination in stable
+order, or no batch when completeness cannot be proved or fewer than two alternatives exist.
+Candidate-only copied representations remain explicit alternatives for this collaboration; their
+presence does not promote them into ordinary heuristic preparation, which continues to select
+the established direct representation. `prepareTrial(...)` and `prepareSelected(...)` each
+repeat authoritative compatibility checks and construct a new shared memory plan, finalized CPU
+recipe, schedule, and `PreparedExecution`. Despite its name, `prepareTrial(...)` neither binds
+representative inputs nor runs or timestamps a trial.
+
+Batch, candidate, and live decision values are immutable exact-association values. They own no
+closeable resource and borrow the exact integration, artifacts, and partition association.
+Compatibility and candidate identities expose fresh defensive byte copies. Current compatibility
+is always `SESSION` scoped and includes an integration nonce; encoded decisions can therefore be
+reused only against a freshly generated compatible batch from that same live integration. The
+bounded versioned codec snapshots input bytes and uses a checksum to detect accidental damage,
+not to authenticate hostile input. Malformed, corrupt, stale, wrong-session, incompatible, or
+unknown encoded decisions decode to empty.
+
+Fresh selected preparation has no heuristic fallback. A changed candidate set, Phase-1 state,
+resource fact, schema, or association fails before a recipe is returned. Whether a later caller
+falls back is an Engine policy decision. This CPU collaboration owns no representative execution,
+correctness comparison, timing, ranking, objective, budget, cache input/output, persistence, or
+Engine/Runtime selection; Runtime receives only a completed prepared recipe. The collaboration
+has no independent close method, and both it and recipes produced through it must remain within
+the owning integration's lifetime.
+
 `borrow(HostTensorStorage)` checks only the storage's own type/carrier consistency, capacity and
 byte geometry, liveness, and current-thread segment access. It accepts intrinsically valid
 read-only or writable storage and transfers no ownership. Because the call has no expected logical

@@ -256,6 +256,61 @@ public final class CpuLocalWorkloadTuning {
         return composition.prepareSelected(association.artifacts, decision.internal);
     }
 
+    /**
+     * Authenticates exact Phase-1 presence, ownership, artifacts, and association for Phase 2.
+     *
+     * @param artifacts exact non-null artifacts to authenticate by reference
+     * @param supplied non-null optional exact public Phase-1 decision; its value is borrowed and
+     *     must originate from this live collaboration
+     * @return the matched immutable internal decision, or empty when fresh analysis proves that
+     *     no eligible local batch exists
+     * @throws NullPointerException if an argument is {@code null}
+     * @throws IllegalArgumentException if decision presence, owner, artifacts, or partition
+     *     association does not match fresh analysis
+     * @throws IllegalStateException if the owning integration is closed
+     */
+    Optional<CpuOpenBlasTuningDecision> authenticateCompletePlanPhaseOne(
+            CompileArtifacts artifacts, Optional<SelectedDecision> supplied) {
+        requireOpen();
+        Objects.requireNonNull(artifacts, "artifacts");
+        supplied = Objects.requireNonNull(supplied, "supplied");
+        Optional<BackendPartitionTuningHandoff<CandidateBatch, SelectedDecision>> fresh =
+                candidateHandoff(artifacts);
+        if (fresh.isPresent() != supplied.isPresent()) {
+            throw new IllegalArgumentException(fresh.isPresent()
+                    ? "eligible CPU workload requires a Phase-1 decision"
+                    : "noneligible CPU workload cannot accept a Phase-1 decision");
+        }
+        if (supplied.isEmpty()) return Optional.empty();
+        SelectedDecision decision = supplied.orElseThrow();
+        requireDecision(decision);
+        if (decision.association.artifacts != artifacts
+                || decision.association.partition != artifacts.partitions().getFirst()) {
+            throw new IllegalArgumentException(
+                    "Phase-1 decision does not belong to the exact artifacts");
+        }
+        return Optional.of(decision.internal);
+    }
+
+    /**
+     * Returns a fresh canonical digest of the authenticated Phase-1 state.
+     *
+     * @param supplied non-null optional authenticated public Phase-1 decision; inspected but not
+     *     mutated
+     * @return fresh non-empty caller-owned canonical fingerprint bytes
+     * @throws NullPointerException if {@code supplied} is {@code null}
+     * @throws IllegalArgumentException if a present decision has another owner
+     * @throws IllegalStateException if the owning integration is closed
+     */
+    byte[] completePlanPhaseOneFingerprint(Optional<SelectedDecision> supplied) {
+        supplied = Objects.requireNonNull(supplied, "supplied");
+        if (supplied.isEmpty()) {
+            return new CanonicalSink().integer(VALUE_SCHEMA).integer(0).digest();
+        }
+        return new CanonicalSink().integer(VALUE_SCHEMA).integer(1)
+                .bytes(encodeDecision(supplied.orElseThrow())).digest();
+    }
+
     private void requireOpen() {
         composition.assertOpen();
     }
@@ -605,6 +660,11 @@ public final class CpuLocalWorkloadTuning {
         private CanonicalSink strings(List<String> values) {
             integer(values.size());
             values.forEach(this::text);
+            return this;
+        }
+        private CanonicalSink bytes(byte[] values) {
+            integer(values.length);
+            digest.update(values);
             return this;
         }
         private byte[] digest() { return digest.digest(); }

@@ -216,6 +216,101 @@ public final class CpuBackendComposition implements AutoCloseable {
     }
 
     /**
+     * Freshly enumerates the complete retained CPU plan identities under the fixed profile.
+     *
+     * <p>The method revalidates Phase-1 state and performs analysis only. It neither prepares nor
+     * executes a recipe and does not time or rank alternatives.</p>
+     *
+     * @param artifacts non-null exact supported one-partition artifacts; inspected but not
+     *     mutated
+     * @param phaseOneDecision non-null optional exact authenticated local selection, or empty for
+     *     freshly proved absence; the decision is borrowed
+     * @return a new immutable complete-plan identity snapshot and completeness outcome
+     * @throws NullPointerException if an argument is {@code null}
+     * @throws IllegalArgumentException if artifacts or Phase-1 state are invalid
+     * @throws ArithmeticException if exact candidate or resource arithmetic overflows
+     * @throws IllegalStateException if this composition is closed
+     */
+    public CpuPartitionPreparer.CompletePlanCandidates completePlanCandidates(
+            CompileArtifacts artifacts, Optional<CpuOpenBlasTuningDecision> phaseOneDecision) {
+        requireOpen();
+        Objects.requireNonNull(artifacts, "artifacts");
+        Objects.requireNonNull(phaseOneDecision, "phaseOneDecision");
+        validateSoleCpuPartition(artifacts);
+        validatePhaseOne(artifacts, phaseOneDecision);
+        CpuPartitionAnalysisInputs inputs = completePlanAnalysisInputs(artifacts,
+                phaseOneDecision);
+        return preparer.completePlanCandidates(context(artifacts, inputs));
+    }
+
+    /**
+     * Freshly prepares one exact retained complete plan without heuristic substitution.
+     *
+     * <p>Preparation repeats authoritative analysis, shared assignment, CPU finalization, and
+     * schedule validation. It creates no {@code RunState}, binds no representative input, and
+     * executes or times no trial.</p>
+     *
+     * @param artifacts non-null exact supported one-partition artifacts; inspected but not
+     *     mutated
+     * @param phaseOneDecision non-null optional exact authenticated local selection, or empty for
+     *     freshly proved absence; the decision is borrowed
+     * @param selectedPlan non-null immutable retained complete-plan identity and association
+     *     fingerprint; inspected but not mutated
+     * @return a fresh complete immutable prepared recipe that borrows this composition's lifetime
+     * @throws NullPointerException if an argument is {@code null}
+     * @throws IllegalArgumentException if any fresh compatibility or selection check fails
+     * @throws ArithmeticException if exact preparation geometry overflows
+     * @throws IllegalStateException if this composition is closed
+     */
+    public PreparedExecution prepareCompletePlan(CompileArtifacts artifacts,
+            Optional<CpuOpenBlasTuningDecision> phaseOneDecision,
+            CpuPartitionPreparer.SelectedCompletePlan selectedPlan) {
+        requireOpen();
+        Objects.requireNonNull(artifacts, "artifacts");
+        Objects.requireNonNull(phaseOneDecision, "phaseOneDecision");
+        Objects.requireNonNull(selectedPlan, "selectedPlan");
+        if (selectedPlan.schemaVersion() != 1) {
+            throw new IllegalArgumentException("CPU complete-plan schema is unsupported");
+        }
+        validateSoleCpuPartition(artifacts);
+        validatePhaseOne(artifacts, phaseOneDecision);
+        CpuPartitionAnalysisInputs inputs = completePlanAnalysisInputs(artifacts,
+                phaseOneDecision);
+        var selectedPreparer = new io.github.pho001.synaptik.prepare.analysis.BackendPartitionPreparer<
+                CpuPartitionAnalysisInputs,
+                io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan>() {
+            @Override public BackendPartitionAnalysis<io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan>
+                    analyze(PrepareContext<CpuPartitionAnalysisInputs> context) {
+                return preparer.analyzeSelected(context, selectedPlan);
+            }
+        };
+        var preparation = new PartitionPreparation<>(inputs, selectedPreparer, finalizer);
+        return GraphPreparation.prepare(artifacts, List.of(preparation),
+                producerlessPublishedConstantResources(artifacts), assembler);
+    }
+
+    private void validatePhaseOne(CompileArtifacts artifacts,
+            Optional<CpuOpenBlasTuningDecision> decision) {
+        Optional<CpuOpenBlasTuningBatch> fresh = analyze(artifacts, Optional.empty())
+                .plan().openBlasTuningBatch();
+        if (fresh.isPresent() != decision.isPresent()) {
+            throw new IllegalArgumentException("CPU Phase-1 eligibility changed");
+        }
+        if (decision.isPresent()) {
+            CpuOpenBlasTuningBatch.Candidate matched = decision.orElseThrow()
+                    .match(fresh.orElseThrow()).orElseThrow(() ->
+                            new IllegalArgumentException(
+                                    "CPU Phase-1 decision is stale or incompatible"));
+            BackendPartitionAnalysis<io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan>
+                    selected = analyze(artifacts, decision);
+            if (!selected.plan().selectedOpenBlasTuningCandidate().orElseThrow()
+                    .equals(matched.identity())) {
+                throw new IllegalArgumentException("CPU Phase-1 decision was not selected");
+            }
+        }
+    }
+
+    /**
      * Re-analyzes and prepares one exact CPU-owned tuning decision without heuristic fallback.
      *
      * @param artifacts non-null exact artifacts retained by the supported tuning association
@@ -258,6 +353,22 @@ public final class CpuBackendComposition implements AutoCloseable {
     private BackendPartitionAnalysis<io.github.pho001.synaptik.backend.cpu.internal.prepare
             .CpuPartitionPreparationPlan> analyze(CompileArtifacts artifacts,
             Optional<CpuOpenBlasTuningDecision> decision) {
+        CpuPartitionAnalysisInputs inputs = analysisInputs(artifacts, decision);
+        return preparer.analyze(context(artifacts, inputs));
+    }
+
+    /**
+     * Reconstructs the exact partition-local shared Prepare projection for supplied CPU inputs.
+     *
+     * @param artifacts non-null already validated sole-partition artifacts; inspected but not
+     *     mutated
+     * @param inputs non-null immutable CPU analysis inputs retained by the returned context
+     * @return a new non-null immutable partition-local preparation context
+     * @throws NullPointerException if a required projected fact is absent
+     * @throws IllegalArgumentException if projected facts violate shared Prepare invariants
+     */
+    private PrepareContext<CpuPartitionAnalysisInputs> context(CompileArtifacts artifacts,
+            CpuPartitionAnalysisInputs inputs) {
         var partition = artifacts.partitions().getFirst();
         var nodesById = new HashMap<NodeId, CompiledNode>();
         artifacts.graph().nodes().forEach(node -> nodesById.put(node.id(), node));
@@ -278,8 +389,8 @@ public final class CpuBackendComposition implements AutoCloseable {
                 .filter(source -> projectedIds.contains(source.valueId()))
                 .forEach(source -> constants.put(source.valueId(), source.value()));
         var context = new PrepareContext<>(new PartitionDag(partition, nodes), values,
-                requirements, constants, analysisInputs(artifacts, decision));
-        return preparer.analyze(context);
+                requirements, constants, inputs);
+        return context;
     }
 
     /**
@@ -511,6 +622,37 @@ public final class CpuBackendComposition implements AutoCloseable {
      */
     private CpuPartitionAnalysisInputs analysisInputs(CompileArtifacts artifacts,
             Optional<CpuOpenBlasTuningDecision> decision) {
+        return analysisInputs(artifacts, decision,
+                CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED);
+    }
+
+    /**
+     * Derives the fixed complete-plan enumeration profile without changing ordinary preparation.
+     *
+     * @param artifacts non-null already validated artifacts; inspected but not mutated
+     * @param decision non-null optional exact Phase-1 decision retained in immutable inputs
+     * @return new complete CPU analysis inputs with candidate-only representation enumeration
+     */
+    private CpuPartitionAnalysisInputs completePlanAnalysisInputs(CompileArtifacts artifacts,
+            Optional<CpuOpenBlasTuningDecision> decision) {
+        return analysisInputs(artifacts, decision,
+                new CpuPartitionAnalysisInputs.MaterializationPolicy(true, 0, 1, 3, 1,
+                        1, Long.MAX_VALUE, 0, 0));
+    }
+
+    /**
+     * Derives immutable CPU analysis inputs for one explicit materialization policy.
+     *
+     * @param artifacts non-null already validated artifacts; inspected but not mutated
+     * @param decision non-null optional exact Phase-1 decision retained in immutable inputs
+     * @param materializationPolicy non-null immutable policy retained in the returned inputs
+     * @return new non-null complete CPU analysis inputs
+     * @throws IllegalArgumentException if an eligible MATMUL boundary lacks a graph node or
+     *     resolved descriptor
+     */
+    private CpuPartitionAnalysisInputs analysisInputs(CompileArtifacts artifacts,
+            Optional<CpuOpenBlasTuningDecision> decision,
+            CpuPartitionAnalysisInputs.MaterializationPolicy materializationPolicy) {
         List<CpuPartitionAnalysisInputs.BoundaryStorageFact> storageFacts = List.of();
         var partition = artifacts.partitions().getFirst();
         if (partition.nodeIds().size() == 1) {
@@ -545,7 +687,7 @@ public final class CpuBackendComposition implements AutoCloseable {
                 .orElse(CpuPartitionAnalysisInputs.OpenBlasRouteConfig.DISABLED);
         return new CpuPartitionAnalysisInputs(false, List.of(),
                 CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT,
-                CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED, false,
+                materializationPolicy, false,
                 CpuPartitionAnalysisInputs.PartialReductionEvidence.NONE, storageFacts, route,
                 CpuOpenBlasTuningBatch.HardwareIdentity.UNSPECIFIED,
                 CpuOpenBlasTuningBatch.WorkloadCohort.DEFAULT, decision);

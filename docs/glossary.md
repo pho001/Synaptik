@@ -1671,6 +1671,12 @@ consume together is retained as a typed `CO_CONSUMED_PAIR` rejection; its single
 disjoint-consumer pairs remain candidates. Generated-envelope schema 53 covers the current affine-
 copy body, while ordinary direct generated identity remains stable.
 
+The supported `CpuCompletePlanTuning` collaboration can now enumerate those retained 0008D
+topologies crossed with retained 0008E representations and freshly select one exact variant.
+Such an explicit selection records a distinct selection reason and produces a fresh complete
+prepared recipe; it does not change ordinary direct-by-default preparation or make the portable
+plan a persistent model-plan artifact.
+
 ### CPU portable prepared executable
 
 The implemented backend-private immutable direct-unit Runtime recipe constructed by CPU
@@ -2349,14 +2355,51 @@ caller-supplied workload-tuning orchestration, and supported CPU-local enumerati
 collaboration and Engine's public bounded CPU-local composition are implemented. Multiple
 occurrences and complete graph/plan orchestration remain planned.
 
+### Candidate batch
+
+An immutable, owner-defined collection of complete alternatives associated with one exact
+compatibility context. Shared Prepare represents a batch only through the method-free
+`BackendTuningCandidateBatch` role and therefore cannot enumerate or interpret backend-private
+candidate fields. The owning collaboration defines order, completeness, identity, association,
+and lifetime.
+
+The current CPU local-workload batch contains portable/OpenBLAS Phase-1 route configurations.
+The separate current CPU complete-plan batch contains every proved retained combination of one
+legal 0008D topology and one direct, single-copy, or eligible disjoint-two-copy 0008E
+representation for the same compile artifacts and sole CPU partition. It also fixes the exact
+authenticated Phase-1 result. These two batches answer different questions; treating the local
+batch as a plan batch would incorrectly repeat local route search.
+
+### Complete-plan candidate
+
+One complete alternative for all choices owned by the producer at the current Phase-2 boundary.
+The implemented CPU form keeps the same `CompileArtifacts`, sole non-empty CPU partition,
+Compiler graph, Planning owner, logical memory, and publication semantics. It chooses one already
+legal 0008D fused/split topology, one retained 0008E direct or eligible one-/two-copy
+representation, and reuses the exact authenticated Phase-1 local route/configuration state.
+Fresh preparation realizes that choice as a new `PreparedExecution` recipe but does not execute
+or time it.
+
+This current term does not mean a model-wide candidate with Compiler graph alternatives,
+Planning ownership alternatives, multiple partitions, or mixed backends. Candidate-only copied
+representations are not ordinary automatic promotion. Measurement, comparison, model-plan
+persistence, correctness checking, fallback, and Engine composition remain later owners.
+
 ### Selected tuning decision
 
-An immutable reference to one exact candidate-schema version, canonical workload signature, and
-candidate identity. The owning candidate generator accepts the decision only when it names a
-member of a freshly generated compatible batch; absence or any mismatch is a miss that retains a
-safe heuristic path. The first implemented internal instance belongs to the CPU OpenBLAS MATMUL
-route. A selected tuning decision contains no measurement, cache representation, executable,
-provider, native address, or Runtime state.
+An immutable owner-defined reference to one candidate in one compatible batch. A local-workload
+decision names an exact candidate-schema version, canonical workload signature, and candidate
+identity; an incompatible persisted local decision is a cache miss from which an outer owner may
+choose safe heuristic preparation. The first such implementation belongs to the CPU OpenBLAS
+MATMUL route.
+
+The current CPU complete-plan decision instead belongs to one exact live batch and names one
+retained topology/representation candidate around the already authenticated Phase-1 state. Its
+bounded checksummed encoding is session-scoped and contains defensive compatibility, candidate,
+and Phase-1 fingerprints. Decoding stale or incompatible bytes returns empty, while attempting to
+prepare a mismatched live decision fails without heuristic substitution. A selected tuning
+decision contains no measurement, cache representation, executable, provider, native address,
+physical resource, or Runtime state.
 
 ### Opaque backend tuning handoff
 
@@ -3904,7 +3947,9 @@ They cover eligible single copies and disjoint-consumer pairs across FLOAT64, FL
 INT64, and canonical BOOL. A compatible source is copied once for repeated or cross-unit uses; a
 pair consumed together by one represented instruction is rejected as `CO_CONSUMED_PAIR`.
 Ordinary preparation selects direct, while each materialized candidate remains complete for a
-future explicit end-to-end-proved pre-Runtime promotion. Runtime never selects among these forms.
+future explicit end-to-end-proved pre-Runtime promotion. The supported CPU complete-plan
+collaboration can now expose and freshly prepare these candidate-only forms explicitly, but that
+does not promote them into ordinary automatic preparation. Runtime never selects among these forms.
 They create neither a graph value nor a Runtime transfer recipe and are distinct from CPU 0008B
 graph-split `Buffer(ValueId)` resources. See [CPU contiguous materialization
 plan](#cpu-contiguous-materialization-plan).

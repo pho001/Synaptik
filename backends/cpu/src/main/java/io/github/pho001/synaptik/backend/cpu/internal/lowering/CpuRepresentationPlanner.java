@@ -152,9 +152,24 @@ public final class CpuRepresentationPlanner {
      * @param candidateIndex non-negative selected CPU 0008D topology index
      * @param materializations ordered realized copies; empty for ordinary direct selection
      * @param decisions complete retained variants/rejections followed by final selection
+     * @param complete whether every bounded topology and representation was proved complete
      */
     public record Result(int candidateIndex, List<CpuMaterializationPlan> materializations,
-            List<CpuRepresentationDecision> decisions) {
+            List<CpuRepresentationDecision> decisions, boolean complete) {
+        /**
+         * Creates a compatibility result whose candidate enumeration was already proved complete.
+         *
+         * @param candidateIndex non-negative selected CPU 0008D topology index
+         * @param materializations non-null ordered realized copies; defensively snapshotted
+         * @param decisions non-null complete retained decisions followed by final selection;
+         *     defensively snapshotted
+         * @throws NullPointerException if a list or element is {@code null}
+         * @throws IllegalArgumentException if the bounded result shape is invalid
+         */
+        public Result(int candidateIndex, List<CpuMaterializationPlan> materializations,
+                List<CpuRepresentationDecision> decisions) {
+            this(candidateIndex, materializations, decisions, true);
+        }
         /** Snapshots and validates a bounded final result. */
         public Result {
             materializations = List.copyOf(materializations);
@@ -178,6 +193,36 @@ public final class CpuRepresentationPlanner {
     public Result select(PrepareContext<CpuPartitionAnalysisInputs> context,
             List<CpuFusionProfitabilitySelector.Candidate> candidates,
             List<CpuFusionDecision> fusionDecisions) {
+        return select(context, candidates, fusionDecisions, Optional.empty());
+    }
+
+    /**
+     * Selects one exact retained representation without applying ordinary ranking policy.
+     *
+     * @param context non-null complete CPU analysis context; inspected but not mutated
+     * @param candidates non-null legal topology candidates in stable discovery order; copied
+     *     before validation
+     * @param fusionDecisions non-null complete retained topology facts with exact explicit
+     *     selection; copied before validation
+     * @param selectedIdentity non-null exact already-retained representation identity
+     * @return a new immutable exact realized selection and all unchanged retained representation
+     *     facts
+     * @throws NullPointerException if an argument or list element is {@code null}
+     * @throws IllegalArgumentException if the identity is absent or facts are inconsistent
+     * @throws ArithmeticException if exact candidate/resource arithmetic overflows
+     */
+    public Result selectExact(PrepareContext<CpuPartitionAnalysisInputs> context,
+            List<CpuFusionProfitabilitySelector.Candidate> candidates,
+            List<CpuFusionDecision> fusionDecisions,
+            CpuRepresentationDecision.VariantIdentity selectedIdentity) {
+        return select(context, candidates, fusionDecisions,
+                Optional.of(Objects.requireNonNull(selectedIdentity, "selectedIdentity")));
+    }
+
+    private Result select(PrepareContext<CpuPartitionAnalysisInputs> context,
+            List<CpuFusionProfitabilitySelector.Candidate> candidates,
+            List<CpuFusionDecision> fusionDecisions,
+            Optional<CpuRepresentationDecision.VariantIdentity> explicitSelection) {
         Objects.requireNonNull(context, "context");
         candidates = List.copyOf(candidates);
         fusionDecisions = List.copyOf(fusionDecisions);
@@ -228,10 +273,23 @@ public final class CpuRepresentationPlanner {
                 .findFirst().orElseThrow();
         CpuPartitionAnalysisInputs.MaterializationPolicy policy =
                 context.backendInputs().materializationPolicy();
-        WorkVariant selected = !policy.enabled() || complete ? fusionSelected : work.stream().filter(value ->
-                value.candidateIndex() == canonicalCandidateIndex && value.plans().isEmpty())
-                .findFirst().orElseThrow();
-        CpuRepresentationDecision.SelectionReason reason = !policy.enabled()
+        WorkVariant selected;
+        if (explicitSelection.isPresent()) {
+            selected = work.stream().filter(value -> value.fact().identity().equals(
+                            explicitSelection.orElseThrow()))
+                    .findFirst().orElseThrow(() -> new IllegalArgumentException(
+                            "explicit CPU representation is not retained"));
+        } else if (!policy.enabled() || complete) {
+            selected = fusionSelected;
+        } else {
+            selected = work.stream().filter(value ->
+                            value.candidateIndex() == canonicalCandidateIndex
+                                    && value.plans().isEmpty())
+                    .findFirst().orElseThrow();
+        }
+        CpuRepresentationDecision.SelectionReason reason = explicitSelection.isPresent()
+                ? CpuRepresentationDecision.SelectionReason.EXPLICIT_COMPLETE_PLAN_SELECTION
+                : !policy.enabled()
                 ? CpuRepresentationDecision.SelectionReason.DIRECT_POLICY_DISABLED
                 : !complete ? CpuRepresentationDecision.SelectionReason.DIRECT_UNCERTAINTY
                 : CpuRepresentationDecision.SelectionReason.DIRECT_MATERIALIZATION_UNPROVED;
@@ -241,7 +299,7 @@ public final class CpuRepresentationPlanner {
         if (facts.size() + fusionDecisions.size()
                 > CpuRepresentationDecision.MAX_TOTAL_DECISION_FACTS) throw new IllegalArgumentException(
                         "CPU combined decision facts exceed the exact ceiling");
-        return new Result(selected.candidateIndex(), selected.plans(), facts);
+        return new Result(selected.candidateIndex(), selected.plans(), facts, complete);
     }
 
     private static void addVariants(List<WorkVariant> result,
