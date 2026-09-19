@@ -64,7 +64,7 @@ measures bounded complete plan candidates, and writes explicit persistent artifa
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
 | 0001 | [Exact/default model-guided workload tuning and reusable cache](tasks/0001-exact-default-model-guided-workload-tuning-and-reusable-cache.md) | Complete | CPU 0010E; Prepare 0004; caller-supplied stable identity, typed opaque collaboration, and operational cold measurement | Added the generic caller-supplied cold workload tuner, exact compatible-occurrence deduplication, bounded miss-only measurement, deterministic median selection, reusable bounded persistent cache, and separate rich evidence. Tool-local request inputs precede any later Config facade. |
-| 0002 | Bounded graph and plan tuning | Blocked | 0001; Complete CPU 0010J; mandatory fresh re-audit of the implemented producer; unresolved truthful Phase-2 budget, correctness oracle, model-plan record/cache, tools-only scope, and later Engine composition | Measure a budget-bounded set of complete valid candidates end to end, reuse local results without repeating local search, and select an explicit model-plan record. CPU 0010J now supplies the first producer, but 0002 remains Blocked with no specification until a fresh evidence-based re-audit resolves every remaining owner and contract. |
+| 0002 | Bounded graph and plan tuning | Blocked | 0001; Complete CPU 0010J; Ready Engine 0008A correctness-oracle prerequisite; fresh post-0008A audit | Coordinate a bounded opaque complete-plan batch, separate correctness executions from timing, select deterministically, return rich evidence, and produce a compact selected model-plan record. The post-CPU-0010J audit resolves the tools-owned contract but proves that Engine must first implement publication-aware correctness comparison. |
 | 0003 | Cache and plan inspection | Draft | 0001–0002, stable artifact schemas | Inspect compatibility, provenance summaries, invalidation reasons, selected plans, and separate measurement evidence without executing payloads or mutating runtime state. |
 
 ## Milestones
@@ -90,33 +90,77 @@ session-scoped compatibility and decisions, and freshly prepares a selected reci
 measuring it. It does not add Compiler graph alternatives, Planning ownership alternatives,
 multiple partitions, mixed backends, model-plan persistence, or Engine composition.
 
-A fresh evidence-based audit is now mandatory before task 0002 can become Ready or receive a
-detailed specification. That audit must resolve a truthful Phase-2 candidate/execution budget,
-the correctness oracle for comparing distinct complete plans, the model-plan record and cache
-compatibility/persistence contract, a genuinely tools/tuning-only generic scope, and the separate
-later Engine composition boundary. The mere existence of the CPU producer resolves none of those
-questions. Config 0006A currently provides
+The mandatory fresh post-CPU-0010J audit is complete. It resolves the generic Phase-2 contract but
+also proves that task 0002 cannot yet be specified truthfully: current Engine representative
+execution validates completion and cleanup while explicitly declining to inspect publications.
+Engine owns the compiled publication descriptors, representative values, canonical host-copy
+composition seam, Runtime result cleanup, and public fallback policy. Detailed
+[Engine 0008A representative complete-plan correctness oracle](../../modules/engine/tasks/0008a-representative-complete-plan-correctness-oracle.md)
+is therefore the single Ready prerequisite. Tuning 0002 remains Blocked without a detailed
+specification until 0008A is implemented and freshly audited.
+
+Clean planning/documentation audit context `01a0b895-efd8-7250-9d3f-ecf4a7220a80` passed its
+four-file planning-only Markdown, diff, and staging validation.
+
+The resolved Phase-2 budget is fail-closed and known before measurement. For `N` cache-miss
+candidates, `W` warmups, and `S` timed samples, correctness uses one separate execution per
+candidate: the first creates the reference and `N - 1` compare with it. The exact total is
+`N * (1 + W + S)`. A later tool-local request must validate a positive candidate ceiling,
+non-negative `W`, positive odd `S`, a positive maximum-total-executions ceiling, and every checked
+addition/multiplication before the first execution. All `N` correctness runs must match and clean
+up before the first warmup or timed sample. A compatible cache hit performs zero correctness,
+warmup, or timed executions. Preflight failure, mismatch, or execution failure publishes no
+partial evidence or cache state.
+
+The correctness callback/result is also resolved. Tuning will invoke a caller-supplied opaque
+reference capture for the first encounter-ordered candidate and a comparison action for every
+later candidate. It receives only a typed `MATCH` or `MISMATCH`, never Tensor descriptors,
+publication bytes, Runtime representations, or backend fields. Engine 0008A owns exact represented-
+byte equality across every ordered publication occurrence, including aliases, signed zero, and
+NaN payloads; it owns the reference, materialization, and cleanup. Tolerance and relaxed numerical
+policies are outside the first slice.
+
+The model-plan artifact contract is resolved independently of CPU 0010J's current persistence
+limit. One bounded versioned compact entry will key an opaque producer/decision-codec identity,
+exact caller-supplied model, representative-profile, and target fingerprints; backend
+compatibility schema/bytes and reuse scope; objective; constraint/correctness-policy identity; and
+sampling fields. It will store only selected candidate identity, backend-encoded decision bytes,
+and a compact timing summary. Rich raw samples and
+correctness evidence remain only in the returned evidence. It will use bounded length-prefixed
+parsing, a whole-file checksum, canonical ordering, and forced same-directory temporary-file plus
+atomic-replacement publication. Missing or incompatible entries are misses; corrupt, oversized,
+unsupported, duplicate, or structurally invalid artifacts fail before execution and remain
+unmodified. Every hit is authenticated by the current backend decoder and ends in fresh selected
+preparation; no `PreparedExecution` or executable state is serialized.
+
+CPU 0010J honestly returns `SESSION`. That does not require another CPU target-fingerprint task:
+the generic cache will skip filesystem lookup and publication for a `SESSION` batch, always
+measure it, and return only an in-memory compact record plus rich evidence. The same generic
+format may persist a future `PERSISTENT` producer. Caller-supplied stable model/profile/target
+fingerprints label and key the explicit artifact without inventing a canonical Compiler or Engine
+model identity; backend compatibility and compatible decision decoding remain reuse authority.
+
+The tools-only boundary is now narrow: tuning may validate and snapshot opaque candidates and
+identities, preflight the total budget, order correctness then warmup/timed actions, select the
+lowest integer-middle median with encounter-order ties, construct backend decisions, coordinate
+the compact artifact, and return rich evidence. It must not import Engine or CPU, interpret
+private candidate fields, bind representative inputs, materialize publications, own cleanup or
+fallback policy, mutate Runtime, or rerun Phase-1 route ranking. Config 0006A currently provides
 `maximumDistinctCacheMisses`, `maximumCandidatesPerMiss`, `warmupCount`, and
 `timedSampleCount` for Phase 1. It has no maximum-total-executions field, model-plan-cache path,
 or Phase-2 candidate-count meaning, so a later Config change may follow only after the Phase-2
 consumer contract is stable.
 
-No compact model-plan record is implementable yet. CPU 0010J supplies only a session-scoped
-owner-produced decision for the current sole-partition CPU slice; there is still no canonical
-cross-compilation model fingerprint or persistent complete-plan compatibility schema.
-Any later record must remain separate from rich evidence, carry explicit schema/owner/target/model/
-profile/objective/constraint compatibility, reject corruption and incompatibility safely, publish
-atomically, and trigger fresh preparation on a hit; it must never serialize `PreparedExecution`
-or executable payloads.
-
 ## Open questions
 
 - Prepared-executable serialization remains deliberately unresolved.
-- The future Phase-2 request still needs an owner for maximum plan-candidate count, maximum total
-  plan executions, and an explicit model-plan-cache path after the consumer stabilizes.
-- Engine's current representative session proves lifecycle completion and cleanup, not numerical
-  equivalence among distinct whole plans; the later Engine composition task must define its
-  correctness oracle or fail closed before measurement.
+- Engine 0008A must first prove the package-private exact-output reference/comparison seam through
+  current publication, host-copy, result-cleanup, and representative-session contracts. A fresh
+  audit after implementation is the only remaining blocker to a Ready 0002 specification.
+- The later Config follow-up must add distinct Phase-2 maximum-plan-candidate,
+  maximum-total-plan-execution, maximum-correctness-byte, and explicit model-plan-cache inputs
+  without changing the four Phase-1 budget meanings. The later Engine composition then owns CPU
+  0010J adaptation, evidence translation, fresh selected preparation, and public fallback.
 
 ## Decisions made
 
@@ -180,6 +224,25 @@ or executable payloads.
 - Phase 2 may reuse a local selection only through an explicit typed handoff into complete-plan
   generation. Current Engine selected preparation is not that handoff and must not be described
   as reuse.
+- The first Phase-2 correctness policy is exact canonical represented-byte equality over every
+  ordered publication occurrence. The first candidate supplies the Engine-owned reference; every
+  candidate receives one separate correctness execution before any warmup or timed sample for
+  that candidate set. Tolerance and relaxed numerical policies require later explicit contracts.
+- Phase-2 budget preflight uses `N * (1 + W + S)` with checked arithmetic and a distinct maximum-
+  total-executions ceiling. All correctness runs precede timing; cache hits execute zero trials.
+  No preflight failure or correctness mismatch may publish partial evidence or cache state.
+- Current CPU 0010J `SESSION` compatibility is sufficient for the generic tool: it disables
+  persistent lookup/publication for that transaction without blocking in-memory selection or a
+  future `PERSISTENT` producer. A new CPU target-fingerprint task is not required before 0002.
+- A compact model-plan record keys an opaque producer/decision-codec identity, caller-supplied
+  model/profile/target fingerprints, backend compatibility, objective, constraint/correctness
+  policy, and sampling facts, and stores only candidate identity, encoded decision, and compact
+  summary. Rich evidence remains separate; backend decoding and fresh preparation authenticate
+  every hit.
+- Engine 0008A is the smallest upstream prerequisite because output semantics, canonical copying,
+  Runtime result cleanup, and the reference lifecycle are Engine-owned. The later generic tuning
+  API accepts only opaque actions and typed match/mismatch results and imports no Engine or CPU
+  type.
 
 ## Risks
 

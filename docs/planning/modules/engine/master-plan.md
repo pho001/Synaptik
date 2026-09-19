@@ -106,6 +106,7 @@ advanced surface.
 | [0006A](tasks/0006a-representative-tuning-execution-and-safe-fallback.md) | Representative tuning execution and safe fallback foundation | Complete | 0003; 0006; Runtime 0010/0015; Prepare 0004; CPU 0010I; reviewed Config 0006A and tools/tuning 0001 contracts | Added package-private representative-input binding, synchronous complete trial execution, cleanup, failure isolation, fresh selected preparation, and deterministic strict/allowed fallback. Adds no public API, tuning algorithm, cache work, or tools/tuning dependency. |
 | [0007](tasks/0007-optional-model-autotuning-composition.md) | Optional model-autotuning composition | Complete | 0002; 0005; [0006A](tasks/0006a-representative-tuning-execution-and-safe-fallback.md); Config 0006A; tools/tuning 0001; [CPU 0010I](../../backends/cpu/tasks/0010i-supported-cpu-local-workload-tuning-composition-adapter.md) | Added one CPU-only public representative request with caller-defined model identity; maps the sole handoff to occurrence 0/partition 0/weight 1, invokes cache-first tuning, and returns fresh selected preparation plus translated evidence or explicit safe fallback outside Runtime. |
 | [0008](tasks/0008-engine-lifecycle-capability-checkpoint.md) | Engine lifecycle capability checkpoint | Complete | 0001–0007; Compiler 0006B3–0006B6; Prepare 0003/0003A/0004/0005; Runtime 0010/0012/0014/0015; CPU 0008/0008A/0010F–0010I; Config 0006A; tools/tuning 0001 | Consolidated repository-wide evidence and current documentation for the standard, advanced, typed, materialized, one-shot forward/backward, bounded tuning/fallback, cleanup, failure, concurrency, dependency, and public dimensional-convolution execution boundaries. |
+| [0008A](tasks/0008a-representative-complete-plan-correctness-oracle.md) | Representative complete-plan correctness oracle | Ready | 0004, 0006A–0008; Runtime 0015; CPU 0010G and 0010J | Add the smallest package-private Engine oracle that captures all ordered representative publications as bounded canonical bytes and compares later complete recipes by exact represented-bit equality. It owns no timing, tuning algorithm, cache, public request, selected preparation, or fallback policy. |
 
 
 ## Milestones
@@ -116,7 +117,13 @@ advanced surface.
 
 ## Current status
 
-The Engine foundation is Complete through task 0008. The final capability checkpoint reused one
+The established Engine foundation is Complete through task 0008. A mandatory post-CPU-0010J audit
+has reopened one bounded prerequisite interleave: detailed task 0008A is Ready before blocked
+tools/tuning 0002 because the current representative session owns execution and cleanup but
+deliberately does not inspect publications. Task 0008A adds only a package-private exact
+complete-plan correctness oracle and changes no public Engine surface or architecture rule.
+
+The final capability checkpoint reused one
 fresh clean repository-wide run, reconciled the fourteen authorized documentation paths, and
 confirmed the current CPU-only lifecycle without executable or architecture changes. Complete
 [Compiler 0006B6](../compiler/tasks/0006b6-final-convolution-logical-layout-closure.md) now
@@ -229,7 +236,11 @@ Completed 0006A supplies the package-private representative binding/execution/cl
 versus-safe-heuristic fallback foundation. Detailed Engine 0007 now selects the public request,
 caller-defined model identity, sole occurrence-0/weight-1 mapping, Config/tuning translation, and
 Engine-owned result/evidence view without claiming graph/plan tuning.
-Tools/tuning 0002 remains later bounded graph/plan tuning and is not a substitute for either task.
+The post-CPU-0010J audit found that Engine must first add exact representative-output comparison:
+Runtime exposes result-indexed representations, CPU already supplies canonical host copying, and
+Engine alone owns publication descriptors, representative inputs, result cleanup, and fallback.
+Ready task 0008A owns that package-private prerequisite. Tools/tuning 0002 remains later bounded
+graph/plan tuning and is not a substitute for it.
 
 Model/training checkpoint persistence may consume the completed task 0004 host-value boundary,
 but must not bypass it by reading backend storage from NN or Training. The boundary supplies
@@ -315,6 +326,10 @@ constant chain. Engine 0005, Engine 0006A, Engine 0007, and Engine 0008 are `Com
 - The already planned next dimensional-convolution frontier is NN 0025, followed by its 0025A
   user-capability checkpoint. Those Draft rows own layer integration and must preserve Compiler
   0006B6's descriptor boundary, strict CPU admission, and the explicit Conv3d-gradient limit.
+- After 0008A is implemented, tools/tuning 0002 requires a fresh audit before it may become Ready.
+  Config may add Phase-2 plan/total-execution/correctness-byte bounds and a model-plan-cache path
+  only after that consumer stabilizes; a later Engine task then owns CPU 0010J composition, fresh
+  selected preparation, evidence translation, and the existing public fallback policy.
 
 ## Decisions made
 
