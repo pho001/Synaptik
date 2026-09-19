@@ -255,16 +255,21 @@ standalone compile inputs directly.
 
 The implemented `config.tuning` package contains one separate declarative facade,
 `ModelAutotuningConfig`. Possessing this value means that model autotuning was requested; there is
-no `enabled` component, disabled sentinel, implicit default, or default cache location. Its five
-inputs are:
+no `enabled` component, disabled sentinel, implicit default, or default cache location. Its seven
+ordered inputs are:
 
 - the sole current objective, `MIN_MEDIAN_ELAPSED_NANOS`;
-- positive cache-miss and per-miss candidate maxima plus non-negative warmup and positive odd
-  timed-sample counts;
+- Phase-1 positive cache-miss and per-miss candidate maxima plus non-negative warmup and positive
+  odd timed-sample counts;
 - one caller-defined, schema-versioned representative-profile identity whose opaque bytes are
   snapshotted on construction and access;
 - either `REQUIRE_TUNED_RESULT` or `ALLOW_SAFE_HEURISTIC`; and
-- one explicit workload-cache `Path`, retained exactly without normalization or I/O.
+- one explicit workload-cache `Path`, retained exactly without normalization or I/O;
+- one independent Phase-2 `CompletePlanBudget` containing a positive complete-plan candidate
+  maximum, non-negative warmup count, positive odd timed-sample count, positive whole-transaction
+  execution ceiling, and non-negative aggregate correctness ceiling in bytes; and
+- one explicit non-empty-string model-plan-cache `Path`, retained exactly without normalization or
+  I/O.
 
 For example, this current code constructs request data only:
 
@@ -279,25 +284,35 @@ ModelAutotuningConfig request =
                 new ModelAutotuningConfig.RepresentativeProfileIdentity(
                         1, new byte[] {0x2a, 0x11}),
                 ModelAutotuningConfig.FallbackPolicy.REQUIRE_TUNED_RESULT,
-                Path.of("cache", "workloads.bin"));
+                Path.of("cache", "workloads.bin"),
+                new ModelAutotuningConfig.CompletePlanBudget(
+                        4, 1, 3, 20L, 1_048_576L),
+                Path.of("cache", "model-plan.bin"));
 ```
 
 The concrete inputs permit at most eight distinct workload-cache misses, at most sixteen complete
-candidates for each miss, two untimed warmup executions, and five timed executions per candidate.
+candidates for each Phase-1 miss, two Phase-1 untimed warmup executions, and five Phase-1 timed
+executions per candidate. Independently, Phase 2 permits at most four actual complete-plan
+candidates, one warmup and three timed samples per candidate, at most twenty total executions, and
+at most 1,048,576 aggregate canonical-publication correctness bytes. Later Phase-2 preflight uses
+the actual candidate count `N` and checks `N * (1 + W + S)` against the total-execution ceiling.
 The profile bytes identify the caller's representative profile; they are not representative input
-values. Construction validates and retains policy data but does not inspect the path, run tuning,
-read or write a cache, enumerate candidates, prepare an executable, or perform Engine or Runtime
-work.
+values. Construction validates and retains policy data but does not inspect either path, run
+tuning, read or write a cache, enumerate candidates, perform correctness execution, prepare an
+executable, or perform Engine or Runtime work.
 
-Current `Engine.prepareTuned(...)` maps the objective and budget values one-for-one, supplies the
-request's caller-defined model and representative-profile identities, binds its live
-representative inputs, and passes the requested cache path to `tools/tuning`. The current bounded
+Current `Engine.prepareTuned(...)` maps the objective and Phase-1 budget values one-for-one,
+supplies the request's caller-defined model and representative-profile identities, binds its live
+representative inputs, and passes the workload-cache path to `tools/tuning`. The current bounded
 composition exposes exactly one CPU-local occurrence at occurrence index 0, partition index 0,
-and weight 1. Strict mode reports a failed or unavailable complete tuning result, while
-safe-heuristic mode may return a fresh ordinary safe preparation. The latter grants no candidate
-eligibility, numerical relaxation, cache compatibility, partial-result acceptance, or
-suppression of an unrelated preparation failure. Generic multiple-occurrence extraction and
-bounded graph/plan tuning remain planned.
+and weight 1. It does not consume `completePlanBudget` or `modelPlanCache`; later Engine
+composition must translate those values into the already implemented generic Phase-2 transaction.
+Current CPU complete-plan reuse is `SESSION`, so that later transaction would receive but not
+access the supplied model-plan path. Strict mode reports a failed or unavailable complete tuning
+result, while safe-heuristic mode may return a fresh ordinary safe preparation. The latter grants
+no candidate eligibility, numerical relaxation, cache compatibility, partial-result acceptance,
+or suppression of an unrelated preparation failure. Generic multiple-occurrence extraction and
+public bounded complete-plan composition remain planned.
 
 The public `modules:planning` surface contains eight backend-neutral compile-time declarations:
 
@@ -793,7 +808,9 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
             new ModelAutotuningConfig.RepresentativeProfileIdentity(
                     1, new byte[] {0x01}),
             ModelAutotuningConfig.FallbackPolicy.ALLOW_SAFE_HEURISTIC,
-            Path.of("build", "example-workload-cache.bin"));
+            Path.of("build", "example-workload-cache.bin"),
+            new ModelAutotuningConfig.CompletePlanBudget(1, 0, 1, 1L, 0L),
+            Path.of("build", "unused-model-plan-cache.bin"));
     ModelAutotuningRequest request = new ModelAutotuningRequest(
             config,
             new ModelAutotuningRequest.ModelIdentity(1, new byte[] {0x42}),
@@ -815,7 +832,9 @@ candidate; the lowest integer-middle median wins. Every trial uses fresh Runtime
 returned production handle is prepared afresh. A cache hit runs no trials. A tuned result has
 outcome `TUNED` and evidence for the sole current occurrence (index 0, partition 0, weight 1).
 Model/profile identities are caller-defined evidence labels, not workload-cache keys. Current
-scope excludes multiple workloads or occurrences and graph/plan tuning.
+scope excludes multiple workloads or occurrences and public graph/plan tuning. The explicit
+complete-plan budget and model-plan path satisfy the Config contract but are not consumed by this
+current Phase-1-only Engine call.
 
 The current one-shot forms are exactly:
 

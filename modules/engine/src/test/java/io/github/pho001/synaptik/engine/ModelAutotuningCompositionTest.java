@@ -82,6 +82,8 @@ final class ModelAutotuningCompositionTest {
                 new ModelAutotuningConfig.Budget(1, 2, 0, 1),
                 new ModelAutotuningConfig.RepresentativeProfileIdentity(1, new byte[] {2}),
                 ModelAutotuningConfig.FallbackPolicy.REQUIRE_TUNED_RESULT,
-                Path.of("cache.bin"));
+                Path.of("cache.bin"),
+                new ModelAutotuningConfig.CompletePlanBudget(1, 0, 1, 1L, 0L),
+                Path.of("unused-model-plan-cache.bin"));
     }
 }

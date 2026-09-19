@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -460,12 +460,92 @@ not widen or block this declarative Config task.
 
 ## Validation evidence
 
-Empty until implemented.
+- Implementation context `01a0ba84-f0eb-76b3-8af4-4fc070f16b19` supplied the final executable
+  evidence. The focused Config run passed 14/14 tests; the affected Engine run passed 36/36; the
+  affected integration run passed 1/1; and one final `./gradlew test` passed 506 suites and 3,277
+  tests with 28 skipped and zero failures or errors. Documentation context
+  `01a0ba8e-5310-77f3-b6d1-459ca207e315` changed no executable Java or tests, found no concrete
+  stale-evidence risk, and therefore did not repeat those successful suites.
+- `./gradlew :modules:config:javadoc` passed with `BUILD SUCCESSFUL`; 3 actionable tasks ran, 2
+  executed and 1 was up-to-date, with no Javadoc warning or error. Pandoc rendered and the
+  documentation pass inspected the generated package summary, `ModelAutotuningConfig`, and
+  `ModelAutotuningConfig.CompletePlanBudget` pages. The rendered contracts show all seven outer
+  components, the five Phase-2 primitives, distinct Phase-1/Phase-2 timing policy, numeric units
+  and ranges, the checked `N * (1 + W + S)` relationship, exact path retention/no I/O, current CPU
+  session-only non-access, return semantics, and caller-visible failures.
+- `python3 /tmp/validate_synaptik_markdown.py` passed for all six changed Markdown paths. It
+  validated local targets and heading anchors, renderer-effective heading uniqueness, balanced
+  backtick/tilde fences, LF endings, final newlines, and trailing whitespace.
+- `javap -public` confirmed the outer record's exact seven-component canonical constructor and
+  accessors and the nested complete-plan record's exact five primitive components and accessors.
+  Source/dependency scans confirmed only JDK and Config-owned values, no Config dependency on
+  tools/tuning, Engine, Runtime, Prepare, or a concrete backend, and no filesystem API or path
+  normalization behavior. The focused automated shape test remains the durable exact declaration,
+  validation, forbidden-surface, and unchanged Phase-1 contract check.
+- Final scope inspection found exactly the twelve permitted worktree paths: the two Config
+  production/Javadoc files, four implementation-owned tests, three explanatory documents, and
+  three planning documents. No file was staged. `git diff --check`, `git status --short -uall`,
+  and `git diff --cached --stat` passed with an empty cached diff.
+- Status inspection confirmed Config 0006B is Complete in this task, the Config master plan, and
+  the roadmap. Config 0004–0006 and 0007–0008 remain Draft. No later Engine task was detailed or
+  marked Ready by this change.
 
 ## Implementation notes
 
-Empty until implemented.
+- Appended exactly `CompletePlanBudget completePlanBudget` and `Path modelPlanCache` after the
+  existing five outer components. Added exactly one nested public final record with the specified
+  five validated Phase-2 primitives. No default, overload, compatibility constructor, top-level
+  type, dependency, I/O, cache behavior, candidate vocabulary, or execution behavior was added.
+- Preserved `Budget` as the unchanged four-component Phase-1 policy. Final Javadocs and
+  explanatory documentation now state directly that its timing counts do not control Phase 2 and
+  that the later complete-plan transaction uses its independent counts and actual candidate count
+  for checked preflight.
+- Updated both Public API constructor examples for the required seven-component record. The API,
+  benchmarking guide, glossary, package documentation, and generated Javadocs distinguish current
+  declarative Config ownership from later Engine translation, correctness execution, candidate
+  production, tuning, cache mechanics, and fresh selected preparation.
+- Architecture files and ADRs required no change because this task realizes the existing Config
+  ownership of immutable declarative tuning inputs without changing a rule or dependency.
+  Architecture tests required no change because module edges and forbidden dependencies are
+  unchanged. Gradle required no change because the API uses only existing JDK/Config types.
+- Tools/tuning required no change because its completed Phase-2 request, checked preflight,
+  correctness/timing order, cache authentication, persistence, and evidence remain the consumer
+  contract rather than Config behavior. Engine production and planning required no change because
+  current `prepareTuned(...)` remains Phase-1-only; later Phase-2 composition is explicitly
+  deferred. The three Engine/integration tests changed only constructor fixtures.
+- CPU required no change because its current complete-plan producer remains `SESSION`; the
+  explicit path is supplied by Config but is not accessed. Prepare and Runtime required no change
+  because no handoff, prepared recipe, execution state, or hot-path behavior changed. Backend
+  conformance required no change because no backend behavior changed.
+- Other Config tasks and types required no change because Config 0004–0006 and 0007–0008 remain
+  Draft and this extension preserves the existing compile package and Phase-1 declarations.
+  Unrelated documentation required no change because the Public API, focused tuning guide,
+  glossary, task, Config master, and roadmap cover the complete caller-visible and planning impact.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: extended the declarative request with the independent validated Phase-2
+  budget and exact model-plan-cache path; finalized type, constructor, component/accessor and
+  package Javadocs; updated the Public API, benchmarking guide, glossary, and synchronized
+  planning status without adding operational behavior.
+- Files changed or created: exactly the twelve paths listed under Affected files; no other path
+  changed and no new file was created.
+- Tests and validation: reused the implementation context's passing 14-test Config, 36-test
+  Engine, 1-test integration, and 3,277-test repository evidence; final Config Javadoc/rendering,
+  six-file Markdown, public-shape/dependency, exact-scope, staging, and whitespace checks passed.
+- Documentation-agent review: clean documentation context
+  `01a0ba8e-5310-77f3-b6d1-459ca207e315` independently reviewed the implementation diff, affected
+  source/tests, contracts, guides, glossary, and planning records and changed no executable Java.
+- Documentation impact: Phase 1 and Phase 2 now have explicit independent mental models, limits,
+  and current-versus-planned boundaries in caller and developer documentation.
+- Javadoc review: all affected public records, canonical constructors, components/accessors,
+  constraints, units, nullability, exact-reference ownership, no-I/O behavior, returns, and
+  failures are documented and rendered successfully.
+- Glossary impact: expanded the existing request-facade term rather than adding a competing term;
+  it now covers both budgets, both explicit paths, operational exclusions, and current CPU
+  session-only path behavior.
+- Unresolved issues: None within task 0006B scope.
+- Follow-up required: None for this task. Later Engine Phase-2 composition and persistent producer
+  reuse remain separately planned capabilities.
+
+Status: Complete

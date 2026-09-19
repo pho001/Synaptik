@@ -108,7 +108,8 @@ and every raw timing sample; a cache-hit result identifies its source and select
 no fabricated candidate measurements. Neither artifact serializes an executable, Runtime state,
 representative publication bytes, or the opaque correctness reference.
 
-The generic Phase-2 transaction is current, but its public Engine/Config composition is not.
+The generic Phase-2 transaction and its declarative Config inputs are current, but their public
+Engine composition is not.
 Current CPU complete-plan batches declare `SESSION`, so they neither read nor write the persistent
 model-plan cache. A later Engine-owned adapter must join the CPU producer with Engine's existing
 exact correctness primitive, freshly prepare every trial and the selected production decision,
@@ -119,9 +120,17 @@ and apply the existing fallback policy. The tools layer does not perform that co
 `modules/config` now provides `ModelAutotuningConfig`, an immutable request facade separate from
 the operational tool-local `WorkloadTuningRequest`. Possessing the Config value means tuning was
 requested; there is no enabled flag, disabled sentinel, implicit default, or default cache path.
-It stores exactly five user-owned inputs: the minimum-median-elapsed-nanoseconds objective, a
-four-count sampling budget, one opaque schema-versioned representative-profile identity, a
-fallback policy, and an explicit workload-cache path.
+It stores exactly seven ordered user-owned inputs: the minimum-median-elapsed-nanoseconds
+objective; a four-count Phase-1 sampling budget; one opaque schema-versioned
+representative-profile identity; a fallback policy; an explicit workload-cache path; an
+independent five-count Phase-2 `CompletePlanBudget`; and an explicit model-plan-cache path.
+
+The two budgets deliberately do not share timing policy. Phase 1 owns maximum distinct misses,
+maximum local candidates per miss, warmups, and timed samples. Phase 2 owns maximum complete-plan
+candidates, its own warmups and positive odd timed samples, a positive total-execution ceiling,
+and a non-negative aggregate canonical-publication correctness ceiling in bytes. Later Phase-2
+preflight evaluates the actual candidate count `N` with `N * (1 + W + S)`. The byte ceiling is
+neither a cache-file limit nor a per-result allocation promise.
 
 The Config value stores identity and policy, not work or execution state. Its representative
 profile is an immutable byte snapshot that identifies evidence; actual representative inputs,
@@ -129,8 +138,9 @@ Shapes, model fingerprint, occurrences, backend candidate batches, cache content
 resources do not enter Config. Constructing the facade performs no cache I/O, measurement,
 selection, preparation, Engine orchestration, or Runtime work.
 
-Engine maps the objective and four budget counts explicitly, copies the profile identity, and
-passes the exact cache path. `ModelAutotuningRequest` separately supplies live representative
+Current Engine maps the objective and four Phase-1 budget counts explicitly, copies the profile
+identity, and passes the exact workload-cache path. It does not yet translate the Phase-2 budget
+or model-plan path. `ModelAutotuningRequest` separately supplies live representative
 Tensors and a caller-defined model identity. That identity labels evidence only; it is not a cache
 key or proof of equivalent model behavior. `REQUIRE_TUNED_RESULT` is strict, while
 `ALLOW_SAFE_HEURISTIC` permits abandoning a tuning
@@ -263,9 +273,9 @@ governs later harness and reporting work.
 
 ## Limitations and boundaries
 
-The benchmark harness and report, public Engine/Config Phase-2 composition, planning-cost model,
+The benchmark harness and report, public Engine Phase-2 composition, planning-cost model,
 and concrete runtime-profile payloads remain planned. The generic caller-supplied Phase-1 and
-Phase-2 transactions, bounded persistent cache formats, immutable Phase-1 Config request, and
+Phase-2 transactions, bounded persistent cache formats, immutable two-phase Config request, and
 bounded CPU/Engine Phase-1 composition, and read-only tuning inspection are current. Model
 extraction, multiple-occurrence aggregation, broader graph/plan generation, persistent CPU
 complete-plan reuse, concurrent cache writers, and cache migration remain deferred. Config owns

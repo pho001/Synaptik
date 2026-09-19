@@ -74,7 +74,7 @@ consumer. The `tuning` package remains declarative and does not depend on the ou
 | 0005 | Compile configuration aggregate | Draft | 0001–0004 | Compose compile mode, backend intent, optimization, scoring, and any justified planning-cost inputs without compiler orchestration. |
 | 0006 | Prepare numerical and determinism permission | Draft | 0005, stable exact concrete-backend prepare eligibility boundary | Define the smallest immutable backend-neutral prepare permission needed to filter numerical/determinism candidates; the default grants no relaxed/fast-math behavior, and the contract names no backend, provider, kernel, approximation, compiler pass, or operation-specific rewrite. |
 | 0006A | [Model-autotuning request configuration](tasks/0006a-model-autotuning-request-configuration.md) | Complete | 0001–0003; tools/tuning 0001; explicit staged ordering exception around Draft 0004–0006 | Added one immutable Config-owned objective, bounded sampling budget, representative-profile identity, fallback policy, and explicit workload-cache path. Config neither depends on tuning nor owns candidates, measurement, selection, cache behavior, or lifecycle orchestration. |
-| 0006B | [Complete-plan autotuning request configuration](tasks/0006b-complete-plan-autotuning-request-configuration.md) | Ready | 0006A; tools/tuning 0002–0003; CPU 0010J; Engine 0008A; second staged ordering exception around Draft 0004–0006 | Append only the independent complete-plan candidate, warmup, timed-sample, total-execution, and aggregate-correctness-byte policy plus the explicit model-plan-cache path required by the stable Phase-2 consumer. Preserve every Phase-1 meaning and defer translation and execution to later Engine composition. |
+| 0006B | [Complete-plan autotuning request configuration](tasks/0006b-complete-plan-autotuning-request-configuration.md) | Complete | 0006A; tools/tuning 0002–0003; CPU 0010J; Engine 0008A; second staged ordering exception around Draft 0004–0006 | Appended only the independent complete-plan candidate, warmup, timed-sample, total-execution, and aggregate-correctness-byte policy plus the explicit model-plan-cache path required by the stable Phase-2 consumer. Preserved every Phase-1 meaning and deferred translation and execution to later Engine composition. |
 | 0007 | Run and publication configuration | Draft | 0005 | Define immutable invocation and publication options without runtime state or execution. |
 | 0008 | Configuration contract closure | Draft | 0001–0007, including 0006A–0006B | Audit validation, package/API cohesion, documentation, and dependency boundaries before planning begins. |
 
@@ -98,8 +98,8 @@ exception: completed tools/tuning 0001 stabilized its exact/default user-owned r
 and its separate `config.tuning` package and ten paths did not overlap those earlier Draft rows.
 Completed tools/tuning 0002, CPU 0010J, and Engine 0008A now stabilize the additional declarative
 Phase-2 timing/resource policy and explicit model-plan-cache location. Detailed
-[Config 0006B](tasks/0006b-complete-plan-autotuning-request-configuration.md) is therefore `Ready`
-under a second explicit non-overlapping staged exception. It appends one nested complete-plan
+[Config 0006B](tasks/0006b-complete-plan-autotuning-request-configuration.md) is `Complete`
+under a second explicit non-overlapping staged exception. It appended one nested complete-plan
 budget and one path without importing tool/backend vocabulary, changing Phase-1 meanings, or
 advancing Draft cost and numerical-policy work. Planning task
 0004 is Complete with maximal consecutive same-owner grouping over completed
@@ -107,7 +107,7 @@ per-occurrence `BackendId` ownership and the current immutable model graph. It c
 bearing consumer. Planning task 0005 is Complete with logical materialization and memory
 requirements derived without numeric cost, element/byte estimates, or profile input. Config 0004
 therefore remains Draft without a detailed specification; Config 0006A is Complete and the
-independent Config 0006B task is Ready. Planning
+independent Config 0006B task is Complete. Planning
 0006 is Complete with a `CLOSED` documentation-only audit verdict. That closure does not define
 the cost-bearing consumer or make Config 0004 Ready. Compiler task 0005 now consumes all four
 completed standalone leaves through its package-private complete artifact entry: compile mode and
@@ -301,3 +301,12 @@ inspection of the package plus all five declaration pages, changed-Markdown chec
 ten-path/public-shape/dependency/status checks, and final whitespace validation. Config
 0004–0006 and 0007–0008 remain Draft without detailed specifications, and no next task was
 selected or made Ready when the staged exception closed.
+
+Task 0006B extended only the existing `config.tuning` facade with the required independent
+Phase-2 complete-plan budget and explicit model-plan-cache path. Its implementation reused the
+recorded focused Config, affected Engine/integration, and repository-wide passing evidence. The
+separate documentation pass finalized the affected Javadocs, Public API, benchmarking guide,
+glossary, and planning status; Config Javadoc/rendering, changed-Markdown, exact twelve-path,
+public-shape/dependency, staging, and whitespace validation passed without rerunning Java tests.
+Config 0004–0006 and 0007–0008 remain Draft, and later Engine Phase-2 composition remains a
+separate planning step.

@@ -71,11 +71,12 @@ as a bounded tools-only consumer. Detailed
 is `Complete` with bounded read-only inspection of both stable formats and detached redacted
 summaries of result-evidence models.
 Detailed
-[Config 0006A](modules/config/tasks/0006a-model-autotuning-request-configuration.md) is the sole
-`Complete` Config request facade delivered through the first recorded non-overlapping staged
-ordering exception. Completed tuning 0002, CPU 0010J, and Engine 0008A now support detailed
-[Config 0006B](modules/config/tasks/0006b-complete-plan-autotuning-request-configuration.md) as
-`Ready` under a second explicit staged exception. It adds only stable complete-plan resource
+[Config 0006A](modules/config/tasks/0006a-model-autotuning-request-configuration.md) and
+[Config 0006B](modules/config/tasks/0006b-complete-plan-autotuning-request-configuration.md) are
+the `Complete` Config request facade sequence delivered through the two recorded non-overlapping
+staged ordering exceptions. Completed tuning 0002, CPU 0010J, and Engine 0008A now support detailed
+[Config 0006B](modules/config/tasks/0006b-complete-plan-autotuning-request-configuration.md),
+completed under the second explicit staged exception. It adds only stable complete-plan resource
 and timing bounds plus the explicit model-plan-cache path before later Engine composition; its
 independent Phase-2 warmup/sample counts preserve all Phase-1 meanings. Draft Config 0004–0006
 remain unchanged. Optional
@@ -113,7 +114,7 @@ Compiler 0006B3 Engine-facing complete compile integration port (Complete)
   -> Engine 0008A representative complete-plan correctness oracle (Complete)
   -> tools/tuning 0002 bounded complete-plan tuning and model-plan cache (Complete)
   -> tools/tuning 0003 read-only cache, plan, and evidence inspection (Complete)
-  -> Config 0006B complete-plan autotuning request configuration (Ready;
+  -> Config 0006B complete-plan autotuning request configuration (Complete;
      second explicit non-overlapping staged exception)
 ```
 
@@ -1738,7 +1739,7 @@ and explicit workload-cache path. It adds no Config-to-tuning dependency, candid
 behavior, or Engine/Runtime orchestration. Config 0004–0006 and 0007–0008 remain Draft without
 detailed specifications. The first non-overlapping exception closed without selecting another
 task. The completed Phase-2 consumer and producer/correctness evidence now select only detailed
-Config 0006B as `Ready` under a second non-overlapping exception. It preserves every 0006A
+Config 0006B, now `Complete` under a second non-overlapping exception. It preserves every 0006A
 Phase-1 meaning, records distinct maximum plan candidates, total plan executions, aggregate
 correctness bytes, independent Phase-2 warmup and timed-sample counts, and an explicit
 model-plan-cache path. The separate timing counts feed Phase 2's checked `N * (1 + W + S)` formula
@@ -2474,10 +2475,9 @@ preparation, runtime state, or execution.
 
 [Config 0001 Backend intent foundation](modules/config/tasks/0001-backend-intent-foundation.md) and
 [Config 0002 Compile modes and graph optimization configuration](modules/config/tasks/0002-compile-modes-and-graph-optimization-configuration.md)
-remain Complete. Config task 0003 and detailed Config 0006A are also Complete; detailed
-[Config 0006B](modules/config/tasks/0006b-complete-plan-autotuning-request-configuration.md) is
-the sole `Ready` Config task under the recorded second staged exception. Config 0004–0006 and
-0007–0008 remain ordered Draft work without detailed specifications. Planning task 0001 remains
+remain Complete. Config task 0003 and detailed Config 0006A–0006B are also Complete. Config
+0004–0006 and 0007–0008 remain ordered Draft work without detailed specifications. Planning task
+0001 remains
 Complete after its focused
 suites, independent documentation pass, and single final 1,079-test repository suite passed.
 Planning task 0002 is Complete; Planning task 0003 is Complete with its detailed specification;

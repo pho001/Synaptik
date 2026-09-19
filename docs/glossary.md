@@ -909,9 +909,10 @@ plan record, and separate rich in-memory evidence.
 
 Tuning is optional for correctness and never runs in the runtime hot path. Running the same
 workflow over a representative model corpus may eventually pre-seed the same workload cache; this
-is not a separate platform-calibration subsystem. Public Engine/Config composition of both phases,
-model extraction, multiple-occurrence aggregation, and freshly preparing the Phase-2 winner for
-production remain planned.
+is not a separate platform-calibration subsystem. Public Engine composition of both phases, model
+extraction, multiple-occurrence aggregation, and freshly preparing the Phase-2 winner for
+production remain planned. Config now carries the declarative inputs for both phases but performs
+no translation or execution.
 
 A **workload tuning cache** is the current explicit bounded file-backed reusable artifact keyed by
 backend-supplied canonical workload/target compatibility plus objective and sampling policy. Its
@@ -949,15 +950,26 @@ backend decoder, trust mechanism, cache repair tool, preparation step, or Runtim
 
 The implemented immutable Config-owned value that records one request for later model-autotuning
 composition. Possessing it means tuning was requested; it has no enabled flag, disabled sentinel,
-implicit default, or default cache location. It contains exactly an objective, bounded sampling
-budget, [`representative-profile identity`](#representative-profile-identity),
-[`fallback policy`](#model-autotuning-fallback-policy), and explicit workload-cache path.
+implicit default, or default cache location. Its seven ordered components contain an objective,
+Phase-1 bounded sampling budget,
+[`representative-profile identity`](#representative-profile-identity),
+[`fallback policy`](#model-autotuning-fallback-policy), explicit workload-cache path, independent
+Phase-2 `CompletePlanBudget`, and explicit model-plan-cache path.
 
-The facade is declarative data. It retains the exact non-null path without normalization or I/O
+The Phase-1 budget alone bounds workload-cache misses, complete local candidates per miss,
+warmups, and timed samples. The Phase-2 budget separately bounds actual complete-plan candidates,
+its own warmups and positive odd timed samples, whole-transaction executions, and aggregate
+canonical-publication correctness bytes. Later preflight checks the actual candidate count `N`
+with `N * (1 + W + S)`. The correctness-byte value is a later collaboration ceiling, not a
+cache-file limit or per-result allocation promise.
+
+The facade is declarative data. It retains both exact non-null paths without normalization or I/O
 and owns no model fingerprint, representative inputs, occurrences, candidates, cache behavior,
-translation, measurement, selection, preparation, or Runtime state. Current Engine composition
-translates it while `ModelAutotuningRequest` supplies the caller-defined model identity and live
-representative inputs.
+translation, correctness execution, measurement, selection, preparation, or Runtime state.
+Current Engine composition translates only the Phase-1 values while `ModelAutotuningRequest`
+supplies the caller-defined model identity and live representative inputs. The current CPU
+complete-plan producer declares `SESSION`, so the explicit model-plan path is supplied for later
+composition but is not accessed.
 
 ### Model-autotuning request / preparation result
 

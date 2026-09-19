@@ -36,7 +36,9 @@ final class EngineModelAutotuningIntegrationTest {
                     new ModelAutotuningConfig.Budget(1, 4, 0, 1),
                     new ModelAutotuningConfig.RepresentativeProfileIdentity(1, new byte[] {2}),
                     ModelAutotuningConfig.FallbackPolicy.ALLOW_SAFE_HEURISTIC,
-                    Path.of("unused-native-free-autotuning-cache.bin"));
+                    Path.of("unused-native-free-autotuning-cache.bin"),
+                    new ModelAutotuningConfig.CompletePlanBudget(1, 0, 1, 1L, 0L),
+                    Path.of("unused-model-plan-cache.bin"));
             var request = new ModelAutotuningRequest(config,
                     new ModelAutotuningRequest.ModelIdentity(1, new byte[] {1}), List.of(input));
 

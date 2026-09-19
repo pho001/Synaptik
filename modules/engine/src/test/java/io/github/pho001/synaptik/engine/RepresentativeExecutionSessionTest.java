@@ -1041,7 +1041,10 @@ final class RepresentativeExecutionSessionTest {
                 ModelAutotuningConfig.Objective.MIN_MEDIAN_ELAPSED_NANOS,
                 new ModelAutotuningConfig.Budget(1, 2, warmups, samples),
                 new ModelAutotuningConfig.RepresentativeProfileIdentity(2, new byte[] {3, 4}),
-                fallback, cache);
+                fallback,
+                cache,
+                new ModelAutotuningConfig.CompletePlanBudget(1, 0, 1, 1L, 0L),
+                Path.of("unused-model-plan-cache.bin"));
         return new ModelAutotuningRequest(config,
                 new ModelAutotuningRequest.ModelIdentity(3, new byte[] {5, 6}), List.of(input));
     }

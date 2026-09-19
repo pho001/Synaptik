@@ -7,8 +7,8 @@ import java.util.Arrays;
  * Describes one declarative request for later model-autotuning composition.
  *
  * <p>Possessing this value means that model autotuning was requested. The record retains the
- * caller's immutable policy values and the exact explicit workload-cache path without accessing
- * the filesystem or selecting a default. It does not run tuning, enumerate candidates, interpret
+ * caller's immutable policy values and the exact explicit cache paths without accessing the
+ * filesystem or selecting a default. It does not run tuning, enumerate candidates, interpret
  * backend configuration, read or write a cache, prepare an executable, or perform Engine or
  * Runtime lifecycle work.</p>
  *
@@ -17,35 +17,46 @@ import java.util.Arrays;
  * tunable occurrences, and execution behavior; none of those values is part of this facade.</p>
  *
  * @param objective selection objective; must not be {@code null}; retained by reference
- * @param budget complete-work and sampling bounds; must not be {@code null}; retained by
- *     reference
+ * @param budget Phase-1 cache-miss and sampling bounds; must not be {@code null}; retained by
+ *     reference; none of its values controls complete-plan Phase 2
  * @param representativeProfile opaque representative-profile identity; must not be {@code null};
  *     retained by reference
  * @param fallbackPolicy policy for a tuning transaction that cannot produce a complete result;
  *     must not be {@code null}; retained by reference
  * @param workloadCache explicit workload-cache file path; must not be {@code null}; the exact
  *     reference is retained without normalization or I/O
+ * @param completePlanBudget independent complete-plan timing and resource bounds; must not be
+ *     {@code null}; retained by reference
+ * @param modelPlanCache explicit model-plan-cache path; must not be {@code null} or have an empty
+ *     string form; the exact reference is retained without normalization or I/O
  */
 public record ModelAutotuningConfig(
         Objective objective,
         Budget budget,
         RepresentativeProfileIdentity representativeProfile,
         FallbackPolicy fallbackPolicy,
-        Path workloadCache) {
+        Path workloadCache,
+        CompletePlanBudget completePlanBudget,
+        Path modelPlanCache) {
     /**
      * Creates an immutable declarative model-autotuning request.
      *
      * @param objective selection objective; must not be {@code null}; retained by reference
-     * @param budget complete-work and sampling bounds; must not be {@code null}; retained by
-     *     reference
+     * @param budget Phase-1 cache-miss and sampling bounds; must not be {@code null}; retained by
+     *     reference; none of its values controls complete-plan Phase 2
      * @param representativeProfile opaque representative-profile identity; must not be
      *     {@code null}; retained by reference
      * @param fallbackPolicy policy for a tuning transaction that cannot produce a complete
      *     result; must not be {@code null}; retained by reference
      * @param workloadCache explicit workload-cache file path; must not be {@code null}; the exact
      *     reference is retained without normalization or I/O
+     * @param completePlanBudget independent complete-plan timing and resource bounds; must not be
+     *     {@code null}; retained by reference
+     * @param modelPlanCache explicit model-plan-cache path; must not be {@code null} or have an
+     *     empty string form; the exact reference is retained without normalization or I/O
      * @throws NullPointerException if any component is {@code null}; the exception message names
      *     that component
+     * @throws IllegalArgumentException if {@code modelPlanCache} has an empty string form
      */
     public ModelAutotuningConfig {
         if (objective == null) {
@@ -63,6 +74,15 @@ public record ModelAutotuningConfig(
         if (workloadCache == null) {
             throw new NullPointerException("workloadCache");
         }
+        if (completePlanBudget == null) {
+            throw new NullPointerException("completePlanBudget");
+        }
+        if (modelPlanCache == null) {
+            throw new NullPointerException("modelPlanCache");
+        }
+        if (modelPlanCache.toString().isEmpty()) {
+            throw new IllegalArgumentException("modelPlanCache must not be empty");
+        }
     }
 
     /**
@@ -76,9 +96,10 @@ public record ModelAutotuningConfig(
     }
 
     /**
-     * Returns the complete-work and sampling bounds.
+     * Returns the Phase-1 cache-miss and sampling bounds.
      *
-     * @return the exact non-null immutable budget retained at construction
+     * @return the exact non-null immutable Phase-1 budget retained at construction; none of its
+     *     values controls complete-plan Phase 2
      */
     @Override
     public Budget budget() {
@@ -116,6 +137,32 @@ public record ModelAutotuningConfig(
         return workloadCache;
     }
 
+    /**
+     * Returns the independent complete-plan timing and resource bounds.
+     *
+     * @return the exact non-null immutable complete-plan budget retained at construction
+     */
+    @Override
+    public CompletePlanBudget completePlanBudget() {
+        return completePlanBudget;
+    }
+
+    /**
+     * Returns the explicit model-plan-cache path.
+     *
+     * <p>Later composition supplies this path to the complete-plan transaction. The current CPU
+     * producer declares session-scoped reuse, so that transaction does not access the path. A
+     * future persistent producer may cause the tuning owner to use it under that owner's
+     * validation and publication rules.</p>
+     *
+     * @return the exact non-null path reference retained at construction; no filesystem state is
+     *     inspected or changed
+     */
+    @Override
+    public Path modelPlanCache() {
+        return modelPlanCache;
+    }
+
     /** Identifies how later tuning selects among already eligible complete candidates. */
     public enum Objective {
         /** Selects the first encountered candidate with the lowest median elapsed nanoseconds. */
@@ -123,10 +170,11 @@ public record ModelAutotuningConfig(
     }
 
     /**
-     * Declares fixed bounds for complete cache-miss work and candidate sampling.
+     * Declares fixed bounds for Phase-1 workload-cache misses and candidate sampling.
      *
-     * <p>The maxima bound complete candidate sets; the warmup and timed counts count complete
-     * candidate executions. This value has no wall-clock cutoff and performs no measurement.</p>
+     * <p>The maxima bound Phase-1 cache misses and their complete local-candidate sets; the warmup
+     * and timed counts count complete local-candidate executions. None of these values controls
+     * complete-plan Phase 2. This value has no wall-clock cutoff and performs no measurement.</p>
      *
      * @param maximumDistinctCacheMisses positive maximum number of distinct cache misses
      * @param maximumCandidatesPerMiss positive maximum complete candidate count for each miss
@@ -203,6 +251,117 @@ public record ModelAutotuningConfig(
         @Override
         public int timedSampleCount() {
             return timedSampleCount;
+        }
+    }
+
+    /**
+     * Declares independent fixed bounds for the later complete-plan tuning transaction.
+     *
+     * <p>The timing counts belong only to complete-plan Phase 2 and are independent from the
+     * Phase-1 {@link Budget} counts. Later preflight checks the actual complete-plan candidate
+     * count {@code N} against the total-execution ceiling with the checked formula
+     * {@code N * (1 + W + S)}, where {@code W} and {@code S} are this value's warmup and timed
+     * sample counts. This value performs no enumeration, correctness work, or measurement.</p>
+     *
+     * @param maximumPlanCandidates positive maximum complete-plan candidate count
+     * @param warmupCount non-negative Phase-2 untimed execution count per candidate
+     * @param timedSampleCount positive odd Phase-2 timed execution count per candidate
+     * @param maximumTotalPlanExecutions positive maximum execution count for the whole Phase-2
+     *     transaction
+     * @param maximumAggregateCorrectnessBytes non-negative aggregate byte ceiling for canonical
+     *     publication data captured and compared by later correctness collaboration; zero is valid
+     */
+    public record CompletePlanBudget(
+            int maximumPlanCandidates,
+            int warmupCount,
+            int timedSampleCount,
+            long maximumTotalPlanExecutions,
+            long maximumAggregateCorrectnessBytes) {
+        /**
+         * Creates validated independent complete-plan timing and resource bounds.
+         *
+         * @param maximumPlanCandidates positive maximum complete-plan candidate count
+         * @param warmupCount non-negative Phase-2 untimed execution count per candidate
+         * @param timedSampleCount positive odd Phase-2 timed execution count per candidate
+         * @param maximumTotalPlanExecutions positive maximum execution count for the whole
+         *     Phase-2 transaction
+         * @param maximumAggregateCorrectnessBytes non-negative aggregate byte ceiling for
+         *     canonical publication data captured and compared by later correctness collaboration;
+         *     zero is valid and is neither a cache-file limit nor a per-result allocation promise
+         * @throws IllegalArgumentException if the candidate or total-execution maximum is not
+         *     positive, the warmup count or correctness-byte ceiling is negative, or the timed
+         *     sample count is not positive and odd
+         */
+        public CompletePlanBudget {
+            if (maximumPlanCandidates <= 0) {
+                throw new IllegalArgumentException("maximumPlanCandidates must be positive");
+            }
+            if (warmupCount < 0) {
+                throw new IllegalArgumentException("warmupCount must be non-negative");
+            }
+            if (timedSampleCount <= 0 || (timedSampleCount & 1) == 0) {
+                throw new IllegalArgumentException(
+                        "timedSampleCount must be positive and odd");
+            }
+            if (maximumTotalPlanExecutions <= 0) {
+                throw new IllegalArgumentException(
+                        "maximumTotalPlanExecutions must be positive");
+            }
+            if (maximumAggregateCorrectnessBytes < 0) {
+                throw new IllegalArgumentException(
+                        "maximumAggregateCorrectnessBytes must be non-negative");
+            }
+        }
+
+        /**
+         * Returns the maximum actual candidate count accepted by later Phase-2 preflight.
+         *
+         * @return the positive maximum complete-plan candidate count
+         */
+        @Override
+        public int maximumPlanCandidates() {
+            return maximumPlanCandidates;
+        }
+
+        /**
+         * Returns the Phase-2 untimed execution count for each complete-plan candidate.
+         *
+         * @return the non-negative Phase-2 warmup count per candidate
+         */
+        @Override
+        public int warmupCount() {
+            return warmupCount;
+        }
+
+        /**
+         * Returns the Phase-2 timed execution count for each complete-plan candidate.
+         *
+         * @return the positive odd Phase-2 timed sample count per candidate
+         */
+        @Override
+        public int timedSampleCount() {
+            return timedSampleCount;
+        }
+
+        /**
+         * Returns the whole-transaction Phase-2 execution ceiling.
+         *
+         * @return the positive ceiling later checked against {@code N * (1 + W + S)}
+         */
+        @Override
+        public long maximumTotalPlanExecutions() {
+            return maximumTotalPlanExecutions;
+        }
+
+        /**
+         * Returns the aggregate canonical-publication correctness ceiling for later collaboration.
+         *
+         * @return the non-negative ceiling in bytes; zero is valid and is neither a cache-file
+         *     limit nor a per-result allocation promise
+         */
+        @Override
+        public long maximumAggregateCorrectnessBytes() {
+            return maximumAggregateCorrectnessBytes;
         }
     }
 

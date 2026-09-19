@@ -49,7 +49,9 @@ class ModelAutotuningConfigTest {
                                     "budget",
                                     "representativeProfile",
                                     "fallbackPolicy",
-                                    "workloadCache"
+                                    "workloadCache",
+                                    "completePlanBudget",
+                                    "modelPlanCache"
                                 },
                                 componentNames(components)),
                 () ->
@@ -59,10 +61,12 @@ class ModelAutotuningConfigTest {
                                     ModelAutotuningConfig.Budget.class,
                                     ModelAutotuningConfig.RepresentativeProfileIdentity.class,
                                     ModelAutotuningConfig.FallbackPolicy.class,
+                                    Path.class,
+                                    ModelAutotuningConfig.CompletePlanBudget.class,
                                     Path.class
                                 },
                                 componentTypes(components)),
-                () -> assertEquals(5, fields.length),
+                () -> assertEquals(7, fields.length),
                 () -> assertArrayEquals(componentNames(components), fieldNames(fields)),
                 () -> assertArrayEquals(componentTypes(components), fieldTypes(fields)),
                 () -> assertEquals(1, constructors.length),
@@ -78,16 +82,19 @@ class ModelAutotuningConfigTest {
                                         "representativeProfile",
                                         "fallbackPolicy",
                                         "workloadCache",
+                                        "completePlanBudget",
+                                        "modelPlanCache",
                                         "equals",
                                         "hashCode",
                                         "toString"),
                                 methods),
-                () -> assertEquals(8, ModelAutotuningConfig.class.getDeclaredMethods().length),
+                () -> assertEquals(10, ModelAutotuningConfig.class.getDeclaredMethods().length),
                 () ->
                         assertEquals(
                                 Set.of(
                                         ModelAutotuningConfig.Objective.class,
                                         ModelAutotuningConfig.Budget.class,
+                                        ModelAutotuningConfig.CompletePlanBudget.class,
                                         ModelAutotuningConfig.RepresentativeProfileIdentity.class,
                                         ModelAutotuningConfig.FallbackPolicy.class),
                                 nestedTypes),
@@ -107,9 +114,19 @@ class ModelAutotuningConfigTest {
         ModelAutotuningConfig.FallbackPolicy fallback =
                 ModelAutotuningConfig.FallbackPolicy.REQUIRE_TUNED_RESULT;
         Path cache = Path.of("requested-cache.bin");
+        ModelAutotuningConfig.CompletePlanBudget completePlanBudget =
+                new ModelAutotuningConfig.CompletePlanBudget(2, 0, 3, 8L, 0L);
+        Path modelPlanCache = Path.of("requested-model-plan-cache.bin");
 
         ModelAutotuningConfig config =
-                new ModelAutotuningConfig(objective, budget, profile, fallback, cache);
+                new ModelAutotuningConfig(
+                        objective,
+                        budget,
+                        profile,
+                        fallback,
+                        cache,
+                        completePlanBudget,
+                        modelPlanCache);
 
         assertAll(
                 () -> assertSame(objective, config.objective()),
@@ -117,36 +134,68 @@ class ModelAutotuningConfigTest {
                 () -> assertSame(profile, config.representativeProfile()),
                 () -> assertSame(fallback, config.fallbackPolicy()),
                 () -> assertSame(cache, config.workloadCache()),
+                () -> assertSame(completePlanBudget, config.completePlanBudget()),
+                () -> assertSame(modelPlanCache, config.modelPlanCache()),
                 () ->
                         assertNullComponent(
                                 "objective",
                                 () ->
                                         new ModelAutotuningConfig(
-                                                null, budget, profile, fallback, cache)),
+                                                null, budget, profile, fallback, cache,
+                                                completePlanBudget, modelPlanCache)),
                 () ->
                         assertNullComponent(
                                 "budget",
                                 () ->
                                         new ModelAutotuningConfig(
-                                                objective, null, profile, fallback, cache)),
+                                                objective, null, profile, fallback, cache,
+                                                completePlanBudget, modelPlanCache)),
                 () ->
                         assertNullComponent(
                                 "representativeProfile",
                                 () ->
                                         new ModelAutotuningConfig(
-                                                objective, budget, null, fallback, cache)),
+                                                objective, budget, null, fallback, cache,
+                                                completePlanBudget, modelPlanCache)),
                 () ->
                         assertNullComponent(
                                 "fallbackPolicy",
                                 () ->
                                         new ModelAutotuningConfig(
-                                                objective, budget, profile, null, cache)),
+                                                objective, budget, profile, null, cache,
+                                                completePlanBudget, modelPlanCache)),
                 () ->
                         assertNullComponent(
                                 "workloadCache",
                                 () ->
                                         new ModelAutotuningConfig(
-                                                objective, budget, profile, fallback, null)));
+                                                objective, budget, profile, fallback, null,
+                                                completePlanBudget, modelPlanCache)),
+                () ->
+                        assertNullComponent(
+                                "completePlanBudget",
+                                () ->
+                                        new ModelAutotuningConfig(
+                                                objective, budget, profile, fallback, cache, null,
+                                                modelPlanCache)),
+                () ->
+                        assertNullComponent(
+                                "modelPlanCache",
+                                () ->
+                                        new ModelAutotuningConfig(
+                                                objective, budget, profile, fallback, cache,
+                                                completePlanBudget, null)),
+                () ->
+                        assertEquals(
+                                "modelPlanCache must not be empty",
+                                assertThrows(
+                                                IllegalArgumentException.class,
+                                                () ->
+                                                        new ModelAutotuningConfig(
+                                                                objective, budget, profile,
+                                                                fallback, cache,
+                                                                completePlanBudget, Path.of("")))
+                                        .getMessage()));
     }
 
     @Test
@@ -160,7 +209,13 @@ class ModelAutotuningConfigTest {
                 () -> assertEquals(first.hashCode(), equal.hashCode()),
                 () -> assertNotEquals(first, different),
                 () -> assertTrue(first.toString().startsWith("ModelAutotuningConfig[objective=")),
-                () -> assertTrue(first.toString().contains("workloadCache=requested-cache.bin")));
+                () -> assertTrue(first.toString().contains("workloadCache=requested-cache.bin")),
+                () -> assertTrue(first.toString().contains("maximumPlanCandidates=4")),
+                () ->
+                        assertTrue(
+                                first.toString()
+                                        .contains(
+                                                "modelPlanCache=requested-model-plan-cache.bin")));
     }
 
     @Test
@@ -253,6 +308,112 @@ class ModelAutotuningConfigTest {
                         assertEquals(
                                 "Budget[maximumDistinctCacheMisses=2, maximumCandidatesPerMiss=3, "
                                         + "warmupCount=4, timedSampleCount=5]",
+                                first.toString()));
+    }
+
+    @Test
+    void completePlanBudgetHasExactShapeAndRetainsBoundaryValues() {
+        Class<ModelAutotuningConfig.CompletePlanBudget> type =
+                ModelAutotuningConfig.CompletePlanBudget.class;
+        RecordComponent[] components = type.getRecordComponents();
+        ModelAutotuningConfig.CompletePlanBudget boundary =
+                new ModelAutotuningConfig.CompletePlanBudget(1, 0, 1, 1L, 0L);
+
+        assertAll(
+                () -> assertTrue(Modifier.isPublic(type.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(type.getModifiers())),
+                () -> assertTrue(Modifier.isFinal(type.getModifiers())),
+                () -> assertTrue(type.isRecord()),
+                () -> assertFalse(Serializable.class.isAssignableFrom(type)),
+                () -> assertEquals(0, type.getInterfaces().length),
+                () -> assertEquals(0, type.getDeclaredClasses().length),
+                () ->
+                        assertArrayEquals(
+                                new String[] {
+                                    "maximumPlanCandidates",
+                                    "warmupCount",
+                                    "timedSampleCount",
+                                    "maximumTotalPlanExecutions",
+                                    "maximumAggregateCorrectnessBytes"
+                                },
+                                componentNames(components)),
+                () ->
+                        assertArrayEquals(
+                                new Class<?>[] {
+                                    int.class, int.class, int.class, long.class, long.class
+                                },
+                                componentTypes(components)),
+                () -> assertEquals(5, type.getDeclaredFields().length),
+                () -> assertEquals(1, type.getDeclaredConstructors().length),
+                () ->
+                        assertEquals(
+                                Set.of(
+                                        "maximumPlanCandidates",
+                                        "warmupCount",
+                                        "timedSampleCount",
+                                        "maximumTotalPlanExecutions",
+                                        "maximumAggregateCorrectnessBytes",
+                                        "equals",
+                                        "hashCode",
+                                        "toString"),
+                                publicDeclaredMethodNames(type)),
+                () -> assertEquals(1, boundary.maximumPlanCandidates()),
+                () -> assertEquals(0, boundary.warmupCount()),
+                () -> assertEquals(1, boundary.timedSampleCount()),
+                () -> assertEquals(1L, boundary.maximumTotalPlanExecutions()),
+                () -> assertEquals(0L, boundary.maximumAggregateCorrectnessBytes()));
+    }
+
+    @Test
+    void completePlanBudgetRejectsEveryInvalidPrimitiveCondition() {
+        assertAll(
+                () ->
+                        assertCompletePlanBudgetFailure(
+                                0, 0, 1, 1L, 0L, "maximumPlanCandidates must be positive"),
+                () ->
+                        assertCompletePlanBudgetFailure(
+                                -1, 0, 1, 1L, 0L, "maximumPlanCandidates must be positive"),
+                () ->
+                        assertCompletePlanBudgetFailure(
+                                1, -1, 1, 1L, 0L, "warmupCount must be non-negative"),
+                () ->
+                        assertCompletePlanBudgetFailure(
+                                1, 0, 0, 1L, 0L, "timedSampleCount must be positive and odd"),
+                () ->
+                        assertCompletePlanBudgetFailure(
+                                1, 0, -1, 1L, 0L, "timedSampleCount must be positive and odd"),
+                () ->
+                        assertCompletePlanBudgetFailure(
+                                1, 0, 2, 1L, 0L, "timedSampleCount must be positive and odd"),
+                () ->
+                        assertCompletePlanBudgetFailure(
+                                1, 0, 1, 0L, 0L,
+                                "maximumTotalPlanExecutions must be positive"),
+                () ->
+                        assertCompletePlanBudgetFailure(
+                                1, 0, 1, -1L, 0L,
+                                "maximumTotalPlanExecutions must be positive"),
+                () ->
+                        assertCompletePlanBudgetFailure(
+                                1, 0, 1, 1L, -1L,
+                                "maximumAggregateCorrectnessBytes must be non-negative"));
+    }
+
+    @Test
+    void completePlanBudgetPreservesOrdinaryRecordValueBehavior() {
+        var first = new ModelAutotuningConfig.CompletePlanBudget(2, 3, 5, 18L, 19L);
+        var equal = new ModelAutotuningConfig.CompletePlanBudget(2, 3, 5, 18L, 19L);
+        var different = new ModelAutotuningConfig.CompletePlanBudget(2, 3, 5, 18L, 20L);
+
+        assertAll(
+                () -> assertEquals(first, equal),
+                () -> assertEquals(first.hashCode(), equal.hashCode()),
+                () -> assertNotEquals(first, different),
+                () ->
+                        assertEquals(
+                                "CompletePlanBudget[maximumPlanCandidates=2, warmupCount=3, "
+                                        + "timedSampleCount=5, maximumTotalPlanExecutions=18, "
+                                        + "maximumAggregateCorrectnessBytes=19]",
                                 first.toString()));
     }
 
@@ -358,6 +519,7 @@ class ModelAutotuningConfigTest {
                         void.class,
                         boolean.class,
                         int.class,
+                        long.class,
                         byte[].class,
                         Object.class,
                         String.class,
@@ -366,6 +528,7 @@ class ModelAutotuningConfigTest {
                         ModelAutotuningConfig.Objective[].class,
                         ModelAutotuningConfig.Objective.class,
                         ModelAutotuningConfig.Budget.class,
+                        ModelAutotuningConfig.CompletePlanBudget.class,
                         ModelAutotuningConfig.RepresentativeProfileIdentity.class,
                         ModelAutotuningConfig.FallbackPolicy[].class,
                         ModelAutotuningConfig.FallbackPolicy.class);
@@ -374,6 +537,7 @@ class ModelAutotuningConfigTest {
                         ModelAutotuningConfig.class,
                         ModelAutotuningConfig.Objective.class,
                         ModelAutotuningConfig.Budget.class,
+                        ModelAutotuningConfig.CompletePlanBudget.class,
                         ModelAutotuningConfig.RepresentativeProfileIdentity.class,
                         ModelAutotuningConfig.FallbackPolicy.class);
 
@@ -431,7 +595,9 @@ class ModelAutotuningConfigTest {
                 new ModelAutotuningConfig.Budget(2, 3, 4, 5),
                 new ModelAutotuningConfig.RepresentativeProfileIdentity(1, profileBytes),
                 ModelAutotuningConfig.FallbackPolicy.ALLOW_SAFE_HEURISTIC,
-                Path.of("requested-cache.bin"));
+                Path.of("requested-cache.bin"),
+                new ModelAutotuningConfig.CompletePlanBudget(4, 6, 7, 56L, 8L),
+                Path.of("requested-model-plan-cache.bin"));
     }
 
     private static void assertBudgetFailure(
@@ -442,6 +608,26 @@ class ModelAutotuningConfigTest {
                         () ->
                                 new ModelAutotuningConfig.Budget(
                                         misses, candidates, warmups, samples));
+        assertEquals(expectedMessage, failure.getMessage());
+    }
+
+    private static void assertCompletePlanBudgetFailure(
+            int candidates,
+            int warmups,
+            int samples,
+            long executions,
+            long correctnessBytes,
+            String expectedMessage) {
+        IllegalArgumentException failure =
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () ->
+                                new ModelAutotuningConfig.CompletePlanBudget(
+                                        candidates,
+                                        warmups,
+                                        samples,
+                                        executions,
+                                        correctnessBytes));
         assertEquals(expectedMessage, failure.getMessage());
     }
 
