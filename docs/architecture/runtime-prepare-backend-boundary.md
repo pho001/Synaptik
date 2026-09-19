@@ -195,8 +195,10 @@ route selection enters Runtime.
 
 The correctness primitive is not wired into that public Phase-1 composition and does not alter
 candidate interpretation, timing, caching, selected preparation, fallback policy, Runtime, or a
-backend contract. A fresh post-implementation tools/tuning audit remains required before Phase 2
-can become Ready.
+backend contract. The completed fresh post-implementation audit found a bounded generic
+tools-only consumer, so tools/tuning task 0002 is Ready but unimplemented. A later Engine task,
+not shared Prepare or Runtime, will adapt the package-private correctness primitive and CPU's
+opaque batch to that consumer.
 
 ## The staged prepare handoff
 

@@ -22,7 +22,7 @@ Benchmarking remains a separate report-only activity. Planning cost remains a se
 backend-neutral estimate used to prune or rank ownership choices. Runtime profiling remains
 passive observation.
 
-The complete two-phase model workflow and model-plan artifact remain planned. The current public
+The complete public two-phase model workflow remains planned. The current public
 Engine composition implements only CPU-local Phase 1 for one representative input set and at most
 one eligible local workload. It joins Config, the cache-first tuner, Prepare's opaque handoff, and
 CPU's typed candidates behind `Engine.prepareTuned(...)`; it defines no model-plan format.
@@ -30,6 +30,11 @@ Engine now also has the package-private correctness primitive needed by a later 
 composition, but the public workflow does not invoke it. That primitive captures one complete
 recipe's ordered publications as bounded detached canonical bytes and reports only exact
 `MATCH` or `MISMATCH` for later complete recipes in the same representative session.
+
+Tools/tuning task 0002 is now Ready but unimplemented. Its bounded tools-only specification owns
+the future generic complete-plan transaction and compact model-plan cache format. It imports
+neither CPU nor Engine: later Engine composition adapts CPU 0010J's opaque session-scoped batch and
+Engine 0008A's package-private correctness primitive.
 
 ## Benchmarking is fixed and observational
 
@@ -107,7 +112,7 @@ representative shapes or inputs, objective, budget, constraints, and explicit ca
 
 ## Persistent caches and compatibility
 
-The future workflow uses two explicit file-backed artifact roles:
+The architecture uses two explicit file-backed artifact roles:
 
 - a reusable workload tuning cache keyed by canonical workload signature and target
   compatibility; and
@@ -120,10 +125,12 @@ candidate-schema versions, target and workload or model fingerprints, objective 
 and a compact measurement summary. Incompatible entries are invalidated, and corrupt data is
 rejected safely.
 
-The caches are never hidden process-global state, Java object serialization, or assumed
-executable payloads. Rich candidate and measurement evidence remains separate from compact cache
-state. The physical file encoding is deliberately not selected here. Serialization of a prepared
-executable remains dependent on backend and lifecycle contracts and is deferred.
+The workload cache is implemented for Phase 1. The model-plan cache is specified by Ready but
+unimplemented tools/tuning task 0002. Neither artifact is hidden process-global state, Java object
+serialization, or an assumed executable payload. Rich candidate and measurement evidence remains
+separate from compact cache state. The physical file encoding is deliberately not selected here.
+Serialization of a prepared executable remains dependent on backend and lifecycle contracts and
+is deferred.
 
 ## Planning cost stays backend-neutral
 
@@ -159,10 +166,10 @@ session; execution, copy, count, length, or cleanup failure follows the existing
 and once-only cleanup protocol.
 
 This primitive is not Phase 2. It does not enumerate or interpret candidates, order correctness
-against timing, select a winner, write a model-plan record, or apply public fallback. Tools/tuning
-task 0002 remains blocked pending the required fresh post-Engine-0008A dependency and readiness
-audit; completion of the primitive alone does not prove that the full Phase-2 composition is
-implementable.
+against timing, select a winner, write a model-plan record, or apply public fallback. The completed
+fresh post-Engine-0008A audit found that those generic responsibilities form a bounded tools-only
+task, so tools/tuning 0002 is Ready but unimplemented. Config extension and public Engine/CPU
+composition remain later tasks and must not be described as current behavior.
 
 `TUNED` carries authenticated immutable evidence. `SAFE_HEURISTIC_FALLBACK` records allowed safe
 preparation and carries no evidence. Caller-defined model and profile identities label evidence;

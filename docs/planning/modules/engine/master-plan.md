@@ -121,9 +121,9 @@ The established Engine foundation is Complete through task 0008A. The bounded po
 prerequisite interleave added only a package-private exact complete-plan correctness oracle and
 changed no public Engine surface or architecture rule. The representative session now keeps its
 existing completion-only Phase-1 action and separately supports one bounded same-session reference
-capture plus exact later comparison after every ordered publication copy and result cleanup.
-Tools/tuning 0002 remains Blocked: a fresh post-0008A dependency/readiness audit must assess the
-implemented seam before a detailed Phase-2 specification may be created.
+capture plus exact later comparison after every ordered publication copy and result cleanup. The
+fresh post-0008A audit verified that a later caller can adapt this seam without exposing Engine
+values to tools, so tools/tuning 0002 is Ready as an unimplemented tools-only task.
 
 The final capability checkpoint reused one
 fresh clean repository-wide run, reconciled the fourteen authorized documentation paths, and
@@ -243,9 +243,9 @@ Runtime exposes result-indexed representations, CPU already supplies canonical h
 Engine alone owns publication descriptors, representative inputs, result cleanup, and fallback.
 Complete task 0008A now owns that package-private prerequisite. It preflights the complete ordered
 publication boundary, captures detached canonical represented bytes from one fresh execution, and
-returns only exact match/mismatch metadata for later fresh executions after cleanup. Tools/tuning
-0002 remains later bounded graph/plan tuning and is not a substitute for it; completion does not
-replace the required fresh readiness audit.
+returns only exact match/mismatch metadata for later fresh executions after cleanup. The completed
+fresh audit makes tools/tuning 0002 Ready without changing this Engine contract; public Phase-2
+composition remains a later Engine task.
 
 Model/training checkpoint persistence may consume the completed task 0004 host-value boundary,
 but must not bypass it by reading backend storage from NN or Training. The boundary supplies
@@ -331,10 +331,10 @@ constant chain. Engine 0005, Engine 0006A, Engine 0007, and Engine 0008 are `Com
 - The already planned next dimensional-convolution frontier is NN 0025, followed by its 0025A
   user-capability checkpoint. Those Draft rows own layer integration and must preserve Compiler
   0006B6's descriptor boundary, strict CPU admission, and the explicit Conv3d-gradient limit.
-- After Complete 0008A, tools/tuning 0002 requires a fresh audit before it may become Ready.
-  Config may add Phase-2 plan/total-execution/correctness-byte bounds and a model-plan-cache path
-  only after that consumer stabilizes; a later Engine task then owns CPU 0010J composition, fresh
-  selected preparation, evidence translation, and the existing public fallback policy.
+- Ready tools/tuning 0002 is the next consumer frontier. Config may add Phase-2 plan/
+  total-execution/correctness-byte bounds and a model-plan-cache path only after that consumer
+  stabilizes; a later Engine task then owns CPU 0010J composition, fresh selected preparation,
+  evidence translation, and the existing public fallback policy.
 
 ## Decisions made
 

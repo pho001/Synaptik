@@ -187,10 +187,11 @@ io.github.pho001.synaptik.backend.cpu/
 Task 0005A adopts this structure atomically. Java subpackages are separate access domains, not
 friends, so only the minimal cross-package contracts are technically public below `.internal` and
 are explicitly unsupported API. `CpuCapabilityProvider`, `CpuBackendIntegration`, and
-`CpuLocalWorkloadTuning` are the current implemented supported root-package CPU types. Ready task
-0010J adds `CpuCompletePlanTuning` as the next narrow composition SPI over existing 0008D/0008E
-alternatives; neither tuning collaboration is an ordinary user facade. No JPMS export, service
-locator, registry, broad facade, generic backend bridge, or retained flat pipeline is permitted.
+`CpuLocalWorkloadTuning` and `CpuCompletePlanTuning` are the current implemented supported
+root-package CPU types. Complete task 0010J added the latter as the narrow composition SPI over
+existing 0008D/0008E alternatives; neither tuning collaboration is an ordinary user facade. No
+JPMS export, service locator, registry, broad facade, generic backend bridge, or retained flat
+pipeline is permitted.
 
 Later tasks add only their concrete leaves: `route/nativeblas/{openblas,accelerate,mkl,aocl}` for
 BLAS-compatible calls and `route/nativeops/{accelerate,mkl,onednn,aocl,zendnn}` for vDSP/vForce,
@@ -263,7 +264,7 @@ created by 0005A. All consume the common analysis above; none creates another ba
 | 0008B | [General partition-DAG computation-unit decomposition and bounded fusion](tasks/0008b-general-partition-dag-computation-unit-decomposition-and-bounded-fusion.md) | Complete | 0006–0008A | Added deterministic one-to-eight-unit partition-DAG decomposition, bounded vertical/horizontal ordinary-pointwise fusion, exact materialized split buffers, final-index unit workspaces, general atomic sequential finalization, and direct multi-store Class-File/performance evidence. The final CPU suite passed 99 suites/512 tests with three expected skips; all five accepted generated/direct forks and their aggregate passed `<= 1.15x`, while all six rejected samples remain retained. |
 | 0008C | [Typed specialized-subgraph and epilogue recognition](tasks/0008c-typed-specialized-subgraph-and-epilogue-recognition.md) | Complete | 0007F2–0008B | Added recognition-only CPU-private typed facts for exact MATMUL, Conv1d/Conv2d/Conv3d, selected floating-reduction epilogues, and already first-class softmax/normalization kernels. The uniform suffix is optional external ADD plus at most one exact activation/CLAMP. Only CPU 0008's existing Conv2d ADD/ADD-RELU form is already specialized; MATMUL stays unsupported until 0008F and every other recognized epilogue retains the exact 0008B split. Schema 52, artifact identity, capability, generated code, and public/shared contracts remain unchanged; exact baseline and no-leakage evidence passed. |
 | 0008D | [Bounded fusion profitability and typed decision facts](tasks/0008d-bounded-fusion-profitability-and-typed-decision-facts.md) | Complete | 0008B–0008C | Implemented the complete admitted bounded set, deterministic checked integer ranking, best-only tie fallback, graph-identity-free typed facts, shared typed contraction outcomes, exact retained-recognition overlap validation, and independent publication/write role recomputation. The authoritative CPU suite passed 536 tests in 103 suites with 3 skips and no failures/errors; both retained runs kept all 45 samples per comparison, schema 52 and generated forms remain unchanged, and the clean documentation pass finalized Javadocs, guide, glossary, and planning evidence. |
-| 0008E | [Bounded multi-input materialization and representation reuse](tasks/0008e-bounded-multi-input-materialization-and-representation-reuse.md) | Complete | 0008D | Preserved complete bounded direct/single/disjoint-pair candidates, `CO_CONSUMED_PAIR`, resources, generated copy units, reuse, schema 53, and execution-equivalence evidence while making every materialized form candidate-only for ordinary preparation. Ordinary preparation selects CPU 0008D direct; completed CPU 0010E, Prepare 0004, and Tuning 0001 supply Phase 1, Complete CPU 0010J supplies the missing complete-plan producer, and blocked Tuning 0002 remains the later measurement owner after fresh re-audit. Runtime never selects. The corrective implementation passed 115 focused tests and the final 544-test/104-suite CPU run with 3 expected skips and no failures/errors; clean documentation context `01a04317-b784-76e3-a93b-ff35106284b9` finalized Javadocs, guide, glossary, and planning evidence. |
+| 0008E | [Bounded multi-input materialization and representation reuse](tasks/0008e-bounded-multi-input-materialization-and-representation-reuse.md) | Complete | 0008D | Preserved complete bounded direct/single/disjoint-pair candidates, `CO_CONSUMED_PAIR`, resources, generated copy units, reuse, schema 53, and execution-equivalence evidence while making every materialized form candidate-only for ordinary preparation. Ordinary preparation selects CPU 0008D direct; completed CPU 0010E, Prepare 0004, and Tuning 0001 supply Phase 1, Complete CPU 0010J supplies the complete-plan producer, and Ready but unimplemented Tuning 0002 is the later generic measurement owner. Runtime never selects. The corrective implementation passed 115 focused tests and the final 544-test/104-suite CPU run with 3 expected skips and no failures/errors; clean documentation context `01a04317-b784-76e3-a93b-ff35106284b9` finalized Javadocs, guide, glossary, and planning evidence. |
 | 0008E1 | [Shared partition-DAG adoption and reconstruction removal](tasks/0008e1-shared-partition-dag-adoption-and-reconstruction-removal.md) | Complete | Prepare 0003A; 0008E | Adopted Prepare's immutable partition-local DAG across CPU decomposition, pointwise and affine lowering, recognition, and profitability boundary accounting while preserving CPU-owned unit/candidate/IR facts. The focused six-suite matrix passed 63 tests; the authoritative CPU rerun passed 547 tests across 104 suites with 3 expected skips and no failures/errors. Schema 53 and generated/cache/executable/finalizer production paths remain unchanged. |
 | 0008F | [Portable MATMUL execution and bounded linear epilogues](tasks/0008f-portable-matmul-execution-and-bounded-linear-epilogues.md) | Complete | 0008E1; Model 0019/0019D; Compiler 0005D | Added complete static vector/matrix/batched/right-broadcast MATMUL across all current non-BOOL numeric promotions through four bounded portable generated realizations, a complete scalar fallback, full-K accumulation, independent output-work-unit parallelism, explicit candidate-only 0008E materializations, and exact 0008C bias/one-terminal fusion or safe split. The 182-test focused baseline, 576-test CPU checkpoint, Class-File scans, and five-fork `<= 1.15x` evidence passed at schema 54. No native route, K splitting, panel packing, or hot-path policy was added. |
 | 0008G | [Portable max/average Pool2d execution](tasks/0008g-portable-max-average-pool2d-execution.md) | Complete | 0008F; Model 0020A–0020A1; Compiler 0005D | Added first-class NCHW max and fixed-count average pooling through one generated scalar/parallel-scalar form with exact literal floor/ceil geometry, extrema/divisor/accumulator/special-value rules, static resolved layouts, array/segment carriers, disjoint output-cell ranges, zero workspace, schema-55 identity, and an optimal clean Java oracle. Focused and 596-test CPU validation, structural/schema scans, and five-fork `<= 1.15x` evidence passed; no pooling fusion or materialization was added. |
@@ -370,8 +371,9 @@ tools/tuning or Engine dependency. A subsequent Phase-2 audit identified one dif
 gap: the retained 0008D/0008E complete alternatives had no supported producer. Complete
 [CPU 0010J](tasks/0010j-supported-complete-plan-candidate-and-decision-producer.md) closes that
 gap as an explicit prerequisite interleave before unrelated vendor-peer rows 0011–0015. CPU 0016
-remains the distinct later cross-route local-workload integration row, and tools/tuning 0002
-remains Blocked pending its fresh re-audit.
+remains the distinct later cross-route local-workload integration row. The completed fresh
+post-Engine-0008A audit made tools/tuning 0002 Ready without adding a CPU dependency or changing
+0010J's honest `SESSION` scope.
 
 Planning-time implementation context `01a09f3d-0012-72b3-ba71-38e2f5f6c279` proved that the fixed
 `preparations(CompileArtifacts)` method cannot compile through CPU's current declared dependencies.
@@ -1211,8 +1213,9 @@ fresh 0010F/0010H preparation. Engine 0006A and 0007 subsequently completed repr
 execution, input binding, cleanup, fallback, and the bounded Phase-1 composition. Complete
 [CPU 0010J](tasks/0010j-supported-complete-plan-candidate-and-decision-producer.md) now exposes
 the existing 0008D/0008E complete alternatives while requiring exact Phase-1 selection reuse.
-Tools/tuning 0002 remains Blocked pending a fresh evidence-based re-audit of its budget,
-correctness-oracle, model-plan record/cache, tools-only scope, and later Engine composition.
+The completed fresh post-Engine-0008A audit made tools/tuning 0002 Ready as a generic tools-only
+task. CPU 0010J remains session-scoped producer evidence; it is not a tools dependency and does
+not claim persistent model-plan reuse. Later Engine composition owns adaptation and fallback.
 CPU 0011 remains
 `Blocked` because no concrete Intel CPU use case or supported oneMKL BLAS/VML ABI evidence is
 present; CPU 0012–0015 are optional peer routes, CPU 0016 is later cross-route tuning integration,
@@ -1729,8 +1732,9 @@ not alter the ordered task rows or completed earlier CPU families.
   decision consumption, Prepare 0004 then carries candidates and decisions opaquely, Tuning 0001
   measures and persists that initial slice, CPU 0016 generalizes the contract across implemented
   CPU routes. Complete CPU 0010J supplies the bounded complete-plan producer without repurposing
-  CPU 0016; only a later freshly re-audited Tuning 0002 may measure eligible complete plans when the user
-  explicitly requests model autotuning. Autotuning is not the default fusion-profitability mechanism, and no search,
+  CPU 0016; Ready but unimplemented Tuning 0002 is the generic owner that may later measure eligible
+  complete plans when the user explicitly requests model autotuning through a future Engine
+  composition. Autotuning is not the default fusion-profitability mechanism, and no search,
   cache mutation, or choice occurs in Runtime. CPU 0008D's typed cold decision facts remain
   CPU-owned; later Trace backend payloads and tuning inspection may translate or consume them
   without making Trace or tuning the decision owner.

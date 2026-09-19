@@ -59,12 +59,31 @@ measures bounded complete plan candidates, and writes explicit persistent artifa
 - private backend internals
 - runtime service lookup or runtime hot-path integration
 
+## Package structure
+
+```text
+io.github.pho001.synaptik.tools.tuning/
+  WorkloadTuning*              current public Phase-1 request, workflow, result, and evidence
+  BackendWorkloadTuning        current typed Phase-1 backend collaboration
+  ColdCandidateMeasurement     current one-complete-local-candidate action
+  WorkloadCacheFile            current package-private workload-cache persistence
+  CompletePlanTuning*          task-0002 public Phase-2 request, workflow, result, and evidence
+  BackendCompletePlanTuning    task-0002 typed complete-plan backend collaboration
+  CompletePlanCorrectness      task-0002 opaque-reference exact comparison collaboration
+  CompleteCandidateMeasurement task-0002 one-complete-plan action
+  ModelPlanCacheFile           task-0002 package-private model-plan cache persistence
+```
+
+The root package remains the deliberate small public surface for both coordinated phases. Task
+0002 adds no backend, Engine, Runtime, Config, cache, internal, utility, or registry package; its
+new entries above are Ready plans, not current implementation.
+
 ## Task list
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
 | 0001 | [Exact/default model-guided workload tuning and reusable cache](tasks/0001-exact-default-model-guided-workload-tuning-and-reusable-cache.md) | Complete | CPU 0010E; Prepare 0004; caller-supplied stable identity, typed opaque collaboration, and operational cold measurement | Added the generic caller-supplied cold workload tuner, exact compatible-occurrence deduplication, bounded miss-only measurement, deterministic median selection, reusable bounded persistent cache, and separate rich evidence. Tool-local request inputs precede any later Config facade. |
-| 0002 | Bounded graph and plan tuning | Blocked | 0001; Complete CPU 0010J; Complete Engine 0008A; fresh post-0008A audit | Coordinate a bounded opaque complete-plan batch, separate correctness executions from timing, select deterministically, return rich evidence, and produce a compact selected model-plan record. Engine now supplies the missing package-private exact correctness primitive, but the required fresh dependency/readiness audit has not yet proved or specified the complete Phase-2 composition. |
+| 0002 | [Bounded complete-plan tuning and model-plan cache](tasks/0002-bounded-complete-plan-tuning-and-model-plan-cache.md) | Ready | 0001; Complete CPU 0010J and Engine 0008A evidence | Add the generic tools-only complete-plan transaction with checked execution budgets, opaque exact correctness, deterministic timing selection, strict SESSION no-I/O, authenticated PERSISTENT reuse, a compact selected-plan record/cache, and separate rich evidence. Later Config and Engine composition remain out of scope. |
 | 0003 | Cache and plan inspection | Draft | 0001–0002, stable artifact schemas | Inspect compatibility, provenance summaries, invalidation reasons, selected plans, and separate measurement evidence without executing payloads or mutating runtime state. |
 
 ## Milestones
@@ -81,7 +100,8 @@ at most one eligible workload to occurrence 0 in partition 0 with weight 1, meas
 fresh trial executions, and freshly prepares the selected or safe-heuristic production recipe.
 The generic cache-first workflow remains independent of CPU internals.
 
-Task 0002 is blocked and has no detailed specification. Complete
+Task 0002 is Ready with a detailed tools-only specification after the required fresh post-0008A
+source audit. Complete
 [CPU 0010J supported complete-plan candidate and decision producer](../../backends/cpu/tasks/0010j-supported-complete-plan-candidate-and-decision-producer.md)
 now supplies the first truthful owner-produced Phase-2 batch: retained CPU 0008D/0008E legal
 fusion/split and materialization alternatives form one bounded supported set of opaque complete
@@ -99,15 +119,15 @@ only exact `MATCH` or `MISMATCH` for later fresh complete executions after every
 cleanup succeed. It preserves aliases, empty values, order, signed zero, and NaN payload bits and
 does not alter current Phase-1 completion-only measurement.
 
-Tuning 0002 nevertheless remains Blocked without a detailed specification. This completion proves
-the missing Engine primitive, not the whole Phase-2 composition. The required fresh post-0008A
-audit must still verify the generic tools callback boundary against the implemented source,
-reconcile CPU 0010J association/lifetime with it, and confirm the complete budget, evidence,
-compact-record/cache, Config, and later Engine-composition dependency sequence before 0002 can
-become Ready.
+The fresh post-0008A audit verified the generic callback boundary against implemented source,
+reconciled CPU 0010J association/lifetime with it, and confirmed the complete budget, evidence,
+compact-record/cache, Config, and later Engine-composition sequence. The resulting
+[task 0002 specification](tasks/0002-bounded-complete-plan-tuning-and-model-plan-cache.md) is
+bounded to `tools/tuning`: CPU and Engine are producer evidence, not tool dependencies.
 
-Clean planning/documentation audit context `01a0b895-efd8-7250-9d3f-ecf4a7220a80` passed its
-four-file planning-only Markdown, diff, and staging validation.
+Fresh post-0008A planning/documentation audit context
+`01a0b964-81a3-7cb2-a1dc-ec44487865d1` created the Ready task and passed the planning-only
+Markdown, scope, diff, and staging validation recorded in its completion report.
 
 The resolved Phase-2 budget is fail-closed and known before measurement. For `N` cache-miss
 candidates, `W` warmups, and `S` timed samples, correctness uses one separate execution per
@@ -161,10 +181,10 @@ consumer contract is stable.
 ## Open questions
 
 - Prepared-executable serialization remains deliberately unresolved.
-- Complete Engine 0008A proves the package-private exact-output reference/comparison seam through
-  current publication, host-copy, result-cleanup, and representative-session contracts. A fresh
-  post-implementation dependency/readiness audit is the remaining blocker to a Ready 0002
-  specification.
+- No Phase-2 tools blocker remains. Complete Engine 0008A proves the package-private exact-output
+  reference/comparison seam through current publication, host-copy, result-cleanup, and
+  representative-session contracts; Ready task 0002 consumes only a caller-adapted opaque
+  reference and typed match/mismatch result.
 - The later Config follow-up must add distinct Phase-2 maximum-plan-candidate,
   maximum-total-plan-execution, maximum-correctness-byte, and explicit model-plan-cache inputs
   without changing the four Phase-1 budget meanings. The later Engine composition then owns CPU
@@ -248,10 +268,9 @@ consumer contract is stable.
   summary. Rich evidence remains separate; backend decoding and fresh preparation authenticate
   every hit.
 - Complete Engine 0008A is the smallest upstream prerequisite because output semantics, canonical
-  copying, Runtime result cleanup, and the reference lifecycle are Engine-owned. The later generic
-  tuning API is planned to accept only opaque actions and typed match/mismatch results and import
-  no Engine or CPU type; the fresh readiness audit must confirm that composition before 0002 is
-  specified.
+  copying, Runtime result cleanup, and the reference lifecycle are Engine-owned. The Ready generic
+  task accepts only opaque actions and typed match/mismatch results and imports no Engine or CPU
+  type; later Engine composition supplies the adapters.
 
 ## Risks
 
