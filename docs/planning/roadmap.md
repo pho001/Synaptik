@@ -35,7 +35,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 19 | [`extensions/training`](extensions/training/master-plan.md) | Draft | NN parameter contracts, config, compiler autograd, and runtime publication contracts are stable. | Backend-independent optimizer/session behavior and strict resume-state snapshots are complete. |
 | 20 | [`extensions/checkpoint`](extensions/checkpoint/master-plan.md) | Draft (architecture decision required) | Engine exposes typed host materialization, NN lazy/state schemas are stable, and the optional Training adapter waits for Training snapshots. | Durable strict model checkpointing and any selected optional exact-training-resume adapter are complete. |
 | 21 | [`tools/benchmarks`](tools/benchmarks/master-plan.md) | Draft | Engine and selected execution paths are operational. | Fixed reproducible workload suites and observational reporting are complete. |
-| 22 | [`tools/tuning`](tools/tuning/master-plan.md) | Complete through 0002; 0003 Ready | Both compact schema-1 artifacts and their separate rich result evidence are stable after tasks 0001–0002. | [Task 0003](tools/tuning/tasks/0003-read-only-cache-plan-and-evidence-inspection.md) is the next frontier: bounded Path/byte inspection, redacted provenance and selected-candidate summaries, typed invalid/mismatch reasons, and evidence summaries without decoder, execution, or mutation. |
+| 22 | [`tools/tuning`](tools/tuning/master-plan.md) | Complete through 0003 | Both compact schema-1 artifacts and their separate rich result evidence are stable after tasks 0001–0002. | [Task 0003](tools/tuning/tasks/0003-read-only-cache-plan-and-evidence-inspection.md) completed bounded Path/byte inspection, redacted provenance and selected-candidate summaries, typed invalid/mismatch reasons, and evidence summaries without decoder, execution, or mutation. |
 | 23 | [`tools/cli`](tools/cli/master-plan.md) | Draft | Engine and diagnostic contracts are stable. | Selected diagnostic and execution commands are complete. |
 
 The order above is the default delivery sequence, not a new dependency rule. Allowed and forbidden dependencies remain defined only by `ARCHITECTURE.md`.
@@ -68,7 +68,8 @@ as its single owning prerequisite. The completed fresh post-0008A audit created 
 [tools/tuning 0002](tools/tuning/tasks/0002-bounded-complete-plan-tuning-and-model-plan-cache.md)
 as a bounded tools-only consumer. Detailed
 [tools/tuning 0003](tools/tuning/tasks/0003-read-only-cache-plan-and-evidence-inspection.md)
-is `Ready` after a source-backed audit of both stable formats and result-evidence models.
+is `Complete` with bounded read-only inspection of both stable formats and detached redacted
+summaries of result-evidence models.
 Detailed
 [Config 0006A](modules/config/tasks/0006a-model-autotuning-request-configuration.md) is the sole
 `Complete` Config request facade delivered through the recorded non-overlapping staged ordering
@@ -106,7 +107,7 @@ Compiler 0006B3 Engine-facing complete compile integration port (Complete)
   -> CPU 0010J supported complete-plan candidate/decision producer (Complete)
   -> Engine 0008A representative complete-plan correctness oracle (Complete)
   -> tools/tuning 0002 bounded complete-plan tuning and model-plan cache (Complete)
-  -> tools/tuning 0003 read-only cache, plan, and evidence inspection (Ready; next tuning frontier)
+  -> tools/tuning 0003 read-only cache, plan, and evidence inspection (Complete)
 ```
 
 Detailed [Compiler 0006B3](modules/compiler/tasks/0006b3-public-constant-free-complete-compile-entry.md)
@@ -335,7 +336,7 @@ is also `Complete`. Its test-only outward integration scope does not alter those
 contracts or production dependency direction. Complete CPU 0010J resolves the producer
 prerequisite. The post-CPU audit selected Engine 0008A for the missing exact correctness oracle.
 Engine 0008A and the required fresh post-implementation audit are now Complete, and tools/tuning
-0002 is Complete; detailed 0003 read-only cache, plan, and evidence inspection is Ready.
+0002 and detailed 0003 read-only cache, plan, and evidence inspection are Complete.
 
 The future sequence-padding program uses one valid sequence length per row as the sole canonical
 metadata for ordinary right padding. Data initially owns an immutable validated host value;
@@ -519,7 +520,7 @@ with `Conv1d`, `Conv2d`, and `Conv3d` layers, while detailed
 [NN 0025A](extensions/nn/tasks/0025a-dimensional-convolution-user-capability-checkpoint.md)
 is `Complete` with strict-loaded layer-to-Engine evidence and the current fail-closed Conv3d
 backward boundary. CPU 0010J and Engine 0008A are Complete; the fresh Phase-2 audit is Complete
-and tools/tuning 0002 is Complete; detailed tuning 0003 read-only inspection is Ready.
+and tools/tuning 0002 and detailed tuning 0003 read-only inspection are Complete.
 
 This is an ordering and dependency correction within the already planned portable CPU route. It
 does not introduce a new portable route beginning at CPU 0008, change architecture, or make the
@@ -1722,8 +1723,8 @@ completed consumer fixes its exact/default user-owned request vocabulary, while 
 `config.tuning` package and bounded paths do not overlap the earlier Draft rows or change
 dependency direction.
 
-CPU 0010E, detailed Prepare 0004, detailed tools/tuning 0001, and Tuning 0002 are Complete. Tuning
-0003 is Ready for bounded read-only cache, plan, and evidence inspection. Config 0006A now
+CPU 0010E, detailed Prepare 0004, detailed tools/tuning 0001, Tuning 0002, and Tuning 0003 are
+Complete. Config 0006A now
 supplies one immutable Config request with
 the sole objective, bounded sampling budget, representative-profile identity, fallback policy,
 and explicit workload-cache path. It adds no Config-to-tuning dependency, candidate/cache
@@ -2207,8 +2208,8 @@ condition. Detailed
 [NN 0025](extensions/nn/tasks/0025-channels-first-conv1d-conv2d-conv3d-layers.md) is `Complete`
 under the recorded exception around unrelated Draft NN 0021B–0024; detailed
 [NN 0025A](extensions/nn/tasks/0025a-dimensional-convolution-user-capability-checkpoint.md)
-is also `Complete`. CPU 0010J, Engine 0008A, the fresh audit, and tools/tuning 0002 are Complete;
-tuning 0003 is Ready; Compiler 0006C and NN 0021B–0024 remain Draft.
+is also `Complete`. CPU 0010J, Engine 0008A, the fresh audit, and tools/tuning 0002–0003 are
+Complete; Compiler 0006C and NN 0021B–0024 remain Draft.
 Family tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator
 (RNG) state, mask, and configuration roles remain intentionally non-differentiable where

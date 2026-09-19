@@ -40,6 +40,75 @@ final class WorkloadCacheFile {
     private static final int HEADER_BYTES = MAGIC.length + Integer.BYTES + Integer.BYTES;
     private static final int ENTRY_FIXED_BYTES = Integer.BYTES * 8 + Long.BYTES * 3;
 
+    /**
+     * Fully validated schema and canonical entries produced by the authoritative parser.
+     *
+     * @param artifactSchema positive supported artifact schema
+     * @param entries non-null canonical entries; defensively copied
+     */
+    record Parsed(int artifactSchema, List<Entry> entries) {
+        /**
+         * Snapshots the parsed entries.
+         *
+         * @param artifactSchema positive supported artifact schema
+         * @param entries non-null canonical entries; defensively copied
+         * @throws NullPointerException if {@code entries} or an entry is null
+         */
+        Parsed {
+            entries = List.copyOf(entries);
+        }
+
+        /**
+         * Projects the already validated unique entries for operational cache lookup.
+         *
+         * @return immutable key-to-entry map; never null
+         */
+        Map<Key, Entry> asMap() {
+            Map<Key, Entry> result = new LinkedHashMap<>(capacity(entries.size()));
+            for (Entry entry : entries) {
+                result.put(entry.key(), entry);
+            }
+            return Map.copyOf(result);
+        }
+    }
+
+    /** Typed internal malformed-content diagnostic shared by loading and inspection. */
+    static final class FormatException extends Exception {
+        private final TuningInspection.InvalidReason reason;
+
+        /**
+         * Creates a diagnostic without an underlying validation failure.
+         *
+         * @param reason non-null stable invalid-artifact category
+         * @param message non-null detail for operational loader failures
+         */
+        FormatException(TuningInspection.InvalidReason reason, String message) {
+            super(message);
+            this.reason = reason;
+        }
+
+        /**
+         * Creates a diagnostic retaining an underlying validation failure.
+         *
+         * @param reason non-null stable invalid-artifact category
+         * @param message non-null detail for operational loader failures
+         * @param cause non-null underlying validation failure
+         */
+        FormatException(TuningInspection.InvalidReason reason, String message, Throwable cause) {
+            super(message, cause);
+            this.reason = reason;
+        }
+
+        /**
+         * Returns the stable public inspection category.
+         *
+         * @return non-null invalid-artifact reason
+         */
+        TuningInspection.InvalidReason reason() {
+            return reason;
+        }
+    }
+
     @FunctionalInterface
     interface BeforeMove {
         /**
@@ -223,70 +292,154 @@ final class WorkloadCacheFile {
                 throw new IOException("workload cache grew while loading");
             }
         }
+        try {
+            return parse(complete).asMap();
+        } catch (FormatException exception) {
+            throw new IOException(exception.getMessage(), exception);
+        }
+    }
+
+    /**
+     * Parses one complete snapshotted artifact using the format's 16 MiB file, 65,536-entry, and
+     * 1 MiB opaque-value bounds without retaining the supplied array.
+     *
+     * @param complete non-null complete artifact bytes owned by the caller and not mutated
+     * @return validated schema and entries in strict canonical file order; never null
+     * @throws NullPointerException if {@code complete} is null
+     * @throws FormatException if any bounded structural, checksum, ordering, or summary rule fails
+     */
+    static Parsed parse(byte[] complete) throws FormatException {
+        if (complete.length < HEADER_BYTES + CHECKSUM_BYTES) {
+            throw new FormatException(
+                    TuningInspection.InvalidReason.SIZE_TOO_SMALL,
+                    "workload cache size is invalid");
+        }
+        if (complete.length > MAX_FILE_BYTES) {
+            throw new FormatException(
+                    TuningInspection.InvalidReason.OVERSIZE,
+                    "workload cache exceeds its size bound");
+        }
         int payloadLength = complete.length - CHECKSUM_BYTES;
         byte[] actualChecksum = Arrays.copyOfRange(complete, payloadLength, complete.length);
         byte[] expectedChecksum = digest(complete, 0, payloadLength);
         if (!MessageDigest.isEqual(expectedChecksum, actualChecksum)) {
-            throw new IOException("workload cache checksum is invalid");
+            throw new FormatException(
+                    TuningInspection.InvalidReason.CHECKSUM_MISMATCH,
+                    "workload cache checksum is invalid");
         }
-
+        ByteBuffer input = ByteBuffer.wrap(complete, 0, payloadLength).order(ByteOrder.BIG_ENDIAN);
         try {
-            ByteBuffer input = ByteBuffer.wrap(complete, 0, payloadLength).order(ByteOrder.BIG_ENDIAN);
-            byte[] magic = readBytes(input, MAGIC.length, MAGIC.length, "magic");
+            byte[] magic = readFixedForInspection(input, MAGIC.length, "magic");
             if (!Arrays.equals(MAGIC, magic)) {
-                throw new IOException("workload cache magic is invalid");
+                throw new FormatException(
+                        TuningInspection.InvalidReason.INVALID_MAGIC,
+                        "workload cache magic is invalid");
             }
-            int artifactSchema = readInt(input, "artifact schema");
+            int artifactSchema = readIntForInspection(input, "artifact schema");
             if (artifactSchema != ARTIFACT_SCHEMA) {
-                throw new IOException("unsupported workload cache artifact schema");
+                throw new FormatException(
+                        TuningInspection.InvalidReason.UNSUPPORTED_SCHEMA,
+                        "unsupported workload cache artifact schema");
             }
-            int entryCount = readInt(input, "entry count");
+            int entryCount = readIntForInspection(input, "entry count");
             if (entryCount < 0 || entryCount > MAX_ENTRIES) {
-                throw new IOException("workload cache entry count is invalid");
+                throw new FormatException(
+                        TuningInspection.InvalidReason.INVALID_ENTRY_COUNT,
+                        "workload cache entry count is invalid");
             }
-            Map<Key, Entry> entries = new LinkedHashMap<>(capacity(entryCount));
+            List<Entry> entries = new ArrayList<>(entryCount);
             Key previousKey = null;
             for (int index = 0; index < entryCount; index++) {
-                int compatibilitySchema = readInt(input, "compatibility schema");
-                byte[] compatibility = readLengthPrefixed(input, "compatibility");
-                int objective = readInt(input, "objective");
-                int warmupCount = readInt(input, "warmup count");
-                int timedSampleCount = readInt(input, "timed sample count");
-                byte[] decision = readLengthPrefixed(input, "decision");
-                byte[] winner = readLengthPrefixed(input, "winner identity");
-                long minimum = readLong(input, "minimum");
-                long median = readLong(input, "median");
-                long maximum = readLong(input, "maximum");
-                int sampleCount = readInt(input, "sample count");
-                Key key = new Key(
-                        compatibilitySchema,
-                        compatibility,
-                        objective,
-                        warmupCount,
-                        timedSampleCount);
-                Entry entry = new Entry(
-                        key,
-                        decision,
-                        winner,
-                        new WorkloadTuningResult.SampleSummary(
-                                minimum, median, maximum, sampleCount));
+                int compatibilitySchema = readIntForInspection(input, "compatibility schema");
+                byte[] compatibility = readLengthPrefixedForInspection(input, "compatibility");
+                int objective = readIntForInspection(input, "objective");
+                int warmupCount = readIntForInspection(input, "warmup count");
+                int timedSampleCount = readIntForInspection(input, "timed sample count");
+                byte[] decision = readLengthPrefixedForInspection(input, "decision");
+                byte[] winner = readLengthPrefixedForInspection(input, "winner identity");
+                long minimum = readLongForInspection(input, "minimum");
+                long median = readLongForInspection(input, "median");
+                long maximum = readLongForInspection(input, "maximum");
+                int sampleCount = readIntForInspection(input, "sample count");
+                Key key;
+                Entry entry;
+                try {
+                    key = new Key(compatibilitySchema, compatibility, objective, warmupCount,
+                            timedSampleCount);
+                    entry = new Entry(key, decision, winner,
+                            new WorkloadTuningResult.SampleSummary(
+                                    minimum, median, maximum, sampleCount));
+                } catch (IllegalArgumentException | ArithmeticException exception) {
+                    throw new FormatException(
+                            TuningInspection.InvalidReason.INVALID_STRUCTURE_OR_SUMMARY,
+                            "workload cache structure is invalid",
+                            exception);
+                }
                 if (previousKey != null && KEY_ORDER.compare(previousKey, key) >= 0) {
-                    throw new IOException("workload cache keys are not in strict canonical order");
+                    throw new FormatException(
+                            TuningInspection.InvalidReason.DUPLICATE_OR_NONCANONICAL_ORDER,
+                            "workload cache keys are not in strict canonical order");
                 }
-                if (entries.putIfAbsent(key, entry) != null) {
-                    throw new IOException("workload cache contains a duplicate key");
-                }
+                entries.add(entry);
                 previousKey = key;
             }
             if (input.hasRemaining()) {
-                throw new IOException("workload cache contains trailing bytes");
+                throw new FormatException(
+                        TuningInspection.InvalidReason.TRAILING_PAYLOAD,
+                        "workload cache contains trailing bytes");
             }
-            return Map.copyOf(entries);
-        } catch (IOException exception) {
+            return new Parsed(artifactSchema, entries);
+        } catch (FormatException exception) {
             throw exception;
         } catch (IllegalArgumentException | ArithmeticException exception) {
-            throw new IOException("workload cache structure is invalid", exception);
+            throw new FormatException(
+                    TuningInspection.InvalidReason.INVALID_STRUCTURE_OR_SUMMARY,
+                    "workload cache structure is invalid",
+                    exception);
         }
+    }
+
+    private static byte[] readLengthPrefixedForInspection(ByteBuffer input, String field)
+            throws FormatException {
+        int length = readIntForInspection(input, field + " length");
+        if (length <= 0 || length > MAX_OPAQUE_BYTES) {
+            throw new FormatException(
+                    TuningInspection.InvalidReason.INVALID_LENGTH,
+                    "invalid " + field + " length");
+        }
+        return readFixedForInspection(input, length, field);
+    }
+
+    private static byte[] readFixedForInspection(ByteBuffer input, int length, String field)
+            throws FormatException {
+        if (length > input.remaining()) {
+            throw new FormatException(
+                    TuningInspection.InvalidReason.TRUNCATED,
+                    "truncated " + field);
+        }
+        byte[] bytes = new byte[length];
+        input.get(bytes);
+        return bytes;
+    }
+
+    private static int readIntForInspection(ByteBuffer input, String field)
+            throws FormatException {
+        if (input.remaining() < Integer.BYTES) {
+            throw new FormatException(
+                    TuningInspection.InvalidReason.TRUNCATED,
+                    "truncated " + field);
+        }
+        return input.getInt();
+    }
+
+    private static long readLongForInspection(ByteBuffer input, String field)
+            throws FormatException {
+        if (input.remaining() < Long.BYTES) {
+            throw new FormatException(
+                    TuningInspection.InvalidReason.TRUNCATED,
+                    "truncated " + field);
+        }
+        return input.getLong();
     }
 
     /**
@@ -392,35 +545,6 @@ final class WorkloadCacheFile {
         int payloadEnd = output.position();
         output.put(digest(output.array(), 0, payloadEnd));
         return output.array();
-    }
-
-    private static byte[] readLengthPrefixed(ByteBuffer input, String field) throws IOException {
-        int length = readInt(input, field + " length");
-        return readBytes(input, length, MAX_OPAQUE_BYTES, field);
-    }
-
-    private static byte[] readBytes(ByteBuffer input, int length, int maximum, String field)
-            throws IOException {
-        if (length <= 0 || length > maximum || length > input.remaining()) {
-            throw new IOException("invalid " + field + " length");
-        }
-        byte[] bytes = new byte[length];
-        input.get(bytes);
-        return bytes;
-    }
-
-    private static int readInt(ByteBuffer input, String field) throws IOException {
-        if (input.remaining() < Integer.BYTES) {
-            throw new IOException("truncated " + field);
-        }
-        return input.getInt();
-    }
-
-    private static long readLong(ByteBuffer input, String field) throws IOException {
-        if (input.remaining() < Long.BYTES) {
-            throw new IOException("truncated " + field);
-        }
-        return input.getLong();
     }
 
     private static void putLengthPrefixed(ByteBuffer output, byte[] bytes) {

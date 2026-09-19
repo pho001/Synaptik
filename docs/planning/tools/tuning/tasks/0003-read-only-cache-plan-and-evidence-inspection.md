@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -55,7 +55,8 @@ The source-backed audit found no missing owner, format decision, or architecture
 9. Rich evidence inspection remains only a view over already constructed result values. It
    performs no file lookup and does not imply that rich evidence was persisted.
 
-The task is Ready. It requires no Config/Engine/CPU prerequisite or architecture decision.
+The readiness audit established that the task required no Config/Engine/CPU prerequisite or
+architecture decision.
 
 ## Scope
 
@@ -446,15 +447,67 @@ Planning-only evidence at Ready creation:
 - Task, master-plan row/current-status prose, and roadmap frontier/status references all report
   task 0003 as `Ready`; no stale tuning-0003 `Draft` reference remains.
 
-Implementation and documentation validation: empty until implemented.
+Implementation and documentation evidence:
+
+- Implementation context `01a0b9d1-23ad-7a20-b797-bdf734f09468` added the exact field-free
+  `TuningInspection` namespace, its ten public operations and nineteen public nested values, the
+  shared authoritative parser diagnostics, and the three focused test owners.
+- Its initial final `./gradlew :tools:tuning:test` run passed 11 suites and 68 tests with zero
+  failures, errors, or skips. Documentation context `01a0b9e2-dd7a-7771-926f-7b109443e5ca`
+  performed the initial independent pass using that evidence.
+- After that pass, the implementation context corrected the malformed-input report invariant so a
+  checksum-valid non-positive raw artifact schema is reported as zero rather than passed into an
+  invalid public report value. It added negative-schema regression assertions for both cache
+  formats and reran `./gradlew :tools:tuning:test`: 11 suites and 68 tests passed with zero
+  failures, errors, or skips.
+- Documentation context `01a0b9e2-dd7a-7771-926f-7b109443e5ca` then performed this final targeted
+  re-review, clarified the public schema-report Javadoc, and reused the fresh post-correction test
+  evidence without duplicating the Java suite.
+- The documentation context independently reviewed the implementation and tests, finalized the
+  General + API/Javadoc, Developer-guide, Planning, and applicable Example-profile content, and
+  generated final module Javadoc with `./gradlew :tools:tuning:javadoc`; the final run completed
+  successfully without warnings.
+- Generated `TuningInspection` nested-type pages and the tuning package summary were inspected for
+  bounds, nullable status invariants, redaction, decoder-required and `SESSION` semantics,
+  nanosecond units, missing-file/`IOException` behavior, detachment, and non-mutation boundaries.
+- Final targeted validation checked Markdown local targets and fragments, unique headings,
+  balanced fences, LF/final newlines, trailing whitespace, terminology, synchronized task/master/
+  roadmap status, exact 12-path allowlist, ten-operation/nineteen-type public shape, imports,
+  empty staging, `git diff --check`, and `git diff --cached --check`.
+- Comment-aware review confirmed that final documentation-context Java edits changed no executable
+  token and that the documentation context did not modify either corrected regression test. The
+  fresh post-correction 68-test evidence therefore remains current.
+- No architecture/ADR/focused-architecture update is needed because inspection remains a read-only
+  view inside the existing tuning owner and changes no dependency, lifecycle, schema, or backend
+  authority. Config, Engine, CPU, and Prepare APIs/guides remain accurate because the API composes
+  with none of them and adds no public Phase-2 orchestration. Gradle and architecture tests need no
+  change because no module edge or build rule changed; conformance and integration tests need no
+  change because no backend or end-to-end behavior changed. Other task specifications and unrelated
+  glossary terms remain accurate and outside this capability's scope.
 
 ## Implementation notes
 
-Empty until implemented.
+- Kept the two schema-1 cache formats byte-for-byte stable while routing operational loading and
+  read-only inspection through one parser per format. Operational loaders continue to fail closed
+  with `IOException`; inspection returns typed invalid reports for malformed bounded snapshots.
+- Added Path and caller-owned-byte snapshot inspection, exact stored-key comparisons, explicit
+  decoder-required and session-ineligible results, redacted summaries, and detached rich-evidence
+  summaries without mutation, preparation, measurement, or execution.
+- Documentation review expanded public record/canonical-constructor contracts, enum values,
+  package-private read seam/parser diagnostics, package prose, benchmarking guidance, and the
+  glossary's compact-cache-versus-rich-evidence distinction.
+- Known limitations remain as documented: inspection does not authenticate writers or decisions,
+  cannot provide a stable concurrent-filesystem snapshot, cannot recover omitted provenance or rich
+  evidence, and provides no renderer, repair, migration, or runtime composition.
 
 ## Completion summary
 
-Planning produced a Ready executable specification. Implementation has not started and this task
-must not become Complete until code, tests, documentation pass, and all gates succeed.
+Implemented and documented the bounded read-only inspection capability within the exact 12-path
+scope. Both compact formats retain their bytes and fail-closed operational behavior; the public API
+reports only truthful structural/key facts and detached redacted evidence. Focused tests, final
+Javadoc, rendered-output inspection, documentation checks, public-shape/import checks, scope and
+status synchronization, staging, and diff validation all passed. No unresolved issue or required
+follow-up remains for task 0003; later CLI rendering and public Phase-2 composition remain separate
+planned capabilities.
 
-Status: Ready
+Status: Complete

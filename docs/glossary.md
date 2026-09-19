@@ -928,6 +928,23 @@ winner-identity, and timing-summary value. Neither the cache nor the record is h
 state, Java object serialization, a prepared executable, Runtime state, or rich measurement
 evidence.
 
+### Tuning inspection
+
+A bounded, read-only diagnostic view of the current workload-cache and model-plan-cache schema-1
+artifacts, or a detached redacted summary of already-created rich tuning evidence. Path inspection
+uses one read-only channel and reports missing files, typed malformed-content reasons, and compact
+entries without creating, repairing, or replacing anything. Byte-array inspection snapshots at
+most 16 MiB and retains no supplied bytes. Opaque values appear only as their schema when present,
+byte length, and lowercase SHA-256 digest.
+
+Optional expectations compare only fields stored in the compact key, in deterministic field order.
+An exact persistent key match still requires the current producer-owned decoder; it is not proof of
+compatibility, freshness, legality, performance, or executability. `SESSION` expectations are
+explicitly ineligible for persistent reuse. Evidence summaries can retain existing occurrences,
+weights, raw nanosecond samples, and correctness actions, but inspection cannot reconstruct those
+rich facts from compact files or persist them. Tuning inspection is not a command-line renderer,
+backend decoder, trust mechanism, cache repair tool, preparation step, or Runtime operation.
+
 ### Model-autotuning request facade / `ModelAutotuningConfig`
 
 The implemented immutable Config-owned value that records one request for later model-autotuning

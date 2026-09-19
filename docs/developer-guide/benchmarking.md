@@ -139,6 +139,47 @@ preparation. Safe fallback does not make corrupt or incompatible cache data a hi
 candidate, relax numerical requirements, accept a partial result, or suppress an unrelated
 preparation failure. `TUNED` carries evidence; `SAFE_HEURISTIC_FALLBACK` carries none.
 
+## Inspecting current tuning artifacts and evidence
+
+`TuningInspection` provides a cold, read-only diagnostic view of the two current compact cache
+formats and of rich evidence that a tuning result already contains:
+
+```text
+Path or byte[] cache snapshot -> compact redacted artifact report
+existing result evidence      -> detached rich evidence summary
+```
+
+For a Path, inspection opens one read-only channel, bounds the snapshot to 16 MiB before
+allocation, reads the observed length, and probes once for growth. A missing target returns a
+`MISSING` report. Permission, directory, and ordinary read failures remain `IOException`; malformed
+content returns `INVALID` with a typed reason. Inspection creates no file, temporary file, lock,
+repair, or replacement. A same-length concurrent rewrite can only be judged from the bytes read
+and their checksum, and bytes appended after the final probe are outside that snapshot.
+
+The `byte[]` overloads enforce the same 16 MiB bound before making a defensive snapshot. They do
+not mutate or retain the caller array. Both input forms validate the schema-1 checksum, structure,
+65,536-entry limit, 1 MiB opaque-field limit, summaries, and canonical order. Reports replace every
+opaque identity, decision, and winner with its schema when present, byte length, and lowercase
+SHA-256 digest. A digest distinguishes content but does not authenticate its writer.
+
+Supplying a workload or model-plan expectation adds deterministic stored-key comparison. A
+mismatch report lists every directly provable difference in key-field order. Exact equality
+reports `KEY_MATCH_REQUIRES_BACKEND_DECODER`, because only the current producer-owned decoder can
+decide whether opaque decision bytes remain compatible. A `SESSION` expectation instead reports
+that persistent reuse is forbidden. Inspection never proves freshness, legality, performance, or
+executability and never invokes a decoder, prepares a plan, or runs work.
+
+Evidence summarization is separate and performs no cache lookup. It redacts identities while
+retaining rich facts already held in memory: workload occurrences and weights, measured raw
+nanosecond samples, complete-plan correctness actions, compact summaries, sources, and winners.
+Cache-hit evidence has no fabricated measurement or correctness rows. Compact files cannot recover
+these facts: workload files omit model/profile and occurrence provenance, both formats omit raw
+samples and reuse scope, and model-plan files omit correctness actions.
+
+There is no command-line renderer or automatic Engine/Runtime composition for these reports.
+Callers may inspect a known Path or already-loaded byte array, or summarize an existing result,
+but the API performs no backend decoding, trust verification, migration, or repair.
+
 ## Benchmark workloads and reports
 
 Future benchmark suites may contain four fixed workload levels:
@@ -218,16 +259,17 @@ governs later harness and reporting work.
 | One vector or thread value is applied everywhere | Operation family was incorrectly used as a universal cache key. | Key reuse by canonical workload signature and keep candidate vocabulary backend-owned. |
 | Faster code changes numerical behavior | Performance was accepted without correctness evidence. | Run reference and conformance tests before interpreting speed. |
 | Complete plans are timed before comparison | Correctness and timing were mixed. | Complete every Phase-2 correctness action before the first warmup or timed sample. |
-| A session-only CPU plan creates a cache file | Reuse scope was ignored. | Treat `SESSION` as strict no-I/O; persistent reuse requires a producer that declares and authenticates it. |
+| A session-only CPU plan appears reusable after inspection | Stored-key equality was mistaken for backend authentication. | Treat `SESSION` as ineligible and a persistent exact-key match as decoder-required. |
 
 ## Limitations and boundaries
 
 The benchmark harness and report, public Engine/Config Phase-2 composition, planning-cost model,
 and concrete runtime-profile payloads remain planned. The generic caller-supplied Phase-1 and
 Phase-2 transactions, bounded persistent cache formats, immutable Phase-1 Config request, and
-bounded CPU/Engine Phase-1 composition are current. Model extraction, multiple-occurrence
-aggregation, broader graph/plan generation, persistent CPU complete-plan reuse, concurrent cache
-writers, cache migration, and inspection remain deferred. Config owns policy inputs only; it does
+bounded CPU/Engine Phase-1 composition, and read-only tuning inspection are current. Model
+extraction, multiple-occurrence aggregation, broader graph/plan generation, persistent CPU
+complete-plan reuse, concurrent cache writers, and cache migration remain deferred. Config owns
+policy inputs only; it does
 not own the runner, search algorithm, cache behavior, live discovery, or mutable evidence. No
 benchmark or tuning action runs in the Runtime hot path.
 

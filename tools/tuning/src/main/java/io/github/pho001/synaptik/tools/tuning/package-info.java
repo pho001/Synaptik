@@ -23,5 +23,11 @@
  * decision construction, and codecs. Current CPU complete-plan production is session-scoped, and
  * no public Engine composition invokes the Phase-2 transaction yet. Config extension, Engine/CPU
  * adaptation, multi-partition plan search, and executable persistence remain later work.
+ *
+ * <p>{@link io.github.pho001.synaptik.tools.tuning.TuningInspection} supplies a separate cold,
+ * read-only view of both compact schema-1 artifacts and of already-created rich evidence. It
+ * reports opaque values only by schema, length, and SHA-256 digest. Exact stored-key equality is
+ * not a compatibility verdict: backend-owned decision decoding and fresh preparation remain
+ * required, and inspection performs neither operation.
  */
 package io.github.pho001.synaptik.tools.tuning;

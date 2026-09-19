@@ -2,7 +2,6 @@ package io.github.pho001.synaptik.tools.tuning;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
-import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -43,6 +42,75 @@ final class ModelPlanCacheFile {
     private static final byte[] MAGIC = {0x53, 0x59, 0x4e, 0x50, 0x4c, 0x41, 0x4e, 0x31};
     private static final int SCHEMA = 1;
     private static final int CHECKSUM_BYTES = 32;
+
+    /**
+     * Fully validated schema and canonical entries produced by the authoritative parser.
+     *
+     * @param artifactSchema positive supported artifact schema
+     * @param entries non-null canonical entries; defensively copied
+     */
+    record Parsed(int artifactSchema, List<Entry> entries) {
+        /**
+         * Snapshots the parsed entries.
+         *
+         * @param artifactSchema positive supported artifact schema
+         * @param entries non-null canonical entries; defensively copied
+         * @throws NullPointerException if {@code entries} or an entry is null
+         */
+        Parsed {
+            entries = List.copyOf(entries);
+        }
+
+        /**
+         * Projects the already validated unique entries for operational cache lookup.
+         *
+         * @return immutable key-to-entry map; never null
+         */
+        Map<Key, Entry> asMap() {
+            Map<Key, Entry> result = new LinkedHashMap<>();
+            for (Entry entry : entries) {
+                result.put(entry.key(), entry);
+            }
+            return Map.copyOf(result);
+        }
+    }
+
+    /** Typed internal malformed-content diagnostic shared by loading and inspection. */
+    static final class FormatException extends Exception {
+        private final TuningInspection.InvalidReason reason;
+
+        /**
+         * Creates a diagnostic without an underlying validation failure.
+         *
+         * @param reason non-null stable invalid-artifact category
+         * @param message non-null detail for operational loader failures
+         */
+        FormatException(TuningInspection.InvalidReason reason, String message) {
+            super(message);
+            this.reason = reason;
+        }
+
+        /**
+         * Creates a diagnostic retaining an underlying validation failure.
+         *
+         * @param reason non-null stable invalid-artifact category
+         * @param message non-null detail for operational loader failures
+         * @param cause non-null underlying validation failure
+         */
+        FormatException(TuningInspection.InvalidReason reason, String message, Throwable cause) {
+            super(message, cause);
+            this.reason = reason;
+        }
+
+        /**
+         * Returns the stable public inspection category.
+         *
+         * @return non-null invalid-artifact reason
+         */
+        TuningInspection.InvalidReason reason() {
+            return reason;
+        }
+    }
 
     @FunctionalInterface
     interface BeforeMove {
@@ -240,57 +308,157 @@ final class ModelPlanCacheFile {
                 throw new IOException("model-plan cache grew while loading");
             }
         }
+        try {
+            return parse(bytes).asMap();
+        } catch (FormatException exception) {
+            throw new IOException(exception.getMessage(), exception);
+        }
+    }
+
+    /**
+     * Parses one complete snapshotted artifact using the format's 16 MiB file, 65,536-entry, and
+     * 1 MiB opaque-value bounds without retaining the supplied array.
+     *
+     * @param bytes non-null complete artifact bytes owned by the caller and not mutated
+     * @return validated schema and entries in strict canonical file order; never null
+     * @throws NullPointerException if {@code bytes} is null
+     * @throws FormatException if any bounded structural, checksum, ordering, or summary rule fails
+     */
+    static Parsed parse(byte[] bytes) throws FormatException {
+        if (bytes.length < MAGIC.length + 8 + CHECKSUM_BYTES) {
+            throw new FormatException(
+                    TuningInspection.InvalidReason.SIZE_TOO_SMALL,
+                    "model-plan cache size is invalid");
+        }
+        if (bytes.length > MAX_FILE_BYTES) {
+            throw new FormatException(
+                    TuningInspection.InvalidReason.OVERSIZE,
+                    "model-plan cache exceeds its size bound");
+        }
         int payloadLength = bytes.length - CHECKSUM_BYTES;
         byte[] expectedChecksum = Arrays.copyOfRange(bytes, payloadLength, bytes.length);
         if (!MessageDigest.isEqual(digest(bytes, 0, payloadLength), expectedChecksum)) {
-            throw new IOException("model-plan cache checksum is invalid");
+            throw new FormatException(
+                    TuningInspection.InvalidReason.CHECKSUM_MISMATCH,
+                    "model-plan cache checksum is invalid");
         }
-        try {
-            ByteBuffer in = ByteBuffer.wrap(bytes, 0, payloadLength).order(ByteOrder.BIG_ENDIAN);
-            if (!Arrays.equals(readFixed(in, MAGIC.length), MAGIC)) {
-                throw new IOException("model-plan cache magic is invalid");
-            }
-            if (readInt(in) != SCHEMA) {
-                throw new IOException("unsupported model-plan cache schema");
-            }
-            int count = readInt(in);
-            if (count < 0 || count > MAX_ENTRIES) {
-                throw new IOException("model-plan cache entry count is invalid");
-            }
-            Map<Key, Entry> result = new LinkedHashMap<>();
-            Key previous = null;
-            for (int i = 0; i < count; i++) {
-                Key key = new Key(
-                        readInt(in), readBytes(in),
-                        readInt(in), readBytes(in),
-                        readInt(in), readBytes(in),
-                        readInt(in), readBytes(in),
-                        readInt(in), readBytes(in),
-                        readInt(in), readBytes(in),
-                        readInt(in), readInt(in),
-                        readInt(in), readBytes(in),
-                        readInt(in), readInt(in));
-                Entry entry = new Entry(
+        ByteBuffer in = ByteBuffer.wrap(bytes, 0, payloadLength).order(ByteOrder.BIG_ENDIAN);
+        if (!Arrays.equals(readFixedForInspection(in, MAGIC.length, "magic"), MAGIC)) {
+            throw new FormatException(
+                    TuningInspection.InvalidReason.INVALID_MAGIC,
+                    "model-plan cache magic is invalid");
+        }
+        int artifactSchema = readIntForInspection(in, "artifact schema");
+        if (artifactSchema != SCHEMA) {
+            throw new FormatException(
+                    TuningInspection.InvalidReason.UNSUPPORTED_SCHEMA,
+                    "unsupported model-plan cache schema");
+        }
+        int count = readIntForInspection(in, "entry count");
+        if (count < 0 || count > MAX_ENTRIES) {
+            throw new FormatException(
+                    TuningInspection.InvalidReason.INVALID_ENTRY_COUNT,
+                    "model-plan cache entry count is invalid");
+        }
+        List<Entry> result = new ArrayList<>(count);
+        Key previous = null;
+        for (int i = 0; i < count; i++) {
+            Key key;
+            Entry entry;
+            try {
+                key = new Key(
+                        readIntForInspection(in, "producer schema"),
+                        readBytesForInspection(in, "producer"),
+                        readIntForInspection(in, "codec schema"),
+                        readBytesForInspection(in, "codec"),
+                        readIntForInspection(in, "model schema"),
+                        readBytesForInspection(in, "model"),
+                        readIntForInspection(in, "profile schema"),
+                        readBytesForInspection(in, "profile"),
+                        readIntForInspection(in, "target schema"),
+                        readBytesForInspection(in, "target"),
+                        readIntForInspection(in, "compatibility schema"),
+                        readBytesForInspection(in, "compatibility"),
+                        readIntForInspection(in, "objective"),
+                        readIntForInspection(in, "correctness policy"),
+                        readIntForInspection(in, "policy schema"),
+                        readBytesForInspection(in, "policy"),
+                        readIntForInspection(in, "warmup count"),
+                        readIntForInspection(in, "timed sample count"));
+                entry = new Entry(
                         key,
-                        readBytes(in),
-                        readBytes(in),
+                        readBytesForInspection(in, "decision"),
+                        readBytesForInspection(in, "winner"),
                         new CompletePlanTuningResult.SampleSummary(
-                                readLong(in), readLong(in), readLong(in), readInt(in)));
-                if (previous != null && ORDER.compare(previous, key) >= 0) {
-                    throw new IOException("model-plan cache order or uniqueness is invalid");
-                }
-                if (result.put(key, entry) != null) {
-                    throw new IOException("duplicate model-plan cache key");
-                }
-                previous = key;
+                                readLongForInspection(in, "minimum"),
+                                readLongForInspection(in, "median"),
+                                readLongForInspection(in, "maximum"),
+                                readIntForInspection(in, "sample count")));
+            } catch (FormatException exception) {
+                throw exception;
+            } catch (IllegalArgumentException | ArithmeticException exception) {
+                throw new FormatException(
+                        TuningInspection.InvalidReason.INVALID_STRUCTURE_OR_SUMMARY,
+                        "model-plan cache structure is invalid",
+                        exception);
             }
-            if (in.hasRemaining()) {
-                throw new IOException("model-plan cache has trailing bytes");
+            if (previous != null && ORDER.compare(previous, key) >= 0) {
+                throw new FormatException(
+                        TuningInspection.InvalidReason.DUPLICATE_OR_NONCANONICAL_ORDER,
+                        "model-plan cache order or uniqueness is invalid");
             }
-            return Map.copyOf(result);
-        } catch (IllegalArgumentException | EOFException exception) {
-            throw new IOException("model-plan cache structure is invalid", exception);
+            result.add(entry);
+            previous = key;
         }
+        if (in.hasRemaining()) {
+            throw new FormatException(
+                    TuningInspection.InvalidReason.TRAILING_PAYLOAD,
+                    "model-plan cache has trailing bytes");
+        }
+        return new Parsed(artifactSchema, result);
+    }
+
+    private static byte[] readBytesForInspection(ByteBuffer in, String field)
+            throws FormatException {
+        int length = readIntForInspection(in, field + " length");
+        if (length <= 0 || length > MAX_OPAQUE_BYTES) {
+            throw new FormatException(
+                    TuningInspection.InvalidReason.INVALID_LENGTH,
+                    "invalid " + field + " length");
+        }
+        return readFixedForInspection(in, length, field);
+    }
+
+    private static byte[] readFixedForInspection(ByteBuffer in, int length, String field)
+            throws FormatException {
+        if (length > in.remaining()) {
+            throw new FormatException(
+                    TuningInspection.InvalidReason.TRUNCATED,
+                    "truncated " + field);
+        }
+        byte[] bytes = new byte[length];
+        in.get(bytes);
+        return bytes;
+    }
+
+    private static int readIntForInspection(ByteBuffer in, String field)
+            throws FormatException {
+        if (in.remaining() < Integer.BYTES) {
+            throw new FormatException(
+                    TuningInspection.InvalidReason.TRUNCATED,
+                    "truncated " + field);
+        }
+        return in.getInt();
+    }
+
+    private static long readLongForInspection(ByteBuffer in, String field)
+            throws FormatException {
+        if (in.remaining() < Long.BYTES) {
+            throw new FormatException(
+                    TuningInspection.InvalidReason.TRUNCATED,
+                    "truncated " + field);
+        }
+        return in.getLong();
     }
 
     void publish(Path path, Map<Key, Entry> entries) throws IOException {
@@ -386,37 +554,6 @@ final class ModelPlanCacheFile {
     private static void writeBytes(DataOutputStream out, byte[] bytes) throws IOException {
         out.writeInt(bytes.length);
         out.write(bytes);
-    }
-
-    private static byte[] readBytes(ByteBuffer in) throws EOFException {
-        int length = readInt(in);
-        if (length <= 0 || length > MAX_OPAQUE_BYTES || length > in.remaining()) {
-            throw new EOFException();
-        }
-        return readFixed(in, length);
-    }
-
-    private static byte[] readFixed(ByteBuffer in, int length) throws EOFException {
-        if (length < 0 || length > in.remaining()) {
-            throw new EOFException();
-        }
-        byte[] bytes = new byte[length];
-        in.get(bytes);
-        return bytes;
-    }
-
-    private static int readInt(ByteBuffer in) throws EOFException {
-        if (in.remaining() < Integer.BYTES) {
-            throw new EOFException();
-        }
-        return in.getInt();
-    }
-
-    private static long readLong(ByteBuffer in) throws EOFException {
-        if (in.remaining() < Long.BYTES) {
-            throw new EOFException();
-        }
-        return in.getLong();
     }
 
     private static byte[] bounded(byte[] bytes, String name) {
