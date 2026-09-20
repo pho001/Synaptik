@@ -886,7 +886,7 @@ measures only misses. Its second phase measures a bounded set of complete valid 
 candidates end to end and selects an explicit model plan or prepared artifact without repeating
 local route-parameter search.
 
-The current task-0001 boundary is a generic caller-supplied cold workload tuner. Its caller
+The current Phase-1 boundary is a generic caller-supplied cold workload tuner. Its caller
 supplies stable model/profile evidence identities, already formed occurrences, backend-owned
 compatibility and candidate identities, complete candidate enumeration, a decision codec, and
 complete candidate execution. The tool performs cache-first deduplication, bounded warmup and
@@ -894,9 +894,9 @@ sampling, integer-middle-median selection with encounter-order ties, and atomic 
 publication while returning richer raw evidence separately. The supported CPU-local adapter now
 supplies opaque candidate/decision and exact prepared-recipe operations. Engine now publicly
 joins these foundations for one CPU-local workload and one representative input set. It maps
-occurrence index 0, partition index 0, and weight 1, then returns a freshly prepared selected
-handle with evidence or explicit safe fallback without evidence. It supplies no model extraction
-or multiple-occurrence tuning.
+occurrence index 0, partition index 0, and weight 1, authenticates the Phase-1 decision, and passes
+that exact decision unchanged to CPU complete-plan candidate production. It supplies no model
+extraction or multiple-occurrence tuning.
 
 The current Phase-2 boundary is a separate generic complete-plan transaction in `tools/tuning`.
 It accepts one caller-supplied complete stable batch, checks the whole-transaction
@@ -909,10 +909,13 @@ plan record, and separate rich in-memory evidence.
 
 Tuning is optional for correctness and never runs in the runtime hot path. Running the same
 workflow over a representative model corpus may eventually pre-seed the same workload cache; this
-is not a separate platform-calibration subsystem. Public Engine composition of both phases, model
-extraction, multiple-occurrence aggregation, and freshly preparing the Phase-2 winner for
-production remain planned. Config now carries the declarative inputs for both phases but performs
-no translation or execution.
+is not a separate platform-calibration subsystem. Public Engine composition now invokes both
+phases for the bounded CPU-only lifecycle. Every Phase-2 candidate completes exact canonical-byte
+correctness before timing; each correctness, warmup, and timed action receives a fresh
+preparation. After authentication and representative cleanup, Engine prepares exactly one fresh
+production recipe for the winner. Model extraction, multiple-occurrence aggregation, broader
+graph/partition alternatives, and mixed backends remain planned. Config carries declarative
+inputs for both phases and performs no translation or execution itself.
 
 A **workload tuning cache** is the current explicit bounded file-backed reusable artifact keyed by
 backend-supplied canonical workload/target compatibility plus objective and sampling policy. Its
@@ -966,10 +969,11 @@ cache-file limit or per-result allocation promise.
 The facade is declarative data. It retains both exact non-null paths without normalization or I/O
 and owns no model fingerprint, representative inputs, occurrences, candidates, cache behavior,
 translation, correctness execution, measurement, selection, preparation, or Runtime state.
-Current Engine composition translates only the Phase-1 values while `ModelAutotuningRequest`
-supplies the caller-defined model identity and live representative inputs. The current CPU
-complete-plan producer declares `SESSION`, so the explicit model-plan path is supplied for later
-composition but is not accessed.
+Current Engine composition translates both budgets and both paths while
+`ModelAutotuningRequest` supplies the caller-defined model identity and live representative
+inputs. The current CPU complete-plan producer declares `SESSION`, so the explicit model-plan path
+is passed unchanged but not accessed. This mapping remains valid for a future producer that can
+declare `PERSISTENT`.
 
 ### Model-autotuning request / preparation result
 
@@ -979,9 +983,15 @@ Tensor storage. The model identity labels evidence under the caller's schema and
 discipline; it is neither a canonical graph fingerprint nor cache-compatibility authority.
 
 `ModelAutotuningPreparation` contains a fresh owner-bound `PreparedExecution`, an outcome, and
-evidence present exactly for `TUNED`. `SAFE_HEURISTIC_FALLBACK` identifies fresh ordinary safe
-preparation and has empty evidence. Both are CPU-only current contracts for one local workload,
-not graph/plan or multi-occurrence tuning.
+evidence present exactly for `TUNED`. The evidence contains unchanged Phase-1 workload evidence
+and required complete-plan evidence: compatibility and reuse scope, the exact budget, source,
+winner, and either one rich correctness/timing row per measured candidate or no rows for an
+authenticated persistent hit. Rich per-call rows are immutable and retain correctness actions and
+raw samples; compact reusable cache records do not. Current CPU complete-plan evidence is
+session-scoped and measured. `SAFE_HEURISTIC_FALLBACK` identifies one fresh ordinary safe
+preparation and has empty evidence. These are CPU-only current contracts for one local workload
+and one bounded complete CPU plan, not model extraction, broader graph/partition alternatives,
+mixed backends, or multi-occurrence tuning.
 
 ### Representative-profile identity
 
@@ -2397,8 +2407,8 @@ first implemented internal generator is the CPU exact/default FLOAT32/FLOAT64 Op
 producer. It emits the complete portable alternative followed by every realizable copy-mask and
 fitting configured-thread combination. The shared exact-partition opaque transport, generic
 caller-supplied workload-tuning orchestration, and supported CPU-local enumeration and identity
-collaboration and Engine's public bounded CPU-local composition are implemented. Multiple
-occurrences and complete graph/plan orchestration remain planned.
+collaboration and Engine's public bounded two-phase CPU composition are implemented. Multiple
+occurrences and broader Compiler/Planning candidate orchestration remain planned.
 
 ### Candidate batch
 
@@ -2429,8 +2439,9 @@ This current term does not mean a model-wide candidate with Compiler graph alter
 Planning ownership alternatives, multiple partitions, or mixed backends. Candidate-only copied
 representations are not ordinary automatic promotion. Generic tools-owned correctness ordering,
 measurement, deterministic comparison, and optional persistent selected-decision caching are
-current. The CPU producer remains session-scoped, while fallback and public Engine composition
-remain later owners.
+current. Engine composes that transaction, freshly preparing every correctness and measurement
+action plus the selected production recipe. The CPU producer remains session-scoped and performs
+no model-plan-cache filesystem I/O.
 
 ### Selected tuning decision
 

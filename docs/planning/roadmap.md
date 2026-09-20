@@ -24,7 +24,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through Prepare 0005 | Compiler 0006B5 supplies a resolved producerless/consumerless published-constant descriptor while Planning preserves its graph-output obligation. | Prepare contributes that resource to the handoff and assigns a deterministic shared slot without backend selection or physical geometry. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Complete baseline; optional provider 0004 Blocked/deferred | Native interop conventions needed by the provider are decided. | Required FLOAT32/FLOAT64 remains complete; the optional direct BFLOAT16-output capability stays fail-closed until both proof gaps are resolved. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through 0010J | Complete CPU 0010E–0010I, Prepare 0004, and tools/tuning 0001 establish the current local-candidate, lifecycle, opaque-handoff, and tuning-consumer seams. | CPU 0010J supplies the bounded session-scoped producer over retained 0008D/0008E alternatives with exact Phase-1 selection reuse; no additional CPU fingerprint prerequisite is required before tuning 0002. |
-| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0008A; 0009 Ready | Completed tools/tuning 0002, CPU 0010J, Engine 0008A, and Config 0006B supply the generic transaction, producer, correctness, and request contracts. | Engine publicly composes both tuning phases, freshly prepares the authenticated complete-plan winner, and reports both phases without changing Runtime or backend ownership. |
+| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0009 | Completed tools/tuning 0002, CPU 0010J, Engine 0008A, and Config 0006B supply the generic transaction, producer, correctness, and request contracts. | Engine 0009 publicly composes both tuning phases, freshly prepares the authenticated complete-plan winner, and reports both phases without changing Runtime or backend ownership; no later Engine task is Ready. |
 | 12 | [`backends/metal`](backends/metal/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | Metal passes the applicable backend-conformance suite. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | CUDA passes the applicable backend-conformance suite. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | The model representation and public tensor semantics are stable. | Selected import/export mappings and compatibility validation are complete. |
@@ -78,9 +78,9 @@ staged ordering exceptions. Completed tuning 0002, CPU 0010J, and Engine 0008A n
 [Config 0006B](modules/config/tasks/0006b-complete-plan-autotuning-request-configuration.md),
 completed under the second explicit staged exception. It adds only stable complete-plan resource
 and timing bounds plus the explicit model-plan-cache path; its independent Phase-2 warmup/sample
-counts preserve all Phase-1 meanings. Fresh source audit selected Ready
+counts preserve all Phase-1 meanings. Complete
 [Engine 0009 public complete-plan autotuning composition](modules/engine/tasks/0009-public-complete-plan-autotuning-composition.md)
-as their one next consumer. Draft Config 0004–0006 remain unchanged. Optional
+is their bounded public consumer. Draft Config 0004–0006 remain unchanged. Optional
 OpenBLAS provider 0004 and CPU 0010D1 remain `Blocked` and deferred.
 Runtime never selects.
 
@@ -117,7 +117,7 @@ Compiler 0006B3 Engine-facing complete compile integration port (Complete)
   -> tools/tuning 0003 read-only cache, plan, and evidence inspection (Complete)
   -> Config 0006B complete-plan autotuning request configuration (Complete;
      second explicit non-overlapping staged exception)
-  -> Engine 0009 public complete-plan autotuning composition (Ready)
+  -> Engine 0009 public complete-plan autotuning composition (Complete)
 ```
 
 Detailed [Compiler 0006B3](modules/compiler/tasks/0006b3-public-constant-free-complete-compile-entry.md)
@@ -251,8 +251,8 @@ representative session could not compare publications. Complete
 [Engine 0008A](modules/engine/tasks/0008a-representative-complete-plan-correctness-oracle.md)
 is the smallest owning prerequisite and now supplies that exact package-private seam. The
 completed fresh post-0008A audit created the tools-only 0002 specification; task 0002 is now
-Complete. Config 0006B is also Complete, and the fresh Engine audit selected detailed 0009 as the
-Ready composition frontier.
+Complete. Config 0006B and detailed Engine 0009 are also Complete; no later Engine task is Ready
+or detailed.
 
 The Engine 0001 seam audit found a bounded actionable foundation, not a mixed-backend composition
 contract. `GraphPreparation` accepts one complete schedule assembler, and the only supported
@@ -1549,8 +1549,8 @@ Prepare 0004 then transports those candidates and compatible decisions opaquely,
 0001 owns measurement, selection, persistence, and rejection of corrupt or incompatible cache
 entries. Complete CPU 0010J supplies those eligible complete materialized candidates. Complete
 Engine 0008A now supplies the audited exact correctness primitive. Complete tuning 0002 implements
-a generic tools-only consumer of caller adaptations for both; Ready Engine 0009 is the bounded
-public composition that will invoke it. The tuning workflow
+a generic tools-only consumer of caller adaptations for both; Complete Engine 0009 is the bounded
+public composition that invokes it. The tuning workflow
 measures copy plus complete consumer execution end to end rather than
 ranking an isolated kernel or moving materialization legality out of CPU. This future promotion
 gate is later tuning acceptance rather than a false 0008E performance claim, and Runtime never searches,
@@ -1747,7 +1747,7 @@ Phase-1 meaning, records distinct maximum plan candidates, total plan executions
 correctness bytes, independent Phase-2 warmup and timed-sample counts, and an explicit
 model-plan-cache path. The separate timing counts feed Phase 2's checked `N * (1 + W + S)` formula
 without coupling it to Phase 1. Target/policy identity derivation and the public transaction remain
-owned by Ready Engine 0009. Config 0004–0006 and 0007–0008 remain Draft.
+owned by Complete Engine 0009. Config 0004–0006 and 0007–0008 remain Draft.
 CPU 0005A through CPU 0006 are `Complete`, detailed
 CPU 0006A, detailed CPU 0006A1, detailed CPU 0006A2, and detailed CPU 0006B are `Complete`.
 Detailed CPU 0006B1, CPU 0006B2, CPU 0006C, CPU 0006D, CPU 0007, and detailed
@@ -2227,8 +2227,9 @@ under the recorded exception around unrelated Draft NN 0021B–0024; detailed
 [NN 0025A](extensions/nn/tasks/0025a-dimensional-convolution-user-capability-checkpoint.md)
 is also `Complete`. CPU 0010J, Engine 0008A, the fresh audit, and tools/tuning 0002–0003 are
 Complete. Config 0006B is Complete, and detailed
-[Engine 0009](modules/engine/tasks/0009-public-complete-plan-autotuning-composition.md) is the
-single Ready Engine frontier; Compiler 0006C and NN 0021B–0024 remain Draft.
+[Engine 0009](modules/engine/tasks/0009-public-complete-plan-autotuning-composition.md) is
+Complete; no later Engine task is Ready or detailed, and Compiler 0006C and NN 0021B–0024 remain
+Draft.
 Family tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator
 (RNG) state, mask, and configuration roles remain intentionally non-differentiable where

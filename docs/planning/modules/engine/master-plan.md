@@ -107,7 +107,7 @@ advanced surface.
 | [0007](tasks/0007-optional-model-autotuning-composition.md) | Optional model-autotuning composition | Complete | 0002; 0005; [0006A](tasks/0006a-representative-tuning-execution-and-safe-fallback.md); Config 0006A; tools/tuning 0001; [CPU 0010I](../../backends/cpu/tasks/0010i-supported-cpu-local-workload-tuning-composition-adapter.md) | Added one CPU-only public representative request with caller-defined model identity; maps the sole handoff to occurrence 0/partition 0/weight 1, invokes cache-first tuning, and returns fresh selected preparation plus translated evidence or explicit safe fallback outside Runtime. |
 | [0008](tasks/0008-engine-lifecycle-capability-checkpoint.md) | Engine lifecycle capability checkpoint | Complete | 0001–0007; Compiler 0006B3–0006B6; Prepare 0003/0003A/0004/0005; Runtime 0010/0012/0014/0015; CPU 0008/0008A/0010F–0010I; Config 0006A; tools/tuning 0001 | Consolidated repository-wide evidence and current documentation for the standard, advanced, typed, materialized, one-shot forward/backward, bounded tuning/fallback, cleanup, failure, concurrency, dependency, and public dimensional-convolution execution boundaries. |
 | [0008A](tasks/0008a-representative-complete-plan-correctness-oracle.md) | Representative complete-plan correctness oracle | Complete | 0004, 0006A–0008; Runtime 0015; CPU 0010G and 0010J | Added the smallest package-private Engine oracle that captures all ordered representative publications as bounded canonical bytes and compares later complete recipes by exact represented-bit equality. It owns no timing, tuning algorithm, cache, public request, selected preparation, or fallback policy. |
-| [0009](tasks/0009-public-complete-plan-autotuning-composition.md) | Public complete-plan autotuning composition | Ready | 0006A–0008A; Config 0006B; tools/tuning 0002; CPU 0010I–0010J; Prepare 0004; Runtime 0010/0015 | Compose the authenticated Phase-1 decision into CPU's complete-plan batch, adapt Engine correctness and fresh execution to generic Phase 2, freshly prepare the authenticated winner, and extend existing public evidence without a new request, operation, or top-level public type. |
+| [0009](tasks/0009-public-complete-plan-autotuning-composition.md) | Public complete-plan autotuning composition | Complete | 0006A–0008A; Config 0006B; tools/tuning 0002; CPU 0010I–0010J; Prepare 0004; Runtime 0010/0015 | Composed the authenticated Phase-1 decision into CPU's complete-plan batch, adapted exact correctness and fresh execution to generic Phase 2, freshly prepared the authenticated winner, and extended existing public evidence without a new request, operation, or top-level public type. |
 
 
 ## Milestones
@@ -118,14 +118,13 @@ advanced surface.
 
 ## Current status
 
-The established Engine foundation is Complete through task 0008A. Completed tools/tuning 0002,
-CPU 0010J, and Config 0006B now close the generic Phase-2 transaction, CPU producer, and
-declarative request prerequisites. Fresh source audit selected Ready task 0009 as the next Engine
-frontier. It composes those contracts through the existing admitted representative session,
-preserves the exact Phase-1 decision, freshly prepares only the authenticated complete-plan
-winner, and changes no architecture rule. `ModelAutotuningRequest` and `Engine.prepareTuned(...)`
-remain sufficient unchanged; the existing Phase-1-only result evidence requires the narrow nested
-complete-plan extension specified by 0009.
+The established Engine foundation is Complete through task 0009. It composes completed
+tools/tuning 0002, CPU 0010J, Engine 0008A, and Config 0006B through the existing admitted
+representative session. The public operation preserves the exact authenticated Phase-1 decision,
+completes exact correctness before fresh Phase-2 timing, and freshly prepares only the
+authenticated complete-plan winner. `ModelAutotuningRequest` and `Engine.prepareTuned(...)`
+remain unchanged; existing result evidence now includes the narrow required complete-plan
+extension. No later Engine task is Ready or detailed.
 
 The final capability checkpoint reused one
 fresh clean repository-wide run, reconciled the fourteen authorized documentation paths, and
@@ -246,8 +245,9 @@ Engine alone owns publication descriptors, representative inputs, result cleanup
 Complete task 0008A now owns that package-private prerequisite. It preflights the complete ordered
 publication boundary, captures detached canonical represented bytes from one fresh execution, and
 returns only exact match/mismatch metadata for later fresh executions after cleanup. The completed
-fresh audits and implementations completed tools/tuning 0002 and Config 0006B. Ready task 0009 is
-now the bounded public Phase-2 composition; it adds no inward contract or architecture change.
+fresh audits and implementations completed tools/tuning 0002 and Config 0006B. Complete task 0009
+now supplies the bounded public Phase-2 composition; it adds no inward contract or architecture
+change.
 
 Model/training checkpoint persistence may consume the completed task 0004 host-value boundary,
 but must not bypass it by reading backend storage from NN or Training. The boundary supplies
@@ -333,9 +333,9 @@ constant chain. Engine 0005, Engine 0006A, Engine 0007, and Engine 0008 are `Com
 - The already planned next dimensional-convolution frontier is NN 0025, followed by its 0025A
   user-capability checkpoint. Those Draft rows own layer integration and must preserve Compiler
   0006B6's descriptor boundary, strict CPU admission, and the explicit Conv3d-gradient limit.
-- Ready Engine 0009 is the next frontier. Tools/tuning 0002 and Config 0006B are Complete; 0009
-  owns CPU 0010J adaptation, exact correctness and fresh execution, selected production
-  preparation, complete-plan evidence translation, and the existing public fallback policy.
+- Engine 0009 is Complete. It owns CPU 0010J adaptation, exact correctness and fresh execution,
+  selected production preparation, complete-plan evidence translation, and the existing public
+  fallback policy. No later Engine task is Ready or detailed.
 
 ## Decisions made
 

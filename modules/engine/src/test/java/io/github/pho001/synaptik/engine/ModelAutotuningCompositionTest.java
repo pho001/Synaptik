@@ -63,7 +63,14 @@ final class ModelAutotuningCompositionTest {
         var evidence = new ModelAutotuningPreparation.Evidence(
                 new ModelAutotuningRequest.ModelIdentity(1, new byte[] {1}),
                 config().representativeProfile(), config().objective(), config().budget(),
-                List.of(workload));
+                List.of(workload), new ModelAutotuningPreparation.CompletePlanEvidence(
+                        workload.compatibility(), config().completePlanBudget(),
+                        ModelAutotuningPreparation.Source.MEASURED,
+                        List.of(new ModelAutotuningPreparation.CompletePlanCandidateEvidence(
+                                candidate.identity(),
+                                ModelAutotuningPreparation.CorrectnessAction.REFERENCE_CAPTURED,
+                                candidate.elapsedSamplesNanos(), summary)),
+                        candidate.identity(), summary));
 
         assertEquals(List.of(5L, 1L, 3L), candidate.elapsedSamplesNanos());
         assertEquals(1, evidence.workloads().size());

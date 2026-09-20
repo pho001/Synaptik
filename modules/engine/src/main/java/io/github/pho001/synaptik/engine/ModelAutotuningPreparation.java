@@ -10,9 +10,16 @@ import java.util.Optional;
 /**
  * Immutable public result of one complete tuned or safe-heuristic preparation.
  *
- * <p>The contained handle is freshly prepared for the exact compiled graph and Engine. Evidence
- * is present exactly for {@link Outcome#TUNED}; fallback is always explicit and carries none.
- * Metadata remains readable after Engine closure, but the owner rejects later execution.</p>
+ * <p>A tuned result first records the authenticated local-workload decisions, then the exact
+ * correctness actions and complete-plan measurements that selected the production plan. The
+ * contained handle is freshly prepared only after both phases and representative cleanup finish;
+ * no correctness or timing trial becomes production state. Current CPU complete-plan evidence is
+ * session-scoped and measured, while the value model can also represent a future authenticated
+ * persistent hit with no candidate rows.</p>
+ *
+ * <p>Evidence is present exactly for {@link Outcome#TUNED}; fallback is always explicit and
+ * carries none. Metadata remains readable after Engine closure, but the owner rejects later
+ * execution.</p>
  */
 public final class ModelAutotuningPreparation {
     private final PreparedExecution preparedExecution;
@@ -56,7 +63,7 @@ public final class ModelAutotuningPreparation {
         /** An authenticated tuning decision selected the fresh production preparation. */ TUNED,
         /** Allowed recovery used a fresh ordinary safe-heuristic preparation. */ SAFE_HEURISTIC_FALLBACK
     }
-    /** Identifies whether winner evidence was reused from cache or measured in this request. */
+    /** Identifies whether winner evidence was reused from a compatible cache or measured now. */
     public enum Source {
         /** A compatible persistent entry supplied the winner without trial execution. */ CACHE_HIT,
         /** This request measured the reported candidates. */ MEASURED
@@ -75,13 +82,16 @@ public final class ModelAutotuningPreparation {
      * @param objective exact requested selection objective
      * @param budget exact requested bounded measurement budget
      * @param workloads non-empty immutable ordered workload evidence snapshot
+     * @param completePlan non-null authenticated evidence for the complete-plan winner used by
+     *     the fresh production preparation
      */
     public record Evidence(
             ModelAutotuningRequest.ModelIdentity modelIdentity,
             ModelAutotuningConfig.RepresentativeProfileIdentity representativeProfile,
             ModelAutotuningConfig.Objective objective,
             ModelAutotuningConfig.Budget budget,
-            List<WorkloadEvidence> workloads) {
+            List<WorkloadEvidence> workloads,
+            CompletePlanEvidence completePlan) {
         /** Validates and snapshots one complete evidence value.
          * @throws NullPointerException if any component or workload element is {@code null}
          * @throws IllegalArgumentException if {@code workloads} is empty
@@ -93,6 +103,83 @@ public final class ModelAutotuningPreparation {
             Objects.requireNonNull(budget, "budget");
             workloads = List.copyOf(Objects.requireNonNull(workloads, "workloads"));
             if (workloads.isEmpty()) throw new IllegalArgumentException("workloads must not be empty");
+            Objects.requireNonNull(completePlan, "completePlan");
+        }
+    }
+
+    /** Identifies the exact correctness action completed for one measured complete candidate. */
+    public enum CorrectnessAction {
+        /** The first candidate supplied the sole exact canonical-byte reference. */
+        REFERENCE_CAPTURED,
+        /** A later candidate exactly matched the first candidate's canonical-byte reference. */
+        MATCH
+    }
+
+    /**
+     * Immutable correctness and timing evidence for one measured complete-plan candidate.
+     *
+     * @param identity non-null opaque candidate identity
+     * @param correctnessAction non-null exact action completed before any timing
+     * @param elapsedSamplesNanos non-empty immutable encounter-ordered non-negative samples in
+     *     nanoseconds
+     * @param summary non-null summary exactly matching the copied samples
+     */
+    public record CompletePlanCandidateEvidence(
+            CandidateIdentity identity,
+            CorrectnessAction correctnessAction,
+            List<Long> elapsedSamplesNanos,
+            SampleSummary summary) {
+        /**
+         * Validates and snapshots one measured complete-plan candidate row.
+         *
+         * @throws NullPointerException if a reference component is {@code null}
+         * @throws IllegalArgumentException if samples are empty, contain a null or negative
+         *     value, or disagree with {@code summary}
+         */
+        public CompletePlanCandidateEvidence {
+            Objects.requireNonNull(identity, "identity");
+            Objects.requireNonNull(correctnessAction, "correctnessAction");
+            Objects.requireNonNull(summary, "summary");
+            elapsedSamplesNanos = validatedSamples(elapsedSamplesNanos, summary);
+        }
+    }
+
+    /**
+     * Immutable authenticated evidence for the complete-plan decision that determines the
+     * returned production recipe.
+     *
+     * @param compatibility opaque producer compatibility; records but does not grant reuse
+     * @param budget exact caller complete-plan budget
+     * @param source whether the winner came from a compatible cache entry or current measurement
+     * @param candidates immutable candidate rows in encounter order, one per checked and measured
+     *     candidate; non-empty exactly for a measured result
+     * @param winnerIdentity non-null opaque selected-candidate identity
+     * @param winnerSummary non-null selected timing summary in nanoseconds
+     */
+    public record CompletePlanEvidence(
+            CompatibilityIdentity compatibility,
+            ModelAutotuningConfig.CompletePlanBudget budget,
+            Source source,
+            List<CompletePlanCandidateEvidence> candidates,
+            CandidateIdentity winnerIdentity,
+            SampleSummary winnerSummary) {
+        /**
+         * Validates and snapshots one complete-plan evidence value.
+         *
+         * @throws NullPointerException if a component or candidate row is {@code null}
+         * @throws IllegalArgumentException if candidate presence disagrees with {@code source}
+         */
+        public CompletePlanEvidence {
+            Objects.requireNonNull(compatibility, "compatibility");
+            Objects.requireNonNull(budget, "budget");
+            Objects.requireNonNull(source, "source");
+            candidates = List.copyOf(Objects.requireNonNull(candidates, "candidates"));
+            if ((source == Source.MEASURED) != !candidates.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "measured evidence requires candidates and cache hits forbid them");
+            }
+            Objects.requireNonNull(winnerIdentity, "winnerIdentity");
+            Objects.requireNonNull(winnerSummary, "winnerSummary");
         }
     }
 
@@ -174,20 +261,29 @@ public final class ModelAutotuningPreparation {
         public CandidateEvidence {
             Objects.requireNonNull(identity, "identity");
             Objects.requireNonNull(summary, "summary");
-            var copy = new ArrayList<>(Objects.requireNonNull(elapsedSamplesNanos, "elapsedSamplesNanos"));
-            if (copy.isEmpty()) throw new IllegalArgumentException("elapsed samples must not be empty");
-            for (Long sample : copy) if (sample == null || sample < 0) {
-                throw new IllegalArgumentException("elapsed samples must be non-null and non-negative");
-            }
-            elapsedSamplesNanos = List.copyOf(copy);
-            if (copy.size() != summary.sampleCount()) throw new IllegalArgumentException("sample count mismatch");
-            copy.sort(Long::compare);
-            if (summary.minimumNanos() != copy.getFirst()
-                    || summary.medianNanos() != copy.get(copy.size() / 2)
-                    || summary.maximumNanos() != copy.getLast()) {
-                throw new IllegalArgumentException("samples do not match summary");
-            }
+            elapsedSamplesNanos = validatedSamples(elapsedSamplesNanos, summary);
         }
+    }
+
+    private static List<Long> validatedSamples(
+            List<Long> elapsedSamplesNanos, SampleSummary summary) {
+        var copy = new ArrayList<>(
+                Objects.requireNonNull(elapsedSamplesNanos, "elapsedSamplesNanos"));
+        if (copy.isEmpty()) throw new IllegalArgumentException("elapsed samples must not be empty");
+        for (Long sample : copy) if (sample == null || sample < 0) {
+            throw new IllegalArgumentException("elapsed samples must be non-null and non-negative");
+        }
+        List<Long> snapshot = List.copyOf(copy);
+        if (copy.size() != summary.sampleCount()) {
+            throw new IllegalArgumentException("sample count mismatch");
+        }
+        copy.sort(Long::compare);
+        if (summary.minimumNanos() != copy.getFirst()
+                || summary.medianNanos() != copy.get(copy.size() / 2)
+                || summary.maximumNanos() != copy.getLast()) {
+            throw new IllegalArgumentException("samples do not match summary");
+        }
+        return snapshot;
     }
 
     /**

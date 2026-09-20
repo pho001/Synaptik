@@ -156,10 +156,12 @@ schema, candidate generation, matching, heuristic fallback, or execution behavio
 the only layer that validates the decision against a freshly generated CPU batch.
 
 The record itself contains no measurement, cache schema, serialized form, executable, or Runtime
-state. Current public CPU-only `Engine.prepareTuned(...)` obtains the sole eligible handoff, maps
-it to occurrence 0 in partition 0 with weight 1, and passes it opaquely to `tools/tuning`.
-Model-wide extraction, multiple occurrences, graph/plan search, and model-plan persistence remain
-downstream work.
+state. Current public CPU-only `Engine.prepareTuned(...)` first obtains the sole eligible local
+handoff, maps it to occurrence 0 in partition 0 with weight 1, and passes it opaquely to Phase 1.
+The exact authenticated local decision then goes unchanged to CPU's separate complete-plan
+producer. Engine transports that second decision-empty handoff to Phase 2 and later authenticates
+the decision-present result. Model-wide extraction, multiple occurrences, broader graph/partition
+search, mixed backends, and executable persistence remain downstream work.
 
 ### Current representative-execution lifecycle
 
@@ -170,8 +172,8 @@ complete recipe runs through the stateless Runtime runner in a fresh `RunState` 
 publications. Existing Phase-1 trial actions remain completion-only: they validate the result
 count and close the result without inspecting publication payloads.
 
-The same session now also owns a distinct package-private correctness action for later complete-
-plan composition. Before the first correctness run, Engine validates every ordered compiled
+The same session also owns the package-private correctness action used by current complete-plan
+composition. Before the first correctness run, Engine validates every ordered compiled
 publication descriptor and the aggregate canonical-byte limit. The first fresh run copies every
 publication occurrence independently to detached canonical bytes while the result lease is open,
 including repeated aliases and empty values, then closes the result before returning an opaque
@@ -193,12 +195,14 @@ warmups and timed samples, each through a freshly prepared trial and fresh `RunS
 and fallback production recipes are prepared afresh. No tuning state, cache access, ranking, or
 route selection enters Runtime.
 
-The correctness primitive is not wired into that public Phase-1 composition and does not alter
-candidate interpretation, timing, caching, selected preparation, fallback policy, Runtime, or a
-backend contract. The completed fresh post-implementation audit found a bounded generic
-tools-only consumer, so tools/tuning task 0002 is Ready but unimplemented. A later Engine task,
-not shared Prepare or Runtime, will adapt the package-private correctness primitive and CPU's
-opaque batch to that consumer.
+Current Engine adapts the correctness primitive and CPU's opaque complete-plan batch to the
+generic tools-only consumer. All candidate correctness actions and cleanup finish before any
+warmup or timed action. Every action freshly prepares the requested recipe, and one additional
+fresh preparation creates the authenticated production winner after representative cleanup.
+Current CPU compatibility is `SESSION`, so the exact model-plan path is transported but no
+model-plan-cache filesystem I/O occurs. This composition changes no candidate interpretation,
+backend contract, Prepare ownership, or Runtime behavior; a future `PERSISTENT` producer may use
+the same translation without making current CPU decisions persistent.
 
 ## The staged prepare handoff
 

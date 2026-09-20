@@ -22,19 +22,18 @@ Benchmarking remains a separate report-only activity. Planning cost remains a se
 backend-neutral estimate used to prune or rank ownership choices. Runtime profiling remains
 passive observation.
 
-The complete public two-phase model workflow remains planned. The current public
-Engine composition implements only CPU-local Phase 1 for one representative input set and at most
-one eligible local workload. It joins Config, the cache-first tuner, Prepare's opaque handoff, and
-CPU's typed candidates behind `Engine.prepareTuned(...)`; it defines no model-plan format.
-Engine now also has the package-private correctness primitive needed by a later Phase-2
-composition, but the public workflow does not invoke it. That primitive captures one complete
-recipe's ordered publications as bounded detached canonical bytes and reports only exact
-`MATCH` or `MISMATCH` for later complete recipes in the same representative session.
+The current public Engine composition implements both phases for one representative input set,
+at most one eligible CPU-local workload, and one non-empty maximal CPU partition. It joins Config,
+both generic tuning transactions, Prepare's opaque handoff, CPU's typed producers, and Engine's
+exact correctness primitive behind `Engine.prepareTuned(...)`.
 
-Tools/tuning task 0002 is now Ready but unimplemented. Its bounded tools-only specification owns
-the future generic complete-plan transaction and compact model-plan cache format. It imports
-neither CPU nor Engine: later Engine composition adapts CPU 0010J's opaque session-scoped batch and
-Engine 0008A's package-private correctness primitive.
+Phase 1 runs once. Engine authenticates its selected decision and passes that exact value
+unchanged to CPU complete-plan candidate production. Phase 2 then checks every candidate by exact
+ordered canonical publication bytes before any warmup or timed execution. Each action uses a
+fresh preparation and fresh Runtime state. After winner authentication, Engine cleans the
+representative session and performs exactly one fresh selected production preparation. This
+bounded composition does not add Compiler graph alternatives, Planning owner or partition
+alternatives, multiple partitions, mixed backends, or persistent CPU reuse.
 
 ## Benchmarking is fixed and observational
 
@@ -90,7 +89,7 @@ Each architecture owner generates complete candidates only for its own decisions
 |---|---|
 | Compiler | Complete valid backend-neutral graph-transformation alternatives |
 | Planning | Complete valid backend ownership and partition alternatives, guided or pruned by backend-neutral cost estimates |
-| Shared prepare | A future narrow orchestration boundary that coordinates complete candidates without interpreting private fields |
+| Shared prepare | Opaque typed candidate-batch and selected-decision transport without interpreting private fields |
 | Concrete backend prepare | Complete valid backend-specific fusion, lowering, route, layout/materialization, and route-configuration alternatives |
 | `tools/tuning` | Bounded measurement, cache coordination, comparison against the objective and constraints, and explicit result selection |
 
@@ -125,12 +124,14 @@ candidate-schema versions, target and workload or model fingerprints, objective 
 and a compact measurement summary. Incompatible entries are invalidated, and corrupt data is
 rejected safely.
 
-The workload cache is implemented for Phase 1. The model-plan cache is specified by Ready but
-unimplemented tools/tuning task 0002. Neither artifact is hidden process-global state, Java object
-serialization, or an assumed executable payload. Rich candidate and measurement evidence remains
-separate from compact cache state. The physical file encoding is deliberately not selected here.
-Serialization of a prepared executable remains dependent on backend and lifecycle contracts and
-is deferred.
+The workload cache is implemented for Phase 1. The generic Phase-2 model-plan cache format is also
+implemented, but current CPU compatibility is `SESSION`, so the public CPU composition performs
+no model-plan-cache filesystem I/O. The same Engine translation can serve a future producer that
+honestly declares `PERSISTENT`. Neither artifact is hidden process-global state, Java object
+serialization, or an executable payload. Rich per-call evidence keeps correctness actions and raw
+samples separately from compact reusable records, which retain only compatibility, selected
+decision and winner identities, and the winner summary. Serialization of a prepared executable
+remains dependent on backend and lifecycle contracts and is deferred.
 
 ## Planning cost stays backend-neutral
 
@@ -148,14 +149,14 @@ absent, or an artifact is incompatible or corrupt, backend preparation uses safe
 valid complete candidates. Cache-only preparation may reuse compatible entries without running a
 search.
 
-The current Engine operation is cache-first: a compatible hit executes no trial. For a miss,
-`tools/tuning` runs the configured warmup count and timed-sample count per bounded candidate and
-selects the lowest integer-middle median, retaining encounter order for ties. Each trial uses a
-fresh preparation and fresh Runtime state. After a hit or measured winner, Engine cleans the
-representative session and freshly prepares production state; fallback also freshly performs
-ordinary safe preparation.
+The current Engine operation is cache-first in Phase 1: a compatible workload hit executes no
+local trial. Phase 2 receives the authenticated Phase-1 decision unchanged. For current CPU
+`SESSION` compatibility it measures every complete candidate; a future authenticated persistent
+hit would skip Phase-2 trials and expose no fabricated candidate rows. On a measured transaction,
+all correctness actions complete before `tools/tuning` runs any configured warmup or timed sample.
+Selection uses the lowest integer-middle median and encounter-order ties.
 
-Separately, Engine's current package-private complete-plan correctness primitive preflights every
+Engine's package-private complete-plan correctness primitive preflights every
 ordered compiled publication descriptor and one aggregate canonical-byte limit before its first
 correctness execution. The first fresh execution copies every publication occurrence while the
 Runtime result lease is open, closes the result, and only then publishes an opaque same-session
@@ -165,17 +166,20 @@ bits are significant. A mismatch carries no bytes and does not itself poison the
 session; execution, copy, count, length, or cleanup failure follows the existing session poisoning
 and once-only cleanup protocol.
 
-This primitive is not Phase 2. It does not enumerate or interpret candidates, order correctness
-against timing, select a winner, write a model-plan record, or apply public fallback. The completed
-fresh post-Engine-0008A audit found that those generic responsibilities form a bounded tools-only
-task, so tools/tuning 0002 is Ready but unimplemented. Config extension and public Engine/CPU
-composition remain later tasks and must not be described as current behavior.
+Engine adapts that primitive to the generic Phase-2 transaction without moving candidate meaning
+out of CPU. Correctness, warmup, and timed actions each freshly prepare the requested candidate;
+after result authentication and representative cleanup, exactly one additional fresh preparation
+creates the returned winner. The correctness primitive itself still does not enumerate or
+interpret candidates, time work, select a winner, access a cache, or apply fallback.
 
-`TUNED` carries authenticated immutable evidence. `SAFE_HEURISTIC_FALLBACK` records allowed safe
+`TUNED` carries authenticated immutable evidence for both phases. Measured complete-plan rows
+record the exact correctness action, encounter-ordered raw samples, summary, and candidate
+identity; compact cache records do not. `SAFE_HEURISTIC_FALLBACK` records one fresh allowed safe
 preparation and carries no evidence. Caller-defined model and profile identities label evidence;
 they neither key the workload cache nor authorize compatibility. The current occurrence is always
-index 0 in partition 0 with weight 1. This is CPU-only tuning of one local workload, not model
-extraction, multi-occurrence weighting, graph/plan tuning, or model-plan persistence.
+index 0 in partition 0 with weight 1. This remains CPU-only bounded plan tuning, not model
+extraction, multi-occurrence weighting, broader graph/partition search, mixed-backend tuning, or
+executable persistence.
 
 Runtime executes the selected prepared schedule. It performs no search, tuning-cache lookup or
 mutation, or hot-path graph inspection. Runtime profiling may passively describe actual execution

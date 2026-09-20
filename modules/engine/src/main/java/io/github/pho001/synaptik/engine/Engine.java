@@ -131,8 +131,16 @@ public final class Engine implements AutoCloseable {
     }
 
     /**
-     * Performs one bounded CPU local-workload autotuning transaction and returns a fresh
-     * production preparation, or the explicitly permitted safe heuristic fallback.
+     * Performs one bounded two-phase CPU autotuning transaction and returns a fresh production
+     * preparation, or the explicitly permitted safe heuristic fallback.
+     *
+     * <p>Phase 1 selects and authenticates the CPU local-workload decision. Phase 2 holds that
+     * decision fixed while it checks every complete-plan candidate for exact canonical-byte
+     * correctness before any warmup or timed execution. After authenticating the complete-plan
+     * winner and cleaning representative resources, Engine freshly prepares only that winner;
+     * no trial preparation becomes production state. When the request explicitly allows safe
+     * fallback, a recoverable tuning failure instead produces one fresh ordinary heuristic
+     * preparation and reports the fallback outcome without tuning evidence.</p>
      *
      * @param compiledGraph non-null compile handle created by this exact Engine
      * @param request non-null configuration, identity, and live representative inputs

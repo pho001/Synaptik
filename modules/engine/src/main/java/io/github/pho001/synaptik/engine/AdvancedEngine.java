@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.engine;
 
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
+import io.github.pho001.synaptik.backend.cpu.CpuCompletePlanTuning;
 import io.github.pho001.synaptik.backend.cpu.CpuLocalWorkloadTuning;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.compiler.FunctionalGradientRequest;
@@ -30,6 +31,12 @@ import io.github.pho001.synaptik.prepare.analysis.BackendPartitionTuningHandoff;
 import io.github.pho001.synaptik.prepare.analysis.BackendTuningCandidateBatch;
 import io.github.pho001.synaptik.prepare.analysis.BackendTuningDecision;
 import io.github.pho001.synaptik.tools.tuning.BackendWorkloadTuning;
+import io.github.pho001.synaptik.tools.tuning.BackendCompletePlanTuning;
+import io.github.pho001.synaptik.tools.tuning.CompleteCandidateMeasurement;
+import io.github.pho001.synaptik.tools.tuning.CompletePlanCorrectness;
+import io.github.pho001.synaptik.tools.tuning.CompletePlanTuning;
+import io.github.pho001.synaptik.tools.tuning.CompletePlanTuningRequest;
+import io.github.pho001.synaptik.tools.tuning.CompletePlanTuningResult;
 import io.github.pho001.synaptik.tools.tuning.WorkloadTuning;
 import io.github.pho001.synaptik.tools.tuning.WorkloadTuningRequest;
 import io.github.pho001.synaptik.tools.tuning.WorkloadTuningResult;
@@ -57,12 +64,20 @@ import io.github.pho001.synaptik.tools.tuning.WorkloadTuningResult;
  */
 public final class AdvancedEngine implements AutoCloseable {
     private static final String CLOSED_MESSAGE = "advanced engine is closed";
+    private static final int COMPLETE_PLAN_TARGET_SCHEMA = 1;
+    private static final int COMPLETE_PLAN_POLICY_SCHEMA = 1;
+    private static final int COMPLETE_PLAN_PRODUCER_SCHEMA = 1;
+    private static final int COMPLETE_PLAN_CODEC_SCHEMA = 1;
+    private static final int COMPLETE_PLAN_TARGET_TAG = 0x53455431;
+    private static final int COMPLETE_PLAN_POLICY_TAG = 0x53455031;
+    private static final int COMPLETE_PLAN_PRODUCER_TAG = 0x53455052;
+    private static final int COMPLETE_PLAN_CODEC_TAG = 0x53454344;
 
     private enum Lifecycle { OPEN, CLOSING, CLOSED }
 
     private final Object lifecycleLock = new Object();
     private final EngineBackendComposition composition;
-    private final ModelAutotuningTuning<?, ?, ?> tuningOverride;
+    private final ModelAutotuningTuning<?, ?, ?, ?, ?, ?> tuningOverride;
     private final PreparedExecutionRunner runner = new PreparedExecutionRunner();
     private final ArrayList<AdvancedRunResult> openResults = new ArrayList<>();
     private Lifecycle lifecycle = Lifecycle.OPEN;
@@ -71,7 +86,9 @@ public final class AdvancedEngine implements AutoCloseable {
 
     /** Narrow typed cold-tuning seam implemented by CPU production composition and focused tests. */
     interface ModelAutotuningTuning<C extends BackendTuningCandidateBatch,
-            D extends BackendTuningDecision, K> extends BackendWorkloadTuning<C, D, K> {
+            D extends BackendTuningDecision, K,
+            PC extends BackendTuningCandidateBatch,
+            PD extends BackendTuningDecision, PK> extends BackendWorkloadTuning<C, D, K> {
         /**
          * Obtains the optional CPU-local candidate handoff for the exact compile artifacts.
          * @param artifacts non-null immutable artifacts for the admitted compiled graph
@@ -88,15 +105,60 @@ public final class AdvancedEngine implements AutoCloseable {
          */
         io.github.pho001.synaptik.runtime.execution.PreparedExecution prepareTrial(C batch, K candidate)
                 throws Exception;
-        /**
-         * Freshly prepares the final production recipe for an authenticated decision.
-         * @param batch non-null original backend-owned candidate batch
-         * @param decision non-null authenticated selected decision
-         * @return a fresh non-null production recipe
-         * @throws RuntimeException if selected preparation fails
-         * @throws Error if selected preparation reports a fatal failure
+        /** Obtains a decision-empty complete-plan batch around the exact Phase-1 decision.
+         * @param artifacts exact admitted compile artifacts
+         * @param phaseOneDecision exact authenticated Phase-1 decision
+         * @return the optional exact complete-plan handoff
          */
-        io.github.pho001.synaptik.runtime.execution.PreparedExecution prepareSelected(C batch, D decision);
+        Optional<BackendPartitionTuningHandoff<PC, PD>> completePlanCandidateHandoff(
+                CompileArtifacts artifacts, D phaseOneDecision);
+        /** Enumerates the complete stable Phase-2 candidate set.
+         * @param batch exact complete-plan batch
+         * @return non-null stable candidate list
+         */
+        List<PK> completePlanCandidates(PC batch);
+        /** Maps backend compatibility without interpreting candidate meaning.
+         * @param batch exact complete-plan batch
+         * @return non-null tool compatibility
+         */
+        CompletePlanTuningRequest.PlanCompatibility completePlanCompatibility(PC batch);
+        /** Maps one opaque complete-plan candidate identity.
+         * @param candidate exact candidate
+         * @return non-null tool identity
+         */
+        CompletePlanTuningRequest.CandidateIdentity completePlanCandidateIdentity(PK candidate);
+        /** Selects one exact complete-plan candidate.
+         * @param batch exact source batch
+         * @param candidate exact winning candidate
+         * @return non-null associated decision
+         */
+        PD completePlanSelectedDecision(PC batch, PK candidate);
+        /** Encodes one complete-plan decision.
+         * @param decision exact associated decision
+         * @return fresh non-empty encoded bytes
+         */
+        byte[] encodeCompletePlanDecision(PD decision);
+        /** Decodes only a decision compatible with the exact current batch.
+         * @param batch exact current batch
+         * @param encodedDecision non-null caller-owned encoded bytes
+         * @return non-null optional compatible decision
+         */
+        Optional<PD> decodeCompatibleCompletePlanDecision(PC batch, byte[] encodedDecision);
+        /** Freshly prepares one complete-plan trial without executing it.
+         * @param batch exact source batch
+         * @param candidate exact candidate
+         * @return fresh non-null trial recipe
+         * @throws Exception if cold preparation fails
+         */
+        io.github.pho001.synaptik.runtime.execution.PreparedExecution prepareCompletePlanTrial(
+                PC batch, PK candidate) throws Exception;
+        /** Freshly prepares the authenticated complete-plan winner for production.
+         * @param batch exact source batch
+         * @param decision exact authenticated winner decision
+         * @return fresh non-null production recipe
+         */
+        io.github.pho001.synaptik.runtime.execution.PreparedExecution prepareCompletePlanSelected(
+                PC batch, PD decision);
     }
 
     /**
@@ -137,7 +199,7 @@ public final class AdvancedEngine implements AutoCloseable {
      */
     AdvancedEngine(
             EngineBackendComposition composition,
-            ModelAutotuningTuning<?, ?, ?> tuningOverride) {
+            ModelAutotuningTuning<?, ?, ?, ?, ?, ?> tuningOverride) {
         this.composition = Objects.requireNonNull(composition, "composition");
         this.tuningOverride = tuningOverride;
     }
@@ -531,17 +593,21 @@ public final class AdvancedEngine implements AutoCloseable {
      * @param <C> opaque candidate-batch type
      * @param <D> opaque selected-decision type
      * @param <K> opaque candidate type
+     * @param <PC> opaque complete-plan candidate-batch type
+     * @param <PD> opaque complete-plan selected-decision type
+     * @param <PK> opaque complete-plan candidate type
      * @return one completely constructed selected or safe-fallback preparation
      * @throws RuntimeException if lifecycle, validation, tuning, preparation, publication, or
      *     cleanup reports an unchecked failure
      * @throws Error if inward work or cleanup reports a fatal failure
      */
-    <C extends BackendTuningCandidateBatch, D extends BackendTuningDecision, K>
+    <C extends BackendTuningCandidateBatch, D extends BackendTuningDecision, K,
+            PC extends BackendTuningCandidateBatch, PD extends BackendTuningDecision, PK>
             ModelAutotuningPreparation prepareTunedOrdinary(
                     Engine owner,
                     CompiledGraph compiledGraph,
                     ModelAutotuningRequest request,
-                    ModelAutotuningTuning<C, D, K> tuning) {
+                    ModelAutotuningTuning<C, D, K, PC, PD, PK> tuning) {
         beginOperation();
         return prepareTunedOrdinaryAlreadyAdmitted(owner, compiledGraph, request, tuning);
     }
@@ -550,7 +616,7 @@ public final class AdvancedEngine implements AutoCloseable {
             Engine owner,
             CompiledGraph compiledGraph,
             ModelAutotuningRequest request,
-            ModelAutotuningTuning<?, ?, ?> suppliedTuning) {
+            ModelAutotuningTuning<?, ?, ?, ?, ?, ?> suppliedTuning) {
         RepresentativeExecutionSession session;
         ModelAutotuningConfig config;
         ModelAutotuningRequest.ModelIdentity modelIdentity;
@@ -567,7 +633,7 @@ public final class AdvancedEngine implements AutoCloseable {
             throw failure;
         }
 
-        ModelAutotuningTuning<?, ?, ?> tuning;
+        ModelAutotuningTuning<?, ?, ?, ?, ?, ?> tuning;
         try {
             tuning = suppliedTuning;
             if (tuning == null) {
@@ -581,14 +647,15 @@ public final class AdvancedEngine implements AutoCloseable {
                 owner, compiledGraph, config, modelIdentity, session, tuning);
     }
 
-    private <C extends BackendTuningCandidateBatch, D extends BackendTuningDecision, K>
+    private <C extends BackendTuningCandidateBatch, D extends BackendTuningDecision, K,
+            PC extends BackendTuningCandidateBatch, PD extends BackendTuningDecision, PK>
             ModelAutotuningPreparation prepareTunedOrdinaryWithSession(
                     Engine owner,
                     CompiledGraph compiledGraph,
                     ModelAutotuningConfig config,
                     ModelAutotuningRequest.ModelIdentity modelIdentity,
                     RepresentativeExecutionSession session,
-                    ModelAutotuningTuning<C, D, K> tuning) {
+                    ModelAutotuningTuning<C, D, K, PC, PD, PK> tuning) {
         RuntimeException recoverable = null;
         boolean selectionAuthenticated = false;
         try {
@@ -615,14 +682,48 @@ public final class AdvancedEngine implements AutoCloseable {
             } catch (Exception failure) {
                 throw new IllegalStateException("unexpected checked tuning failure", failure);
             }
-            BackendPartitionTuningHandoff<C, D> selected = authenticate(
+            BackendPartitionTuningHandoff<C, D> phaseOneSelected = authenticate(
                             result, handoff, tuningRequest, context);
+            D phaseOneDecision = phaseOneSelected.selectedDecision().orElseThrow();
+            var optionalCompleteHandoff = tuning.completePlanCandidateHandoff(
+                    compiledGraph.artifacts(), phaseOneDecision);
+            if (optionalCompleteHandoff.isEmpty()) {
+                throw new IllegalStateException("no eligible CPU complete-plan tuning handoff");
+            }
+            var completeHandoff = optionalCompleteHandoff.orElseThrow();
+            var completeCompatibility = Objects.requireNonNull(
+                    tuning.completePlanCompatibility(completeHandoff.candidateBatch()),
+                    "complete-plan compatibility");
+            var completeRequest = completePlanTuningRequest(
+                    config, modelIdentity, completeHandoff, completeCompatibility);
+            CompletePlanTuningResult<PC, PD> completeResult;
+            try {
+                completeResult = CompletePlanTuning.tune(
+                        completeRequest,
+                        completePlanBackend(tuning, completeCompatibility),
+                        completePlanCorrectness(tuning, session),
+                        completePlanMeasurement(tuning, session));
+            } catch (CompletePlanTuning.CorrectnessMismatchException failure) {
+                throw new IllegalStateException(
+                        "complete-plan candidate correctness mismatch", failure);
+            } catch (RuntimeException failure) {
+                throw failure;
+            } catch (IOException failure) {
+                throw new UncheckedIOException(failure);
+            } catch (Exception failure) {
+                throw new IllegalStateException(
+                        "unexpected checked complete-plan tuning failure", failure);
+            }
+            BackendPartitionTuningHandoff<PC, PD> completeSelected =
+                    authenticateCompletePlan(completeResult, completeHandoff, completeRequest,
+                            completeCompatibility, config);
             selectionAuthenticated = true;
             session.cleanupForProductionPreparation();
-            var inward = tuning.prepareSelected(
-                    selected.candidateBatch(), selected.selectedDecision().orElseThrow());
+            var inward = tuning.prepareCompletePlanSelected(
+                    completeSelected.candidateBatch(),
+                    completeSelected.selectedDecision().orElseThrow());
             ModelAutotuningPreparation.Evidence evidence = translateEvidence(
-                    result.evidence(), config, modelIdentity, context);
+                    result.evidence(), completeResult, config, modelIdentity, context);
             var prepared = new io.github.pho001.synaptik.engine.PreparedExecution(
                     owner, compiledGraph, inward);
             var publicResult = new ModelAutotuningPreparation(
@@ -1638,8 +1739,225 @@ public final class AdvancedEngine implements AutoCloseable {
         return selected;
     }
 
+    private static <C extends BackendTuningCandidateBatch, D extends BackendTuningDecision>
+            CompletePlanTuningRequest<C, D> completePlanTuningRequest(
+                    ModelAutotuningConfig config,
+                    ModelAutotuningRequest.ModelIdentity modelIdentity,
+                    BackendPartitionTuningHandoff<C, D> handoff,
+                    CompletePlanTuningRequest.PlanCompatibility compatibility) {
+        Objects.requireNonNull(config, "config");
+        Objects.requireNonNull(compatibility, "compatibility");
+        var profile = config.representativeProfile();
+        var budget = config.completePlanBudget();
+        return new CompletePlanTuningRequest<>(
+                new CompletePlanTuningRequest.ModelFingerprint(
+                        modelIdentity.schemaVersion(), modelIdentity.bytes()),
+                new CompletePlanTuningRequest.ProfileFingerprint(
+                        profile.schemaVersion(), profile.bytes()),
+                new CompletePlanTuningRequest.TargetFingerprint(
+                        COMPLETE_PLAN_TARGET_SCHEMA, completePlanTargetIdentity(compatibility)),
+                switch (config.objective()) {
+                    case MIN_MEDIAN_ELAPSED_NANOS ->
+                            CompletePlanTuningRequest.Objective.MIN_MEDIAN_ELAPSED_NANOS;
+                },
+                CompletePlanTuningRequest.CorrectnessPolicy.EXACT_CANONICAL_BYTES,
+                new CompletePlanTuningRequest.PolicyIdentity(
+                        COMPLETE_PLAN_POLICY_SCHEMA, completePlanPolicyIdentity()),
+                budget.maximumPlanCandidates(),
+                budget.warmupCount(),
+                budget.timedSampleCount(),
+                budget.maximumTotalPlanExecutions(),
+                budget.maximumAggregateCorrectnessBytes(),
+                config.modelPlanCache(),
+                handoff);
+    }
+
+    private static byte[] completePlanTargetIdentity(
+            CompletePlanTuningRequest.PlanCompatibility compatibility) {
+        byte[] compatibilityBytes = compatibility.bytes();
+        int reuseTag = switch (compatibility.reuseScope()) {
+            case SESSION -> 1;
+            case PERSISTENT -> 2;
+        };
+        return ByteBuffer.allocate(Math.addExact(20, compatibilityBytes.length))
+                .putInt(COMPLETE_PLAN_TARGET_TAG)
+                .putInt(COMPLETE_PLAN_TARGET_SCHEMA)
+                .putInt(compatibility.schemaVersion())
+                .putInt(reuseTag)
+                .putInt(compatibilityBytes.length)
+                .put(compatibilityBytes)
+                .array();
+    }
+
+    private static byte[] completePlanPolicyIdentity() {
+        return ByteBuffer.allocate(24)
+                .putInt(COMPLETE_PLAN_POLICY_TAG)
+                .putInt(COMPLETE_PLAN_POLICY_SCHEMA)
+                .putInt(1) // fixed one-partition CPU producer
+                .putInt(1) // exact canonical-byte correctness
+                .putInt(1) // retained legal topology alternatives
+                .putInt(1) // retained legal representation alternatives
+                .array();
+    }
+
+    private static CompletePlanTuningRequest.ProducerIdentity completePlanProducerIdentity() {
+        return new CompletePlanTuningRequest.ProducerIdentity(
+                COMPLETE_PLAN_PRODUCER_SCHEMA,
+                ByteBuffer.allocate(8).putInt(COMPLETE_PLAN_PRODUCER_TAG)
+                        .putInt(COMPLETE_PLAN_PRODUCER_SCHEMA).array());
+    }
+
+    private static CompletePlanTuningRequest.DecisionCodecIdentity
+            completePlanDecisionCodecIdentity() {
+        return new CompletePlanTuningRequest.DecisionCodecIdentity(
+                COMPLETE_PLAN_CODEC_SCHEMA,
+                ByteBuffer.allocate(8).putInt(COMPLETE_PLAN_CODEC_TAG)
+                        .putInt(COMPLETE_PLAN_CODEC_SCHEMA).array());
+    }
+
+    private static <C extends BackendTuningCandidateBatch, D extends BackendTuningDecision, K,
+            PC extends BackendTuningCandidateBatch, PD extends BackendTuningDecision, PK>
+            BackendCompletePlanTuning<PC, PD, PK> completePlanBackend(
+                    ModelAutotuningTuning<C, D, K, PC, PD, PK> tuning,
+                    CompletePlanTuningRequest.PlanCompatibility compatibility) {
+        Objects.requireNonNull(compatibility, "compatibility");
+        return new BackendCompletePlanTuning<>() {
+            @Override public List<PK> candidates(PC batch) {
+                return tuning.completePlanCandidates(batch);
+            }
+            @Override public CompletePlanTuningRequest.PlanCompatibility compatibility(PC batch) {
+                return compatibility;
+            }
+            @Override public CompletePlanTuningRequest.CandidateIdentity candidateIdentity(
+                    PK candidate) {
+                return tuning.completePlanCandidateIdentity(candidate);
+            }
+            @Override public PD selectedDecision(PC batch, PK candidate) {
+                return tuning.completePlanSelectedDecision(batch, candidate);
+            }
+            @Override public byte[] encodeDecision(PD decision) {
+                return tuning.encodeCompletePlanDecision(decision);
+            }
+            @Override public Optional<PD> decodeCompatibleDecision(
+                    PC batch, byte[] encodedDecision) {
+                return tuning.decodeCompatibleCompletePlanDecision(batch, encodedDecision);
+            }
+        };
+    }
+
+    private static <C extends BackendTuningCandidateBatch, D extends BackendTuningDecision, K,
+            PC extends BackendTuningCandidateBatch, PD extends BackendTuningDecision, PK>
+            CompletePlanCorrectness<PC, PK, CompleteCorrectnessReference>
+            completePlanCorrectness(
+                    ModelAutotuningTuning<C, D, K, PC, PD, PK> tuning,
+                    RepresentativeExecutionSession session) {
+        return new CompletePlanCorrectness<>() {
+            @Override public CompleteCorrectnessReference capture(
+                    PC batch, PK candidate, long maximumAggregateBytes) throws Exception {
+                var trial = tuning.prepareCompletePlanTrial(batch, candidate);
+                return new CompleteCorrectnessReference(
+                        session.captureCorrectnessReference(trial, maximumAggregateBytes),
+                        maximumAggregateBytes);
+            }
+            @Override public Outcome compare(
+                    CompleteCorrectnessReference reference,
+                    PC batch,
+                    PK candidate,
+                    long maximumAggregateBytes) throws Exception {
+                if (reference.maximumAggregateBytes() != maximumAggregateBytes) {
+                    throw new IllegalArgumentException(
+                            "complete-plan correctness byte ceiling changed");
+                }
+                var trial = tuning.prepareCompletePlanTrial(batch, candidate);
+                return switch (session.compareCorrectness(reference.reference(), trial)) {
+                    case MATCH -> Outcome.MATCH;
+                    case MISMATCH -> Outcome.MISMATCH;
+                };
+            }
+        };
+    }
+
+    private static <C extends BackendTuningCandidateBatch, D extends BackendTuningDecision, K,
+            PC extends BackendTuningCandidateBatch, PD extends BackendTuningDecision, PK>
+            CompleteCandidateMeasurement<PC, PK> completePlanMeasurement(
+                    ModelAutotuningTuning<C, D, K, PC, PD, PK> tuning,
+                    RepresentativeExecutionSession session) {
+        return (batch, candidate) -> {
+            var trial = tuning.prepareCompletePlanTrial(batch, candidate);
+            session.execute(trial);
+        };
+    }
+
+    private static <C extends BackendTuningCandidateBatch, D extends BackendTuningDecision>
+            BackendPartitionTuningHandoff<C, D> authenticateCompletePlan(
+                    CompletePlanTuningResult<C, D> result,
+                    BackendPartitionTuningHandoff<C, D> original,
+                    CompletePlanTuningRequest<C, D> request,
+                    CompletePlanTuningRequest.PlanCompatibility compatibility,
+                    ModelAutotuningConfig config) {
+        Objects.requireNonNull(result, "complete-plan tuning result");
+        var budget = Objects.requireNonNull(config, "config").completePlanBudget();
+        if (request.handoff() != original
+                || request.maximumPlanCandidates() != budget.maximumPlanCandidates()
+                || request.warmupCount() != budget.warmupCount()
+                || request.timedSampleCount() != budget.timedSampleCount()
+                || request.maximumTotalPlanExecutions()
+                        != budget.maximumTotalPlanExecutions()
+                || request.maximumAggregateCorrectnessBytes()
+                        != budget.maximumAggregateCorrectnessBytes()
+                || request.modelPlanCache() != config.modelPlanCache()
+                || request.correctnessPolicy()
+                        != CompletePlanTuningRequest.CorrectnessPolicy.EXACT_CANONICAL_BYTES) {
+            throw new IllegalArgumentException(
+                    "complete-plan request does not match configuration");
+        }
+        var selected = result.selectedHandoff();
+        if (selected.partition() != original.partition()
+                || selected.candidateBatch() != original.candidateBatch()
+                || selected.selectedDecision().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "complete-plan selected handoff does not match the original handoff");
+        }
+        var record = result.selectedPlan();
+        var evidence = result.evidence();
+        if (!record.compatibility().equals(compatibility)
+                || !record.selectedCandidateIdentity().equals(
+                        evidence.selectedCandidateIdentity())
+                || !record.timingSummary().equals(evidence.selectedSummary())
+                || !evidence.modelFingerprint().equals(request.modelFingerprint())
+                || !evidence.profileFingerprint().equals(request.profileFingerprint())
+                || !evidence.targetFingerprint().equals(request.targetFingerprint())
+                || evidence.objective() != request.objective()
+                || evidence.correctnessPolicy() != request.correctnessPolicy()
+                || !evidence.policyIdentity().equals(request.policyIdentity())) {
+            throw new IllegalArgumentException(
+                    "complete-plan result evidence does not match the request");
+        }
+        if (evidence.source() == CompletePlanTuningResult.Source.MEASURED
+                && evidence.candidates().stream().noneMatch(candidate ->
+                        candidate.identity().equals(record.selectedCandidateIdentity())
+                                && candidate.summary().equals(record.timingSummary()))) {
+            throw new IllegalArgumentException(
+                    "complete-plan winner is absent from measured evidence");
+        }
+        return selected;
+    }
+
+    private record CompleteCorrectnessReference(
+            RepresentativePlanCorrectness.Reference reference,
+            long maximumAggregateBytes) {
+        private CompleteCorrectnessReference {
+            Objects.requireNonNull(reference, "reference");
+            if (maximumAggregateBytes < 0) {
+                throw new IllegalArgumentException(
+                        "maximumAggregateBytes must be non-negative");
+            }
+        }
+    }
+
     private static ModelAutotuningPreparation.Evidence translateEvidence(
             WorkloadTuningResult.Evidence inward,
+            CompletePlanTuningResult<?, ?> completeResult,
             ModelAutotuningConfig config,
             ModelAutotuningRequest.ModelIdentity modelIdentity,
             byte[] context) {
@@ -1684,11 +2002,55 @@ public final class AdvancedEngine implements AutoCloseable {
         }
         return new ModelAutotuningPreparation.Evidence(
                 modelIdentity, config.representativeProfile(), config.objective(), config.budget(),
-                workloads);
+                workloads, translateCompletePlanEvidence(completeResult, config));
+    }
+
+    private static ModelAutotuningPreparation.CompletePlanEvidence
+            translateCompletePlanEvidence(
+                    CompletePlanTuningResult<?, ?> result,
+                    ModelAutotuningConfig config) {
+        var inward = result.evidence();
+        var compatibility = result.selectedPlan().compatibility();
+        var candidates = new ArrayList<ModelAutotuningPreparation.CompletePlanCandidateEvidence>();
+        for (var candidate : inward.candidates()) {
+            candidates.add(new ModelAutotuningPreparation.CompletePlanCandidateEvidence(
+                    new ModelAutotuningPreparation.CandidateIdentity(
+                            candidate.identity().bytes()),
+                    switch (candidate.correctnessAction()) {
+                        case REFERENCE_CAPTURED ->
+                                ModelAutotuningPreparation.CorrectnessAction.REFERENCE_CAPTURED;
+                        case MATCH -> ModelAutotuningPreparation.CorrectnessAction.MATCH;
+                    },
+                    candidate.elapsedSamplesNanos(),
+                    summary(candidate.summary())));
+        }
+        return new ModelAutotuningPreparation.CompletePlanEvidence(
+                new ModelAutotuningPreparation.CompatibilityIdentity(
+                        compatibility.schemaVersion(), compatibility.bytes(),
+                        switch (compatibility.reuseScope()) {
+                            case SESSION -> ModelAutotuningPreparation.ReuseScope.SESSION;
+                            case PERSISTENT -> ModelAutotuningPreparation.ReuseScope.PERSISTENT;
+                        }),
+                config.completePlanBudget(),
+                switch (inward.source()) {
+                    case CACHE_HIT -> ModelAutotuningPreparation.Source.CACHE_HIT;
+                    case MEASURED -> ModelAutotuningPreparation.Source.MEASURED;
+                },
+                candidates,
+                new ModelAutotuningPreparation.CandidateIdentity(
+                        inward.selectedCandidateIdentity().bytes()),
+                summary(inward.selectedSummary()));
     }
 
     private static ModelAutotuningPreparation.SampleSummary summary(
             WorkloadTuningResult.SampleSummary summary) {
+        return new ModelAutotuningPreparation.SampleSummary(
+                summary.minimumNanos(), summary.medianNanos(), summary.maximumNanos(),
+                summary.sampleCount());
+    }
+
+    private static ModelAutotuningPreparation.SampleSummary summary(
+            CompletePlanTuningResult.SampleSummary summary) {
         return new ModelAutotuningPreparation.SampleSummary(
                 summary.minimumNanos(), summary.medianNanos(), summary.maximumNanos(),
                 summary.sampleCount());
@@ -1706,12 +2068,18 @@ public final class AdvancedEngine implements AutoCloseable {
     private record CpuTuningAdapter(CpuEngineBackendComposition composition)
             implements ModelAutotuningTuning<CpuLocalWorkloadTuning.CandidateBatch,
                     CpuLocalWorkloadTuning.SelectedDecision,
-                    CpuLocalWorkloadTuning.Candidate> {
+                    CpuLocalWorkloadTuning.Candidate,
+                    CpuCompletePlanTuning.CandidateBatch,
+                    CpuCompletePlanTuning.SelectedDecision,
+                    CpuCompletePlanTuning.Candidate> {
         private CpuTuningAdapter {
             Objects.requireNonNull(composition, "composition");
         }
 
         private CpuLocalWorkloadTuning tuning() { return composition.localWorkloadTuning(); }
+        private CpuCompletePlanTuning completeTuning() {
+            return composition.completePlanTuning();
+        }
 
         @Override public Optional<BackendPartitionTuningHandoff<
                 CpuLocalWorkloadTuning.CandidateBatch, CpuLocalWorkloadTuning.SelectedDecision>>
@@ -1723,12 +2091,6 @@ public final class AdvancedEngine implements AutoCloseable {
                 CpuLocalWorkloadTuning.CandidateBatch batch,
                 CpuLocalWorkloadTuning.Candidate candidate) {
             return tuning().prepareTrial(batch, candidate);
-        }
-
-        @Override public io.github.pho001.synaptik.runtime.execution.PreparedExecution prepareSelected(
-                CpuLocalWorkloadTuning.CandidateBatch batch,
-                CpuLocalWorkloadTuning.SelectedDecision decision) {
-            return tuning().prepareSelected(batch, decision);
         }
 
         @Override public List<CpuLocalWorkloadTuning.Candidate> candidates(
@@ -1767,6 +2129,68 @@ public final class AdvancedEngine implements AutoCloseable {
                 decodeCompatibleDecision(
                         CpuLocalWorkloadTuning.CandidateBatch batch, byte[] encodedDecision) {
             return tuning().decodeCompatibleDecision(batch, encodedDecision);
+        }
+
+        @Override public Optional<BackendPartitionTuningHandoff<
+                CpuCompletePlanTuning.CandidateBatch,
+                CpuCompletePlanTuning.SelectedDecision>> completePlanCandidateHandoff(
+                        CompileArtifacts artifacts,
+                        CpuLocalWorkloadTuning.SelectedDecision phaseOneDecision) {
+            return completeTuning().candidateHandoff(
+                    artifacts, Optional.of(phaseOneDecision));
+        }
+
+        @Override public List<CpuCompletePlanTuning.Candidate> completePlanCandidates(
+                CpuCompletePlanTuning.CandidateBatch batch) {
+            return completeTuning().candidates(batch);
+        }
+
+        @Override public CompletePlanTuningRequest.PlanCompatibility completePlanCompatibility(
+                CpuCompletePlanTuning.CandidateBatch batch) {
+            var value = completeTuning().compatibility(batch);
+            return new CompletePlanTuningRequest.PlanCompatibility(
+                    completePlanProducerIdentity(), completePlanDecisionCodecIdentity(),
+                    value.schemaVersion(), value.bytes(), switch (value.reuseScope()) {
+                        case SESSION -> CompletePlanTuningRequest.ReuseScope.SESSION;
+                        case PERSISTENT -> CompletePlanTuningRequest.ReuseScope.PERSISTENT;
+                    });
+        }
+
+        @Override public CompletePlanTuningRequest.CandidateIdentity
+                completePlanCandidateIdentity(CpuCompletePlanTuning.Candidate candidate) {
+            return new CompletePlanTuningRequest.CandidateIdentity(
+                    completeTuning().candidateIdentity(candidate).bytes());
+        }
+
+        @Override public CpuCompletePlanTuning.SelectedDecision completePlanSelectedDecision(
+                CpuCompletePlanTuning.CandidateBatch batch,
+                CpuCompletePlanTuning.Candidate candidate) {
+            return completeTuning().selectedDecision(batch, candidate);
+        }
+
+        @Override public byte[] encodeCompletePlanDecision(
+                CpuCompletePlanTuning.SelectedDecision decision) {
+            return completeTuning().encodeDecision(decision);
+        }
+
+        @Override public Optional<CpuCompletePlanTuning.SelectedDecision>
+                decodeCompatibleCompletePlanDecision(
+                        CpuCompletePlanTuning.CandidateBatch batch, byte[] encodedDecision) {
+            return completeTuning().decodeCompatibleDecision(batch, encodedDecision);
+        }
+
+        @Override public io.github.pho001.synaptik.runtime.execution.PreparedExecution
+                prepareCompletePlanTrial(
+                        CpuCompletePlanTuning.CandidateBatch batch,
+                        CpuCompletePlanTuning.Candidate candidate) {
+            return completeTuning().prepareTrial(batch, candidate);
+        }
+
+        @Override public io.github.pho001.synaptik.runtime.execution.PreparedExecution
+                prepareCompletePlanSelected(
+                        CpuCompletePlanTuning.CandidateBatch batch,
+                        CpuCompletePlanTuning.SelectedDecision decision) {
+            return completeTuning().prepareSelected(batch, decision);
         }
     }
 

@@ -301,18 +301,22 @@ values. Construction validates and retains policy data but does not inspect eith
 tuning, read or write a cache, enumerate candidates, perform correctness execution, prepare an
 executable, or perform Engine or Runtime work.
 
-Current `Engine.prepareTuned(...)` maps the objective and Phase-1 budget values one-for-one,
-supplies the request's caller-defined model and representative-profile identities, binds its live
-representative inputs, and passes the workload-cache path to `tools/tuning`. The current bounded
-composition exposes exactly one CPU-local occurrence at occurrence index 0, partition index 0,
-and weight 1. It does not consume `completePlanBudget` or `modelPlanCache`; later Engine
-composition must translate those values into the already implemented generic Phase-2 transaction.
-Current CPU complete-plan reuse is `SESSION`, so that later transaction would receive but not
-access the supplied model-plan path. Strict mode reports a failed or unavailable complete tuning
-result, while safe-heuristic mode may return a fresh ordinary safe preparation. The latter grants
-no candidate eligibility, numerical relaxation, cache compatibility, partial-result acceptance,
-or suppression of an unrelated preparation failure. Generic multiple-occurrence extraction and
-public bounded complete-plan composition remain planned.
+Current `Engine.prepareTuned(...)` maps both budgets and the objective one-for-one, supplies the
+request's caller-defined model and representative-profile identities, binds its live
+representative inputs, and passes both explicit cache paths to `tools/tuning`. Phase 1 exposes
+exactly one CPU-local occurrence at occurrence index 0, partition index 0, and weight 1. Its
+authenticated selected decision then passes unchanged into CPU complete-plan candidate
+production. Phase 2 checks every candidate by exact canonical publication bytes before any
+warmup or timed execution, measures the bounded candidates, authenticates the winner, cleans the
+representative session, and prepares exactly one fresh selected production recipe.
+
+Current CPU complete-plan reuse is `SESSION`, so Phase 2 retains but does not inspect, create, or
+publish the supplied model-plan path. The same translation remains valid for a future producer
+that can honestly declare `PERSISTENT`. Strict mode reports a failed or unavailable complete
+tuning result, while safe-heuristic mode may return one fresh ordinary safe preparation with no
+evidence. Fallback grants no candidate eligibility, numerical relaxation, cache compatibility,
+partial-result acceptance, or suppression of an unrelated preparation failure. Generic
+multiple-occurrence extraction and broader Compiler/Planning plan alternatives remain planned.
 
 The public `modules:planning` surface contains eight backend-neutral compile-time declarations:
 
@@ -827,14 +831,21 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
 ```
 
 The request snapshots the list and identity bytes but retains the live caller-owned Tensor and
-storage. On an eligible cache miss, the configured one warmup and three timed samples apply per
-candidate; the lowest integer-middle median wins. Every trial uses fresh Runtime state, and the
-returned production handle is prepared afresh. A cache hit runs no trials. A tuned result has
-outcome `TUNED` and evidence for the sole current occurrence (index 0, partition 0, weight 1).
+storage. Phase 1 reuses or measures the sole eligible local workload. Its authenticated winner is
+then fixed while Phase 2 considers only CPU's retained complete topology and representation
+alternatives. Phase 2 performs every exact correctness action before timing; correctness,
+warmup, and timed executions each use a fresh preparation and fresh Runtime state. After winner
+authentication and representative cleanup, the returned production handle is prepared afresh.
+
+A tuned result has outcome `TUNED`. Its immutable evidence contains the Phase-1 workload rows and
+required `completePlan` evidence: compatibility and reuse scope, the exact Phase-2 budget, source,
+winner identity and summary, plus one correctness-and-sample row per measured candidate. A future
+persistent hit has no candidate rows because compact reusable cache records do not contain rich
+per-call correctness actions or raw samples. Current CPU complete-plan evidence is always
+`SESSION` and measured, and its explicit model-plan path receives no filesystem access.
 Model/profile identities are caller-defined evidence labels, not workload-cache keys. Current
-scope excludes multiple workloads or occurrences and public graph/plan tuning. The explicit
-complete-plan budget and model-plan path satisfy the Config contract but are not consumed by this
-current Phase-1-only Engine call.
+scope excludes multiple workloads or occurrences, Compiler graph alternatives, Planning owner or
+partition alternatives, and mixed backends.
 
 The current one-shot forms are exactly:
 

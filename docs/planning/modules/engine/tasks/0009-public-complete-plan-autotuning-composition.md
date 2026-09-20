@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -210,6 +210,7 @@ because they are inseparable from that result. Package-private adapters remain c
 
 Expected production/Javadoc paths:
 
+- `modules/engine/src/main/java/io/github/pho001/synaptik/engine/Engine.java`
 - `modules/engine/src/main/java/io/github/pho001/synaptik/engine/AdvancedEngine.java`
 - `modules/engine/src/main/java/io/github/pho001/synaptik/engine/CpuEngineBackendComposition.java`
 - `modules/engine/src/main/java/io/github/pho001/synaptik/engine/ModelAutotuningPreparation.java`
@@ -243,11 +244,13 @@ backend-conformance source, other integration tests, and unrelated documentation
 
 ## Maximum scope
 
-At most 17 paths: 4 Engine production/Javadoc paths, 5 Engine/integration test paths, 5 focused
+At most 18 paths: 5 Engine production/Javadoc paths, 5 Engine/integration test paths, 5 focused
 explanatory documentation paths, and exactly 3 planning paths. This is one cohesive Engine
 capability: package-private adaptation, public evidence completion, lifecycle/failure tests, and
-the public CPU-only integration proof. If another production type, top-level public type, package,
-module dependency, build path, explanatory path, or eighteenth path is required, stop and propose
+the public CPU-only integration proof. The fifth production/Javadoc path updates the existing
+public `Engine.prepareTuned(...)` contract from its Phase-1-only wording to the implemented
+two-phase behavior; it changes no signature or executable token. If another production type,
+top-level public type, package, module dependency, build path, explanatory path, or nineteenth path is required, stop and propose
 the smallest prerequisite or follow-up instead of expanding the task.
 
 ## Failure, cleanup, fallback, and concurrency semantics
@@ -286,8 +289,8 @@ the smallest prerequisite or follow-up instead of expanding the task.
 
 ## Acceptance criteria
 
-1. Task 0009 is the sole Ready Engine frontier after Complete 0008A; no later Engine task is Ready
-   or detailed.
+1. Task 0009 completes the sole Engine frontier selected after 0008A; no later Engine task is
+   Ready or detailed.
 2. `ModelAutotuningRequest` and `Engine.prepareTuned(...)` retain their exact public shape.
 3. `ModelAutotuningPreparation.Evidence` gains exactly the required complete-plan component and
    the three nested declarations listed in Scope; no top-level public type or unrelated method is
@@ -380,7 +383,7 @@ git status --short -uall
 
 Render and inspect the Engine package, `ModelAutotuningPreparation`, and all new nested evidence
 pages. Validate local Markdown targets/anchors, unique headings, fences, LF/final newlines,
-trailing whitespace, terminology, exact 17-path ceiling, public shape, forbidden imports,
+trailing whitespace, terminology, exact 18-path ceiling, public shape, forbidden imports,
 dependency inventory, synchronized status, and empty staging.
 
 ## Dependencies
@@ -428,7 +431,7 @@ plus every directly referenced completed Engine, Config, tuning, CPU, Prepare, R
 documentation, and architecture contract named by the task. Inspect current source and tests;
 do not rely on planning claims alone.
 
-Implement exactly task 0009 within its 17-path ceiling. Preserve Phase-1 semantics, pass its exact
+Implement exactly task 0009 within its 18-path ceiling. Preserve Phase-1 semantics, pass its exact
 authenticated decision into CPU complete-plan generation, adapt Engine correctness and fresh
 execution to the generic Phase-2 transaction, freshly prepare only the authenticated winner, and
 preserve lifecycle/fallback/failure identity. Add only the specified nested complete-plan evidence
@@ -474,12 +477,123 @@ the task Complete until every specified gate and that pass succeed.
 
 ## Validation evidence
 
-Empty until implemented.
+- Implementation context `01a0bdf6-5615-7491-8f78-39184c10a773` recorded passing focused
+  `CompletePlanAutotuningCompositionTest`, `ModelAutotuningCompositionTest`,
+  `RepresentativeExecutionSessionTest`, and `EngineTypedPublicShapeTest`, followed by the full
+  `:modules:engine:test` suite. This documentation context changed no executable Java behavior or
+  tests and therefore reused that evidence.
+- The handoff also recorded passing focused `EngineCompositionContractTest` and focused
+  `EngineModelAutotuningIntegrationTest`. The integration class ran two tests: the eligible native
+  path skipped on this host because no qualified OpenBLAS alternatives were available, while the
+  deterministic no-handoff fallback path executed successfully.
+- The initial implementation repository checkpoint `./gradlew test` was `BUILD SUCCESSFUL` in
+  2m42s with 70 actionable tasks: 10 executed, 1 from cache, and 59 up-to-date. After the bounded
+  compatibility-snapshot and public-method-Javadoc correction, implementation context
+  `01a0bdf6-5615-7491-8f78-39184c10a773` reran and passed the focused four Engine tests, full
+  `:modules:engine:test`, `:modules:engine:javadoc`, and final `./gradlew test`; the final root run
+  reported 70 actionable tasks, 2 executed and 68 up-to-date. Diff checks passed, exact scope was
+  18 paths, and staging was empty.
+- Mandatory clean documentation-focused review context
+  `01a0be0e-f34a-7b41-b5a6-70792f85b878` read the architecture and planning contracts,
+  documentation rules and selected profiles, directly relevant predecessor tasks, final source
+  and tests, and the complete worktree diff. It found no executable defect and made only Javadoc,
+  Markdown, and planning changes.
+- Documentation context `01a0be0e-f34a-7b41-b5a6-70792f85b878` ran the final Engine Javadoc,
+  repository Markdown validation, rendered-page inspection, public-shape/no-extra-type review,
+  exact-scope and forbidden-import/dependency inventories, whitespace/diff checks, and staging
+  checks recorded below. No Java test suite was rerun because executable behavior did not change.
+- Final `./gradlew :modules:engine:javadoc` was `BUILD SUCCESSFUL` in 2s with 15 actionable
+  tasks: 2 executed and 13 up-to-date. Rendered text from the Engine package,
+  `ModelAutotuningPreparation`, `CorrectnessAction`, `CompletePlanCandidateEvidence`, and
+  `CompletePlanEvidence` pages showed both phases, exact correctness-before-timing, current
+  session scope/no model-plan-cache I/O, fresh preparation, component semantics, and constructor
+  failures.
+- After the bounded correction, the implementation context reran Engine Javadoc successfully.
+  Documentation context `01a0be0e-f34a-7b41-b5a6-70792f85b878` inspected the resulting rendered
+  `Engine.prepareTuned(...)` method plus the previously affected package and evidence pages. The
+  public method now renders both phases, exact correctness before timing, fresh authenticated
+  winner preparation, and explicit allowed safe fallback with no evidence. No further Java edit
+  or Javadoc rerun was needed in this resumed documentation pass.
+- The temporary `/tmp/validate_synaptik_markdown.py` validator passed all eight changed Markdown
+  files for local targets and anchors, unique canonical headings, balanced fences, LF endings,
+  final newlines, and trailing whitespace. `javap` confirmed the required six-component
+  `Evidence`, exactly the three new nested public declarations and their record/enum shape, and no
+  extra public top-level type.
+- Final scope inspection found exactly 18 paths: 17 tracked modifications plus the one intended
+  new Engine test. Production import inventory contained only the expected CPU complete-plan and
+  tools/tuning contracts; no production reflection, filesystem API, new module dependency, or
+  build file appeared. `git diff --check` and `git diff --cached --check` passed, staging was
+  empty, and final `git status --short -uall` listed only the exact 18 authorized paths.
 
 ## Implementation notes
 
-Empty until implemented.
+- Phase 1 runs once and its authenticated selected decision passes unchanged into CPU complete-
+  plan candidate production. Engine does not prepare a Phase-1 winner for production or repeat
+  local search in Phase 2.
+- Phase 2 maps every Config 0006B field and the exact model-plan path, completes exact canonical-
+  byte correctness for all candidates before timing, and freshly prepares each correctness,
+  warmup, and timed action. After winner authentication and representative cleanup, exactly one
+  further fresh selected recipe becomes production state.
+- Engine obtains complete-plan compatibility exactly once per transaction. The same non-null
+  snapshot supplies target/request construction, the generic Phase-2 backend adapter, and result
+  authentication, preventing one transaction from observing divergent producer projections.
+  Focused synthetic coverage counts and proves exactly one compatibility projection for each
+  successful transaction.
+- Current CPU complete-plan compatibility is `SESSION`; the generic request receives the exact
+  path but performs no model-plan-cache filesystem I/O. The translation and public evidence also
+  represent a future authenticated `PERSISTENT` producer without claiming current persistent CPU
+  reuse.
+- `ModelAutotuningPreparation.Evidence` now requires `completePlan` and adds exactly the nested
+  `CorrectnessAction`, `CompletePlanCandidateEvidence`, and `CompletePlanEvidence` declarations.
+  Measured evidence retains immutable correctness actions and raw samples per candidate, while a
+  cache hit has no candidate rows; compact reusable records remain separate from rich evidence.
+- Existing strict/allowed fallback, poisoned representative execution, cleanup suppression,
+  selected-preparation, and close-race semantics remain unchanged. Fallback is one fresh ordinary
+  safe preparation and carries no evidence.
+- The integration fixture's reflection is test-only construction of resolved MATMUL compile
+  artifacts without adding an integration-module dependency. It does not alter production
+  Runtime behavior, dependency direction, or documentation claims and does not contradict this
+  task or the architecture contract.
+- Documentation review selected General plus API/Javadoc for public API and Java contracts,
+  General plus Developer guide and Example for benchmarking, General plus Architecture for the
+  two architecture explanations, General for the glossary, and General plus Planning for the
+  task, master plan, and roadmap.
+- Architecture/ADR no-change conclusion: task 0009 realizes the existing Engine composition-root
+  boundary and changes no authority, dependency rule, lifecycle order, or architectural decision.
+  Dependency/build/Gradle, Runtime, Config, tuning, CPU, Prepare, Compiler, Planning, Model,
+  Tensor, Training, architecture-test, backend-conformance, provider, and other-module contracts
+  required no change.
+- The five explanatory documents remain accurate after the one-snapshot correction because they
+  describe the authenticated compatibility boundary, not the number of internal projection
+  calls. The synchronized Engine master plan and roadmap already state Complete through 0009 and
+  require no additional correction beyond their existing changed paths.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: composed and documented the bounded two-phase public CPU workflow, exact
+  correctness-before-timing order, fresh per-action and final preparation, authenticated rich
+  evidence, current session-only/no-model-plan-I/O behavior, future persistent translation, and
+  unchanged fallback and poisoning semantics.
+- Production/Javadoc files reviewed: `AdvancedEngine.java`,
+  `CpuEngineBackendComposition.java`, `Engine.java`, `ModelAutotuningPreparation.java`, and Engine
+  `package-info.java`. The documentation work finalized Javadocs in `AdvancedEngine.java`,
+  `Engine.java`, and `ModelAutotuningPreparation.java`; the other two already-changed Javadoc
+  owners remained accurate after review.
+- Explanatory documentation finalized: `docs/api/public-api.md`,
+  `docs/developer-guide/benchmarking.md`,
+  `docs/architecture/performance-evidence-and-tuning.md`,
+  `docs/architecture/runtime-prepare-backend-boundary.md`, and `docs/glossary.md`.
+- Planning finalized: this task, `docs/planning/modules/engine/master-plan.md`, and
+  `docs/planning/roadmap.md`. Engine is Complete through 0009; no later Engine task became Ready
+  and no detailed task was created.
+- Final combined scope is exactly 18 paths: 5 production/Javadoc paths, 5 test paths, 5
+  explanatory documentation paths, and 3 planning paths. No file was staged, committed, or
+  pushed.
+- Limitations remain deliberate: one representative input set, at most one local workload, one
+  non-empty maximal CPU partition, CPU-owned retained topology/representation alternatives,
+  exact canonical-byte correctness, session-scoped CPU reuse, and no broader graph/partition,
+  mixed-backend, tolerance, or executable-persistence capability.
+- Implementation context: `01a0bdf6-5615-7491-8f78-39184c10a773`.
+- Documentation review context: `01a0be0e-f34a-7b41-b5a6-70792f85b878`.
+
+Status: Complete

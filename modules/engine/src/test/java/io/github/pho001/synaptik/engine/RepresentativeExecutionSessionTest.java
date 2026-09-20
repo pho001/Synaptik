@@ -792,6 +792,28 @@ final class RepresentativeExecutionSessionTest {
             assertEquals(1, workload.occurrences().getFirst().weight());
             assertArrayEquals(new byte[8],
                     workload.occurrences().getFirst().contextIdentity().bytes());
+            var complete = evidence.completePlan();
+            assertSame(request.config().completePlanBudget(), complete.budget());
+            assertEquals(ModelAutotuningPreparation.ReuseScope.SESSION,
+                    complete.compatibility().reuseScope());
+            assertEquals(ModelAutotuningPreparation.Source.MEASURED, complete.source());
+            assertEquals(2, complete.candidates().size());
+            assertEquals(ModelAutotuningPreparation.CorrectnessAction.REFERENCE_CAPTURED,
+                    complete.candidates().getFirst().correctnessAction());
+            assertEquals(ModelAutotuningPreparation.CorrectnessAction.MATCH,
+                    complete.candidates().get(1).correctnessAction());
+            assertEquals(List.of(3, 3), complete.candidates().stream()
+                    .map(candidate -> candidate.elapsedSamplesNanos().size()).toList());
+            assertTrue(complete.candidates().stream().anyMatch(candidate ->
+                    complete.winnerIdentity().equals(candidate.identity())));
+            assertEquals(10, tuning.completeTrialPrepareCount.get());
+            assertEquals(10, tuning.completeTrialRunCount.get());
+            assertEquals(1, tuning.completeCompatibilityCount.get());
+            assertArrayEquals(
+                    new byte[] {(byte) tuning.completePhaseOneDecision.candidate()},
+                    workload.winnerIdentity().bytes());
+            assertFalse(java.nio.file.Files.exists(
+                    request.config().modelPlanCache()));
 
             int trialsBeforeHit = tuning.trialPrepareCount.get();
             var second = composition.lifecycleOwner.prepareTunedOrdinary(
@@ -801,7 +823,10 @@ final class RepresentativeExecutionSessionTest {
                     second.evidence().orElseThrow().workloads().getFirst().source());
             assertEquals(List.of(),
                     second.evidence().orElseThrow().workloads().getFirst().candidates());
+            assertEquals(ModelAutotuningPreparation.Source.MEASURED,
+                    second.evidence().orElseThrow().completePlan().source());
             assertEquals(2, tuning.selectedPrepareCount.get());
+            assertEquals(2, tuning.completeCompatibilityCount.get());
             assertNotSame(first.preparedExecution().execution(),
                     second.preparedExecution().execution());
             assertTrue(java.nio.file.Files.isRegularFile(cache));
@@ -893,6 +918,120 @@ final class RepresentativeExecutionSessionTest {
             assertSame(selectedFailure, observed);
             assertEquals(0, composition.prepareCount.get());
             assertEquals(1, tuning.selectedPrepareCount.get());
+        }
+    }
+
+    @Test
+    void completePlanMismatchNormalizesAndUsesOnlyAllowedOrdinaryFallback(
+            @TempDir Path directory) {
+        RecordingComposition composition = new RecordingComposition();
+        try (Engine engine = engine(composition)) {
+            Tensor input = leaf(1, 2);
+            CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
+            SyntheticTuning tuning = new SyntheticTuning();
+            tuning.completeBytes[1][7] = 1;
+            var request = tuningRequest(input, directory.resolve("mismatch.bin"),
+                    ModelAutotuningConfig.FallbackPolicy.ALLOW_SAFE_HEURISTIC, 0, 1);
+
+            var fallback = composition.lifecycleOwner.prepareTunedOrdinary(
+                    engine, compiled, request, tuning);
+
+            assertEquals(ModelAutotuningPreparation.Outcome.SAFE_HEURISTIC_FALLBACK,
+                    fallback.outcome());
+            assertEquals(1, composition.prepareCount.get());
+            assertEquals(0, tuning.selectedPrepareCount.get());
+            assertEquals(2, tuning.completeTrialPrepareCount.get());
+            assertEquals(2, tuning.completeTrialRunCount.get());
+        }
+    }
+
+    @Test
+    void missingCompletePlanHandoffAndPreExecutionPreparationFailureAreRecoverable(
+            @TempDir Path directory) {
+        RecordingComposition absentComposition = new RecordingComposition();
+        try (Engine engine = engine(absentComposition)) {
+            Tensor input = leaf(1, 2);
+            CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
+            SyntheticTuning tuning = new SyntheticTuning();
+            tuning.completePlanHandoffPresent = false;
+            var request = tuningRequest(input, directory.resolve("absent-plan.bin"),
+                    ModelAutotuningConfig.FallbackPolicy.ALLOW_SAFE_HEURISTIC, 0, 1);
+
+            assertEquals(ModelAutotuningPreparation.Outcome.SAFE_HEURISTIC_FALLBACK,
+                    absentComposition.lifecycleOwner.prepareTunedOrdinary(
+                            engine, compiled, request, tuning).outcome());
+            assertEquals(1, absentComposition.prepareCount.get());
+            assertEquals(0, tuning.completeTrialPrepareCount.get());
+        }
+
+        RecordingComposition failureComposition = new RecordingComposition();
+        try (Engine engine = engine(failureComposition)) {
+            Tensor input = leaf(1, 2);
+            CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
+            SyntheticTuning tuning = new SyntheticTuning();
+            RuntimeException preparation = new RuntimeException("complete prepare");
+            tuning.completeTrialPreparationFailure = preparation;
+            var request = tuningRequest(input, directory.resolve("prepare-plan.bin"),
+                    ModelAutotuningConfig.FallbackPolicy.REQUIRE_TUNED_RESULT, 0, 1);
+
+            RuntimeException observed = assertThrows(RuntimeException.class, () ->
+                    failureComposition.lifecycleOwner.prepareTunedOrdinary(
+                            engine, compiled, request, tuning));
+            assertSame(preparation, observed);
+            assertEquals(0, failureComposition.prepareCount.get());
+        }
+    }
+
+    @Test
+    void completePlanExecutionFailurePoisonsAndNeverFallsBack(@TempDir Path directory) {
+        RecordingComposition composition = new RecordingComposition();
+        RuntimeException failure = new RuntimeException("complete execution");
+        try (Engine engine = engine(composition)) {
+            Tensor input = leaf(1, 2);
+            CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
+            SyntheticTuning tuning = new SyntheticTuning();
+            tuning.completeTrialExecutionFailure = failure;
+            var request = tuningRequest(input, directory.resolve("execute-plan.bin"),
+                    ModelAutotuningConfig.FallbackPolicy.ALLOW_SAFE_HEURISTIC, 0, 1);
+
+            RuntimeException observed = assertThrows(RuntimeException.class, () ->
+                    composition.lifecycleOwner.prepareTunedOrdinary(
+                            engine, compiled, request, tuning));
+            assertSame(failure, observed);
+            assertEquals(0, composition.prepareCount.get());
+            assertEquals(0, tuning.selectedPrepareCount.get());
+        }
+    }
+
+    @Test
+    void syntheticPersistentCompletePlanHitSkipsEveryPhaseTwoTrial(@TempDir Path directory) {
+        RecordingComposition composition = new RecordingComposition();
+        try (Engine engine = engine(composition)) {
+            Tensor input = leaf(1, 2);
+            CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
+            SyntheticTuning tuning = new SyntheticTuning();
+            tuning.completeReuseScope = io.github.pho001.synaptik.tools.tuning
+                    .CompletePlanTuningRequest.ReuseScope.PERSISTENT;
+            Path workloadCache = directory.resolve("persistent-workload.bin");
+            var request = tuningRequest(input, workloadCache,
+                    ModelAutotuningConfig.FallbackPolicy.REQUIRE_TUNED_RESULT, 0, 1);
+
+            var first = composition.lifecycleOwner.prepareTunedOrdinary(
+                    engine, compiled, request, tuning);
+            int completeTrials = tuning.completeTrialPrepareCount.get();
+            var second = composition.lifecycleOwner.prepareTunedOrdinary(
+                    engine, compiled, request, tuning);
+
+            assertEquals(10, completeTrials);
+            assertEquals(completeTrials, tuning.completeTrialPrepareCount.get());
+            assertEquals(ModelAutotuningPreparation.Source.MEASURED,
+                    first.evidence().orElseThrow().completePlan().source());
+            assertEquals(ModelAutotuningPreparation.Source.CACHE_HIT,
+                    second.evidence().orElseThrow().completePlan().source());
+            assertEquals(List.of(),
+                    second.evidence().orElseThrow().completePlan().candidates());
+            assertTrue(java.nio.file.Files.isRegularFile(request.config().modelPlanCache()));
+            assertEquals(2, tuning.selectedPrepareCount.get());
         }
     }
 
@@ -1043,8 +1182,8 @@ final class RepresentativeExecutionSessionTest {
                 new ModelAutotuningConfig.RepresentativeProfileIdentity(2, new byte[] {3, 4}),
                 fallback,
                 cache,
-                new ModelAutotuningConfig.CompletePlanBudget(1, 0, 1, 1L, 0L),
-                Path.of("unused-model-plan-cache.bin"));
+                new ModelAutotuningConfig.CompletePlanBudget(2, 1, 3, 10L, 8L),
+                cache.resolveSibling(cache.getFileName() + ".model-plan"));
         return new ModelAutotuningRequest(config,
                 new ModelAutotuningRequest.ModelIdentity(3, new byte[] {5, 6}), List.of(input));
     }
@@ -1057,7 +1196,7 @@ final class RepresentativeExecutionSessionTest {
 
     private static Engine engine(
             RecordingComposition composition,
-            AdvancedEngine.ModelAutotuningTuning<?, ?, ?> tuning) {
+            AdvancedEngine.ModelAutotuningTuning<?, ?, ?, ?, ?, ?> tuning) {
         composition.lifecycleOwner = new AdvancedEngine(composition, tuning);
         composition.ordinaryOwner = new Engine(composition.lifecycleOwner);
         return composition.ordinaryOwner;
@@ -1170,13 +1309,20 @@ final class RepresentativeExecutionSessionTest {
 
     private record SyntheticBatch() implements BackendTuningCandidateBatch { }
     private record SyntheticDecision(int candidate) implements BackendTuningDecision { }
+    private record SyntheticPlanBatch() implements BackendTuningCandidateBatch { }
+    private record SyntheticPlanDecision(int candidate) implements BackendTuningDecision { }
 
     private static final class SyntheticTuning implements AdvancedEngine.ModelAutotuningTuning<
-            SyntheticBatch, SyntheticDecision, Integer> {
+            SyntheticBatch, SyntheticDecision, Integer,
+            SyntheticPlanBatch, SyntheticPlanDecision, Integer> {
         private final SyntheticBatch batch = new SyntheticBatch();
+        private final SyntheticPlanBatch planBatch = new SyntheticPlanBatch();
         private final AtomicInteger trialPrepareCount = new AtomicInteger();
         private final AtomicInteger trialRunCount = new AtomicInteger();
         private final AtomicInteger selectedPrepareCount = new AtomicInteger();
+        private final AtomicInteger completeTrialPrepareCount = new AtomicInteger();
+        private final AtomicInteger completeTrialRunCount = new AtomicInteger();
+        private final AtomicInteger completeCompatibilityCount = new AtomicInteger();
         private final AtomicInteger[] candidateRuns = {
                 new AtomicInteger(), new AtomicInteger()};
         private final List<TestBuffer> trialBuffers = new ArrayList<>();
@@ -1186,6 +1332,14 @@ final class RepresentativeExecutionSessionTest {
         private Throwable trialPreparationFailure;
         private Throwable trialExecutionFailure;
         private Throwable selectedPreparationFailure;
+        private Throwable completeTrialPreparationFailure;
+        private Throwable completeTrialExecutionFailure;
+        private boolean completePlanHandoffPresent = true;
+        private SyntheticDecision completePhaseOneDecision;
+        private final byte[][] completeBytes = {new byte[8], new byte[8]};
+        private io.github.pho001.synaptik.tools.tuning.CompletePlanTuningRequest.ReuseScope
+                completeReuseScope = io.github.pho001.synaptik.tools.tuning
+                        .CompletePlanTuningRequest.ReuseScope.SESSION;
         private io.github.pho001.synaptik.runtime.execution.PreparedExecution lastTrial;
         private CountDownLatch selectedEntered;
         private CountDownLatch selectedRelease;
@@ -1260,9 +1414,74 @@ final class RepresentativeExecutionSessionTest {
             return lastTrial;
         }
 
+        @Override public Optional<BackendPartitionTuningHandoff<
+                SyntheticPlanBatch, SyntheticPlanDecision>> completePlanCandidateHandoff(
+                        CompileArtifacts artifacts, SyntheticDecision phaseOneDecision) {
+            completePhaseOneDecision = phaseOneDecision;
+            if (!completePlanHandoffPresent) return Optional.empty();
+            if (phaseOneDecision.candidate() != 1 && phaseOneDecision.candidate() != 2) {
+                return Optional.empty();
+            }
+            return Optional.of(new BackendPartitionTuningHandoff<>(
+                    artifacts.partitions().getFirst(), planBatch, Optional.empty()));
+        }
+
+        @Override public List<Integer> completePlanCandidates(SyntheticPlanBatch ignored) {
+            return List.of(1, 2);
+        }
+
+        @Override public io.github.pho001.synaptik.tools.tuning.CompletePlanTuningRequest
+                .PlanCompatibility completePlanCompatibility(SyntheticPlanBatch ignored) {
+            completeCompatibilityCount.incrementAndGet();
+            return new io.github.pho001.synaptik.tools.tuning.CompletePlanTuningRequest
+                    .PlanCompatibility(
+                            new io.github.pho001.synaptik.tools.tuning.CompletePlanTuningRequest
+                                    .ProducerIdentity(1, new byte[] {1}),
+                            new io.github.pho001.synaptik.tools.tuning.CompletePlanTuningRequest
+                                    .DecisionCodecIdentity(1, new byte[] {2}),
+                            1, new byte[] {3}, completeReuseScope);
+        }
+
+        @Override public io.github.pho001.synaptik.tools.tuning.CompletePlanTuningRequest
+                .CandidateIdentity completePlanCandidateIdentity(Integer candidate) {
+            return new io.github.pho001.synaptik.tools.tuning.CompletePlanTuningRequest
+                    .CandidateIdentity(new byte[] {candidate.byteValue()});
+        }
+
+        @Override public SyntheticPlanDecision completePlanSelectedDecision(
+                SyntheticPlanBatch ignored, Integer candidate) {
+            return new SyntheticPlanDecision(candidate);
+        }
+
+        @Override public byte[] encodeCompletePlanDecision(SyntheticPlanDecision decision) {
+            return new byte[] {(byte) decision.candidate()};
+        }
+
+        @Override public Optional<SyntheticPlanDecision> decodeCompatibleCompletePlanDecision(
+                SyntheticPlanBatch ignored, byte[] encodedDecision) {
+            if (encodedDecision.length != 1
+                    || encodedDecision[0] != 1 && encodedDecision[0] != 2) {
+                return Optional.empty();
+            }
+            return Optional.of(new SyntheticPlanDecision(encodedDecision[0]));
+        }
+
+        @Override public io.github.pho001.synaptik.runtime.execution.PreparedExecution
+                prepareCompletePlanTrial(SyntheticPlanBatch ignored, Integer candidate) {
+            completeTrialPrepareCount.incrementAndGet();
+            rethrow(completeTrialPreparationFailure);
+            return execution(1, 1, () -> {
+                completeTrialRunCount.incrementAndGet();
+                rethrow(completeTrialExecutionFailure);
+                return new TestBuffer("complete-" + candidate, null, new ArrayList<>(),
+                        completeBytes[candidate - 1]);
+            });
+        }
+
         @Override
-        public io.github.pho001.synaptik.runtime.execution.PreparedExecution prepareSelected(
-                SyntheticBatch ignored, SyntheticDecision decision) {
+        public io.github.pho001.synaptik.runtime.execution.PreparedExecution
+                prepareCompletePlanSelected(
+                        SyntheticPlanBatch ignored, SyntheticPlanDecision decision) {
             selectedPrepareCount.incrementAndGet();
             if (selectedEntered != null) selectedEntered.countDown();
             if (selectedRelease != null) await(selectedRelease);

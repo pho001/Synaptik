@@ -3,7 +3,7 @@
 ## What you will learn
 
 This guide defines the evidence expected from future Synaptik benchmarks and separates
-benchmarking from the two implemented generic tuning transactions, their still-later Engine
+benchmarking from the two implemented generic tuning transactions, their current bounded Engine
 composition, planning cost, and runtime profiling. The
 `tools/benchmarks` project exists structurally, but no harness, `BenchmarkReport`, or workload is
 implemented.
@@ -22,7 +22,7 @@ designing a harness.
 - **Phase-2 complete-plan tuning** authenticates a reusable selected decision or checks and
   measures every member of one caller-supplied bounded complete-plan batch.
 - **Model autotuning** is the broader workflow that composes Phase 1 and Phase 2 around a model,
-  representative inputs, target, policy, and later production preparation.
+  representative inputs, target, policy, and fresh production preparation.
 - **Runtime profiling** passively observes actual prepared execution.
 
 ## Mental model
@@ -59,12 +59,13 @@ an equal compatible decision before same-directory atomic cache publication. Ret
 evidence retains raw measured samples separately; cache-hit evidence has an empty candidate list
 and retains only the compact stored winner summary.
 
-Engine supplies a bounded public CPU Phase-1 composition for one representative input set and at most
-one local workload. A compatible hit executes no trial. A miss uses the configured warmup and
-timed-sample counts, chooses the lowest integer-middle median with encounter-order ties, and then
-freshly prepares production state. The backend retains semantic, compatibility, candidate,
-decision, route, and resource ownership. Model extraction and multiple-occurrence aggregation
-remain planned.
+Engine supplies a bounded public CPU Phase-1 composition for one representative input set and at
+most one local workload. A compatible hit executes no local trial. A miss uses the configured
+warmup and timed-sample counts and chooses the lowest integer-middle median with encounter-order
+ties. Engine authenticates that decision and passes it unchanged to CPU complete-plan candidate
+production; Phase 1 does not prepare the returned production recipe. The backend retains
+semantic, compatibility, candidate, decision, route, and resource ownership. Model extraction
+and multiple-occurrence aggregation remain planned.
 
 ### Phase 2: complete-plan transaction
 
@@ -108,12 +109,17 @@ and every raw timing sample; a cache-hit result identifies its source and select
 no fabricated candidate measurements. Neither artifact serializes an executable, Runtime state,
 representative publication bytes, or the opaque correctness reference.
 
-The generic Phase-2 transaction and its declarative Config inputs are current, but their public
-Engine composition is not.
-Current CPU complete-plan batches declare `SESSION`, so they neither read nor write the persistent
-model-plan cache. A later Engine-owned adapter must join the CPU producer with Engine's existing
-exact correctness primitive, freshly prepare every trial and the selected production decision,
-and apply the existing fallback policy. The tools layer does not perform that composition itself.
+The generic transaction, declarative Config inputs, CPU producer, and bounded public Engine
+composition are current. Engine passes the authenticated Phase-1 decision unchanged to the CPU
+producer, freshly prepares every correctness, warmup, and timed action, and completes every exact
+canonical-byte correctness action before timing. It authenticates the Phase-2 winner, cleans the
+representative session, and prepares exactly one fresh selected production recipe. The tools
+layer still owns transaction ordering, bounds, timing, comparison, and compact records; it does
+not own Engine execution or CPU candidate meaning.
+
+Current CPU complete-plan batches declare `SESSION`, so they neither read nor write the
+persistent model-plan cache. The explicit path is still passed unchanged, keeping Engine's mapping
+valid for a future `PERSISTENT` producer without claiming current persistent CPU reuse.
 
 ## Current declarative Config request
 
@@ -138,9 +144,8 @@ Shapes, model fingerprint, occurrences, backend candidate batches, cache content
 resources do not enter Config. Constructing the facade performs no cache I/O, measurement,
 selection, preparation, Engine orchestration, or Runtime work.
 
-Current Engine maps the objective and four Phase-1 budget counts explicitly, copies the profile
-identity, and passes the exact workload-cache path. It does not yet translate the Phase-2 budget
-or model-plan path. `ModelAutotuningRequest` separately supplies live representative
+Current Engine maps the objective and both budgets explicitly, copies the profile identity, and
+passes the exact workload-cache and model-plan paths. `ModelAutotuningRequest` separately supplies live representative
 Tensors and a caller-defined model identity. That identity labels evidence only; it is not a cache
 key or proof of equivalent model behavior. `REQUIRE_TUNED_RESULT` is strict, while
 `ALLOW_SAFE_HEURISTIC` permits abandoning a tuning
@@ -273,10 +278,10 @@ governs later harness and reporting work.
 
 ## Limitations and boundaries
 
-The benchmark harness and report, public Engine Phase-2 composition, planning-cost model,
-and concrete runtime-profile payloads remain planned. The generic caller-supplied Phase-1 and
+The benchmark harness and report, planning-cost model, and concrete runtime-profile payloads
+remain planned. The generic caller-supplied Phase-1 and
 Phase-2 transactions, bounded persistent cache formats, immutable two-phase Config request, and
-bounded CPU/Engine Phase-1 composition, and read-only tuning inspection are current. Model
+bounded CPU/Engine two-phase composition, and read-only tuning inspection are current. Model
 extraction, multiple-occurrence aggregation, broader graph/plan generation, persistent CPU
 complete-plan reuse, concurrent cache writers, and cache migration remain deferred. Config owns
 policy inputs only; it does

@@ -105,6 +105,8 @@ final class EngineTypedPublicShapeTest {
                 ModelAutotuningRequest.ModelIdentity.class,
                 ModelAutotuningPreparation.class,
                 ModelAutotuningPreparation.Evidence.class,
+                ModelAutotuningPreparation.CompletePlanEvidence.class,
+                ModelAutotuningPreparation.CompletePlanCandidateEvidence.class,
                 ModelAutotuningPreparation.WorkloadEvidence.class,
                 ModelAutotuningPreparation.OccurrenceEvidence.class,
                 ModelAutotuningPreparation.CandidateEvidence.class,
@@ -135,6 +137,21 @@ final class EngineTypedPublicShapeTest {
                 Arrays.stream(ModelAutotuningPreparation.Source.values()).map(Enum::name).toList());
         assertEquals(List.of("SESSION", "PERSISTENT"),
                 Arrays.stream(ModelAutotuningPreparation.ReuseScope.values()).map(Enum::name).toList());
+        assertEquals(List.of("REFERENCE_CAPTURED", "MATCH"), Arrays.stream(
+                ModelAutotuningPreparation.CorrectnessAction.values()).map(Enum::name).toList());
+        assertEquals(List.of("modelIdentity", "representativeProfile", "objective", "budget",
+                        "workloads", "completePlan"),
+                Arrays.stream(ModelAutotuningPreparation.Evidence.class.getRecordComponents())
+                        .map(component -> component.getName()).toList());
+        assertEquals(List.of("compatibility", "budget", "source", "candidates",
+                        "winnerIdentity", "winnerSummary"),
+                Arrays.stream(ModelAutotuningPreparation.CompletePlanEvidence.class
+                                .getRecordComponents())
+                        .map(component -> component.getName()).toList());
+        assertEquals(List.of("identity", "correctnessAction", "elapsedSamplesNanos", "summary"),
+                Arrays.stream(ModelAutotuningPreparation.CompletePlanCandidateEvidence.class
+                                .getRecordComponents())
+                        .map(component -> component.getName()).toList());
         assertEquals(0, Arrays.stream(ModelAutotuningPreparation.class.getDeclaredConstructors())
                 .filter(constructor -> Modifier.isPublic(constructor.getModifiers())
                         || Modifier.isProtected(constructor.getModifiers())).count());
