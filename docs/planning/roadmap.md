@@ -25,7 +25,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Complete baseline; optional provider 0004 Blocked/deferred | Native interop conventions needed by the provider are decided. | Required FLOAT32/FLOAT64 remains complete; the optional direct BFLOAT16-output capability stays fail-closed until both proof gaps are resolved. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through 0010J | Complete CPU 0010E–0010I, Prepare 0004, and tools/tuning 0001 establish the current local-candidate, lifecycle, opaque-handoff, and tuning-consumer seams. | CPU 0010J supplies the bounded session-scoped producer over retained 0008D/0008E alternatives with exact Phase-1 selection reuse; no additional CPU fingerprint prerequisite is required before tuning 0002. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0009 | Completed tools/tuning 0002, CPU 0010J, Engine 0008A, and Config 0006B supply the generic transaction, producer, correctness, and request contracts. | Engine 0009 publicly composes both tuning phases, freshly prepares the authenticated complete-plan winner, and reports both phases without changing Runtime or backend ownership; no later Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | Metal passes the applicable backend-conformance suite. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0001; 0002 Draft | Met: shared backend contracts and CPU reference behavior are stable. | Metal passes the applicable backend-conformance suite after executable routes exist. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | CUDA passes the applicable backend-conformance suite. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | The model representation and public tensor semantics are stable. | Selected import/export mappings and compatibility validation are complete. |
 | 15 | [`extensions/data`](extensions/data/master-plan.md) | Draft (architecture decision required) | An explicit architecture/module/dependency decision authorizes the new extension after its Model Tensor prerequisites are stable. | Canonical valid-length metadata, right-padded sequence batches, and selected focused numeric sample/sequence batchers are complete. |
@@ -570,6 +570,18 @@ model-only users do not inherit optimizer/session dependencies. Arbitrary `Model
 remain code/config-defined; compiled, prepared, Runtime, backend, and device artifacts are rebuilt.
 
 ## Current frontier
+
+The completed current Metal foundation is documented in
+[`backends/metal`](backends/metal/master-plan.md). Detailed
+[Metal 0001 capability, storage, and native foundation](backends/metal/tasks/0001-metal-capability-storage-and-native-foundation.md)
+is `Complete`. It is a bounded non-executing foundation: the Metal capability provider remains
+fail-closed for every operation while the backend establishes its own macOS arm64 native
+device/queue and run-owned storage lifecycle. Current Planning, Runtime, Prepare, Backend
+Contract, Trace, and Java 26 FFM prerequisites are sufficient, so no architecture or shared-module
+change is planned. Model 0026 remains Draft and gates future FLOAT16 claims, but it does not block
+this current-type-neutral foundation. Metal 0002 remains Draft without a detailed specification
+and owns the first complete MPSGraph prepared execution path after 0001; task 0001 adds no
+generic backend registry or mixed-owner Engine contract.
 
 Detailed
 [Model 0025I NCW max/average Pool1d composition](modules/model/tasks/0025i-ncw-max-average-pool1d-composition.md)

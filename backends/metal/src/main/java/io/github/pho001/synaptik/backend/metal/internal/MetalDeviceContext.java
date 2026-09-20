@@ -1,0 +1,212 @@
+package io.github.pho001.synaptik.backend.metal.internal;
+
+import java.nio.file.Path;
+import java.util.Objects;
+
+/**
+ * Owns one native Metal device/command-queue context and leases held by its child resources.
+ *
+ * <p>The context begins with one owner reference. Every successful buffer or workspace
+ * allocation adds one child lease. Closing marks the owner closed before releasing its reference,
+ * rejects later allocation and access, and defers the single native context release until the
+ * last child closes. The lifecycle gate is thread-safe; distinct open child resources otherwise
+ * remain independently usable.</p>
+ */
+final class MetalDeviceContext implements AutoCloseable {
+    private final MetalNativeApi api;
+    private final MetalNativeApi.Handle handle;
+    private boolean closed;
+    private boolean nativeReleased;
+    private int childLeases;
+
+    private MetalDeviceContext(MetalNativeApi api, MetalNativeApi.Handle handle) {
+        this.api = api;
+        this.handle = handle;
+    }
+
+    /**
+     * Loads the exact absolute dylib path and creates one default-device context.
+     *
+     * @param absoluteLibraryPath caller-selected absolute dylib path; must not be {@code null}
+     * @return a new open context owning the library lookup and native context; never {@code null}
+     * @throws NullPointerException if {@code absoluteLibraryPath} is {@code null}
+     * @throws IllegalArgumentException if the path is not absolute
+     * @throws RuntimeException if ABI loading, validation, or native context creation fails
+     * @throws Error if loading, creation, or failure cleanup reports an error
+     */
+    static MetalDeviceContext open(Path absoluteLibraryPath) {
+        return open(MetalNativeApi.open(absoluteLibraryPath));
+    }
+
+    /**
+     * Creates one context through an injected API and takes ownership of that API's lifetime.
+     *
+     * @param api the non-null open native seam to own
+     * @return a new open context; never {@code null}
+     * @throws NullPointerException if {@code api} or its successful handle is {@code null}
+     * @throws RuntimeException if native creation fails
+     * @throws Error if creation or cleanup reports an error
+     */
+    static MetalDeviceContext open(MetalNativeApi api) {
+        Objects.requireNonNull(api, "api");
+        try {
+            MetalNativeApi.Handle context = Objects.requireNonNull(
+                    api.createContext(), "native context handle");
+            return new MetalDeviceContext(api, context);
+        } catch (RuntimeException | Error failure) {
+            suppressDistinct(failure, api::close);
+            throw failure;
+        }
+    }
+
+    /**
+     * Allocates one fresh run-owned Metal buffer and acquires one child lease.
+     *
+     * @param logicalByteSize exact non-negative logical size in bytes
+     * @return a new open buffer representation; never {@code null}
+     * @throws IllegalStateException if context close has begun
+     * @throws IllegalArgumentException if {@code logicalByteSize} is negative
+     * @throws RuntimeException if native allocation fails
+     */
+    synchronized MetalBufferRepresentation createBuffer(long logicalByteSize) {
+        requireOpen();
+        requireNonNegative(logicalByteSize);
+        MetalNativeApi.Handle buffer = Objects.requireNonNull(
+                api.createBuffer(handle, logicalByteSize), "native buffer handle");
+        childLeases++;
+        return new MetalBufferRepresentation(this, api, buffer, logicalByteSize);
+    }
+
+    /**
+     * Allocates one fresh run-owned Metal scratch workspace and acquires one child lease.
+     *
+     * @param logicalByteSize exact non-negative logical size in bytes
+     * @return a new open workspace representation; never {@code null}
+     * @throws IllegalStateException if context close has begun
+     * @throws IllegalArgumentException if {@code logicalByteSize} is negative
+     * @throws RuntimeException if native allocation fails
+     */
+    synchronized MetalWorkspaceRepresentation createWorkspace(long logicalByteSize) {
+        requireOpen();
+        requireNonNegative(logicalByteSize);
+        MetalNativeApi.Handle buffer = Objects.requireNonNull(
+                api.createBuffer(handle, logicalByteSize), "native workspace handle");
+        childLeases++;
+        return new MetalWorkspaceRepresentation(this, api, buffer, logicalByteSize);
+    }
+
+    /**
+     * Admits one already resource-gated native access while the context remains open.
+     *
+     * <p>Admission is atomic with owner close, but the action runs without holding the context
+     * lifecycle gate so distinct open child resources may be accessed concurrently. The calling
+     * child resource's gate and retained context lease keep both native handles alive until an
+     * admitted action completes.</p>
+     *
+     * @param access non-null access action that does not retain context state
+     * @throws NullPointerException if {@code access} is {@code null}
+     * @throws IllegalStateException if context close has begun before admission
+     * @throws RuntimeException if the access action fails
+     */
+    void access(Runnable access) {
+        synchronized (this) {
+            requireOpen();
+            Objects.requireNonNull(access, "access");
+        }
+        access.run();
+    }
+
+    /** @return whether owner close has begun; safe to query concurrently */
+    synchronized boolean isClosed() {
+        return closed;
+    }
+
+    /**
+     * Marks this owner closed and releases its native state once all child leases have ended.
+     *
+     * <p>Repeated and concurrent calls are inert after the first attempt. A native release or
+     * lookup-arena cleanup failure propagates from the first call only and is never retried.</p>
+     *
+     * @throws RuntimeException if native context or lookup cleanup fails
+     * @throws Error if cleanup reports an error
+     */
+    @Override
+    public synchronized void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
+        if (childLeases == 0) {
+            releaseNativeContext(null);
+        }
+    }
+
+    /** Ends one child lease and attaches a distinct deferred context failure to its primary. */
+    synchronized void releaseChild(Throwable primary) {
+        if (childLeases <= 0) {
+            throw new IllegalStateException("Metal context child lease underflow");
+        }
+        childLeases--;
+        if (closed && childLeases == 0) {
+            releaseNativeContext(primary);
+        }
+    }
+
+    private void releaseNativeContext(Throwable primary) {
+        if (nativeReleased) {
+            return;
+        }
+        nativeReleased = true;
+        Throwable failure = primary;
+        try {
+            api.releaseContext(handle);
+        } catch (RuntimeException | Error cleanup) {
+            if (failure == null) {
+                failure = cleanup;
+            } else if (cleanup != failure) {
+                failure.addSuppressed(cleanup);
+            }
+        }
+        try {
+            api.close();
+        } catch (RuntimeException | Error cleanup) {
+            if (failure == null) {
+                failure = cleanup;
+            } else if (cleanup != failure) {
+                failure.addSuppressed(cleanup);
+            }
+        }
+        if (primary == null && failure != null) {
+            rethrow(failure);
+        }
+    }
+
+    private void requireOpen() {
+        if (closed) {
+            throw new IllegalStateException("Metal device context is closed");
+        }
+    }
+
+    private static void requireNonNegative(long logicalByteSize) {
+        if (logicalByteSize < 0L) {
+            throw new IllegalArgumentException("logicalByteSize must be non-negative");
+        }
+    }
+
+    private static void suppressDistinct(Throwable primary, Runnable cleanup) {
+        try {
+            cleanup.run();
+        } catch (RuntimeException | Error failure) {
+            if (failure != primary) {
+                primary.addSuppressed(failure);
+            }
+        }
+    }
+
+    private static void rethrow(Throwable failure) {
+        if (failure instanceof RuntimeException runtime) {
+            throw runtime;
+        }
+        throw (Error) failure;
+    }
+}

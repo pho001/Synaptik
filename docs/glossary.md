@@ -1070,8 +1070,11 @@ scoring policy, route selector, preparer, or execution service. The CPU backend 
 through the architecture-approved inward dependency on planning and supports only exact
 `BinaryArithmeticKind.ADD` with `NoOperationAttrs`, two inputs, one output, equal fully static
 shapes, one of `FLOAT64`, `FLOAT32`, `INT32`, or `INT64`, and either unresolved or
-`DENSE_CONTIGUOUS` non-view zero-offset layout. The package-private hard-eligibility step is the
-first internal planning consumer. Compile-time plans retain `BackendId`, not a provider object.
+`DENSE_CONTIGUOUS` non-view zero-offset layout. The current Metal provider is deliberately
+fail-closed: it reports the stable `metal` identity but returns `false` for every operation even
+when its native library or a device is available. The package-private hard-eligibility step is
+the first internal planning consumer. Compile-time plans retain `BackendId`, not a provider
+object.
 
 ### Backend hard eligibility
 
@@ -4237,11 +4240,12 @@ identity is not itself a physical execution resource and must not be confused wi
 A concrete backend-owned implementation of one buffer or workspace in host, device, or native
 storage. Current Runtime defines the distinct nominal `BufferRepresentation` and
 `WorkspaceRepresentation` lifecycle roles, each exposing only unchecked cleanup through
-`close()`. CPU now provides package-private borrowed and run-owned native implementations;
-operation routes, transfers, and other backend representations remain planned. Runtime owns the
-logical per-run association, ownership, structural residency, explicit buffer validity, and
-cleanup orchestration. The backend representation owns physical allocation, release, transfer,
-and access mechanics. A
+`close()`. CPU provides package-private borrowed and run-owned native implementations. Metal now
+provides package-private shared-storage buffer and workspace implementations with explicit native
+ownership and context leases, but no prepared Runtime integration or executable operation route.
+Runtime owns the logical per-run association, ownership, structural residency, explicit buffer
+validity, and cleanup orchestration. The backend representation owns physical allocation,
+release, transfer, and access mechanics. A
 buffer slot may have multiple representations only when prepared work explicitly requires them.
 A workspace representation is backend-local scratch and is not a transferable logical graph
 value.
