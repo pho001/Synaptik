@@ -115,6 +115,7 @@ cross-package/public orchestration boundary from a concrete consumer.
 | 0006B4 | [Stable caller-input Tensor identity bindings](tasks/0006b4-stable-caller-input-tensor-identity-bindings.md) | Complete | 0005; 0006; 0006B3; blocked Engine 0003 reassessment | Added an immutable ordered `TensorId`/final-`ValueId` bindable-input view to `CompileConstantPlan` while preserving `bindableInputs()`, the eight-component artifact, publication contracts, and every Prepare/Runtime/Engine production consumer shape. |
 | 0006B5 | [Published compile-time constant descriptor closure](tasks/0006b5-published-compile-time-constant-descriptor-closure.md) | Complete | 0006; 0006B4; Planning 0005–0006; Engine 0006 prerequisite diagnosis | Resolves the logical layout of fully static source-only published compile-time splat constants after final optimization without allocation, topology changes, backend choice, caller binding, or publication-role changes; preserves dynamic, consumed, unpublished, bindable, produced, and already-resolved values. |
 | 0006B6 | [Final convolution logical-layout closure](tasks/0006b6-final-convolution-logical-layout-closure.md) | Complete | 0006B, 0006B3–0006B5; blocked Engine 0008 reassessment; current Model/Planning/CPU contracts | Closed fully static final Conv2d/Conv3d result layouts and only the direct axis-two squeeze view required by visible Conv1d before Planning capability queries; preserved unresolved Model construction, dynamic Shapes, strict CPU admission, topology, identities, metadata, and backend-neutral ownership, and supplied the three public Engine fixtures. |
+| 0006B7 | [Final NEG logical-layout closure](tasks/0006b7-final-neg-logical-layout-closure.md) | Complete | 0006B3–0006B6; Metal 0002 prerequisite review; current Model/Planning contracts | Closed only fully static still-unresolved exact unary NEG outputs and directly consumed compile-time splat inputs to canonical contiguous logical layout after all existing final closures and before publication, capability, partition, and memory derivation, while preserving unresolved Model/elementwise inference semantics and every graph sidecar. |
 | 0006C | Conv3d adjoint expressibility and gradient closure | Draft | 0006B; current public Tensor algebra; any separately selected Model prerequisite | Prove whether grouped NCDHW input/weight/bias cotangents are expressible through current public window, layout, matrix, reduction, and fold operations. Implement and add `CONV3D` to the closed derivative inventory only when exact group isolation, dilation/padding, overlap accumulation, symbolic Shape, and higher-order formula closure are representable; otherwise select the smallest Model-owned prerequisite first and keep the family fail-closed. |
 | 0007 | Exact constant identities and permission-aware algebra | Draft | 0006; Config 0006 before any relaxed rule | Reassess remaining graph-level exact constant/algebra identities and any explicitly permitted relaxed rewrites without changing completed 0001–0006 history: preserve current guarded scalar `POW(+1) -> input`, require complete exceptional-value/constant-sidecar/output/publication/phase/autograd/descriptor proof before an exact `POW(0)` typed shape-correct one-splat, and never infer Tensor constants from storage or factory history. |
 
@@ -175,10 +176,13 @@ higher-order path without implementing higher-order requests before 0006.
   [task 0006B6](tasks/0006b6-final-convolution-logical-layout-closure.md), as the bounded
   Compiler-owned prerequisite now satisfied for Ready Engine 0008, including positive public NCW
   Conv1d, grouped NCHW Conv2d, and grouped NCDHW Conv3d fixtures.
+- Final NEG logical-layout closure — Complete
+  [task 0006B7](tasks/0006b7-final-neg-logical-layout-closure.md), satisfying the bounded
+  Compiler-owned prerequisite for Ready Metal 0002.
 
 ## Current status
 
-Complete through task 0006B6. Tasks 0001–0006B6 are Complete with recorded source, tests,
+Complete through task 0006B7. Tasks 0001–0006B7 are Complete with recorded source, tests,
 documentation, and validation. Detailed
 [task 0006B6](tasks/0006b6-final-convolution-logical-layout-closure.md) completed the explicit
 user-authorized prerequisite-order exception for Engine 0008. Its post-optimization,
@@ -190,7 +194,17 @@ also supplies exact positive public Engine NCW Conv1d, grouped NCHW Conv2d, and 
 Conv3d numerical integration fixtures without any Engine or CPU production change. Engine 0008
 is now `Ready`. The interleave returned from the selected Engine frontier to the owning Compiler
 prerequisite; within Compiler, 0006B6 remains normally ordered immediately after 0006B5 and before
-Draft 0006C. It neither reordered nor implemented 0006C.
+Draft 0006C. It neither reordered nor implemented 0006C. The independent Metal 0002 review then
+found that occurrence-scoped capability cannot reject an otherwise eligible NEG merely because
+its feed is a compile-time splat: capability queries do not carry source provenance. Detailed
+[task 0006B7](tasks/0006b7-final-neg-logical-layout-closure.md) is now `Complete`. Its final
+package-private pass runs after the existing closures and before all final artifact derivation,
+closing only fully static still-unresolved exact NEG outputs and direct compile-time splat inputs.
+Model and `ElementwiseInference` stay unresolved; scalar and zero-extent Shapes close logically
+while Metal keeps its stricter executable domain. The initial focused 41-test run, pre-correction
+full Compiler 40-suite/281-test run, Compiler Javadoc, independent documentation review, and
+corrected focused closure-test rerun passed. This user-authorized return from the Metal frontier
+remains ordered after 0006B6 and before Draft 0006C. Metal 0002 is now `Ready`.
 
 Detailed task 0006B5 closes only the logical descriptor of a fully static source-only published
 compile-time splat after final optimization; it adds no allocation, topology, backend,
@@ -239,7 +253,9 @@ but it stays out of Engine user-facade signatures. CPU 0010F and Engine 0001–0
 completed. Their Engine 0003 reassessment exposed the missing caller-input identity association
 now delivered by Complete Compiler 0006B4. Complete 0006B5 supplies the later source-only
 published-constant logical descriptor. Complete 0006B6 supplies the separate final convolution
-logical-layout prerequisite exposed by the Engine 0008 audit. Draft 0006C and 0007 remain independent
+logical-layout prerequisite exposed by the Engine 0008 audit. Complete 0006B7 supplies the exact
+final NEG descriptor prerequisite exposed by the Metal 0002 review. Draft 0006C and 0007 remain
+independent
 gradient/algebra side branches rather than being silently skipped. Neither has a detailed
 specification. Compiler 0004, 0004A,
 and 0004B are Complete with

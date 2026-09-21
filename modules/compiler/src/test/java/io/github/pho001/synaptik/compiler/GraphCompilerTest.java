@@ -26,6 +26,7 @@ import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dKind;
 import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
 import io.github.pho001.synaptik.model.operation.convolution.Conv3dKind;
+import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
@@ -562,6 +563,107 @@ final class GraphCompilerTest {
         assertEquals(1, queries.size());
         assertSame(Conv2dKind.CONV2D, queries.getFirst().operation().kind());
         assertTrue(queries.getFirst().outputs().getFirst().layout().isEmpty());
+    }
+
+    @Test
+    void completeCompileQueriesPlanningWithClosedNegSplatInputAndOutput() {
+        Shape shape = Shape.of(2, 3);
+        Tensor constant = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, shape, Optional.empty(), false));
+        Tensor output = constant.neg();
+        ScalarValue scalar = ScalarValue.float32(-0.0f);
+        BackendId backendId = new BackendId("recording");
+        List<OperationCapabilityQuery> queries = new ArrayList<>();
+
+        CompileArtifacts artifacts = GraphCompiler.compile(
+                CompileMode.FORWARD_ONLY,
+                List.of(output),
+                Optional.empty(),
+                new CompileTimeConstantGraph.Ingress(List.of(
+                        new CompileTimeConstantGraph.Binding(
+                                constant, new CompileTimeConstantGraph.Splat(scalar)))),
+                GraphOptimizationConfig.disabled(),
+                BackendIntent.unconstrained(),
+                PartitionScoringConfig.neutral(),
+                List.of(provider(backendId, queries, true)),
+                List.of(snapshot(backendId)));
+
+        OperationCapabilityQuery query = queries.getFirst();
+        assertAll(
+                () -> assertSame(UnaryElementwiseKind.NEG, query.operation().kind()),
+                () -> assertEquals(LayoutDescriptor.contiguous(shape),
+                        query.inputs().getFirst().layout().orElseThrow()),
+                () -> assertEquals(LayoutDescriptor.contiguous(shape),
+                        query.outputs().getFirst().layout().orElseThrow()),
+                () -> assertSame(scalar,
+                        artifacts.constants().constantSources().getFirst().value()),
+                () -> assertTrue(artifacts.constants().bindableInputs().isEmpty()));
+    }
+
+    @Test
+    void backwardCapableCompleteCompileQueriesPlanningWithClosedNegOutput() {
+        Tensor target = tensor();
+        Tensor negated = target.neg();
+        Tensor objective = negated.sum();
+        BackendId backendId = new BackendId("recording");
+        List<OperationCapabilityQuery> queries = new ArrayList<>();
+
+        CompileArtifacts artifacts = GraphCompiler.compile(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(objective),
+                Optional.of(FunctionalGradientTestSupport.request(
+                        objective, List.of(target))),
+                CompileTimeConstantGraph.Ingress.empty(),
+                GraphOptimizationConfig.disabled(),
+                BackendIntent.unconstrained(),
+                PartitionScoringConfig.neutral(),
+                List.of(provider(backendId, queries, true)),
+                List.of(snapshot(backendId)));
+
+        int forwardNegIndex = -1;
+        for (int index = 0; index < artifacts.graph().nodes().size(); index++) {
+            var node = artifacts.graph().nodes().get(index);
+            if (node.operation().kind() == UnaryElementwiseKind.NEG
+                    && artifacts.graph().nodePhases().get(node.id()) == GraphPhase.FORWARD) {
+                forwardNegIndex = index;
+                break;
+            }
+        }
+        OperationCapabilityQuery query = queries.get(forwardNegIndex);
+        assertAll(
+                () -> assertTrue(query.inputs().getFirst().layout().isEmpty()),
+                () -> assertEquals(LayoutDescriptor.contiguous(Shape.of(2)),
+                        query.outputs().getFirst().layout().orElseThrow()),
+                () -> assertTrue(artifacts.graph().nodePhases().containsValue(
+                        GraphPhase.BACKWARD)));
+    }
+
+    @Test
+    void dynamicNegRemainsUnresolvedInRejectedCapabilityQuery() {
+        Shape dynamicShape = Shape.ofDimensions(new DynamicDimension("N"));
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, dynamicShape, Optional.empty(), false));
+        Tensor output = input.neg();
+        BackendId backendId = new BackendId("recording");
+        List<OperationCapabilityQuery> queries = new ArrayList<>();
+
+        assertThrows(IllegalStateException.class, () -> GraphCompiler.compile(
+                CompileMode.FORWARD_ONLY,
+                List.of(output),
+                Optional.empty(),
+                CompileTimeConstantGraph.Ingress.empty(),
+                GraphOptimizationConfig.disabled(),
+                BackendIntent.unconstrained(),
+                PartitionScoringConfig.neutral(),
+                List.of(provider(backendId, queries, false)),
+                List.of(snapshot(backendId))));
+
+        assertAll(
+                () -> assertEquals(1, queries.size()),
+                () -> assertSame(UnaryElementwiseKind.NEG,
+                        queries.getFirst().operation().kind()),
+                () -> assertTrue(queries.getFirst().inputs().getFirst().layout().isEmpty()),
+                () -> assertTrue(queries.getFirst().outputs().getFirst().layout().isEmpty()));
     }
 
     @Test

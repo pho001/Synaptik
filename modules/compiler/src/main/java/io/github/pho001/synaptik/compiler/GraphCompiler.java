@@ -43,10 +43,10 @@ import java.util.Set;
  * construct gradients with public Tensor operations, and capture forward outputs and every
  * requested gradient root together once. Every mode then passes its single immutable graph
  * through inference, mandatory canonicalization, bounded exact optional optimization,
- * validation, source-only published-constant descriptor closure, and the bounded final
- * convolution logical-layout closure. Only fully static unresolved Conv2d/Conv3d results and the
- * direct axis-two squeeze view of a Conv2d result newly closed by that invocation are eligible;
- * all other descriptors remain unchanged.</p>
+ * validation, source-only published-constant descriptor closure, the bounded final convolution
+ * logical-layout closure, and the exact final NEG logical-layout closure. The last pass closes
+ * only fully static unresolved exact NEG results and registered compile-time splat graph inputs
+ * consumed directly by exact NEG; it does not establish a general elementwise layout policy.</p>
  *
  * <p>The original direct entry returns internal graph-stage state. A package-private complete
  * overload additionally derives publication bindings, logical constants and diagnostics, selects
@@ -82,8 +82,8 @@ final class GraphCompiler {
      * @throws IllegalArgumentException if the forward boundary is empty or duplicates a Tensor or
      *     logical value, the mode/request matrix is invalid, preflight rejects the request,
      *     ingress is invalid, or capture, inference, validation, optimization, or final boundary
-     *     validation, published-constant descriptor closure, or final convolution logical-layout
-     *     closure fails
+     *     validation, published-constant descriptor closure, final convolution logical-layout
+     *     closure, or final NEG logical-layout closure fails
      */
     static GraphCompilation compile(
             CompileMode mode,
@@ -108,9 +108,11 @@ final class GraphCompiler {
                     DerivativeGraphMetadata.forwardOnly(captured.graph());
             ValidatedGraph inferred =
                     CapturedGraphInference.inferAndValidate(captured, derivatives);
-            ValidatedGraph optimized = ConvolutionLogicalLayoutClosure.close(
-                    PublishedCompileTimeConstantDescriptorClosure.close(
-                            ForwardGraphOptimization.optimize(inferred, optimizationConfig)));
+            ValidatedGraph optimized = NegLogicalLayoutClosure.close(
+                    ConvolutionLogicalLayoutClosure.close(
+                            PublishedCompileTimeConstantDescriptorClosure.close(
+                                    ForwardGraphOptimization.optimize(
+                                            inferred, optimizationConfig))));
             List<ValueId> finalForward = List.copyOf(optimized.graph().outputs());
             return new GraphCompilation(
                     mode, optimized, finalForward, List.of(), optimized.derivatives());
@@ -159,9 +161,10 @@ final class GraphCompiler {
         ValidatedGraph inferred =
                 CapturedGraphInference.inferAndValidate(
                         captured.constantGraph(), captured.derivatives());
-        ValidatedGraph optimized = ConvolutionLogicalLayoutClosure.close(
-                PublishedCompileTimeConstantDescriptorClosure.close(
-                        ForwardGraphOptimization.optimize(inferred, optimizationConfig)));
+        ValidatedGraph optimized = NegLogicalLayoutClosure.close(
+                ConvolutionLogicalLayoutClosure.close(
+                        PublishedCompileTimeConstantDescriptorClosure.close(
+                                ForwardGraphOptimization.optimize(inferred, optimizationConfig))));
 
         List<ValueId> finalForward = List.copyOf(
                 optimized.graph().outputs().subList(0, captured.forwardOutputCount()));
@@ -192,9 +195,9 @@ final class GraphCompiler {
      * <p>All nine top-level arguments are validated in declaration order before graph
      * construction. The existing graph-stage compile entry is invoked exactly once. Publication,
      * constant, caller Tensor identity, and diagnostic snapshots are then built from its final
-     * graph. Thus published-constant closure and eligible static convolution closure are visible
-     * to every stored-order capability query and to subsequent maximal partitioning and logical-
-     * memory derivation before final aggregate cross-validation.</p>
+     * graph. Thus published-constant closure, eligible static convolution closure, and exact NEG
+     * closure are visible to every stored-order capability query and to subsequent maximal
+     * partitioning and logical-memory derivation before final aggregate cross-validation.</p>
      *
      * @param mode non-null graph-scope mode
      * @param forwardOutputs non-null, non-empty ordered requested forward boundary

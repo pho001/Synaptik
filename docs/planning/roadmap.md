@@ -20,12 +20,12 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress (interleaved) | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, planning-cost, and model-autotuning request contracts are complete where stable consumers justify them. |
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | Complete | Stable model/backend identity contracts permit the explicitly bounded capability-query interleave before config scoring is complete. | Ownership, partitioning, scoring, logical memory planning, and the selected contract-closure audit are complete. |
 | 6 | [`modules/runtime`](modules/runtime/master-plan.md) | Complete through 0016 | ADR 0013 resolves Metal 0002's persistent prepared-resource lifecycle prerequisite. | Runtime 0016 implements the central prepared owner and non-waiting close/run lease before Prepare 0006. |
-| 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete through 0006B6 | Model and Planning prerequisites for the compile frontier are complete; Engine 0008 authorized one completed owning Compiler interleave. | Compiler 0006B6 closes static final convolution layouts and supplies positive public Engine dimensional-convolution fixtures; 0006C and 0007 remain independent Draft side branches. |
+| 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete through 0006B7 | The Metal 0002 review identified one final Compiler-owned logical-descriptor prerequisite after the completed Engine interleave. | Compiler 0006B7's exact NEG output/direct-splat-input closure is complete; 0006C and 0007 remain independent Draft side branches. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through 0006 | Runtime 0016 and ADR 0013 define the persistent prepared-resource owner and transactional handoff. | Prepare 0006 atomically receives executable plus resources, rolls successful finalizations back on every later failure, and transfers ownership once to `PreparedExecution`. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Complete baseline; optional provider 0004 Blocked/deferred | Native interop conventions needed by the provider are decided. | Required FLOAT32/FLOAT64 remains complete; the optional direct BFLOAT16-output capability stays fail-closed until both proof gaps are resolved. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through 0010J | Complete CPU 0010E–0010I, Prepare 0004, and tools/tuning 0001 establish the current local-candidate, lifecycle, opaque-handoff, and tuning-consumer seams. | CPU 0010J supplies the bounded session-scoped producer over retained 0008D/0008E alternatives with exact Phase-1 selection reuse; no additional CPU fingerprint prerequisite is required before tuning 0002. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0010 | Runtime 0016 and Prepare 0006 complete the inward owner and transactional handoff prerequisites. | Engine 0010 closes the outward prepared-handle lifecycle and temporary preparation paths. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0001; 0002 Blocked | Runtime 0016, Prepare 0006, and Engine 0010 satisfy the lifecycle prerequisites; a fresh Metal audit must select the bounded route specification. | Audit and detail the first truthful MPSGraph route separately. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0001; 0002 Ready | Runtime 0016, Prepare 0006, Engine 0010, and Compiler 0006B7 satisfy the selected route's prerequisites. | Implement and validate Metal 0002's whole-maximal-partition FLOAT32 NEG MPSGraph route. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | CUDA passes the applicable backend-conformance suite. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | The model representation and public tensor semantics are stable. | Selected import/export mappings and compatibility validation are complete. |
 | 15 | [`extensions/data`](extensions/data/master-plan.md) | Draft (architecture decision required) | An explicit architecture/module/dependency decision authorizes the new extension after its Model Tensor prerequisites are stable. | Canonical valid-length metadata, right-padded sequence batches, and selected focused numeric sample/sequence batchers are complete. |
@@ -580,29 +580,53 @@ fail-closed for every operation while the backend establishes its own macOS arm6
 device/queue and run-owned storage lifecycle. Current Planning, Runtime, Prepare, Backend
 Contract, Trace, and Java 26 FFM prerequisites are sufficient for that completed foundation.
 Model 0026 remains Draft and gates future FLOAT16 claims, but it does not block the
-current-type-neutral foundation. Metal 0002 is `Blocked` without a detailed specification: the
-first truthful MPSGraph path needs a reusable, closeable compiled native executable. Runtime 0016
-gives `PreparedExecution` the owned-resource and close lifecycle, and Prepare 0006 now returns and
-transfers finalizer resources transactionally. ADR 0013 resolves the complete architecture:
-`PreparedExecution` owns a private identity-unique resource aggregate, active synchronous runs
-lease it, and close rejects new runs without waiting.
+current-type-neutral foundation. Detailed
+[Metal 0002 MPSGraph prepared execution route](backends/metal/tasks/0002-mpsgraph-prepared-execution-route.md)
+is the active `Ready` frontier after detailed
+[Compiler 0006B7 final NEG logical-layout closure](modules/compiler/tasks/0006b7-final-neg-logical-layout-closure.md)
+completed its mandatory prerequisite. The independent review retained the first truthful route as
+every non-empty maximal Metal-owned partition composed solely of individually supported positive-
+static-shape resolved dense-contiguous `FLOAT32` unary `NEG` occurrences. One reusable executable
+lowers chains, independent nodes, fan-out, repeated consumption, internal values, multiple
+boundaries, and differing valid shapes without changing occurrence capability or partitioning.
+Because occurrence capability queries carry descriptors but no constant provenance, Metal cannot
+reject an otherwise eligible NEG whose direct feed is a compile-time splat. Compiler 0006B7 first
+closes only fully static still-unresolved exact NEG outputs and directly consumed splat inputs;
+Model and generic elementwise inference remain unresolved, and scalar/zero-extent logical closure
+does not relax Metal's stricter positive rank-`1..16` route.
+Runtime 0016 gives `PreparedExecution` the owned-resource and close lifecycle, and Prepare 0006
+returns and transfers finalizer resources transactionally. ADR
+0013 resolves the complete architecture: `PreparedExecution` owns a private identity-unique
+resource aggregate, active synchronous runs lease it, and close rejects new runs without waiting.
 The smallest ordered prerequisite chain is:
 
 ```text
 Runtime 0016 persistent prepared-resource lifecycle (Complete; detailed)
   -> Prepare 0006 persistent prepared-resource finalization transaction (Complete; detailed)
   -> Engine 0010 prepared-handle ownership and closure (Complete)
-  -> Metal 0002 MPSGraph prepared execution route (Blocked; no detailed spec)
+  -> Compiler 0006B7 final NEG logical-layout closure (Complete; detailed)
+  -> Metal 0002 MPSGraph prepared execution route (Ready; detailed)
 ```
 
 Runtime 0016, Prepare 0006, and detailed
 [Engine 0010 prepared-handle ownership and closure](modules/engine/tasks/0010-prepared-handle-ownership-and-closure.md)
 are Complete. Engine 0010 closes the complete ordinary, advanced, one-shot, representative,
 tuning, fallback, failed-publication, and retained-preparation lifecycle without changing Runtime
-or Prepare ownership. Metal 0002 remains Blocked only until a fresh Metal audit selects and
-details its truthful bounded route; that audit/specification is separate from this task. Task
-0001 and the blocking audit add no generic backend registry, mixed-owner Engine contract, per-run
-graph compilation, or hidden backend-global ownership.
+or Prepare ownership. The completed Metal planning audit found no shared-contract or architecture
+gap: installed SDK 27.0 headers provide fixed-shape compilation, supplied `MTLBuffer` tensor-data
+input/result binding, synchronous reusable execution, and completion-error reporting. The exact
+temporary probe compiled in the sandbox but there observed `NO_DEVICE`; the coordinator then ran
+that binary outside the sandbox, where it exited `0` and printed
+`PASS executable_reused=2 direct_output_buffer=1 completion_errors=0 results=1`. This is bounded
+feasibility evidence, not repository integration or failure-mapping proof. Metal 0002 retains ABI
+version `2`, three exact new executable functions, deterministic fake/native-seam failure mapping,
+and a mandatory unsandboxed successful real-device gate. Compiler 0006B7 is Complete after its
+initial focused 41-test run, pre-correction full Compiler 40-suite/281-test run, Compiler Javadoc,
+independent documentation review, and corrected focused closure-test rerun. The corrected Metal
+plan materializes eligible splats once per run during cold run-state
+creation, owns pre-marshalled native pointer arrays in an explicit run-owned workspace, and keeps
+hot execution to one downcall. It adds no generic backend registry, mixed-owner Engine contract,
+per-run graph compilation, shared Runtime change, or hidden backend-global ownership.
 
 Detailed
 [Model 0025I NCW max/average Pool1d composition](modules/model/tasks/0025i-ncw-max-average-pool1d-composition.md)
@@ -699,8 +723,8 @@ The preceding Compiler 0006 supplies the bounded functional one/two-stage reques
 keeps backpropagation through time fail-closed. Complete Compiler 0006B supplies the Conv3d forward
 adoption that precedes CPU 0008 and CPU 0008A; Draft Compiler 0006C separately owns gradient
 closure and does not block CPU forward execution. Compiler 0007 remains the later Draft exact-
-algebra row. Neither 0006C nor 0007 has a detailed specification. Compiler 0006B3 is Complete; no
-Compiler task is Ready or In progress.
+algebra row. Neither 0006C nor 0007 has a detailed specification. Compiler 0006B3–0006B6 are
+Complete; Compiler 0006B7 is Complete and Metal 0002 is the active `Ready` frontier.
 
 The completed Runtime implementation frontier is
 [Runtime 0010 Prepared runner and dynamic execution](modules/runtime/tasks/0010-prepared-runner-and-dynamic-execution.md).
@@ -2207,9 +2231,11 @@ the complete current model operation inventory before higher-order work:
 | [0006B4 Stable caller-input Tensor identity bindings](modules/compiler/tasks/0006b4-stable-caller-input-tensor-identity-bindings.md) | Complete | 0005; 0006; 0006B3; blocked Engine 0003 reassessment | Added the ordered typed `TensorId`/final-`ValueId` bindable-input view to `CompileConstantPlan`, preserving its compatibility accessor, the eight-component aggregate, and unchanged Prepare/Runtime/Engine production consumer shapes. |
 | [0006B5 Published compile-time constant descriptor closure](modules/compiler/tasks/0006b5-published-compile-time-constant-descriptor-closure.md) | Complete | 0006; 0006B4; Planning 0005–0006; Engine 0006 prerequisite diagnosis | Resolves canonical logical layout only for fully static source-only published compile-time splat constants after final optimization, preserving topology, roles, bindings, aliases, dynamic/consumed/unpublished constants, and the producerless/consumerless Planning obligation. |
 | [0006B6 Final convolution logical-layout closure](modules/compiler/tasks/0006b6-final-convolution-logical-layout-closure.md) | Complete | 0006B, 0006B3–0006B5; blocked Engine 0008 reassessment; current Model/Planning/CPU contracts | Closed fully static final Conv2d/Conv3d result layouts and only the direct axis-two squeeze view required by visible Conv1d before Planning capability queries; preserved unresolved Model construction, dynamic Shapes, strict CPU admission, topology, identities, and metadata, and added exact public Engine numerical fixtures. |
+| [0006B7 Final NEG logical-layout closure](modules/compiler/tasks/0006b7-final-neg-logical-layout-closure.md) | Complete | 0006B3–0006B6; Metal 0002 prerequisite review; current Model/Planning contracts | Closed only fully static still-unresolved exact unary NEG outputs and directly consumed compile-time splat inputs after existing closures and before all final artifact derivation, without changing Model inference or creating a general layout policy. |
 | 0006C Conv3d adjoint expressibility and gradient closure | Draft | 0006B; proven public Tensor algebra or a separately selected Model prerequisite | Close Conv3d gradients only after group, geometry, overlap, symbolic-Shape, and higher-order expressibility are proved. |
 
-Compiler 0005A–0006B6 and their Model prerequisites are Complete. Compiler 0006B4 delivered the
+Compiler 0005A–0006B7 and their Model prerequisites are Complete. Metal 0002 is the active
+`Ready` frontier. Compiler 0006B4 delivered the
 prerequisite inserted for the earlier Engine input-binding blocker, and detailed Compiler 0006B5
 closes the source-only published-constant logical descriptor found by the separate Engine 0006
 prerequisite diagnosis. Prepare 0005, CPU 0010H, and Engine 0006 are Complete. Complete Engine
@@ -2225,7 +2251,8 @@ strict, and Prepare/Runtime infer no layout. Its exact positive public Engine NC
 NCHW Conv2d, and grouped NCDHW Conv3d fixtures passed. The exception returned
 from the selected Engine frontier to its owning Compiler prerequisite; within Compiler, 0006B6 is
 normally ordered after 0006B5 and before 0006C, and does not reorder or implement 0006C. Compiler
-0006C and 0007 remain explicitly deferred Draft side branches without detailed
+0006B7 completed after 0006B6 and before 0006C under the separate user-authorized Metal
+prerequisite exception. Compiler 0006C and 0007 remain explicitly deferred Draft side branches without detailed
 specifications. Detailed
 [CPU 0010F](backends/cpu/tasks/0010f-supported-cpu-lifecycle-integration-adapter.md) is Complete.
 Detailed [Engine 0001](modules/engine/tasks/0001-advanced-composition-and-representation-level-lifecycle-foundation.md)
@@ -2263,8 +2290,8 @@ Complete. Config 0006B is Complete, and detailed
 [Engine 0009](modules/engine/tasks/0009-public-complete-plan-autotuning-composition.md) is
 Complete. Detailed
 [Engine 0010](modules/engine/tasks/0010-prepared-handle-ownership-and-closure.md) is
-`Complete`; no task after 0010 is Ready or detailed, and Compiler 0006C and NN
-0021B–0024 remain Draft.
+`Complete`; Compiler 0006B7 is Complete and Metal 0002 is now the active detailed `Ready`
+frontier, while Compiler 0006C and NN 0021B–0024 remain Draft.
 Family tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator
 (RNG) state, mask, and configuration roles remain intentionally non-differentiable where
