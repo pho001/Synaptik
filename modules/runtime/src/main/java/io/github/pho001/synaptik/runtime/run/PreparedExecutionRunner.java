@@ -17,7 +17,8 @@ import java.util.Objects;
  * occurrence before the first action, then traverses a private direct-reference array in schedule
  * order. Successful completion returns a {@link RunResult} that leases the still-open state;
  * every failure after state creation closes it once before the original unchecked failure is
- * rethrown.
+ * rethrown. The call first acquires an opaque prepared-execution lease, before inspecting caller
+ * inputs or creating mutable state, and releases it only after complete synchronous execution.
  *
  * <p>This runner is stateless and thread-safe. Separate calls may share the immutable recipe but
  * share no runner-created mutable state. One call is synchronous and uses one orchestrating
@@ -38,7 +39,13 @@ public final class PreparedExecutionRunner {
      * <p>Caller inputs are dense borrowed representations and remain caller-owned. A non-empty
      * memory plan requires the schedule's first occurrence to create representations. A wholly
      * empty plan and empty caller list may run without that occurrence. All remaining occurrences
-     * bind before any invocation, transfer, or publication action begins.
+     * bind before any invocation, transfer, or publication action begins. Close begun before
+     * admission rejects the call. Close begun afterward permits this call to finish and defers
+     * persistent-resource cleanup to the last admitted run.
+     *
+     * <p>An execution failure remains primary when lease cleanup also fails. If execution creates
+     * a result but lease cleanup fails, this method closes that result, attaches any distinct
+     * result-cleanup failure to the persistent-resource failure, and returns no result.
      *
      * @param execution the immutable prepared execution to run; must be non-null
      * @param callerInputs dense borrowed inputs in caller-preparation encounter order; must be
@@ -52,7 +59,7 @@ public final class PreparedExecutionRunner {
      *     are supplied without creation, or an existing creation or binding contract rejects an
      *     input
      * @throws IllegalStateException if an executable read is invalid or an existing action,
-     *     publication, or result contract rejects the current state
+     *     publication, result, or prepared-execution lifecycle contract rejects the call
      * @throws RuntimeException if prepared backend work or cleanup reports an unchecked failure
      * @throws Error if prepared backend work or cleanup reports an error
      */
@@ -60,8 +67,27 @@ public final class PreparedExecutionRunner {
             PreparedExecution execution,
             List<BufferRepresentation> callerInputs) {
         Objects.requireNonNull(execution, "execution");
-        Objects.requireNonNull(callerInputs, "callerInputs");
+        PreparedExecution.RunLease lease = execution.acquireRunLease();
+        RunResult result;
+        try {
+            result = runAdmitted(execution, Objects.requireNonNull(callerInputs, "callerInputs"));
+        } catch (RuntimeException | Error failure) {
+            closeLeaseAfterFailure(lease, failure);
+            throw failure;
+        }
 
+        try {
+            lease.close();
+        } catch (RuntimeException | Error resourceFailure) {
+            closeResultAfterResourceFailure(result, resourceFailure);
+            throw resourceFailure;
+        }
+        return result;
+    }
+
+    private static RunResult runAdmitted(
+            PreparedExecution execution,
+            List<BufferRepresentation> callerInputs) {
         List<PreparedSchedule.Step> steps = execution.schedule().steps();
         RunState state;
         int firstBoundIndex;
@@ -111,6 +137,28 @@ public final class PreparedExecutionRunner {
         } catch (RuntimeException | Error failure) {
             closeAfterFailure(state, failure);
             throw failure;
+        }
+    }
+
+    private static void closeLeaseAfterFailure(
+            PreparedExecution.RunLease lease, Throwable failure) {
+        try {
+            lease.close();
+        } catch (RuntimeException | Error cleanupFailure) {
+            if (cleanupFailure != failure) {
+                failure.addSuppressed(cleanupFailure);
+            }
+        }
+    }
+
+    private static void closeResultAfterResourceFailure(
+            RunResult result, Throwable resourceFailure) {
+        try {
+            result.close();
+        } catch (RuntimeException | Error resultFailure) {
+            if (resultFailure != resourceFailure) {
+                resourceFailure.addSuppressed(resultFailure);
+            }
         }
     }
 

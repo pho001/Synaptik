@@ -19,13 +19,13 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete | Foundational value-model conventions and the stable trace foundation are complete. | Backend identity and declarative requirement contracts are complete. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress (interleaved) | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, planning-cost, and model-autotuning request contracts are complete where stable consumers justify them. |
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | Complete | Stable model/backend identity contracts permit the explicitly bounded capability-query interleave before config scoring is complete. | Ownership, partitioning, scoring, logical memory planning, and the selected contract-closure audit are complete. |
-| 6 | [`modules/runtime`](modules/runtime/master-plan.md) | Complete through 0015 | Compiler/planning handoff, backend identities, the trace foundation, and ADR 0011's per-run resource ownership/cold-binding decision are stable. | The historical Runtime closure milestone remains complete, and Runtime 0015 adds the bounded leased publication-representation access required by later host materialization. |
+| 6 | [`modules/runtime`](modules/runtime/master-plan.md) | Complete through 0016 | ADR 0013 resolves Metal 0002's persistent prepared-resource lifecycle prerequisite. | Runtime 0016 implements the central prepared owner and non-waiting close/run lease before Prepare 0006. |
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete through 0006B6 | Model and Planning prerequisites for the compile frontier are complete; Engine 0008 authorized one completed owning Compiler interleave. | Compiler 0006B6 closes static final convolution layouts and supplies positive public Engine dimensional-convolution fixtures; 0006C and 0007 remain independent Draft side branches. |
-| 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through Prepare 0005 | Compiler 0006B5 supplies a resolved producerless/consumerless published-constant descriptor while Planning preserves its graph-output obligation. | Prepare contributes that resource to the handoff and assigns a deterministic shared slot without backend selection or physical geometry. |
+| 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through 0006 | Runtime 0016 and ADR 0013 define the persistent prepared-resource owner and transactional handoff. | Prepare 0006 atomically receives executable plus resources, rolls successful finalizations back on every later failure, and transfers ownership once to `PreparedExecution`. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Complete baseline; optional provider 0004 Blocked/deferred | Native interop conventions needed by the provider are decided. | Required FLOAT32/FLOAT64 remains complete; the optional direct BFLOAT16-output capability stays fail-closed until both proof gaps are resolved. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through 0010J | Complete CPU 0010E–0010I, Prepare 0004, and tools/tuning 0001 establish the current local-candidate, lifecycle, opaque-handoff, and tuning-consumer seams. | CPU 0010J supplies the bounded session-scoped producer over retained 0008D/0008E alternatives with exact Phase-1 selection reuse; no additional CPU fingerprint prerequisite is required before tuning 0002. |
-| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0009 | Completed tools/tuning 0002, CPU 0010J, Engine 0008A, and Config 0006B supply the generic transaction, producer, correctness, and request contracts. | Engine 0009 publicly composes both tuning phases, freshly prepares the authenticated complete-plan winner, and reports both phases without changing Runtime or backend ownership; no later Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0001; 0002 Draft | Met: shared backend contracts and CPU reference behavior are stable. | Metal passes the applicable backend-conformance suite after executable routes exist. |
+| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0009; 0010 Draft next frontier | Runtime 0016 and Prepare 0006 complete the inward owner and transactional handoff prerequisites. | Engine 0010 gives ordinary and advanced prepared handles deterministic inward ownership and cleanup. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0001; 0002 Blocked | Blocked on Draft Engine 0010 completing outward prepared-handle ownership after Runtime 0016 and Prepare 0006. | Complete Engine ownership before detailing the first MPSGraph route. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | CUDA passes the applicable backend-conformance suite. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | The model representation and public tensor semantics are stable. | Selected import/export mappings and compatibility validation are complete. |
 | 15 | [`extensions/data`](extensions/data/master-plan.md) | Draft (architecture decision required) | An explicit architecture/module/dependency decision authorizes the new extension after its Model Tensor prerequisites are stable. | Canonical valid-length metadata, right-padded sequence batches, and selected focused numeric sample/sequence batchers are complete. |
@@ -577,11 +577,27 @@ The completed current Metal foundation is documented in
 is `Complete`. It is a bounded non-executing foundation: the Metal capability provider remains
 fail-closed for every operation while the backend establishes its own macOS arm64 native
 device/queue and run-owned storage lifecycle. Current Planning, Runtime, Prepare, Backend
-Contract, Trace, and Java 26 FFM prerequisites are sufficient, so no architecture or shared-module
-change is planned. Model 0026 remains Draft and gates future FLOAT16 claims, but it does not block
-this current-type-neutral foundation. Metal 0002 remains Draft without a detailed specification
-and owns the first complete MPSGraph prepared execution path after 0001; task 0001 adds no
-generic backend registry or mixed-owner Engine contract.
+Contract, Trace, and Java 26 FFM prerequisites are sufficient for that completed foundation.
+Model 0026 remains Draft and gates future FLOAT16 claims, but it does not block the
+current-type-neutral foundation. Metal 0002 is `Blocked` without a detailed specification: the
+first truthful MPSGraph path needs a reusable, closeable compiled native executable. Runtime 0016
+gives `PreparedExecution` the owned-resource and close lifecycle, and Prepare 0006 now returns and
+transfers finalizer resources transactionally. ADR 0013 resolves the complete architecture:
+`PreparedExecution` owns a private identity-unique resource aggregate, active synchronous runs
+lease it, and close rejects new runs without waiting.
+The smallest ordered prerequisite chain is:
+
+```text
+Runtime 0016 persistent prepared-resource lifecycle (Complete; detailed)
+  -> Prepare 0006 persistent prepared-resource finalization transaction (Complete; detailed)
+  -> Engine 0010 prepared-handle ownership and closure (Draft; next frontier)
+  -> Metal 0002 MPSGraph prepared execution route (Blocked; no detailed spec)
+```
+
+Runtime 0016 and Prepare 0006 are Complete and detailed. Engine 0010 is now the next frontier but
+remains a concise Draft row without a task file. Metal remains blocked until Engine 0010 is
+Complete. Task 0001 and the blocking audit add no generic backend registry, mixed-owner Engine
+contract, per-run graph compilation, or hidden backend-global ownership.
 
 Detailed
 [Model 0025I NCW max/average Pool1d composition](modules/model/tasks/0025i-ncw-max-average-pool1d-composition.md)

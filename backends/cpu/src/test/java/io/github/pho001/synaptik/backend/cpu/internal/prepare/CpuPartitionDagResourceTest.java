@@ -284,7 +284,7 @@ class CpuPartitionDagResourceTest {
         }
         return new CpuPartitionFinalizer(Optional.of(artifactRoot), workers).finalizePartition(
                 new BackendPartitionFinalization<>(analysis,
-                        new PreparedMemoryPlan(buffers, workspaces), assignments));
+                        new PreparedMemoryPlan(buffers, workspaces), assignments)).executable();
     }
 
     private static BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis() {

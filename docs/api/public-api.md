@@ -572,13 +572,14 @@ The public `modules:runtime` surface now contains five focused packages:
 - `runtime.memory` defines `BufferSlot`, `WorkspaceSlot`, and immutable ordered
   `PreparedMemoryPlan` byte geometry;
 - `runtime.resource` defines the nominal backend-implemented `BufferRepresentation` and
-  `WorkspaceRepresentation` cleanup roles plus immutable `PreparedRepresentationPlan` origins,
-  caller-input occurrences, ordinary and initialized buffer origins, and typed buffer/workspace
-  creators;
+  `WorkspaceRepresentation` cleanup roles, the persistent `PreparedResource` cleanup role, plus
+  immutable `PreparedRepresentationPlan` origins, caller-input occurrences, ordinary and
+  initialized buffer origins, and typed buffer/workspace creators;
 - `runtime.run` defines borrowed/run-owned buffer bindings, the array-backed one-run `RunState`,
   dense-coordinate `PreparedPublication`, per-run `BoundPublication`, the whole-state
   `RunResult` lease, and stateless `PreparedExecutionRunner`; and
-- `runtime.execution` defines the immutable two-component `PreparedExecution` root, reusable
+- `runtime.execution` defines the immutable-recipe, explicitly closeable `PreparedExecution`
+  owner, reusable
   `PreparedExecutable` recipes, their dense buffer/representation and workspace selections,
   aligned buffer-access declarations, and
   per-run `BoundInvocation` objects, plus reusable `PreparedBufferTransfer` recipes and per-run
@@ -652,17 +653,27 @@ storage, a Tensor value, or guaranteed to be host-accessible. The ordinary Engin
 continues to expose metadata only, and `AdvancedRunResult` continues to expose only result count
 and lifecycle. Neither Engine result exposes the inward representation.
 
-One `PreparedExecution(memoryPlan, schedule)` now supplies the current reusable Runtime root. It
-retains both exact references and requires `schedule.memoryPlan() == memoryPlan`. It owns no
-resource, has no close or run method, and creates no per-run state. Its immutable recipe may be
-shared by concurrent readers, while each later invocation must use a distinct mutable
-`RunState`.
+One `PreparedExecution` now supplies the current reusable Runtime root and unique persistent-
+resource owner. It retains the exact memory-plan and same-plan schedule references. The
+two-argument constructor remains resource-free; the three-argument constructor privately
+snapshots non-null resources that are unique by exact identity. The final class intentionally
+uses `Object` identity rather than the former record's structural equality and exposes no
+resource aggregate or lookup.
 
-`PreparedExecutionRunner.run(execution, callerInputs)` creates one isolated state, cold-binds
+Close is explicit, idempotent, and non-waiting. It rejects new run leases immediately and closes
+resources in reverse acquisition order when no admitted run remains; the last lease performs
+deferred cleanup after a close/run race. Cleanup attempts all resources, runs outside lifecycle
+synchronization, and preserves the first unchecked failure with later distinct failures
+suppressed. Immutable recipe sharing remains safe, while each invocation still uses a distinct
+mutable `RunState`.
+
+`PreparedExecutionRunner.run(execution, callerInputs)` first acquires the opaque execution lease,
+then creates one isolated state, cold-binds
 every non-creation occurrence before the first action, traverses direct bound references in
 schedule order, and either returns the whole-state result lease or closes the state after failure.
 The runner is stateless and may serve concurrent calls; each call remains synchronous and owns
-distinct mutable state.
+distinct mutable state. Existing run failure remains primary over lease-cleanup failure. A
+cleanup failure after successful execution closes the new result and prevents its return.
 
 These contracts contain no concrete backend implementation and do not provide physical access,
 host/Tensor value access, or Engine behavior. Creator callbacks leave physical allocation mechanics to
@@ -691,12 +702,18 @@ Compiler-owned aggregate.
 `PreparationResourceAssignment` associates each exact declaration
 with an assigned Runtime slot and dense plan index. `BackendPartitionFinalization` carries one
 typed analysis, the exact shared `PreparedMemoryPlan`, and assignments in declaration order to a
-`BackendPartitionFinalizer`. `PreparedPartition` retains the exact planned partition and returned
-`PreparedExecutable`. `PartitionPreparation` keeps each backend's typed inputs, preparer, and
-finalizer positionally associated. `PreparedBufferAssignment` translates one graph `ValueId` to
-its exact `BufferSlot` and dense plan index. `PreparedScheduleContext` exposes the complete
-immutable finalized facts to one explicit `PreparedScheduleAssembler`, and
-`GraphPreparation.prepare(...)` returns the exact validated `PreparedExecution`.
+`BackendPartitionFinalizer`. The finalizer returns one
+`BackendPartitionFinalizationResult`, which snapshots its exact-plan executable and persistent
+resources in physical acquisition order. `PreparedPartition` retains only the exact planned
+partition and returned `PreparedExecutable`; resource ownership is never inferred from that
+association or from schedule occurrences. `PartitionPreparation` keeps each backend's typed
+inputs, preparer, and finalizer positionally associated. `PreparedBufferAssignment` translates one
+graph `ValueId` to its exact `BufferSlot` and dense plan index. `PreparedScheduleContext` exposes
+the complete immutable finalized facts to one explicit `PreparedScheduleAssembler`.
+`GraphPreparation.prepare(...)` rejects repeated resource identities, rolls successful results
+back after any later preparation failure, and transfers the ordered unique resources only by
+returning the exact validated `PreparedExecution`. Shared Prepare invokes cleanup but neither
+looks up a resource nor performs its physical allocation.
 
 The four-argument preparation form additionally accepts a complete list of
 `ProducerlessPublishedConstantResource` contributions. One such value carries the exact graph and

@@ -15,7 +15,8 @@ Synaptik deliberately separates three kinds of state:
 - The **compile-time graph** is the immutable `CompiledGraphModel` and its associated `CompileArtifacts`. It contains graph semantics, backend ownership, logical memory requirements, and publication bindings.
 - **Prepared execution** is immutable reusable runtime-ready state: prepared partitions,
   executable recipes, memory geometry, a schedule, and any immutable persistent prepared
-  resources.
+  resources. Its logical recipe is immutable, while its explicit close state controls the finite
+  lifetime of those resources.
 - **Per-run mutable state** is exactly one `RunState` for each active complete logical invocation.
   It covers every backend partition in that heterogeneous run and tracks its logical slots,
   resources, validity, and residency without sharing mutable state with another run.
@@ -87,6 +88,12 @@ Prepare creates `BackendPartitionAnalysis`, `PreparedPartition`, `PreparedUnit`,
 Prepare owns projection, orchestration, exact resource declarations, slot assignment, and
 validation. Concrete backends own deterministic analysis/lowering/route choice, retain the
 selected plan opaquely, and construct executables only during finalization after slot assignment.
+Finalization may acquire an immutable persistent prepared resource, such as a compiled native
+executable, only through the transactional ownership handoff: the backend rolls back before
+return, Prepare rolls back after return, and the completed `PreparedExecution` becomes the sole
+owner. Runtime's owner and lease lifecycle are current. The finalizer return and Prepare
+transaction described here remain planned for Prepare 0006; current CPU preparation uses the
+resource-free Runtime constructor.
 
 See [Runtime, Prepare, and Backend Boundary](runtime-prepare-backend-boundary.md) for the exact ownership split.
 
@@ -116,6 +123,13 @@ The cold binding step is the only boundary where heterogeneous backend represent
 checked dynamically. It creates backend-owned typed objects with direct references before the hot
 path. Execution therefore needs no map lookup, reflection, string dispatch, graph inspection,
 service lookup, or repeated unsafe cast.
+
+Each synchronous run first acquires a lease on its prepared execution. Once close begins, no new
+lease is admitted. Existing runs finish without close waiting for them; the last lease performs
+deferred reverse cleanup when close raced an active run. Thus close is deterministic without an
+unbounded wait, and the prepared recipe never moves native compilation onto the run path. This
+Runtime lifecycle is current; Engine prepared handles do not own inward closure until planned
+Engine 0010.
 
 ## Current public Engine lifecycle
 

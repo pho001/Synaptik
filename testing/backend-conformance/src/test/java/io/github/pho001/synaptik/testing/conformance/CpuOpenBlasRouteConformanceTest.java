@@ -462,7 +462,7 @@ final class CpuOpenBlasRouteConformanceTest {
             var coordinator = coordinator(invocation, budget);
             return new CpuPartitionFinalizer(Optional.empty(), Optional.empty(), budget,
                     Optional.of(coordinator)).finalizePartition(
-                            new BackendPartitionFinalization<>(analysis, memory, assignments));
+                            new BackendPartitionFinalization<>(analysis, memory, assignments)).executable();
         } catch (Exception failure) {
             throw new AssertionError(failure);
         }
@@ -491,7 +491,7 @@ final class CpuOpenBlasRouteConformanceTest {
         }
         return new CpuPartitionFinalizer(Optional.empty(), Optional.empty(), budget,
                 Optional.of(coordinator)).finalizePartition(new BackendPartitionFinalization<>(
-                        analysis, new PreparedMemoryPlan(buffers, workspaces), assignments));
+                        analysis, new PreparedMemoryPlan(buffers, workspaces), assignments)).executable();
     }
 
     private static CpuOpenBlasCoordinator coordinator(CpuOpenBlasInvocation invocation,

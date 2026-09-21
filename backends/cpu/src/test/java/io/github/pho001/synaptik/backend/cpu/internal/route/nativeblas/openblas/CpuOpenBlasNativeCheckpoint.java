@@ -352,7 +352,7 @@ public final class CpuOpenBlasNativeCheckpoint {
         PreparedMemoryPlan memory = new PreparedMemoryPlan(buffers, workspaces);
         return new CpuPartitionFinalizer(Optional.empty(), Optional.empty(), budget,
                 Optional.of(coordinator)).finalizePartition(
-                        new BackendPartitionFinalization<>(analysis, memory, assignments));
+                        new BackendPartitionFinalization<>(analysis, memory, assignments)).executable();
     }
 
     private static RunState state(PreparedMemoryPlan plan, DataType type, MemorySegment left,

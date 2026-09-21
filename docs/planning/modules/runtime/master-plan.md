@@ -96,6 +96,7 @@ publication coordinates, per-run bound publication state, and a whole-`RunState`
 | 0013 | [General architecture status correction](tasks/0013-general-architecture-status-correction.md) | Complete | 0011; 0012 | Corrected `DOCUMENTATION-STATUS-001` in four implicated explanatory documents, preserving authoritative architecture and leaving enforcement to task 0014. |
 | 0014 | [Runtime architecture enforcement](tasks/0014-runtime-architecture-enforcement.md) | Complete | 0011; 0012–0013 | Added one dependency-free focused architecture suite that locks Runtime's exact project edges, exhaustively classifies production sources, and rejects `Operation`/`CompiledNode` in the explicit hot path. |
 | [0015](tasks/0015-leased-publication-representation-access.md) | Leased publication representation access | Complete | 0009–0010; 0012; Engine 0003 | Added one result-indexed borrowed `BufferRepresentation` reference while the exact `RunResult` lease is open, preserving aliases and whole-state cleanup without adding host copying, concrete-backend knowledge, or ordinary Engine leakage. |
+| [0016](tasks/0016-persistent-prepared-resource-lifecycle.md) | Persistent prepared-resource lifecycle | Complete | 0003–0015; ADR 0013; Metal 0002 blocker audit | Added the nominal backend-implemented prepared resource, made `PreparedExecution` its identity-unique lifecycle owner, and leased it around synchronous runner calls with non-waiting deferred reverse cleanup. |
 
 ## Milestones
 
@@ -106,7 +107,7 @@ publication coordinates, per-run bound publication state, and a whole-`RunState`
 
 ## Current status
 
-Complete through [Runtime 0015](tasks/0015-leased-publication-representation-access.md). The
+Complete through [Runtime 0016](tasks/0016-persistent-prepared-resource-lifecycle.md). The
 selected Runtime 0001–0014 closure milestone remains Complete after
 [Runtime 0014](tasks/0014-runtime-architecture-enforcement.md) resolved
 `ARCHITECTURE-ENFORCEMENT-001`, and 0015 completes the separately demonstrated bounded
@@ -115,6 +116,14 @@ surface now includes immutable `runtime.memory` geometry, nominal `runtime.resou
 buffer/workspace cleanup roles, the `runtime.run` ownership and one-run lifecycle foundation, the
 `runtime.execution` prepared-recipe/cold-bound-invocation boundary, and the `runtime.schedule`
 creation-plus-execution ordered recipe.
+
+Runtime 0016 adds the cleanup-only `PreparedResource` role and converts `PreparedExecution` from
+a structural record to a final identity-bearing owner. The resource-free constructor remains
+current for CPU preparation. The resource-owning constructor snapshots unique exact identities,
+and runner leases serialize admission with non-waiting close while preserving isolated per-run
+state. Reverse attempt-all cleanup is claimed once, runs outside lifecycle monitors, and retains
+the specified primary/suppressed failure order. Runtime exposes no resource aggregate or lookup.
+Prepare 0006 and Engine 0010 remain separate concise Draft rows without task specifications.
 
 Runtime 0015 adds only result-indexed borrowed representation access to the inward Runtime SPI.
 It does not materialize, transfer, convert, allocate, expose concrete backend storage, or change
@@ -402,6 +411,9 @@ direct hot subset. The focused suite and final combined checkpoint passed; there
 - Runtime 0012 preserves the first cleanup failure by identity and attaches only later distinct
   failure objects. A repeated occurrence of the primary object is skipped solely to avoid Java
   self-suppression and does not stop attempt-all reverse cleanup.
+- ADR 0013 selects a private identity-unique prepared-resource aggregate owned by a lifecycle-
+  bearing `PreparedExecution`. Close rejects new synchronous run leases, never waits for active
+  leases, and performs reverse attempt-all cleanup either immediately or on the last lease.
 
 ## Risks
 

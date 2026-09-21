@@ -13,6 +13,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasCoordinator;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasPreparedExecutable;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalization;
+import io.github.pho001.synaptik.prepare.BackendPartitionFinalizationResult;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalizer;
 import io.github.pho001.synaptik.prepare.PreparationResourceAssignment;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
@@ -133,9 +134,9 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
      * Verifies the complete exact assignment set and realizes selected unit artifacts without
      * changing analysis.
      * @param finalization non-null complete shared post-assignment handoff
-     * @return one immutable direct or composite partition-level executable that strongly retains
-     *     every selected artifact or borrowed native invocation and only immutable prepared
-     *     geometry; never {@code null}
+     * @return a non-null resource-free result retaining the exact existing direct or composite
+     *     partition executable; its immutable resource list is empty because generated artifacts,
+     *     worker groups, and native invocations remain existing cached or borrowed state
      * @throws NullPointerException if {@code finalization} is {@code null}
      * @throws IllegalArgumentException if ownership, assignments, specialization, or artifact
      *     realization is incompatible with the analyzed plan
@@ -144,7 +145,12 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
      * @throws CpuConcurrencyBudget.CpuCoordinationException if interrupted while waiting for a
      *     coordinated configuration transition; interrupt status is restored
      */
-    @Override public PreparedExecutable finalizePartition(
+    @Override public BackendPartitionFinalizationResult finalizePartition(
+            BackendPartitionFinalization<CpuPartitionPreparationPlan> finalization) {
+        return new BackendPartitionFinalizationResult(finalizeExecutable(finalization));
+    }
+
+    private PreparedExecutable finalizeExecutable(
             BackendPartitionFinalization<CpuPartitionPreparationPlan> finalization) {
         Objects.requireNonNull(finalization, "finalization");
         var plan = finalization.analysis().plan();

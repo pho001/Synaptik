@@ -156,6 +156,8 @@ The following invariants must remain true:
 - `CompileArtifacts` are immutable compile-time output.
 - `PreparedExecution`, its prepared memory/schedule/executable recipes, and immutable persistent
   prepared resources are immutable and reusable across runs.
+- `PreparedExecution` is the unique owner of persistent prepared resources. It has an explicit,
+  idempotent close lifecycle even though its logical recipe remains immutable.
 - Each active logical execution of one `PreparedExecution` has exactly one mutable `RunState`
   covering the complete heterogeneous run. Concurrent runs use distinct `RunState` instances and
   isolated mutable state and run-owned resources.
@@ -905,6 +907,20 @@ remain owned by `PreparedExecution` and are not ordinary workspace. Runtime orch
 but concrete representations perform physical release. Failure cleanup releases only resources
 still owned by the run, never borrowed inputs or already transferred outputs.
 
+A persistent prepared resource implements a narrow Runtime-owned nominal lifecycle contract;
+concrete backend code owns its physical state and performs physical release. `PreparedExecution`
+snapshots each acquired resource identity exactly once and closes the unique resources in
+deterministic reverse-acquisition order. A repeated schedule occurrence or executable reference
+does not create another ownership occurrence.
+
+Closing a prepared execution atomically rejects new runs. A synchronous run that already acquired
+its prepared-resource lease may finish. Close does not wait for active runs: if any remain,
+physical release is deferred to the last lease release, avoiding an unbounded wait or a close/run
+deadlock. Otherwise the closing caller releases resources immediately. Cleanup is attempt-all and
+idempotent; the thread that performs physical release receives the first unchecked failure or
+error, with later distinct failures suppressed in reverse-cleanup encounter order and repeated
+references to the same primary throwable skipped to avoid self-suppression.
+
 Before hot-path execution, a cold binding phase validates representation compatibility and creates
 backend-owned typed bound invocation objects with direct references. Any heterogeneous Java type
 check is explicit, checked, and confined to that boundary. The hot path performs no map lookup,
@@ -954,8 +970,16 @@ route vocabulary.
 
 After shared preparation assigns slots, the same backend finalizes the analysis against those
 assignments and constructs the `PreparedExecutable` and `PreparedPartition`. Backend
-finalization must not change the selected route or introduce undeclared shared requirements.
-Physical allocation and per-run binding remain runtime/backend concerns after preparation.
+finalization must not change the selected route or introduce undeclared shared requirements. It
+may acquire immutable persistent prepared resources after assignment. A finalizer owns rollback
+before it returns; shared Prepare owns returned resources transactionally until a completely
+validated `PreparedExecution` accepts ownership. Any intervening failure closes the acquired
+resources once in deterministic reverse order. Finalizer results list resources in acquisition
+order; Prepare concatenates them in partition-finalization order, rejects repeated exact resource
+identities, and never derives ownership from executable or schedule occurrences. Rollback
+preserves the preparation failure and suppresses distinct resource-close failures in cleanup
+encounter order, skipping self-suppression. Per-run physical allocation and binding remain
+runtime/backend concerns after preparation.
 
 Backend analysis is deterministic from its explicit facts, configuration, and compatible cache
 inputs. An explicitly enabled later model-autotuning workflow may instead supply a selected

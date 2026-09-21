@@ -64,8 +64,8 @@ Define and validate the shared transition from immutable compile artifacts to pr
 io.github.pho001.synaptik.prepare/
   analysis/  public immutable partition-local DAG and analysis request, opaque backend plan,
              exact resource declarations, and backend analyzer collaboration
-  <root>     finalized prepared-partition result plus current complete graph-preparation,
-             schedule-assembly, and validation contracts
+  <root>     finalization input/result collaborations, finalized prepared-partition association,
+             complete graph-preparation transaction, schedule assembly, and validation contracts
 ```
 
 Task 0001 opens only `analysis`. The request projects partition-scoped Model and Planning facts
@@ -83,6 +83,7 @@ target/backend capabilities, configuration, and compatible cached decisions. It 
 | 0003A | [Immutable partition-local DAG analysis projection](tasks/0003a-immutable-partition-local-dag-analysis-projection.md) | Complete | 0001–0003; CPU 0008B–0008E as downstream evidence | Added one public immutable Prepare-owned projection for exactly one planned partition, made it `PrepareContext`'s sole node/topology source, precomputed precise structural occurrences and adjacency, and kept the complete cross-backend model DAG out of concrete backends. |
 | 0004 | [Opaque backend candidate-batch and selected-decision handoff](tasks/0004-opaque-backend-candidate-batch-and-selected-decision-handoff.md) | Complete | 0001–0003A; CPU 0010E | Added two method-free opaque roles and one immutable typed exact-partition handoff, then adopted them on CPU 0010E's existing batch and decision without shared interpretation, measurement, persistence, compatibility handling, or route selection. |
 | 0005 | [Producerless published-constant resource handoff and shared slot assignment](tasks/0005-producerless-published-constant-resource-handoff-and-shared-slot-assignment.md) | Complete | Compiler 0006B5; 0001–0004 | Contributed an explicit producerless published-constant resource to the complete preparation handoff and assigned its shared slot deterministically, without backend selection or physical geometry; preserved ordinary backend-analysis declarations and partition-connected projection. |
+| 0006 | [Persistent prepared-resource finalization transaction](tasks/0006-persistent-prepared-resource-finalization-transaction.md) | Complete | Runtime 0016; ADR 0013 | Returns each executable and its acquisition-ordered persistent resources atomically, rolls identity-unique resources back across every later preparation failure, and transfers successful ownership once to `PreparedExecution`; CPU remains resource-free. |
 
 ## Milestones
 
@@ -91,6 +92,15 @@ target/backend capabilities, configuration, and compatible cached decisions. It 
 - Prepared memory and schedule validation
 
 ## Current status
+
+Complete through
+[Prepare 0006](tasks/0006-persistent-prepared-resource-finalization-transaction.md). Backend
+finalization now returns one immutable executable-and-resource result,
+`PreparedPartition(partition, executable)` remains unchanged, and shared Prepare owns each
+successful result transactionally until the complete `PreparedExecution` accepts the resources.
+CPU returns its existing executable with no persistent resources. Engine 0010 is the next Draft
+frontier without a detailed task file, and Metal 0002 remains blocked without a detailed task
+file until Engine ownership is complete.
 
 Complete through
 [task 0003](tasks/0003-prepare-orchestration-and-validation.md) after completion of
@@ -176,7 +186,8 @@ documentation context `01a0a5b6-e42c-7211-a8df-4a02d857314d` finalized the Javad
 explanations, glossary, and planning evidence without changing executable Java or rerunning those
 tests. Complete CPU 0010H separately supplies physical CPU declaration and initialized
 materialization in the current sole non-empty CPU composition. Draft Engine 0006 is the next task
-to reassess and plan; no later Prepare task is detailed, Ready, or In progress.
+to reassess and plan in that historical sequence. Runtime 0016 and Prepare 0006 now complete the
+shared persistent-resource lifecycle chain.
 
 ## Open questions
 
@@ -244,6 +255,16 @@ to reassess and plan; no later Prepare task is detailed, Ready, or In progress.
 - `PreparedPartition` retains only the exact planned partition and finalized executable.
   Complete Runtime 0005 establishes that list position plus `PreparedExecutable` is sufficient;
   no distinct `PreparedUnit` is planned for current scheduling.
+- Prepare 0006 keeps that association unchanged. `BackendPartitionFinalizationResult` is the
+  separate atomic finalizer return value: it snapshots one executable plus persistent
+  `PreparedResource` instances in physical acquisition order. Shared Prepare derives ownership
+  only from successful finalizer results, never from executable or schedule occurrences.
+- A finalizer retains ownership of every resource until it successfully returns its complete
+  result. Shared Prepare then tracks exact identities once, rejects duplicates without a second
+  close, rolls back in reverse acquisition order after any later failure, and transfers ownership
+  only through successful `PreparedExecution(memoryPlan, schedule, resources)` construction.
+- The existing CPU finalizer returns the same executable with an empty resource list. This is an
+  API-shape migration, not a CPU lifecycle or execution behavior change.
 - Prepare 0003 uses one explicit `PreparedScheduleAssembler` after complete backend finalization.
   It is a Prepare-owned recipe-construction seam supplied by future composition wiring, not a
   backend-facing Compiler leak, global registry, discovery mechanism, or Runtime concern.

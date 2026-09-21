@@ -48,6 +48,7 @@ import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan;
+import io.github.pho001.synaptik.runtime.resource.PreparedResource;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan.CallerInput;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan.CreatedBuffer;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan.InitializedBuffer;
@@ -145,6 +146,39 @@ class GraphPreparationTest {
     }
 
     @Test
+    void ownsResourcesThroughAssemblyAndTransfersThemOnlyOnSuccess() {
+        Fixture fixture = fixture();
+        var closes = new ArrayList<String>();
+        PreparedResource first = () -> closes.add("first");
+        PreparedResource second = () -> closes.add("second");
+        List<PartitionPreparation<?, ?>> preparations = List.of(
+                preparation(0, fixture, new ArrayList<>(), new ArrayList<>(), List.of(first)),
+                preparation(1, fixture, new ArrayList<>(), new ArrayList<>(), List.of(second)));
+        RuntimeException assemblyFailure = new RuntimeException("assembly");
+
+        assertSame(assemblyFailure, assertThrows(RuntimeException.class,
+                () -> GraphPreparation.prepare(
+                        fixture.artifacts, preparations, context -> { throw assemblyFailure; })));
+        assertEquals(List.of("second", "first"), closes);
+
+        closes.clear();
+        assertThrows(IllegalArgumentException.class,
+                () -> GraphPreparation.prepare(
+                        fixture.artifacts,
+                        preparations,
+                        context -> new PreparedSchedule(
+                                new PreparedMemoryPlan(List.of(), List.of()), List.of())));
+        assertEquals(List.of("second", "first"), closes);
+
+        closes.clear();
+        PreparedExecution execution = GraphPreparation.prepare(
+                fixture.artifacts, preparations, GraphPreparationTest::validSchedule);
+        assertTrue(closes.isEmpty());
+        execution.close();
+        assertEquals(List.of("second", "first"), closes);
+    }
+
+    @Test
     void validatesEarlierPhasesBeforeInvokingLaterCollaborators() {
         Fixture fixture = fixture();
         AtomicInteger analyses = new AtomicInteger();
@@ -166,10 +200,11 @@ class GraphPreparationTest {
                     }
 
                     @Override
-                    public PreparedExecutable finalizePartition(
+                    public BackendPartitionFinalizationResult finalizePartition(
                             BackendPartitionFinalization<FakePlan> finalization) {
                         finalizers.incrementAndGet();
-                        return new TestExecutable(finalization.memoryPlan());
+                        return new BackendPartitionFinalizationResult(
+                                new TestExecutable(finalization.memoryPlan()));
                     }
                 });
 
@@ -676,6 +711,15 @@ class GraphPreparationTest {
             Fixture fixture,
             List<PrepareContext<FakeInputs>> contexts,
             List<String> events) {
+        return preparation(index, fixture, contexts, events, List.of());
+    }
+
+    private static PartitionPreparation<FakeInputs, FakePlan> preparation(
+            int index,
+            Fixture fixture,
+            List<PrepareContext<FakeInputs>> contexts,
+            List<String> events,
+            List<PreparedResource> resources) {
         BackendId owner = fixture.partitions.get(index).owner();
         return new PartitionPreparation<>(
                 new FakeInputs("target-" + index),
@@ -694,10 +738,11 @@ class GraphPreparationTest {
                     }
 
                     @Override
-                    public PreparedExecutable finalizePartition(
+                    public BackendPartitionFinalizationResult finalizePartition(
                             BackendPartitionFinalization<FakePlan> finalization) {
                         events.add("finalize-" + index);
-                        return new TestExecutable(finalization.memoryPlan());
+                        return new BackendPartitionFinalizationResult(
+                                new TestExecutable(finalization.memoryPlan()), resources);
                     }
                 });
     }
@@ -722,11 +767,12 @@ class GraphPreparationTest {
                     }
 
                     @Override
-                    public PreparedExecutable finalizePartition(
+                    public BackendPartitionFinalizationResult finalizePartition(
                             BackendPartitionFinalization<FakePlan> finalization) {
                         finalizers.incrementAndGet();
                         assertEquals(2, finalization.assignments().size());
-                        return new TestExecutable(finalization.memoryPlan());
+                        return new BackendPartitionFinalizationResult(
+                                new TestExecutable(finalization.memoryPlan()));
                     }
                 });
     }
@@ -748,9 +794,10 @@ class GraphPreparationTest {
                     }
 
                     @Override
-                    public PreparedExecutable finalizePartition(
+                    public BackendPartitionFinalizationResult finalizePartition(
                             BackendPartitionFinalization<FakePlan> finalization) {
-                        return new TestExecutable(finalization.memoryPlan());
+                        return new BackendPartitionFinalizationResult(
+                                new TestExecutable(finalization.memoryPlan()));
                     }
                 });
     }
@@ -766,9 +813,10 @@ class GraphPreparationTest {
                                 .toList()),
                 new BackendPartitionFinalizer<>() {
                     @Override public BackendId backendId() { return owner; }
-                    @Override public PreparedExecutable finalizePartition(
+                    @Override public BackendPartitionFinalizationResult finalizePartition(
                             BackendPartitionFinalization<FakePlan> finalization) {
-                        return new TestExecutable(finalization.memoryPlan());
+                        return new BackendPartitionFinalizationResult(
+                                new TestExecutable(finalization.memoryPlan()));
                     }
                 });
     }

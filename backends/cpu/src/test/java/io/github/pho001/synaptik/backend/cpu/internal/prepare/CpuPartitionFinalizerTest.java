@@ -440,9 +440,10 @@ public class CpuPartitionFinalizerTest {
                         entries.size() - 1));
             }
         }
-        new CpuPartitionFinalizer(Optional.of(artifactRoot), Optional.empty()).finalizePartition(
+        var result = new CpuPartitionFinalizer(Optional.of(artifactRoot), Optional.empty()).finalizePartition(
                 new BackendPartitionFinalization<>(analysis,
                         new PreparedMemoryPlan(entries, workspaces), assignments));
+        assertTrue(result.resources().isEmpty());
     }
 
     public static CpuPreparedExecutable finalizeExecutable(Shape shape, Optional<Path> root) {
@@ -479,8 +480,10 @@ public class CpuPartitionFinalizerTest {
             assignments.add(new PreparationResourceAssignment.Buffer(requirement, slot, i));
         }
         var memoryPlan = new PreparedMemoryPlan(entries, workspaceEntries);
-        return (CpuPreparedExecutable) new CpuPartitionFinalizer(root, workerGroup).finalizePartition(
+        var result = new CpuPartitionFinalizer(root, workerGroup).finalizePartition(
                 new BackendPartitionFinalization<>(analysis, memoryPlan, assignments));
+        assertTrue(result.resources().isEmpty());
+        return (CpuPreparedExecutable) result.executable();
     }
 
     public static io.github.pho001.synaptik.runtime.execution.PreparedExecutable finalizePreparedExecutable(
@@ -513,8 +516,10 @@ public class CpuPartitionFinalizerTest {
             }
         }
         var memoryPlan = new PreparedMemoryPlan(entries, workspaceEntries);
-        return new CpuPartitionFinalizer(root, workerGroup).finalizePartition(
+        var result = new CpuPartitionFinalizer(root, workerGroup).finalizePartition(
                 new BackendPartitionFinalization<>(analysis, memoryPlan, assignments));
+        assertTrue(result.resources().isEmpty());
+        return result.executable();
     }
 
     private static io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis<

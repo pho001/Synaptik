@@ -3,9 +3,12 @@
  * invocation guard, and prepared/bound buffer-transfer boundary.
  *
  * <p>A {@link io.github.pho001.synaptik.runtime.execution.PreparedExecution} retains one exact
- * prepared memory plan and one exact same-plan prepared schedule as the complete current
- * immutable reusable Runtime recipe. It owns no closeable or per-run resource and may be shared
- * while distinct logical runs use isolated run state.
+ * prepared memory plan and one exact same-plan prepared schedule as an immutable reusable Runtime
+ * recipe. It uniquely owns a private identity-snapshotted aggregate of persistent prepared
+ * resources. Explicit close rejects new runs without waiting, while opaque run leases let
+ * admitted synchronous runs finish before reverse attempt-all physical cleanup. The lifecycle
+ * owner has object-identity rather than structural equality. Distinct logical runs continue to
+ * use isolated run state; persistent resources never enter that state.
  *
  * <p>A {@link io.github.pho001.synaptik.runtime.execution.PreparedExecutable} is an immutable
  * reusable backend-owned recipe associated with that exact prepared memory plan. It resolves its
@@ -29,7 +32,7 @@
  * execution uses only dense validity operations and one backend call. These contracts add no
  * prepared unit, allocation or physical access, auxiliary binding-resource lifecycle, physical
  * coherence, backend discovery, route selection, tuning, tracing, or physical result access.
- * Schedule consumption, conservative executable-output validity, publication, and result leasing
- * are owned by the {@code runtime.run} package.
+ * Schedule consumption, prepared-execution lease composition, conservative executable-output
+ * validity, publication, and result leasing are owned by the {@code runtime.run} package.
  */
 package io.github.pho001.synaptik.runtime.execution;

@@ -20,6 +20,7 @@ Decision records are retrospective summaries of rules present in the architectur
 - [ADR 0010: Staged backend preparation](decisions/0010-staged-backend-preparation.md)
 - [ADR 0011: Per-run Runtime resource ownership and cold binding](decisions/0011-per-run-runtime-resource-ownership.md)
 - [ADR 0012: Fixed recurrent scan without graph regions](decisions/0012-fixed-recurrent-scan-without-regions.md)
+- [ADR 0013: Prepared-execution persistent-resource lifecycle](decisions/0013-prepared-execution-persistent-resource-lifecycle.md)
 
 ## Design notes
 

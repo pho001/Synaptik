@@ -13,8 +13,10 @@ import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
 import io.github.pho001.synaptik.runtime.memory.BufferSlot;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import io.github.pho001.synaptik.runtime.memory.WorkspaceSlot;
+import io.github.pho001.synaptik.runtime.resource.PreparedResource;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,10 +28,13 @@ import java.util.Objects;
  * <p>The operation validates the complete ordered partition set before deriving any assignment,
  * appends any canonical producerless published-constant declarations after ordinary buffers,
  * constructs every typed finalization before invoking a backend, and then invokes finalizers in
- * partition order. Producerless declarations receive shared buffer assignments but no
- * partition-finalizer assignment. The operation creates immutable recipe associations only; it
- * performs no physical allocation, initialization, materialization, per-run binding, execution,
- * scheduling, transfer, or publication.</p>
+ * partition order. Successful results transfer identity-unique persistent resources to this
+ * transaction in partition and acquisition order. Any later finalization, association, or
+ * successful-handoff result construction failure closes accepted identities once in reverse
+ * order while preserving the triggering failure. Producerless declarations receive shared buffer
+ * assignments but no partition-finalizer assignment. The operation creates immutable recipe
+ * associations only; it performs no physical allocation, initialization, materialization,
+ * per-run binding, execution, scheduling, transfer, or publication.</p>
  */
 final class BackendPartitionFinalizationHandoff {
     private BackendPartitionFinalizationHandoff() {}
@@ -41,8 +46,9 @@ final class BackendPartitionFinalizationHandoff {
      *     unique by value
      * @param entries non-null ordered typed context, analysis, and finalizer associations; there
      *     must be exactly one non-null entry for each expected partition
-     * @return a non-null immutable result retaining the shared plan and prepared partitions in
-     *     expected partition order
+     * @return a non-null immutable result retaining the shared plan, prepared partitions in
+     *     expected partition order, plan-ordered buffer assignments, and identity-unique
+     *     persistent resources in partition/acquisition order; the caller owns the resources
      * @throws NullPointerException if a list, partition, entry, finalizer backend identity, or
      *     returned executable is null
      * @throws IllegalArgumentException if coverage, exact source identity, backend ownership,
@@ -67,13 +73,14 @@ final class BackendPartitionFinalizationHandoff {
      *     ordinary declaration; supplied geometry is copied unchanged into the immutable memory
      *     plan and the list is neither retained nor mutated
      * @return a non-null immutable complete handoff result retaining the exact shared memory-plan
-     *     reference and immutable snapshots of plan-ordered buffer assignments and prepared
-     *     partitions; never {@code null}
+     *     reference and immutable snapshots of plan-ordered buffer assignments, prepared
+     *     partitions, and identity-unique persistent resources in partition/acquisition order;
+     *     the caller owns the resources and the result is never {@code null}
      * @throws NullPointerException if a list or indexed element is null, a finalizer backend
      *     identity is null, or a finalizer returns null
      * @throws IllegalArgumentException if ordinary coverage, identity, backend, geometry, or
-     *     executable-plan validation fails, or a contribution overlaps an ordinary buffer
-     *     declaration or another contribution
+     *     executable-plan validation fails, a prepared-resource identity is repeated, or a
+     *     contribution overlaps an ordinary buffer declaration or another contribution
      */
     static Result finalizePartitions(
             List<PlannedPartition> partitions,
@@ -183,18 +190,37 @@ final class BackendPartitionFinalizationHandoff {
         }
 
         var preparedPartitions = new ArrayList<PreparedPartition>(entries.size());
-        for (int index = 0; index < invocations.size(); index++) {
-            PreparedExecutable executable = Objects.requireNonNull(
-                    invocations.get(index).finalizePartition(),
-                    "entries[" + index + "].finalizer returned null");
-            if (executable.memoryPlan() != memoryPlan) {
-                throw new IllegalArgumentException(
-                        "entries[" + index
-                                + "] executable memory plan does not match assigned memory plan");
+        var resources = new ArrayList<PreparedResource>();
+        var observedResources = new IdentityHashMap<PreparedResource, Boolean>();
+        try {
+            for (int index = 0; index < invocations.size(); index++) {
+                BackendPartitionFinalizationResult result = Objects.requireNonNull(
+                        invocations.get(index).finalizePartition(),
+                        "entries[" + index + "].finalizer returned null");
+                for (int resourceIndex = 0;
+                        resourceIndex < result.resources().size();
+                        resourceIndex++) {
+                    PreparedResource resource = result.resources().get(resourceIndex);
+                    if (observedResources.put(resource, Boolean.TRUE) != null) {
+                        throw new IllegalArgumentException(
+                                "entries[" + index + "].finalizer resources[" + resourceIndex
+                                        + "] duplicates an earlier prepared resource identity");
+                    }
+                    resources.add(resource);
+                }
+                PreparedExecutable executable = result.executable();
+                if (executable.memoryPlan() != memoryPlan) {
+                    throw new IllegalArgumentException(
+                            "entries[" + index
+                                    + "] executable memory plan does not match assigned memory plan");
+                }
+                preparedPartitions.add(new PreparedPartition(partitions.get(index), executable));
             }
-            preparedPartitions.add(new PreparedPartition(partitions.get(index), executable));
+            return new Result(memoryPlan, preparedPartitions, bufferAssignments, resources);
+        } catch (RuntimeException | Error failure) {
+            rollback(resources, failure);
+            throw failure;
         }
-        return new Result(memoryPlan, preparedPartitions, bufferAssignments);
     }
 
     private static void validateEntry(
@@ -305,29 +331,33 @@ final class BackendPartitionFinalizationHandoff {
     }
 
     /**
-     * Returns one shared plan, immutable ordered prepared partitions, and logical buffer
-     * associations in first-declaration order.
+     * Returns one shared plan, immutable ordered prepared partitions, logical buffer associations,
+     * and identity-unique persistent resources owned by the successful handoff transaction.
      *
      * @param memoryPlan exact non-null shared prepared memory plan
      * @param partitions non-null prepared partitions in expected order; elements must be non-null
      * @param bufferAssignments non-null prepared buffer assignments in memory-plan order
+     * @param resources non-null persistent resources in partition/acquisition order
      */
     record Result(
             PreparedMemoryPlan memoryPlan,
             List<PreparedPartition> partitions,
-            List<PreparedBufferAssignment> bufferAssignments) {
+            List<PreparedBufferAssignment> bufferAssignments,
+            List<PreparedResource> resources) {
         /**
          * Validates and snapshots a complete handoff result.
          *
          * @param memoryPlan exact non-null plan to retain
          * @param partitions non-null ordered prepared partitions to snapshot
          * @param bufferAssignments non-null ordered buffer assignments to snapshot
-         * @throws NullPointerException if the plan, list, or an element is null
+         * @param resources non-null ordered identity-unique resources to snapshot
+         * @throws NullPointerException if the plan, a list, or an element is null
          */
         Result {
             Objects.requireNonNull(memoryPlan, "memoryPlan");
             Objects.requireNonNull(partitions, "partitions");
             Objects.requireNonNull(bufferAssignments, "bufferAssignments");
+            Objects.requireNonNull(resources, "resources");
             for (int index = 0; index < partitions.size(); index++) {
                 Objects.requireNonNull(partitions.get(index), "partitions[" + index + "]");
             }
@@ -335,13 +365,29 @@ final class BackendPartitionFinalizationHandoff {
                 Objects.requireNonNull(
                         bufferAssignments.get(index), "bufferAssignments[" + index + "]");
             }
+            for (int index = 0; index < resources.size(); index++) {
+                Objects.requireNonNull(resources.get(index), "resources[" + index + "]");
+            }
             partitions = List.copyOf(partitions);
             bufferAssignments = List.copyOf(bufferAssignments);
+            resources = List.copyOf(resources);
         }
     }
 
     private interface FinalizationInvocation {
-        PreparedExecutable finalizePartition();
+        BackendPartitionFinalizationResult finalizePartition();
+    }
+
+    static void rollback(List<? extends PreparedResource> resources, Throwable primary) {
+        for (int index = resources.size() - 1; index >= 0; index--) {
+            try {
+                resources.get(index).close();
+            } catch (RuntimeException | Error cleanupFailure) {
+                if (cleanupFailure != primary) {
+                    primary.addSuppressed(cleanupFailure);
+                }
+            }
+        }
     }
 
     private static final class BufferAggregate {

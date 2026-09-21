@@ -16,6 +16,7 @@ import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.memory.BufferSlot;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
+import io.github.pho001.synaptik.runtime.resource.PreparedResource;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan.CallerInput;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan.CreatedBuffer;
@@ -28,6 +29,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 
@@ -74,14 +76,19 @@ class PreparedExecutionRunnerTest {
         PreparedMemoryPlan nonEmptyPlan = plan(1);
         PreparedExecution nonEmpty = execution(nonEmptyPlan, List.of());
         TestBuffer caller = new TestBuffer();
+        empty.close();
 
         assertAll(
                 () -> assertFailure(
                         NullPointerException.class, "execution", () -> runner.run(null, null)),
                 () -> assertFailure(
+                        IllegalStateException.class,
+                        "prepared execution is closed",
+                        () -> runner.run(empty, null)),
+                () -> assertFailure(
                         NullPointerException.class,
                         "callerInputs",
-                        () -> runner.run(empty, null)),
+                        () -> runner.run(execution(emptyPlan, List.of()), null)),
                 () -> assertFailure(
                         IllegalArgumentException.class,
                         "non-empty prepared memory plan requires a representation creation occurrence",
@@ -89,7 +96,7 @@ class PreparedExecutionRunnerTest {
                 () -> assertFailure(
                         IllegalArgumentException.class,
                         "callerInputs size must equal caller-input preparation count 0",
-                        () -> runner.run(empty, List.of(caller))));
+                        () -> runner.run(execution(emptyPlan, List.of()), List.of(caller))));
     }
 
     @Test
@@ -406,6 +413,116 @@ class PreparedExecutionRunnerTest {
     }
 
     @Test
+    void runFailureRemainsPrimaryWhenDeferredPreparedCleanupFails() {
+        PreparedMemoryPlan plan = plan(1);
+        RuntimeException runFailure = new RuntimeException("run");
+        RuntimeException resourceFailure = new RuntimeException("prepared resource");
+        TestPreparedResource resource = new TestPreparedResource(resourceFailure);
+        TestBuffer owned = new TestBuffer();
+        AtomicReference<PreparedExecution> owner = new AtomicReference<>();
+        TestExecutable executable = executable(
+                plan,
+                List.of(selection(0, 0)),
+                List.of(PreparedExecutable.BufferAccess.WRITE_ONLY),
+                state -> {
+                    owner.get().close();
+                    throw runFailure;
+                });
+        PreparedExecution execution = new PreparedExecution(
+                plan,
+                new PreparedSchedule(
+                        plan,
+                        List.of(
+                                new PreparedSchedule.RepresentationCreationStep(
+                                        createdPlan(plan, owned)),
+                                new PreparedSchedule.ExecutionStep(executable))),
+                List.of(resource));
+        owner.set(execution);
+
+        RuntimeException observed = assertThrows(
+                RuntimeException.class,
+                () -> new PreparedExecutionRunner().run(execution, List.of()));
+
+        assertAll(
+                () -> assertSame(runFailure, observed),
+                () -> assertArrayEquals(
+                        new Throwable[] {resourceFailure}, observed.getSuppressed()),
+                () -> assertTrue(execution.isClosed()),
+                () -> assertEquals(1, resource.closeCount),
+                () -> assertEquals(1, owned.closeCount));
+    }
+
+    @Test
+    void preparedCleanupFailureClosesSuccessfulResultAndSuppressesResultFailure() {
+        PreparedMemoryPlan plan = plan(1);
+        RuntimeException resourceFailure = new RuntimeException("prepared resource");
+        RuntimeException resultFailure = new RuntimeException("result");
+        TestPreparedResource resource = new TestPreparedResource(resourceFailure);
+        TestBuffer owned = new TestBuffer(resultFailure);
+        AtomicReference<PreparedExecution> owner = new AtomicReference<>();
+        TestExecutable executable = executable(
+                plan,
+                List.of(selection(0, 0)),
+                List.of(PreparedExecutable.BufferAccess.WRITE_ONLY),
+                state -> owner.get().close());
+        PreparedExecution execution = new PreparedExecution(
+                plan,
+                new PreparedSchedule(
+                        plan,
+                        List.of(
+                                new PreparedSchedule.RepresentationCreationStep(
+                                        createdPlan(plan, owned)),
+                                new PreparedSchedule.ExecutionStep(executable))),
+                List.of(resource));
+        owner.set(execution);
+
+        RuntimeException observed = assertThrows(
+                RuntimeException.class,
+                () -> new PreparedExecutionRunner().run(execution, List.of()));
+
+        assertAll(
+                () -> assertSame(resourceFailure, observed),
+                () -> assertArrayEquals(
+                        new Throwable[] {resultFailure}, observed.getSuppressed()),
+                () -> assertTrue(executable.boundState.isClosed()),
+                () -> assertEquals(1, resource.closeCount),
+                () -> assertEquals(1, owned.closeCount));
+    }
+
+    @Test
+    void admittedRunMayReturnResultAfterSuccessfulDeferredPreparedCleanup() {
+        PreparedMemoryPlan plan = plan(1);
+        TestPreparedResource resource = new TestPreparedResource(null);
+        TestBuffer owned = new TestBuffer();
+        AtomicReference<PreparedExecution> owner = new AtomicReference<>();
+        TestExecutable executable = executable(
+                plan,
+                List.of(selection(0, 0)),
+                List.of(PreparedExecutable.BufferAccess.WRITE_ONLY),
+                state -> owner.get().close());
+        PreparedExecution execution = new PreparedExecution(
+                plan,
+                new PreparedSchedule(
+                        plan,
+                        List.of(
+                                new PreparedSchedule.RepresentationCreationStep(
+                                        createdPlan(plan, owned)),
+                                new PreparedSchedule.ExecutionStep(executable))),
+                List.of(resource));
+        owner.set(execution);
+
+        RunResult result = new PreparedExecutionRunner().run(execution, List.of());
+
+        assertAll(
+                () -> assertTrue(execution.isClosed()),
+                () -> assertEquals(1, resource.closeCount),
+                () -> assertFalse(result.isClosed()),
+                () -> assertEquals(0, owned.closeCount));
+        result.close();
+        assertEquals(1, owned.closeCount);
+    }
+
+    @Test
     void productionMechanismHasNoForbiddenImportsOrMutableRunnerState() throws Exception {
         String runnerBytes = classBytes(PreparedExecutionRunner.class);
         assertAll(
@@ -619,6 +736,23 @@ class PreparedExecutionRunnerTest {
             closeCount++;
             if (closeFailure != null) {
                 throw closeFailure;
+            }
+        }
+    }
+
+    private static final class TestPreparedResource implements PreparedResource {
+        private final RuntimeException failure;
+        private int closeCount;
+
+        private TestPreparedResource(RuntimeException failure) {
+            this.failure = failure;
+        }
+
+        @Override
+        public void close() {
+            closeCount++;
+            if (failure != null) {
+                throw failure;
             }
         }
     }

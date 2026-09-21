@@ -31,6 +31,7 @@ import io.github.pho001.synaptik.runtime.execution.BoundInvocation;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
+import io.github.pho001.synaptik.runtime.resource.PreparedResource;
 import io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation;
 import io.github.pho001.synaptik.runtime.run.RunState;
 import java.util.ArrayList;
@@ -269,6 +270,130 @@ class BackendPartitionFinalizationHandoffTest {
     }
 
     @Test
+    void collectsResourcesInOrderAndRollsBackUniqueIdentitiesOnLaterFailure() {
+        Fixture fixture = fixture();
+        var closes = new ArrayList<String>();
+        var first = new TestResource("first", closes, null);
+        var second = new TestResource("second", closes, null);
+        fixture.firstFinalizer.resources = List.of(first, second);
+        RuntimeException primary = new RuntimeException("later");
+        fixture.secondFinalizer.failure = primary;
+
+        assertSame(primary, assertThrows(RuntimeException.class,
+                () -> BackendPartitionFinalizationHandoff.finalizePartitions(
+                        fixture.partitions, fixture.entries)));
+        assertEquals(List.of("second", "first"), closes);
+    }
+
+    @Test
+    void failedFinalizerRollsBackItsLocalResourcesBeforeReturningNothing() {
+        Fixture fixture = fixture();
+        var closes = new ArrayList<String>();
+        RuntimeException primary = new RuntimeException("local");
+        BackendPartitionFinalizer<FakePlan> local = new BackendPartitionFinalizer<>() {
+            @Override
+            public BackendId backendId() {
+                return fixture.partitions.getFirst().owner();
+            }
+
+            @Override
+            public BackendPartitionFinalizationResult finalizePartition(
+                    BackendPartitionFinalization<FakePlan> finalization) {
+                var acquired = List.<PreparedResource>of(
+                        new TestResource("first", closes, null),
+                        new TestResource("second", closes, null));
+                BackendPartitionFinalizationHandoff.rollback(acquired, primary);
+                throw primary;
+            }
+        };
+        @SuppressWarnings("unchecked")
+        PrepareContext<FakeInputs> context = (PrepareContext<FakeInputs>)
+                fixture.entries.getFirst().context();
+        var localEntry = new BackendPartitionFinalizationHandoff.Entry<>(
+                context, fixture.analyses.getFirst(), local);
+
+        assertSame(primary, assertThrows(RuntimeException.class,
+                () -> BackendPartitionFinalizationHandoff.finalizePartitions(
+                        fixture.partitions, List.of(localEntry, fixture.entries.get(1)))));
+        assertEquals(List.of("second", "first"), closes);
+    }
+
+    @Test
+    void rejectsDuplicateIdentityWithoutUsingEqualsAndClosesItOnce() {
+        Fixture fixture = fixture();
+        var closes = new ArrayList<String>();
+        var first = new TestResource("first", closes, null);
+        var equalButDistinct = new TestResource("distinct", closes, null);
+        fixture.firstFinalizer.resources = List.of(first, equalButDistinct);
+        fixture.secondFinalizer.resources = List.of(first);
+
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
+                () -> BackendPartitionFinalizationHandoff.finalizePartitions(
+                        fixture.partitions, fixture.entries));
+        assertAll(
+                () -> assertEquals(
+                        "entries[1].finalizer resources[0] duplicates an earlier prepared resource identity",
+                        failure.getMessage()),
+                () -> assertEquals(List.of("distinct", "first"), closes));
+    }
+
+    @Test
+    void rejectsDuplicateIdentityWithinOneResultAndClosesItOnce() {
+        Fixture fixture = fixture();
+        var closes = new ArrayList<String>();
+        var repeated = new TestResource("repeated", closes, null);
+        fixture.firstFinalizer.resources = List.of(repeated, repeated);
+
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
+                () -> BackendPartitionFinalizationHandoff.finalizePartitions(
+                        fixture.partitions, fixture.entries));
+        assertAll(
+                () -> assertEquals(
+                        "entries[0].finalizer resources[1] duplicates an earlier prepared resource identity",
+                        failure.getMessage()),
+                () -> assertEquals(List.of("repeated"), closes),
+                () -> assertTrue(fixture.secondFinalizer.seen.isEmpty()));
+    }
+
+    @Test
+    void rollbackAttemptsAllAndPreservesSuppressionWithoutSelfSuppression() {
+        Fixture fixture = fixture();
+        var closes = new ArrayList<String>();
+        RuntimeException primary = new RuntimeException("primary");
+        Error distinct = new AssertionError("cleanup");
+        fixture.firstFinalizer.resources = List.of(
+                new TestResource("first", closes, primary),
+                new TestResource("second", closes, distinct));
+        fixture.secondFinalizer.failure = primary;
+
+        assertSame(primary, assertThrows(RuntimeException.class,
+                () -> BackendPartitionFinalizationHandoff.finalizePartitions(
+                        fixture.partitions, fixture.entries)));
+        assertAll(
+                () -> assertEquals(List.of("second", "first"), closes),
+                () -> assertEquals(List.of(distinct), List.of(primary.getSuppressed())));
+    }
+
+    @Test
+    void rollbackPreservesErrorPrimaryAndSuppressesDistinctRuntimeFailure() {
+        Fixture fixture = fixture();
+        var closes = new ArrayList<String>();
+        Error primary = new AssertionError("primary");
+        RuntimeException distinct = new RuntimeException("cleanup");
+        fixture.firstFinalizer.resources = List.of(
+                new TestResource("first", closes, primary),
+                new TestResource("second", closes, distinct));
+        fixture.secondFinalizer.failure = primary;
+
+        assertSame(primary, assertThrows(AssertionError.class,
+                () -> BackendPartitionFinalizationHandoff.finalizePartitions(
+                        fixture.partitions, fixture.entries)));
+        assertAll(
+                () -> assertEquals(List.of("second", "first"), closes),
+                () -> assertEquals(List.of(distinct), List.of(primary.getSuppressed())));
+    }
+
+    @Test
     void appendsProducerlessBuffersWithoutChangingOrdinaryAssignmentsOrWorkspaces() {
         Fixture fixture = fixture();
         ProducerlessPublishedConstantResource resource = producerlessResource(90, 37, 32);
@@ -428,10 +553,11 @@ class BackendPartitionFinalizationHandoffTest {
         private final String name;
         private final List<String> callOrder;
         private final List<BackendPartitionFinalization<FakePlan>> seen = new ArrayList<>();
-        private RuntimeException failure;
+        private Throwable failure;
         private boolean returnNull;
         private boolean foreignPlan;
         private int backendIdCalls;
+        private List<PreparedResource> resources = List.of();
 
         private FakeFinalizer(BackendId backendId, String name, List<String> callOrder) {
             this.backendId = backendId;
@@ -446,12 +572,15 @@ class BackendPartitionFinalizationHandoffTest {
         }
 
         @Override
-        public PreparedExecutable finalizePartition(
+        public BackendPartitionFinalizationResult finalizePartition(
                 BackendPartitionFinalization<FakePlan> finalization) {
             callOrder.add(name);
             seen.add(finalization);
             if (failure != null) {
-                throw failure;
+                if (failure instanceof RuntimeException runtimeException) {
+                    throw runtimeException;
+                }
+                throw (Error) failure;
             }
             if (returnNull) {
                 return null;
@@ -461,7 +590,40 @@ class BackendPartitionFinalizationHandoffTest {
                             finalization.memoryPlan().buffers(),
                             finalization.memoryPlan().workspaces())
                     : finalization.memoryPlan();
-            return new TestExecutable(plan);
+            return new BackendPartitionFinalizationResult(new TestExecutable(plan), resources);
+        }
+    }
+
+    private static final class TestResource implements PreparedResource {
+        private final String name;
+        private final List<String> closes;
+        private final Throwable failure;
+
+        private TestResource(String name, List<String> closes, Throwable failure) {
+            this.name = name;
+            this.closes = closes;
+            this.failure = failure;
+        }
+
+        @Override
+        public void close() {
+            closes.add(name);
+            if (failure instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            if (failure instanceof Error error) {
+                throw error;
+            }
+        }
+
+        @Override
+        public boolean equals(Object ignored) {
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            return 1;
         }
     }
 

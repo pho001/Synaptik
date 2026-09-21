@@ -90,7 +90,7 @@ evidence requires a different package boundary before creating it.
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
 | 0001 | [Metal capability, storage, and native foundation](tasks/0001-metal-capability-storage-and-native-foundation.md) | Complete | Complete shared planning, runtime, prepare, backend-contract, and trace contracts; no Model 0026 dependency while fail-closed | Established a fail-closed provider plus native device/queue and run-owned storage lifecycle without executable operation or CPU-owned offload. |
-| 0002 | MPSGraph prepared execution route | Draft | 0001 | Add backend-owned MPSGraph lowering, executable creation, storage/materialization integration, and execution only for Metal-owned partitions. |
+| 0002 | MPSGraph prepared execution route | Blocked | 0001; Runtime 0016; Prepare 0006; Engine 0010 | Add backend-owned MPSGraph lowering, executable creation, storage/materialization integration, and execution only for Metal-owned partitions. |
 | 0003 | Custom Metal kernel routes | Draft | 0001–0002 | Add validated custom-kernel lowering and execution for eligible Metal-owned work without making custom kernels a CPU route. |
 | 0004 | Typed Metal route candidate generators and cache compatibility | Draft | 0002–0003, opaque prepare/tuning boundary and artifact versioning | Add colocated typed complete-candidate generation and canonical workload compatibility without exposing Metal knobs to planning or shared parameter bags. |
 
@@ -115,11 +115,40 @@ storage prove only backend-private resource mechanics. Model 0026 is not a block
 it remains mandatory before any later FLOAT16 semantic or capability claim. BFLOAT16 likewise
 gains no capability from a two-byte representation.
 
-Task 0002 remains Draft and has no detailed specification. It begins only after 0001 completes
-and owns the first complete MPSGraph prepared execution route: exact advertised operations,
-Metal-owned lowering, analysis and resource declarations, finalization, representation and
-materialization/transfer integration, schedule execution, and conformance evidence. Neither 0001
-nor 0002 authorizes a generic backend registry or mixed-owner Engine composition contract.
+Task 0002 is `Blocked` and has no detailed specification. The planning audit confirmed that its
+smallest useful candidate is a positive-static-shape, contiguous `FLOAT32` unary `NEG` route:
+unlike `ADD`, it proves input upload, native graph execution, and output materialization with one
+input and no broadcasting contract. This comparison does not advertise `NEG`; capability must
+remain fail-closed until the exact occurrence has the complete executable path. `FLOAT16` remains
+gated by Model 0026, and no BFLOAT16 support is inferred.
+
+The installed macOS SDK confirms the necessary native path: an MTLBuffer-backed
+`MPSGraphTensorData` can bind each input and result, `MPSGraph` can compile a shape-specialized
+`MPSGraphExecutable`, and that executable can run synchronously on an MTLCommandQueue and report
+failure. The compiled native executable is reusable state with explicit Objective-C lifetime.
+[ADR 0013](../../../design/decisions/0013-prepared-execution-persistent-resource-lifecycle.md)
+now resolves the architecture question by selecting a private identity-unique resource aggregate
+owned and leased by `PreparedExecution`, with transactional Prepare handoff and later Engine
+handle ownership. Runtime 0016 implements the nominal resource and owner lifecycle, and Prepare
+0006 now implements transactional finalizer handoff. Engine 0010 remains an unimplemented Draft
+row, so Metal 0002 stays blocked; no MPSGraph route, native ABI change, or executable capability
+is added here.
+
+The non-authoritative [Metal backend strategy note](../../../design/notes/metal-backend-strategy.md)
+records the intended residency and synchronization direction for later task planning. It selects
+`MTLBuffer` as the primary resident representation, preparation-time shape-specialized
+`MPSGraphExecutable` construction for a maximal supported Metal region, direct input/output
+buffer binding, boundary-only transfers, and one synchronous wait at the region boundary or
+before CPU/host consumption. These are planning constraints, not current capability, performance,
+platform, or application binary interface promises.
+
+Compiling the graph on every run, hiding it in a backend-global integration object, treating it as
+per-run workspace, or relying on garbage-collection cleanup would violate cold-prepare, hot-run,
+ownership, or deterministic-cleanup rules. Foundation ABI version `1` is also fixed to its seven
+task-0001 symbols; a same-library executable API would require a version bump, while a second
+library boundary would require separate justification. Exact exported signatures remain deferred
+until Engine ownership is implemented and Metal 0002 is specified. Neither 0001 nor this audit
+authorizes a generic backend registry, mixed-owner Engine composition contract, or ABI workaround.
 
 ## Open questions
 
@@ -146,6 +175,14 @@ nor 0002 authorizes a generic backend registry or mixed-owner Engine composition
 - MPSGraph execution, the first truthful operation capability, and prepared-route integration are
   an atomic task-0002 boundary. Native availability or storage allocation alone never makes a
   capability answer true.
+- Task 0002 must not move MPSGraph compilation onto the hot run path or place its compiled native
+  executable in hidden backend-global ownership. Its detailed specification remains deferred
+  until Draft Engine 0010 completes outward ownership after Runtime 0016 and Prepare 0006.
+- Task 0002 must preserve Metal residency across adjacent Metal work, bind assigned input and
+  output `MTLBuffer` instances through `MPSGraphTensorData`, and write directly to the preallocated
+  Synaptik destination. Immutable constants may upload once during prepare. No wait belongs
+  inside a compiled region; general asynchronous execution, custom kernels, and whole-plan
+  autotuning remain later work.
 - Operation family selects the appropriate Metal candidate generator but is not a universal cache
   key. Model tuning may compare complete plans while Metal retains route and lowering ownership.
 - Apple CPU acceleration through Accelerate belongs to the CPU backend. MPSGraph and custom Metal

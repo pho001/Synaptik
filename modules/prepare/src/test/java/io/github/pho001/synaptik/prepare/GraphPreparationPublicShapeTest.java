@@ -338,7 +338,7 @@ class GraphPreparationPublicShapeTest {
         }
 
         @Override
-        public io.github.pho001.synaptik.runtime.execution.PreparedExecutable finalizePartition(
+        public BackendPartitionFinalizationResult finalizePartition(
                 BackendPartitionFinalization<FakePlan> finalization) {
             throw new UnsupportedOperationException();
         }

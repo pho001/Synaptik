@@ -12,9 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.runtime.memory.BufferSlot;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
-import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
-import io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation;
-import io.github.pho001.synaptik.runtime.run.RunState;
+import io.github.pho001.synaptik.runtime.resource.PreparedResource;
 import io.github.pho001.synaptik.runtime.schedule.PreparedSchedule;
 import java.io.InputStream;
 import java.lang.reflect.Method;
@@ -23,137 +21,266 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 class PreparedExecutionTest {
     @Test
-    void exposesExactPublicFinalRecordSurface() {
+    void exposesExactPublicLifecycleOwnerSurface() {
         Class<PreparedExecution> type = PreparedExecution.class;
-        var components = type.getRecordComponents();
-        var constructor = type.getDeclaredConstructors()[0];
-        var instanceFields = Arrays.stream(type.getDeclaredFields())
-                .filter(field -> !Modifier.isStatic(field.getModifiers()))
+        List<List<Class<?>>> constructors = Arrays.stream(type.getDeclaredConstructors())
+                .filter(constructor -> Modifier.isPublic(constructor.getModifiers()))
+                .map(constructor -> List.of(constructor.getParameterTypes()))
+                .sorted(java.util.Comparator.comparingInt(List::size))
                 .toList();
+        Class<?> lease = PreparedExecution.RunLease.class;
 
         assertAll(
                 () -> assertEquals(
                         "io.github.pho001.synaptik.runtime.execution", type.getPackageName()),
                 () -> assertTrue(Modifier.isPublic(type.getModifiers())),
                 () -> assertTrue(Modifier.isFinal(type.getModifiers())),
-                () -> assertTrue(type.isRecord()),
-                () -> assertEquals(Record.class, type.getSuperclass()),
-                () -> assertEquals(0, type.getInterfaces().length),
-                () -> assertEquals(0, type.getDeclaredClasses().length),
-                () -> assertEquals(2, components.length),
+                () -> assertFalse(type.isRecord()),
+                () -> assertEquals(Object.class, type.getSuperclass()),
+                () -> assertArrayEquals(new Class<?>[] {AutoCloseable.class}, type.getInterfaces()),
                 () -> assertEquals(
-                        List.of("memoryPlan", "schedule"),
-                        Arrays.stream(components).map(component -> component.getName()).toList()),
-                () -> assertArrayEquals(
-                        new Class<?>[] {PreparedMemoryPlan.class, PreparedSchedule.class},
-                        Arrays.stream(components).map(component -> component.getType())
-                                .toArray(Class<?>[]::new)),
-                () -> assertEquals(1, type.getDeclaredConstructors().length),
-                () -> assertTrue(Modifier.isPublic(constructor.getModifiers())),
-                () -> assertArrayEquals(
-                        new Class<?>[] {PreparedMemoryPlan.class, PreparedSchedule.class},
-                        constructor.getParameterTypes()),
+                        List.of(
+                                List.of(PreparedMemoryPlan.class, PreparedSchedule.class),
+                                List.of(PreparedMemoryPlan.class, PreparedSchedule.class, List.class)),
+                        constructors),
                 () -> assertEquals(
-                        List.of("memoryPlan", "schedule"),
-                        instanceFields.stream().map(field -> field.getName()).toList()),
-                () -> assertTrue(instanceFields.stream().allMatch(field ->
-                        Modifier.isPrivate(field.getModifiers())
-                                && Modifier.isFinal(field.getModifiers()))),
-                () -> assertEquals(
-                        List.of("equals", "hashCode", "memoryPlan", "schedule", "toString"),
-                        declaredMethodNames(type)));
+                        List.of("acquireRunLease", "close", "isClosed", "memoryPlan", "schedule"),
+                        publicDeclaredMethodNames(type)),
+                () -> assertTrue(Modifier.isPublic(lease.getModifiers())),
+                () -> assertTrue(Modifier.isFinal(lease.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(lease.getModifiers())),
+                () -> assertArrayEquals(new Class<?>[] {AutoCloseable.class}, lease.getInterfaces()),
+                () -> assertTrue(Arrays.stream(lease.getDeclaredConstructors())
+                        .noneMatch(constructor -> Modifier.isPublic(constructor.getModifiers()))),
+                () -> assertEquals(List.of("close"), publicDeclaredMethodNames(lease)));
     }
 
     @Test
-    void validatesTopLevelReferencesInComponentOrderWithExactMessages() {
+    void validatesConstructorInputsInExactOrderWithoutTakingOwnership() {
         PreparedMemoryPlan plan = plan(0);
+        PreparedMemoryPlan equalPlan = plan(0);
         PreparedSchedule schedule = new PreparedSchedule(plan, List.of());
-
-        assertAll(
-                () -> assertFailure(
-                        NullPointerException.class,
-                        "memoryPlan",
-                        () -> new PreparedExecution(null, null)),
-                () -> assertFailure(
-                        NullPointerException.class,
-                        "schedule",
-                        () -> new PreparedExecution(plan, null)),
-                () -> assertFailure(
-                        NullPointerException.class,
-                        "memoryPlan",
-                        () -> new PreparedExecution(null, schedule)));
-    }
-
-    @Test
-    void planAssociationUsesReferenceIdentityRatherThanStructuralEquality() {
-        PreparedMemoryPlan plan = plan(1);
-        PreparedMemoryPlan equalPlan = plan(1);
         PreparedSchedule foreignSchedule = new PreparedSchedule(equalPlan, List.of());
+        TestResource resource = new TestResource("resource", new ArrayList<>());
 
         assertAll(
-                () -> assertEquals(plan, equalPlan),
-                () -> assertNotSame(plan, equalPlan),
+                () -> assertFailure(NullPointerException.class, "memoryPlan", () ->
+                        new PreparedExecution(null, null, null)),
+                () -> assertFailure(NullPointerException.class, "schedule", () ->
+                        new PreparedExecution(plan, null, null)),
                 () -> assertFailure(
                         IllegalArgumentException.class,
                         "schedule memory plan does not match prepared execution memory plan",
-                        () -> new PreparedExecution(plan, foreignSchedule)));
+                        () -> new PreparedExecution(plan, foreignSchedule, null)),
+                () -> assertFailure(NullPointerException.class, "resources", () ->
+                        new PreparedExecution(plan, schedule, null)),
+                () -> assertFailure(NullPointerException.class, "resources[1]", () ->
+                        new PreparedExecution(plan, schedule, Arrays.asList(resource, null))),
+                () -> assertFailure(
+                        IllegalArgumentException.class,
+                        "resource is already owned by this prepared execution",
+                        () -> new PreparedExecution(plan, schedule, List.of(resource, resource))),
+                () -> assertEquals(0, resource.closeCount));
     }
 
     @Test
-    void retainsExactPlanAndEmptyOrNonEmptyScheduleReferences() {
-        PreparedMemoryPlan emptyPlan = plan(0);
-        PreparedSchedule emptySchedule = new PreparedSchedule(emptyPlan, List.of());
-        PreparedExecution empty = new PreparedExecution(emptyPlan, emptySchedule);
+    void resourceUniquenessUsesIdentityAndTheSuppliedListIsSnapshotted() {
+        PreparedMemoryPlan plan = plan(0);
+        PreparedSchedule schedule = new PreparedSchedule(plan, List.of());
+        List<String> order = new ArrayList<>();
+        EqualResource first = new EqualResource("first", order);
+        EqualResource second = new EqualResource("second", order);
+        List<PreparedResource> resources = new ArrayList<>(List.of(first, second));
 
-        PreparedMemoryPlan nonEmptyPlan = plan(1);
-        var executable = new TestExecutable(nonEmptyPlan);
-        PreparedSchedule nonEmptySchedule = new PreparedSchedule(
-                nonEmptyPlan,
-                List.of(new PreparedSchedule.ExecutionStep(executable)));
-        PreparedExecution nonEmpty = new PreparedExecution(nonEmptyPlan, nonEmptySchedule);
+        PreparedExecution execution = new PreparedExecution(plan, schedule, resources);
+        resources.clear();
+        execution.close();
 
         assertAll(
-                () -> assertSame(emptyPlan, empty.memoryPlan()),
-                () -> assertSame(emptySchedule, empty.schedule()),
-                () -> assertTrue(empty.schedule().steps().isEmpty()),
-                () -> assertSame(nonEmptyPlan, nonEmpty.memoryPlan()),
-                () -> assertSame(nonEmptySchedule, nonEmpty.schedule()),
-                () -> assertSame(
-                        executable,
-                        ((PreparedSchedule.ExecutionStep) nonEmpty.schedule().steps().getFirst())
-                                .executable()));
+                () -> assertNotSame(first, second),
+                () -> assertEquals(first, second),
+                () -> assertEquals(List.of("second", "first"), order),
+                () -> assertEquals(1, first.closeCount),
+                () -> assertEquals(1, second.closeCount));
     }
 
     @Test
-    void preservesOrdinaryRecordEqualityHashingAndDiagnosticText() {
+    void retainsExactRecipeAndUsesObjectIdentityRatherThanRecordEquality() {
         PreparedMemoryPlan plan = plan(0);
         PreparedSchedule schedule = new PreparedSchedule(plan, List.of());
         PreparedExecution first = new PreparedExecution(plan, schedule);
-        PreparedExecution equal = new PreparedExecution(plan, schedule);
-        PreparedExecution differentSchedule = new PreparedExecution(
-                plan,
-                new PreparedSchedule(
-                        plan,
-                        List.of(new PreparedSchedule.ExecutionStep(new TestExecutable(plan)))));
+        PreparedExecution second = new PreparedExecution(plan, schedule);
 
         assertAll(
-                () -> assertEquals(first, equal),
-                () -> assertEquals(first.hashCode(), equal.hashCode()),
-                () -> assertNotEquals(first, differentSchedule),
-                () -> assertEquals(
-                        "PreparedExecution[memoryPlan=PreparedMemoryPlan[buffers=[], workspaces=[]], "
-                                + "schedule=PreparedSchedule[memoryPlan=PreparedMemoryPlan[buffers=[], "
-                                + "workspaces=[]], steps=[]]]",
-                        first.toString()));
+                () -> assertSame(plan, first.memoryPlan()),
+                () -> assertSame(schedule, first.schedule()),
+                () -> assertNotEquals(first, second),
+                () -> assertFalse(first.toString().startsWith("PreparedExecution[")));
     }
 
     @Test
-    void immutableRecipeSupportsConcurrentReadersWithoutPerRunMutation() throws Exception {
+    void closeIsIdempotentReverseAttemptAllAndPreservesFailureIdentity() {
+        PreparedMemoryPlan plan = plan(0);
+        List<String> order = new ArrayList<>();
+        RuntimeException primary = new RuntimeException("primary");
+        RuntimeException later = new RuntimeException("later");
+        TestResource first = new TestResource("first", order, later);
+        TestResource second = new TestResource("second", order);
+        TestResource third = new TestResource("third", order, primary);
+        PreparedExecution execution = new PreparedExecution(
+                plan, new PreparedSchedule(plan, List.of()), List.of(first, second, third));
+
+        RuntimeException observed = assertThrows(RuntimeException.class, execution::close);
+        execution.close();
+
+        assertAll(
+                () -> assertSame(primary, observed),
+                () -> assertArrayEquals(new Throwable[] {later}, observed.getSuppressed()),
+                () -> assertEquals(List.of("third", "second", "first"), order),
+                () -> assertEquals(1, first.closeCount),
+                () -> assertEquals(1, second.closeCount),
+                () -> assertEquals(1, third.closeCount),
+                () -> assertTrue(execution.isClosed()),
+                () -> assertFailure(
+                        IllegalStateException.class,
+                        "prepared execution is closed",
+                        execution::acquireRunLease));
+    }
+
+    @Test
+    void repeatedPrimaryThrowableIsNotSelfSuppressedAndDoesNotStopCleanup() {
+        PreparedMemoryPlan plan = plan(0);
+        List<String> order = new ArrayList<>();
+        Error primary = new AssertionError("primary");
+        RuntimeException distinct = new RuntimeException("distinct");
+        TestResource first = new TestResource("first", order);
+        TestResource second = new TestResource("second", order, distinct);
+        TestResource third = new TestResource("third", order, primary);
+        TestResource fourth = new TestResource("fourth", order, primary);
+        PreparedExecution execution = new PreparedExecution(
+                plan,
+                new PreparedSchedule(plan, List.of()),
+                List.of(first, second, third, fourth));
+
+        Error observed = assertThrows(Error.class, execution::close);
+
+        assertAll(
+                () -> assertSame(primary, observed),
+                () -> assertArrayEquals(new Throwable[] {distinct}, observed.getSuppressed()),
+                () -> assertEquals(List.of("fourth", "third", "second", "first"), order));
+    }
+
+    @Test
+    void closeDoesNotWaitAndLastLeasePerformsDeferredCleanup() throws Exception {
+        PreparedMemoryPlan plan = plan(0);
+        TestResource resource = new TestResource("resource", new ArrayList<>());
+        PreparedExecution execution = new PreparedExecution(
+                plan, new PreparedSchedule(plan, List.of()), List.of(resource));
+        PreparedExecution.RunLease first = execution.acquireRunLease();
+        PreparedExecution.RunLease second = execution.acquireRunLease();
+
+        try (var pool = Executors.newSingleThreadExecutor()) {
+            pool.submit(execution::close).get(5, TimeUnit.SECONDS);
+        }
+        first.close();
+        assertAll(
+                () -> assertTrue(execution.isClosed()),
+                () -> assertEquals(0, resource.closeCount),
+                () -> assertFailure(
+                        IllegalStateException.class,
+                        "prepared execution is closed",
+                        execution::acquireRunLease));
+
+        second.close();
+        second.close();
+        execution.close();
+        assertEquals(1, resource.closeCount);
+    }
+
+    @Test
+    void backendCloseRunsWithoutHoldingLifecycleMonitor() throws Exception {
+        PreparedMemoryPlan plan = plan(0);
+        CountDownLatch callbackEntered = new CountDownLatch(1);
+        CountDownLatch callbackRelease = new CountDownLatch(1);
+        PreparedResource resource = () -> {
+            callbackEntered.countDown();
+            await(callbackRelease);
+        };
+        PreparedExecution execution = new PreparedExecution(
+                plan, new PreparedSchedule(plan, List.of()), List.of(resource));
+
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var closing = pool.submit(execution::close);
+            assertTrue(callbackEntered.await(5, TimeUnit.SECONDS));
+            assertTrue(pool.submit(execution::isClosed).get(5, TimeUnit.SECONDS));
+            ExecutionException failure = assertThrows(
+                    ExecutionException.class,
+                    () -> pool.submit(execution::acquireRunLease).get(5, TimeUnit.SECONDS));
+            assertAll(
+                    () -> assertTrue(failure.getCause() instanceof IllegalStateException),
+                    () -> assertEquals("prepared execution is closed", failure.getCause().getMessage()));
+            callbackRelease.countDown();
+            closing.get(5, TimeUnit.SECONDS);
+        }
+    }
+
+    @Test
+    void concurrentCloseAndAdmissionSerializeAndCleanExactlyOnce() throws Exception {
+        PreparedMemoryPlan plan = plan(0);
+        TestResource resource = new TestResource("resource", new ArrayList<>());
+        PreparedExecution execution = new PreparedExecution(
+                plan, new PreparedSchedule(plan, List.of()), List.of(resource));
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicReference<PreparedExecution.RunLease> admitted = new AtomicReference<>();
+        AtomicReference<IllegalStateException> rejected = new AtomicReference<>();
+
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var closing = pool.submit(() -> {
+                ready.countDown();
+                await(start);
+                execution.close();
+            });
+            var acquiring = pool.submit(() -> {
+                ready.countDown();
+                await(start);
+                try {
+                    admitted.set(execution.acquireRunLease());
+                } catch (IllegalStateException failure) {
+                    rejected.set(failure);
+                }
+            });
+            assertTrue(ready.await(5, TimeUnit.SECONDS));
+            start.countDown();
+            closing.get(5, TimeUnit.SECONDS);
+            acquiring.get(5, TimeUnit.SECONDS);
+        }
+        if (admitted.get() != null) {
+            admitted.get().close();
+        }
+
+        assertAll(
+                () -> assertTrue(execution.isClosed()),
+                () -> assertTrue((admitted.get() == null) != (rejected.get() == null)),
+                () -> assertEquals(1, resource.closeCount),
+                () -> {
+                    if (rejected.get() != null) {
+                        assertEquals("prepared execution is closed", rejected.get().getMessage());
+                    }
+                });
+    }
+
+    @Test
+    void immutableRecipeSupportsConcurrentReadersAndResourceFreeConstruction() throws Exception {
         PreparedMemoryPlan plan = plan(0);
         PreparedSchedule schedule = new PreparedSchedule(plan, List.of());
         PreparedExecution execution = new PreparedExecution(plan, schedule);
@@ -163,30 +290,18 @@ class PreparedExecutionTest {
             var second = readers.submit(() -> read(execution, plan, schedule));
             assertAll(
                     () -> assertEquals(2_000, first.get()),
-                    () -> assertEquals(2_000, second.get()));
+                    () -> assertEquals(2_000, second.get()),
+                    () -> assertFalse(execution.isClosed()));
         }
-    }
-
-    @Test
-    void constructionPerformsNoLifecycleBindingExecutionOrResourceAction() {
-        PreparedMemoryPlan plan = plan(0);
-        PreparedSchedule schedule = new PreparedSchedule(plan, List.of());
-
-        PreparedExecution first = new PreparedExecution(plan, schedule);
-        PreparedExecution second = new PreparedExecution(plan, schedule);
-
-        assertAll(
-                () -> assertFalse(AutoCloseable.class.isAssignableFrom(PreparedExecution.class)),
-                () -> assertSame(plan, first.memoryPlan()),
-                () -> assertSame(schedule, first.schedule()),
-                () -> assertSame(plan, second.memoryPlan()),
-                () -> assertSame(schedule, second.schedule()));
+        execution.close();
+        assertTrue(execution.isClosed());
     }
 
     @Test
     void compiledContractContainsNoForbiddenUpstreamOrDynamicMechanismReferences()
             throws Exception {
         String compiled = classBytes(PreparedExecution.class);
+        String resourceCompiled = classBytes(PreparedResource.class);
 
         assertAll(
                 () -> assertFalse(compiled.contains("io/github/pho001/synaptik/prepare")),
@@ -197,17 +312,22 @@ class PreparedExecutionTest {
                 () -> assertFalse(compiled.contains("io/github/pho001/synaptik/config")),
                 () -> assertFalse(compiled.contains("java/lang/reflect")),
                 () -> assertFalse(compiled.contains("java/util/Map")),
-                () -> assertFalse(compiled.contains("java/util/List")),
                 () -> assertFalse(compiled.contains("java/util/ServiceLoader")),
-                () -> assertFalse(compiled.contains("java/lang/AutoCloseable")),
-                () -> assertFalse(Arrays.stream(PreparedExecution.class.getDeclaredMethods())
-                        .anyMatch(method -> method.getName().equals("run")
-                                || method.getName().equals("close")
-                                || method.getName().equals("bind")
-                                || method.getName().equals("execute"))),
-                () -> assertTrue(Arrays.stream(PreparedExecution.class.getDeclaredFields())
-                        .noneMatch(field -> field.getType() == Object.class
-                                || field.getType().isArray())));
+                () -> assertFalse(Arrays.stream(PreparedExecution.class.getDeclaredFields())
+                        .anyMatch(field -> field.getType() == Object.class)),
+                () -> assertEquals(List.of("close"), publicDeclaredMethodNames(PreparedResource.class)),
+                () -> assertTrue(resourceCompiled.contains("java/lang/AutoCloseable")));
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(5, TimeUnit.SECONDS)) {
+                throw new AssertionError("latch timed out");
+            }
+        } catch (InterruptedException failure) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError(failure);
+        }
     }
 
     private static int read(
@@ -223,8 +343,12 @@ class PreparedExecutionTest {
         return observed;
     }
 
-    private static List<String> declaredMethodNames(Class<?> type) {
-        return Arrays.stream(type.getDeclaredMethods()).map(Method::getName).sorted().toList();
+    private static List<String> publicDeclaredMethodNames(Class<?> type) {
+        return Arrays.stream(type.getDeclaredMethods())
+                .filter(method -> Modifier.isPublic(method.getModifiers()))
+                .map(Method::getName)
+                .sorted()
+                .toList();
     }
 
     private static String classBytes(Class<?> type) throws Exception {
@@ -249,29 +373,48 @@ class PreparedExecutionTest {
         assertEquals(message, failure.getMessage());
     }
 
-    private static final class TestExecutable extends PreparedExecutable {
-        private TestExecutable(PreparedMemoryPlan memoryPlan) {
-            super(memoryPlan, List.of(), List.of());
+    private static class TestResource implements PreparedResource {
+        private final String name;
+        private final List<String> order;
+        private final Throwable failure;
+        int closeCount;
+
+        private TestResource(String name, List<String> order) {
+            this(name, order, null);
+        }
+
+        private TestResource(String name, List<String> order, Throwable failure) {
+            this.name = name;
+            this.order = order;
+            this.failure = failure;
         }
 
         @Override
-        protected boolean acceptsBufferRepresentation(
-                int selectionIndex, BufferRepresentation representation) {
-            throw new AssertionError("prepared execution construction must not inspect buffers");
+        public void close() {
+            closeCount++;
+            order.add(name);
+            if (failure instanceof RuntimeException runtimeFailure) {
+                throw runtimeFailure;
+            }
+            if (failure instanceof Error error) {
+                throw error;
+            }
+        }
+    }
+
+    private static final class EqualResource extends TestResource {
+        private EqualResource(String name, List<String> order) {
+            super(name, order);
         }
 
         @Override
-        protected boolean acceptsWorkspaceRepresentation(
-                int selectionIndex, WorkspaceRepresentation representation) {
-            throw new AssertionError("prepared execution construction must not inspect workspaces");
+        public boolean equals(Object ignored) {
+            return true;
         }
 
         @Override
-        protected BoundInvocation bindCompatible(
-                RunState runState,
-                BufferRepresentation[] bufferRepresentations,
-                WorkspaceRepresentation[] workspaceRepresentations) {
-            throw new AssertionError("prepared execution construction must not bind executables");
+        public int hashCode() {
+            return 1;
         }
     }
 }

@@ -10,8 +10,8 @@ explicit buffer-copy validity, the array-backed one-run `RunState` lifecycle, im
 `PreparedExecutable` and `PreparedBufferTransfer` recipes, per-run `BoundInvocation` and
 `BoundBufferTransfer` objects, and the immutable creation-plus-execution-plus-transfer
 `PreparedSchedule` contract described below, the dense final publication suffix, direct per-run
-publication binding, the whole-`RunState` `RunResult` lease, the immutable two-component
-`PreparedExecution` root, explicit executable buffer-access declarations, and the stateless
+publication binding, the whole-`RunState` `RunResult` lease, the immutable-recipe lifecycle owner
+`PreparedExecution`, explicit executable buffer-access declarations, and the stateless
 prepared-execution runner. Prepare
 currently implements the analysis-side projection, opaque analysis and tuning marker roles, the
 exact-partition opaque tuning handoff, exact resource
@@ -27,6 +27,8 @@ The lifecycle flow therefore mixes current foundations with later stages; each f
 states its implementation status.
 [ADR 0011](../design/decisions/0011-per-run-runtime-resource-ownership.md) defines the
 resource-ownership and cold-binding architecture.
+[ADR 0013](../design/decisions/0013-prepared-execution-persistent-resource-lifecycle.md) defines
+the persistent prepared-resource ownership and close lifecycle.
 
 ## Boundary in one flow
 
@@ -231,11 +233,12 @@ No aliasing, lifetime, interference, or reuse model is inferred.
 
 Backend finalization is also current as a shared contract. After assignment, the owning backend's
 `BackendPartitionFinalizer` receives one typed `BackendPartitionFinalization` containing its exact
-analysis, the exact shared plan, and assignments in declaration order. It constructs a current
-`PreparedExecutable`; shared Prepare then creates the minimal current `PreparedPartition`
-association. Finalization may validate backend-private immutable state and construct ordinary
-immutable Java recipe state, but it must not change route choice, add an undeclared need, allocate
-physical resources, or acquire a closeable prepared resource under the current contract.
+analysis, the exact shared plan, and assignments in declaration order. It returns one
+`BackendPartitionFinalizationResult` containing a `PreparedExecutable` plus an immutable snapshot
+of persistent resources in physical acquisition order; shared Prepare extracts only the
+executable for the minimal current `PreparedPartition` association. A finalizer owns and rolls
+back everything it acquires until its complete result returns successfully. Finalization must not
+change route choice, add an undeclared shared need, or allocate per-run physical representations.
 
 The batch handoff, entry, and result remain package-private implementation details. Public
 `GraphPreparation.prepare(...)` now projects compile artifacts, coordinates the complete
@@ -313,8 +316,10 @@ Today, `PreparedMemoryPlan`, `PreparedRepresentationPlan`, `PreparedExecutable`,
 `PreparedSchedule`, `PreparedExecution`, and `PreparedPartition` exist among the prepared/runtime
 contracts in this list; `BoundInvocation` is
 the current per-run result of binding an executable. The current `PreparedExecution` retains one
-exact plan and one schedule that reports that same plan reference. It owns no resource and has no
-run or close lifecycle. The current schedule retains one exact plan and an immutable ordered
+exact plan, one schedule that reports that same plan reference, and a private identity-unique
+snapshot of persistent prepared resources. It has explicit non-waiting close and opaque
+synchronous run leases, uses owner identity rather than structural equality, and exposes no
+resource lookup. The current schedule retains one exact plan and an immutable ordered
 snapshot. It permits one optional first-only representation-creation prefix plus executable and
 buffer-transfer occurrences, followed by an optional dense publication-only suffix. Empty,
 executable-only, transfer-only, and zero-publication schedules and repeated pre-publication
@@ -462,6 +467,28 @@ The initial model adds no automatic pooling, reuse, aliasing, hidden coherence/w
 distributed sharding, or multi-device scheduling. Transfer/materialization recipes and their
 success-only validity transition, prepared publication, result lease, executable-output
 invalidation, and schedule traversal are current; public output access remains later work.
+
+The selected persistent-resource extension keeps the recipe data immutable while making
+`PreparedExecution` an explicit lifecycle owner. Runtime exposes only a nominal close contract;
+backend implementations retain native types and perform physical release. The execution snapshots
+unique resource identities once, and schedule repetition never duplicates ownership. A runner
+must acquire a lease before creating run state. Close rejects later leases immediately and either
+releases resources in the closing thread or defers reverse attempt-all cleanup to the final active
+lease. It never waits for an active run.
+
+That Runtime owner and lease protocol is current. The Prepare finalizer-return transaction is also
+current: `BackendPartitionFinalizationResult` snapshots one executable and its acquisition-ordered
+resources, shared Prepare rejects repeated exact identities, and graph preparation transfers the
+ordered unique resources only through successful `PreparedExecution` construction. Current CPU
+finalization returns an empty resource list. Current ordinary and advanced Engine prepared handles
+still do not close inward executions; Engine ownership remains planned for Engine 0010, and Metal
+0002 remains blocked on that task.
+
+Preparation is transactional across this handoff. A finalizer cleans resources acquired before a
+failed return. After a successful return, shared Prepare tracks the unique resources in acquisition
+order and closes them in reverse if another finalizer, schedule assembly, schedule validation, or
+final aggregate construction fails. Ownership transfers only when the complete
+`PreparedExecution` is constructed successfully.
 
 ## What a concrete backend does
 

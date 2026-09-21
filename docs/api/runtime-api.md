@@ -13,8 +13,8 @@ public surface contains:
 - `runtime.memory`: `BufferSlot`, `WorkspaceSlot`, and `PreparedMemoryPlan` with its nested
   `BufferEntry` and `WorkspaceEntry` records;
 - `runtime.resource`: the nominal `BufferRepresentation` and `WorkspaceRepresentation` lifecycle
-  roles implemented by concrete backends plus `PreparedRepresentationPlan` and its nested
-  preparation and creator contracts;
+  roles implemented by concrete backends, the persistent `PreparedResource` cleanup role, plus
+  `PreparedRepresentationPlan` and its nested preparation and creator contracts;
 - `runtime.run`: `RunResourceOwnership`, `BufferRepresentationBinding`, `RunState`,
   `PreparedPublication`, `BoundPublication`, `RunResult`, and stateless
   `PreparedExecutionRunner`;
@@ -27,7 +27,7 @@ public surface contains:
 The geometry, reusable creation description, package-private all-or-cleaned setup, structural
 residency, explicit per-buffer-copy validity, cold-bound invocation and transfer contracts,
 creation, execution, transfer, and dense publication-suffix schedule recipes, the whole-state
-result lease, two-component prepared-execution aggregate,
+result lease, lifecycle-bearing prepared-execution root,
 Prepare-owned resource assignments, typed backend finalization, `PreparedPartition`, and complete
 graph preparation are current. Ordinary CPU-only compile, prepare, logical host-input binding,
 synchronous run, typed publication metadata, and explicit bounded detached host materialization
@@ -47,11 +47,11 @@ current                  current                      current
                                                               v
                          cold setup -> RunState + validity
                          current internal  current per run
-     PreparedMemoryPlan + PreparedSchedule -> PreparedExecution
-     current              current            current reusable root
+     PreparedMemoryPlan + PreparedSchedule + persistent resources -> PreparedExecution
+     current              current            current contract       current reusable owner
 
-        PreparedExecutionRunner -> create/bind all -> ordered direct traversal
-        current public runner     cold setup          current synchronous run
+        PreparedExecutionRunner -> lease -> create/bind all -> ordered direct traversal
+        current public runner      current  cold setup          current synchronous run
 
         BufferTransferStep -> cold bind -> BoundBufferTransfer -> transfer + validity
         current recipe        current       current per run      current contract
@@ -309,17 +309,19 @@ lifecycle admission for its one-shot compute convenience without adding an advan
 
 ## Current prepared execution
 
-`PreparedExecution` is the immutable reusable Runtime root for the prepared state that currently
-exists. Its two components, in order, are one exact `PreparedMemoryPlan` and one exact
+`PreparedExecution` is the final identity-bearing Runtime owner for one immutable reusable recipe
+and its persistent prepared resources. It retains one exact `PreparedMemoryPlan` and one exact
 `PreparedSchedule`. Construction requires both references to be non-null and requires
 `schedule.memoryPlan() == memoryPlan`; a structurally equal plan created separately is not the
 same prepared context.
 
-The record retains and returns both supplied references exactly. It is safe for concurrent
-readers because its current components are immutable, but every later active invocation must use
-its own mutable `RunState`. The aggregate does not implement `AutoCloseable`, acquire or own a
-resource, create run state, consume the schedule, bind an invocation, execute work, allocate a
-representation, or publish a result. Construction and component access are constant-time.
+The two-argument constructor is the current resource-free compatibility path. The three-argument
+constructor additionally snapshots an ordered `List<? extends PreparedResource>` into private
+storage and transfers ownership only after all validation succeeds. Entries must be non-null and
+unique by reference identity; `equals` is not consulted. The class exposes neither that aggregate
+nor a resource count, lookup, or physical value. Unlike the former record, it deliberately uses
+`Object` identity equality, hashing, and text: lifecycle-bearing owners with equal recipes can own
+different physical resources and are not values.
 
 ```java
 import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
@@ -331,10 +333,20 @@ PreparedExecution execution = new PreparedExecution(plan, schedule);
 ```
 
 Here `execution.memoryPlan()` is exactly `plan`, and `execution.schedule()` is exactly
-`schedule`. The example creates reusable recipe state only; no run begins and no resource changes
-ownership. A null component reports `memoryPlan` or `schedule` in component order. A schedule for
-a different plan reference fails with
+`schedule`. The compatibility constructor owns no persistent resource, but the resulting owner
+still has the same explicit close and lease lifecycle. A null component reports `memoryPlan` or
+`schedule` in validation order. A schedule for a different plan reference fails with
 `IllegalArgumentException("schedule memory plan does not match prepared execution memory plan")`.
+
+`acquireRunLease()` admits one synchronous run only while the owner is open. `close()` marks the
+owner closed before physical cleanup and never waits: it cleans immediately when no lease is
+active, or the last admitted lease performs cleanup. New leases then fail with
+`IllegalStateException("prepared execution is closed")`. Cleanup attempts every resource once in
+reverse constructor-list order outside the lifecycle monitor. The first unchecked failure or
+error is primary; later distinct failures are suppressed in encounter order, and the same exact
+primary object is skipped to avoid self-suppression. Repeated execution or lease closure is a
+no-op and never replays an earlier cleanup failure. `isClosed()` reports admission closure, not
+whether deferred physical cleanup has finished.
 
 ## Current slot identities
 
@@ -372,7 +384,7 @@ release storage.
 
 ## Focused valid-plan example
 
-### Goal and inputs
+### Valid-plan goal and inputs
 
 Describe one 24-byte reusable buffer position and one 64-byte workspace position. The supplied
 order is already the final deterministic plan order.
@@ -392,7 +404,7 @@ PreparedMemoryPlan plan =
                 List.of(new PreparedMemoryPlan.WorkspaceEntry(scratch, 64L, 16L)));
 ```
 
-### Result and interpretation
+### Valid-plan result and interpretation
 
 `plan.buffers().getFirst()` retains the exact `input` reference with 24-byte size and 4-byte
 alignment. `plan.workspaces().getFirst()` retains the exact `scratch` reference with 64-byte size
@@ -441,7 +453,7 @@ explicitly only after its physical action succeeds.
 
 ## Focused creation and validity example
 
-### Goal and inputs
+### Creation-and-validity goal and inputs
 
 Describe one borrowed caller buffer, one backend-created internal buffer, and one backend-created
 workspace for the single buffer and workspace positions from the preceding plan. Then construct
@@ -512,7 +524,7 @@ state.close();
 state.close();
 ```
 
-### Result and interpretation
+### Creation-and-validity result and interpretation
 
 `borrowedInitiallyValid` is `true`, `ownedInitiallyValid` is `false`, and
 `ownedAfterProduction` is `true`. The state reports one buffer position, two structurally
@@ -636,7 +648,7 @@ subclasses keep their per-run direct references isolated.
 
 ## Focused cold-binding example
 
-### Goal and inputs
+### Cold-binding goal and inputs
 
 Bind one backend-specific buffer and workspace from a matching open state, execute once through
 direct typed fields, then demonstrate the post-close guard. This local fake backend illustrates
@@ -726,7 +738,7 @@ invocation.execute();
 state.close();
 ```
 
-### Result and interpretation
+### Cold-binding result and interpretation
 
 Both `calls` fields are `1`. Compatibility was checked during `bind`, and execution used the two
 direct concrete fields. Calling `invocation.execute()` after `state.close()` fails before either
@@ -755,7 +767,7 @@ classifies that copy as invalid.
 
 ### Focused direct-reference transfer example
 
-#### Goal and inputs
+#### Transfer goal and inputs
 
 This current extension pattern binds two concrete buffers directly. It demonstrates success, the
 resulting destination-valid no-op, and backend failure. A later runner will bind schedule
@@ -870,7 +882,7 @@ try {
 }
 ```
 
-#### Result and interpretation
+#### Transfer result and interpretation
 
 After the two successful calls, `source.reads` and `destination.writes` are both `1` and both
 copies in `transferState` are valid. The second call observed the valid destination and skipped
@@ -904,7 +916,7 @@ may intentionally name the same buffer and representation coordinate.
 
 ### Focused schedule example
 
-#### Goal and inputs
+#### Schedule goal and inputs
 
 Retain the representation plan from the creation example as the first occurrence, followed by one
 transfer occurrence and two occurrences of the current `ExampleExecutable` recipe from the cold-
@@ -930,7 +942,7 @@ PreparedSchedule schedule = new PreparedSchedule(plan, supplied);
 supplied.clear();
 ```
 
-#### Result and interpretation
+#### Schedule result and interpretation
 
 `schedule.memoryPlan()` is the exact `plan` object. `schedule.steps().getFirst()` is the exact
 `creation` reference, `schedule.steps().get(1)` is the exact `transferOccurrence`, and the list
@@ -1004,7 +1016,7 @@ and leases.
 
 ### Focused publication example
 
-#### Goal and inputs
+#### Publication goal and inputs
 
 Publish two ordered results that intentionally alias one already-valid borrowed representation,
 then close the complete state through the result. This current example calls the publication
@@ -1055,7 +1067,7 @@ try (RunResult result = new RunResult(
 }
 ```
 
-#### Result and interpretation
+#### Publication result and interpretation
 
 Both result positions return the same exact borrowed representation, but the result count is two
 because aliases preserve ordered result multiplicity. Access is valid only inside the open-result
@@ -1140,16 +1152,21 @@ ordinary one-shot backward lifecycle. No new Runtime contract was required.
 
 ## Current aggregate and run orchestration
 
-The current `PreparedExecution` contains only the exact memory plan and exact same-plan schedule.
-Executable recipes are already reachable through schedule occurrences, while `PreparedPartition`
-remains a Prepare-owned association and does not cross into this Runtime aggregate. There is no
-distinct `PreparedUnit`: list position is the occurrence, and the exact executable supplies the
-work recipe and memory-plan association.
+The current `PreparedExecution` privately retains the exact memory plan, exact same-plan schedule,
+and an identity-unique snapshot of persistent prepared resources in acquisition order. Executable
+recipes remain reachable through schedule occurrences, while `PreparedPartition` remains a
+Prepare-owned association and does not cross into this Runtime aggregate. Schedule or executable
+repetition never duplicates resource ownership. There is no distinct `PreparedUnit`: list
+position is the occurrence, and the exact executable supplies the work recipe and memory-plan
+association.
 
-Public Prepare orchestration currently constructs and validates this aggregate for the advanced
-CPU lifecycle. A future need for
-immutable persistent prepared resources must define its own ownership and partial-construction
-failure lifecycle; the current record does not anticipate it with an empty close contract.
+Public Prepare orchestration now passes the acquisition-ordered, identity-unique resources from
+successful backend finalization results to the three-argument constructor. Until that constructor
+succeeds, shared Prepare rolls the resources back after any later finalizer, association,
+schedule-assembly, schedule-validation, or aggregate-construction failure. CPU finalization
+returns the existing executable with an empty resource list. Engine 0010 remains planned and will
+make ordinary and advanced prepared handles close their inward owners; that missing outward
+ownership does not weaken the current Runtime or Prepare contracts.
 
 ## Current prepared runner
 
@@ -1158,6 +1175,8 @@ PreparedExecutionRunner runner = new PreparedExecutionRunner();
 RunResult result = runner.run(execution, callerInputs);
 ```
 
+- The runner acquires an opaque prepared-execution lease before inspecting `callerInputs` or
+  creating a `RunState`, and releases it after the complete synchronous call.
 - `callerInputs` supplies dense borrowed representations in creation-plan encounter order.
 - Exactly one isolated `RunState` is created and consumed for the complete heterogeneous run.
 - Every executable, transfer, and publication occurrence cold-binds before the first action.
@@ -1165,6 +1184,9 @@ RunResult result = runner.run(execution, callerInputs);
 - The current Runtime `RunResult` leases the whole run state and permits borrowed access to one
   selected nominal representation while that lease is open. It exposes no host or Tensor value;
   ordinary Engine separately composes the current CPU copy into a detached host value.
+- A run failure remains primary if deferred persistent-resource cleanup also fails. If execution
+  succeeded but lease cleanup fails, the new result is closed and is not returned; any distinct
+  result-cleanup failure is suppressed on the persistent-resource failure.
 
 Current ownership distinguishes borrowed inputs from run-owned internal resources, and current
 per-copy validity is explicit within `RunState`. Current publication leases the complete state to

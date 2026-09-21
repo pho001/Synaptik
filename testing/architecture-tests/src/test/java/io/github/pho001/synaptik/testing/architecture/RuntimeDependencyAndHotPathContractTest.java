@@ -36,6 +36,7 @@ final class RuntimeDependencyAndHotPathContractTest {
             "io/github/pho001/synaptik/runtime/memory/WorkspaceSlot.java",
             "io/github/pho001/synaptik/runtime/memory/package-info.java",
             "io/github/pho001/synaptik/runtime/resource/BufferRepresentation.java",
+            "io/github/pho001/synaptik/runtime/resource/PreparedResource.java",
             "io/github/pho001/synaptik/runtime/resource/PreparedRepresentationPlan.java",
             "io/github/pho001/synaptik/runtime/resource/WorkspaceRepresentation.java",
             "io/github/pho001/synaptik/runtime/resource/package-info.java",

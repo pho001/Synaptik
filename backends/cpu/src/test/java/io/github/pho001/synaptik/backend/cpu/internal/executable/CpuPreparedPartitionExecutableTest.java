@@ -154,7 +154,7 @@ class CpuPreparedPartitionExecutableTest {
         }
         var memory = new PreparedMemoryPlan(buffers, List.of());
         return (CpuPreparedPartitionExecutable) new CpuPartitionFinalizer().finalizePartition(
-                new BackendPartitionFinalization<>(analysis, memory, assignments));
+                new BackendPartitionFinalization<>(analysis, memory, assignments)).executable();
     }
 
     private static RunState state(CpuPreparedPartitionExecutable executable,

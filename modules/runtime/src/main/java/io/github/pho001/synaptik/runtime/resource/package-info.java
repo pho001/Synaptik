@@ -1,6 +1,7 @@
 /**
  * Defines nominal lifecycle roles for physical Runtime representations implemented by concrete
- * backends, plus immutable prepared descriptions of how each run obtains them.
+ * backends, plus immutable prepared descriptions of how each run obtains them and a narrow
+ * lifecycle role for persistent prepared resources.
  *
  * <p>{@link io.github.pho001.synaptik.runtime.resource.BufferRepresentation} represents a
  * physical form of one logical buffer, while
@@ -12,6 +13,10 @@
  * callbacks for initially invalid or already-initialized run-owned representations, and
  * associates each workspace position with a backend-owned creator. The immutable plan invokes no
  * callback and owns no physical representation, graph value, or compile-time scalar.
+ * {@link io.github.pho001.synaptik.runtime.resource.PreparedResource} instead represents
+ * immutable backend-native state that is acquired during preparation, reused across runs, and
+ * uniquely owned by one prepared execution until explicit close. It exposes cleanup only and is
+ * not per-run workspace or a physical-access API.
  *
  * <p>This package provides no physical storage implementation and no allocation, access,
  * transfer, backend/device key, coherence, publication, pooling, or discovery mechanism.

@@ -6,9 +6,10 @@ This guide maps current backend extension contracts into the complete planned li
 analysis, slot assignment, backend finalization, immutable physical-representation creation
 callbacks, Runtime cold creation and binding, explicit per-copy validity, and creation/executable
 scheduling plus the prepared/bound buffer-transfer and Runtime-only publication/result contracts
-are current. Production physical implementations, public output-value access, schedule
-consumption, Engine composition, and every production concrete backend remain planned. The guide
-therefore separates compilable extension patterns from conceptual integration steps.
+are current. Runtime's persistent prepared-resource owner and non-waiting close/run lease plus
+Prepare's transactional finalizer-result handoff are also current; Engine prepared-handle closure
+remains planned. The guide therefore separates compilable extension patterns from conceptual
+integration steps.
 
 ## Prerequisites
 
@@ -24,7 +25,8 @@ capability -> compile ownership -> backend prepare -> executable -> runtime
 2. Implement a partition preparer that accepts only partitions owned by this backend.
 3. Lower, specialize, fuse, and select routes inside the backend.
 4. During current finalization, construct an immutable `PreparedExecutable` subclass against the
-   assigned slots.
+   assigned slots and return it in `BackendPartitionFinalizationResult` with persistent resources
+   in physical acquisition order. Roll back finalizer-local acquisition before any failed return.
 5. Supply immutable thread-safe buffer/workspace creators in one current
    `PreparedRepresentationPlan`; each call returns a fresh physical result for one run.
 6. Place that plan in the optional first-only `PreparedSchedule.RepresentationCreationStep`, then
@@ -42,9 +44,72 @@ capability -> compile ownership -> backend prepare -> executable -> runtime
 10. Emit typed backend trace contributions when the producer contract exists.
 11. Expose a backend component that later Engine composition can register explicitly.
 
+## Current persistent prepared-resource ownership
+
+### Persistent-resource goal and inputs
+
+Represent reusable backend-native state, such as a compiled executable, without exposing its
+physical handle through Runtime. The current Runtime contract is intentionally limited to
+unchecked cleanup:
+
+The following conceptual excerpt uses the current contracts and assumes the backend has already
+constructed the exact-plan `executable` and acquired `nativeHandle`:
+
+```java
+import io.github.pho001.synaptik.prepare.BackendPartitionFinalizationResult;
+import io.github.pho001.synaptik.runtime.resource.PreparedResource;
+import java.util.List;
+
+final class CompiledBackendExecutable implements PreparedResource {
+    private final long nativeHandle;
+
+    CompiledBackendExecutable(long nativeHandle) {
+        this.nativeHandle = nativeHandle;
+    }
+
+    @Override public void close() {
+        // Release nativeHandle through this backend's checked native boundary.
+    }
+}
+
+CompiledBackendExecutable compiled = new CompiledBackendExecutable(nativeHandle);
+BackendPartitionFinalizationResult result =
+        new BackendPartitionFinalizationResult(executable, List.of(compiled));
+```
+
+The snippet assumes finalization has already constructed `executable`, which retains the exact
+assigned memory plan. Its other input is the resource list in physical acquisition order. This is
+the current finalizer return shape. Shared Prepare collects successful
+results in partition order, validates exact resource identity uniqueness, assembles and validates
+the schedule, and finally constructs `PreparedExecution(plan, schedule, resources)`. Current CPU
+preparation uses the one-argument result constructor and therefore contributes an empty list.
+
+### Persistent-resource result and interpretation
+
+Successful return transfers `compiled` from the finalizer to shared Prepare. Successful
+`PreparedExecution` construction then transfers it once to Runtime; any intervening failure
+reverse-closes all accepted identities. Runtime retains no native handle, storage accessor,
+resource count, lookup key, or concrete backend type. Two executions with equal plan and schedule
+references remain distinct owners because `PreparedExecution` uses `Object` identity rather than
+the former record's structural equality.
+
+Each synchronous runner call leases the owner before inspecting caller inputs or creating run
+state. `execution.close()` rejects later leases and never waits for admitted work. With no active
+lease, that caller performs reverse-order attempt-all cleanup; otherwise the last lease does so.
+Backend `close()` callbacks execute outside Runtime's lifecycle monitor. The first unchecked
+failure is primary, later distinct failures are suppressed in cleanup order, and repeated close
+does not replay a failure.
+
+This contract is for immutable state reused across runs. Per-run buffers and workspaces still
+belong to one `RunState`; backend-global caches, schedule occurrences, and executable references
+must not become alternative owners. A finalizer owns local rollback before successful return;
+shared Prepare owns later rollback and the single successful Runtime transfer. Engine 0010 will
+later close inward owners through ordinary and advanced prepared handles. Metal 0002 remains
+blocked until that Engine task is complete.
+
 ## Current representation-creation pattern
 
-### Goal and inputs
+### Representation-creation goal and inputs
 
 Describe one borrowed caller input, one backend-created internal buffer, and one backend-created
 workspace against the exact prepared memory plan supplied by shared finalization. The creator
@@ -88,7 +153,7 @@ PreparedRepresentationPlan representationPlan =
                 List.of(new CpuWorkspaceCreator()));
 ```
 
-### Result and interpretation
+### Representation-creation result and interpretation
 
 The immutable plan contains only dense origins and exact typed callback references. Constructing
 it allocates no physical buffer or workspace. During cold run setup, Runtime validates the
@@ -251,7 +316,7 @@ destination or choose a route.
 
 ## Current executable and publication scheduling pattern
 
-### Goal and inputs
+### Scheduling goal and inputs
 
 Make the representation plan reachable as the first occurrence, then order one prepared transfer,
 two occurrences of one finalized `CpuExecutable`, and one final publication. This example assumes
@@ -278,7 +343,7 @@ PreparedSchedule schedule =
                 plan, List.of(creation, occurrence, occurrence, transfer, publication));
 ```
 
-### Result and interpretation
+### Scheduling result and interpretation
 
 `schedule.steps()` retains the exact creation prefix, the same executable occurrence twice, the
 transfer, and the publication suffix in deterministic order. Every occurrence reports the exact

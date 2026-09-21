@@ -44,9 +44,12 @@ import java.util.Set;
  * immutable local DAG exactly once while it owns the complete compile graph, and passes only that
  * local projection to backend analysis. It then invokes analysis and finalization in
  * compile-partition order, exposes complete immutable facts to one explicit schedule assembler,
- * validates the returned recipe, and returns the exact prepared memory plan and schedule in one
- * {@link PreparedExecution}. It performs no physical work, execution, backend discovery, tuning,
- * or dynamic binding.</p>
+ * validates the returned recipe, and returns the exact prepared memory plan, schedule, and
+ * persistent resources in one {@link PreparedExecution}. After finalization succeeds, this
+ * method owns the resources transactionally through assembly, validation, and aggregate
+ * construction; a failure closes them once in reverse acquisition order. Successful aggregate
+ * construction transfers ownership to Runtime. It performs no physical allocation, execution,
+ * backend discovery, tuning, or dynamic binding.</p>
  */
 public final class GraphPreparation {
     private GraphPreparation() {}
@@ -67,7 +70,8 @@ public final class GraphPreparation {
      *     once only after every finalizer succeeds and never retained; caller ownership is
      *     unchanged
      * @return one non-null immutable reusable prepared execution retaining the exact assigned
-     *     memory plan and validated schedule
+     *     memory plan, validated schedule, and ownership of every persistent resource returned
+     *     by successful finalizers
      * @throws NullPointerException if a top-level input or indexed preparation element is null,
      *     or if a backend or assembler returns null
      * @throws IllegalArgumentException if positional coverage, required producerless-resource
@@ -89,8 +93,9 @@ public final class GraphPreparation {
      * before backend-visible work. Valid producerless contributions remain outside every
      * partition-local context and finalizer assignment; shared assignment appends them in final
      * graph-value encounter order. The call creates immutable recipes only and performs no
-     * physical allocation, representation initialization, materialization, execution,
-     * publication, or ownership transfer.</p>
+     * physical allocation, representation initialization, materialization, execution, or
+     * publication. Persistent-resource ownership moves only through the finalizer-result and
+     * successful prepared-execution boundaries described by this type.</p>
      *
      * @param artifacts exact non-null immutable compile artifacts to inspect and retain through
      *     the returned recipe; ownership is not transferred
@@ -105,7 +110,8 @@ public final class GraphPreparation {
      *     once only after every finalizer succeeds and never retained; caller ownership is
      *     unchanged
      * @return one non-null immutable reusable prepared execution retaining the exact assigned
-     *     memory plan and validated schedule
+     *     memory plan, validated schedule, and ownership of every persistent resource returned
+     *     by successful finalizers
      * @throws NullPointerException if a top-level input or indexed list element is null, or if a
      *     backend or assembler returns null
      * @throws IllegalArgumentException if positional coverage, producerless-resource coverage or
@@ -155,15 +161,21 @@ public final class GraphPreparation {
         BackendPartitionFinalizationHandoff.Result handoff =
                 BackendPartitionFinalizationHandoff.finalizePartitions(
                         artifacts.partitions(), entries, canonicalProducerlessResources);
-        PreparedScheduleContext context = new PreparedScheduleContext(
-                artifacts,
-                handoff.memoryPlan(),
-                handoff.partitions(),
-                handoff.bufferAssignments());
-        PreparedSchedule schedule = Objects.requireNonNull(
-                scheduleAssembler.assemble(context), "scheduleAssembler returned null");
-        validateSchedule(context, schedule);
-        return new PreparedExecution(handoff.memoryPlan(), schedule);
+        try {
+            PreparedScheduleContext context = new PreparedScheduleContext(
+                    artifacts,
+                    handoff.memoryPlan(),
+                    handoff.partitions(),
+                    handoff.bufferAssignments());
+            PreparedSchedule schedule = Objects.requireNonNull(
+                    scheduleAssembler.assemble(context), "scheduleAssembler returned null");
+            validateSchedule(context, schedule);
+            return new PreparedExecution(
+                    handoff.memoryPlan(), schedule, handoff.resources());
+        } catch (RuntimeException | Error failure) {
+            BackendPartitionFinalizationHandoff.rollback(handoff.resources(), failure);
+            throw failure;
+        }
     }
 
     private static List<ProducerlessPublishedConstantResource> validateProducerlessResources(

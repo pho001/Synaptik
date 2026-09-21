@@ -161,7 +161,7 @@ class CpuPointwisePartitionLoweringTest {
         }
         return (CpuPreparedPartitionExecutable) new CpuPartitionFinalizer().finalizePartition(
                 new BackendPartitionFinalization<>(analysis,
-                        new PreparedMemoryPlan(buffers, List.of()), assignments));
+                        new PreparedMemoryPlan(buffers, List.of()), assignments)).executable();
     }
 
     @Test void coldBindingRejectsNonCanonicalWhereCondition() {

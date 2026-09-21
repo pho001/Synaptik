@@ -4217,8 +4217,10 @@ Concrete backends implement immutable thread-safe creators, and every successful
 a fresh non-null physical result for that position and run. Current package-private cold
 setup validates all callers before invoking callbacks, creates buffers then workspaces, and rolls
 back successfully created results in reverse creation order on failure. A current first-only
-`PreparedSchedule.RepresentationCreationStep` makes the plan reachable through the unchanged
-two-component `PreparedExecution`. Explicit transfer/materialization, validity, and publication
+`PreparedSchedule.RepresentationCreationStep` makes the plan reachable through the current
+`PreparedExecution` recipe. Persistent resources are a separate private ownership component;
+they neither change these origins nor enter `RunState`. Explicit transfer/materialization,
+validity, and publication
 contracts, public runner orchestration, and executable-output validity transitions are current.
 
 ### Memory slot
@@ -4905,11 +4907,22 @@ The implemented second backend preparation stage after shared slot assignment.
 shared `PreparedMemoryPlan`, and an immutable list of
 [`PreparationResourceAssignment`](#preparation-resource-assignment) values in declaration order.
 The owning backend implements `BackendPartitionFinalizer<P>` and returns one non-null immutable
-`PreparedExecutable` retaining that exact plan.
+`BackendPartitionFinalizationResult`: an exact-plan `PreparedExecutable` plus an immutable
+snapshot of `PreparedResource` instances in physical acquisition order. The result permits
+duplicate identities so the complete shared handoff can reject them consistently across and
+within results; it performs no close or lookup itself.
 
-Finalization does not authorize route reselection, undeclared resource requirements, physical
-allocation, native or closeable prepared-resource acquisition, run-state construction, binding,
-execution, scheduling, transfer, publication, measurement, or workload tuning-cache mutation.
+A finalizer owns every resource it acquires until the complete result returns successfully. A
+failed return requires reverse, attempt-all local rollback that preserves the triggering unchecked
+failure and suppresses later distinct cleanup failures. A successful return transfers the list to
+shared Prepare, which concatenates results in partition order, tracks identity with `==`, rejects
+duplicates, and rolls accepted identities back once after any later finalization, association,
+schedule, or aggregate-construction failure. Successful `PreparedExecution` construction is the
+sole transfer to Runtime.
+
+Finalization does not authorize route reselection, undeclared shared resource requirements,
+per-run physical allocation, run-state construction, binding, execution, scheduling, transfer,
+publication, measurement, or workload tuning-cache mutation.
 An owning backend may perform an already-selected compatible executable-artifact load or
 publication where its established cold-finalization contract permits it. The batch handoff is
 package-private behind current public graph preparation. The current CPU module has one
@@ -4951,9 +4964,12 @@ three-argument form supplies an empty set. Neither form makes a zero-node graph 
 
 Validation covers exact plan identity, caller-input order, initialized compile constants,
 executable coverage and order, representation coordinates, and forward-then-gradient publication
-occurrences. The operation invokes no creator, allocates no physical resource, executes no work,
-discovers no backend, and retains no collaborator. Concrete backend-facing contexts contain no
-Compiler aggregate; current Engine composition explicitly supplies the collaborators.
+occurrences. Successful finalizer results contribute acquisition-ordered resources; graph
+preparation owns their identity-unique snapshot through assembly and validation, reverse-closes it
+on failure, and transfers it only through successful `PreparedExecution` construction. The
+operation invokes no creator, allocates no physical resource itself, executes no work, discovers
+no backend, and retains no collaborator. Concrete backend-facing contexts contain no Compiler
+aggregate; current Engine composition explicitly supplies the collaborators.
 
 ### Producerless published-constant resource / `ProducerlessPublishedConstantResource`
 
@@ -4978,25 +4994,39 @@ backward lifecycle.
 
 ### Prepared execution / `PreparedExecution`
 
-The implemented immutable Runtime record that forms the complete current reusable prepared root.
-It retains exactly one `PreparedMemoryPlan` and one `PreparedSchedule`, requires both to be
-non-null, and requires the schedule to report the exact same plan reference. Structurally equal
-but separately constructed plans do not satisfy that association.
+The implemented final identity-bearing Runtime class forms the reusable prepared root from one
+exact `PreparedMemoryPlan`, one same-reference `PreparedSchedule`, and a private identity-unique
+snapshot of persistent prepared resources. Its logical recipe remains immutable while explicit
+lifecycle state admits synchronous run leases and controls resource cleanup. The resource-free
+constructor remains available, and current CPU finalization reaches it by returning a
+one-argument `BackendPartitionFinalizationResult` with an empty resource list.
 
-The record owns no closeable, persistent, or per-run resource and transfers no ownership. It has
-no run or close method and does not create a `RunState`, consume a schedule, bind or execute an
-invocation, allocate a representation, or publish a result. It may be read concurrently because
-its current components are immutable; every later active logical run still requires its own
-isolated mutable `RunState`. Future persistent prepared resources require an explicit ownership
-and failure-lifecycle contract rather than an empty lifecycle on this record. See the
+Close is idempotent and non-waiting: it rejects new leases immediately and either performs
+reverse attempt-all cleanup or defers that cleanup to the last admitted lease. The owner uses
+`Object` identity rather than the former record's structural equality and exposes no resource
+lookup. Every active logical run continues to require its own isolated mutable `RunState`.
+Prepare now supplies the transactional resource handoff; Engine 0010 will make prepared handles
+own inward closure. See the
 [Runtime API](api/runtime-api.md#current-prepared-execution).
 
 The ordinary Engine also exposes a distinct final
 `io.github.pho001.synaptik.engine.PreparedExecution` facade. It is an owner-bound immutable handle,
 not the Runtime record. Its only public accessor returns the exact originating Engine
 `CompiledGraph`; inward schedule, memory, slot, executable, and representation contracts remain
-private. It has no close lifecycle, and its metadata remains readable after Engine closure even
-though it cannot then start a run.
+private. Engine 0010 will add deterministic handle ownership on top of the completed Runtime and
+Prepare resource chain; until then the handle has no close lifecycle.
+
+### Prepared resource / `PreparedResource`
+
+An immutable reusable physical resource acquired during backend finalization and needed across
+multiple runs, such as a compiled native executable. Runtime owns only its nominal close contract
+and lifecycle orchestration. The concrete backend owns its native type and performs physical
+release. Before a successful finalizer result returns, the backend owns local rollback; afterward
+shared Prepare owns the identity-unique transaction until `PreparedExecution` accepts it. A
+prepared resource is then owned exactly once by `PreparedExecution`; it is not per-run workspace,
+a schedule occurrence, a backend-global cache entry, or a garbage-collection-managed correctness
+mechanism. Runtime 0016 implements the nominal contract and owner lifecycle, and Prepare 0006
+implements the transactional finalizer handoff.
 
 ### Prepared executable / `PreparedExecutable`
 
