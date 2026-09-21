@@ -761,8 +761,10 @@ provide no-argument backward. `CompiledGraph.inputs()` reports the final caller-
 caller Tensor or host-storage reference and do not read current host associations.
 
 `prepare(...)` accepts only a compile handle from the same exact Engine and returns a fresh,
-immutable, reusable owner-bound handle. `run(...)` accepts every required logical Tensor exactly
-once in arbitrary order, matches by `TensorId`, validates the complete descriptor, and then
+immutable, reusable, closeable owner-bound handle. The handle owns exactly one inward Runtime
+prepared execution. Callers should use try-with-resources when its reuse window is bounded;
+Engine shutdown closes any still-retained handle. `run(...)` accepts every required logical
+Tensor exactly once in arbitrary order, matches by `TensorId`, validates the complete descriptor, and then
 snapshots each Tensor's current `HostTensorStorage` association once in final binding order. Each
 run borrows fresh non-owning CPU wrappers and owns an isolated Runtime state. The caller retains
 the storage and its arena and must keep its scope alive, accessible where used, and free from
@@ -781,10 +783,22 @@ exact occurrence object from that result and returns a fresh detached `HostTenso
 calls and aliased occurrences are copied independently; there is no cache or deduplication.
 
 Closing a result releases its Runtime lease and Engine-created wrappers but never caller storage.
-Closing the Engine closes still-open results in reverse successful-run order before the CPU
-integration. Result metadata remains readable after either close; compiled and prepared metadata
-also remains readable, and a completed `HostTensorValue` remains readable after either close, but
-closed-Engine handles cannot start new work. Materialization is current only for the fixed CPU
+Closing a prepared handle terminally rejects later runs through it and delegates persistent
+resource cleanup to Runtime. It does not close an already returned result. If handle close races a
+run, Runtime serializes lease admission with close: a lease-first run completes and may perform
+deferred cleanup, while a close-first run is rejected. Obtaining the inward delegate does not by
+itself admit a run; that run still arbitrates with close at Runtime's unique lease authority. The
+wrapper synchronizes delegate retrieval with Runtime's close transition, not with the complete
+run. Once outward `isClosed()` returns true, that inward transition has occurred and no later
+delegate retrieval can admit work. Concurrent or repeated handle close calls wait for the first
+wrapper cleanup attempt and replay the same immediate failure by identity.
+
+Closing the Engine waits for admitted operations, then closes still-open results in reverse
+successful-run order, retained prepared handles in reverse successful-prepare order, and finally
+the CPU integration. Result metadata remains readable after either close; compiled and prepared
+metadata also remains readable, and a completed `HostTensorValue` remains readable after either
+close, but a closed prepared handle or Engine cannot start new work. Materialization is current
+only for the fixed CPU
 composition and fully static resolved publication descriptors. It is not an implicit transfer,
 cross-backend format promise, Tensor, storage association, typed array, or persistence format.
 
@@ -841,7 +855,8 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
     assert preparation.outcome()
             == ModelAutotuningPreparation.Outcome.SAFE_HEURISTIC_FALLBACK;
     assert preparation.evidence().isEmpty();
-    try (var result = engine.run(preparation.preparedExecution(), List.of(input))) {
+    try (var prepared = preparation.preparedExecution();
+            var result = engine.run(prepared, List.of(input))) {
         assert result.publications().size() == 1;
     }
 }
@@ -853,6 +868,9 @@ then fixed while Phase 2 considers only CPU's retained complete topology and rep
 alternatives. Phase 2 performs every exact correctness action before timing; correctness,
 warmup, and timed executions each use a fresh preparation and fresh Runtime state. After winner
 authentication and representative cleanup, the returned production handle is prepared afresh.
+Every trial closes its result before its temporary preparation on every path. The
+`ModelAutotuningPreparation` metadata carrier is not another closeable owner: its contained
+`PreparedExecution` alone owns the production preparation.
 
 A tuned result has outcome `TUNED`. Its immutable evidence contains the Phase-1 workload rows and
 required `completePlan` evidence: compatibility and reuse scope, the exact Phase-2 budget, source,
@@ -881,7 +899,8 @@ state. Parameters and buffers need no Engine-specific category: their current Te
 discovered like any other reachable provenance-free leaf. Each call freshly compiles with the
 ordinary fixed forward-only settings, prepares, runs once, verifies the complete forward-publication set,
 preflights the sum of canonical returned payload lengths before copying, materializes every
-occurrence in requested order, and closes its temporary result before returning. The ordered form
+occurrence in requested order, and closes its temporary result before its temporary preparation
+before the call returns. The ordered form
 returns an immutable list of immutable detached values; distinct occurrences are copied
 independently even if they select one inward representation. The limit covers returned canonical
 payload bytes only, not inputs, recipes, Runtime buffers or workspaces, object overhead, defensive
@@ -889,8 +908,9 @@ copies, peak memory, or other allocation.
 
 One Engine admission covers that complete sequence. Engine closure waits for an admitted call,
 including its result cleanup; a call that loses admission observes the closed-Engine failure
-before argument validation. A failure returns no partial result. Temporary cleanup still runs,
-with a distinct cleanup failure suppressed on the primary failure. Selected leaf storage remains
+before argument validation. A failure returns no partial result. Temporary result-then-preparation
+cleanup still runs, with distinct cleanup failures suppressed on the primary failure in cleanup
+order. Selected leaf storage remains
 caller-owned and must stay live, accessible, and free from conflicting mutation until the
 synchronous call completes; unselected discovered storage is not inspected. The `compute(...)`
 forms create no compile/prepared/result/value/Tensor-inventory cache or reuse and add no backward,
@@ -1083,8 +1103,10 @@ immutable handle bound to the exact open Engine that created it. `prepare(...)` 
 a handle and currently succeeds only when CPU owns one non-empty maximal partition. A zero-node,
 mixed-owner, or multiple-partition artifact therefore fails during this CPU-only preparation
 step; it is not silently repartitioned or routed elsewhere. The returned
-`AdvancedPreparedExecution` is another immutable owner-bound handle. It may be shared by
-concurrent callers because every `run(...)` creates isolated mutable Runtime state.
+`AdvancedPreparedExecution` is another immutable owner-bound, closeable handle. It owns exactly
+one inward Runtime preparation and may be shared by concurrent callers because every `run(...)`
+creates isolated mutable Runtime state. Callers should close it when reuse ends; closing it does
+not close an already returned `AdvancedRunResult`.
 
 Inputs to `run(...)` are already-created Runtime `BufferRepresentation` values in graph-input
 order. `borrow(...)` wraps one caller-owned `MemorySegmentStorage` for this purpose. Neither the
@@ -1098,9 +1120,12 @@ exposes only `resultCount()`, not published values. Its idempotent `close()` rel
 if a close is already in progress, another close waits uninterruptibly and restores interruption
 before returning. Closing the Engine rejects new work with
 `IllegalStateException("advanced engine is closed")` before argument, owner, or inward validation,
-waits for admitted work, closes still-open results in reverse run order, and then closes its owned
-CPU integration. Compiled and prepared handles have no independent resource lifecycle, but become
-unusable when their Engine closes.
+and waits for admitted work. Engine then closes still-open results in reverse run-publication
+order, retained prepared handles in reverse prepare-publication order, and its owned CPU
+integration. Prepared handle close uses the same outward synchronization and inward Runtime lease
+arbitration described for ordinary handles; it never holds the wrapper monitor over a complete
+run. Concurrent/repeated close callers replay the first immediate wrapper-cleanup failure by
+identity; a deferred resource failure belongs to the lease-releasing run path.
 
 This advanced surface does not provide mixed-backend composition, backend discovery, typed
 logical input binding, typed publication metadata, host materialization, public one-shot

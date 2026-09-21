@@ -26,13 +26,17 @@ import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
+import io.github.pho001.synaptik.runtime.execution.BoundInvocation;
+import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.memory.BufferSlot;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan;
+import io.github.pho001.synaptik.runtime.resource.PreparedResource;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan.CallerInput;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan.InitializedBuffer;
+import io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation;
 import io.github.pho001.synaptik.runtime.run.PreparedPublication;
 import io.github.pho001.synaptik.runtime.run.BufferRepresentationBinding;
 import io.github.pho001.synaptik.runtime.run.RunResourceOwnership;
@@ -50,11 +54,25 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 /** Exercises ordinary identity binding, publication metadata, ownership, and cleanup. */
 final class EngineTypedLifecycleTest {
     private static final BackendId BACKEND = new BackendId("typed-test");
+
+    private static void awaitBlocked(Thread thread) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (thread.getState() != Thread.State.BLOCKED) {
+            if (!thread.isAlive()) {
+                throw new AssertionError("thread terminated before reaching blocked state");
+            }
+            if (System.nanoTime() >= deadline) {
+                throw new AssertionError("timed out waiting for blocked thread state");
+            }
+            Thread.onSpinWait();
+        }
+    }
 
     @Test
     void compileBuildsFinalOrderedInputMetadataWithoutStorage() {
@@ -149,7 +167,160 @@ final class EngineTypedLifecycleTest {
         assertEquals(output.id(), publication.tensorId());
         assertEquals(List.of("runtime-result", "borrow-1", "borrow-0"), closeOrder);
         engine.close();
-        assertEquals(List.of("runtime-result", "borrow-1", "borrow-0", "backend"), closeOrder);
+        assertEquals(List.of("runtime-result", "borrow-1", "borrow-0", "prepared", "backend"),
+                closeOrder);
+    }
+
+    @Test
+    void ordinaryPreparedHandleClosesExactlyOnceAndResultRemainsIndependent() {
+        RuntimeException expected = new RuntimeException("prepared close");
+        RecordingComposition composition = new RecordingComposition();
+        composition.copyBytes = new byte[8];
+        Engine engine = engine(composition);
+        Tensor input = leaf(false, true);
+        CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
+        io.github.pho001.synaptik.engine.PreparedExecution prepared = engine.prepare(compiled);
+        RunResult result = engine.run(prepared, List.of(input));
+
+        prepared.close();
+        assertTrue(prepared.isClosed());
+        assertEquals(1, composition.preparedResources.getFirst().closeCount.get());
+        assertEquals(8, result.materialize(result.publications().getFirst(), 8).byteSize());
+        assertEquals("prepared execution is closed",
+                assertThrows(IllegalStateException.class,
+                        () -> engine.run(prepared, List.of(input))).getMessage());
+        result.close();
+        engine.close();
+
+        RecordingComposition failing = new RecordingComposition();
+        failing.preparedCloseFailure = expected;
+        Engine failingEngine = engine(failing);
+        Tensor failingInput = leaf(false, true);
+        var failingPrepared = failingEngine.prepare(
+                failingEngine.compile(List.of(failingInput.contiguous())));
+        assertSame(expected, assertThrows(RuntimeException.class, failingPrepared::close));
+        assertSame(expected, assertThrows(RuntimeException.class, failingPrepared::close));
+        assertEquals(1, failing.preparedResources.getFirst().closeCount.get());
+        failingEngine.close();
+        assertEquals(1, failing.preparedResources.getFirst().closeCount.get());
+    }
+
+    @Test
+    void ordinaryPreparedRunLeaseWinningBeforeCloseCompletesAndReleasesExactlyOnce()
+            throws Exception {
+        RecordingComposition composition = new RecordingComposition();
+        composition.executionEntered = new CountDownLatch(1);
+        composition.executionRelease = new CountDownLatch(1);
+        Engine engine = engine(composition);
+        Tensor input = leaf(false, true);
+        var prepared = engine.prepare(engine.compile(List.of(input.contiguous())));
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var run = executor.submit(() -> engine.run(prepared, List.of(input)));
+            assertTrue(composition.executionEntered.await(10, TimeUnit.SECONDS));
+            var close = executor.submit(() -> { prepared.close(); return null; });
+            close.get(10, TimeUnit.SECONDS);
+            assertTrue(prepared.isClosed());
+            assertEquals(0, composition.preparedResources.getFirst().closeCount.get());
+            composition.executionRelease.countDown();
+            run.get(10, TimeUnit.SECONDS).close();
+        }
+
+        assertEquals(1, composition.executionCount.get());
+        assertEquals(1, composition.preparedResources.getFirst().closeCount.get());
+        engine.close();
+        assertEquals(1, composition.preparedResources.getFirst().closeCount.get());
+    }
+
+    @Test
+    void ordinaryPreparedCloseWinningBeforeDelegateRetrievalRejectsRun() throws Exception {
+        RecordingComposition composition = new RecordingComposition();
+        Engine engine = engine(composition);
+        Tensor input = leaf(false, true);
+        var prepared = engine.prepare(engine.compile(List.of(input.contiguous())));
+        PreparedExecution inward = prepared.execution();
+        AtomicReference<Throwable> closeFailure = new AtomicReference<>();
+        AtomicReference<Throwable> runFailure = new AtomicReference<>();
+
+        Thread closeThread;
+        Thread runThread;
+        synchronized (inward) {
+            closeThread = Thread.ofPlatform().start(() -> {
+                try {
+                    prepared.close();
+                } catch (Throwable failure) {
+                    closeFailure.set(failure);
+                }
+            });
+            awaitBlocked(closeThread);
+            runThread = Thread.ofPlatform().start(() -> {
+                try {
+                    engine.run(prepared, List.of(input));
+                } catch (Throwable failure) {
+                    runFailure.set(failure);
+                }
+            });
+            awaitBlocked(runThread);
+            assertEquals(0, composition.preparedResources.getFirst().closeCount.get());
+        }
+
+        closeThread.join(10_000);
+        runThread.join(10_000);
+        assertFalse(closeThread.isAlive());
+        assertFalse(runThread.isAlive());
+        assertSame(null, closeFailure.get());
+        assertTrue(runFailure.get() instanceof IllegalStateException);
+        assertEquals("prepared execution is closed", runFailure.get().getMessage());
+        assertEquals(0, composition.executionCount.get());
+        assertEquals(1, composition.preparedResources.getFirst().closeCount.get());
+        engine.close();
+    }
+
+    @Test
+    void interruptedRepeatedOrdinaryPreparedCloseReturnsWithInterruptRestored()
+            throws Exception {
+        RecordingComposition composition = new RecordingComposition();
+        Engine engine = engine(composition);
+        Tensor input = leaf(false, true);
+        var prepared = engine.prepare(engine.compile(List.of(input.contiguous())));
+        PreparedExecution inward = prepared.execution();
+        AtomicReference<Throwable> firstFailure = new AtomicReference<>();
+        AtomicReference<Throwable> repeatedFailure = new AtomicReference<>();
+        AtomicReference<Boolean> repeatedInterrupted = new AtomicReference<>();
+
+        Thread first;
+        Thread repeated;
+        synchronized (inward) {
+            first = Thread.ofPlatform().start(() -> {
+                try {
+                    prepared.close();
+                } catch (Throwable failure) {
+                    firstFailure.set(failure);
+                }
+            });
+            awaitBlocked(first);
+            repeated = Thread.ofPlatform().start(() -> {
+                try {
+                    prepared.close();
+                } catch (Throwable failure) {
+                    repeatedFailure.set(failure);
+                } finally {
+                    repeatedInterrupted.set(Thread.currentThread().isInterrupted());
+                }
+            });
+            awaitBlocked(repeated);
+            repeated.interrupt();
+        }
+
+        first.join(10_000);
+        repeated.join(10_000);
+        assertFalse(first.isAlive());
+        assertFalse(repeated.isAlive());
+        assertSame(null, firstFailure.get());
+        assertSame(null, repeatedFailure.get());
+        assertEquals(Boolean.TRUE, repeatedInterrupted.get());
+        assertEquals(1, composition.preparedResources.getFirst().closeCount.get());
+        engine.close();
     }
 
     @Test
@@ -534,7 +705,8 @@ final class EngineTypedLifecycleTest {
                 assertThrows(IllegalArgumentException.class, () -> engine.compute(
                         List.of(leftOutput, rightOutput), 15)).getMessage());
         assertEquals(0, composition.copyCount.get());
-        assertEquals(List.of("runtime-result", "runtime-result", "borrow-1", "borrow-0"),
+        assertEquals(List.of("runtime-result", "runtime-result", "borrow-1", "borrow-0",
+                        "prepared"),
                 composition.closeOrder);
 
         List<HostTensorValue> values = engine.compute(List.of(leftOutput, rightOutput), 16);
@@ -614,14 +786,16 @@ final class EngineTypedLifecycleTest {
         composition.copyBytes = new byte[8];
         composition.copyFailure = copyFailure;
         composition.runtimeCloseFailure = cleanupFailure;
+        composition.preparedCloseFailure = cleanupFailure;
         Engine engine = engine(composition);
         Tensor input = leaf(false, true);
 
         RuntimeException actual = assertThrows(RuntimeException.class,
                 () -> engine.compute(input.contiguous(), 8));
         assertSame(copyFailure, actual);
-        assertArrayEquals(new Throwable[] {cleanupFailure}, actual.getSuppressed());
-        assertEquals(List.of("runtime-result", "borrow-0"), composition.closeOrder);
+        assertArrayEquals(new Throwable[] {cleanupFailure, cleanupFailure}, actual.getSuppressed());
+        assertEquals(List.of("runtime-result", "borrow-0", "prepared"), composition.closeOrder);
+        assertEquals(1, composition.preparedResources.getFirst().closeCount.get());
         engine.close();
     }
 
@@ -741,12 +915,14 @@ final class EngineTypedLifecycleTest {
         failing.copyBytes = new byte[4];
         failing.copyFailure = copyFailure;
         failing.runtimeCloseFailure = cleanupFailure;
+        failing.preparedCloseFailure = cleanupFailure;
         Engine failedEngine = engine(failing);
         Tensor failedInput = scalarLeaf(true, true, 2.0f);
         RuntimeException actual = assertThrows(RuntimeException.class, () -> failedEngine.backward(
                 failedInput.contiguous(), List.of(failedInput), 8));
         assertSame(copyFailure, actual);
-        assertArrayEquals(new Throwable[] {cleanupFailure}, actual.getSuppressed());
+        assertArrayEquals(new Throwable[] {cleanupFailure, cleanupFailure}, actual.getSuppressed());
+        assertEquals(1, failing.preparedResources.getFirst().closeCount.get());
         failedEngine.close();
 
         RecordingComposition composition = new RecordingComposition();
@@ -866,6 +1042,9 @@ final class EngineTypedLifecycleTest {
         private int borrowCloseFailureIndex = -1;
         private Throwable borrowCloseFailure;
         private Throwable runtimeCloseFailure;
+        private Throwable preparedCloseFailure;
+        private final List<TestPreparedResource> preparedResources =
+                Collections.synchronizedList(new ArrayList<>());
         private final AtomicInteger copyCount = new AtomicInteger();
         private final List<BufferRepresentation> copyRepresentations =
                 Collections.synchronizedList(new ArrayList<>());
@@ -876,6 +1055,9 @@ final class EngineTypedLifecycleTest {
         private Throwable copyFailure;
         private CountDownLatch copyEntered;
         private CountDownLatch copyRelease;
+        private CountDownLatch executionEntered;
+        private CountDownLatch executionRelease;
+        private final AtomicInteger executionCount = new AtomicInteger();
         private boolean returnNullBytes;
         private boolean aliasPublications;
         private CompileArtifacts preparedArtifacts;
@@ -921,12 +1103,19 @@ final class EngineTypedLifecycleTest {
             var creation = new PreparedRepresentationPlan(plan, preparations, List.of());
             var steps = new ArrayList<PreparedSchedule.Step>();
             steps.add(new PreparedSchedule.RepresentationCreationStep(creation));
+            if (executionEntered != null) {
+                steps.add(new PreparedSchedule.ExecutionStep(new BlockingExecutable(
+                        plan, executionEntered, executionRelease, executionCount)));
+            }
             for (int index = 0; index < publicationCount; index++) {
                 steps.add(new PreparedSchedule.PublicationStep(
                         new PreparedPublication(plan,
                                 inputCount + (aliasPublications ? 0 : index), 0, index)));
             }
-            return new PreparedExecution(plan, new PreparedSchedule(plan, steps));
+            TestPreparedResource resource = new TestPreparedResource(
+                    preparedCloseFailure, closeOrder, "prepared");
+            preparedResources.add(resource);
+            return new PreparedExecution(plan, new PreparedSchedule(plan, steps), List.of(resource));
         }
 
         @Override
@@ -972,6 +1161,55 @@ final class EngineTypedLifecycleTest {
         }
     }
 
+    private static final class BlockingExecutable extends PreparedExecutable {
+        private final CountDownLatch entered;
+        private final CountDownLatch release;
+        private final AtomicInteger executionCount;
+
+        private BlockingExecutable(
+                PreparedMemoryPlan plan,
+                CountDownLatch entered,
+                CountDownLatch release,
+                AtomicInteger executionCount) {
+            super(plan, List.of(), List.of(), List.of());
+            this.entered = entered;
+            this.release = release;
+            this.executionCount = executionCount;
+        }
+
+        @Override
+        protected boolean acceptsBufferRepresentation(
+                int index, BufferRepresentation representation) {
+            return false;
+        }
+
+        @Override
+        protected boolean acceptsWorkspaceRepresentation(
+                int index, WorkspaceRepresentation representation) {
+            return false;
+        }
+
+        @Override
+        protected BoundInvocation bindCompatible(
+                RunState state,
+                BufferRepresentation[] buffers,
+                WorkspaceRepresentation[] workspaces) {
+            return new BoundInvocation(state) {
+                @Override
+                protected void executeBound() {
+                    executionCount.incrementAndGet();
+                    entered.countDown();
+                    try {
+                        assertTrue(release.await(10, TimeUnit.SECONDS));
+                    } catch (InterruptedException failure) {
+                        Thread.currentThread().interrupt();
+                        throw new AssertionError(failure);
+                    }
+                }
+            };
+        }
+    }
+
     private static final class TestBuffer implements BufferRepresentation {
         private final Throwable failure;
         private final List<String> order;
@@ -988,6 +1226,25 @@ final class EngineTypedLifecycleTest {
         public void close() {
             if (closed) return;
             closed = true;
+            if (order != null) order.add(name);
+            rethrow(failure);
+        }
+    }
+
+    private static final class TestPreparedResource implements PreparedResource {
+        private final Throwable failure;
+        private final List<String> order;
+        private final String name;
+        private final AtomicInteger closeCount = new AtomicInteger();
+
+        private TestPreparedResource(Throwable failure, List<String> order, String name) {
+            this.failure = failure;
+            this.order = order;
+            this.name = name;
+        }
+
+        @Override public void close() {
+            closeCount.incrementAndGet();
             if (order != null) order.add(name);
             rethrow(failure);
         }

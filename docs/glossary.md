@@ -4998,23 +4998,27 @@ The implemented final identity-bearing Runtime class forms the reusable prepared
 exact `PreparedMemoryPlan`, one same-reference `PreparedSchedule`, and a private identity-unique
 snapshot of persistent prepared resources. Its logical recipe remains immutable while explicit
 lifecycle state admits synchronous run leases and controls resource cleanup. The resource-free
-constructor remains available, and current CPU finalization reaches it by returning a
-one-argument `BackendPartitionFinalizationResult` with an empty resource list.
+two-argument constructor remains available for direct Runtime construction. `GraphPreparation`
+always invokes the three-argument constructor; when current CPU finalization contributes no
+persistent resources, Prepare passes that constructor an empty resource list.
 
 Close is idempotent and non-waiting: it rejects new leases immediately and either performs
 reverse attempt-all cleanup or defers that cleanup to the last admitted lease. The owner uses
 `Object` identity rather than the former record's structural equality and exposes no resource
 lookup. Every active logical run continues to require its own isolated mutable `RunState`.
-Prepare now supplies the transactional resource handoff; Engine 0010 will make prepared handles
-own inward closure. See the
+Prepare now supplies the transactional resource handoff. Engine 0010 is implemented: ordinary
+and advanced Engine prepared handles are closeable outward owners of exactly one inward Runtime
+execution. See the
 [Runtime API](api/runtime-api.md#current-prepared-execution).
 
 The ordinary Engine also exposes a distinct final
-`io.github.pho001.synaptik.engine.PreparedExecution` facade. It is an owner-bound immutable handle,
-not the Runtime record. Its only public accessor returns the exact originating Engine
-`CompiledGraph`; inward schedule, memory, slot, executable, and representation contracts remain
-private. Engine 0010 will add deterministic handle ownership on top of the completed Runtime and
-Prepare resource chain; until then the handle has no close lifecycle.
+`io.github.pho001.synaptik.engine.PreparedExecution` facade. It is an owner-bound immutable,
+closeable handle, not the Runtime class. Its public metadata accessor returns the exact originating
+Engine `CompiledGraph`; inward schedule, memory, slot, executable, and representation contracts
+remain private. Explicit handle close or Engine shutdown closes its exact inward Runtime owner.
+`AdvancedPreparedExecution` provides the corresponding opaque advanced handle lifecycle. Handle
+close rejects later delegate retrieval but does not close an already returned result; a run that
+retrieved the delegate first arbitrates with close only through Runtime's unique lease authority.
 
 ### Prepared resource / `PreparedResource`
 

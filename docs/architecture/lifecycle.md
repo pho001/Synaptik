@@ -92,8 +92,8 @@ Finalization may acquire an immutable persistent prepared resource, such as a co
 executable, only through the transactional ownership handoff: the backend rolls back before
 return, Prepare rolls back after return, and the completed `PreparedExecution` becomes the sole
 owner. Runtime's owner and lease lifecycle are current. The finalizer return and Prepare
-transaction described here remain planned for Prepare 0006; current CPU preparation uses the
-resource-free Runtime constructor.
+transaction described here are current through Prepare 0006; current CPU preparation contributes
+an empty persistent-resource list.
 
 See [Runtime, Prepare, and Backend Boundary](runtime-prepare-backend-boundary.md) for the exact ownership split.
 
@@ -128,8 +128,11 @@ Each synchronous run first acquires a lease on its prepared execution. Once clos
 lease is admitted. Existing runs finish without close waiting for them; the last lease performs
 deferred reverse cleanup when close raced an active run. Thus close is deterministic without an
 unbounded wait, and the prepared recipe never moves native compilation onto the run path. This
-Runtime lifecycle is current; Engine prepared handles do not own inward closure until planned
-Engine 0010.
+Runtime lifecycle is current. Engine prepared handles now own exactly one inward Runtime
+execution. Their outward synchronization covers delegate retrieval and the inward close
+transition, not a complete run; a delegate-first run still arbitrates at Runtime's unique lease
+authority. Once outward closure is observable, no later retrieval can admit work. Engine adds
+neither another lease nor a waiting close.
 
 ## Current public Engine lifecycle
 
@@ -143,15 +146,21 @@ exact publication occurrence -> result.materialize(...) -> detached HostTensorVa
 
 `CompiledGraph.inputs()` supplies the authoritative caller-input membership and order. A caller
 may pass those Tensors to `run(...)` in any order because Engine matches exact Tensor identities.
-The prepared recipe is immutable and reusable; every run receives isolated mutable `RunState`.
+The prepared recipe is immutable and reusable; its Engine handle is explicitly closeable, and
+every run receives isolated mutable `RunState`.
 `RunResult` retains publication leases until it closes, while each `HostTensorValue` is a copied,
 immutable value that remains readable after the result, Engine, and caller storage close.
 
 `Engine.compute(...)` is a different lifetime choice: it discovers reachable expression leaves,
-then freshly compiles, prepares, runs, materializes, and cleans up during every call.
-`Engine.backward(...)` does the same for one scalar objective and explicit gradient targets. It
+then freshly compiles, prepares, runs, materializes, closes the temporary result, and closes the
+temporary preparation during every call. `Engine.backward(...)` does the same for one scalar
+objective and explicit gradient targets. It
 does not install gradient state on Tensor. Use the reusable path when compilation or preparation
 should be amortized across runs.
+
+Engine shutdown first waits for admitted operations, then closes retained results in reverse run
+publication order, retained preparations in reverse prepare-publication order, and backend
+composition. A prepared-handle close does not independently close an already returned result.
 
 `AdvancedEngine.takeOwnership(...)` is the lower-level explicit-composition surface. Its caller
 supplies one supported CPU integration and transfers ownership to Engine. Neither ordinary nor

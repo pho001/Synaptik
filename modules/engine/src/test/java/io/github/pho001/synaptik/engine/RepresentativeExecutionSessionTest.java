@@ -36,6 +36,7 @@ import io.github.pho001.synaptik.runtime.memory.BufferSlot;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan;
+import io.github.pho001.synaptik.runtime.resource.PreparedResource;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan.CallerInput;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan.InitializedBuffer;
 import io.github.pho001.synaptik.runtime.run.PreparedPublication;
@@ -391,21 +392,70 @@ final class RepresentativeExecutionSessionTest {
             Tensor input = leaf(1, 2);
             CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
             AtomicInteger creations = new AtomicInteger();
-            var execution = execution(1, 1, () -> {
+            var firstRejected = execution(1, 1, () -> {
+                creations.incrementAndGet();
+                return new TestBuffer("result", null, composition.closeOrder, new byte[8]);
+            });
+            var secondRejected = execution(1, 1, () -> {
+                creations.incrementAndGet();
+                return new TestBuffer("result", null, composition.closeOrder, new byte[8]);
+            });
+            var accepted = execution(1, 1, () -> {
                 creations.incrementAndGet();
                 return new TestBuffer("result", null, composition.closeOrder, new byte[8]);
             });
 
             try (var session = openSession(composition, compiled, List.of(input))) {
                 assertThrows(IllegalArgumentException.class,
-                        () -> session.captureCorrectnessReference(execution, -1));
+                        () -> session.captureCorrectnessReference(firstRejected, -1));
                 assertThrows(IllegalArgumentException.class,
-                        () -> session.captureCorrectnessReference(execution, 7));
+                        () -> session.captureCorrectnessReference(secondRejected, 7));
                 assertEquals(0, creations.get());
                 assertTrue(session.canResolveRecoverableTuningFailure());
-                session.captureCorrectnessReference(execution, 8);
+                session.captureCorrectnessReference(accepted, 8);
                 assertEquals(1, creations.get());
             }
+        }
+    }
+
+    @Test
+    void eachRepresentativeActionClosesResultBeforeItsExactPreparation() {
+        RecordingComposition composition = new RecordingComposition();
+        try (Engine engine = engine(composition)) {
+            Tensor input = leaf(1, 2);
+            CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
+            List<String> order = new ArrayList<>();
+            TestPreparedResource resource = new TestPreparedResource("prepared", null, order);
+            var trial = execution(1, 1,
+                    () -> new TestBuffer("result", null, order, new byte[8]), resource);
+
+            try (var session = openSession(composition, compiled, List.of(input))) {
+                session.execute(trial);
+                assertEquals(List.of("result", "prepared"), order);
+                assertTrue(trial.isClosed());
+                assertEquals(1, resource.closeCount.get());
+            }
+        }
+    }
+
+    @Test
+    void trialPreparationCloseFailurePoisonsSessionAndPreservesIdentity() {
+        RecordingComposition composition = new RecordingComposition();
+        try (Engine engine = engine(composition)) {
+            Tensor input = leaf(1, 2);
+            CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
+            List<String> order = new ArrayList<>();
+            Error expected = new AssertionError("prepared");
+            var trial = execution(1, 1,
+                    () -> new TestBuffer("result", null, order, new byte[8]),
+                    new TestPreparedResource("prepared", expected, order));
+            var session = openSession(composition, compiled, List.of(input));
+
+            assertSame(expected, assertThrows(Error.class, () -> session.execute(trial)));
+            assertEquals(List.of("result", "prepared"), order);
+            assertEquals(List.of("borrow-0"), composition.closeOrder);
+            assertFalse(session.canResolveRecoverableTuningFailure());
+            assertSame(expected, assertThrows(Error.class, session::close));
         }
     }
 
@@ -474,6 +524,245 @@ final class RepresentativeExecutionSessionTest {
                     () -> first.compareCorrectness(firstReference,
                             executionWithBytes(1, composition.closeOrder, new byte[8])));
             second.close();
+        }
+    }
+
+    @Test
+    void earlyRepresentativeRejectionsCloseSuppliedPreparationsExactlyOnce() {
+        RecordingComposition composition = new RecordingComposition();
+        try (Engine engine = engine(composition)) {
+            Tensor input = leaf(1, 2);
+            CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
+            var first = openSession(composition, compiled, List.of(input));
+            var second = openSession(composition, compiled, List.of(input));
+            var third = openSession(composition, compiled, List.of(input));
+            var firstReference = first.captureCorrectnessReference(
+                    executionWithBytes(1, new ArrayList<>(), new byte[8]), 8);
+            var secondReference = second.captureCorrectnessReference(
+                    executionWithBytes(1, new ArrayList<>(), new byte[8]), 8);
+
+            TestPreparedResource nullReferenceResource =
+                    new TestPreparedResource("null-reference", null, new ArrayList<>());
+            var nullReferenceTrial = execution(1, 1,
+                    () -> new TestBuffer("unused", null, new ArrayList<>()),
+                    nullReferenceResource);
+            assertThrows(NullPointerException.class,
+                    () -> first.compareCorrectness(null, nullReferenceTrial));
+            assertTrue(nullReferenceTrial.isClosed());
+            assertEquals(1, nullReferenceResource.closeCount.get());
+
+            TestPreparedResource wrongReferenceResource =
+                    new TestPreparedResource("wrong-reference", null, new ArrayList<>());
+            var wrongReferenceTrial = execution(1, 1,
+                    () -> new TestBuffer("unused", null, new ArrayList<>()),
+                    wrongReferenceResource);
+            assertThrows(IllegalArgumentException.class,
+                    () -> first.compareCorrectness(secondReference, wrongReferenceTrial));
+            assertTrue(wrongReferenceTrial.isClosed());
+            assertEquals(1, wrongReferenceResource.closeCount.get());
+
+            first.close();
+            Error cleanupFailure = new AssertionError("closed-session preparation cleanup");
+            TestPreparedResource executeResource =
+                    new TestPreparedResource("execute-closed", cleanupFailure, new ArrayList<>());
+            var executeTrial = execution(1, 1,
+                    () -> new TestBuffer("unused", null, new ArrayList<>()), executeResource);
+            IllegalStateException executeRejection = assertThrows(IllegalStateException.class,
+                    () -> first.execute(executeTrial));
+            assertArrayEquals(new Throwable[] {cleanupFailure}, executeRejection.getSuppressed());
+            assertEquals(1, executeResource.closeCount.get());
+            assertSame(cleanupFailure, assertThrows(Error.class, first::close));
+
+            second.close();
+            TestPreparedResource captureResource =
+                    new TestPreparedResource("capture-closed", null, new ArrayList<>());
+            var captureTrial = execution(1, 1,
+                    () -> new TestBuffer("unused", null, new ArrayList<>()), captureResource);
+            assertThrows(IllegalStateException.class,
+                    () -> second.captureCorrectnessReference(captureTrial, 8));
+            assertEquals(1, captureResource.closeCount.get());
+
+            third.close();
+            TestPreparedResource compareResource =
+                    new TestPreparedResource("compare-closed", null, new ArrayList<>());
+            var compareTrial = execution(1, 1,
+                    () -> new TestBuffer("unused", null, new ArrayList<>()), compareResource);
+            assertThrows(IllegalStateException.class,
+                    () -> third.compareCorrectness(firstReference, compareTrial));
+            assertEquals(1, compareResource.closeCount.get());
+        }
+    }
+
+    @Test
+    void nullExecutionsRejectBeforeRuntimeWithoutInventingCleanupOwnership() {
+        RecordingComposition composition = new RecordingComposition();
+        try (Engine engine = engine(composition)) {
+            Tensor input = leaf(1, 2);
+            CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
+
+            try (var executeSession = openSession(composition, compiled, List.of(input))) {
+                NullPointerException failure = assertThrows(
+                        NullPointerException.class, () -> executeSession.execute(null));
+                assertEquals("execution", failure.getMessage());
+                assertTrue(executeSession.canResolveRecoverableTuningFailure());
+            }
+
+            try (var captureSession = openSession(composition, compiled, List.of(input))) {
+                NullPointerException failure = assertThrows(NullPointerException.class,
+                        () -> captureSession.captureCorrectnessReference(null, 8));
+                assertEquals("execution", failure.getMessage());
+                assertTrue(captureSession.canResolveRecoverableTuningFailure());
+            }
+
+            AtomicInteger creations = new AtomicInteger();
+            try (var compareSession = openSession(composition, compiled, List.of(input))) {
+                var reference = compareSession.captureCorrectnessReference(
+                        execution(1, 1, () -> {
+                            creations.incrementAndGet();
+                            return new TestBuffer(
+                                    "reference", null, new ArrayList<>(), new byte[8]);
+                        }), 8);
+                NullPointerException failure = assertThrows(NullPointerException.class,
+                        () -> compareSession.compareCorrectness(reference, null));
+                assertEquals("execution", failure.getMessage());
+                assertEquals(1, creations.get());
+                assertTrue(compareSession.canResolveRecoverableTuningFailure());
+            }
+        }
+    }
+
+    @Test
+    void missingReferenceRejectionClosesCountedPreparationWithoutExecution() {
+        RecordingComposition composition = new RecordingComposition();
+        try (Engine engine = engine(composition)) {
+            Tensor input = leaf(1, 2);
+            CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
+            var referenceSession = openSession(composition, compiled, List.of(input));
+            var targetSession = openSession(composition, compiled, List.of(input));
+            var reference = referenceSession.captureCorrectnessReference(
+                    executionWithBytes(1, new ArrayList<>(), new byte[8]), 8);
+            AtomicInteger creations = new AtomicInteger();
+            TestPreparedResource resource =
+                    new TestPreparedResource("missing-reference", null, new ArrayList<>());
+            var trial = execution(1, 1, () -> {
+                creations.incrementAndGet();
+                return new TestBuffer("unused", null, new ArrayList<>());
+            }, resource);
+
+            IllegalStateException failure = assertThrows(IllegalStateException.class,
+                    () -> targetSession.compareCorrectness(reference, trial));
+            assertEquals("correctness reference has not been captured", failure.getMessage());
+            assertEquals(0, creations.get());
+            assertTrue(trial.isClosed());
+            assertEquals(1, resource.closeCount.get());
+            assertTrue(targetSession.canResolveRecoverableTuningFailure());
+            referenceSession.close();
+            targetSession.close();
+        }
+    }
+
+    @Test
+    void invalidPreflightClosesCountedPreparationsAndCleanupFailurePoisons() {
+        RecordingComposition composition = new RecordingComposition();
+        try (Engine engine = engine(composition)) {
+            Tensor input = leaf(1, 2);
+            CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
+            AtomicInteger creations = new AtomicInteger();
+
+            try (var invalidLimitSession = openSession(composition, compiled, List.of(input))) {
+                TestPreparedResource resource =
+                        new TestPreparedResource("invalid-limit", null, new ArrayList<>());
+                var trial = execution(1, 1, () -> {
+                    creations.incrementAndGet();
+                    return new TestBuffer("unused", null, new ArrayList<>());
+                }, resource);
+                assertThrows(IllegalArgumentException.class,
+                        () -> invalidLimitSession.captureCorrectnessReference(trial, -1));
+                assertEquals(0, creations.get());
+                assertEquals(1, resource.closeCount.get());
+                assertTrue(invalidLimitSession.canResolveRecoverableTuningFailure());
+            }
+
+            Shape shape = Shape.of(2);
+            Tensor unresolvedInput = TensorFactory.create(new TensorDescriptor(
+                            DataType.FLOAT32, shape, Optional.empty(), false),
+                    Optional.empty(), input.hostStorage());
+            CompiledGraph unresolvedCompiled = engine.compile(List.of(unresolvedInput));
+            var invalidDescriptorSession = openSession(
+                    composition, unresolvedCompiled, List.of(unresolvedInput));
+            TestPreparedResource descriptorResource =
+                    new TestPreparedResource("invalid-descriptor", null, new ArrayList<>());
+            var descriptorTrial = execution(1, 1, () -> {
+                creations.incrementAndGet();
+                return new TestBuffer("unused", null, new ArrayList<>());
+            }, descriptorResource);
+            assertThrows(IllegalArgumentException.class,
+                    () -> invalidDescriptorSession.captureCorrectnessReference(
+                            descriptorTrial, Long.MAX_VALUE));
+            assertEquals(0, creations.get());
+            assertEquals(1, descriptorResource.closeCount.get());
+            assertTrue(invalidDescriptorSession.canResolveRecoverableTuningFailure());
+            invalidDescriptorSession.close();
+
+            Error cleanupFailure = new AssertionError("invalid-limit cleanup");
+            var poisoned = openSession(composition, compiled, List.of(input));
+            TestPreparedResource failingResource = new TestPreparedResource(
+                    "invalid-limit-failing", cleanupFailure, new ArrayList<>());
+            var failingTrial = execution(1, 1, () -> {
+                creations.incrementAndGet();
+                return new TestBuffer("unused", null, new ArrayList<>());
+            }, failingResource);
+            IllegalArgumentException primary = assertThrows(IllegalArgumentException.class,
+                    () -> poisoned.captureCorrectnessReference(failingTrial, -1));
+            assertArrayEquals(new Throwable[] {cleanupFailure}, primary.getSuppressed());
+            assertEquals(0, creations.get());
+            assertEquals(1, failingResource.closeCount.get());
+            assertFalse(poisoned.canResolveRecoverableTuningFailure());
+            assertSame(cleanupFailure, assertThrows(Error.class, poisoned::close));
+        }
+    }
+
+    @Test
+    void poisonedSessionRejectionsCloseEverySuppliedPreparationWithoutExecution() {
+        RecordingComposition composition = new RecordingComposition();
+        try (Engine engine = engine(composition)) {
+            Tensor input = leaf(1, 2);
+            CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
+            var session = openSession(composition, compiled, List.of(input));
+            IllegalStateException poison = assertThrows(IllegalStateException.class,
+                    () -> session.execute(execution(1, 0, null)));
+            assertTrue(session.isRepresentativeExecutionFailure(poison));
+
+            AtomicInteger creations = new AtomicInteger();
+            var resources = new ArrayList<TestPreparedResource>();
+            var trials = new ArrayList<io.github.pho001.synaptik.runtime.execution.PreparedExecution>();
+            for (String name : List.of("execute-poisoned", "capture-poisoned", "compare-poisoned")) {
+                TestPreparedResource resource =
+                        new TestPreparedResource(name, null, new ArrayList<>());
+                resources.add(resource);
+                trials.add(execution(1, 1, () -> {
+                    creations.incrementAndGet();
+                    return new TestBuffer("unused", null, new ArrayList<>());
+                }, resource));
+            }
+
+            IllegalStateException executeFailure = assertThrows(
+                    IllegalStateException.class, () -> session.execute(trials.get(0)));
+            IllegalStateException captureFailure = assertThrows(IllegalStateException.class,
+                    () -> session.captureCorrectnessReference(trials.get(1), 8));
+            IllegalStateException compareFailure = assertThrows(IllegalStateException.class,
+                    () -> session.compareCorrectness(null, trials.get(2)));
+            for (IllegalStateException failure
+                    : List.of(executeFailure, captureFailure, compareFailure)) {
+                assertEquals("representative execution session is not open", failure.getMessage());
+                assertEquals(0, failure.getSuppressed().length);
+            }
+            assertEquals(0, creations.get());
+            for (int index = 0; index < resources.size(); index++) {
+                assertTrue(trials.get(index).isClosed());
+                assertEquals(1, resources.get(index).closeCount.get());
+            }
+            session.close();
         }
     }
 
@@ -768,6 +1057,8 @@ final class RepresentativeExecutionSessionTest {
             assertSame(compiled, first.preparedExecution().compiledGraph());
             assertEquals(8, tuning.trialPrepareCount.get());
             assertEquals(8, tuning.trialRunCount.get());
+            assertTrue(tuning.trialPreparedResources.stream()
+                    .allMatch(resource -> resource.closeCount.get() == 1));
             assertEquals(8, tuning.trialBuffers.size());
             var distinctTrialBuffers = java.util.Collections.newSetFromMap(
                     new java.util.IdentityHashMap<TestBuffer, Boolean>());
@@ -808,6 +1099,8 @@ final class RepresentativeExecutionSessionTest {
                     complete.winnerIdentity().equals(candidate.identity())));
             assertEquals(10, tuning.completeTrialPrepareCount.get());
             assertEquals(10, tuning.completeTrialRunCount.get());
+            assertTrue(tuning.completeTrialPreparedResources.stream()
+                    .allMatch(resource -> resource.closeCount.get() == 1));
             assertEquals(1, tuning.completeCompatibilityCount.get());
             assertArrayEquals(
                     new byte[] {(byte) tuning.completePhaseOneDecision.candidate()},
@@ -829,6 +1122,12 @@ final class RepresentativeExecutionSessionTest {
             assertEquals(2, tuning.completeCompatibilityCount.get());
             assertNotSame(first.preparedExecution().execution(),
                     second.preparedExecution().execution());
+            assertEquals(0, tuning.selectedPreparedResources.get(0).closeCount.get());
+            assertEquals(0, tuning.selectedPreparedResources.get(1).closeCount.get());
+            first.preparedExecution().close();
+            second.preparedExecution().close();
+            assertTrue(tuning.selectedPreparedResources.stream()
+                    .allMatch(resource -> resource.closeCount.get() == 1));
             assertTrue(java.nio.file.Files.isRegularFile(cache));
         }
     }
@@ -1065,6 +1364,7 @@ final class RepresentativeExecutionSessionTest {
             assertEquals(0, composition.prepareCount.get());
             assertEquals(1, tuning.selectedPrepareCount.get());
             close.get(10, TimeUnit.SECONDS);
+            assertEquals(1, tuning.selectedPreparedResources.getFirst().closeCount.get());
         } finally {
             engine.close();
         }
@@ -1272,6 +1572,14 @@ final class RepresentativeExecutionSessionTest {
             int inputCount,
             int publicationCount,
             PreparedRepresentationPlan.BufferCreator outputCreator) {
+        return execution(inputCount, publicationCount, outputCreator, null);
+    }
+
+    private static io.github.pho001.synaptik.runtime.execution.PreparedExecution execution(
+            int inputCount,
+            int publicationCount,
+            PreparedRepresentationPlan.BufferCreator outputCreator,
+            PreparedResource resource) {
         int bufferCount = inputCount + publicationCount;
         var entries = new ArrayList<PreparedMemoryPlan.BufferEntry>();
         var preparations =
@@ -1293,7 +1601,8 @@ final class RepresentativeExecutionSessionTest {
                     new PreparedPublication(plan, inputCount + index, 0, index)));
         }
         return new io.github.pho001.synaptik.runtime.execution.PreparedExecution(
-                plan, new PreparedSchedule(plan, steps));
+                plan, new PreparedSchedule(plan, steps),
+                resource == null ? List.of() : List.of(resource));
     }
 
     private static void await(CountDownLatch latch) {
@@ -1326,6 +1635,9 @@ final class RepresentativeExecutionSessionTest {
         private final AtomicInteger[] candidateRuns = {
                 new AtomicInteger(), new AtomicInteger()};
         private final List<TestBuffer> trialBuffers = new ArrayList<>();
+        private final List<TestPreparedResource> trialPreparedResources = new ArrayList<>();
+        private final List<TestPreparedResource> completeTrialPreparedResources = new ArrayList<>();
+        private final List<TestPreparedResource> selectedPreparedResources = new ArrayList<>();
         private final AtomicInteger handoffCount = new AtomicInteger();
         private final RecordingComposition observedComposition;
         private int borrowCountAtFirstHandoff = -1;
@@ -1402,6 +1714,9 @@ final class RepresentativeExecutionSessionTest {
             trialPrepareCount.incrementAndGet();
             if (trialPreparationFailure instanceof Exception exception) throw exception;
             rethrow(trialPreparationFailure);
+            TestPreparedResource resource = new TestPreparedResource(
+                    "trial-prepared-" + candidate, null, new ArrayList<>());
+            trialPreparedResources.add(resource);
             lastTrial = execution(1, 1, () -> {
                 trialRunCount.incrementAndGet();
                 candidateRuns[candidate - 1].incrementAndGet();
@@ -1410,7 +1725,7 @@ final class RepresentativeExecutionSessionTest {
                         "trial-" + candidate, null, new ArrayList<>());
                 trialBuffers.add(buffer);
                 return buffer;
-            });
+            }, resource);
             return lastTrial;
         }
 
@@ -1470,12 +1785,15 @@ final class RepresentativeExecutionSessionTest {
                 prepareCompletePlanTrial(SyntheticPlanBatch ignored, Integer candidate) {
             completeTrialPrepareCount.incrementAndGet();
             rethrow(completeTrialPreparationFailure);
+            TestPreparedResource resource = new TestPreparedResource(
+                    "complete-prepared-" + candidate, null, new ArrayList<>());
+            completeTrialPreparedResources.add(resource);
             return execution(1, 1, () -> {
                 completeTrialRunCount.incrementAndGet();
                 rethrow(completeTrialExecutionFailure);
                 return new TestBuffer("complete-" + candidate, null, new ArrayList<>(),
                         completeBytes[candidate - 1]);
-            });
+            }, resource);
         }
 
         @Override
@@ -1486,9 +1804,12 @@ final class RepresentativeExecutionSessionTest {
             if (selectedEntered != null) selectedEntered.countDown();
             if (selectedRelease != null) await(selectedRelease);
             rethrow(selectedPreparationFailure);
+            TestPreparedResource resource = new TestPreparedResource(
+                    "selected-prepared-" + decision.candidate(), null, new ArrayList<>());
+            selectedPreparedResources.add(resource);
             return execution(1, 1,
                     () -> new TestBuffer("selected-" + decision.candidate(), null,
-                            new ArrayList<>()));
+                            new ArrayList<>()), resource);
         }
     }
 
@@ -1598,6 +1919,25 @@ final class RepresentativeExecutionSessionTest {
         @Override
         public void close() {
             if (closeCount.getAndIncrement() != 0) return;
+            closeOrder.add(name);
+            rethrow(failure);
+        }
+    }
+
+    private static final class TestPreparedResource implements PreparedResource {
+        private final String name;
+        private final Throwable failure;
+        private final List<String> closeOrder;
+        private final AtomicInteger closeCount = new AtomicInteger();
+
+        private TestPreparedResource(String name, Throwable failure, List<String> closeOrder) {
+            this.name = name;
+            this.failure = failure;
+            this.closeOrder = closeOrder;
+        }
+
+        @Override public void close() {
+            closeCount.incrementAndGet();
             closeOrder.add(name);
             rethrow(failure);
         }

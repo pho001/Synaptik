@@ -6,9 +6,9 @@ This guide maps current backend extension contracts into the complete planned li
 analysis, slot assignment, backend finalization, immutable physical-representation creation
 callbacks, Runtime cold creation and binding, explicit per-copy validity, and creation/executable
 scheduling plus the prepared/bound buffer-transfer and Runtime-only publication/result contracts
-are current. Runtime's persistent prepared-resource owner and non-waiting close/run lease plus
-Prepare's transactional finalizer-result handoff are also current; Engine prepared-handle closure
-remains planned. The guide therefore separates compilable extension patterns from conceptual
+are current. Runtime's persistent prepared-resource owner and non-waiting close/run lease,
+Prepare's transactional finalizer-result handoff, and Engine prepared-handle closure are current.
+The guide therefore separates compilable extension patterns from conceptual
 integration steps.
 
 ## Prerequisites
@@ -103,9 +103,11 @@ does not replay a failure.
 This contract is for immutable state reused across runs. Per-run buffers and workspaces still
 belong to one `RunState`; backend-global caches, schedule occurrences, and executable references
 must not become alternative owners. A finalizer owns local rollback before successful return;
-shared Prepare owns later rollback and the single successful Runtime transfer. Engine 0010 will
-later close inward owners through ordinary and advanced prepared handles. Metal 0002 remains
-blocked until that Engine task is complete.
+shared Prepare owns later rollback and the single successful Runtime transfer. Complete Engine
+0010 closes inward owners through ordinary and advanced prepared handles:
+published handles close explicitly or during Engine shutdown, and temporary one-shot or tuning
+preparations close after their results. Metal 0002 remains a separate blocked audit/spec frontier;
+this lifecycle prerequisite does not itself implement or advertise a Metal route.
 
 ## Current representation-creation pattern
 

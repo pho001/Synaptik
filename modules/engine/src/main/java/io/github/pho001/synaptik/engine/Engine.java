@@ -23,8 +23,10 @@ import java.util.Objects;
  * requested-output identity; gradient publications retain explicit target identity and position
  * even when roles alias inwardly. A one-shot scalar-objective backward convenience accepts an
  * explicit target list and returns detached objective and target-aligned gradient values without
- * mutating any Tensor. Implicit targets remain outside the current surface. Lifecycle observation and closure
- * are thread-safe and inherit the owned lifecycle's idempotent, failure-retaining semantics.</p>
+ * mutating any Tensor. Implicit targets remain outside the current surface. Prepared handles are
+ * explicit closeable outward owners; Engine closure is the final safety boundary for handles a
+ * caller leaves open. Lifecycle observation and closure are thread-safe and inherit the owned
+ * lifecycle's idempotent, failure-retaining semantics.</p>
  */
 public final class Engine implements AutoCloseable {
     private final AdvancedEngine delegate;
@@ -74,6 +76,10 @@ public final class Engine implements AutoCloseable {
         this.delegate = Objects.requireNonNull(delegate, "delegate");
     }
 
+    AdvancedEngine lifecycleOwner() {
+        return delegate;
+    }
+
     /**
      * Compiles one non-empty identity-unique ordered forward boundary with standard settings.
      *
@@ -118,8 +124,12 @@ public final class Engine implements AutoCloseable {
      * Current CPU preparation requires one non-empty maximal CPU partition and may therefore
      * reject an artifact that compiled successfully.
      *
+     * <p>The returned handle owns the exact inward Runtime preparation and must be closed when
+     * reuse ends, preferably with try-with-resources. Closing this Engine closes any retained
+     * handle the caller leaves open, after all retained results and before backend composition.</p>
+     *
      * @param compiledGraph non-null owner-bound compile handle from this Engine
-     * @return a fresh non-null immutable reusable prepared handle
+     * @return a fresh non-null immutable reusable closeable prepared handle owned by this Engine
      * @throws NullPointerException if {@code compiledGraph} is {@code null}
      * @throws IllegalArgumentException if ownership or inward preparation is invalid
      * @throws IllegalStateException if closure has begun
@@ -140,11 +150,15 @@ public final class Engine implements AutoCloseable {
      * winner and cleaning representative resources, Engine freshly prepares only that winner;
      * no trial preparation becomes production state. When the request explicitly allows safe
      * fallback, a recoverable tuning failure instead produces one fresh ordinary heuristic
-     * preparation and reports the fallback outcome without tuning evidence.</p>
+     * preparation and reports the fallback outcome without tuning evidence. Every trial result
+     * closes before its temporary preparation; the returned preparation contains the sole
+     * closeable production owner.</p>
      *
      * @param compiledGraph non-null compile handle created by this exact Engine
      * @param request non-null configuration, identity, and live representative inputs
-     * @return a complete non-null preparation and its immutable outcome metadata
+     * @return a complete non-null preparation whose {@link
+     *     ModelAutotuningPreparation#preparedExecution()} is the sole closeable production owner,
+     *     plus immutable outcome metadata
      * @throws NullPointerException if an argument or required request value is null
      * @throws IllegalArgumentException if ownership, representative binding, or tuning evidence
      *     is invalid
@@ -161,7 +175,10 @@ public final class Engine implements AutoCloseable {
      * Runs one prepared recipe using current caller-owned host associations matched by Tensor ID.
      *
      * <p>The input list may use any order. Associations are snapshotted once after complete
-     * logical validation; caller storage must remain usable until the returned result closes.</p>
+     * logical validation; caller storage must remain usable until the returned result closes.
+     * A handle whose close has begun rejects the run. A run already admitted by Runtime may
+     * complete while handle close returns without waiting; its lease performs any deferred
+     * persistent-resource cleanup.</p>
      *
      * @param preparedExecution non-null prepared handle created by this exact Engine
      * @param inputs non-null list supplying every required logical Tensor exactly once
@@ -383,8 +400,10 @@ public final class Engine implements AutoCloseable {
 
     /**
      * Closes the owned composition through its concurrent, idempotent lifecycle protocol.
-     * Repeated and concurrent callers wait for the first cleanup attempt and observe its exact
-     * retained failure, if any.
+     * The first close rejects new work, waits for admitted Engine operations, then attempts all
+     * retained results in reverse run-publication order, all retained prepared handles in reverse
+     * prepare-publication order, and the backend composition. Repeated and concurrent callers
+     * wait for that attempt and observe its exact retained first failure, if any.
      *
      * @throws RuntimeException if owned cleanup reports an unchecked failure
      * @throws Error if owned cleanup reports a fatal failure

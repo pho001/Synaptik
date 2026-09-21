@@ -32,6 +32,7 @@ import io.github.pho001.synaptik.runtime.memory.BufferSlot;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan;
+import io.github.pho001.synaptik.runtime.resource.PreparedResource;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan.CreatedBuffer;
 import io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation;
 import io.github.pho001.synaptik.runtime.run.RunState;
@@ -44,6 +45,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 
 /** Exercises the package-private composition seam and Engine lifecycle gate. */
@@ -190,6 +193,177 @@ final class AdvancedEngineLifecycleTest {
         assertSame(observed, assertThrows(Error.class, engine::close));
     }
 
+    @Test
+    void preparedCloseIsExactOnceRetainsFailureAndUnregisters() throws Exception {
+        RuntimeException expected = new RuntimeException("prepared");
+        TestPreparedResource resource = new TestPreparedResource(expected, new ArrayList<>(), "prepared");
+        RecordingComposition composition = new RecordingComposition(
+                () -> resourceExecution(resource));
+        AdvancedEngine engine = new AdvancedEngine(composition);
+        AdvancedPreparedExecution prepared = engine.prepare(compile(engine, leaf().neg()));
+
+        try (var executor = Executors.newFixedThreadPool(3)) {
+            var first = executor.submit(() -> { prepared.close(); return null; });
+            var second = executor.submit(() -> { prepared.close(); return null; });
+            for (var future : List.of(first, second)) {
+                var failure = assertThrows(java.util.concurrent.ExecutionException.class,
+                        () -> future.get(10, TimeUnit.SECONDS));
+                assertSame(expected, failure.getCause());
+            }
+        }
+        assertTrue(prepared.isClosed());
+        assertEquals(1, resource.closeCount.get());
+        engine.close();
+        assertEquals(1, resource.closeCount.get());
+    }
+
+    @Test
+    void engineClosesResultsThenPreparationsInReversePublicationOrderThenComposition() {
+        List<String> order = new ArrayList<>();
+        AtomicInteger preparationIndex = new AtomicInteger();
+        RecordingComposition composition = new RecordingComposition(() -> {
+            int index = preparationIndex.incrementAndGet();
+            return resourceAndCreatedBufferExecution(
+                    new TestPreparedResource(null, order, "prepared-" + index),
+                    () -> new TestBuffer(null, order, "result-" + index));
+        });
+        composition.closeOrder = order;
+        AdvancedEngine engine = new AdvancedEngine(composition);
+        AdvancedCompiledGraph compiled = compile(engine, leaf().neg());
+        AdvancedPreparedExecution first = engine.prepare(compiled);
+        AdvancedPreparedExecution second = engine.prepare(compiled);
+        engine.run(first, List.of());
+        engine.run(second, List.of());
+
+        engine.close();
+
+        assertEquals(List.of("result-2", "result-1", "prepared-2", "prepared-1", "backend"),
+                order);
+        assertTrue(first.isClosed());
+        assertTrue(second.isClosed());
+    }
+
+    @Test
+    void closeRacingPreparedPublicationRollsBackTheUnpublishedExecution() throws Exception {
+        CountDownLatch prepared = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        TestPreparedResource resource = new TestPreparedResource(null, new ArrayList<>(), "prepared");
+        RecordingComposition composition = new RecordingComposition(() -> {
+            prepared.countDown();
+            try {
+                assertTrue(release.await(10, TimeUnit.SECONDS));
+            } catch (InterruptedException failure) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(failure);
+            }
+            return resourceExecution(resource);
+        });
+        AdvancedEngine engine = new AdvancedEngine(composition);
+        AdvancedCompiledGraph compiled = compile(engine, leaf().neg());
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var preparation = executor.submit(() -> engine.prepare(compiled));
+            assertTrue(prepared.await(10, TimeUnit.SECONDS));
+            var close = executor.submit(() -> { engine.close(); return null; });
+            while (!engine.isClosed()) Thread.onSpinWait();
+            release.countDown();
+            var failure = assertThrows(java.util.concurrent.ExecutionException.class,
+                    () -> preparation.get(10, TimeUnit.SECONDS));
+            assertEquals("advanced engine is closed", failure.getCause().getMessage());
+            close.get(10, TimeUnit.SECONDS);
+        }
+        assertEquals(1, resource.closeCount.get());
+    }
+
+    @Test
+    void directPreparedCloseDelegatesRunRaceToRuntimeLease() throws Exception {
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        TestPreparedResource resource = new TestPreparedResource(null, new ArrayList<>(), "prepared");
+        RecordingComposition composition = new RecordingComposition(
+                blockingExecution(entered, release,
+                        new TestBuffer(null, new ArrayList<>(), "result"), resource));
+        AdvancedEngine engine = new AdvancedEngine(composition);
+        AdvancedPreparedExecution prepared = engine.prepare(compile(engine, leaf().neg()));
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var run = executor.submit(() -> engine.run(prepared, List.of()));
+            assertTrue(entered.await(10, TimeUnit.SECONDS));
+            var close = executor.submit(() -> { prepared.close(); return null; });
+            close.get(10, TimeUnit.SECONDS);
+            assertEquals(0, resource.closeCount.get());
+            release.countDown();
+            run.get(10, TimeUnit.SECONDS).close();
+        }
+        assertEquals(1, resource.closeCount.get());
+        assertEquals("prepared execution is closed",
+                assertThrows(IllegalStateException.class,
+                        () -> engine.run(prepared, List.of())).getMessage());
+        engine.close();
+    }
+
+    @Test
+    void directPreparedCloseWinningOutwardBoundaryRejectsConcurrentRun() throws Exception {
+        TestPreparedResource resource =
+                new TestPreparedResource(null, new ArrayList<>(), "prepared");
+        RecordingComposition composition = new RecordingComposition(
+                () -> resourceExecution(resource));
+        AdvancedEngine engine = new AdvancedEngine(composition);
+        AdvancedPreparedExecution prepared = engine.prepare(compile(engine, leaf().neg()));
+        PreparedExecution inward = prepared.execution();
+        AtomicReference<Throwable> closeFailure = new AtomicReference<>();
+        AtomicReference<Throwable> runFailure = new AtomicReference<>();
+
+        Thread closeThread;
+        Thread runThread;
+        synchronized (inward) {
+            closeThread = Thread.ofPlatform().start(() -> {
+                try {
+                    prepared.close();
+                } catch (Throwable failure) {
+                    closeFailure.set(failure);
+                }
+            });
+            awaitBlocked(closeThread);
+
+            runThread = Thread.ofPlatform().start(() -> {
+                try {
+                    engine.run(prepared, List.of());
+                } catch (Throwable failure) {
+                    runFailure.set(failure);
+                }
+            });
+            awaitBlocked(runThread);
+            assertEquals(0, resource.closeCount.get());
+        }
+
+        closeThread.join(10_000);
+        runThread.join(10_000);
+        assertFalse(closeThread.isAlive());
+        assertFalse(runThread.isAlive());
+        assertSame(null, closeFailure.get());
+        IllegalStateException rejected =
+                (IllegalStateException) runFailure.get();
+        assertEquals("prepared execution is closed", rejected.getMessage());
+        assertTrue(prepared.isClosed());
+        assertTrue(inward.isClosed());
+        assertEquals(1, resource.closeCount.get());
+        engine.close();
+        assertEquals(1, resource.closeCount.get());
+    }
+
+    private static void awaitBlocked(Thread thread) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (thread.getState() != Thread.State.BLOCKED) {
+            if (!thread.isAlive()) {
+                throw new AssertionError("thread terminated before reaching blocked state");
+            }
+            if (System.nanoTime() >= deadline) {
+                throw new AssertionError("timed out waiting for blocked thread state");
+            }
+            Thread.onSpinWait();
+        }
+    }
+
     private static AdvancedCompiledGraph compile(AdvancedEngine engine, Tensor output) {
         return engine.compile(CompileMode.FORWARD_ONLY, List.of(output), Optional.empty(),
                 GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(),
@@ -207,6 +381,22 @@ final class AdvancedEngineLifecycleTest {
         return new PreparedExecution(plan, new PreparedSchedule(plan, List.of()));
     }
 
+    private static PreparedExecution resourceExecution(PreparedResource resource) {
+        PreparedMemoryPlan plan = new PreparedMemoryPlan(List.of(), List.of());
+        return new PreparedExecution(plan, new PreparedSchedule(plan, List.of()), List.of(resource));
+    }
+
+    private static PreparedExecution resourceAndCreatedBufferExecution(
+            PreparedResource resource, PreparedRepresentationPlan.BufferCreator supplier) {
+        PreparedMemoryPlan plan = new PreparedMemoryPlan(List.of(
+                new PreparedMemoryPlan.BufferEntry(new BufferSlot(0), 4, 4)), List.of());
+        var creation = new PreparedRepresentationPlan(plan,
+                List.of(List.of(new CreatedBuffer(supplier))), List.of());
+        return new PreparedExecution(plan, new PreparedSchedule(plan,
+                List.of(new PreparedSchedule.RepresentationCreationStep(creation))),
+                List.of(resource));
+    }
+
     private static PreparedExecution createdBufferExecution(
             PreparedRepresentationPlan.BufferCreator supplier) {
         PreparedMemoryPlan plan = new PreparedMemoryPlan(List.of(
@@ -219,6 +409,11 @@ final class AdvancedEngineLifecycleTest {
 
     private static PreparedExecution blockingExecution(CountDownLatch entered,
             CountDownLatch release, BufferRepresentation owned) {
+        return blockingExecution(entered, release, owned, null);
+    }
+
+    private static PreparedExecution blockingExecution(CountDownLatch entered,
+            CountDownLatch release, BufferRepresentation owned, PreparedResource resource) {
         PreparedMemoryPlan plan = new PreparedMemoryPlan(List.of(
                 new PreparedMemoryPlan.BufferEntry(new BufferSlot(0), 4, 4)), List.of());
         var creation = new PreparedRepresentationPlan(plan,
@@ -226,11 +421,12 @@ final class AdvancedEngineLifecycleTest {
         PreparedExecutable executable = new BlockingExecutable(plan, entered, release);
         return new PreparedExecution(plan, new PreparedSchedule(plan, List.of(
                 new PreparedSchedule.RepresentationCreationStep(creation),
-                new PreparedSchedule.ExecutionStep(executable))));
+                new PreparedSchedule.ExecutionStep(executable))),
+                resource == null ? List.of() : List.of(resource));
     }
 
     private static final class RecordingComposition implements EngineBackendComposition {
-        private final PreparedExecution execution;
+        private final Supplier<PreparedExecution> execution;
         private final AtomicInteger supportCount = new AtomicInteger();
         private final AtomicInteger prepareCount = new AtomicInteger();
         private final AtomicInteger closeCount = new AtomicInteger();
@@ -238,7 +434,10 @@ final class AdvancedEngineLifecycleTest {
         private Throwable closeFailure;
         private List<String> closeOrder;
 
-        private RecordingComposition(PreparedExecution execution) { this.execution = execution; }
+        private RecordingComposition(PreparedExecution execution) { this(() -> execution); }
+        private RecordingComposition(Supplier<PreparedExecution> execution) {
+            this.execution = execution;
+        }
 
         @Override public List<BackendCapabilityProvider> capabilityProviders() {
             return List.of(new BackendCapabilityProvider() {
@@ -256,7 +455,7 @@ final class AdvancedEngineLifecycleTest {
         }
         @Override public PreparedExecution prepare(CompileArtifacts artifacts) {
             prepareCount.incrementAndGet();
-            return execution;
+            return execution.get();
         }
         @Override public BufferRepresentation borrow(HostTensorStorage storage) {
             throw new AssertionError("unexpected borrow");
@@ -272,6 +471,26 @@ final class AdvancedEngineLifecycleTest {
             if (closeOrder != null) closeOrder.add("backend");
             if (closeFailure instanceof RuntimeException runtime) throw runtime;
             if (closeFailure instanceof Error error) throw error;
+        }
+    }
+
+    private static final class TestPreparedResource implements PreparedResource {
+        private final Throwable failure;
+        private final List<String> order;
+        private final String name;
+        private final AtomicInteger closeCount = new AtomicInteger();
+
+        private TestPreparedResource(Throwable failure, List<String> order, String name) {
+            this.failure = failure;
+            this.order = order;
+            this.name = name;
+        }
+
+        @Override public void close() {
+            closeCount.incrementAndGet();
+            order.add(name);
+            if (failure instanceof RuntimeException runtime) throw runtime;
+            if (failure instanceof Error error) throw error;
         }
     }
 

@@ -32,6 +32,7 @@ final class EngineTypedPublicShapeTest {
             assertTrue(Modifier.isFinal(type.getModifiers()));
         }
         assertTrue(CompiledGraph.Input.class.isRecord());
+        assertTrue(AutoCloseable.class.isAssignableFrom(PreparedExecution.class));
         assertTrue(Modifier.isPublic(CompiledGraph.Input.class.getModifiers()));
         assertTrue(Modifier.isStatic(CompiledGraph.Input.class.getModifiers()));
         assertEquals(List.of(TensorId.class, TensorDescriptor.class), Arrays.stream(
@@ -42,7 +43,8 @@ final class EngineTypedPublicShapeTest {
                 "compute", "compute", "isClosed", "prepare", "prepareTuned", "run", "standard"),
                 methodNames(Engine.class));
         assertEquals(List.of("inputs"), methodNames(CompiledGraph.class));
-        assertEquals(List.of("compiledGraph"), methodNames(PreparedExecution.class));
+        assertEquals(List.of("close", "compiledGraph", "isClosed"),
+                methodNames(PreparedExecution.class));
         assertEquals(List.of("close", "isClosed", "materialize", "publications", "resultCount"),
                 methodNames(RunResult.class));
         assertEquals(List.of("byteSize", "bytes", "dataType", "elementCount", "shape"),
@@ -122,7 +124,7 @@ final class EngineTypedPublicShapeTest {
                     .forEach(field -> assertOrdinary(field.toGenericString()));
         }
         assertFalse(AutoCloseable.class.isAssignableFrom(CompiledGraph.class));
-        assertFalse(AutoCloseable.class.isAssignableFrom(PreparedExecution.class));
+        assertTrue(AutoCloseable.class.isAssignableFrom(PreparedExecution.class));
         assertFalse(AutoCloseable.class.isAssignableFrom(HostTensorValue.class));
         assertFalse(AutoCloseable.class.isAssignableFrom(ScalarObjectiveBackwardResult.class));
         assertEquals(List.of("config", "modelIdentity", "representativeInputs"),

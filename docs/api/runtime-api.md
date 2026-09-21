@@ -90,7 +90,7 @@ whose `inputs()` list reports the final caller-bindable `TensorId` and descripto
 `prepare(...)` accepts only a handle from the same exact Engine and returns a fresh immutable
 `io.github.pho001.synaptik.engine.PreparedExecution`. That Engine facade must not be confused with
 the inward Runtime recipe of the same simple name; its sole public accessor returns the exact
-originating `CompiledGraph`.
+originating `CompiledGraph`. It is also the closeable outward owner of that one inward recipe.
 
 `run(...)` accepts every required logical Tensor exactly once in arbitrary caller order. It
 matches `Tensor.id()` by value equality, verifies the complete descriptor, then reads each
@@ -113,9 +113,16 @@ exact occurrence object to `materialize(publication, maximumBytes)` and receives
 `HostTensorValue`.
 
 Closing the result releases its inward Runtime lease and Engine-created wrappers but never caller
-storage. Closing the Engine closes any still-open results in reverse successful-run order before
-its CPU integration. Immutable result metadata and any completed detached host value remain
-readable after closure. Closing one
+storage. Closing a prepared handle rejects later run admission without closing an already returned
+result. Delegate retrieval is synchronized with the inward close transition but does not itself
+admit a run or hold the wrapper monitor over execution; Runtime's unique lease authority decides
+that later race. Once outward `isClosed()` is observable as true, inward close has transitioned
+and no later delegate retrieval can admit work. An already leased run may finish after handle
+close and performs any deferred inward resource cleanup when its lease releases. Closing the
+Engine waits for admitted operations, then
+closes any still-open results in reverse successful-run order, retained prepared handles in
+reverse prepare-publication order, and its CPU integration. Immutable result metadata and any
+completed detached host value remain readable after closure. Closing one
 standard Engine does not affect another, and repeated or concurrent close calls share the
 delegated exactly-once cleanup result.
 
@@ -174,8 +181,8 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
     Tensor rightOutput = right.contiguous();
 
     CompiledGraph graph = engine.compile(List.of(leftOutput, rightOutput));
-    var prepared = engine.prepare(graph);
-    try (RunResult result = engine.run(prepared, List.of(right, left))) {
+    try (var prepared = engine.prepare(graph);
+            RunResult result = engine.run(prepared, List.of(right, left))) {
         assert graph.inputs().stream().map(CompiledGraph.Input::tensorId).toList()
                 .equals(List.of(left.id(), right.id()));
         assert result.publications().stream()
@@ -215,8 +222,8 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
             List.of(leftOutput, rightOutput),
             List.of(seed, seed),
             List.of(left, right));
-    var prepared = engine.prepare(graph);
-    try (RunResult result = engine.run(prepared, List.of(seedLeaf, right, left))) {
+    try (var prepared = engine.prepare(graph);
+            RunResult result = engine.run(prepared, List.of(seedLeaf, right, left))) {
         assert result.publications().stream().map(RunResult.Publication::role).toList()
                 .equals(List.of(
                         RunResult.Role.FORWARD,
@@ -286,9 +293,9 @@ request policies stay on the existing ordinary or advanced lower-level lifecycle
 `AdvancedEngine.prepare(...)` accepts only an `AdvancedCompiledGraph` created by that exact open
 Engine. The CPU-only composition requires exactly one non-empty maximal partition owned by its
 CPU backend; zero-node, mixed-owner, and multiple-partition artifacts fail closed. On success it
-returns an opaque, immutable `AdvancedPreparedExecution` bound to the same owner. The handle owns
-no separately closeable resource and may be shared across concurrent runs because each run
-creates its own `RunState`.
+returns an opaque, immutable, closeable `AdvancedPreparedExecution` bound to the same owner. The
+handle owns exactly one inward Runtime prepared execution and may be shared across concurrent runs
+because each run creates its own `RunState`.
 
 `AdvancedEngine.run(...)` accepts the prepared handle and an ordered list of already-created
 `BufferRepresentation` inputs. `AdvancedEngine.borrow(...)` creates the supported non-owning CPU
@@ -300,9 +307,13 @@ admitted run performs the current synchronous Runtime lifecycle and returns `Adv
 The result exclusively owns its completed `RunState` until its idempotent close completes. The
 Engine also tracks open results. Once Engine closure begins, a newly attempted prepare or run
 fails with `IllegalStateException("advanced engine is closed")` before null, owner, or inward
-validation. Engine close waits for admitted work, closes remaining results in reverse run order,
-and finally closes the exact CPU integration it took into ownership. Handles cease to be usable
-after their owner closes. This path does not provide typed logical binding, typed publication
+validation. Explicit handle close rejects later runs but does not close an already returned
+result. The wrapper synchronizes delegate retrieval with Runtime's close transition, releases its
+monitor before a complete run, and adds no second lease or waiting protocol. Runtime leases decide
+any later close/run race. Engine close waits for admitted work, closes remaining results in reverse run order,
+retained preparations in reverse publication order, and finally the exact CPU integration it took
+into ownership. Handles cease to be usable after their owner closes. This path does not provide
+typed logical binding, typed publication
 metadata or materialized results, backend discovery, mixed-backend transfers, public one-shot
 execution, tuning, or ordinary backward convenience. Ordinary Engine privately uses the same
 lifecycle admission for its one-shot compute convenience without adding an advanced method.
@@ -1127,10 +1138,12 @@ unchanged. It receives no finalizer assignment because no partition owns it. No 
 interference, aliasing, or reuse model is inferred.
 
 Every typed finalization is constructed before any backend is invoked. Finalizers then run once
-in partition order, and each returned executable must be non-null and retain the exact shared
-plan object. Finalization may construct immutable Java recipe state only under the current
-contract. It does not allocate physical resources, acquire a closeable prepared resource, create
-a `RunState`, bind or execute an invocation, or create a schedule.
+in partition order, and each returned finalization result must contain a non-null executable that
+retains the exact shared plan object. Finalization may construct immutable reusable recipe state
+and acquire identity-unique persistent prepared resources. The backend rolls those resources back
+if finalization cannot return successfully; after return, Prepare owns rollback until the complete
+acquisition-ordered resource list transfers exactly once to Runtime's `PreparedExecution`.
+Finalization does not create a `RunState`, bind or execute an invocation, or create a schedule.
 
 The complete-set operation and its batch result remain package-private behind
 `GraphPreparation`. The assembler returns a reusable recipe only. Prepare validates exact plan
@@ -1164,9 +1177,10 @@ Public Prepare orchestration now passes the acquisition-ordered, identity-unique
 successful backend finalization results to the three-argument constructor. Until that constructor
 succeeds, shared Prepare rolls the resources back after any later finalizer, association,
 schedule-assembly, schedule-validation, or aggregate-construction failure. CPU finalization
-returns the existing executable with an empty resource list. Engine 0010 remains planned and will
-make ordinary and advanced prepared handles close their inward owners; that missing outward
-ownership does not weaken the current Runtime or Prepare contracts.
+returns the existing executable with an empty resource list. Ordinary and advanced Engine
+prepared handles now each own and close one such inward owner. Temporary one-shot and
+representative preparations close lexically after their results, while published handles are
+retained for explicit close or Engine shutdown.
 
 ## Current prepared runner
 

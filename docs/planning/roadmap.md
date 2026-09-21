@@ -24,8 +24,8 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through 0006 | Runtime 0016 and ADR 0013 define the persistent prepared-resource owner and transactional handoff. | Prepare 0006 atomically receives executable plus resources, rolls successful finalizations back on every later failure, and transfers ownership once to `PreparedExecution`. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Complete baseline; optional provider 0004 Blocked/deferred | Native interop conventions needed by the provider are decided. | Required FLOAT32/FLOAT64 remains complete; the optional direct BFLOAT16-output capability stays fail-closed until both proof gaps are resolved. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through 0010J | Complete CPU 0010E–0010I, Prepare 0004, and tools/tuning 0001 establish the current local-candidate, lifecycle, opaque-handoff, and tuning-consumer seams. | CPU 0010J supplies the bounded session-scoped producer over retained 0008D/0008E alternatives with exact Phase-1 selection reuse; no additional CPU fingerprint prerequisite is required before tuning 0002. |
-| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0009; 0010 Draft next frontier | Runtime 0016 and Prepare 0006 complete the inward owner and transactional handoff prerequisites. | Engine 0010 gives ordinary and advanced prepared handles deterministic inward ownership and cleanup. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0001; 0002 Blocked | Blocked on Draft Engine 0010 completing outward prepared-handle ownership after Runtime 0016 and Prepare 0006. | Complete Engine ownership before detailing the first MPSGraph route. |
+| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0010 | Runtime 0016 and Prepare 0006 complete the inward owner and transactional handoff prerequisites. | Engine 0010 closes the outward prepared-handle lifecycle and temporary preparation paths. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0001; 0002 Blocked | Runtime 0016, Prepare 0006, and Engine 0010 satisfy the lifecycle prerequisites; a fresh Metal audit must select the bounded route specification. | Audit and detail the first truthful MPSGraph route separately. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | CUDA passes the applicable backend-conformance suite. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | The model representation and public tensor semantics are stable. | Selected import/export mappings and compatibility validation are complete. |
 | 15 | [`extensions/data`](extensions/data/master-plan.md) | Draft (architecture decision required) | An explicit architecture/module/dependency decision authorizes the new extension after its Model Tensor prerequisites are stable. | Canonical valid-length metadata, right-padded sequence batches, and selected focused numeric sample/sequence batchers are complete. |
@@ -251,8 +251,9 @@ representative session could not compare publications. Complete
 [Engine 0008A](modules/engine/tasks/0008a-representative-complete-plan-correctness-oracle.md)
 is the smallest owning prerequisite and now supplies that exact package-private seam. The
 completed fresh post-0008A audit created the tools-only 0002 specification; task 0002 is now
-Complete. Config 0006B and detailed Engine 0009 are also Complete; no later Engine task is Ready
-or detailed.
+Complete. Config 0006B and detailed Engine 0009 are Complete. Detailed Engine 0010 is Complete
+after corrected executable lifecycle arbitration and its fresh documentation-focused pass; its
+prepared-handle work does not alter the completed tuning sequence.
 
 The Engine 0001 seam audit found a bounded actionable foundation, not a mixed-backend composition
 contract. `GraphPreparation` accepts one complete schedule assembler, and the only supported
@@ -590,14 +591,18 @@ The smallest ordered prerequisite chain is:
 ```text
 Runtime 0016 persistent prepared-resource lifecycle (Complete; detailed)
   -> Prepare 0006 persistent prepared-resource finalization transaction (Complete; detailed)
-  -> Engine 0010 prepared-handle ownership and closure (Draft; next frontier)
+  -> Engine 0010 prepared-handle ownership and closure (Complete)
   -> Metal 0002 MPSGraph prepared execution route (Blocked; no detailed spec)
 ```
 
-Runtime 0016 and Prepare 0006 are Complete and detailed. Engine 0010 is now the next frontier but
-remains a concise Draft row without a task file. Metal remains blocked until Engine 0010 is
-Complete. Task 0001 and the blocking audit add no generic backend registry, mixed-owner Engine
-contract, per-run graph compilation, or hidden backend-global ownership.
+Runtime 0016, Prepare 0006, and detailed
+[Engine 0010 prepared-handle ownership and closure](modules/engine/tasks/0010-prepared-handle-ownership-and-closure.md)
+are Complete. Engine 0010 closes the complete ordinary, advanced, one-shot, representative,
+tuning, fallback, failed-publication, and retained-preparation lifecycle without changing Runtime
+or Prepare ownership. Metal 0002 remains Blocked only until a fresh Metal audit selects and
+details its truthful bounded route; that audit/specification is separate from this task. Task
+0001 and the blocking audit add no generic backend registry, mixed-owner Engine contract, per-run
+graph compilation, or hidden backend-global ownership.
 
 Detailed
 [Model 0025I NCW max/average Pool1d composition](modules/model/tasks/0025i-ncw-max-average-pool1d-composition.md)
@@ -2256,8 +2261,10 @@ under the recorded exception around unrelated Draft NN 0021B–0024; detailed
 is also `Complete`. CPU 0010J, Engine 0008A, the fresh audit, and tools/tuning 0002–0003 are
 Complete. Config 0006B is Complete, and detailed
 [Engine 0009](modules/engine/tasks/0009-public-complete-plan-autotuning-composition.md) is
-Complete; no later Engine task is Ready or detailed, and Compiler 0006C and NN 0021B–0024 remain
-Draft.
+Complete. Detailed
+[Engine 0010](modules/engine/tasks/0010-prepared-handle-ownership-and-closure.md) is
+`Complete`; no task after 0010 is Ready or detailed, and Compiler 0006C and NN
+0021B–0024 remain Draft.
 Family tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator
 (RNG) state, mask, and configuration roles remain intentionally non-differentiable where

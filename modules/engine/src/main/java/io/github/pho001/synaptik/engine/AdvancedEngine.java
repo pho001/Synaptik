@@ -48,7 +48,8 @@ import io.github.pho001.synaptik.tools.tuning.WorkloadTuningResult;
  * adapter and admits synchronous operations through a cold lifecycle gate. Compilation produces
  * an opaque owner-bound handle, preparation produces an opaque reusable owner-bound handle, and
  * each run creates isolated mutable Runtime state behind a lifecycle-only result. Engine closure
- * closes successful open results in reverse run order before closing the adapter. Caller storage
+ * closes successful open results in reverse run order, retained prepared handles in reverse
+ * publication order, and then the adapter. Caller storage
  * and advanced caller-created borrowed input representations remain caller-owned. Ordinary runs
  * reuse this lifecycle owner privately but transfer cleanup of their Engine-created non-owning
  * wrappers to the registered result; the wrapped storage never transfers.</p>
@@ -80,6 +81,7 @@ public final class AdvancedEngine implements AutoCloseable {
     private final ModelAutotuningTuning<?, ?, ?, ?, ?, ?> tuningOverride;
     private final PreparedExecutionRunner runner = new PreparedExecutionRunner();
     private final ArrayList<AdvancedRunResult> openResults = new ArrayList<>();
+    private final ArrayList<AutoCloseable> openPreparations = new ArrayList<>();
     private Lifecycle lifecycle = Lifecycle.OPEN;
     private int activeOperations;
     private Throwable closeFailure;
@@ -263,7 +265,7 @@ public final class AdvancedEngine implements AutoCloseable {
      *
      * @param compiledGraph non-null opaque handle created by this exact Engine
      * @return a new non-null opaque immutable reusable handle consumable only by this exact
-     *     Engine and safe to share across concurrent runs
+     *     Engine, safe to share across concurrent runs, and closeable when reuse ends
      * @throws NullPointerException if {@code compiledGraph} is null
      * @throws IllegalArgumentException if the handle belongs to another Engine or CPU/Prepare
      *     rejects zero, empty, mixed, multiple, or otherwise invalid partitions
@@ -273,17 +275,20 @@ public final class AdvancedEngine implements AutoCloseable {
      */
     public AdvancedPreparedExecution prepare(AdvancedCompiledGraph compiledGraph) {
         beginOperation();
+        io.github.pho001.synaptik.runtime.execution.PreparedExecution inward = null;
         AdvancedPreparedExecution result;
         try {
             Objects.requireNonNull(compiledGraph, "compiledGraph");
             requireOwner(compiledGraph.owner());
-            result = new AdvancedPreparedExecution(
-                    this, composition.prepare(compiledGraph.artifacts()));
+            inward = composition.prepare(compiledGraph.artifacts());
+            result = new AdvancedPreparedExecution(this, inward);
+            inward = null;
         } catch (RuntimeException | Error failure) {
+            if (inward != null) closeWithSuppression(inward, failure);
             finishFailure();
             throw failure;
         }
-        return finishHandle(result);
+        return finishPreparedHandle(result);
     }
 
     /**
@@ -336,7 +341,8 @@ public final class AdvancedEngine implements AutoCloseable {
      * The caller-input list is validated but not retained or mutated by Engine; each successful
      * call creates isolated mutable Runtime state behind the returned result.
      * A call begun after closure first fails the lifecycle gate, before argument, owner, or inward
-     * Runtime validation.
+     * Runtime validation. Closing the handle before Runtime lease admission rejects the run;
+     * closing it after admission does not wait and lets that run complete under Runtime's lease.
      *
      * @param preparedExecution non-null prepared handle created by this exact Engine
      * @param callerInputs non-null dense ordered caller-owned representations in the prepared
@@ -461,7 +467,7 @@ public final class AdvancedEngine implements AutoCloseable {
             finishFailure();
             throw failure;
         }
-        return finishHandle(result);
+        return finishPreparedHandle(result);
     }
 
     io.github.pho001.synaptik.engine.RunResult runOrdinary(
@@ -550,13 +556,26 @@ public final class AdvancedEngine implements AutoCloseable {
     io.github.pho001.synaptik.runtime.execution.PreparedExecution
             finishRepresentativePreparation(
                     io.github.pho001.synaptik.runtime.execution.PreparedExecution execution) {
-        return finishHandle(execution);
+        Objects.requireNonNull(execution, "execution");
+        synchronized (lifecycleLock) {
+            if (lifecycle == Lifecycle.OPEN) {
+                activeOperations--;
+                lifecycleLock.notifyAll();
+                return execution;
+            }
+        }
+        IllegalStateException closed = closedFailure();
+        closeWithSuppression(execution, closed);
+        finishFailure();
+        throw closed;
     }
 
     /** Publishes a complete public autotuning result through one retained admission. */
     ModelAutotuningPreparation finishRepresentativePreparation(
             ModelAutotuningPreparation preparation) {
-        return finishHandle(preparation);
+        Objects.requireNonNull(preparation, "preparation");
+        finishPreparedHandle(preparation.preparedExecution());
+        return preparation;
     }
 
     /**
@@ -722,12 +741,21 @@ public final class AdvancedEngine implements AutoCloseable {
             var inward = tuning.prepareCompletePlanSelected(
                     completeSelected.candidateBatch(),
                     completeSelected.selectedDecision().orElseThrow());
-            ModelAutotuningPreparation.Evidence evidence = translateEvidence(
-                    result.evidence(), completeResult, config, modelIdentity, context);
-            var prepared = new io.github.pho001.synaptik.engine.PreparedExecution(
-                    owner, compiledGraph, inward);
-            var publicResult = new ModelAutotuningPreparation(
-                    prepared, ModelAutotuningPreparation.Outcome.TUNED, Optional.of(evidence));
+            io.github.pho001.synaptik.engine.PreparedExecution prepared = null;
+            ModelAutotuningPreparation publicResult;
+            try {
+                ModelAutotuningPreparation.Evidence evidence = translateEvidence(
+                        result.evidence(), completeResult, config, modelIdentity, context);
+                prepared = new io.github.pho001.synaptik.engine.PreparedExecution(
+                        owner, compiledGraph, inward);
+                inward = null;
+                publicResult = new ModelAutotuningPreparation(
+                        prepared, ModelAutotuningPreparation.Outcome.TUNED, Optional.of(evidence));
+            } catch (RuntimeException | Error failure) {
+                if (prepared != null) closeWithSuppression(prepared, failure);
+                else if (inward != null) closeWithSuppression(inward, failure);
+                throw failure;
+            }
             return session.completeModelAutotuningPreparation(publicResult);
         } catch (Error failure) {
             if (!session.isRepresentativeExecutionFailure(failure)) closeWithSuppression(session, failure);
@@ -756,11 +784,20 @@ public final class AdvancedEngine implements AutoCloseable {
         }
         try {
             var inward = session.prepareOrdinaryFallback();
-            var prepared = new io.github.pho001.synaptik.engine.PreparedExecution(
-                    owner, compiledGraph, inward);
-            var result = new ModelAutotuningPreparation(prepared,
-                    ModelAutotuningPreparation.Outcome.SAFE_HEURISTIC_FALLBACK,
-                    Optional.empty());
+            io.github.pho001.synaptik.engine.PreparedExecution prepared = null;
+            ModelAutotuningPreparation result;
+            try {
+                prepared = new io.github.pho001.synaptik.engine.PreparedExecution(
+                        owner, compiledGraph, inward);
+                inward = null;
+                result = new ModelAutotuningPreparation(prepared,
+                        ModelAutotuningPreparation.Outcome.SAFE_HEURISTIC_FALLBACK,
+                        Optional.empty());
+            } catch (RuntimeException | Error failure) {
+                if (prepared != null) closeWithSuppression(prepared, failure);
+                else if (inward != null) closeWithSuppression(inward, failure);
+                throw failure;
+            }
             return session.completeModelAutotuningPreparation(result);
         } catch (RuntimeException | Error fallbackFailure) {
             suppressDistinctOnce(fallbackFailure, recoverable);
@@ -843,8 +880,15 @@ public final class AdvancedEngine implements AutoCloseable {
         List<Tensor> selectedInputs = selectCompiledInputs(compiled, leaves);
         io.github.pho001.synaptik.engine.PreparedExecution prepared =
                 prepareOrdinaryOpen(owner, compiled);
-        OrdinaryRun ordinaryRun = runOrdinaryOpen(owner, prepared, selectedInputs);
-        boolean cleanupAttempted = false;
+        OrdinaryRun ordinaryRun;
+        try {
+            ordinaryRun = runOrdinaryOpen(owner, prepared, selectedInputs);
+        } catch (RuntimeException | Error failure) {
+            closeWithSuppression(prepared, failure);
+            throw failure;
+        }
+        List<HostTensorValue> detached = null;
+        Throwable failure = null;
         try {
             List<io.github.pho001.synaptik.engine.RunResult.Publication> publications =
                     validateForwardPublications(ordinaryRun.result(), outputs);
@@ -855,21 +899,14 @@ public final class AdvancedEngine implements AutoCloseable {
                 values.add(ordinaryRun.owner().materializeUnderAdmission(
                         ordinaryRun.result(), publications.get(index), byteCounts[index], composition));
             }
-            List<HostTensorValue> result = List.copyOf(values);
-            cleanupAttempted = true;
-            ordinaryRun.owner().close();
-            return result;
-        } catch (RuntimeException | Error failure) {
-            if (!cleanupAttempted) {
-                cleanupAttempted = true;
-                try {
-                    ordinaryRun.owner().close();
-                } catch (RuntimeException | Error cleanupFailure) {
-                    suppressDistinct(failure, cleanupFailure);
-                }
-            }
-            throw failure;
+            detached = List.copyOf(values);
+        } catch (RuntimeException | Error workFailure) {
+            failure = workFailure;
         }
+        failure = closeAndAccumulate(ordinaryRun.owner(), failure);
+        failure = closeAndAccumulate(prepared, failure);
+        rethrow(failure);
+        return detached;
     }
 
     /**
@@ -895,8 +932,15 @@ public final class AdvancedEngine implements AutoCloseable {
         List<Tensor> selectedInputs = selectCompiledInputs(compiled, leaves);
         io.github.pho001.synaptik.engine.PreparedExecution prepared =
                 prepareOrdinaryOpen(owner, compiled);
-        OrdinaryRun ordinaryRun = runOrdinaryOpen(owner, prepared, selectedInputs);
-        boolean cleanupAttempted = false;
+        OrdinaryRun ordinaryRun;
+        try {
+            ordinaryRun = runOrdinaryOpen(owner, prepared, selectedInputs);
+        } catch (RuntimeException | Error failure) {
+            closeWithSuppression(prepared, failure);
+            throw failure;
+        }
+        ScalarObjectiveBackwardResult detached = null;
+        Throwable failure = null;
         try {
             List<io.github.pho001.synaptik.engine.RunResult.Publication> publications =
                     validateScalarObjectiveBackwardPublications(
@@ -911,22 +955,15 @@ public final class AdvancedEngine implements AutoCloseable {
                         ordinaryRun.result(), publications.get(index + 1),
                         byteCounts[index + 1], composition));
             }
-            ScalarObjectiveBackwardResult result =
+            detached =
                     new ScalarObjectiveBackwardResult(objectiveValue, gradients);
-            cleanupAttempted = true;
-            ordinaryRun.owner().close();
-            return result;
-        } catch (RuntimeException | Error failure) {
-            if (!cleanupAttempted) {
-                cleanupAttempted = true;
-                try {
-                    ordinaryRun.owner().close();
-                } catch (RuntimeException | Error cleanupFailure) {
-                    suppressDistinct(failure, cleanupFailure);
-                }
-            }
-            throw failure;
+        } catch (RuntimeException | Error workFailure) {
+            failure = workFailure;
         }
+        failure = closeAndAccumulate(ordinaryRun.owner(), failure);
+        failure = closeAndAccumulate(prepared, failure);
+        rethrow(failure);
+        return detached;
     }
 
     private CompiledGraph compileForwardOrdinaryOpen(Engine owner, List<Tensor> outputs) {
@@ -1034,8 +1071,15 @@ public final class AdvancedEngine implements AutoCloseable {
 
     private io.github.pho001.synaptik.engine.PreparedExecution prepareOrdinaryOpen(
             Engine owner, CompiledGraph compiledGraph) {
-        return new io.github.pho001.synaptik.engine.PreparedExecution(
-                owner, compiledGraph, composition.prepare(compiledGraph.artifacts()));
+        io.github.pho001.synaptik.runtime.execution.PreparedExecution inward =
+                composition.prepare(compiledGraph.artifacts());
+        try {
+            return new io.github.pho001.synaptik.engine.PreparedExecution(
+                    owner, compiledGraph, inward);
+        } catch (RuntimeException | Error failure) {
+            closeWithSuppression(inward, failure);
+            throw failure;
+        }
     }
 
     private OrdinaryRun runOrdinaryOpen(
@@ -1399,12 +1443,13 @@ public final class AdvancedEngine implements AutoCloseable {
     }
 
     /**
-     * Quiesces admitted calls, closes registered results in reverse successful-run order, and
-     * then closes the owned composition. Concurrent/repeated callers wait for the first attempt
-     * and rethrow its exact retained first cleanup failure, if any.
+     * Quiesces admitted calls, closes registered results and prepared handles in reverse
+     * publication order, and then closes the owned composition. Result cleanup is completed
+     * before prepared-handle cleanup begins. Concurrent/repeated callers wait for the first
+     * attempt and rethrow its exact retained first cleanup failure, if any.
      *
-     * @throws RuntimeException if result or composition cleanup first reports one
-     * @throws Error if result or composition cleanup first reports one
+     * @throws RuntimeException if result, preparation, or composition cleanup first reports one
+     * @throws Error if result, preparation, or composition cleanup first reports one
      */
     @Override
     public void close() {
@@ -1443,6 +1488,13 @@ public final class AdvancedEngine implements AutoCloseable {
             for (int index = results.size() - 1; index >= 0; index--) {
                 failure = closeAndAccumulate(results.get(index), failure);
             }
+            List<AutoCloseable> preparations;
+            synchronized (lifecycleLock) {
+                preparations = List.copyOf(openPreparations);
+            }
+            for (int index = preparations.size() - 1; index >= 0; index--) {
+                failure = closeAndAccumulate(preparations.get(index), failure);
+            }
             failure = closeAndAccumulate(composition, failure);
         } finally {
             synchronized (lifecycleLock) {
@@ -1468,6 +1520,18 @@ public final class AdvancedEngine implements AutoCloseable {
         }
     }
 
+    void unregister(PreparedExecution preparation) {
+        synchronized (lifecycleLock) {
+            openPreparations.remove(preparation);
+        }
+    }
+
+    void unregister(AdvancedPreparedExecution preparation) {
+        synchronized (lifecycleLock) {
+            openPreparations.remove(preparation);
+        }
+    }
+
     private void beginOperation() {
         synchronized (lifecycleLock) {
             if (lifecycle != Lifecycle.OPEN) {
@@ -1486,6 +1550,30 @@ public final class AdvancedEngine implements AutoCloseable {
             }
             return handle;
         }
+    }
+
+    private <T extends AutoCloseable> T finishPreparedHandle(T handle) {
+        Throwable publicationFailure = null;
+        synchronized (lifecycleLock) {
+            if (lifecycle == Lifecycle.OPEN) {
+                try {
+                    openPreparations.add(handle);
+                } catch (RuntimeException | Error failure) {
+                    publicationFailure = failure;
+                }
+                if (publicationFailure == null) {
+                    activeOperations--;
+                    lifecycleLock.notifyAll();
+                    return handle;
+                }
+            } else {
+                publicationFailure = closedFailure();
+            }
+        }
+        closeWithSuppression(handle, publicationFailure);
+        finishFailure();
+        rethrow(publicationFailure);
+        throw new AssertionError("prepared publication failed without an unchecked throwable");
     }
 
     private void finishFailure() {
@@ -2062,6 +2150,16 @@ public final class AdvancedEngine implements AutoCloseable {
             session.close();
         } catch (RuntimeException | Error cleanupFailure) {
             suppressDistinctOnce(primary, cleanupFailure);
+        }
+    }
+
+    private static void closeWithSuppression(AutoCloseable closeable, Throwable primary) {
+        try {
+            closeable.close();
+        } catch (RuntimeException | Error cleanupFailure) {
+            suppressDistinct(primary, cleanupFailure);
+        } catch (Exception impossible) {
+            throw new AssertionError("close contract declared an unexpected checked failure", impossible);
         }
     }
 

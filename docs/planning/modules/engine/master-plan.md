@@ -108,7 +108,7 @@ advanced surface.
 | [0008](tasks/0008-engine-lifecycle-capability-checkpoint.md) | Engine lifecycle capability checkpoint | Complete | 0001–0007; Compiler 0006B3–0006B6; Prepare 0003/0003A/0004/0005; Runtime 0010/0012/0014/0015; CPU 0008/0008A/0010F–0010I; Config 0006A; tools/tuning 0001 | Consolidated repository-wide evidence and current documentation for the standard, advanced, typed, materialized, one-shot forward/backward, bounded tuning/fallback, cleanup, failure, concurrency, dependency, and public dimensional-convolution execution boundaries. |
 | [0008A](tasks/0008a-representative-complete-plan-correctness-oracle.md) | Representative complete-plan correctness oracle | Complete | 0004, 0006A–0008; Runtime 0015; CPU 0010G and 0010J | Added the smallest package-private Engine oracle that captures all ordered representative publications as bounded canonical bytes and compares later complete recipes by exact represented-bit equality. It owns no timing, tuning algorithm, cache, public request, selected preparation, or fallback policy. |
 | [0009](tasks/0009-public-complete-plan-autotuning-composition.md) | Public complete-plan autotuning composition | Complete | 0006A–0008A; Config 0006B; tools/tuning 0002; CPU 0010I–0010J; Prepare 0004; Runtime 0010/0015 | Composed the authenticated Phase-1 decision into CPU's complete-plan batch, adapted exact correctness and fresh execution to generic Phase 2, freshly prepared the authenticated winner, and extended existing public evidence without a new request, operation, or top-level public type. |
-| 0010 | Prepared-handle ownership and closure | Draft | Runtime 0016; Prepare 0006 | Make ordinary and advanced prepared handles explicit closeable owners, close temporary and tuning recipes on every path, and close retained preparations before backend integration shutdown. Both shared prerequisites are Complete; no detailed specification exists yet. |
+| [0010](tasks/0010-prepared-handle-ownership-and-closure.md) | Prepared-handle ownership and closure | Complete | Runtime 0016; Prepare 0006; 0001–0009 | Made ordinary and advanced prepared handles explicit closeable owners, closed every one-shot/trial/loser/rollback preparation exactly once, and closed retained preparations after results and before backend integration shutdown. |
 
 
 ## Milestones
@@ -119,17 +119,22 @@ advanced surface.
 
 ## Current status
 
-The established Engine foundation is Complete through task 0009. It composes completed
+The established Engine foundation is Complete through task 0010. It composes completed
 tools/tuning 0002, CPU 0010J, Engine 0008A, and Config 0006B through the existing admitted
 representative session. The public operation preserves the exact authenticated Phase-1 decision,
 completes exact correctness before fresh Phase-2 timing, and freshly prepares only the
 authenticated complete-plan winner. `ModelAutotuningRequest` and `Engine.prepareTuned(...)`
 remain unchanged; existing result evidence now includes the narrow required complete-plan
 extension. Runtime 0016 supplies the inward close/lease owner and Prepare 0006 supplies the
-transactional finalizer handoff. Engine 0010 is now the next frontier but remains a concise
-`Draft` row without a task file. Current ordinary and advanced prepared handles therefore retain
-their existing non-closeable behavior; Prepare completion adds no Engine ownership or
-temporary-preparation cleanup. No later Engine task is Ready or detailed.
+transactional finalizer handoff. Detailed
+[Engine 0010](tasks/0010-prepared-handle-ownership-and-closure.md) is `Complete` after corrected
+executable lifecycle arbitration and the mandatory fresh documentation-focused pass.
+It covers both public handles, one-shot forward/backward preparations, every
+representative correctness/measurement trial, selected/fallback publication rollback, and
+retained shutdown ordering as one cohesive Engine-owned lifecycle task. Ordinary and advanced
+prepared handles are now closeable outward owners. Metal 0002's Engine lifecycle prerequisite is
+satisfied, but its fresh owning audit and any later detailed specification remain separate; no
+later Engine task is Ready or detailed.
 
 The final capability checkpoint reused one
 fresh clean repository-wide run, reconciled the fourteen authorized documentation paths, and
@@ -340,7 +345,7 @@ constant chain. Engine 0005, Engine 0006A, Engine 0007, and Engine 0008 are `Com
   0006B6's descriptor boundary, strict CPU admission, and the explicit Conv3d-gradient limit.
 - Engine 0009 is Complete. It owns CPU 0010J adaptation, exact correctness and fresh execution,
   selected production preparation, complete-plan evidence translation, and the existing public
-  fallback policy. No later Engine task is Ready or detailed.
+  fallback policy. Detailed Engine 0010 is Complete; no task after 0010 is Ready or detailed.
 
 ## Decisions made
 

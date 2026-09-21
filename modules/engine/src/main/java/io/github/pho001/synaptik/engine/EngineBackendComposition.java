@@ -38,7 +38,8 @@ interface EngineBackendComposition extends AutoCloseable {
      * Prepares one graph using collaborations owned by this composition.
      *
      * @param artifacts non-null immutable artifacts produced for this Engine; not mutated
-     * @return a non-null immutable reusable Runtime recipe
+     * @return a non-null immutable reusable Runtime recipe whose cleanup ownership transfers to
+     *     the caller; the caller must close it or transfer it exactly once to an Engine handle
      * @throws RuntimeException if preparation rejects the artifacts or backend work fails
      * @throws Error if backend work reports a fatal failure
      */
@@ -82,7 +83,8 @@ interface EngineBackendComposition extends AutoCloseable {
             long maximumBytes);
 
     /**
-     * Closes resources owned by this composition after all Engine results have closed.
+     * Closes resources owned by this composition after all Engine results and retained prepared
+     * handles have closed.
      *
      * @throws RuntimeException if cleanup reports an unchecked failure
      * @throws Error if cleanup reports a fatal failure

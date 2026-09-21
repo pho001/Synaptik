@@ -18,8 +18,9 @@ import java.util.Optional;
  * persistent hit with no candidate rows.</p>
  *
  * <p>Evidence is present exactly for {@link Outcome#TUNED}; fallback is always explicit and
- * carries none. Metadata remains readable after Engine closure, but the owner rejects later
- * execution.</p>
+ * carries none. This value is not another closeable owner: callers close the contained {@link
+ * PreparedExecution}, and its Engine closes it if still retained at shutdown. Metadata remains
+ * readable after handle or Engine closure, but either closure rejects later execution.</p>
  */
 public final class ModelAutotuningPreparation {
     private final PreparedExecution preparedExecution;
@@ -45,8 +46,10 @@ public final class ModelAutotuningPreparation {
         }
     }
 
-    /** Returns the production handle.
-     * @return the exact fresh non-null owner-bound handle
+    /** Returns the sole outward owner of the production preparation.
+     * Callers close this exact handle when finished; this result intentionally has no duplicate
+     * close lifecycle, and the owning Engine closes a still-retained handle at shutdown.
+     * @return the exact fresh non-null owner-bound closeable handle
      */
     public PreparedExecution preparedExecution() { return preparedExecution; }
     /** Identifies how the handle was selected.

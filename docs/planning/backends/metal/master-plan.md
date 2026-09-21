@@ -130,9 +130,10 @@ failure. The compiled native executable is reusable state with explicit Objectiv
 now resolves the architecture question by selecting a private identity-unique resource aggregate
 owned and leased by `PreparedExecution`, with transactional Prepare handoff and later Engine
 handle ownership. Runtime 0016 implements the nominal resource and owner lifecycle, and Prepare
-0006 now implements transactional finalizer handoff. Engine 0010 remains an unimplemented Draft
-row, so Metal 0002 stays blocked; no MPSGraph route, native ABI change, or executable capability
-is added here.
+0006 now implements transactional finalizer handoff, and Engine 0010 implements outward handle
+ownership. Metal 0002's lifecycle prerequisites are therefore satisfied, but it stays `Blocked`
+until a fresh Metal audit selects and details the first truthful bounded route; no MPSGraph route,
+native ABI change, or executable capability is added here.
 
 The non-authoritative [Metal backend strategy note](../../../design/notes/metal-backend-strategy.md)
 records the intended residency and synchronization direction for later task planning. It selects
@@ -147,7 +148,7 @@ per-run workspace, or relying on garbage-collection cleanup would violate cold-p
 ownership, or deterministic-cleanup rules. Foundation ABI version `1` is also fixed to its seven
 task-0001 symbols; a same-library executable API would require a version bump, while a second
 library boundary would require separate justification. Exact exported signatures remain deferred
-until Engine ownership is implemented and Metal 0002 is specified. Neither 0001 nor this audit
+until Metal 0002 is specified against completed Engine ownership. Neither 0001 nor this audit
 authorizes a generic backend registry, mixed-owner Engine composition contract, or ABI workaround.
 
 ## Open questions
@@ -177,7 +178,7 @@ authorizes a generic backend registry, mixed-owner Engine composition contract, 
   capability answer true.
 - Task 0002 must not move MPSGraph compilation onto the hot run path or place its compiled native
   executable in hidden backend-global ownership. Its detailed specification remains deferred
-  until Draft Engine 0010 completes outward ownership after Runtime 0016 and Prepare 0006.
+  to a fresh Metal audit after completed Runtime 0016, Prepare 0006, and Engine 0010.
 - Task 0002 must preserve Metal residency across adjacent Metal work, bind assigned input and
   output `MTLBuffer` instances through `MPSGraphTensorData`, and write directly to the preallocated
   Synaptik destination. Immutable constants may upload once during prepare. No wait belongs
