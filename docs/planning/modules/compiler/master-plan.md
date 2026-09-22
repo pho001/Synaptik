@@ -114,7 +114,7 @@ algebra builder, planning adapter, backend lowering layer, or execution owner.
 | 0006B5 | [Published compile-time constant descriptor closure](tasks/0006b5-published-compile-time-constant-descriptor-closure.md) | Complete | 0006; 0006B4; Planning 0005–0006; Engine 0006 prerequisite diagnosis | Closed logical layouts for eligible static source-only published splat constants. |
 | 0006B6 | [Final convolution logical-layout closure](tasks/0006b6-final-convolution-logical-layout-closure.md) | Complete | 0006B, 0006B3–0006B5; blocked Engine 0008 reassessment; current Model/Planning/CPU contracts | Closed eligible final Conv2d/Conv3d layouts and the direct Conv1d squeeze view before Planning queries. |
 | 0006B7 | [Final NEG logical-layout closure](tasks/0006b7-final-neg-logical-layout-closure.md) | Complete | 0006B3–0006B6; Metal 0002 prerequisite review; current Model/Planning contracts | Closed eligible exact NEG and directly consumed splat-input layouts before final artifact derivation. |
-| 0006B8 | [Bounded functional autograd contract and documentation reconciliation](tasks/0006b8-bounded-functional-autograd-contract-and-documentation-reconciliation.md) | Ready | 0006; completed Engine 0011; user-authorized drift-remediation sequence | Reconcile the authoritative autograd contract and stale explanatory/user documentation with current bounded one/two-stage behavior; no Java behavior changes. |
+| 0006B8 | [Bounded functional autograd contract and documentation reconciliation](tasks/0006b8-bounded-functional-autograd-contract-and-documentation-reconciliation.md) | Complete | 0006; completed Engine 0011; user-authorized drift-remediation sequence | Reconciled and independently reviewed the autograd contract and focused product documentation against current bounded one/two-stage behavior. |
 | 0006C | Conv3d adjoint expressibility and gradient closure | Draft | 0006B; current public Tensor algebra; any separately selected Model prerequisite | Prove exact grouped NCDHW input/weight/bias adjoints; implement only if current public algebra closes every required case, otherwise select the smallest Model prerequisite. |
 | 0007 | Exact constant identities and permission-aware algebra | Draft | 0006; Config 0006 before any relaxed rule | Reassess exact identities and separately permissioned relaxed rewrites without broadening current constant evidence or completed exact rules. |
 
@@ -123,12 +123,12 @@ algebra builder, planning adapter, backend lowering layer, or execution owner.
 - Capture, validation, and exact forward optimization are Complete through 0003B.
 - Compiler-owned autograd, current first-order inventory closure, and bounded two-stage functional
   differentiation are Complete through 0006.
-- Recurrent, Conv3d, Pool3d/3D-window, public integration, caller binding, and final logical-layout
-  work are Complete through 0006B7.
-- The user-authorized drift-remediation sequence returns to Compiler after completed Engine 0011.
-  Documentation-only 0006B8 is `Ready` as the current repository frontier. This explicit
-  repository-order interleave is isolated to the task's seven documentation/planning paths and
-  closes by independent review plus synchronized task/master/roadmap status.
+- Recurrent, Conv3d, Pool3d/3D-window, public integration, caller binding, final logical-layout,
+  and bounded-autograd documentation reconciliation work are Complete through 0006B8.
+- The user-authorized drift-remediation sequence returned to Compiler after completed Engine 0011.
+  Documentation-only 0006B8 completed its clean implementation and independent Class C review
+  in exactly seven documentation/planning paths; the explicit repository-order interleave is
+  closed.
 - 0006C and 0007 remain `Draft`, have no detailed task brief, and are independent side branches;
   0006B8 grants neither implementation authorization.
 
@@ -158,8 +158,8 @@ algebra builder, planning adapter, backend lowering layer, or execution owner.
 ## Status normalization
 
 The task table and linked task `Status`/completion summaries take precedence over historical prose.
-The current roadmap selects only documentation-only 0006B8 as `Ready`; no architecture, API, or
-source behavior is changed by that planning selection.
+The current roadmap records documentation-only 0006B8 as `Complete`; no next Compiler
+implementation frontier is selected.
 
 ## History and update policy
 

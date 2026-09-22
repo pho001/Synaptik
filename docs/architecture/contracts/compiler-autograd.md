@@ -214,11 +214,44 @@ unless a later architecture update and proof establishes a broader safe rule. Ev
 candidate is revalidated through the compiler's inference-and-validation boundary. This contract
 does not authorize new algebraic rewrites.
 
-Generated gradient formulas are ordinary differentiable Tensor expressions. Higher derivatives
-are not implemented by the initial autograd task, but the design must preserve that path. A later
-task must define an explicit create-graph or derivative-order lifecycle contract, rules for every
-operation used by gradient formulas, and graph representation for derivative order in addition to
-phase. It must not retrofit mutable gradient lifecycle state onto Tensor.
+Generated gradient formulas are ordinary differentiable Tensor expressions. A functional request
+contains exactly one or two ordered reverse-mode stages. Every stage has non-empty ordered output
+references, an output-aligned list of optional cotangent seeds, and a non-empty ordered target
+list whose exact Tensor references are unique and belong to the complete original forward
+inventory. Stage one selects exact Tensors from the requested forward-output boundary through
+forward references. Stage two, when present, selects only generated first-stage gradients through
+a stage-one target index.
+
+An absent seed means an exact typed positive one only for a scalar, floating,
+gradient-eligible output. A present seed must have the output's exact Shape and floating data type
+and must not itself request gradients. `DisconnectedPolicy.ERROR` rejects a valid target that has
+no differentiable route from the selected outputs. `DisconnectedPolicy.ZERO` instead returns an
+ordinary exact typed zero expression; several target roles may share that same final graph value.
+
+A one-stage request requires `createGraph == false`. A two-stage request requires
+`createGraph == true` for stage one and `false` for stage two. `createGraph` retains first-stage
+formulas only for the immediate second stage inside the same compile. It does not establish an
+arbitrary nested or persistent derivative chain. A third stage and derivative order greater than
+two are unsupported.
+
+The compiler captures the original forward outputs and all requested stage-one and stage-two
+gradient roots together once. `DerivativeGraphMetadata` augments, but does not replace,
+`GraphPhase`: original forward producers have derivative order zero, producers first owned by the
+first reverse stage have order one, and producers first owned by the second reverse stage have
+order two. Both derivative orders one and two remain `BACKWARD` graph phase.
+
+Gradient publication bindings exist only for derivative orders one and two. They are ordered by
+derivative order and then stage-local target index, retain the target identity and final gradient
+value, and remain target-distinct when several targets share one captured value. The graph output
+boundary starts with the ordered forward values and then lists each previously unseen gradient
+value once in binding order.
+
+The bounded lifecycle creates no persistent or runtime tape, mutable Tensor gradient state,
+`Tensor.backward()`, model-owned derivative rules, backend-owned global autograd, or second
+gradient algebra. The ordinary `Engine.backward(...)` convenience is narrower than the complete
+functional request boundary: it always requests one first-order stage for one scalar objective,
+uses an absent seed, sets `createGraph == false`, and uses `DisconnectedPolicy.ERROR`. The full
+bounded request surface is available through the advanced compile boundary.
 
 
 ## Compile lifecycle

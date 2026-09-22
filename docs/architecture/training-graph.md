@@ -2,10 +2,12 @@
 
 This document explains the training graph model established by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The root contract remains authoritative.
 
-The three compile modes are implemented as standalone declarative configuration values. No
-current compile aggregate or compiler entry point consumes them, and autograd, training, and
-gradient publication remain planned. This page explains the intended graph boundary rather than
-a runnable training API.
+The compiler currently consumes all three compile modes. Backward-capable compilation accepts a
+bounded functional-gradient request, constructs one or two reverse-mode stages, captures the
+forward and derivative expressions together, and derives gradient publication bindings. The
+ordinary and advanced Engine surfaces can consume those artifacts, but optimizer orchestration
+and a training session remain planned. This page explains the current combined compile-time graph
+boundary; it is subordinate to the Compiler-owned contract.
 
 ## Compile modes
 
@@ -17,7 +19,9 @@ Synaptik distinguishes three compile modes:
 - **Training-step mode** (`TRAINING_STEP`) initially uses that same combined forward/backward
   construction. Optimizer-update graph work remains future.
 
-The compile mode changes the compile-time graph and publication needs. It does not allow a backend to own global autograd.
+Both backward-capable modes require the same current `FunctionalGradientRequest`. The compile
+mode changes the compile-time graph and publication needs. It does not allow a backend to own
+global autograd.
 
 ## Combined forward and backward graph
 
@@ -42,9 +46,17 @@ Named compiler rules own dispatch; model operations remain derivative-agnostic. 
 derivative constants are storage-free leaves registered explicitly as compile-time splats.
 
 Phase-aware capture receives the original forward-producer identity set, forward outputs,
-gradient roots and target roles, and exact constant facts. It assigns graph-local IDs once and
-retains `FORWARD` or `BACKWARD` on every node. Two targets may share one captured gradient value;
-the role mapping remains target-specific while the graph output boundary lists that value once.
+all requested first- and optional second-stage gradient roots and target roles, and exact constant
+facts. It assigns graph-local IDs once and retains `FORWARD` or `BACKWARD` on every node. The
+separate derivative sidecar records order zero for original forward producers, order one for
+first-stage producers, and order two for second-stage producers. Orders one and two are both
+`BACKWARD`; derivative order does not replace graph phase.
+
+Gradient publication bindings use orders one and two and are ordered by derivative order, then by
+target position within that stage. Each binding retains its target identity and final gradient
+value. Two targets may share one captured gradient value; their bindings remain distinct while
+the graph output boundary starts with the forward-output prefix and appends that value only if it
+was not already listed.
 
 The combined graph is immutable compile-time graph state. Backends receive only their planned
 regions during prepare and execute only those prepared regions at runtime.
@@ -68,17 +80,31 @@ The first implementation reuses only already-proved exact rewrites and folding r
 subexpression elimination stays phase-local, and every changed immutable candidate is revalidated.
 No new algebraic identity follows merely from combining the phases.
 
-## Failures and future derivative order
+## Failures and bounded derivative order
 
 Preflight rejects any unsupported backward-reachable operation, exact attributes, or required
 derivative policy before it constructs backward expressions. Full inference follows capture, so a
 later failure can consume temporary Tensor IDs; callers must already treat those IDs as opaque.
 
-Generated gradients remain ordinary differentiable Tensor expressions. Higher derivatives are
-deliberately absent from the first implementation. A later lifecycle decision must define an
-explicit create-graph or derivative-order request, rules for every operation used inside gradient
-formulas, and a graph representation that distinguishes derivative order from forward/backward
-phase. No such extension may add mutable gradient state to Tensor.
+The current functional request has exactly one or two stages. Each stage has non-empty ordered
+outputs, output-aligned optional seeds, and non-empty identity-unique ordered targets from the
+complete original forward inventory. Stage one selects exact requested forward-output Tensors
+through `ForwardTensorReference`. Stage two may select only first-stage gradients through
+`FirstStageGradientReference(targetIndex)`.
+
+One stage requires `createGraph == false`. Two stages require stage-one
+`createGraph == true` and stage-two `createGraph == false`; retention serves only the immediate
+second stage in the same compile. An absent seed supplies an exact typed one only for an eligible
+scalar output. A present seed must match the selected output's exact Shape and floating type and
+must not request gradients. `ERROR` rejects a disconnected target, while `ZERO` produces an
+ordinary exact typed zero expression that several target roles may share.
+
+This boundary supports bounded second-stage construction, including a suitably seeded
+Hessian-vector product when the selected formulas are covered. It does not support a third stage,
+derivative orders above two, arbitrary nesting, a persistent or runtime tape, mutable Tensor
+gradient state, or `Tensor.backward()`. Operation-specific derivative coverage remains
+fail-closed; successful graph construction alone does not promise preparation or numerical
+execution on a particular backend.
 
 ## Fixed recurrent scan and the initial BPTT boundary
 

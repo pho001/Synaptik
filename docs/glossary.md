@@ -3027,89 +3027,31 @@ derive publication or planning; allocate physical values; or expose a public com
 
 ### Pre-capture Tensor-expression autograd
 
-The current bounded package-private compiler design for constructing gradient formulas with the
-existing public Tensor
-operation vocabulary before graph capture. Named compiler gradient-rule components traverse the
-original forward expression, use exact Tensor identity for temporary contribution bookkeeping,
-and combine contributions with ordinary `Tensor.add`.
+The current compiler-owned design for constructing reverse-mode gradient formulas with existing
+public Tensor operations before graph capture. Named compiler rules traverse the original forward
+expression, use exact Tensor identity only for request-local contribution bookkeeping, and combine
+contributions with ordinary `Tensor.add`. Seeds and derivative constants are storage-free leaves
+registered explicitly as logical splats.
 
-Seeds and derivative constants are storage-free leaves registered explicitly as logical splats.
-One capture receives forward outputs, gradient roots and target roles, original forward-producer
-identities, and constant facts. It assigns graph-local IDs once and records each node's
-`FORWARD` or `BACKWARD` phase. The immutable combined graph then receives inference, validation,
-exact optimization, and final validation.
+The public immutable [`FunctionalGradientRequest`](#functional-gradient-request) describes
+exactly one or two stages. Stage one selects exact Tensors from the requested forward-output
+boundary; stage two may select only generated first-stage gradients by stage-one target index.
+Optional seeds align with stage outputs, and every stage has ordered, non-empty,
+exact-identity-unique targets from the complete original forward inventory. One stage uses
+`createGraph == false`; two stages use `true` for stage one and `false` for stage two. Retention
+serves only that immediate second stage.
 
-Compiler task 0004 implements the general package-private entry owner `GraphCompiler` and its
-mode-neutral internal result `GraphCompilation`; it adds no request aggregate. `FORWARD_ONLY`
-produces no BACKWARD nodes and empty gradient results, while backward-capable modes may produce
-the combined forward/backward graph described above. `GraphCompilation` is graph-stage state and
-is distinct from the later-lifecycle `CompileArtifacts` aggregate.
+One combined capture receives the ordered forward outputs and all requested gradient roots and
+target roles. It assigns graph-local IDs once, retains `FORWARD` or `BACKWARD` graph phase, and
+records derivative orders zero, one, or two in separate
+[`DerivativeGraphMetadata`](#derivative-graph-metadata). Gradient publication bindings use only
+orders one and two and remain target-distinct when several targets share one final value.
 
-The current request contains one exact requested scalar floating objective, an ordered non-empty
-identity-unique target list in its selected differentiable ancestry, and one implicit exact typed
-unit seed. Targets may differ from the objective's floating type. Its closed matrix covers all
-seven promoted floating binary arithmetic kinds, all eight exact-type floating scalar kinds,
-promoted branch-only WHERE, floating-to-floating CAST, all nineteen floating unary kinds,
-ordinary full/axis/multi-axis SUM/MEAN/PROD/MIN/MAX, masked SUM/MEAN, binding-aware SUM_TO_SHAPE,
-LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, L1_NORM, L2_NORM, CUM_SUM, CUM_PROD, SOFTMAX,
-LOG_SOFTMAX, Layer/RMS/batch normalization, every floating MATMUL vector/matrix rank pairing, and
-the guarded floating
-CONTIGUOUS/RESHAPE/EXPAND/EXPAND_DIMS/SQUEEZE/PERMUTE/SLICE/SLICE_UPDATE/SELECT/PAD/TILE/
-CONCAT/STACK families. It also covers floating window transforms, Gather/scatter data roles,
-floating SORT and TOP_K values, explicit-state dropout values, exact two-output attention,
-grouped convolution, maximum and average pooling, MSE, dense categorical loss, and positive-
-static-depth index categorical logits.
-
-The current source-backed production first-order closure contains 38 operation-kind enum families,
-111 constants, and 133 exact signature fingerprints, including both `SLICE_UPDATE` and both
-`UNFOLD3D` attributes variants. Compiler forward verification covers the complete Model inventory
-of exactly 40 families, 115 constants, and 137 fingerprints. Its exact four-signature deferred
-partition is recurrent RNN/GRU/LSTM and `CONV3D`. Complete task 0006B2 closes both Pool3d gradients
-and all three window adjoints; Draft task 0006C separately owns Conv3d gradient closure.
-Each supported legal output/input role is conditionally differentiable, intentionally
-non-differentiable, or fail-closed. A conditionally differentiable role becomes usable only after
-occurrence-local preflight proves its exact Shape, data type, cardinality, canonical-auxiliary,
-normalization, and formula-construction prerequisites. The successful decision also selects one
-existing compiler formula family, keeping preflight and formula dispatch aligned.
-
-Mixed-floating binary, WHERE-branch, and MATMUL contributions use ordinary
-[cotangent normalization](#cotangent-normalization). Ordinary MEAN derives its denominator by
-reducing an input-shaped logical-one expression across the selected axes. Masked MEAN counts true
-positions with ordinary WHERE and SUM, divides, then uses a final ordinary WHERE whose selected
-all-false-slice convention returns exact zero. FLOOR/CEIL/SIGN return a direct exact-zero
-first-order cotangent without `g * 0` or a floating comparison. These conventions do not create a
-gradient-only arithmetic, cast, exceptional-value, validation, rewrite, fold, or optimizer
-contract.
-
-Compiler 0005A selects the elementwise boundary policy. Tensor extrema split exact numeric ties
-equally; scalar extrema give the Tensor receiver one half; ordered first-class CLAMP composes the
-same rule and can therefore produce one quarter when both stages tie. Piecewise extrema, CLAMP,
-ABS, and RELU return exact positive zero at unordered NaN positions. Exact GELU, fixed
-tanh-approximation GELU, and SiLU return the incoming cotangent at positive infinity and exact
-positive zero at negative infinity. Other analytic formulas use ordinary Tensor operations
-without gradient-only domain masks. Comparisons, Boolean logic/classification, condition,
-attribute, bound, and non-floating cast roles remain non-differentiable.
-
-SLICE_UPDATE accepts its exact retained static or symbolic target-relative placement constraints,
-and SUM_TO_SHAPE accepts aligned exact Dimension equality, a static target singleton, or the exact
-binding-dependent inverse predicate. Reduction products are division-free, reduction extrema
-share exact ties, and softmax formulas consume exact forward outputs. Batch training selects roles
-by public output slot and consumes canonical saved-statistic slots three and four only as formula
-auxiliaries.
-
-Compiler 0005D reuses exact same-occurrence attention weights and the public maximum-pool output;
-it introduces no hidden outputs or tape. Grouped convolution preserves group isolation through
-unfold/matrix/fold expressions. Average pooling divides by a logical typed fixed kernel count, and
-maximum pooling reconstructs the first eligible logical winner. MSE uses exact typed `2` and `-2`
-scalar-operation coefficients. Dense categorical loss supports logits and target; index
-categorical loss supports logits only and fails closed for dynamic or zero class depth.
-Everything else fails closed on a selected route until its shared formula or derivative policy is
-selected.
-
-The technique adds no placeholder Tensor for a captured `ValueId`, second gradient algebra,
-public gradient, runtime tape, model derivative rule, or Tensor gradient/backward lifecycle.
-Model task 0025 and Compiler tasks 0004, 0004A, 0004B, 0005, 0005A–0005D, 0006, and 0006B2 are
-Complete. Optimizer updates, preparation, and execution remain planned.
+This design is compile-local. It creates no third reverse stage, arbitrary nested derivative
+chain, persistent or runtime tape, mutable Tensor gradient state, `Tensor.backward()`, second
+gradient algebra, or backend-owned global autograd. The maintained
+[Compile API](api/compile-api.md#current-package-private-pre-capture-autograd) records the current
+operation-specific, fail-closed derivative matrix.
 
 ### Neural-network module, parameter, buffer, and forward context
 

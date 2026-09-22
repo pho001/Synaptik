@@ -1,229 +1,192 @@
-# Understand the current autograd boundary
+# Use the current autograd boundaries
 
 ## Outcome
 
-This guide explains what Synaptik's current internal automatic differentiation (autograd) can
-construct and what a user still cannot invoke. Autograd derives gradient expressions from a
-forward Tensor expression.
+This guide helps you choose the current automatic differentiation (autograd) entry point and
+understand the result. Autograd constructs reverse-mode gradient expressions from a forward
+Tensor expression. Synaptik currently offers a narrow one-shot scalar-objective convenience, an
+ordinary explicitly seeded first-order compile, and an advanced bounded one- or two-stage
+functional request.
 
-Compiler tasks 0004 through 0005B implement a bounded package-private first-order graph stage,
-its exact-composition and shared-algebra extensions, the exact current 48-kind
-elementwise/activation policy, and the current reduction, scan, softmax, statistics, norm, and
-normalization matrix.
-There is no public compile request for an objective, targets, or seed; no gradient publication;
-and no prepared or executable training workflow. The current `CompileMode` enum is standalone
-declarative configuration, not a public compiler entry point:
+## Choose an entry point
+
+| Goal | Current entry point | Fixed boundary |
+|---|---|---|
+| Compute one scalar objective and detached first gradients now | `Engine.backward(objective, targets, maximumTotalBytes)` | One absent-seed first-order stage, `createGraph == false`, `DisconnectedPolicy.ERROR` |
+| Compile a reusable first-order graph with explicit seeds | `Engine.compile(forwardOutputs, cotangentSeeds, targets)` | One stage, one non-null seed per output, `createGraph == false`, `DisconnectedPolicy.ERROR` |
+| Select multiple outputs, optional seeds, disconnected-zero results, or a second reverse stage | `AdvancedEngine.compile(...)` with `FunctionalGradientRequest` | Exactly one or two stages under the complete bounded policy |
+
+All three paths leave public Tensors unchanged. They do not add a gradient field, a recording
+tape, or a `Tensor.backward()` method.
+
+## Prerequisites and inputs
+
+Start with an open Engine composition and Tensor expressions whose selected derivative routes are
+supported. Targets are always explicit: Synaptik does not infer which Tensors should receive
+gradients. Every target list is non-empty, ordered, unique by exact Tensor object identity, and
+drawn from the complete original forward expression inventory.
+
+The snippets below are conceptual API-shape examples. They assume that the shown Tensors have
+compatible descriptors and live input storage and that `engine` or `advanced` is an open Engine.
+See the [ordinary and advanced compile reference](../api/compile-api.md#current-ordinary-and-advanced-engine-compile-boundaries)
+for complete lifecycle ownership and current execution restrictions.
+
+## Compute a scalar objective and first gradients
+
+For one scalar floating objective, use the ordinary one-shot convenience:
 
 ```java
-import io.github.pho001.synaptik.config.compile.CompileMode;
-
-CompileMode graphScope = CompileMode.FORWARD_AND_BACKWARD;
+ScalarObjectiveBackwardResult result =
+        engine.backward(loss, List.of(weight, bias), maximumTotalBytes);
 ```
 
-Constructing `graphScope` does not capture a graph, construct or publish a gradient, prepare a
-schedule, select a backend, or execute training.
+The call freshly compiles, prepares, runs, copies the objective first and the gradients in target
+order, then cleans up temporary execution state. The returned values are detached and remain
+readable after Engine and caller storage closure. The byte limit applies to the combined returned
+payloads.
 
-## Current internal flow
+This method always constructs one reverse-mode stage. Its only output is `loss`, its seed is
+absent, `createGraph` is false, and its disconnected policy is `ERROR`. The compiler turns the
+absent seed into an exact typed one only if `loss` is scalar, floating, and gradient-eligible.
+Use another entry point when you need an explicit seed, several outputs, a zero for disconnected
+targets, or a second stage.
 
-The package-private compiler follows this sequence:
+## Compile an explicitly seeded first-order graph
 
-```text
-ordered forward Tensor outputs
-  -> validate one scalar floating objective and ordered targets
-  -> preflight the complete selected objective-to-target slice
-  -> construct formulas through ordinary public Tensor operations
-  -> combine forward outputs and gradient roots
-  -> one phase-aware graph capture
-  -> inference, validation, and one-shot exact whole-graph optimization
-  -> package-private GraphCompilation
+The ordinary compile overload aligns one explicit seed with each forward output:
+
+```java
+CompiledGraph compiled = engine.compile(
+        List.of(vectorOutput),
+        List.of(cotangentSeed),
+        List.of(input));
 ```
 
-`GraphCompiler` is the internal entry owner. It takes direct parameters rather than a public
-request aggregate and returns internal immutable `GraphCompilation`. `FORWARD_ONLY` requires no
-first-order request, contains no `BACKWARD` nodes, and returns no gradient roles.
-`FORWARD_AND_BACKWARD` and the current internal `TRAINING_STEP` path perform the same first-order
-combined construction; `TRAINING_STEP` adds no optimizer update.
+This constructs the vector-Jacobian product selected by `cotangentSeed`. The seed must match the
+output's exact Shape and floating data type and must not request gradients. This overload still
+uses one stage, `createGraph == false`, and `DisconnectedPolicy.ERROR`; it does not expose the
+second-stage or disconnected-zero policy.
 
-The objective must be one exact requested forward-output Tensor with scalar Shape, a floating
-data type, and gradient eligibility. Targets are a non-empty ordered list of exact-object-
-identity-unique Tensors in that objective's ancestry. Each target must have a floating type,
-request gradients, and lie on a selected differentiable route. A target may have a different
-floating type from the objective and may be a leaf, an intermediate, or the objective itself.
+The result is an owner-bound reusable compile handle, not computed gradient bytes. Prepare and
+run it through the ordinary Engine lifecycle, then inspect its forward and gradient publication
+occurrences. A successful compile does not by itself promise that the current CPU-only
+composition can prepare or execute every accepted graph.
 
-The only current seed is an implicit rank-zero positive one with the objective's exact type.
-Generated BFLOAT16, FLOAT32, and FLOAT64 scalar bases are storage-free leaves registered
-explicitly as logical splats: one scalar value repeated at every logical coordinate. One
-request-local cache keys zero, one, and extrema/clamp bounds by exact data type and represented
-bits and preserves deterministic first-use order. BFLOAT16 uses exact zero/one bits `0x0000` and
-`0x3F80`. Storage, labels, layout, Shape, factory history, and missing provenance never imply a
-constant.
+## Build a bounded functional request
 
-## Supported formulas
+`FunctionalGradientRequest` contains exactly one or two ordered reverse-mode stages:
 
-The closed current matrix contains only:
+- Each stage has non-empty ordered output references, one optional seed position per output, and
+  a non-empty ordered target list.
+- Stage one selects exact Tensors from the requested forward-output boundary with
+  `ForwardTensorReference`.
+- Stage two may select only generated first-stage gradients with
+  `FirstStageGradientReference(targetIndex)`.
+- One stage requires `createGraph == false`. Two stages require `true` for stage one and `false`
+  for stage two.
+- An absent seed means an exact typed one only for an eligible scalar output. A present seed must
+  match the output's exact Shape and floating type and must not request gradients.
+- `DisconnectedPolicy.ERROR` rejects a target without a differentiable route.
+  `DisconnectedPolicy.ZERO` returns an ordinary exact typed zero expression; several target
+  roles may share that same value.
 
-| Family | Supported variants |
-|---|---|
-| Elementwise | All seven promoted floating binary arithmetic kinds; all eight exact-type floating scalar kinds, including first-class `CLAMP`; promoted branch-only `WHERE`; floating-to-floating `CAST`; and all nineteen floating unary kinds |
-| Reduction, scan, and softmax | Floating ordinary full, single-axis, and ordered multi-axis `SUM`/`MEAN`/`PROD`/`MIN`/`MAX`; masked floating `SUM`/`MEAN`; binding-aware floating `SUM_TO_SHAPE`; floating advanced statistics/norms; floating `CUM_SUM`/`CUM_PROD`; and floating `SOFTMAX`/`LOG_SOFTMAX` |
-| Normalization | No-affine and affine floating Layer normalization; no-scale and scaled floating root-mean-square (RMS) normalization; all five floating batch-inference inputs; and the output-slot-specific public batch-training routes |
-| Linear algebra | Every floating `MATMUL` vector/matrix rank pairing, including mixed-floating selected operands |
-| Logical layout and selection | Floating `CONTIGUOUS`, `RESHAPE`, binding-aware `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, `PERMUTE`, normalized `SLICE`, both normalized `SLICE_UPDATE` data roles, `SELECT`, `PAD`, `TILE`, `CONCAT`, and `STACK` |
+`createGraph` retains first-stage formulas only for the immediate second stage in the same
+compile. It does not open a persistent derivative recording scope or authorize arbitrary nesting.
 
-Forward expressions and generated gradients use the same ordinary Tensor operations, model
-numerical semantics, inference, validation, and exact optimization rules. A mixed-floating
-contribution first uses `sumToShape` when broadcasting must be reversed and then uses ordinary
-`cast` only when its type differs from the selected input. The contribution therefore reaches
-accumulation with that input's exact Shape and floating type.
-
-Binary DIV uses `g / right` for its left input and the exact ordered expression
-`-(g * left) / (right * right)` for its right input; scalar DIV uses `g / scalar`. These formulas
-have no gradient-only rule for singularities, NaNs, infinities, signed zeros, overflow,
-underflow, rounding, rewriting, or folding. `FLOOR`, `CEIL`, and `SIGN` instead use an explicit
-first-order local convention: a direct exact positive-zero cotangent, without `g * 0` or a
-floating comparison.
-
-MIN and MAX split an exact numeric tie equally between Tensor inputs; scalar extrema give the
-Tensor receiver one half. CLAMP applies that convention to the ordered composition
-`MIN(MAX(input, min), max)`, so a normal endpoint receives one half and a simultaneous two-stage
-tie receives one quarter. Opposite signed zeros are ties. Unordered NaN makes the comparisons
-false, so extrema, CLAMP, ABS, and RELU return exact positive zero at NaN positions.
-
-POW, reciprocal, logarithm, square-root, and inverse-square-root rules use their direct analytic
-Tensor formulas without compiler-inserted domain masks. Scalar POW subtracts one exactly once in
-the represented exponent type. ABS returns zero at both signed zeros; RELU returns `g` only above
-positive zero. Exact GELU, fixed tanh-approximation GELU, and SiLU use their analytic formula for
-finite and NaN inputs, `g` at positive infinity, and exact positive zero at negative infinity.
-Their coefficients use fixed BFLOAT16/FLOAT32/FLOAT64 bit patterns rather than host
-transcendental calculation.
-
-Ordinary MEAN restores and expands `g`, reduces an input-shaped logical-one expression over the
-same axes to obtain a count, expands that count, and divides. This represents static, dynamic,
-expression, zero-sized, and empty-axis-list domains without host count calculation. Masked MEAN
-counts true positions with ordinary `WHERE` and `SUM`, divides, and applies a final ordinary
-`WHERE`; an all-false slice receives zero at every input coordinate. This convention makes no
-promise about evaluation of the unselected quotient branch.
-
-Ordinary SUM restores removed axes before expansion; masked SUM additionally routes the expanded
-cotangent through the original mask. CUM_SUM retains exclusivity while reversing scan direction,
-and PERMUTE applies the inverse permutation. WHERE routes no cotangent through its BOOL
-condition, and masked reductions route none through their mask. A `SUM_TO_SHAPE` route is accepted
-when each aligned input/target Dimension is exactly equal, the target extent is statically one,
-or the binding-dependent inverse uses the same target-one-or-target-equal-source predicate.
-Binding-dependent `EXPAND` retains the corresponding
-`source == 1 || source == target` obligation. The compiler records these predicates but does not
-assign concrete sizes.
-
-Product reduction uses exclusive prefix and suffix products rather than `forwardProduct / input`,
-so represented zeros do not cause division by the selected input. Cumulative product uses safe
-products, cumulative zero counts, and an opposite-direction cumulative sum for all exclusive and
-reverse combinations. Reduction MIN/MAX shares a tie among every coordinate equal to the exact
-saved result; a NaN result matches no coordinate and returns exact zero.
-
-Softmax rules reuse their exact forward output `y`:
-
-```text
-softmax:     y * (g - sum(g * y, axis, true))
-logSoftmax:  g - exp(y) * sum(g, axis, true)
-```
-
-Log-sum-exp, variance, standard deviation, L1 norm, and L2 norm also use ordinary Tensor
-expressions. Statistical counts and correction are built from exact logical ones rather than a
-host floating conversion. Standard deviation and L2 norm select zero when their saved result is
-not strictly positive; L1 norm selects zero at signed zero and NaN.
-
-Layer and RMS normalization compute formula metadata in the exact selected forward-output type,
-align scale/bias operands to their logical axes, and cast completed contributions to the selected
-input type. Batch inference supports input, scale, bias, running mean, and running variance.
-Batch training is output-slot-aware:
-
-| Selected public output | Inputs that receive contributions |
-|---|---|
-| normalized output | input, scale, bias |
-| next running mean | input, running mean |
-| next running variance | input, running variance |
-
-The batch-training rules retrieve the exact saved batch mean and inverse standard deviation from
-hidden slots of the same producer. Those slots are compiler formula operands, not public gradient
-roots, physical buffers, or a runtime tape.
-
-MATMUL supports all four vector/matrix rank pairings. Each selected contribution reverses batch
-broadcasting and then casts once when its promoted type differs from the operand. SLICE and SELECT
-scatter into typed zeros; SLICE_UPDATE routes separately to its base and update roles; PAD crops;
-TILE sums interleaved repeat axes; CONCAT crops by ordered input prefixes; and STACK selects its
-inserted axis. The SLICE_UPDATE update-role rule needs static selected base extents. Repeated
-operand positions remain repeated contributions.
-
-An unlisted operation on a selected route fails before the compiler creates the seed or any
-formula Tensor. Remaining layout/indexing/ordering/stochastic work is assigned to Compiler 0005C;
-attention, convolution, pooling, and losses are assigned to Compiler 0005D; and Compiler 0005E
-owns the complete source-backed first-order closure audit. Target-relative crop and other
-unselected layout cases retain their existing fail-closed guards. Comparisons, BOOL
-logic/classification, the `WHERE` condition, scalar attributes and bounds, non-floating casts,
-`ALL`, `ANY`, arg-extrema outputs, batch saved auxiliary roots, indices, masks, and graph RNG state
-are non-differentiable.
-
-## Conceptual example
+## Conceptual example: compile a Hessian-vector product
 
 ### Goal and inputs
 
-Consider a floating Tensor `x` with Shape `[2]` and the scalar objective:
-
-```text
-y = sum(x * x)
-```
-
-The requested target is the exact `x` object. This is a conceptual compiler example because no
-public objective/target compile API exists yet.
+Assume `x` is a floating Tensor of Shape `[2]`, `loss = sum(x * x)` is scalar, and `vector` is a
+non-gradient Tensor of exact Shape `[2]` and the same floating type as the first-stage gradient.
+The goal is to retain the first derivative and construct one second-stage vector-Jacobian product.
 
 ### Meaningful steps
 
-Preflight first verifies that `y` is a requested scalar forward output and that the selected path
-contains only supported `SUM` and `MUL` occurrences. Only then does construction add the implicit
-scalar-one seed. Reverse traversal produces two ordered contributions for the repeated `x`
-operand:
+The following is conceptual Java because Tensor storage and Engine composition setup are omitted:
 
-```text
-dy/dx = x + x
+```java
+var first = new FunctionalGradientRequest.Stage(
+        List.of(new FunctionalGradientRequest.ForwardTensorReference(loss)),
+        List.of(Optional.empty()),
+        List.of(x),
+        true,
+        FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+
+var second = new FunctionalGradientRequest.Stage(
+        List.of(new FunctionalGradientRequest.FirstStageGradientReference(0)),
+        List.of(Optional.of(vector)),
+        List.of(x),
+        false,
+        FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+
+var request = new FunctionalGradientRequest(List.of(first, second));
+
+AdvancedCompiledGraph compiled = advanced.compile(
+        CompileMode.FORWARD_AND_BACKWARD,
+        List.of(loss),
+        Optional.of(request),
+        GraphOptimizationConfig.standard(),
+        BackendIntent.unconstrained(),
+        PartitionScoringConfig.neutral());
 ```
 
-The compiler captures `y` and the gradient root together. Original producers receive phase
-`FORWARD`; generated addition receives phase `BACKWARD`. Graph-local IDs are assigned once.
+Stage one uses the eligible scalar default seed and produces the gradient selected by target index
+zero. Stage two uses `vector` as the cotangent for that exact first-stage result. The compiler
+preflights both selected routes, constructs their formulas with ordinary Tensor operations, and
+captures the forward output and both gradient roots together once.
 
 ### Result and interpretation
 
-Internal `GraphCompilation` retains the final forward graph value plus one role from `x`'s
-`TensorId` to the final gradient `ValueId`. If several targets resolve to that same gradient
-value, every target role remains ordered while the graph-output boundary lists the value only at
-its first occurrence. No identity node is manufactured.
+Successful compilation returns an opaque `AdvancedCompiledGraph`. The underlying compiler
+artifacts retain one order-one gradient binding followed by one order-two binding, both for `x`.
+Per-node derivative metadata uses order zero for original forward producers, one for producers
+first owned by stage one, and two for producers first owned by stage two. Orders one and two both
+remain graph phase `BACKWARD`.
 
-This result proves expression construction and graph-stage bookkeeping only. It does not compute
-the numerical gradient for an input value, publish data, update a parameter, select a backend,
-prepare storage, or execute a graph.
+For this expression, the second binding represents the Hessian-vector product selected by
+`vector`. The example proves bounded graph construction and ordering only. It does not prove that
+a particular backend can prepare or numerically execute the graph, and it does not create a
+third-stage derivative chain.
+
+If `vector` has the wrong Shape or floating type, or requests gradients, compilation rejects the
+request before derivative formulas are allocated.
+
+## Publication and shared values
+
+Gradient publication bindings are ordered first by derivative order and then by target index
+within that stage. Each binding retains the target identity and final gradient graph value.
+Bindings remain target-distinct even when disconnected-zero handling or equivalent formulas make
+several targets share one value. The graph output boundary starts with the ordered forward values
+and then appends each previously unseen gradient value once in binding order.
 
 ## Common errors
 
 | Symptom | Likely cause | Correction |
 |---|---|---|
-| A public call site cannot provide objective and targets | The current request and `GraphCompiler` are package-private. | Wait for the planned public compile/publication contract; do not depend on internal compiler types. |
-| Preflight rejects an operation that has a public Tensor method | Public expression construction does not imply a selected derivative rule or policy. | Keep the selected route inside the closed matrix or wait for its owning follow-up. |
-| Preflight rejects a mixed-floating route | Mixed types are accepted only where the selected family has a complete promotion and Shape/type-normalization path. | Make every selected role floating and keep its descriptors inside the family-specific guards. |
-| Preflight rejects a batch saved output | Saved batch mean and inverse standard deviation are same-occurrence formula auxiliaries, not independent cotangent roots. | Request a supported public batch-training output route and a floating input role from its row. |
-| A BOOL condition or comparison is requested as a target | BOOL roles are non-differentiable. | Request a floating target reached through selected differentiable input roles. |
-| `TRAINING_STEP` produces no optimizer update | The current internal mode covers only the same combined forward/backward graph stage as `FORWARD_AND_BACKWARD`. | Keep optimizer behavior in the planned training lifecycle. |
+| An absent seed is rejected | The selected output is not scalar, floating, and gradient-eligible. | Supply a matching explicit seed, or select an eligible scalar output. |
+| An explicit seed is rejected | Its Shape or floating type differs from the output, or it requests gradients. | Use the exact output Shape and type with gradient eligibility disabled. |
+| A target is rejected as disconnected | The selected outputs have no differentiable route to that target under `ERROR`. | Select a connected target or use the advanced request with `ZERO` when a typed zero is intended. |
+| A public Tensor method exists but autograd rejects the route | Expression construction does not guarantee a derivative rule for every operation, attribute, or role. | Check the maintained [Compiler derivative matrix](../api/compile-api.md#current-package-private-pre-capture-autograd). |
+| A two-stage request is rejected structurally | Stage one does not use `createGraph == true`, stage two uses it, or stage two references a forward Tensor. | Use `true` only on stage one and select stage-two outputs by first-stage target index. |
+| Compilation succeeds but preparation fails | Current backend preparation supports a narrower executable subset than compiler graph construction. | Treat compile and prepare as separate boundaries and stay within the documented backend subset. |
 
 ## Limitations
 
-The current compiler path has no public objective/target/seed request, non-scalar objective,
-caller-supplied seed, disconnected-target zero policy, vector-Jacobian product, higher derivative,
-gradient publication, optimizer update, training session, preparation, runtime execution, or
-backend-specific behavior. Public Tensors remain expression model state with no gradient field or
-`backward()` method.
+The current boundary has no third reverse stage, derivative order above two, arbitrary nested
+differentiation, persistent or runtime tape, mutable Tensor gradient state, no-argument backward,
+`Tensor.backward()`, optimizer update, or training session. `TRAINING_STEP` currently constructs
+the same bounded derivative graph as `FORWARD_AND_BACKWARD`; it does not add an optimizer update.
+
+Derivative coverage remains fail-closed and operation-specific. The maintained Compile API lists
+the current formula matrix and exclusions; this guide does not duplicate that inventory or imply
+numerical or backend coverage from formula construction alone.
 
 ## Related documentation
 
-- [Compile API status and exact internal matrix](../api/compile-api.md#current-package-private-pre-capture-autograd)
+- [Compile API and functional-gradient examples](../api/compile-api.md#functional-gradient-examples)
+- [Compiler-owned automatic differentiation contract](../architecture/contracts/compiler-autograd.md#compiler-owned-automatic-differentiation)
+- [Training graph explanation](../architecture/training-graph.md)
+- [Public API lifecycle](../api/public-api.md#current-ordinary-and-advanced-cpu-lifecycle)
 - [Tensor API](../api/tensor-api.md)
-- [Autograd strategy note](../design/notes/autograd-strategy.md)
-- [Training graph](../architecture/training-graph.md)
 - [Training API status](../api/training-api.md)
