@@ -107,17 +107,20 @@ It must not construct runtime execution units.
 
 ## Compile artifacts
 
-`CompileArtifacts` should contain:
+`CompileArtifacts` is one immutable compile-time recipe containing exactly these eight semantic
+components, in current record order:
 
-```java
-public record CompileArtifacts(
-        CompiledGraphModel graph,
-        List<PlannedPartition> partitions,
-        LogicalMemoryPlan memory,
-        PublicationPlan publication,
-        CompileDiagnostics diagnostics
-) {}
-```
+1. the exact graph-scope `CompileMode`;
+2. the exact final `CompiledGraphModel`;
+3. immutable graph-order `List<PlannedPartition>` membership for the maximal partitions;
+4. the `LogicalMemoryPlan` derived from that graph and partition list;
+5. the `PublicationPlan` for the exact final graph;
+6. the complete graph-input source classification in `CompileConstantPlan`;
+7. successful-compile deferred diagnostics in `CompileDiagnostics`; and
+8. the exact-graph derivative-order metadata in `DerivativeGraphMetadata`.
+
+These components are logical compile output, not physical, prepared, backend-executable, or
+runtime state.
 
 `CompileArtifacts` must not contain:
 

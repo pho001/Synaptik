@@ -115,7 +115,7 @@ algebra builder, planning adapter, backend lowering layer, or execution owner.
 | 0006B6 | [Final convolution logical-layout closure](tasks/0006b6-final-convolution-logical-layout-closure.md) | Complete | 0006B, 0006B3–0006B5; blocked Engine 0008 reassessment; current Model/Planning/CPU contracts | Closed eligible final Conv2d/Conv3d layouts and the direct Conv1d squeeze view before Planning queries. |
 | 0006B7 | [Final NEG logical-layout closure](tasks/0006b7-final-neg-logical-layout-closure.md) | Complete | 0006B3–0006B6; Metal 0002 prerequisite review; current Model/Planning contracts | Closed eligible exact NEG and directly consumed splat-input layouts before final artifact derivation. |
 | 0006B8 | [Bounded functional autograd contract and documentation reconciliation](tasks/0006b8-bounded-functional-autograd-contract-and-documentation-reconciliation.md) | Complete | 0006; completed Engine 0011; user-authorized drift-remediation sequence | Reconciled and independently reviewed the autograd contract and focused product documentation against current bounded one/two-stage behavior. |
-| 0006B9 | [Compile-artifacts contract reconciliation](tasks/0006b9-compile-artifacts-contract-reconciliation.md) | Ready | 0006B8; completed Engine 0012; current `CompileArtifacts` source, test, and API references | Reconcile the stale normative component block with the exact current public eight-component compile-time recipe. |
+| 0006B9 | [Compile-artifacts contract reconciliation](tasks/0006b9-compile-artifacts-contract-reconciliation.md) | Complete | 0006B8; completed Engine 0012; current `CompileArtifacts` source, test, and API references | Reconciled and independently reviewed the normative block against the exact public eight-component compile-time recipe. |
 | 0006C | Conv3d adjoint expressibility and gradient closure | Draft | 0006B; current public Tensor algebra; any separately selected Model prerequisite | Prove exact grouped NCDHW input/weight/bias adjoints; implement only if current public algebra closes every required case, otherwise select the smallest Model prerequisite. |
 | 0007 | Exact constant identities and permission-aware algebra | Draft | 0006; Config 0006 before any relaxed rule | Reassess exact identities and separately permissioned relaxed rewrites without broadening current constant evidence or completed exact rules. |
 
@@ -125,10 +125,9 @@ algebra builder, planning adapter, backend lowering layer, or execution owner.
 - Compiler-owned autograd, current first-order inventory closure, and bounded two-stage functional
   differentiation are Complete through 0006.
 - Recurrent, Conv3d, Pool3d/3D-window, public integration, caller binding, final logical-layout,
-  and bounded-autograd documentation reconciliation work are Complete through 0006B8.
-- Documentation-only 0006B9 is the sole user-authorized `Ready` frontier after completed Engine
-  0012. It reconciles the normative compile-artifact component block with current source, tests,
-  and API references through clean implementation and independent Class C review.
+  bounded-autograd documentation reconciliation, and compile-artifact contract reconciliation
+  work are Complete through 0006B9.
+- No Compiler task is currently authorized as the active frontier.
 - 0006C and 0007 remain `Draft`, have no detailed task brief, and are independent side branches;
   0006B9 grants neither implementation authorization.
 
@@ -158,8 +157,8 @@ algebra builder, planning adapter, backend lowering layer, or execution owner.
 ## Status normalization
 
 The task table and linked task `Status`/completion summaries take precedence over historical prose.
-The current roadmap records documentation-only 0006B9 as the sole `Ready` Compiler frontier; no
-Compiler implementation frontier is selected.
+The current roadmap records documentation-only 0006B9 as Complete; no Compiler implementation
+frontier is selected.
 
 ## History and update policy
 
