@@ -1070,11 +1070,14 @@ scoring policy, route selector, preparer, or execution service. The CPU backend 
 through the architecture-approved inward dependency on planning and supports only exact
 `BinaryArithmeticKind.ADD` with `NoOperationAttrs`, two inputs, one output, equal fully static
 shapes, one of `FLOAT64`, `FLOAT32`, `INT32`, or `INT64`, and either unresolved or
-`DENSE_CONTIGUOUS` non-view zero-offset layout. The current Metal provider is deliberately
-fail-closed: it reports the stable `metal` identity but returns `false` for every operation even
-when its native library or a device is available. The package-private hard-eligibility step is
-the first internal planning consumer. Compile-time plans retain `BackendId`, not a provider
-object.
+`DENSE_CONTIGUOUS` non-view zero-offset layout. The current Metal provider reports support only
+for unary `NEG` occurrences with equal input/output `FLOAT32` descriptors whose shape is fully
+static and positive with rank `1..16`, whose layout is resolved dense-contiguous, non-view, and
+zero-offset, and whose gradient flags match. That occurrence-level answer is independent of
+native availability and constant provenance; it allows Planning to form one maximal Metal-owned
+partition that Metal preparation must accept as a whole. The package-private hard-eligibility
+step is the first internal planning consumer. Compile-time plans retain `BackendId`, not a
+provider object.
 
 ### Backend hard eligibility
 
@@ -4242,9 +4245,11 @@ identity is not itself a physical execution resource and must not be confused wi
 A concrete backend-owned implementation of one buffer or workspace in host, device, or native
 storage. Current Runtime defines the distinct nominal `BufferRepresentation` and
 `WorkspaceRepresentation` lifecycle roles, each exposing only unchecked cleanup through
-`close()`. CPU provides package-private borrowed and run-owned native implementations. Metal now
+`close()`. CPU provides package-private borrowed and run-owned native implementations. Metal
 provides package-private shared-storage buffer and workspace implementations with explicit native
-ownership and context leases, but no prepared Runtime integration or executable operation route.
+ownership and context leases. Its prepared NEG route borrows caller input buffers and creates
+fresh per-run initialized constant buffers, output buffers, and a native-address workspace; the
+persistent MPSGraph executable is a separate prepared resource rather than a representation.
 Runtime owns the logical per-run association, ownership, structural residency, explicit buffer
 validity, and cleanup orchestration. The backend representation owns physical allocation,
 release, transfer, and access mechanics. A
@@ -5031,6 +5036,22 @@ prepared resource is then owned exactly once by `PreparedExecution`; it is not p
 a schedule occurrence, a backend-global cache entry, or a garbage-collection-managed correctness
 mechanism. Runtime 0016 implements the nominal contract and owner lifecycle, and Prepare 0006
 implements the transactional finalizer handoff.
+
+### MPSGraph prepared executable
+
+The current Metal backend's package-private, shape-specialized native executable for one complete
+maximal partition of supported unary `NEG` occurrences. Metal analysis fixes stable feed, target,
+and value order and declares shared resources; after shared slot assignment, Metal finalization
+compiles the `MPSGraphExecutable` and returns its owner as a
+[`PreparedResource`](#prepared-resource--preparedresource). `PreparedExecution` owns that resource
+across runs.
+
+Each run separately borrows caller Metal buffers and owns fresh initialized constant buffers,
+output buffers, and a closeable native-address workspace. Cold binding fills the address
+workspace and creates a direct-reference invocation. Hot execution makes one synchronous native
+downcall that binds supplied `MTLBuffer` destinations. The term does not imply a public Metal
+Engine composition, mixed-owner schedule, backend-global executable cache, per-run compilation,
+or a claim that MPSGraph uses no internal temporary storage.
 
 ### Prepared executable / `PreparedExecutable`
 

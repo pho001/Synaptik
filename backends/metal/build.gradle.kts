@@ -6,4 +6,5 @@ dependencies {
     implementation(project(":modules:prepare"))
     implementation(project(":modules:backend-contract"))
     implementation(project(":modules:trace"))
+    testImplementation(project(":modules:compiler"))
 }

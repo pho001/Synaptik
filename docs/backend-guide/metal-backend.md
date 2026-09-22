@@ -1,114 +1,226 @@
-# Metal backend foundation
+# Metal backend
 
 ## Outcome and supported scope
 
-This guide explains the current Metal backend foundation and the boundary a later executable
-route must preserve. Today the module provides an explicitly constructed capability provider that
-rejects every operation plus package-private macOS arm64 native and storage mechanics. It does
-not provide supported tensor execution.
+This guide explains Synaptik's first executable Metal route and the boundaries a backend
+contributor must preserve. The route executes a whole maximal Metal-owned partition when every
+occurrence is unary `NEG` with equal input/output descriptors satisfying all of these conditions:
+
+- data type is `FLOAT32`;
+- shape is fully static with rank `1..16` and every dimension is positive;
+- input and output shapes are equal;
+- layout is resolved dense-contiguous, non-view, and zero-offset; and
+- input and output `requiresGrad` flags are equal, with either shared value accepted.
 
 ```text
-Planning query -> fail-closed provider -> no Metal ownership
-
-explicit dylib path -> native context -> run-owned buffer/workspace -> deterministic cleanup
-                                      (no prepared Runtime integration yet)
+capability -> Planning ownership -> Metal analysis -> shared slot assignment
+           -> Metal finalization -> PreparedExecution -> isolated Runtime run
 ```
 
-The two lines are deliberately separate. A working device, command queue, or buffer does not make
-an operation eligible for Metal ownership.
+Capability applies per occurrence, so preparation accepts the complete maximal partition that
+Planning forms: chains, independent nodes, fan-out, repeated consumption, internal values,
+multiple boundary values, and different valid shapes all lower into one executable. Every other
+operation, type, rank, zero extent, dynamic shape, unresolved or view layout, broadcast, and
+multi-output form remains fail-closed.
 
 ## Prerequisites
 
-The Java foundation uses JDK 26 Foreign Function and Memory (FFM) APIs. Building and exercising
-the native bridge requires an Apple-silicon macOS host, Xcode Command Line Tools, and the system
-Foundation and Metal frameworks. The caller supplies the absolute dylib path; the backend does
-not scan, discover, extract, package, sign, or cache a library.
+Java uses JDK 26 Foreign Function and Memory (FFM) APIs. The native bridge requires an
+Apple-silicon macOS host, Xcode Command Line Tools, and Foundation, Metal, and
+MetalPerformanceShadersGraph. Build and ABI instructions are in the
+[native Metal guide](../../native/metal-macos-arm64/README.md).
 
-See the [native build and ABI guide](../../native/metal-macos-arm64/README.md) for the local build
-command and opt-in round trip.
+The caller supplies the dylib's absolute path. The backend does not discover, extract, package,
+sign, notarize, or cache the library. Planning separately receives a Metal availability snapshot;
+the capability provider performs no native loading or device discovery.
 
 ## Contracts and ownership
 
-| Concern | Current owner and behavior |
+| Stage or resource | Owner and current behavior |
 |---|---|
-| Capability truth | `MetalCapabilityProvider` reports backend identity `metal`, rejects null queries, and returns `false` for every operation. |
-| Native lifetime | One package-private context owns the default Metal device, one command queue, and the FFM lookup lifetime. |
-| Buffer storage | Each buffer wrapper owns one fresh shared-storage native buffer and one context child lease. |
-| Workspace storage | Each workspace wrapper owns scratch storage and a child lease but exposes no host byte access. |
-| Run association | Runtime defines the nominal representation roles, but task 0001 does not create a prepared representation plan or `RunState`. |
-| Future lowering | Metal prepare will own route selection and lowering only after a later task defines a complete executable route. |
+| Capability truth | Public `MetalCapabilityProvider` reports only the exact `FLOAT32` NEG domain. |
+| Backend ownership | Planning chooses `owner = metal` and groups consecutive equal owners; it never selects MPSGraph. |
+| Analysis | Package-private Metal code validates the entire partition, assigns stable value order, classifies caller and constant feeds, and declares boundary buffers plus one address workspace. |
+| Shared preparation | `GraphPreparation` projects facts, assigns slots, validates the result, and transfers persistent resources transactionally. It does not inspect the Metal plan. |
+| Finalization | Metal validates exact assignments and compiles one shape-specialized MPSGraph executable after slots exist. |
+| Persistent executable | One `PreparedResource` owns the native executable and context lease; the resulting `PreparedExecution` becomes its sole owner. |
+| Per-run state | Runtime borrows caller buffers and owns fresh initialized-constant buffers, output buffers, and one native-address workspace. |
+| Hot invocation | A cold-bound invocation retains direct references and makes one synchronous native downcall into supplied output destinations. |
+| Publication | Runtime leases the already-resident output representation; host observation is an explicit later download. |
 
-The capability provider is immutable and thread-safe. Buffer access and close are serialized per
-resource. Context access admission is atomic with context close, but an admitted native action
-runs outside the context monitor. Distinct open resources may therefore overlap. An action
-admitted before context close may finish using its retained child lease; a later action is
-rejected before native invocation. Closing a context defers native release until the final child
-wrapper closes. Repeated close calls do not retry native release.
+The public Java surface remains only `MetalCapabilityProvider`. Contexts, physical storage,
+preparers, finalizers, schedules, executables, native handles, Objective-C objects, and MPSGraph
+types remain package-private.
 
-## Current foundation lifecycle
+## Integration lifecycle
 
-The current concrete scenario is a resource round trip, not an operation execution example.
+### Capability and whole-partition analysis
 
-1. Build the native dylib and supply its absolute path.
-2. Java resolves the ABI version first, requires version `1`, then resolves the six remaining
-   symbols before creating a context.
-3. Context creation retains one default device and one command queue.
-4. Buffer creation returns a fresh opaque handle. A logical size of zero still has private
-   one-byte physical backing, while its permitted logical range remains zero.
-5. Upload and download validate segment liveness, thread access, writability, native provenance,
-   and both segment and logical-buffer ranges before crossing the native boundary.
-6. Closing a buffer consumes its native handle and releases its context lease. The context and
-   symbol lookup close after owner close and the last child release.
+`MetalCapabilityProvider.supports` checks descriptors only. It cannot see whether an eligible
+feed originated as a caller input or a compile-time constant, so equal eligible descriptors
+receive the same answer. Availability and hard backend requirements remain separate Planning
+facts.
 
-For the opt-in test input, an eight-byte buffer receives five bytes from source offset `1` at
-buffer offset `2`. Downloading those five bytes to destination offset `2` produces
-`[0, 0, 2, 3, 4, 5, 6, 0]`. This proves bounded byte preservation and ownership cleanup. It does
-not prove tensor semantics, an executable route, command submission, or synchronization.
+After Planning creates one maximal Metal partition, analysis walks nodes in partition order and
+indexes each input then output on first encounter. External feeds follow first-consumer order;
+boundary targets follow producer-node and output-port order. Internal values remain MPSGraph
+tensors and receive no Runtime slot. Repeated use names the same indexed value.
 
-## Registration and future composition
+Analysis receives compile-time constant sources through `PrepareContext.constants()`. A boundary
+constant must be an exact `FLOAT32` splat. The route declares it like any other feed, but the run
+uses an `InitializedBuffer` instead of consuming a caller position. Existing shared
+`GraphPreparation` tests independently enforce the chain
+`CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
-The provider is passed explicitly to Planning. It is not discovered through `ServiceLoader`, a
-registry, or a runtime service locator. No current Engine composition registers Metal, and no
-prepared Runtime recipe creates these representations. A future route must first let Planning
-select Metal ownership, then let Metal analyze and finalize that partition against shared assigned
-slots. Only the resulting prepared executable may reach Runtime.
+### Finalization and persistent ownership
 
-Conceptual future lifecycle (not a current API):
+Shared Prepare assigns all declared buffer and workspace slots before Metal finalization. The
+finalizer checks declaration identity, order, geometry, slot uniqueness, and exact
+`MetalDeviceContext` identity. It then calls native creation once and constructs one immutable
+`PreparedExecutable` recipe.
+
+Native creation compiles a fixed-shape `MPSGraphExecutable` for the whole partition. The returned
+resource owns that executable and a context child lease. A provisional lease prevents concurrent
+context close from invalidating native creation. Failed creation or wrapper construction releases
+the executable when present, then the lease; failed finalization rolls the resource back locally.
+After finalizer return, shared Prepare owns rollback until a fully validated `PreparedExecution`
+accepts the resource exactly once.
+
+`PreparedExecution.close()` rejects new runs without waiting. A previously admitted synchronous
+run may finish, after which the last run lease releases persistent resources. Cleanup is
+idempotent, reverse-order, and attempt-all; the first failure remains primary and later distinct
+failures are suppressed.
+
+### Cold run setup and binding
+
+Each run receives isolated mutable state:
+
+1. caller input positions borrow caller-owned Metal buffers;
+2. each constant feed allocates a fresh run-owned Metal buffer and uploads the exact raw
+   `FLOAT32` splat bits once;
+3. each target allocates a fresh run-owned output buffer;
+4. one run-owned workspace allocates native address-array storage; and
+5. cold binding validates context identity and byte extents, rejects input/output aliasing, and
+   writes all ordered native handles into that workspace once.
+
+An allocation or upload failure closes the current and previously created run-owned resources
+through Runtime rollback. No constant buffer is prepared once, shared between runs, or owned by a
+backend-global cache.
+
+### Hot execution and supplied destinations
+
+The bound invocation holds direct slices of the address workspace plus the persistent executable.
+Its hot method makes one native call. It performs no Java allocation, address marshalling, slot or
+map lookup, representation cast, graph traversal, operation dispatch, route choice, reflection,
+string dispatch, host copy, retry, or fallback.
+
+Native execution creates the bounded framework binding objects required by MPSGraph, binds the
+ordered input and caller-supplied output `MTLBuffer` values, and invokes the executable once with
+`waitUntilCompleted = YES`. Success requires no completion error and the exact ordered usable
+result count. Synaptik performs no explicit output copy and does not request hidden result
+materialization; this is not a claim that MPSGraph uses no internal temporary storage.
+
+## Example: two NEG occurrences
+
+For inputs `x = [1.0, -2.0]`, this supported graph:
 
 ```text
-truthful capability -> Planning ownership -> Metal analysis -> shared slot assignment
-                    -> Metal finalization -> prepared executable -> Runtime invocation
+y = NEG(x)
+z = NEG(y)
+publish y, z
 ```
 
-## Failures and diagnostics
+forms one maximal Metal partition and one reusable executable. `x` is one feed, `y` is both an
+internal value and boundary target, and `z` is a boundary target. A run uploads `x` into a
+caller-owned Metal buffer before Runtime, creates fresh supplied destinations for `y` and `z`,
+executes once, and publishes `y = [-1.0, 2.0]` and `z = [1.0, -2.0]`. A second run reuses the
+executable but receives different output buffers and workspace.
 
-Null capability queries fail before inspection. Library loading, ABI mismatch, missing symbols,
-no default device, no command queue, allocation failure, invalid native ranges, copy failure, and
-unknown status values all fail closed. The package-private native exception retains the operation
-name and exact status integer. Cleanup preserves the primary failure and suppresses distinct
-later cleanup failures in deterministic order. Public Engine exception translation does not yet
-exist for Metal.
+This is an explanatory scenario over current contracts, not a public Engine sample. There is no
+public Metal composition or standard `compute` entry yet.
+
+## ABI and failures
+
+ABI version 2 exports ten symbols: the original version/context/buffer functions plus executable
+create, release, and run. Statuses `0..7` retain their foundation meanings; `8` is unsupported
+shape, `9` graph compilation failure, `10` incompatible resource, and `11` execution failure.
+Unknown integers fail closed with the exact raw value retained.
+
+Java and native code both validate safely inspectable counts, ranks, dimensions, indices,
+topology, equal NEG shapes, and byte geometry. Java additionally owns typed handle liveness and
+pointer-region preconditions that a raw C boundary cannot prove. Input/output aliasing and wrong
+device or insufficient buffer extent map to status `10`; completion errors and malformed results
+map to `11`; Objective-C exceptions map to `7`. No status string or framework object crosses the
+ABI.
+
+Deterministic fake/native-seam tests are the accepted status and error matrix. The real-device
+test validates successful native behavior rather than trying to induce undocumented MPSGraph
+failures.
+
+## Evidence composition
+
+No single test overstates the available public surface:
+
+- `nativePreparedNegRoundTripAndReuse` uses public `GraphCompilationPort`, shared
+  `GraphPreparation`, Runtime, and real MPSGraph with ordinary caller inputs. It proves one
+  maximal partition, two-run executable reuse, fresh outputs, supplied destinations, publication,
+  host observation, and finite/infinite/NaN/signed-zero NEG behavior.
+- Backend-local typed tests construct `PrepareContext` directly to prove explicit positive-rank
+  `FLOAT32` splats flow through analysis, finalization, schedule assembly, `InitializedBuffer`,
+  and Runtime with exact raw bits, per-run allocation/upload, rollback, and concurrent-run
+  isolation.
+- Existing shared `GraphPreparation` contract tests prove that a `ConstantSource` reaches the
+  owning partition's `PrepareContext.constants()` and must use `InitializedBuffer`, while a
+  non-constant must not.
+
+The public `GraphCompilationPort` intentionally supplies no explicit positive-rank forward-
+constant ingress. Therefore the repository does not claim one public-port positive-rank-splat
+test. Combining the real caller-input route, backend-local typed splat route, and existing shared
+constant contracts is the truthful end-to-end evidence.
+
+## Registration and composition
+
+The provider is supplied explicitly to Planning; there is no `ServiceLoader`, registry, or
+runtime service locator. Current standard Engine composition remains CPU-only, and its supported
+CPU adapter rejects mixed or multiple partitions. Metal 0002 therefore composes the public shared
+Compiler, Prepare, and Runtime contracts inside backend tests without publishing a Metal Engine
+adapter. It makes no standard Engine, mixed-owner, cross-region transfer, or fallback claim.
 
 ## Conformance and validation
 
-Task 0001 validates provider behavior, exact handle ownership, allocation and byte geometry,
-concurrent/idempotent close, close-versus-access ordering, partial cleanup failures, and the real
-seven-symbol arm64 ABI. Backend-conformance and end-to-end suites are deferred because Metal
-advertises and executes no Model operation. Performance evidence is also deferred because there
-is no executable route to measure.
+The stabilized implementation evidence is:
+
+- the final ordinary Metal suite passed 35 tests, with three opt-in tests skipped because the
+  required environment variables were absent;
+- the focused prepared-execution class passed 20 tests, with its two opt-in real-device tests
+  skipped in the ordinary sandboxed run;
+- the native build succeeded; symbol inspection found exactly ten `synaptik_metal_*` exports,
+  and link inspection found Foundation, Metal, and MetalPerformanceShadersGraph;
+- the exact opt-in command in the native guide passed both
+  `nativeFoundationRoundTrip` and `nativePreparedNegRoundTripAndReuse` outside the sandbox;
+- focused backend-conformance passed two tests and focused dependency architecture validation
+  passed one test; and
+- source plus `javap` inspection confirmed the package-private surface and direct one-downcall hot
+  path across the exact 20 implementation paths present before this documentation pass.
+
+The module has a test-only Compiler dependency so its typed integration test can create public
+`CompileArtifacts`; Metal production has no Compiler or Engine dependency. Backend conformance
+has a test-only Metal dependency. No generic Engine integration test was added because no
+supported public Metal Engine composition exists.
 
 ## Limitations and related documentation
 
-There is no supported operation, prepared Runtime integration, Engine composition, MPSGraph or
-custom-kernel route, command submission, synchronization guarantee, FLOAT16 or BFLOAT16 support
-claim, automatic library discovery, or performance claim. Model task 0026 must define FLOAT16
-semantics before any backend can advertise it; two-byte storage alone proves neither FLOAT16 nor
-BFLOAT16 execution support.
+The current route has no FLOAT16, BFLOAT16, FLOAT64, integer, BOOL, scalar-rank, zero-extent,
+dynamic-shape, strided/view/offset, broadcast, or multi-output support. It adds no custom kernel,
+asynchronous API, cross-run overlap guarantee, buffer pool, persistent constant buffer,
+serialization, packaging, discovery, tuning, or performance-superiority claim. Model task 0026
+must define FLOAT16 semantics before any backend can advertise it.
 
 Related documentation:
 
 - [Architecture contract](../../ARCHITECTURE.md#metal-backend)
 - [Runtime / Prepare / Backend boundary](../architecture/runtime-prepare-backend-boundary.md)
-- [Metal master plan](../planning/backends/metal/master-plan.md)
-- [Metal task 0001](../planning/backends/metal/tasks/0001-metal-capability-storage-and-native-foundation.md)
+- [Prepared-resource lifecycle ADR](../design/decisions/0013-prepared-execution-persistent-resource-lifecycle.md)
 - [Metal strategy note](../design/notes/metal-backend-strategy.md)
+- [Metal task 0002](../planning/backends/metal/tasks/0002-mpsgraph-prepared-execution-route.md)
+- [Native ABI and build guide](../../native/metal-macos-arm64/README.md)

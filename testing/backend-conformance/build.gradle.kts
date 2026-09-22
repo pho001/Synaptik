@@ -8,6 +8,7 @@ dependencies {
     testImplementation(project(":modules:runtime"))
     testImplementation(project(":modules:prepare"))
     testImplementation(project(":backends:cpu"))
+    testImplementation(project(":backends:metal"))
 }
 
 tasks.withType<JavaCompile>().configureEach {

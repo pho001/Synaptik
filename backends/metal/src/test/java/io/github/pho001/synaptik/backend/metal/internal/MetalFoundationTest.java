@@ -156,8 +156,12 @@ class MetalFoundationTest {
             MemorySegment source = arena.allocate(1);
             var access = executor.submit(() -> buffer.upload(0, source, 0, 1));
             assertTrue(api.uploadEntered.await(5, TimeUnit.SECONDS));
-            var close = executor.submit(buffer::close);
-            Thread.sleep(50);
+            CountDownLatch closeStarted = new CountDownLatch(1);
+            var close = executor.submit(() -> {
+                closeStarted.countDown();
+                buffer.close();
+            });
+            assertTrue(closeStarted.await(5, TimeUnit.SECONDS));
             assertEquals(0, api.bufferReleaseCalls.get());
             api.continueUpload.countDown();
             access.get(5, TimeUnit.SECONDS);
@@ -274,6 +278,76 @@ class MetalFoundationTest {
     }
 
     @Test
+    void negExecutableCreatePreflightRejectsMalformedAbiWithoutNativeInvocation() {
+        var api = new FakeNativeApi();
+        MetalNativeApi.Handle context = new MetalNativeApi.Handle(MemorySegment.ofAddress(97));
+        NegCreate valid = validNegCreate();
+
+        assertInvalidCreate(api, context, valid.withRanks(new int[0]));
+        assertInvalidCreate(api, context, valid.withDimensions(new long[47]));
+        assertInvalidCreate(api, context, valid.withNodeInputs(new int[0]));
+        assertInvalidCreate(api, context, valid.withNodeOutputs(new int[] {1}));
+        assertInvalidCreate(api, context, valid.withFeeds(new int[0]));
+        assertInvalidCreate(api, context, valid.withTargets(new int[0]));
+
+        int[] zeroRank = valid.ranks().clone();
+        zeroRank[0] = 0;
+        assertInvalidCreate(api, context, valid.withRanks(zeroRank));
+        int[] excessiveRank = valid.ranks().clone();
+        excessiveRank[0] = 17;
+        assertInvalidCreate(api, context, valid.withRanks(excessiveRank));
+        long[] nonzeroPadding = valid.dimensions().clone();
+        nonzeroPadding[2] = 1;
+        assertInvalidCreate(api, context, valid.withDimensions(nonzeroPadding));
+
+        assertInvalidCreate(api, context, valid.withFeeds(new int[] {-1}));
+        assertInvalidCreate(api, context, valid.withFeeds(new int[] {3}));
+        assertInvalidCreate(api, context, valid.withFeeds(new int[] {0, 0}));
+        assertInvalidCreate(api, context, valid.withTargets(new int[] {-1}));
+        assertInvalidCreate(api, context, valid.withTargets(new int[] {3}));
+        assertInvalidCreate(api, context, valid.withTargets(new int[] {0}));
+        assertInvalidCreate(api, context, valid.withTargets(new int[] {2, 2}));
+
+        assertInvalidCreate(api, context, valid.withNodeInputs(new int[] {3, 1}));
+        assertInvalidCreate(api, context, valid.withNodeInputs(new int[] {1, 0}));
+        assertInvalidCreate(api, context, valid.withNodeOutputs(new int[] {3, 2}));
+        assertInvalidCreate(api, context, valid.withNodeOutputs(new int[] {0, 2}));
+        assertInvalidCreate(api, context, valid.withNodeOutputs(new int[] {1, 1}));
+
+        int[] mismatchedRank = valid.ranks().clone();
+        mismatchedRank[1] = 1;
+        assertInvalidCreate(api, context, valid.withRanks(mismatchedRank));
+        long[] mismatchedShape = valid.dimensions().clone();
+        mismatchedShape[16] = 7;
+        assertInvalidCreate(api, context, valid.withDimensions(mismatchedShape));
+        long[] zeroDimension = valid.dimensions().clone();
+        zeroDimension[0] = 0;
+        assertInvalidCreate(api, context, valid.withDimensions(zeroDimension));
+        long[] negativeDimension = valid.dimensions().clone();
+        negativeDimension[0] = -1;
+        assertInvalidCreate(api, context, valid.withDimensions(negativeDimension));
+        long[] overflowingGeometry = valid.dimensions().clone();
+        overflowingGeometry[0] = Long.MAX_VALUE;
+        overflowingGeometry[1] = 2;
+        assertInvalidCreate(api, context, valid.withDimensions(overflowingGeometry));
+
+        int[] ranksWithUnused = {2, 2, 2, 2};
+        long[] dimensionsWithUnused = new long[64];
+        for (int value = 0; value < 4; value++) {
+            dimensionsWithUnused[value * 16] = 2;
+            dimensionsWithUnused[value * 16 + 1] = 3;
+        }
+        assertInvalidCreate(api, context,
+                new NegCreate(ranksWithUnused, dimensionsWithUnused,
+                        valid.nodeInputs(), valid.nodeOutputs(), valid.feeds(), valid.targets()));
+
+        assertEquals(0, api.executableCreateCalls.get());
+        assertTrue(api.createNegExecutable(context, valid.ranks(), valid.dimensions(),
+                valid.nodeInputs(), valid.nodeOutputs(), valid.feeds(), valid.targets()) != null);
+        assertEquals(1, api.executableCreateCalls.get());
+    }
+
+    @Test
     void nativeFoundationRoundTrip() {
         String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
         Assumptions.assumeTrue(configured != null && !configured.isBlank(),
@@ -312,6 +386,54 @@ class MetalFoundationTest {
         }
     }
 
+    private static void assertInvalidCreate(
+            FakeNativeApi api, MetalNativeApi.Handle context, NegCreate input) {
+        int before = api.executableCreateCalls.get();
+        assertThrows(IllegalArgumentException.class,
+                () -> api.createNegExecutable(context, input.ranks(), input.dimensions(),
+                        input.nodeInputs(), input.nodeOutputs(), input.feeds(), input.targets()));
+        assertEquals(before, api.executableCreateCalls.get());
+    }
+
+    private static NegCreate validNegCreate() {
+        int[] ranks = {2, 2, 2};
+        long[] dimensions = new long[48];
+        for (int value = 0; value < 3; value++) {
+            dimensions[value * 16] = 2;
+            dimensions[value * 16 + 1] = 3;
+        }
+        return new NegCreate(ranks, dimensions, new int[] {0, 1}, new int[] {1, 2},
+                new int[] {0}, new int[] {2});
+    }
+
+    private record NegCreate(
+            int[] ranks, long[] dimensions, int[] nodeInputs, int[] nodeOutputs,
+            int[] feeds, int[] targets) {
+        NegCreate withRanks(int[] replacement) {
+            return new NegCreate(replacement, dimensions, nodeInputs, nodeOutputs, feeds, targets);
+        }
+
+        NegCreate withDimensions(long[] replacement) {
+            return new NegCreate(ranks, replacement, nodeInputs, nodeOutputs, feeds, targets);
+        }
+
+        NegCreate withNodeInputs(int[] replacement) {
+            return new NegCreate(ranks, dimensions, replacement, nodeOutputs, feeds, targets);
+        }
+
+        NegCreate withNodeOutputs(int[] replacement) {
+            return new NegCreate(ranks, dimensions, nodeInputs, replacement, feeds, targets);
+        }
+
+        NegCreate withFeeds(int[] replacement) {
+            return new NegCreate(ranks, dimensions, nodeInputs, nodeOutputs, replacement, targets);
+        }
+
+        NegCreate withTargets(int[] replacement) {
+            return new NegCreate(ranks, dimensions, nodeInputs, nodeOutputs, feeds, replacement);
+        }
+    }
+
     private static final class FakeNativeApi extends MetalNativeApi {
         private long nextHandle = 1L;
         private final Map<Long, byte[]> buffers = Collections.synchronizedMap(new HashMap<>());
@@ -322,6 +444,7 @@ class MetalFoundationTest {
         private final AtomicInteger uploadCalls = new AtomicInteger();
         private final AtomicInteger downloadCalls = new AtomicInteger();
         private final AtomicInteger closeCalls = new AtomicInteger();
+        private final AtomicInteger executableCreateCalls = new AtomicInteger();
         private CountDownLatch uploadEntered = new CountDownLatch(1);
         private final CountDownLatch continueUpload = new CountDownLatch(1);
         private volatile boolean blockUploads;
@@ -397,6 +520,32 @@ class MetalFoundationTest {
                 destination.setAtIndex(
                         JAVA_BYTE, index, source[Math.toIntExact(bufferOffset + index)]);
             }
+        }
+
+        @Override
+        synchronized NativeCreateResult createNegExecutableNative(
+                Handle context,
+                int[] valueRanks,
+                long[] valueDimensions,
+                int[] nodeInputValueIndices,
+                int[] nodeOutputValueIndices,
+                int[] feedValueIndices,
+                int[] targetValueIndices) {
+            executableCreateCalls.incrementAndGet();
+            return new NativeCreateResult(0, handle());
+        }
+
+        @Override
+        int releaseExecutableNative(Handle executable) {
+            // Foundation-only tests do not create an executable.
+            return 0;
+        }
+
+        @Override
+        int runExecutableNative(Handle executable, int inputCount, MemorySegment inputBuffers,
+                int outputCount, MemorySegment outputBuffers) {
+            // Foundation-only tests do not execute a graph.
+            return 0;
         }
 
         @Override

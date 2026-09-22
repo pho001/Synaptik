@@ -44,6 +44,22 @@ final class MetalBufferRepresentation implements BufferRepresentation {
         return logicalByteSize;
     }
 
+    /** @return whether this live representation belongs to the exact supplied device context */
+    synchronized boolean belongsTo(MetalDeviceContext expected) {
+        return !closed && context == expected;
+    }
+
+    /**
+     * Returns the opaque handle only to the package-private prepared execution bridge.
+     *
+     * @return the non-null live native buffer handle
+     * @throws IllegalStateException if close has begun
+     */
+    synchronized MetalNativeApi.Handle executionHandle() {
+        requireOpen();
+        return handle;
+    }
+
     /** @return whether close has begun; safe to query concurrently */
     synchronized boolean isClosed() {
         return closed;

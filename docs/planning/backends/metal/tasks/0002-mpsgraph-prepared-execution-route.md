@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -952,20 +952,134 @@ Stop and return the task to planning if any of these occurs:
 
 ## Local decisions
 
-Empty until implemented.
+- Keep the first route in the existing `.internal` package. Seven focused package-private types
+  make the lifecycle visible without widening implementation visibility before a second route
+  proves a stable subpackage seam.
+- Use one executable for the complete maximal Metal partition. Stable first-encounter value/feed
+  order and producer-order targets cover chains, independent nodes, fan-out, repeated
+  consumption, internal values, multiple boundaries, and differing valid shapes without
+  repartitioning.
+- Retain the exact analysis `MetalDeviceContext` by identity. Finalization and schedule assembly
+  reject an equal-looking but distinct context before resource acquisition or creator execution.
+- Represent explicit positive-rank `FLOAT32` splats with per-run `InitializedBuffer` creators.
+  Preparation retains typed scalar facts but allocates and uploads no constant buffer; each run
+  gets fresh storage containing the exact raw bits.
+- Declare one per-run native-address workspace. Cold binding fills its feed-then-target pointer
+  array once; the bound hot method retains direct slices and performs one downcall.
+- Treat deterministic fake/native-seam coverage as the accepted failure-status matrix. The
+  real-device gate proves successful execution, supplied destinations, and reuse without trying
+  to manufacture undocumented MPSGraph failures.
+- Compose evidence rather than claim an impossible public-port test. Public
+  `GraphCompilationPort` plus shared `GraphPreparation` proves the real caller-input route;
+  backend-local typed `PrepareContext` tests prove positive-rank splats; existing shared Prepare
+  tests prove `ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
 ## Known limitations
 
-Empty until implemented.
+- Capability remains limited to equal-shape/equal-gradient-flag, positive fully static rank
+  `1..16`, resolved dense-contiguous non-view zero-offset `FLOAT32` unary `NEG` occurrences.
+- The schedule assembler accepts one sole all-Metal partition. There is no public Metal Engine
+  adapter, standard `compute` composition, mixed-owner schedule, CPU fallback, or cross-region
+  transfer claim.
+- The public compilation port has no explicit positive-rank forward-constant ingress. The task
+  therefore does not claim one public `GraphCompilationPort` positive-rank-splat test.
+- Execution is synchronous and the native executable resource serializes its invocation boundary.
+  No asynchronous, cancellation, timeout, cross-run throughput, or overlap guarantee is made.
+- No FLOAT16, BFLOAT16, FLOAT64, integer, BOOL, scalar-rank, zero-extent, dynamic-shape,
+  strided/view/offset, broadcast, multi-output, custom-kernel, pooling, persistent constant,
+  serialization, packaging, discovery, tuning, or performance-superiority capability is added.
+- MPSGraph may use internal temporary storage. The no-copy statement is limited to Synaptik not
+  requesting hidden result materialization or performing an explicit post-execution copy.
 
 ## Validation evidence
 
-Empty until implemented.
+- Clean implementation context stabilized exactly the first 20 paths in the task allowlist. Its
+  final ordinary `./gradlew :backends:metal:test` run passed 35 tests with zero failures/errors
+  and three expected opt-in skips. The focused prepared-execution run passed 20 tests with zero
+  failures/errors and two expected opt-in skips. No executable Java or native source changed in
+  the documentation-focused completion context, so these successful suites were not repeated.
+- `./native/metal-macos-arm64/build.sh` passed. `file` identified the output as an arm64 Mach-O
+  dynamic library. `nm -gU` showed exactly the ten required `synaptik_metal_*` exports, and
+  `otool -L` showed Foundation, Metal, and MetalPerformanceShadersGraph linkage.
+- The exact command
+  `SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" ./gradlew :backends:metal:test --tests '*MetalFoundationTest.nativeFoundationRoundTrip' --tests '*MetalNegPreparedExecutionTest.nativePreparedNegRoundTripAndReuse'`
+  passed outside the sandbox with both real-device tests executed and no skips.
+- `./gradlew :testing:backend-conformance:test --tests '*MetalNegCapabilityPartitionConformanceTest'`
+  passed two tests. `./gradlew :testing:architecture-tests:test --tests '*BackendConformanceDependencyContractTest'`
+  passed one test. These are the required focused conformance and dependency gates; no generic
+  Engine integration test applies because supported Engine composition remains CPU-only.
+- Manual source and `javap -p` inspection covered `MetalCapabilityProvider` and
+  `MetalNegPreparedExecutable`: the provider is the only public Metal type; no native handle
+  accessor or Engine import was introduced; the cold-bound invocation directly calls
+  `resource.run(...)`; and hot execution performs one native downcall with no Java address
+  marshalling, allocation, lookup, or dispatch.
+- Evidence composition was reviewed against the source and tests. The real
+  `nativePreparedNegRoundTripAndReuse` path uses `GraphCompilationPort`, `GraphPreparation`,
+  Runtime, and MPSGraph with caller inputs. `positiveRankSplatsAreColdInitializedInStableOrderAndIsolatedAcrossRuns`
+  covers typed `PrepareContext` analysis/finalization/schedule/Runtime splats. Existing
+  `GraphPreparationTest` coverage proves constant-source projection into
+  `PrepareContext.constants()` and rejects a constant not backed by `InitializedBuffer` or a
+  non-constant backed by one.
+- Documentation-focused completion context `/root` applied the General, API-Javadoc,
+  Backend-Guide, and Planning profiles. It reviewed all 13 affected production/Javadoc paths,
+  the Objective-C ABI and build script, the three Metal tests, conformance and architecture
+  tests, SDK/strategy/ADR boundaries, and implementation evidence. It finalized both package
+  Javadocs, the native README, Metal guide, glossary, this task, master plan, and roadmap without
+  changing executable behavior.
+- `./gradlew :backends:metal:javadoc` passed after final package-Javadoc edits. Targeted Markdown
+  validation passed local file links, heading anchors and duplicate effective anchors, balanced
+  fences, final newlines, and trailing-whitespace checks for the six Markdown files. ABI version,
+  all twelve status values, exact ten symbols, package/type placement, task/master/roadmap status
+  and ordering, and absence of a detailed later Metal task were consistent.
+- Final scope validation found exactly the authorized 28 paths: the stabilized 20 implementation
+  paths plus the eight documentation allowlist paths. `git status --short -uall` showed no staged
+  files. `git diff --check` and `git diff --cached --check` passed.
 
 ## Implementation notes
 
-Empty until implemented.
+- ABI version 2 preserves the original seven functions and statuses `0..7`, adds exactly the
+  three executable functions and statuses `8..11`, eagerly resolves all ten symbols, and links
+  MetalPerformanceShadersGraph in addition to Foundation and Metal.
+- Analysis produces stable value indices, ordered unique feeds and targets, exact buffer geometry,
+  typed optional splats, and one pointer workspace without physical allocation. Finalization
+  validates assignment identity/order/geometry and compiles the persistent executable only after
+  slots exist.
+- Native compilation checks the SDK-reported feed/target tensors by identity and retains
+  permutations between stable ABI order and framework order. Native execution binds
+  `MPSGraphTensorData` directly over ordered input and supplied output `MTLBuffer` instances,
+  waits once at the region boundary, and validates completion plus returned results.
+- The executable resource adopts one provisional context lease and implements exactly-once,
+  idempotent release. `PreparedExecution` owns it across runs. Caller buffers are borrowed;
+  splats, outputs, and address workspace are run-owned; published outputs remain leased through
+  `RunResult`.
+- Gradle changes are test-only: Metal tests depend on Compiler to construct public compile
+  artifacts, and backend conformance depends on Metal. The focused architecture test rejects
+  production versions of those edges. No production dependency or architecture rule changed.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: implemented exact Metal capability truth, whole-maximal-partition NEG
+  analysis/finalization, ABI-v2 MPSGraph compilation and synchronous execution, persistent
+  executable ownership, per-run splat/output/address storage, direct supplied destinations,
+  deterministic failure mapping, and focused conformance/dependency enforcement.
+- Files changed or created: exactly the 28 paths listed in this task; no path outside the
+  allowlist and no staged file.
+- Tests and validation: final Metal suite had 35 total tests with three expected opt-in skips;
+  focused execution had 20 total tests with two expected opt-in skips; native build, exact
+  exports/framework links, both exact
+  real-device tests outside the sandbox, two-test conformance, one-test architecture, hot-path
+  inspection, Metal Javadoc, Markdown, scope, consistency, and whitespace gates passed.
+- Documentation-agent review: clean documentation-focused context `/root` completed the required
+  independent review without changing executable behavior or rerunning stable Java suites.
+- Documentation impact: package summaries, native ABI/build guide, backend lifecycle guide,
+  glossary, task evidence, master plan, and roadmap now describe the current capability and its
+  boundaries.
+- Javadoc review: every changed production Javadoc was inspected against implementation/tests;
+  member Javadocs remained accurate, while both stale package Javadocs were finalized.
+- Glossary impact: capability-provider and physical-representation entries were corrected, and a
+  reusable MPSGraph prepared-executable distinction was added.
+- Unresolved issues: None within task scope.
+- Follow-up required: None. Metal 0003 and 0004 remain Draft master-plan rows without detailed
+  specifications.
+
+Status: Complete

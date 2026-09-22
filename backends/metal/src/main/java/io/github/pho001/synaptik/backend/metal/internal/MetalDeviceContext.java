@@ -96,6 +96,50 @@ final class MetalDeviceContext implements AutoCloseable {
     }
 
     /**
+     * Compiles one persistent whole-partition NEG executable under a provisional child lease.
+     *
+     * <p>Lease acquisition is atomic with owner close. Compilation runs outside the lifecycle
+     * monitor while the lease keeps the native context alive. Successful wrapper construction
+     * adopts that same lease; every failure releases native executable state before the lease.</p>
+     *
+     * @param plan non-null immutable shape-specialized lowering facts
+     * @return a new open persistent executable resource; never {@code null}
+     * @throws NullPointerException if {@code plan} is {@code null}
+     * @throws IllegalArgumentException if {@code plan} retains another context identity
+     * @throws IllegalStateException if owner close has begun
+     * @throws RuntimeException if native compilation or cleanup fails
+     * @throws Error if compilation or cleanup reports an error
+     */
+    MetalMpsGraphExecutableResource createNegExecutable(MetalNegPreparationPlan plan) {
+        Objects.requireNonNull(plan, "plan");
+        if (plan.context() != this) {
+            throw new IllegalArgumentException(
+                    "Metal NEG executable plan belongs to another device context");
+        }
+        ChildLease lease = acquireChildLease();
+        MetalNativeApi.Handle executable = null;
+        try {
+            executable = api.createNegExecutable(handle,
+                    plan.valueRanks(), plan.valueDimensions(),
+                    plan.nodeInputValueIndices(), plan.nodeOutputValueIndices(),
+                    plan.feedValueIndices(), plan.targetValueIndices());
+            return new MetalMpsGraphExecutableResource(
+                    this, api, executable, lease,
+                    plan.feedRequiredBytes(), plan.targetRequiredBytes());
+        } catch (RuntimeException | Error failure) {
+            if (executable != null) {
+                try {
+                    api.releaseExecutable(executable);
+                } catch (RuntimeException | Error cleanup) {
+                    if (cleanup != failure) failure.addSuppressed(cleanup);
+                }
+            }
+            lease.closeAfter(failure);
+            throw failure;
+        }
+    }
+
+    /**
      * Admits one already resource-gated native access while the context remains open.
      *
      * <p>Admission is atomic with owner close, but the action runs without holding the context
@@ -149,6 +193,35 @@ final class MetalDeviceContext implements AutoCloseable {
         childLeases--;
         if (closed && childLeases == 0) {
             releaseNativeContext(primary);
+        }
+    }
+
+    private synchronized ChildLease acquireChildLease() {
+        requireOpen();
+        childLeases++;
+        return new ChildLease(this);
+    }
+
+    /** One exactly-once provisional or adopted context child lease. */
+    static final class ChildLease {
+        private final MetalDeviceContext context;
+        private boolean closed;
+
+        private ChildLease(MetalDeviceContext context) {
+            this.context = context;
+        }
+
+        /**
+         * Ends this lease once, preserving an existing primary failure when supplied.
+         *
+         * @param primary triggering failure, or {@code null} when lease cleanup owns failure
+         * @throws RuntimeException if deferred context cleanup fails without a primary
+         * @throws Error if deferred context cleanup reports an error without a primary
+         */
+        synchronized void closeAfter(Throwable primary) {
+            if (closed) return;
+            closed = true;
+            context.releaseChild(primary);
         }
     }
 

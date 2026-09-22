@@ -9,7 +9,7 @@ import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/** Locks backend-conformance to its exact provider-agnostic, test-only CPU dependency surface. */
+/** Locks backend-conformance and Metal to their exact approved test-only dependency surfaces. */
 final class BackendConformanceDependencyContractTest {
     /**
      * Checks the ordered project edges and forbidden Engine/OpenBLAS-provider directions.
@@ -27,11 +27,22 @@ final class BackendConformanceDependencyContractTest {
                 "testImplementation(project(\":modules:planning\"))",
                 "testImplementation(project(\":modules:runtime\"))",
                 "testImplementation(project(\":modules:prepare\"))",
-                "testImplementation(project(\":backends:cpu\"))"), projectDependencyLines);
+                "testImplementation(project(\":backends:cpu\"))",
+                "testImplementation(project(\":backends:metal\"))"), projectDependencyLines);
         assertFalse(buildScript.contains("implementation(project(\":backends:cpu\"))"));
         assertFalse(buildScript.contains("api(project(\":backends:cpu\"))"));
+        assertFalse(buildScript.contains("implementation(project(\":backends:metal\"))"));
+        assertFalse(buildScript.contains("api(project(\":backends:metal\"))"));
         assertFalse(buildScript.contains(":backends:openblas-provider"));
         assertFalse(buildScript.contains(":modules:engine"));
+
+        String metalBuild = Files.readString(repositoryRoot().resolve("backends/metal/build.gradle.kts"));
+        assertEquals(1, metalBuild.lines().map(String::strip)
+                .filter(line -> line.equals(
+                        "testImplementation(project(\":modules:compiler\"))"))
+                .count());
+        assertFalse(metalBuild.contains("implementation(project(\":modules:compiler\"))"));
+        assertFalse(metalBuild.contains("api(project(\":modules:compiler\"))"));
     }
 
     private static Path repositoryRoot() {
