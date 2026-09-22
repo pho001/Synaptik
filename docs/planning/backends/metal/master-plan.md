@@ -72,13 +72,13 @@ this map before extracting a package or widening visibility.
 | 0001 | [Metal capability, storage, and native foundation](tasks/0001-metal-capability-storage-and-native-foundation.md) | Complete | Complete shared planning, runtime, prepare, backend-contract, and trace contracts; no Model 0026 dependency while fail-closed | Added a fail-closed provider, native context, and run-owned storage without executable capability. |
 | 0002 | [MPSGraph prepared execution route](tasks/0002-mpsgraph-prepared-execution-route.md) | Complete | 0001; Runtime 0016; Prepare 0006; Engine 0010; Compiler 0006B7 | Added maximal-partition positive-shape contiguous FLOAT32 NEG through reusable MPSGraph preparation/execution. |
 | 0003 | [Single-NEG custom Metal kernel route](tasks/0003-single-neg-custom-metal-kernel-route.md) | Complete | 0001–0002 | Added a private custom route for one NEG/feed/target within `1..UINT32_MAX`; all other supported partitions retain MPSGraph. |
-| 0004 | [Typed Metal route candidate generators and cache compatibility](tasks/0004-typed-metal-route-candidate-generators-and-cache-compatibility.md) | Ready | 0002–0003, opaque prepare/tuning boundary and artifact versioning | Add a Metal-local typed candidate and session-compatible codec foundation without outer tuning integration. |
+| 0004 | [Typed Metal route candidate generators and cache compatibility](tasks/0004-typed-metal-route-candidate-generators-and-cache-compatibility.md) | Complete | 0002–0003, opaque prepare/tuning boundary and artifact versioning | Added typed NEG candidates and a session-compatible authenticated codec foundation without outer tuning integration. |
 
 ## Milestones and current frontier
 
-The native/storage foundation, first MPSGraph route, and bounded second-route proof are `Complete`
-through 0003. Task 0004 is the next ordered Metal row, is `Ready`, and is the current implementation
-frontier. No Metal task is `In progress`.
+The native/storage foundation, two NEG routes, and Metal-local candidate/session-compatibility
+foundation are `Complete` through 0004. No later Metal task is detailed or `Ready`; selecting any
+next Metal work requires a fresh planning reassessment. No Metal task is `In progress`.
 
 The 0004 readiness audit verified all four live gates against current source and contracts:
 
@@ -113,16 +113,17 @@ The 0004 readiness audit verified all four live gates against current source and
   shape-specialized `MPSGraphExecutable` is not per-run workspace; transfers and waits occur only
   at explicit boundaries required by the synchronous lifecycle.
 
-## Task 0004 constraints, risks, and open decisions
+## Task 0004 delivered constraints and remaining risks
 
-- 0004 must derive complete typed candidates from canonical workload facts, target capability,
+- 0004 derives complete typed candidates from canonical workload facts, target capability,
   exact policy, and budget; operation family chooses a generator but is not a universal cache key.
-- Compatibility must include explicit schema/version and target/workload identity. An optional
-  encoded decision may select only a compatible candidate and must still lead to fresh
-  authenticated preparation; 0004 adds no outer cache hit or measurement path.
-- Do not introduce `Map<String,Object>`, reflection, string dispatch, a central knob registry,
-  generic parameter bags, Planning route choice, Runtime cache access, or hidden global resources.
-- The Ready 0004 brief fixes route-specific typed shapes and conservatively session-scoped target
+- Compatibility includes explicit schema/version and target/workload identity. An optional
+  encoded decision selects only a compatible candidate and still leads to fresh authenticated
+  preparation; 0004 adds no outer cache hit or measurement path.
+- The delivered boundary contains no `Map<String,Object>`, reflection, string dispatch, central
+  knob registry, generic parameter bag, Planning route choice, Runtime cache access, or hidden
+  global resource.
+- The completed 0004 brief fixes route-specific typed shapes and conservatively session-scoped target
   compatibility without changing cache-file or native ABI ownership. Its package-private codec is
   a Metal-local foundation, not current `tools/tuning` or Engine composition. No broader
   operation/type, mixed-owner Engine path, async execution, packaging/discovery, or performance
@@ -134,9 +135,10 @@ The 0004 readiness audit verified all four live gates against current source and
 ## History and update policy
 
 Detailed ABI inventories, native/test evidence, context identifiers, and route implementation
-chronology remain in tasks 0001–0003 and Git history. The strategy note is planning guidance, not
+chronology remain in tasks 0001–0004 and Git history. The strategy note is planning guidance, not
 a capability, platform, ABI, or performance promise.
 
-Update this map only for task order/status/result, dependencies, package direction, the 0004 gate,
-or a live lifecycle/ABI risk. Keep detailed evidence in task briefs. If a planning change conflicts
-with `ARCHITECTURE.md` or an accepted ADR, stop and use the architecture-decision process.
+Update this map only for task order/status/result, dependencies, package direction, a future Metal
+gate, or a live lifecycle/ABI risk. Keep detailed evidence in task briefs. If a planning change
+conflicts with `ARCHITECTURE.md` or an accepted ADR, stop and use the architecture-decision
+process.

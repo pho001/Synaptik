@@ -12,7 +12,9 @@ is unary `NEG` with equal input and output descriptors satisfying all of these c
 - input and output `requiresGrad` flags are equal, with either shared value accepted.
 
 ```text
-capability -> Planning ownership -> Metal analysis and private route selection
+capability -> Planning ownership -> Metal analysis and typed candidates
+           -> optional decision authentication and private route selection
+           -> exact declarations
            -> shared slot assignment -> Metal finalization
            -> PreparedExecution -> isolated Runtime run
 ```
@@ -23,15 +25,18 @@ multiple boundary values, and different valid shapes. Every other operation, typ
 extent, dynamic shape, unresolved or view layout, broadcast, and multi-output form remains
 fail-closed.
 
-Within that unchanged capability domain, Metal analysis selects one of two private routes:
+Within that unchanged capability domain, Metal analysis generates a typed complete candidate batch
+and selects one of two private routes:
 
 - `CUSTOM_SINGLE_NEG` for exactly one NEG occurrence, one unique feed, one unique target, and a
   checked element count in `1..UINT32_MAX`; or
 - `MPSGRAPH` for every other supported partition, including an otherwise matching singleton
   above `UINT32_MAX`.
 
-This is a deterministic implementation-domain boundary. It is not tuning, capability narrowing,
-CPU fallback, retry, or repartitioning, and it carries no performance-superiority claim.
+With no selected decision, the first candidate preserves this exact heuristic. A compatible
+session-local decision can select the other valid route for an eligible singleton. This remains a
+prepare-time implementation-domain boundary: it is not capability narrowing, CPU fallback,
+retry, repartitioning, or a performance-superiority claim.
 
 ## Prerequisites
 
@@ -50,7 +55,8 @@ the capability provider performs no native loading or device discovery.
 |---|---|
 | Capability truth | Public `MetalCapabilityProvider` reports only the exact `FLOAT32` NEG domain above. Task 0003 does not change it. |
 | Backend ownership | Planning chooses `owner = metal` and groups consecutive equal owners; it never selects MPSGraph or a custom kernel. |
-| Analysis | Package-private Metal code validates the complete partition, assigns stable value order, derives feeds and targets, selects one closed private route, and declares that route's exact resources. |
+| Analysis | Package-private Metal code validates the complete partition, assigns stable structural value order, regenerates typed route candidates and session compatibility, authenticates any supplied decision, fixes one route, and declares that route's exact resources. |
+| Opaque tuning handoff | Metal can construct the Prepare-owned marker-role handoff with no decision or one Metal decision. Shared Prepare does not inspect private candidates; the Metal preparer treats a present decision as untrusted. |
 | Shared preparation | `GraphPreparation` projects facts, assigns slots, validates the result, and transfers persistent resources transactionally. It does not inspect the Metal plan or route. |
 | Finalization | Metal validates exact assignments and compiles either one typed custom pipeline or one shape-specialized MPSGraph executable after slots exist. It never reselects the route. |
 | Persistent resource | One typed `PreparedResource` owns the selected native handle and context child lease; `PreparedExecution` becomes its sole owner. Custom-pipeline and MPSGraph handles are never interchangeable. |
@@ -81,11 +87,42 @@ constant must be an exact `FLOAT32` splat. The run uses an `InitializedBuffer` f
 than consuming a caller position. Existing shared `GraphPreparation` tests independently enforce
 the chain `CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
-Once stable feeds and targets and checked byte geometry are known, analysis applies the exact
-singleton/count predicate. The custom route declares one feed buffer, one target buffer, and no
+Once stable feeds and targets and checked byte geometry are known, analysis creates a version-one
+candidate batch. MPSGraph is valid for every supported partition. The custom candidate exists only
+for one node, one feed, one target, and an element count in `1..UINT32_MAX`. Candidate order is the
+current safe heuristic first and then the other valid route; a positive budget returns a stable
+prefix, so budget one cannot change ordinary preparation.
+
+The canonical workload fingerprint covers the validated operation and fixed attributes, ordered
+structural topology, complete tensor descriptors and layouts, exact `FLOAT32` splat bits,
+logical-boundary roles, exact/default policy, candidate and route-policy schemas, and ABI schema.
+It encodes structural positions rather than `NodeId`, `ValueId`, or partition object identity, so
+equal occurrences within one live context compare equally. Target compatibility also contains a
+fresh private nonce from the exact `MetalDeviceContext`. ABI version `3` is intentionally not
+treated as a stable cross-session device fingerprint.
+
+Metal can construct an absent- or present-decision `BackendPartitionTuningHandoff`. Fresh analysis
+always regenerates the current batch. A present decision is accepted only when the exact partition,
+candidate schema, workload fingerprint, context session, and candidate membership all match;
+stale or foreign values fail closed rather than reverting to the heuristic. Absence uses the
+existing heuristic without cache lookup or measurement.
+
+After authentication, the custom route declares one feed buffer, one target buffer, and no
 workspace. MPSGraph declares its feed and target buffers plus one address workspace. A larger
-supported singleton is still valid Metal work and therefore selects MPSGraph; analysis does not
-reject it or split it.
+supported singleton has only the MPSGraph candidate; analysis does not reject or split it.
+
+### Session decision codec and limitations
+
+The package-private version-one Metal codec produces bounded canonical compatibility, candidate,
+and checksummed decision bytes. Decode rejects wrong magic, schema, session scope, malformed or
+truncated content, trailing or corrupt bytes, changed workload or context, and unknown or pruned
+candidates. The bytes contain no native handle or executable.
+
+This codec is only the backend-side authentication foundation. It performs no file input/output,
+measurement, winner selection, or persistent reuse, and there is no `tools/tuning`, Engine, or
+outer `WorkloadCompatibility` adapter. The tools-owned cache artifact version, checksum, atomic
+replacement, objective, sampling, and cache lifecycle remain separate. Cross-session Metal reuse
+requires a separately authorized stable device/library fingerprint.
 
 ### Finalization and persistent ownership
 
@@ -249,6 +286,12 @@ constant ingress. Therefore the repository does not claim one public-port positi
 test. Combining the real caller-input route, backend-local typed splat route, and existing shared
 constant contracts is the truthful evidence.
 
+Task 0004 adds backend-local focused coverage for candidate domains and budget prefixes,
+structurally equal graph identities, independent compatibility changes, defensive codec failures,
+fresh decision authentication, selected-route declaration/finalization, zero native allocation
+during generation, and concurrent cold generation. The ordinary Metal suite and capability
+conformance test retain the existing native seam, execution, lifecycle, and partitioning evidence.
+
 ## Registration and composition
 
 The provider is supplied explicitly to Planning; there is no `ServiceLoader`, registry, or
@@ -267,15 +310,16 @@ composition, dependencies, and module boundaries are unchanged.
 The current routes have no FLOAT16, BFLOAT16, FLOAT64, integer, BOOL, scalar-rank, zero-extent,
 dynamic-shape, strided/view/offset, broadcast, or multi-output support. There is no general custom
 kernel framework, asynchronous API, cross-run overlap guarantee, buffer pool, persistent constant
-buffer, serialization, packaging, discovery, route cache, tuning, or performance claim. Model
-task 0026 must define FLOAT16 semantics before any backend can advertise it. Metal 0004 remains
-Draft for typed route candidates and cache compatibility; it has no detailed task specification.
+buffer, executable serialization, packaging, discovery, persistent route cache, current tuning
+integration, or performance claim. Model task 0026 must define FLOAT16 semantics before any
+backend can advertise it.
 
 Related documentation:
 
-- [Architecture contract](../../ARCHITECTURE.md#metal-backend)
+- [Metal backend contract](../architecture/contracts/backend-execution.md#metal-backend)
 - [Runtime / Prepare / Backend boundary](../architecture/runtime-prepare-backend-boundary.md)
 - [Prepared-resource lifecycle ADR](../design/decisions/0013-prepared-execution-persistent-resource-lifecycle.md)
 - [Metal strategy note](../design/notes/metal-backend-strategy.md)
 - [Metal task 0003](../planning/backends/metal/tasks/0003-single-neg-custom-metal-kernel-route.md)
+- [Metal task 0004](../planning/backends/metal/tasks/0004-typed-metal-route-candidate-generators-and-cache-compatibility.md)
 - [Native ABI and build guide](../../native/metal-macos-arm64/README.md)

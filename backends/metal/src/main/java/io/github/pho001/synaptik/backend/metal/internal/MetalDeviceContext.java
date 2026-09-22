@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.backend.metal.internal;
 
 import java.nio.file.Path;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * Owns one native Metal device/command-queue context and leases held by its child resources.
@@ -15,6 +16,7 @@ import java.util.Objects;
 final class MetalDeviceContext implements AutoCloseable {
     private final MetalNativeApi api;
     private final MetalNativeApi.Handle handle;
+    private final SessionNonce sessionNonce;
     private boolean closed;
     private boolean nativeReleased;
     private int childLeases;
@@ -22,7 +24,31 @@ final class MetalDeviceContext implements AutoCloseable {
     private MetalDeviceContext(MetalNativeApi api, MetalNativeApi.Handle handle) {
         this.api = api;
         this.handle = handle;
+        UUID nonce = UUID.randomUUID();
+        this.sessionNonce = new SessionNonce(
+                nonce.getMostSignificantBits(), nonce.getLeastSignificantBits());
     }
+
+    /**
+     * Returns the immutable nonce that restricts tuning compatibility to this context session.
+     *
+     * <p>The value contains no native handle or device claim. It is generated once with the
+     * context and is deliberately different from the Metal ABI version, which cannot identify a
+     * stable device across sessions.</p>
+     *
+     * @return non-null immutable nonce for this exact context lifetime
+     */
+    SessionNonce sessionNonce() {
+        return sessionNonce;
+    }
+
+    /**
+     * Private value representation of one context's session compatibility identity.
+     *
+     * @param highBits high-order random nonce bits
+     * @param lowBits low-order random nonce bits
+     */
+    record SessionNonce(long highBits, long lowBits) { }
 
     /**
      * Loads the exact absolute dylib path and creates one default-device context.

@@ -114,6 +114,54 @@ class MetalNegPreparedExecutionTest {
     }
 
     @Test
+    void authenticatedMpsGraphSelectionForSingletonFixesWorkspaceBeforeFinalization() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        try {
+            SingleNegRoute heuristic = singleNegRoute(
+                    context, Shape.of(4), Optional.empty());
+            PrepareContext<MetalNegAnalysisInputs> source = new PrepareContext<>(
+                    heuristic.analysis().plan().partitionDag(),
+                    List.of(
+                            new GraphValue(heuristic.feed(), descriptor(Shape.of(4))),
+                            new GraphValue(heuristic.target(), descriptor(Shape.of(4)))),
+                    List.of(
+                            requirement(heuristic.feed(), descriptor(Shape.of(4)),
+                                    Optional.empty(), List.of(heuristic.partition()), false),
+                            requirement(heuristic.target(), descriptor(Shape.of(4)),
+                                    Optional.of(heuristic.partition()), List.of(), true)),
+                    Map.of(), new MetalNegAnalysisInputs(context));
+            var generator = new MetalNegRouteCandidateGenerator();
+            var batch = generator.generate(source, heuristic.analysis().plan(), 2);
+            var handoff = generator.presentHandoff(
+                    heuristic.partition(), batch, MetalNegTuningBatch.Candidate.MPSGRAPH);
+            BackendPartitionAnalysis<MetalNegPreparationPlan> selected =
+                    new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
+                            source.partitionDag(), source.values(), source.memoryRequirements(),
+                            source.constants(),
+                            new MetalNegAnalysisInputs(context, Optional.of(handoff))));
+            assertEquals(MetalNegPreparationPlan.Route.MPSGRAPH, selected.plan().route());
+            assertEquals(3, selected.requirements().size());
+            assertTrue(selected.plan().addressWorkspace().isPresent());
+
+            FinalizationFixture assignment = finalization(selected);
+            BackendPartitionFinalizationResult finalized =
+                    new MetalNegPartitionFinalizer(context)
+                            .finalizePartition(assignment.finalization());
+            try {
+                assertTrue(finalized.resources().getFirst()
+                        instanceof MetalMpsGraphExecutableResource);
+                assertEquals(1, api.executableCreates.get());
+                assertEquals(0, api.pipelineCreates.get());
+            } finally {
+                finalized.resources().forEach(resource -> resource.close());
+            }
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
     void customCallerRouteUsesOnePipelineDirectOutputsAndOneDowncallPerRun() {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);

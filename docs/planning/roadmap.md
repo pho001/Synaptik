@@ -38,7 +38,7 @@ or task boundary; it does not promote Draft work to Ready.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through 0010J; 0007A1D Review needed; 0010D1 and 0011 Blocked | No CPU task is Ready; vendor peers 0012–0015 and integrations 0016–0017 remain Draft. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0010 | No later Engine task is Ready or detailed. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0003; 0004 Ready | Implement the verified [0004 Metal-local route-candidate and session-compatibility foundation](backends/metal/tasks/0004-typed-metal-route-candidate-generators-and-cache-compatibility.md). |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0004 | Reassess exactly one next frontier; no later Metal task is Ready. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
 | 15 | [`extensions/data`](extensions/data/master-plan.md) | Draft; architecture decision required | 0001 must authorize the Data/Text/Vision modules, build edges, decision record, and architecture tests first. |
@@ -54,15 +54,12 @@ or task boundary; it does not promote Draft work to Ready.
 ## Current frontier
 
 [`Metal 0004`](backends/metal/tasks/0004-typed-metal-route-candidate-generators-and-cache-compatibility.md)
-is `Ready` and is the sole current implementation frontier: a Metal-local typed complete
-route-candidate and session-compatible decision-codec foundation over the two implemented routes.
-
-The 0004 readiness audit verified that the existing handoff is opaque but no current Metal
-adapter consumes the tools-owned outer cache; the task therefore adds only package-private
-session compatibility, with route ownership and exact file isolation preserved. The recorded NN
-interleave remains an explicit exception, but it does not promote NN 0021B–0024; each new
-interleaved task still requires specific authorization and non-overlap evidence. The completed
-Config 0006A/0006B staged exceptions authorize no additional Config work.
+is `Complete`. It added the Metal-local typed complete route-candidate and session-compatible
+decision-codec foundation without adding outer tuning/cache integration. No new task is `Ready`;
+the next authorized frontier requires a planning reassessment. The recorded NN interleave remains
+an explicit exception, but it does not promote NN 0021B–0024; each new interleaved task still
+requires specific authorization and non-overlap evidence. The completed Config 0006A/0006B staged
+exceptions authorize no additional Config work.
 
 ## Blocked, review-needed, and deferred work
 
@@ -85,10 +82,8 @@ Config 0006A/0006B staged exceptions authorize no additional Config work.
 
 ## Nearest next step
 
-1. Implement the Ready Metal 0004 brief in a clean Class C execution context, then complete its
-   independent targeted documentation/review pass.
-2. After that task completes, keep its evidence in the task file, update the Metal master plan and
-   this index with one-line status, and reassess exactly one next frontier.
+1. Reassess exactly one next frontier; do not promote a Draft task without its required planning
+   and dependency audit.
 
 ## History policy
 

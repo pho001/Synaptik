@@ -25,9 +25,10 @@ import java.util.Optional;
  * Analyzes and lowers one complete maximal Metal-owned unary-NEG partition.
  *
  * <p>The deterministic analysis assigns stable native value indices and derives unique feeds and
- * targets before selecting a closed private route. An exact singleton whose checked element
- * count fits the unsigned 32-bit custom index domain declares only feed and target buffers; all
- * other supported partitions also declare the MPSGraph address workspace. Analysis allocates no
+ * targets before selecting a closed private route. Analysis freshly regenerates the complete
+ * candidate batch; an absent decision preserves the current singleton heuristic, while a present
+ * decision must authenticate against current schema, workload, session target, and candidate
+ * identity. The selected route is then fixed before exact declarations. Analysis allocates no
  * physical resource and never changes partition ownership or capability.</p>
  */
 final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
@@ -154,25 +155,56 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         && singletonElements <= UINT32_MAX
                 ? MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG
                 : MetalNegPreparationPlan.Route.MPSGRAPH;
-        Optional<PreparationResourceRequirement.Workspace> workspace;
-        if (route == MetalNegPreparationPlan.Route.MPSGRAPH) {
-            long workspaceBytes = Math.multiplyExact(
-                    Math.addExact((long) feeds.size(), targets.size()), Long.BYTES);
-            workspace = Optional.of(new PreparationResourceRequirement.Workspace(
-                    0L, workspaceBytes, Long.BYTES));
-        } else {
-            workspace = Optional.empty();
-        }
-
-        var plan = new MetalNegPreparationPlan(
+        Optional<PreparationResourceRequirement.Workspace> heuristicWorkspace = workspace(
+                route, feeds.size(), targets.size());
+        var heuristicPlan = new MetalNegPreparationPlan(
                 context.partition(), context.partitionDag(), deviceContext,
                 route,
                 valueIds, descriptors, ranks, dimensions,
                 nodeInputs, nodeOutputs, feeds, feedIndices, targets, targetIndices,
-                declarations, feedSplats, workspace, feedBytes, targetBytes);
+                declarations, feedSplats, heuristicWorkspace, feedBytes, targetBytes);
+        MetalNegTuningBatch freshBatch = new MetalNegRouteCandidateGenerator()
+                .generate(context, heuristicPlan, MetalNegTuningBatch.Candidate.values().length);
+        var suppliedHandoff = context.backendInputs().tuningHandoff();
+        if (suppliedHandoff.isPresent()
+                && suppliedHandoff.orElseThrow().selectedDecision().isPresent()) {
+            var handoff = suppliedHandoff.orElseThrow();
+            var decision = handoff.selectedDecision().orElseThrow();
+            if (handoff.partition() != context.partition()
+                    || !handoff.candidateBatch().compatibility()
+                            .equals(freshBatch.compatibility())
+                    || handoff.candidateBatch().find(decision.selectedCandidate()).isEmpty()) {
+                throw new IllegalArgumentException(
+                        "Metal NEG tuning handoff is stale or foreign");
+            }
+            route = decision.match(freshBatch)
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Metal NEG tuning decision is incompatible"))
+                    .route();
+        }
+
+        Optional<PreparationResourceRequirement.Workspace> selectedWorkspace = workspace(
+                route, feeds.size(), targets.size());
+        var plan = route == heuristicPlan.route()
+                ? heuristicPlan
+                : new MetalNegPreparationPlan(
+                        context.partition(), context.partitionDag(), deviceContext,
+                        route,
+                        valueIds, descriptors, ranks, dimensions,
+                        nodeInputs, nodeOutputs, feeds, feedIndices, targets, targetIndices,
+                        declarations, feedSplats, selectedWorkspace, feedBytes, targetBytes);
         var allDeclarations = new ArrayList<PreparationResourceRequirement>(declarations);
-        workspace.ifPresent(allDeclarations::add);
+        plan.addressWorkspace().ifPresent(allDeclarations::add);
         return new BackendPartitionAnalysis<>(context.partition(), plan, allDeclarations);
+    }
+
+    private static Optional<PreparationResourceRequirement.Workspace> workspace(
+            MetalNegPreparationPlan.Route route, int feedCount, int targetCount) {
+        if (route != MetalNegPreparationPlan.Route.MPSGRAPH) return Optional.empty();
+        long workspaceBytes = Math.multiplyExact(
+                Math.addExact((long) feedCount, targetCount), Long.BYTES);
+        return Optional.of(new PreparationResourceRequirement.Workspace(
+                0L, workspaceBytes, Long.BYTES));
     }
 
     private static int index(ValueId id, Map<ValueId, GraphValue> values,

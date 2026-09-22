@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Change class
 
@@ -17,6 +17,10 @@ foundation for the two implemented `FLOAT32` unary `NEG` routes, while preservin
 heuristic when no compatible decision is supplied and keeping all Metal fields backend-private.
 
 ## Scope
+
+Size justification: this atomic Class C brief exceeds 15 KB because it keeps candidate
+compatibility, decision authentication, route-specific declarations, exact isolation, validation,
+and independent-review evidence together at one backend/Prepare boundary.
 
 - Derive a canonical version-1 Metal NEG workload signature from the already validated exact
   semantics, attributes, ordered topology, descriptors, layouts, constants, boundary facts,
@@ -180,6 +184,70 @@ changes Java behavior or identifies a concrete stale-evidence risk.
 
 ## Result
 
-Empty until execution. On completion record completed changes, exact changed files, validation
-commands and outcomes, Javadoc/documentation/glossary impact, limitations or unresolved issues,
-follow-up if any, and `Status: Complete` or `Status: Incomplete` with a specific follow-up.
+Implemented the package-private Metal NEG candidate and session-authentication foundation. Metal
+now generates stable budget prefixes over typed `CUSTOM_SINGLE_NEG` and `MPSGRAPH` candidates,
+uses structural version-one workload fingerprints plus one fresh context nonce, constructs opaque
+absent/present Prepare handoffs, and freshly authenticates every supplied selection before fixing
+the route and exact declarations. The bounded checksummed Metal codec rejects malformed, corrupt,
+stale, foreign-session, and unknown-candidate decisions. It performs no native allocation, file
+I/O, measurement, outer workload-cache adaptation, or Runtime work.
+
+Exact changed files (16):
+
+- `MetalNegRouteCandidateGenerator.java`, `MetalNegTuningBatch.java`,
+  `MetalNegTuningDecision.java`, and `MetalNegTuningCodec.java` were added under the Metal internal
+  production package.
+- `MetalDeviceContext.java`, `MetalNegAnalysisInputs.java`,
+  `MetalNegPartitionPreparer.java`, `MetalNegPreparationPlan.java`, and `package-info.java` were
+  updated under that package.
+- `MetalNegRouteCandidateGeneratorTest.java` was added and
+  `MetalNegPreparedExecutionTest.java` was updated.
+- `docs/backend-guide/metal-backend.md`, `docs/glossary.md`, this task, the Metal master plan, and
+  the repository roadmap were updated.
+
+Validation completed successfully:
+
+- `./gradlew :backends:metal:test --tests '*MetalNegRouteCandidateGeneratorTest' --tests '*MetalNegPreparedExecutionTest'`
+  passed 34 tests: 32 passed and two native opt-in tests skipped.
+- `./gradlew :backends:metal:test`
+  passed 51 tests: 48 passed and three native opt-in tests skipped.
+- `./gradlew :testing:backend-conformance:test --tests '*MetalNegCapabilityPartitionConformanceTest'`
+  passed both tests without skips.
+- `./gradlew :backends:metal:javadoc`
+  completed without warnings or errors.
+- the task's targeted terminology search, required-file check, Markdown-fence check, exact
+  16-path audit, and `git diff --check` passed.
+
+The focused tests cover both domains, budget prefixes, structural identity independence,
+independent compatibility changes, invalid semantics, defensive codec failures, session/workload
+rejection, fresh authentication, exact declarations/finalization, no native allocation, and
+concurrent cold use. The ordinary module suite retains fake-native execution and lifecycle
+coverage; the conformance test confirms unchanged capability and partitioning.
+
+Documentation/Javadoc impact: implementation and package Javadocs describe schemas, ownership,
+session scope, failure behavior, and cache/Runtime exclusions. The backend guide and glossary now
+explain typed candidates, opaque handoff, fresh authentication, safe fallback, codec boundaries,
+and the absence of current persistent-cache or tools integration. No architecture, public API,
+shared source, native ABI, build/dependency, capability, or Runtime documentation changed.
+
+The mandatory independent targeted Class C documentation/code review inspected the exact
+16-path diff, affected implementation and tests, generated test reports, and the named
+architecture headings and decision records. It found and repaired one candidate-completeness
+defect: generation had treated an already selected plan route as structural eligibility, so an
+eligible singleton plan carrying an authenticated MPSGraph selection could omit the still-valid
+custom candidate if regenerated. Generation now derives custom validity only from structural
+workload facts, and a focused regression covers regeneration from that selected plan. The review
+also repaired stale post-completion wording in this task, the Metal master plan, and the roadmap.
+After the repair,
+`./gradlew :backends:metal:test --tests '*MetalNegRouteCandidateGeneratorTest' --tests '*MetalNegPreparedExecutionTest' :backends:metal:javadoc`
+passed 34 focused tests (32 passed and two native opt-in tests skipped) and regenerated Javadoc
+without warnings or errors. The earlier successful full Metal and conformance results remain
+relevant because the repair changes only cold candidate regeneration and the focused regression
+directly exercises that behavior.
+
+Limitations and follow-up: cross-session reuse still requires a separately authorized stable
+Metal device/library fingerprint. Public Metal/Engine and `tools/tuning` composition, persistent
+cache I/O, measurement, and winner selection remain outside this task. No unresolved
+implementation issue remains.
+
+Status: Complete

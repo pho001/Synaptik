@@ -15,9 +15,11 @@ import java.util.Optional;
  * Retains the immutable, shape-specialized lowering and route facts for one whole NEG partition.
  *
  * <p>Value indices, node arrays, feeds, targets, and declarations are already in their stable ABI
- * order. The plan contains no assigned slot, native executable, physical buffer, or per-run
- * state. The address workspace is present only for MPSGraph. Primitive arrays are privately
- * snapshotted and copied when marshalled.</p>
+ * order. The route is either the safe heuristic or a freshly authenticated session-compatible
+ * decision, and is fixed before this plan's declarations escape analysis. The plan contains no
+ * assigned slot, tuning value, native executable, physical buffer, or per-run state. The address
+ * workspace is present only for MPSGraph. Primitive arrays are privately snapshotted and copied
+ * when marshalled.</p>
  */
 final class MetalNegPreparationPlan implements BackendPreparationPlan {
     /** Closed private implementation choice made during analysis. */
