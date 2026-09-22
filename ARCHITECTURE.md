@@ -145,18 +145,21 @@ Tensor expression
   -> execute
 ```
 
-Public API shape:
+Given an output expression `output` and its caller-owned input Tensor `input`, the current
+ordinary public API shape is:
 
 ```java
-CompiledGraph graph =
-        CompiledGraph.compile(output, CompileConfig.auto());
-
-PreparedExecution execution =
-        graph.prepare(PrepareConfig.defaults());
-
-RunResult result =
-        execution.run(inputs, RunOptions.defaults());
+try (Engine engine = Engine.standard()) {
+    CompiledGraph graph = engine.compile(List.of(output));
+    try (PreparedExecution execution = engine.prepare(graph);
+            RunResult result = engine.run(execution, List.of(input))) {
+        // Inspect publication metadata or explicitly materialize an occurrence while open.
+    }
+}
 ```
+
+The Engine owns compile, prepare, and run orchestration. Each prepared handle and run result is a
+distinct closeable owner; caller input storage remains borrowed for the result lifetime.
 
 ## Core invariants
 

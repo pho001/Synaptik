@@ -83,8 +83,8 @@ CompileArtifacts
   -> PreparedExecution
 ```
 
-Prepare creates `BackendPartitionAnalysis`, `PreparedPartition`, `PreparedUnit`,
-`PreparedExecutable`, `PreparedMemoryPlan`, `PreparedSchedule`, and `PreparedExecution`. Shared
+Prepare creates `BackendPartitionAnalysis`, `PreparedPartition`, `PreparedExecutable`,
+`PreparedMemoryPlan`, `PreparedSchedule`, and `PreparedExecution`. Shared
 Prepare owns projection, orchestration, exact resource declarations, slot assignment, and
 validation. Concrete backends own deterministic analysis/lowering/route choice, retain the
 selected plan opaquely, and construct executables only during finalization after slot assignment.
@@ -95,34 +95,45 @@ owner. Runtime's owner and lease lifecycle are current. The finalizer return and
 transaction described here are current through Prepare 0006; current CPU preparation contributes
 an empty persistent-resource list.
 
+The resulting Runtime `PreparedExecution` retains the exact assigned memory plan and exact
+same-plan schedule. `PreparedSchedule` is an ordered list of step occurrences: optional
+representation creation is first, executable and explicit buffer-transfer occurrences follow,
+and publications form the dense final suffix. Repeating an executable or transfer occurrence
+means repeated work, not another ownership occurrence. No additional aggregate sits between a
+schedule occurrence and its recipe.
+
 See [Runtime, Prepare, and Backend Boundary](runtime-prepare-backend-boundary.md) for the exact ownership split.
 
 ## Run lifecycle
 
 ```text
-PreparedExecution.run(...)
+PreparedExecutionRunner.run(PreparedExecution, callerInputs)
+  -> acquire one prepared-execution run lease
   -> create one RunState for this complete logical run
-  -> bind caller inputs as borrowed representations
-  -> create run-owned internal and workspace representations through prepared backend work
-  -> cold-bind backend-owned typed invocation objects to checked direct references
-  -> execute PreparedSchedule
-  -> perform explicit prepared residency/materialization/transfer work as needed
-  -> PreparedExecutable.execute(...)
-  -> update residency
-  -> publish requested results and transfer or lease their ownership
+     - bind caller inputs as borrowed representations
+     - invoke the optional first representation-creation recipe
+  -> cold-bind every executable, transfer, and publication occurrence
+  -> traverse the PreparedSchedule.Step occurrences in order
+     - execute prepared executable occurrences
+     - perform explicit buffer-transfer/materialization occurrences
+     - publish the dense final suffix
   -> RunResult
-  -> release resources still owned by RunState
+     - owns the complete RunState lease until close
+  -> release the prepared-execution run lease before the synchronous call returns
 ```
 
-Run executes prepared work. It must not perform graph optimization, autograd construction,
+The stateless `PreparedExecutionRunner` owns synchronous run orchestration and creates one
+isolated `RunState` per call. Run executes prepared work. It must not perform graph optimization,
+autograd construction,
 compiler passes, backend discovery, backend-specific lowering, or kernel selection. Runtime owns
 logical per-run state and cleanup orchestration; concrete backends own physical representation
 classes and their allocation, release, transfer, and access mechanics.
 
 The cold binding step is the only boundary where heterogeneous backend representation types are
-checked dynamically. It creates backend-owned typed objects with direct references before the hot
-path. Execution therefore needs no map lookup, reflection, string dispatch, graph inspection,
-service lookup, or repeated unsafe cast.
+checked dynamically. Executable and transfer binding create backend-owned typed objects with
+direct references; Runtime publication binding retains the selected representation directly.
+Execution therefore needs no map lookup, reflection, string dispatch, graph inspection, service
+lookup, or repeated unsafe cast.
 
 Each synchronous run first acquires a lease on its prepared execution. Once close begins, no new
 lease is admitted. Existing runs finish without close waiting for them; the last lease performs

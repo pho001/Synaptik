@@ -90,10 +90,18 @@ derivatives. Compiler must not unroll the recurrence into `time` nodes or create
 
 ### `modules/runtime`
 
-Owns prepared execution contracts and dynamic execution state, including `PreparedExecution`, `PreparedUnit`, `PreparedExecutable`, `PreparedSchedule`, `PreparedMemoryPlan`, slots, `RunState`, resources, transfers, residency, publication, and the prepared execution runner.
+Owns prepared execution contracts and dynamic execution state, including `PreparedExecution`,
+`PreparedExecutable`, `PreparedSchedule`, `PreparedMemoryPlan`, slots, `RunState`, resources,
+transfers, residency, publication, and the stateless `PreparedExecutionRunner`. Ordered
+`PreparedSchedule.Step` positions are the work occurrences; no additional Runtime aggregate sits
+between an occurrence and its recipe.
 
-Prepared recipes are immutable and reusable. Each active complete logical run has one isolated
-mutable `RunState`, even when its schedule spans multiple backends. Runtime owns logical slot
+One Runtime `PreparedExecution` retains one exact memory plan and same-plan schedule and uniquely
+owns its persistent prepared resources. The schedule orders an optional first representation-
+creation occurrence, executable and buffer-transfer occurrences, and a dense final publication
+suffix. Repeated executable or transfer occurrences mean repeated work and do not duplicate
+resource ownership. Prepared recipes are immutable and reusable. Each active complete logical run
+has one isolated mutable `RunState`, even when its schedule spans multiple backends. Runtime owns logical slot
 state, ownership transitions, validity/residency, cleanup orchestration, and run isolation;
 concrete backends own physical buffer/workspace representation implementations and the actual
 allocation, release, transfer, and access mechanics. Checked heterogeneous binding occurs once
@@ -104,6 +112,12 @@ discover backends, look up backend services, lower partitions, select kernels, a
 the graph for tuning, or access or mutate tuning caches. Runtime profiling is passive observation
 translated into typed trace data; it cannot change settings. The hot path does not use
 `Operation` or `CompiledNode`.
+
+For each synchronous call, `PreparedExecutionRunner` acquires the prepared-execution run lease,
+creates one `RunState`, cold-binds every executable, transfer, and publication occurrence before
+the first action, traverses them in schedule order, and returns the complete state through a
+`RunResult` lease. Separate calls may share the immutable recipe but never runner-created mutable
+state.
 
 For a future executable fixed recurrent scan, Runtime receives only ordinary caller-input
 representations, one reusable prepared executable recipe, cold-bound direct references, and an
@@ -130,8 +144,8 @@ Owns the public lifecycle facade and composition root. Current `Engine.standard(
 owns one fresh fixed CPU composition. It exposes owner-bound compile and prepare handles, typed
 logical input binding, leased publication metadata, explicit detached host materialization,
 fresh one-shot compute/backward conveniences, and bounded optional CPU-local autotuning.
-`AdvancedEngine` instead takes explicit ownership of one supported CPU integration and exposes
-the lower-level representation lifecycle.
+`AdvancedEngine.takeOwnership(...)` instead takes explicit cleanup ownership of one supported CPU
+integration and exposes the lower-level representation lifecycle.
 
 Engine does not own kernels, backend internals, graph optimization passes, a runtime service locator, or reflective plugin discovery as the core backend mechanism. Concrete backends never depend on engine.
 

@@ -19,7 +19,6 @@ ownership and closure. It does not own compile semantics or concrete backend imp
 Allowed:
 
 - `PreparedExecution`
-- `PreparedUnit`
 - `PreparedExecutable`
 - `PreparedSchedule`
 - `PreparedMemoryPlan`
@@ -50,6 +49,13 @@ Forbidden:
   selection of execution settings in the hot path
 
 Runtime executes prepared schedules.
+
+One `PreparedExecution` retains exactly one immutable `PreparedMemoryPlan` and one same-plan
+`PreparedSchedule`. The schedule is an ordered list of `PreparedSchedule.Step` occurrences: an
+optional `RepresentationCreationStep` may occur only first, followed by executable and explicit
+buffer-transfer occurrences, with publication occurrences forming the dense final suffix.
+Repeated executable or transfer occurrences mean repeated work and create no additional resource
+ownership. Runtime uses no additional aggregate between a schedule occurrence and its recipe.
 
 Runtime does not decide how graph partitions should be lowered.
 
@@ -183,7 +189,6 @@ Prepare is where these are created:
 
 - `BackendPartitionAnalysis`
 - `PreparedPartition`
-- `PreparedUnit`
 - `PreparedExecutable`
 - `PreparedMemoryPlan`
 - `PreparedSchedule`
@@ -191,7 +196,11 @@ Prepare is where these are created:
 
 Concrete backend lowering occurs in concrete backend modules.
 Route selection and shared-resource discovery occur during backend analysis. Executable
-construction occurs only during backend finalization after shared slot assignment.
+construction occurs only during backend finalization after shared slot assignment. Shared Prepare
+assembles and validates ordered schedule-step occurrences, then constructs the Runtime
+`PreparedExecution` with the exact assigned memory plan, exact schedule, and acquisition-ordered
+persistent resources. Successful construction transfers unique ownership of those resources to
+that Runtime aggregate.
 
 
 ## Run lifecycle
@@ -199,19 +208,27 @@ construction occurs only during backend finalization after shared slot assignmen
 Run lifecycle:
 
 ```text
-PreparedExecution.run(...)
+PreparedExecutionRunner.run(PreparedExecution, callerInputs)
+  -> acquire one prepared-execution run lease
   -> create exactly one RunState for the complete logical run
-  -> bind caller inputs as borrowed resources
-  -> create run-owned internal buffer/workspace representations through prepared backend work
-  -> perform cold checked binding to backend-owned typed invocation objects
-  -> execute PreparedSchedule
-  -> perform explicit prepared residency/materialization/transfer work as needed
-  -> PreparedExecutable.execute(...)
-  -> update residency
-  -> publication and output ownership transfer/lease
+     - bind caller inputs as borrowed representations
+     - invoke the optional first representation-creation recipe for run-owned buffers/workspaces
+  -> cold-bind every executable, transfer, and publication occurrence
+     to typed direct-reference actions
+  -> traverse PreparedSchedule.Step occurrences in order
+     - execute PreparedExecutable occurrences
+     - perform explicit prepared buffer-transfer/materialization occurrences
+     - publish the dense final suffix
   -> RunResult
-  -> release resources still owned by RunState
+     - owns the complete RunState lease and releases resources still owned by the run on close
+  -> release the prepared-execution run lease before the synchronous call returns
 ```
+
+`PreparedExecutionRunner` owns this synchronous orchestration. It is stateless and creates one
+isolated `RunState` per call; concurrent calls may share the immutable prepared recipe but not
+mutable run state. `PreparedExecution` remains the unique owner of persistent prepared resources.
+Executable and transfer binding create backend-owned typed actions; Runtime publication binding
+retains the selected representation directly without transferring its ownership.
 
 Run must not perform:
 
@@ -234,10 +251,12 @@ functional value semantics do not imply hidden write-back between them.
 
 Allowed:
 
+- public `Engine` facade
 - public `CompiledGraph` facade
-- explicit backend registration
+- owner-bound public `PreparedExecution` and `RunResult` handles
 - compile orchestration
 - prepare orchestration
+- synchronous run orchestration
 - wiring compiler, runtime, prepare, and concrete backends
 
 Forbidden:
@@ -250,16 +269,15 @@ Forbidden:
 
 Engine is the composition root.
 
-Backends are registered explicitly.
+Current ordinary composition is fixed: every `Engine.standard()` call constructs and owns one
+fresh CPU integration. Current advanced composition is also CPU-only:
+`AdvancedEngine.takeOwnership(...)` takes cleanup ownership of one explicitly supplied supported
+CPU integration. Neither surface currently registers a generic backend inventory, combines
+multiple backend owners, or assembles mixed-owner schedules.
 
-Example:
-
-```java
-SynaptikEngine engine = SynaptikEngine.builder()
-        .addBackend(cpuBackend())
-        .addBackend(metalBackend())
-        .build();
-```
+Generic explicit backend registration is planned composition-time work. If introduced, it must
+remain Engine-owned and explicit; it must not become discovery, a service locator, or runtime
+hot-path selection. No current builder or generic registration API is implied.
 
 ## Runtime service locator
 
@@ -287,7 +305,7 @@ Examples include:
 - automatic backend discovery through reflection
 - `ServiceLoader` as the default runtime backend mechanism
 
-Backends must be registered explicitly through engine composition.
+Any future generic backend registration must be explicit through Engine composition.
 
 `ServiceLoader` or plugin discovery may be added later as a convenience layer only if this document is updated first.
 
