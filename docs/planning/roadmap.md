@@ -33,7 +33,7 @@ or task boundary; it does not promote Draft work to Ready.
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress, interleaved; 0001–0003 and 0006A–0006B Complete; 0004–0006 and 0007–0008 Draft | 0004 waits for a concrete cost-bearing Planning consumer; no Config task is Ready. |
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | Complete through 0006 | A separate reassessment must select any later cost-bearing frontier. |
 | 6 | [`modules/runtime`](modules/runtime/master-plan.md) | Complete through 0016 | No Runtime task is Ready. |
-| 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete through 0006B8; 0006C and 0007 Draft | Reassess remaining contract drift before selecting another frontier; no Compiler implementation task is Ready. |
+| 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete through 0006B8; documentation-only 0006B9 Ready; 0006C and 0007 Draft | Reconcile the normative compile-artifact component block; no Compiler implementation task is Ready. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through 0006 | No Prepare task is Ready. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through 0010J; 0007A1D Review needed; 0010D1 and 0011 Blocked | No CPU task is Ready; vendor peers 0012–0015 and integrations 0016–0017 remain Draft. |
@@ -54,11 +54,11 @@ or task boundary; it does not promote Draft work to Ready.
 ## Current frontier
 
 The user-authorized sequential drift-remediation sequence is Complete through
-[Engine 0012](modules/engine/tasks/0012-runtime-prepare-engine-authority-reconciliation.md), after
-[Engine 0011](modules/engine/tasks/0011-compile-artifact-projection-boundary-reconciliation.md)
-and [Compiler 0006B8](modules/compiler/tasks/0006b8-bounded-functional-autograd-contract-and-documentation-reconciliation.md).
-No task is currently `Ready`; a separate reassessment must select exactly one next frontier.
-Compiler 0006C/0007 and all other Draft or blocked work remain unauthorized.
+[Engine 0012](modules/engine/tasks/0012-runtime-prepare-engine-authority-reconciliation.md).
+[Compiler 0006B9](modules/compiler/tasks/0006b9-compile-artifacts-contract-reconciliation.md) is
+the sole `Ready` frontier: a documentation-only reconciliation of the normative compile-artifact
+component block with the exact current public eight-component record. Compiler 0006C/0007 and all
+other Draft or blocked work remain unauthorized.
 
 ## Blocked, review-needed, and deferred work
 
@@ -81,8 +81,8 @@ Compiler 0006C/0007 and all other Draft or blocked work remain unauthorized.
 
 ## Nearest next step
 
-1. Reassess the remaining documented drift and select exactly one bounded next frontier; do not
-   promote an existing Draft or blocked task implicitly.
+1. Execute Compiler 0006B9 through its clean documentation implementation and independent Class C
+   review; do not promote Compiler 0006C/0007 or other Draft or blocked work implicitly.
 
 ## History policy
 
