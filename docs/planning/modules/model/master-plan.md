@@ -232,6 +232,7 @@ detailed brief.
 | 0025J | [First-class NCDHW max/average Pool3d semantics](tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md) | Complete | 0025I; 0020A–0020A1; 0018K–0018N; 0018V | Added first-class NCDHW max/average Pool3d. |
 | 0025K | [Public NCDHW unfold3d and fold3d window transforms](tasks/0025k-public-ncdhw-unfold3d-and-fold3d-window-transforms.md) | Complete | 0025J; 0023D | Added public NCDHW `unfold3d` and `fold3d`. |
 | 0025L | [Cross-type CAST conversion semantics](tasks/0025l-cross-type-cast-conversion-semantics.md) | Complete | 0025K; 0001; 0003A; 0015G–0015H; 0018N; 0018U; owner-approved conversion policy | Fixed all 36 current-type CAST conversion meanings. |
+| 0025M | [Tensor guide and API status reconciliation](tasks/0025m-tensor-guide-and-api-status-reconciliation.md) | Ready | Current Tensor/host-storage source and Engine/public API; user-authorized drift remediation | Reconcile the stale pre-Tensor user guide and opening Tensor API cross-layer status without changing code or contracts. |
 | 0026 | IEEE FLOAT16 and mixed-precision semantic contracts | Draft | 0001, 0018N, completed operation-family semantics; required before any backend advertises FLOAT16 | Preserve BFLOAT16, add distinct true IEEE-754 binary16 `FLOAT16`, and audit affected families for explicit input, accumulation/intermediate, and output types without adding backend support. |
 
 ## Milestones and current frontier
@@ -245,11 +246,11 @@ detailed brief.
 - 0023–0024A closed the adjoint-expressibility prerequisites and selected Model capability audit.
 - 0025–0025D supplied focused Compiler prerequisites. 0025E–0025K added fixed recurrent and
   rank-specific spatial coverage; 0025L closed CAST semantics for the six current types.
-- Selected Model scope is `Complete` through 0025L. No Model task is `Ready` or `In progress`.
-  Task 0026 remains `Draft`, has no detailed brief, and is selected only when IEEE-754 binary16
-  `FLOAT16` and mixed-precision semantics become current.
-- The repository frontier is [Metal 0004](../../backends/metal/master-plan.md), still `Draft`;
-  this plan does not authorize Model 0026 or any other Model work.
+- Selected Model implementation scope is `Complete` through 0025L. Documentation-only task 0025M
+  is the user-authorized `Ready` repository frontier for confirmed Tensor guide/API status drift.
+  Its source and authority prerequisites are complete, and it changes no implementation scope.
+- Task 0026 remains `Draft`, has no detailed brief, and is selected only when IEEE-754 binary16
+  `FLOAT16` and mixed-precision semantics become current. No other Model work is authorized.
 
 ## Live gates, decisions, and risks
 
