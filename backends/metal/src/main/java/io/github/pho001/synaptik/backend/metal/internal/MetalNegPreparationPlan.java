@@ -12,16 +12,27 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Retains the immutable, shape-specialized lowering facts for one whole NEG partition.
+ * Retains the immutable, shape-specialized lowering and route facts for one whole NEG partition.
  *
  * <p>Value indices, node arrays, feeds, targets, and declarations are already in their stable ABI
  * order. The plan contains no assigned slot, native executable, physical buffer, or per-run
- * state. Primitive arrays are privately snapshotted and copied when marshalled.</p>
+ * state. The address workspace is present only for MPSGraph. Primitive arrays are privately
+ * snapshotted and copied when marshalled.</p>
  */
 final class MetalNegPreparationPlan implements BackendPreparationPlan {
+    /** Closed private implementation choice made during analysis. */
+    enum Route {
+        /** Exact singleton NEG with one feed, one target, and {@code 1..UINT32_MAX} elements. */
+        CUSTOM_SINGLE_NEG,
+
+        /** Every other partition in the unchanged supported Metal NEG capability domain. */
+        MPSGRAPH
+    }
+
     private final PlannedPartition partition;
     private final PartitionDag partitionDag;
     private final MetalDeviceContext context;
+    private final Route route;
     private final List<ValueId> valueIds;
     private final List<TensorDescriptor> descriptors;
     private final int[] valueRanks;
@@ -34,7 +45,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     private final int[] targetValueIndices;
     private final List<PreparationResourceRequirement.Buffer> declarations;
     private final List<Optional<ScalarValue>> feedSplats;
-    private final PreparationResourceRequirement.Workspace addressWorkspace;
+    private final Optional<PreparationResourceRequirement.Workspace> addressWorkspace;
     private final long[] feedRequiredBytes;
     private final long[] targetRequiredBytes;
 
@@ -43,6 +54,8 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
      *
      * @param partition exact non-null planned partition analyzed to produce this plan
      * @param partitionDag exact non-null partition topology retaining {@code partition}
+     * @param context exact non-null Metal device context retained by identity
+     * @param route non-null closed implementation route selected during analysis
      * @param valueIds non-null stable indexed value identities
      * @param descriptors non-null descriptors aligned with {@code valueIds}
      * @param valueRanks non-null ranks aligned with values
@@ -54,6 +67,8 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
      * @param targetValueIds non-null unique boundary outputs in stable target order
      * @param targetValueIndices non-null value indices aligned with targets
      * @param declarations non-null exact feed-then-target buffer declarations
+     * @param feedSplats non-null optional FLOAT32 splats aligned with feeds
+     * @param addressWorkspace non-null optional workspace, present exactly for MPSGraph
      * @param feedRequiredBytes non-null required logical byte extents aligned with feeds
      * @param targetRequiredBytes non-null required logical byte extents aligned with targets
      * @throws NullPointerException if a required reference or list element is {@code null}
@@ -63,6 +78,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             PlannedPartition partition,
             PartitionDag partitionDag,
             MetalDeviceContext context,
+            Route route,
             List<ValueId> valueIds,
             List<TensorDescriptor> descriptors,
             int[] valueRanks,
@@ -75,7 +91,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             int[] targetValueIndices,
             List<PreparationResourceRequirement.Buffer> declarations,
             List<Optional<ScalarValue>> feedSplats,
-            PreparationResourceRequirement.Workspace addressWorkspace,
+            Optional<PreparationResourceRequirement.Workspace> addressWorkspace,
             long[] feedRequiredBytes,
             long[] targetRequiredBytes) {
         this.partition = Objects.requireNonNull(partition, "partition");
@@ -85,6 +101,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
                     "Metal NEG partition DAG must retain the analyzed partition");
         }
         this.context = Objects.requireNonNull(context, "context");
+        this.route = Objects.requireNonNull(route, "route");
         this.valueIds = List.copyOf(valueIds);
         this.descriptors = List.copyOf(descriptors);
         this.valueRanks = valueRanks.clone();
@@ -114,11 +131,21 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
                         != this.feedValueIds.size() + this.targetValueIds.size()) {
             throw new IllegalArgumentException("Metal NEG preparation-plan cardinalities disagree");
         }
+        if ((this.route == Route.CUSTOM_SINGLE_NEG
+                        && (partitionDag.nodes().size() != 1
+                                || this.feedValueIds.size() != 1
+                                || this.targetValueIds.size() != 1
+                                || this.addressWorkspace.isPresent()))
+                || (this.route == Route.MPSGRAPH && this.addressWorkspace.isEmpty())) {
+            throw new IllegalArgumentException("Metal NEG route and workspace facts disagree");
+        }
     }
 
     PlannedPartition partition() { return partition; }
     PartitionDag partitionDag() { return partitionDag; }
     MetalDeviceContext context() { return context; }
+    /** @return the deterministic backend-private route selected before shared declarations */
+    Route route() { return route; }
     List<ValueId> valueIds() { return valueIds; }
     List<TensorDescriptor> descriptors() { return descriptors; }
     int[] valueRanks() { return valueRanks.clone(); }
@@ -131,7 +158,22 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     int[] targetValueIndices() { return targetValueIndices.clone(); }
     List<PreparationResourceRequirement.Buffer> declarations() { return declarations; }
     List<Optional<ScalarValue>> feedSplats() { return feedSplats; }
-    PreparationResourceRequirement.Workspace addressWorkspace() { return addressWorkspace; }
+    Optional<PreparationResourceRequirement.Workspace> addressWorkspace() {
+        return addressWorkspace;
+    }
     long[] feedRequiredBytes() { return feedRequiredBytes.clone(); }
     long[] targetRequiredBytes() { return targetRequiredBytes.clone(); }
+
+    /**
+     * Returns the custom singleton's checked positive element count.
+     *
+     * @return a value in the inclusive range {@code 1..UINT32_MAX}
+     * @throws IllegalStateException if this plan selected MPSGraph
+     */
+    long customElementCount() {
+        if (route != Route.CUSTOM_SINGLE_NEG) {
+            throw new IllegalStateException("Metal NEG plan did not select the custom route");
+        }
+        return feedRequiredBytes[0] / Float.BYTES;
+    }
 }

@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -278,6 +279,111 @@ class MetalFoundationTest {
     }
 
     @Test
+    void customPipelineNativeSeamRejectsZeroAndFirstOversizedCount() {
+        var api = new FakeNativeApi();
+        MetalNativeApi.Handle context = new MetalNativeApi.Handle(MemorySegment.ofAddress(97));
+
+        for (long count : new long[] {0L, 0x1_0000_0000L}) {
+            MetalNativeApi.NativeFailure failure = assertThrows(
+                    MetalNativeApi.NativeFailure.class,
+                    () -> api.createNegKernelPipeline(context, count));
+            assertEquals(MetalNativeApi.NEG_KERNEL_PIPELINE_CREATE_OPERATION,
+                    failure.operation());
+            assertEquals(8, failure.statusCode());
+            assertEquals(MetalNativeApi.Status.UNSUPPORTED_SHAPE, failure.status());
+        }
+    }
+
+    @Test
+    void customPipelineNativeSourceRetainsEveryFailClosedBranch() throws Exception {
+        String source = Files.readString(repositoryPath(
+                "native/metal-macos-arm64/src/synaptik_metal_foundation.m"));
+        String create = functionSource(source,
+                "synaptik_metal_neg_kernel_pipeline_create",
+                "synaptik_metal_neg_kernel_pipeline_release");
+        String release = functionSource(source,
+                "synaptik_metal_neg_kernel_pipeline_release",
+                "synaptik_metal_neg_kernel_pipeline_run");
+        String run = functionSource(source,
+                "synaptik_metal_neg_kernel_pipeline_run", null);
+        String createContract = withoutWhitespace(create);
+        String releaseContract = withoutWhitespace(release);
+        String runContract = withoutWhitespace(run);
+
+        assertTrue(createContract.contains(
+                "if(out_pipeline==NULL)returnSYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;"
+                        + "*out_pipeline=NULL;"
+                        + "if(context==NULL)returnSYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;"
+                        + "if(element_count==0U"));
+        assertTrue(createContract.contains(
+                "if(element_count==0U||element_count>UINT32_MAX"
+                        + "||element_count>UINT64_MAX/sizeof(float)"
+                        + "||element_count>(uint64_t)NSUIntegerMax"
+                        + "||element_count*sizeof(float)>(uint64_t)NSUIntegerMax)"
+                        + "returnSYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE;"));
+        assertTrue(createContract.contains(
+                "if(![ctx.devicesupportsFamily:MTLGPUFamilyApple4])"
+                        + "returnSYNAPTIK_METAL_STATUS_KERNEL_COMPILATION_FAILED;"));
+        assertTrue(createContract.contains(
+                "if(library==nil||library_error!=nil)"
+                        + "returnSYNAPTIK_METAL_STATUS_KERNEL_COMPILATION_FAILED;"));
+        assertTrue(createContract.contains(
+                "if(function==nil)returnSYNAPTIK_METAL_STATUS_KERNEL_COMPILATION_FAILED;"));
+        assertTrue(createContract.contains(
+                "if(pipeline==nil||pipeline_error!=nil)"
+                        + "returnSYNAPTIK_METAL_STATUS_KERNEL_COMPILATION_FAILED;"));
+        assertTrue(createContract.contains(
+                "if(execution_width==0U||maximum_width==0U)"
+                        + "returnSYNAPTIK_METAL_STATUS_KERNEL_COMPILATION_FAILED;"));
+        assertTrue(createContract.contains(
+                "if(grid.width!=element_count||grid.height!=1U||grid.depth!=1U)"
+                        + "returnSYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE;"));
+        assertTrue(createContract.contains(
+                "if(group.width==0U||group.width>maximum_width"
+                        + "||group.height!=1U||group.depth!=1U)"
+                        + "returnSYNAPTIK_METAL_STATUS_EXECUTION_FAILED;"));
+        assertTrue(createContract.contains(
+                "if(box==nil)returnSYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;"));
+        assertTrue(createContract.contains(
+                "@catch(__unusedNSException*exception)"
+                        + "{returnSYNAPTIK_METAL_STATUS_INTERNAL_ERROR;}"));
+        assertTrue(releaseContract.contains(
+                "if(pipeline==NULL)returnSYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;"));
+        assertTrue(releaseContract.contains(
+                "@catch(__unusedNSException*exception)"
+                        + "{returnSYNAPTIK_METAL_STATUS_INTERNAL_ERROR;}"));
+
+        assertTrue(runContract.contains(
+                "if(pipeline==NULL||input_buffer==NULL||output_buffer==NULL)"
+                        + "returnSYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;"));
+        assertTrue(runContract.contains(
+                "if(input_buffer==output_buffer)"
+                        + "returnSYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE;"));
+        assertTrue(runContract.contains(
+                "if(input.buffer.device!=box.context.device"
+                        + "||output.buffer.device!=box.context.device"
+                        + "||input.logicalByteSize<box.requiredBytes"
+                        + "||output.logicalByteSize<box.requiredBytes)"
+                        + "returnSYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE;"));
+        assertTrue(runContract.contains(
+                "if(box.elementCount==0U||box.elementCount>UINT32_MAX"
+                        + "||box.threadsPerThreadgroup==0U"
+                        + "||box.threadsPerThreadgroup>"
+                        + "box.pipeline.maxTotalThreadsPerThreadgroup)"
+                        + "returnSYNAPTIK_METAL_STATUS_EXECUTION_FAILED;"));
+        assertTrue(runContract.contains(
+                "if(command==nil)returnSYNAPTIK_METAL_STATUS_EXECUTION_FAILED;"));
+        assertTrue(runContract.contains(
+                "if(encoder==nil)returnSYNAPTIK_METAL_STATUS_EXECUTION_FAILED;"));
+        assertTrue(runContract.contains(
+                "if(command.status!=MTLCommandBufferStatusCompleted||command.error!=nil)"
+                        + "returnSYNAPTIK_METAL_STATUS_EXECUTION_FAILED;"));
+        assertTrue(runContract.contains(
+                "@catch(__unusedNSException*exception)"
+                        + "{returnSYNAPTIK_METAL_STATUS_INTERNAL_ERROR;}"));
+    }
+
+    @Test
     void negExecutableCreatePreflightRejectsMalformedAbiWithoutNativeInvocation() {
         var api = new FakeNativeApi();
         MetalNativeApi.Handle context = new MetalNativeApi.Handle(MemorySegment.ofAddress(97));
@@ -393,6 +499,34 @@ class MetalFoundationTest {
                 () -> api.createNegExecutable(context, input.ranks(), input.dimensions(),
                         input.nodeInputs(), input.nodeOutputs(), input.feeds(), input.targets()));
         assertEquals(before, api.executableCreateCalls.get());
+    }
+
+    private static Path repositoryPath(String relativePath) {
+        Path current = Path.of("").toAbsolutePath().normalize();
+        while (current != null) {
+            Path candidate = current.resolve(relativePath);
+            if (Files.isRegularFile(candidate)) {
+                return candidate;
+            }
+            current = current.getParent();
+        }
+        throw new AssertionError("repository path not found: " + relativePath);
+    }
+
+    private static String functionSource(String source, String symbol, String nextSymbol) {
+        int start = source.indexOf(symbol);
+        if (start < 0) {
+            throw new AssertionError("native symbol not found: " + symbol);
+        }
+        int end = nextSymbol == null ? source.length() : source.indexOf(nextSymbol, start + 1);
+        if (end < 0) {
+            throw new AssertionError("next native symbol not found: " + nextSymbol);
+        }
+        return source.substring(start, end);
+    }
+
+    private static String withoutWhitespace(String source) {
+        return source.replaceAll("\\s+", "");
     }
 
     private static NegCreate validNegCreate() {
@@ -545,6 +679,25 @@ class MetalFoundationTest {
         int runExecutableNative(Handle executable, int inputCount, MemorySegment inputBuffers,
                 int outputCount, MemorySegment outputBuffers) {
             // Foundation-only tests do not execute a graph.
+            return 0;
+        }
+
+        @Override
+        synchronized NativeCreateResult createNegKernelPipelineNative(
+                Handle context, long elementCount) {
+            return elementCount == 0L || elementCount > 0xffff_ffffL
+                    ? new NativeCreateResult(8, null)
+                    : new NativeCreateResult(0, handle());
+        }
+
+        @Override
+        int releaseNegKernelPipelineNative(Handle pipeline) {
+            return 0;
+        }
+
+        @Override
+        int runNegKernelPipelineNative(
+                Handle pipeline, Handle inputBuffer, Handle outputBuffer) {
             return 0;
         }
 

@@ -160,11 +160,17 @@ final class MetalNegPreparedScheduleAssembler implements PreparedScheduleAssembl
         for (ValueId feed : plan.feedValueIds()) requireAssignment(assignments, feed);
         for (ValueId target : plan.targetValueIds()) requireAssignment(assignments, target);
 
-        int pointerCount = Math.addExact(plan.feedValueIds().size(), plan.targetValueIds().size());
+        List<PreparedRepresentationPlan.WorkspaceCreator> workspaceCreators;
+        if (plan.route() == MetalNegPreparationPlan.Route.MPSGRAPH) {
+            int pointerCount = Math.addExact(
+                    plan.feedValueIds().size(), plan.targetValueIds().size());
+            workspaceCreators = List.of(() ->
+                    new MetalNegPreparedExecutable.AddressWorkspace(context, pointerCount));
+        } else {
+            workspaceCreators = List.of();
+        }
         var representationPlan = new PreparedRepresentationPlan(
-                memoryPlan, preparations,
-                List.of(() -> new MetalNegPreparedExecutable.AddressWorkspace(
-                        context, pointerCount)));
+                memoryPlan, preparations, workspaceCreators);
         var steps = new ArrayList<PreparedSchedule.Step>();
         steps.add(new PreparedSchedule.RepresentationCreationStep(representationPlan));
         steps.add(new PreparedSchedule.ExecutionStep(

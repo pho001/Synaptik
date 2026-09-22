@@ -116,6 +116,10 @@ final class MetalDeviceContext implements AutoCloseable {
             throw new IllegalArgumentException(
                     "Metal NEG executable plan belongs to another device context");
         }
+        if (plan.route() != MetalNegPreparationPlan.Route.MPSGRAPH) {
+            throw new IllegalArgumentException(
+                    "Metal NEG MPSGraph executable requires the MPSGraph route");
+        }
         ChildLease lease = acquireChildLease();
         MetalNativeApi.Handle executable = null;
         try {
@@ -132,6 +136,49 @@ final class MetalDeviceContext implements AutoCloseable {
                     api.releaseExecutable(executable);
                 } catch (RuntimeException | Error cleanup) {
                     if (cleanup != failure) failure.addSuppressed(cleanup);
+                }
+            }
+            lease.closeAfter(failure);
+            throw failure;
+        }
+    }
+
+    /**
+     * Compiles one persistent custom NEG pipeline under a provisional child lease.
+     *
+     * <p>The analysis-selected custom route and its checked element geometry are validated before
+     * native creation. Successful wrapper construction adopts the lease; failure releases a
+     * published pipeline before ending the lease.</p>
+     *
+     * @param plan non-null custom-route preparation plan retaining this exact context
+     * @return a new open typed custom-pipeline resource; never {@code null}
+     * @throws NullPointerException if {@code plan} is {@code null}
+     * @throws IllegalArgumentException if route or context identity disagrees
+     * @throws IllegalStateException if owner close has begun
+     * @throws RuntimeException if native compilation or cleanup fails
+     * @throws Error if compilation or cleanup reports an error
+     */
+    MetalNegKernelPipelineResource createNegKernelPipeline(MetalNegPreparationPlan plan) {
+        Objects.requireNonNull(plan, "plan");
+        if (plan.context() != this
+                || plan.route() != MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG) {
+            throw new IllegalArgumentException(
+                    "Metal NEG custom pipeline plan route or context disagrees");
+        }
+        ChildLease lease = acquireChildLease();
+        MetalNativeApi.Handle pipeline = null;
+        try {
+            pipeline = api.createNegKernelPipeline(handle, plan.customElementCount());
+            return new MetalNegKernelPipelineResource(
+                    this, api, pipeline, lease, plan.feedRequiredBytes()[0]);
+        } catch (RuntimeException | Error failure) {
+            if (pipeline != null) {
+                try {
+                    api.releaseNegKernelPipeline(pipeline);
+                } catch (RuntimeException | Error cleanup) {
+                    if (cleanup != failure) {
+                        failure.addSuppressed(cleanup);
+                    }
                 }
             }
             lease.closeAfter(failure);

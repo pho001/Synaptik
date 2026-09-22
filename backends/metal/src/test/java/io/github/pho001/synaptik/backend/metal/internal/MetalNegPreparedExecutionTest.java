@@ -78,6 +78,408 @@ import org.junit.jupiter.api.Test;
 
 class MetalNegPreparedExecutionTest {
     @Test
+    void singletonRouteBoundaryIsChosenBeforeExactDeclarationsWithoutPhysicalAllocation() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        try {
+            SingleNegRoute maximum = singleNegRoute(
+                    context, Shape.of(0xffff_ffffL), Optional.empty());
+            assertEquals(MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG,
+                    maximum.analysis().plan().route());
+            assertEquals(2, maximum.analysis().requirements().size());
+            assertTrue(maximum.analysis().plan().addressWorkspace().isEmpty());
+
+            SingleNegRoute firstOversized = singleNegRoute(
+                    context, Shape.of(0x1_0000_0000L), Optional.empty());
+            assertEquals(MetalNegPreparationPlan.Route.MPSGRAPH,
+                    firstOversized.analysis().plan().route());
+            assertEquals(3, firstOversized.analysis().requirements().size());
+            assertTrue(firstOversized.analysis().plan().addressWorkspace().isPresent());
+            assertThrows(IllegalArgumentException.class,
+                    () -> context.createNegExecutable(maximum.analysis().plan()));
+            assertThrows(IllegalArgumentException.class,
+                    () -> context.createNegKernelPipeline(firstOversized.analysis().plan()));
+
+            SingleNegRoute splat = singleNegRoute(
+                    context, Shape.of(4), Optional.of(ScalarValue.float32(-2.0f)));
+            assertEquals(MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG,
+                    splat.analysis().plan().route());
+            assertTrue(splat.analysis().plan().feedSplats().getFirst().isPresent());
+            assertEquals(0, api.bufferCreates.get());
+            assertEquals(0, api.pipelineCreates.get());
+            assertEquals(0, api.executableCreates.get());
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void customCallerRouteUsesOnePipelineDirectOutputsAndOneDowncallPerRun() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        SingleNegRoute route = singleNegRoute(context, Shape.of(6), Optional.empty());
+        FinalizationFixture assignment = finalization(route.analysis());
+        BackendPartitionFinalizationResult finalized =
+                new MetalNegPartitionFinalizer(context)
+                        .finalizePartition(assignment.finalization());
+        assertEquals(1, finalized.resources().size());
+        assertTrue(finalized.resources().getFirst()
+                instanceof MetalNegKernelPipelineResource);
+        var schedule = new MetalNegPreparedScheduleAssembler(
+                context, route.analysis().plan(), List.of(route.target()))
+                .assembleRoute(assignment.memoryPlan(),
+                        new PreparedPartition(route.partition(), finalized.executable()),
+                        assignment.preparedAssignments());
+        PreparedExecution execution = new PreparedExecution(
+                assignment.memoryPlan(), schedule, finalized.resources());
+        MetalBufferRepresentation input = context.createBuffer(24);
+        try {
+            uploadBits(input, 0x3f800000, 0xc0000000, 0x00000000,
+                    0x80000000, 0x7f800000, 0x7fc12345);
+            var runner = new PreparedExecutionRunner();
+            var first = runner.run(execution, List.of(input));
+            Object firstOutput = first.publicationRepresentation(0);
+            try (Arena arena = Arena.ofConfined()) {
+                assertNegated((MetalBufferRepresentation) firstOutput,
+                        new float[] {-1.0f, 2.0f, -0.0f, 0.0f,
+                                Float.NEGATIVE_INFINITY, Float.NaN}, arena);
+            } finally {
+                first.close();
+            }
+            var second = runner.run(execution, List.of(input));
+            try {
+                assertNotSame(firstOutput, second.publicationRepresentation(0));
+            } finally {
+                second.close();
+            }
+            assertEquals(1, api.pipelineCreates.get());
+            assertEquals(0, api.executableCreates.get());
+            assertEquals(2, api.customRunCalls.get());
+            assertEquals(0, api.runCalls.get());
+            assertTrue(assignment.memoryPlan().workspaces().isEmpty());
+        } finally {
+            execution.close();
+            input.close();
+            context.close();
+        }
+        assertEquals(1, api.pipelineReleases.get());
+        assertEquals(1, api.contextReleases.get());
+    }
+
+    @Test
+    void customSplatRouteCreatesFreshRunOwnedInputsAndExactNegation() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        SingleNegRoute route = singleNegRoute(
+                context, Shape.of(2), Optional.of(ScalarValue.float32(-0.0f)));
+        FinalizationFixture assignment = finalization(route.analysis());
+        BackendPartitionFinalizationResult finalized =
+                new MetalNegPartitionFinalizer(context)
+                        .finalizePartition(assignment.finalization());
+        var schedule = new MetalNegPreparedScheduleAssembler(
+                context, route.analysis().plan(), List.of(route.target()))
+                .assembleRoute(assignment.memoryPlan(),
+                        new PreparedPartition(route.partition(), finalized.executable()),
+                        assignment.preparedAssignments());
+        PreparedExecution execution = new PreparedExecution(
+                assignment.memoryPlan(), schedule, finalized.resources());
+        try {
+            var runner = new PreparedExecutionRunner();
+            var first = runner.run(execution, List.of());
+            var second = runner.run(execution, List.of());
+            try (Arena arena = Arena.ofConfined()) {
+                assertNegated((MetalBufferRepresentation) first.publicationRepresentation(0),
+                        new float[] {0.0f, 0.0f}, arena);
+                assertNegated((MetalBufferRepresentation) second.publicationRepresentation(0),
+                        new float[] {0.0f, 0.0f}, arena);
+                assertNotSame(first.publicationRepresentation(0),
+                        second.publicationRepresentation(0));
+            } finally {
+                second.close();
+                first.close();
+            }
+            assertEquals(1, api.pipelineCreates.get());
+            assertEquals(2, api.customRunCalls.get());
+            assertEquals(4, api.bufferCreates.get(),
+                    "each run owns one fresh splat and one fresh output");
+            assertEquals(2, api.uploads.get());
+        } finally {
+            execution.close();
+            context.close();
+        }
+    }
+
+    @Test
+    void customPipelineMapsCreateRunReleaseAndMalformedOutputWithoutCrossFamilyCalls() {
+        RecordingNativeApi failureApi = new RecordingNativeApi();
+        failureApi.pipelineCreateStatus = 12;
+        MetalDeviceContext failureContext = MetalDeviceContext.open(failureApi);
+        try {
+            MetalNegPreparationPlan plan = singleNegRoute(
+                    failureContext, Shape.of(2), Optional.empty()).analysis().plan();
+            MetalNativeApi.NativeFailure failure = assertThrows(
+                    MetalNativeApi.NativeFailure.class,
+                    () -> failureContext.createNegKernelPipeline(plan));
+            assertNativeFailure(failure,
+                    MetalNativeApi.NEG_KERNEL_PIPELINE_CREATE_OPERATION, 12);
+            assertEquals(1, failureApi.pipelineCreates.get());
+            assertEquals(0, failureApi.pipelineReleases.get());
+            assertEquals(0, failureApi.executableCreates.get());
+        } finally {
+            failureContext.close();
+        }
+
+        RecordingNativeApi missingHandleApi = new RecordingNativeApi();
+        missingHandleApi.createNullHandle = true;
+        MetalDeviceContext missingHandleContext = MetalDeviceContext.open(missingHandleApi);
+        try {
+            MetalNegPreparationPlan plan = singleNegRoute(
+                    missingHandleContext, Shape.of(2), Optional.empty()).analysis().plan();
+            IllegalStateException failure = assertThrows(IllegalStateException.class,
+                    () -> missingHandleContext.createNegKernelPipeline(plan));
+            assertTrue(failure.getMessage().contains("returned OK with a null handle"));
+            assertEquals(1, missingHandleApi.pipelineCreates.get());
+            assertEquals(0, missingHandleApi.pipelineReleases.get());
+            assertEquals(0, missingHandleApi.executableCreates.get());
+        } finally {
+            missingHandleContext.close();
+        }
+
+        RecordingNativeApi malformedApi = new RecordingNativeApi();
+        malformedApi.pipelineCreateStatus = 12;
+        malformedApi.createHandleOnFailure = true;
+        malformedApi.pipelineReleaseStatus = 7;
+        MetalDeviceContext malformedContext = MetalDeviceContext.open(malformedApi);
+        try {
+            MetalNegPreparationPlan plan = singleNegRoute(
+                    malformedContext, Shape.of(2), Optional.empty()).analysis().plan();
+            IllegalStateException failure = assertThrows(IllegalStateException.class,
+                    () -> malformedContext.createNegKernelPipeline(plan));
+            assertTrue(failure.getMessage().contains("failure with a non-null handle"));
+            assertNativeFailure((MetalNativeApi.NativeFailure) failure.getCause(),
+                    MetalNativeApi.NEG_KERNEL_PIPELINE_CREATE_OPERATION, 12);
+            assertEquals(1, failure.getSuppressed().length);
+            assertNativeFailure((MetalNativeApi.NativeFailure) failure.getSuppressed()[0],
+                    MetalNativeApi.NEG_KERNEL_PIPELINE_CREATE_OPERATION
+                            + " malformed-handle cleanup",
+                    7);
+            assertEquals(1, malformedApi.pipelineReleases.get());
+            assertEquals(0, malformedApi.executableReleases.get());
+        } finally {
+            malformedContext.close();
+        }
+
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        MetalNegKernelPipelineResource resource = context.createNegKernelPipeline(
+                singleNegRoute(context, Shape.of(2), Optional.empty()).analysis().plan());
+        MetalBufferRepresentation input = context.createBuffer(8);
+        MetalBufferRepresentation output = context.createBuffer(8);
+        try {
+            api.customRunStatus = 11;
+            MetalNativeApi.NativeFailure run = assertThrows(
+                    MetalNativeApi.NativeFailure.class,
+                    () -> resource.run(input.executionHandle(), output.executionHandle()));
+            assertNativeFailure(run, MetalNativeApi.NEG_KERNEL_PIPELINE_RUN_OPERATION, 11);
+            assertEquals(1, api.customRunCalls.get());
+            assertEquals(0, api.runCalls.get());
+        } finally {
+            output.close();
+            input.close();
+            context.close();
+        }
+        api.pipelineReleaseStatus = 73;
+        MetalNativeApi.NativeFailure release = assertThrows(
+                MetalNativeApi.NativeFailure.class, resource::close);
+        assertNativeFailure(release,
+                MetalNativeApi.NEG_KERNEL_PIPELINE_RELEASE_OPERATION, 73);
+        resource.close();
+        assertEquals(1, api.pipelineReleases.get());
+        assertEquals(0, api.executableReleases.get());
+    }
+
+    @Test
+    void customFinalizerRollbackPreservesPrimaryAndPipelineCleanupFailure() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        BackendPartitionAnalysis<MetalNegPreparationPlan> analysis = singleNegRoute(
+                context, Shape.of(2), Optional.empty()).analysis();
+        FinalizationFixture fixture = finalization(analysis);
+        RuntimeException primary = new RuntimeException("custom recipe construction");
+        api.pipelineReleaseStatus = 7;
+        var finalizer = new MetalNegPartitionFinalizer(context,
+                new MetalNegPartitionFinalizer.FinalizedExecutableFactory() {
+                    @Override
+                    public MetalNegPreparedExecutable createMpsGraph(
+                            PreparedMemoryPlan memoryPlan,
+                            int[] feeds,
+                            int[] targets,
+                            MetalMpsGraphExecutableResource resource,
+                            long[] feedBytes,
+                            long[] targetBytes,
+                            int workspace) {
+                        throw new AssertionError("MPSGraph factory must not be called");
+                    }
+
+                    @Override
+                    public MetalNegPreparedExecutable createCustom(
+                            PreparedMemoryPlan memoryPlan,
+                            int feed,
+                            int target,
+                            MetalNegKernelPipelineResource resource) {
+                        throw primary;
+                    }
+                });
+        try {
+            RuntimeException actual = assertThrows(RuntimeException.class,
+                    () -> finalizer.finalizePartition(fixture.finalization()));
+            assertSame(primary, actual);
+            assertEquals(1, actual.getSuppressed().length);
+            assertNativeFailure((MetalNativeApi.NativeFailure) actual.getSuppressed()[0],
+                    MetalNativeApi.NEG_KERNEL_PIPELINE_RELEASE_OPERATION, 7);
+            assertEquals(1, api.pipelineCreates.get());
+            assertEquals(1, api.pipelineReleases.get());
+            assertEquals(0, api.executableCreates.get());
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void customColdBindingRejectsAliasWrongContextAndExtentBeforeDowncall() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        RecordingNativeApi otherApi = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        MetalDeviceContext other = MetalDeviceContext.open(otherApi);
+        BackendPartitionAnalysis<MetalNegPreparationPlan> analysis = singleNegRoute(
+                context, Shape.of(2), Optional.empty()).analysis();
+        FinalizationFixture fixture = finalization(analysis);
+        BackendPartitionFinalizationResult finalized = new MetalNegPartitionFinalizer(context)
+                .finalizePartition(fixture.finalization());
+        MetalNegPreparedExecutable executable =
+                (MetalNegPreparedExecutable) finalized.executable();
+        var good = context.createBuffer(8);
+        var otherBuffer = other.createBuffer(8);
+        var small = context.createBuffer(4);
+        try {
+            assertCustomBindingRejected(executable, fixture.memoryPlan(), good, good);
+            assertCustomBindingRejected(executable, fixture.memoryPlan(), otherBuffer, good);
+            assertCustomBindingRejected(executable, fixture.memoryPlan(), small, good);
+            assertEquals(0, api.customRunCalls.get());
+        } finally {
+            small.close();
+            otherBuffer.close();
+            good.close();
+            finalized.resources().forEach(resource -> resource.close());
+            other.close();
+            context.close();
+        }
+    }
+
+    @Test
+    void customPipelineCloseWaitsForAdmittedRunAndReleasesOnce() throws Exception {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        MetalNegKernelPipelineResource resource = context.createNegKernelPipeline(
+                singleNegRoute(context, Shape.of(2), Optional.empty()).analysis().plan());
+        MetalBufferRepresentation input = context.createBuffer(8);
+        MetalBufferRepresentation output = context.createBuffer(8);
+        api.blockRuns(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var run = executor.submit(
+                    () -> resource.run(input.executionHandle(), output.executionHandle()));
+            assertTrue(api.runEntered.await(5, TimeUnit.SECONDS));
+            context.close();
+            var close = executor.submit(resource::close);
+            assertEquals(0, api.pipelineReleases.get());
+            api.continueRuns.countDown();
+            run.get(5, TimeUnit.SECONDS);
+            close.get(5, TimeUnit.SECONDS);
+        } finally {
+            output.close();
+            input.close();
+            resource.close();
+            context.close();
+        }
+        assertEquals(1, api.customRunCalls.get());
+        assertEquals(1, api.pipelineReleases.get());
+        assertEquals(1, api.contextReleases.get());
+    }
+
+    @Test
+    void customPreparedExecutionCloseDefersReleaseAndIsolatesAdmittedRuns()
+            throws Exception {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        PreparedExecution execution = prepareSingleExecution(
+                context, Shape.of(2), Optional.empty());
+        MetalBufferRepresentation caller = context.createBuffer(8);
+        uploadBits(caller, 0x3f800000, 0xc0000000);
+        long callerHandle = caller.executionHandle().carrier().address();
+        int baseCreates = api.bufferCreates.get();
+        int baseReleases = api.bufferReleases.get();
+        api.blockBufferCreates(2);
+        api.blockRuns(1);
+        var runner = new PreparedExecutionRunner();
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var left = executor.submit(() -> runner.run(execution, List.of(caller)));
+            var right = executor.submit(() -> runner.run(execution, List.of(caller)));
+            assertTrue(api.bufferCreateEntered.await(5, TimeUnit.SECONDS),
+                    "both admitted runs must create their isolated outputs");
+            assertTrue(api.runEntered.await(5, TimeUnit.SECONDS));
+
+            execution.close();
+            assertTrue(execution.isClosed());
+            assertEquals(0, api.pipelineReleases.get(),
+                    "admitted runs retain the persistent pipeline after close begins");
+            assertEquals(baseCreates + 2, api.bufferCreates.get());
+            IllegalStateException rejected = assertThrows(IllegalStateException.class,
+                    () -> runner.run(execution, List.of(caller)));
+            assertEquals("prepared execution is closed", rejected.getMessage());
+            assertEquals(baseCreates + 2, api.bufferCreates.get(),
+                    "a rejected run must not create mutable state");
+
+            api.continueRuns.countDown();
+            var leftResult = left.get(5, TimeUnit.SECONDS);
+            var rightResult = right.get(5, TimeUnit.SECONDS);
+            try {
+                MetalBufferRepresentation leftOutput =
+                        (MetalBufferRepresentation) leftResult.publicationRepresentation(0);
+                MetalBufferRepresentation rightOutput =
+                        (MetalBufferRepresentation) rightResult.publicationRepresentation(0);
+                assertNotSame(leftResult, rightResult);
+                assertNotSame(leftOutput, rightOutput);
+                assertTrue(leftOutput.executionHandle().carrier().address()
+                        != rightOutput.executionHandle().carrier().address());
+                assertEquals(2, api.customRunCalls.get());
+                assertEquals(1, api.pipelineReleases.get(),
+                        "the last admitted run performs deferred pipeline release");
+                assertEquals(Set.of(
+                        callerHandle,
+                        leftOutput.executionHandle().carrier().address(),
+                        rightOutput.executionHandle().carrier().address()),
+                        api.liveBufferHandles());
+            } finally {
+                rightResult.close();
+                leftResult.close();
+            }
+            assertEquals(baseReleases + 2, api.bufferReleases.get());
+            assertEquals(Set.of(callerHandle), api.liveBufferHandles(),
+                    "caller input remains borrowed after both run states close");
+        } finally {
+            api.continueRuns.countDown();
+            execution.close();
+            caller.close();
+            context.close();
+        }
+        assertEquals(baseReleases + 3, api.bufferReleases.get());
+        assertEquals(1, api.pipelineCreates.get());
+        assertEquals(1, api.pipelineReleases.get());
+        assertEquals(1, api.contextReleases.get());
+        assertTrue(api.liveBufferHandles().isEmpty());
+    }
+
+    @Test
     void analyzesTheWholePartitionWithStableValuesFeedsTargetsAndDeclarations() {
         Fixture fixture = fixture();
 
@@ -827,6 +1229,8 @@ class MetalNegPreparedExecutionTest {
         var input0 = context.createBuffer(24);
         var input1 = context.createBuffer(16);
         io.github.pho001.synaptik.runtime.execution.PreparedExecution execution = null;
+        io.github.pho001.synaptik.runtime.execution.PreparedExecution customCaller = null;
+        io.github.pho001.synaptik.runtime.execution.PreparedExecution customSplat = null;
         try (Arena arena = Arena.ofConfined()) {
             Tensor firstInput = TensorFactory.create(descriptor(Shape.of(2, 3)));
             Tensor secondInput = TensorFactory.create(descriptor(Shape.of(4)));
@@ -868,6 +1272,45 @@ class MetalNegPreparedExecutionTest {
             input1.upload(0, second, 0, 16);
 
             var runner = new PreparedExecutionRunner();
+            customCaller = prepareSingleExecution(
+                    context, Shape.of(2, 3), Optional.empty());
+            var customFirst = runner.run(customCaller, List.of(input0));
+            Object customFirstOutput = customFirst.publicationRepresentation(0);
+            try {
+                assertNegated((MetalBufferRepresentation) customFirstOutput,
+                        new float[] {-1.0f, 2.0f, -0.0f, 0.0f,
+                                Float.NEGATIVE_INFINITY, Float.NaN}, arena);
+            } finally {
+                customFirst.close();
+            }
+            var customSecond = runner.run(customCaller, List.of(input0));
+            try {
+                assertNotSame(customFirstOutput, customSecond.publicationRepresentation(0));
+                assertNegated((MetalBufferRepresentation) customSecond.publicationRepresentation(0),
+                        new float[] {-1.0f, 2.0f, -0.0f, 0.0f,
+                                Float.NEGATIVE_INFINITY, Float.NaN}, arena);
+            } finally {
+                customSecond.close();
+            }
+
+            customSplat = prepareSingleExecution(context, Shape.of(4),
+                    Optional.of(ScalarValue.float32(-3.5f)));
+            var splatFirst = runner.run(customSplat, List.of());
+            Object splatFirstOutput = splatFirst.publicationRepresentation(0);
+            try {
+                assertNegated((MetalBufferRepresentation) splatFirstOutput,
+                        new float[] {3.5f, 3.5f, 3.5f, 3.5f}, arena);
+            } finally {
+                splatFirst.close();
+            }
+            var splatSecond = runner.run(customSplat, List.of());
+            try {
+                assertNotSame(splatFirstOutput, splatSecond.publicationRepresentation(0));
+            } finally {
+                splatSecond.close();
+            }
+
+            assertEquals(MetalNegPreparationPlan.Route.MPSGRAPH, analyzed.get().route());
             var firstRun = runner.run(execution, List.of(input0, input1));
             Object firstOutput = firstRun.publicationRepresentation(0);
             try {
@@ -891,7 +1334,8 @@ class MetalNegPreparedExecutionTest {
                 secondRun.close();
             }
         } finally {
-            close(execution); input1.close(); input0.close(); context.close();
+            close(customSplat); close(customCaller); close(execution);
+            input1.close(); input0.close(); context.close();
         }
     }
 
@@ -990,12 +1434,13 @@ class MetalNegPreparedExecutionTest {
                 bufferIndex++;
             }
             WorkspaceSlot workspaceSlot = new WorkspaceSlot(900);
+            var workspaceRequirement = plan.addressWorkspace().orElseThrow();
             var memoryPlan = new PreparedMemoryPlan(bufferEntries, List.of(
                     new PreparedMemoryPlan.WorkspaceEntry(workspaceSlot,
-                            plan.addressWorkspace().byteSize(),
-                            plan.addressWorkspace().byteAlignment())));
+                            workspaceRequirement.byteSize(),
+                            workspaceRequirement.byteAlignment())));
             finalAssignments.add(new PreparationResourceAssignment.Workspace(
-                    plan.addressWorkspace(), workspaceSlot, 0));
+                    workspaceRequirement, workspaceSlot, 0));
             BackendPartitionFinalizationResult finalized =
                     new MetalNegPartitionFinalizer(context).finalizePartition(
                             new BackendPartitionFinalization<>(
@@ -1091,6 +1536,59 @@ class MetalNegPreparedExecutionTest {
                 fixture.requirements, Map.of(), new MetalNegAnalysisInputs(context)));
     }
 
+    private static SingleNegRoute singleNegRoute(
+            MetalDeviceContext context, Shape shape, Optional<ScalarValue> splat) {
+        TensorDescriptor descriptor = descriptor(shape);
+        ValueId feed = new ValueId(10_000);
+        ValueId target = new ValueId(10_001);
+        Operation neg = new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE);
+        CompiledNode node = new CompiledNode(
+                new NodeId(10_000), neg, List.of(feed), List.of(target));
+        PlannedPartition partition = new PlannedPartition(
+                MetalCapabilityProvider.METAL_BACKEND_ID, List.of(node.id()));
+        List<GraphValue> values = List.of(
+                new GraphValue(feed, descriptor), new GraphValue(target, descriptor));
+        List<LogicalMemoryRequirement> requirements = List.of(
+                requirement(feed, descriptor, Optional.empty(), List.of(partition), false),
+                requirement(target, descriptor, Optional.of(partition), List.of(), true));
+        Map<ValueId, ScalarValue> constants = splat
+                .<Map<ValueId, ScalarValue>>map(value -> Map.of(feed, value))
+                .orElseGet(Map::of);
+        BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
+                new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
+                        new PartitionDag(partition, List.of(node)), values, requirements,
+                        constants, new MetalNegAnalysisInputs(context)));
+        return new SingleNegRoute(partition, feed, target, analysis);
+    }
+
+    private static PreparedExecution prepareSingleExecution(
+            MetalDeviceContext context, Shape shape, Optional<ScalarValue> splat) {
+        SingleNegRoute route = singleNegRoute(context, shape, splat);
+        FinalizationFixture assignment = finalization(route.analysis());
+        BackendPartitionFinalizationResult finalized = new MetalNegPartitionFinalizer(context)
+                .finalizePartition(assignment.finalization());
+        try {
+            var schedule = new MetalNegPreparedScheduleAssembler(
+                    context, route.analysis().plan(), List.of(route.target()))
+                    .assembleRoute(assignment.memoryPlan(),
+                            new PreparedPartition(route.partition(), finalized.executable()),
+                            assignment.preparedAssignments());
+            return new PreparedExecution(
+                    assignment.memoryPlan(), schedule, finalized.resources());
+        } catch (RuntimeException | Error failure) {
+            for (int index = finalized.resources().size() - 1; index >= 0; index--) {
+                try {
+                    finalized.resources().get(index).close();
+                } catch (RuntimeException | Error cleanup) {
+                    if (cleanup != failure) {
+                        failure.addSuppressed(cleanup);
+                    }
+                }
+            }
+            throw failure;
+        }
+    }
+
     private static FinalizationFixture finalization(
             BackendPartitionAnalysis<MetalNegPreparationPlan> analysis) {
         return finalization(analysis, false);
@@ -1118,13 +1616,15 @@ class MetalNegPreparedExecutionTest {
             assignments.add(new PreparationResourceAssignment.Buffer(
                     plan.declarations().get(declarationIndex), slots[planIndex], planIndex));
         }
-        WorkspaceSlot workspaceSlot = new WorkspaceSlot(800);
-        var memoryPlan = new PreparedMemoryPlan(entries, List.of(
-                new PreparedMemoryPlan.WorkspaceEntry(workspaceSlot,
-                        plan.addressWorkspace().byteSize(),
-                        plan.addressWorkspace().byteAlignment())));
-        assignments.add(new PreparationResourceAssignment.Workspace(
-                plan.addressWorkspace(), workspaceSlot, 0));
+        var workspaceEntries = new ArrayList<PreparedMemoryPlan.WorkspaceEntry>();
+        plan.addressWorkspace().ifPresent(requirement -> {
+            WorkspaceSlot workspaceSlot = new WorkspaceSlot(800);
+            workspaceEntries.add(new PreparedMemoryPlan.WorkspaceEntry(workspaceSlot,
+                    requirement.byteSize(), requirement.byteAlignment()));
+            assignments.add(new PreparationResourceAssignment.Workspace(
+                    requirement, workspaceSlot, 0));
+        });
+        var memoryPlan = new PreparedMemoryPlan(entries, workspaceEntries);
         return new FinalizationFixture(
                 new BackendPartitionFinalization<>(analysis, memoryPlan, assignments),
                 memoryPlan, List.copyOf(assignments), List.of(preparedByIndex));
@@ -1176,6 +1676,25 @@ class MetalNegPreparedExecutionTest {
             if (state != null) state.close();
             buffers.forEach(MetalBufferRepresentation::close);
         }
+    }
+
+    private static void assertCustomBindingRejected(
+            MetalNegPreparedExecutable executable,
+            PreparedMemoryPlan memoryPlan,
+            MetalBufferRepresentation input,
+            MetalBufferRepresentation output) {
+        var inputBinding = new BufferRepresentationBinding(
+                input, RunResourceOwnership.BORROWED);
+        var outputBinding = new BufferRepresentationBinding(
+                output, RunResourceOwnership.BORROWED);
+        assertThrows(IllegalArgumentException.class, () -> {
+            try (RunState state = new RunState(
+                    memoryPlan,
+                    List.of(List.of(inputBinding), List.of(outputBinding)),
+                    List.of())) {
+                executable.bind(state);
+            }
+        });
     }
 
     private static Fixture fixture() {
@@ -1257,6 +1776,12 @@ class MetalNegPreparedExecutionTest {
             int[] splatBits,
             int targetCount) { }
 
+    private record SingleNegRoute(
+            PlannedPartition partition,
+            ValueId feed,
+            ValueId target,
+            BackendPartitionAnalysis<MetalNegPreparationPlan> analysis) { }
+
     private record FinalizationFixture(
             BackendPartitionFinalization<MetalNegPreparationPlan> finalization,
             PreparedMemoryPlan memoryPlan,
@@ -1276,6 +1801,9 @@ class MetalNegPreparedExecutionTest {
         private long next = 1;
         private final AtomicInteger executableCreates = new AtomicInteger();
         private final AtomicInteger executableReleases = new AtomicInteger();
+        private final AtomicInteger pipelineCreates = new AtomicInteger();
+        private final AtomicInteger pipelineReleases = new AtomicInteger();
+        private final AtomicInteger customRunCalls = new AtomicInteger();
         private final AtomicInteger contextReleases = new AtomicInteger();
         private final AtomicInteger apiCloses = new AtomicInteger();
         private final AtomicInteger runCalls = new AtomicInteger();
@@ -1297,6 +1825,9 @@ class MetalNegPreparedExecutionTest {
         private volatile int createStatus;
         private volatile int runStatus;
         private volatile int releaseStatus;
+        private volatile int pipelineCreateStatus;
+        private volatile int pipelineReleaseStatus;
+        private volatile int customRunStatus;
         private volatile boolean createNullHandle;
         private volatile boolean createHandleOnFailure;
         private volatile int failBufferCreateCall = -1;
@@ -1390,6 +1921,47 @@ class MetalNegPreparedExecutionTest {
                 throw new IllegalStateException(interrupted);
             }
             return runStatus;
+        }
+        @Override synchronized NativeCreateResult createNegKernelPipelineNative(
+                Handle context, long elementCount) {
+            pipelineCreates.incrementAndGet();
+            if (createFailure != null) throw createFailure;
+            if (elementCount == 0L || elementCount > 0xffff_ffffL) {
+                return new NativeCreateResult(8, null);
+            }
+            Handle created = createNullHandle ? null : handle();
+            if (pipelineCreateStatus != 0 && !createHandleOnFailure) created = null;
+            return new NativeCreateResult(pipelineCreateStatus, created);
+        }
+        @Override int releaseNegKernelPipelineNative(Handle pipeline) {
+            pipelineReleases.incrementAndGet();
+            if (executableReleaseFailure != null) throw executableReleaseFailure;
+            return pipelineReleaseStatus;
+        }
+        @Override int runNegKernelPipelineNative(
+                Handle pipeline, Handle inputBuffer, Handle outputBuffer) {
+            customRunCalls.incrementAndGet();
+            byte[] input = buffers.get(inputBuffer.carrier().address());
+            byte[] output = buffers.get(outputBuffer.carrier().address());
+            if (input == null || output == null || input.length > output.length) {
+                return 10;
+            }
+            MemorySegment inputSegment = MemorySegment.ofArray(input);
+            MemorySegment outputSegment = MemorySegment.ofArray(output);
+            for (long index = 0; index < input.length / Integer.BYTES; index++) {
+                int bits = inputSegment.getAtIndex(JAVA_INT_UNALIGNED, index);
+                outputSegment.setAtIndex(JAVA_INT_UNALIGNED, index, bits ^ 0x8000_0000);
+            }
+            runEntered.countDown();
+            try {
+                if (!continueRuns.await(5, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("timed out waiting to continue custom run");
+                }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(interrupted);
+            }
+            return customRunStatus;
         }
         @Override public void close() {
             apiCloses.incrementAndGet();

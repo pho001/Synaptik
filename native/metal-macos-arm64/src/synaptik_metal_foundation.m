@@ -21,7 +21,8 @@ enum {
     SYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE = 8,
     SYNAPTIK_METAL_STATUS_GRAPH_COMPILATION_FAILED = 9,
     SYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE = 10,
-    SYNAPTIK_METAL_STATUS_EXECUTION_FAILED = 11
+    SYNAPTIK_METAL_STATUS_EXECUTION_FAILED = 11,
+    SYNAPTIK_METAL_STATUS_KERNEL_COMPILATION_FAILED = 12
 };
 
 @interface SynaptikMetalContextBox : NSObject
@@ -48,7 +49,16 @@ enum {
 @end
 @implementation SynaptikMetalExecutableBox @end
 
-SYNAPTIK_EXPORT uint32_t synaptik_metal_foundation_abi_version(void) { return 2U; }
+@interface SynaptikMetalNegKernelPipelineBox : NSObject
+@property(nonatomic, strong) id<MTLComputePipelineState> pipeline;
+@property(nonatomic, strong) SynaptikMetalContextBox *context;
+@property(nonatomic) uint64_t elementCount;
+@property(nonatomic) uint64_t requiredBytes;
+@property(nonatomic) NSUInteger threadsPerThreadgroup;
+@end
+@implementation SynaptikMetalNegKernelPipelineBox @end
+
+SYNAPTIK_EXPORT uint32_t synaptik_metal_foundation_abi_version(void) { return 3U; }
 
 SYNAPTIK_EXPORT int32_t synaptik_metal_context_create(void **out_context) {
     if (out_context == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
@@ -343,5 +353,113 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_run(
         for (id result in results) if (result == nil || result == NSNull.null)
             return SYNAPTIK_METAL_STATUS_EXECUTION_FAILED;
         return SYNAPTIK_METAL_STATUS_OK;
+    } @catch (__unused NSException *exception) { return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR; }
+}
+
+SYNAPTIK_EXPORT int32_t synaptik_metal_neg_kernel_pipeline_create(
+        void *context, uint64_t element_count, void **out_pipeline) {
+    if (out_pipeline == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+    *out_pipeline = NULL;
+    if (context == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+    if (element_count == 0U || element_count > UINT32_MAX
+            || element_count > UINT64_MAX / sizeof(float)
+            || element_count > (uint64_t)NSUIntegerMax
+            || element_count * sizeof(float) > (uint64_t)NSUIntegerMax)
+        return SYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE;
+    @try {
+        @autoreleasepool {
+            SynaptikMetalContextBox *ctx = (__bridge SynaptikMetalContextBox *)context;
+            if (![ctx.device supportsFamily:MTLGPUFamilyApple4])
+                return SYNAPTIK_METAL_STATUS_KERNEL_COMPILATION_FAILED;
+            static NSString *const source =
+                    @"#include <metal_stdlib>\n"
+                     "using namespace metal;\n"
+                     "kernel void synaptik_neg_f32(\n"
+                     "        device const float *input [[buffer(0)]],\n"
+                     "        device float *output [[buffer(1)]],\n"
+                     "        uint index [[thread_position_in_grid]]) {\n"
+                     "    output[index] = -input[index];\n"
+                     "}\n";
+            NSError *library_error = nil;
+            id<MTLLibrary> library = [ctx.device newLibraryWithSource:source
+                    options:nil error:&library_error];
+            if (library == nil || library_error != nil)
+                return SYNAPTIK_METAL_STATUS_KERNEL_COMPILATION_FAILED;
+            id<MTLFunction> function = [library newFunctionWithName:@"synaptik_neg_f32"];
+            if (function == nil) return SYNAPTIK_METAL_STATUS_KERNEL_COMPILATION_FAILED;
+            NSError *pipeline_error = nil;
+            id<MTLComputePipelineState> pipeline =
+                    [ctx.device newComputePipelineStateWithFunction:function error:&pipeline_error];
+            if (pipeline == nil || pipeline_error != nil)
+                return SYNAPTIK_METAL_STATUS_KERNEL_COMPILATION_FAILED;
+            NSUInteger execution_width = pipeline.threadExecutionWidth;
+            NSUInteger maximum_width = pipeline.maxTotalThreadsPerThreadgroup;
+            if (execution_width == 0U || maximum_width == 0U)
+                return SYNAPTIK_METAL_STATUS_KERNEL_COMPILATION_FAILED;
+            NSUInteger group_width = MIN(execution_width, maximum_width);
+            MTLSize grid = MTLSizeMake((NSUInteger)element_count, 1U, 1U);
+            MTLSize group = MTLSizeMake(group_width, 1U, 1U);
+            if (grid.width != element_count || grid.height != 1U || grid.depth != 1U)
+                return SYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE;
+            if (group.width == 0U || group.width > maximum_width
+                    || group.height != 1U || group.depth != 1U)
+                return SYNAPTIK_METAL_STATUS_EXECUTION_FAILED;
+            SynaptikMetalNegKernelPipelineBox *box =
+                    [SynaptikMetalNegKernelPipelineBox new];
+            if (box == nil) return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
+            box.pipeline = pipeline;
+            box.context = ctx;
+            box.elementCount = element_count;
+            box.requiredBytes = element_count * sizeof(float);
+            box.threadsPerThreadgroup = group_width;
+            *out_pipeline = (__bridge_retained void *)box;
+            return SYNAPTIK_METAL_STATUS_OK;
+        }
+    } @catch (__unused NSException *exception) { return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR; }
+}
+
+SYNAPTIK_EXPORT int32_t synaptik_metal_neg_kernel_pipeline_release(void *pipeline) {
+    if (pipeline == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+    @try { __unused id consumed = (__bridge_transfer id)pipeline;
+        return SYNAPTIK_METAL_STATUS_OK;
+    } @catch (__unused NSException *exception) { return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR; }
+}
+
+SYNAPTIK_EXPORT int32_t synaptik_metal_neg_kernel_pipeline_run(
+        void *pipeline, void *input_buffer, void *output_buffer) {
+    if (pipeline == NULL || input_buffer == NULL || output_buffer == NULL)
+        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+    if (input_buffer == output_buffer) return SYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE;
+    @try {
+        @autoreleasepool {
+            SynaptikMetalNegKernelPipelineBox *box =
+                    (__bridge SynaptikMetalNegKernelPipelineBox *)pipeline;
+            SynaptikMetalBufferBox *input = (__bridge SynaptikMetalBufferBox *)input_buffer;
+            SynaptikMetalBufferBox *output = (__bridge SynaptikMetalBufferBox *)output_buffer;
+            if (input.buffer.device != box.context.device
+                    || output.buffer.device != box.context.device
+                    || input.logicalByteSize < box.requiredBytes
+                    || output.logicalByteSize < box.requiredBytes)
+                return SYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE;
+            if (box.elementCount == 0U || box.elementCount > UINT32_MAX
+                    || box.threadsPerThreadgroup == 0U
+                    || box.threadsPerThreadgroup > box.pipeline.maxTotalThreadsPerThreadgroup)
+                return SYNAPTIK_METAL_STATUS_EXECUTION_FAILED;
+            id<MTLCommandBuffer> command = [box.context.commandQueue commandBuffer];
+            if (command == nil) return SYNAPTIK_METAL_STATUS_EXECUTION_FAILED;
+            id<MTLComputeCommandEncoder> encoder = [command computeCommandEncoder];
+            if (encoder == nil) return SYNAPTIK_METAL_STATUS_EXECUTION_FAILED;
+            [encoder setComputePipelineState:box.pipeline];
+            [encoder setBuffer:input.buffer offset:0U atIndex:0U];
+            [encoder setBuffer:output.buffer offset:0U atIndex:1U];
+            [encoder dispatchThreads:MTLSizeMake((NSUInteger)box.elementCount, 1U, 1U)
+                    threadsPerThreadgroup:MTLSizeMake(box.threadsPerThreadgroup, 1U, 1U)];
+            [encoder endEncoding];
+            [command commit];
+            [command waitUntilCompleted];
+            if (command.status != MTLCommandBufferStatusCompleted || command.error != nil)
+                return SYNAPTIK_METAL_STATUS_EXECUTION_FAILED;
+            return SYNAPTIK_METAL_STATUS_OK;
+        }
     } @catch (__unused NSException *exception) { return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR; }
 }

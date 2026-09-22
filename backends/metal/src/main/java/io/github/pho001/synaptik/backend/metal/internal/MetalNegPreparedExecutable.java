@@ -14,16 +14,20 @@ import java.lang.foreign.MemorySegment;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 
 /**
- * Immutable Runtime recipe for one shape-specialized whole-partition Metal NEG executable.
+ * Immutable Runtime recipe for one selected shape-specialized Metal NEG route.
  *
  * <p>Selections are feeds in stable order followed by targets in stable order. Cold binding
- * validates live context-local buffer representations and byte extents, then creates one bound
- * invocation holding direct slices of the run-owned native-address workspace. Hot execution
- * makes exactly one native call and performs no lookup, graph inspection, route selection, cast,
- * address marshalling, or collection allocation.</p>
+ * validates live context-local buffer representations and byte extents, then creates a
+ * route-specific bound invocation. MPSGraph retains direct slices of its run-owned native-address
+ * workspace; the custom singleton retains direct typed input and output references and has no
+ * workspace. Hot execution makes exactly one matching native call and performs no lookup, graph
+ * inspection, route selection, cast, address marshalling, or collection allocation. The custom
+ * native route writes the assigned output buffer directly without an explicit host-staging or
+ * intermediate-copy step.</p>
  */
 final class MetalNegPreparedExecutable extends PreparedExecutable {
-    private final MetalMpsGraphExecutableResource resource;
+    private final MetalMpsGraphExecutableResource mpsGraphResource;
+    private final MetalNegKernelPipelineResource customResource;
     private final int inputCount;
     private final long[] requiredBytes;
 
@@ -51,7 +55,8 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         super(memoryPlan, selections(feedPlanIndices, targetPlanIndices),
                 List.of(new WorkspaceSelection(workspacePlanIndex)),
                 accesses(feedPlanIndices.length, targetPlanIndices.length));
-        this.resource = Objects.requireNonNull(resource, "resource");
+        this.mpsGraphResource = Objects.requireNonNull(resource, "resource");
+        this.customResource = null;
         this.inputCount = feedPlanIndices.length;
         this.requiredBytes = new long[feedRequiredBytes.length + targetRequiredBytes.length];
         System.arraycopy(feedRequiredBytes, 0, requiredBytes, 0, feedRequiredBytes.length);
@@ -63,19 +68,48 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         }
     }
 
+    /**
+     * Creates the workspace-free custom singleton recipe.
+     *
+     * @param memoryPlan exact non-null shared prepared memory plan
+     * @param feedPlanIndex assigned input position
+     * @param targetPlanIndex assigned output position
+     * @param resource non-null borrowed custom pipeline owned by PreparedExecution
+     * @throws NullPointerException if {@code memoryPlan} or {@code resource} is {@code null}
+     * @throws IllegalArgumentException if either plan index is outside the memory plan
+     */
+    MetalNegPreparedExecutable(
+            PreparedMemoryPlan memoryPlan,
+            int feedPlanIndex,
+            int targetPlanIndex,
+            MetalNegKernelPipelineResource resource) {
+        super(memoryPlan,
+                List.of(new BufferSelection(feedPlanIndex, 0),
+                        new BufferSelection(targetPlanIndex, 0)),
+                List.of(),
+                List.of(BufferAccess.READ_ONLY, BufferAccess.WRITE_ONLY));
+        this.mpsGraphResource = null;
+        this.customResource = Objects.requireNonNull(resource, "resource");
+        this.inputCount = 1;
+        this.requiredBytes = new long[] {resource.requiredBytes(), resource.requiredBytes()};
+    }
+
     @Override
     protected boolean acceptsBufferRepresentation(
             int selectionIndex, BufferRepresentation representation) {
+        MetalDeviceContext context = customResource == null
+                ? mpsGraphResource.context() : customResource.context();
         return representation instanceof MetalBufferRepresentation metal
-                && metal.belongsTo(resource.context())
+                && metal.belongsTo(context)
                 && metal.byteSize() >= requiredBytes[selectionIndex];
     }
 
     @Override
     protected boolean acceptsWorkspaceRepresentation(
             int selectionIndex, WorkspaceRepresentation representation) {
-        return representation instanceof AddressWorkspace workspace
-                && workspace.belongsTo(resource.context())
+        return mpsGraphResource != null
+                && representation instanceof AddressWorkspace workspace
+                && workspace.belongsTo(mpsGraphResource.context())
                 && workspace.pointerCount() == requiredBytes.length;
     }
 
@@ -84,6 +118,15 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             RunState runState,
             BufferRepresentation[] bufferRepresentations,
             WorkspaceRepresentation[] workspaceRepresentations) {
+        if (customResource != null) {
+            var input = (MetalBufferRepresentation) bufferRepresentations[0];
+            var output = (MetalBufferRepresentation) bufferRepresentations[1];
+            if (input == output) {
+                throw new IllegalArgumentException(
+                        "Metal NEG input and output buffers must not alias");
+            }
+            return new CustomBoundInvocation(runState, customResource, input, output);
+        }
         var workspace = (AddressWorkspace) workspaceRepresentations[0];
         for (int index = 0; index < inputCount; index++) {
             workspace.set(index, ((MetalBufferRepresentation) bufferRepresentations[index])
@@ -104,12 +147,64 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         MemorySegment inputs = workspace.segment().asSlice(0L, (long) inputCount * ADDRESS.byteSize());
         MemorySegment outputs = workspace.segment().asSlice(
                 (long) inputCount * ADDRESS.byteSize(), (long) outputCount * ADDRESS.byteSize());
-        return new BoundInvocation(runState) {
-            @Override
-            protected void executeBound() {
-                resource.run(inputCount, inputs, outputCount, outputs);
-            }
-        };
+        return new MpsGraphBoundInvocation(
+                runState, mpsGraphResource, inputCount, inputs, outputCount, outputs);
+    }
+
+    private static final class MpsGraphBoundInvocation extends BoundInvocation {
+        private final MetalMpsGraphExecutableResource resource;
+        private final int inputCount;
+        private final MemorySegment inputs;
+        private final int outputCount;
+        private final MemorySegment outputs;
+
+        private MpsGraphBoundInvocation(
+                RunState runState,
+                MetalMpsGraphExecutableResource resource,
+                int inputCount,
+                MemorySegment inputs,
+                int outputCount,
+                MemorySegment outputs) {
+            super(runState);
+            this.resource = resource;
+            this.inputCount = inputCount;
+            this.inputs = inputs;
+            this.outputCount = outputCount;
+            this.outputs = outputs;
+        }
+
+        @Override
+        protected void executeBound() {
+            resource.run(inputCount, inputs, outputCount, outputs);
+        }
+    }
+
+    private static final class CustomBoundInvocation extends BoundInvocation {
+        private final MetalNegKernelPipelineResource resource;
+        @SuppressWarnings("unused")
+        private final MetalBufferRepresentation input;
+        @SuppressWarnings("unused")
+        private final MetalBufferRepresentation output;
+        private final MetalNativeApi.Handle inputHandle;
+        private final MetalNativeApi.Handle outputHandle;
+
+        private CustomBoundInvocation(
+                RunState runState,
+                MetalNegKernelPipelineResource resource,
+                MetalBufferRepresentation input,
+                MetalBufferRepresentation output) {
+            super(runState);
+            this.resource = resource;
+            this.input = input;
+            this.output = output;
+            this.inputHandle = input.executionHandle();
+            this.outputHandle = output.executionHandle();
+        }
+
+        @Override
+        protected void executeBound() {
+            resource.run(inputHandle, outputHandle);
+        }
     }
 
     /** Per-run native-address workspace populated only during cold binding. */

@@ -24,12 +24,16 @@ import java.util.Optional;
 /**
  * Analyzes and lowers one complete maximal Metal-owned unary-NEG partition.
  *
- * <p>The deterministic analysis assigns stable native value indices, derives unique feeds and
- * targets from the partition DAG and logical requirements, and declares feed buffers followed by
- * target buffers and one address workspace. It allocates no physical resource.</p>
+ * <p>The deterministic analysis assigns stable native value indices and derives unique feeds and
+ * targets before selecting a closed private route. An exact singleton whose checked element
+ * count fits the unsigned 32-bit custom index domain declares only feed and target buffers; all
+ * other supported partitions also declare the MPSGraph address workspace. Analysis allocates no
+ * physical resource and never changes partition ownership or capability.</p>
  */
 final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         MetalNegAnalysisInputs, MetalNegPreparationPlan> {
+    private static final long UINT32_MAX = 0xffff_ffffL;
+
     /**
      * Produces one immutable whole-partition lowering and its exact shared declarations.
      *
@@ -142,18 +146,32 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             declarations.add(new PreparationResourceRequirement.Buffer(
                     targets.get(index), targetBytes[index], Float.BYTES));
         }
-        long workspaceBytes = Math.multiplyExact(
-                Math.addExact((long) feeds.size(), targets.size()), Long.BYTES);
-        var workspace = new PreparationResourceRequirement.Workspace(
-                0L, workspaceBytes, Long.BYTES);
+        long singletonElements = feedBytes.length == 1 ? feedBytes[0] / Float.BYTES : 0L;
+        MetalNegPreparationPlan.Route route = nodeCount == 1
+                        && feeds.size() == 1
+                        && targets.size() == 1
+                        && singletonElements >= 1L
+                        && singletonElements <= UINT32_MAX
+                ? MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG
+                : MetalNegPreparationPlan.Route.MPSGRAPH;
+        Optional<PreparationResourceRequirement.Workspace> workspace;
+        if (route == MetalNegPreparationPlan.Route.MPSGRAPH) {
+            long workspaceBytes = Math.multiplyExact(
+                    Math.addExact((long) feeds.size(), targets.size()), Long.BYTES);
+            workspace = Optional.of(new PreparationResourceRequirement.Workspace(
+                    0L, workspaceBytes, Long.BYTES));
+        } else {
+            workspace = Optional.empty();
+        }
 
         var plan = new MetalNegPreparationPlan(
                 context.partition(), context.partitionDag(), deviceContext,
+                route,
                 valueIds, descriptors, ranks, dimensions,
                 nodeInputs, nodeOutputs, feeds, feedIndices, targets, targetIndices,
                 declarations, feedSplats, workspace, feedBytes, targetBytes);
         var allDeclarations = new ArrayList<PreparationResourceRequirement>(declarations);
-        allDeclarations.add(workspace);
+        workspace.ifPresent(allDeclarations::add);
         return new BackendPartitionAnalysis<>(context.partition(), plan, allDeclarations);
     }
 

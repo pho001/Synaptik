@@ -2638,11 +2638,12 @@ metadata remains readable after Engine closure. See the
 A module that implements a backend, such as `backends/cpu`, `backends/metal`, or `backends/cuda`.
 It owns backend-specific capability reporting, prepare-time lowering, fusion, specialization,
 kernel selection, executable units, storage, workspaces, and native integration. Concrete
-backends do not own public tensor semantics or global graph compilation. The CPU module is the
-first concrete implementation and currently exposes only its exact fully static FLOAT64
-`ADD -> exact GELU -> MUL` partition route over resolved right-broadcastable access plans;
-other backend identities still contain no concrete backend behavior. See [Module
-boundaries](architecture/module-boundaries.md).
+backends do not own public tensor semantics or global graph compilation. CPU supplies its current
+portable and optional native routes. Metal supplies package-private storage and prepared execution
+for its exact fully static, positive-shape, resolved dense-contiguous FLOAT32 unary-NEG domain;
+exact one-node/one-feed/one-target partitions with `1..UINT32_MAX` elements use the custom
+pipeline, while every other supported Metal NEG partition uses MPSGraph. CUDA remains an identity
+without concrete execution behavior. See [Module boundaries](architecture/module-boundaries.md).
 
 ### Cumulative scan
 
@@ -4247,9 +4248,10 @@ storage. Current Runtime defines the distinct nominal `BufferRepresentation` and
 `WorkspaceRepresentation` lifecycle roles, each exposing only unchecked cleanup through
 `close()`. CPU provides package-private borrowed and run-owned native implementations. Metal
 provides package-private shared-storage buffer and workspace implementations with explicit native
-ownership and context leases. Its prepared NEG route borrows caller input buffers and creates
-fresh per-run initialized constant buffers, output buffers, and a native-address workspace; the
-persistent MPSGraph executable is a separate prepared resource rather than a representation.
+ownership and context leases. Its prepared NEG routes borrow caller input buffers and create
+fresh per-run initialized constant buffers and output buffers. An MPSGraph run also owns one
+native-address workspace; a custom-singleton run owns none. The typed persistent MPSGraph
+executable or custom pipeline is a separate prepared resource rather than a representation.
 Runtime owns the logical per-run association, ownership, structural residency, explicit buffer
 validity, and cleanup orchestration. The backend representation owns physical allocation,
 release, transfer, and access mechanics. A
@@ -5037,21 +5039,28 @@ a schedule occurrence, a backend-global cache entry, or a garbage-collection-man
 mechanism. Runtime 0016 implements the nominal contract and owner lifecycle, and Prepare 0006
 implements the transactional finalizer handoff.
 
-### MPSGraph prepared executable
+### Metal NEG prepared executable
 
-The current Metal backend's package-private, shape-specialized native executable for one complete
+The current Metal backend's package-private, shape-specialized Runtime recipe for one complete
 maximal partition of supported unary `NEG` occurrences. Metal analysis fixes stable feed, target,
-and value order and declares shared resources; after shared slot assignment, Metal finalization
-compiles the `MPSGraphExecutable` and returns its owner as a
-[`PreparedResource`](#prepared-resource--preparedresource). `PreparedExecution` owns that resource
-across runs.
+and value order, then selects a closed private route before declaring shared resources. An exact
+one-node/one-feed/one-target partition with checked element count in `1..UINT32_MAX` selects the
+custom singleton route; every other supported NEG partition selects MPSGraph. This boundary is
+deterministic implementation-domain selection, not tuning, capability narrowing, fallback, retry,
+or repartitioning.
 
-Each run separately borrows caller Metal buffers and owns fresh initialized constant buffers,
-output buffers, and a closeable native-address workspace. Cold binding fills the address
-workspace and creates a direct-reference invocation. Hot execution makes one synchronous native
-downcall that binds supplied `MTLBuffer` destinations. The term does not imply a public Metal
-Engine composition, mixed-owner schedule, backend-global executable cache, per-run compilation,
-or a claim that MPSGraph uses no internal temporary storage.
+After shared slot assignment, Metal finalization compiles either the fixed branch-free custom
+FLOAT32 NEG pipeline or one `MPSGraphExecutable` and returns its typed owner as a
+[`PreparedResource`](#prepared-resource--preparedresource). `PreparedExecution` owns that resource
+across runs. Each run separately borrows caller Metal buffers and owns fresh initialized constant
+buffers and output buffers. MPSGraph runs additionally own a closeable native-address workspace;
+custom runs retain direct typed input and output references with no workspace.
+
+Hot execution makes one route-specific synchronous native downcall. The custom route submits one
+command buffer and compute encoder, waits once, and writes the assigned `MTLBuffer` output without
+an explicit host-staging or intermediate-copy step. The term does not imply public Metal Engine
+composition, a mixed-owner schedule, backend-global executable cache, per-run compilation,
+universal custom kernels, or that MPSGraph uses no internal temporary storage.
 
 ### Prepared executable / `PreparedExecutable`
 

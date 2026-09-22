@@ -15,20 +15,27 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Package-private typed seam for the version-two Metal foundation and MPSGraph C ABI.
+ * Package-private typed seam for the version-three Metal foundation, MPSGraph, and custom-NEG C
+ * ABI.
  *
  * <p>Handles remain opaque carrier segments inside this package. Implementations consume each
  * successful context or buffer handle exactly once through its matching release call. Native
  * status failures are unchecked and retain both the operation name and raw status value.</p>
  */
 abstract class MetalNativeApi implements AutoCloseable {
-    static final int ABI_VERSION = 2;
+    static final int ABI_VERSION = 3;
     static final String NEG_EXECUTABLE_CREATE_OPERATION =
             "synaptik_metal_mpsgraph_neg_executable_create";
     static final String EXECUTABLE_RELEASE_OPERATION =
             "synaptik_metal_mpsgraph_executable_release";
     static final String EXECUTABLE_RUN_OPERATION =
             "synaptik_metal_mpsgraph_executable_run";
+    static final String NEG_KERNEL_PIPELINE_CREATE_OPERATION =
+            "synaptik_metal_neg_kernel_pipeline_create";
+    static final String NEG_KERNEL_PIPELINE_RELEASE_OPERATION =
+            "synaptik_metal_neg_kernel_pipeline_release";
+    static final String NEG_KERNEL_PIPELINE_RUN_OPERATION =
+            "synaptik_metal_neg_kernel_pipeline_run";
 
     /**
      * Opens and completely validates the production ABI without creating a Metal context.
@@ -217,6 +224,101 @@ abstract class MetalNativeApi implements AutoCloseable {
             int outputCount, MemorySegment outputBuffers);
 
     /**
+     * Compiles one fixed custom FLOAT32 NEG pipeline specialized to an element count.
+     *
+     * <p>The ABI carries {@code elementCount} as {@code uint64_t}. The custom kernel accepts only
+     * {@code 1..UINT32_MAX}; zero or a larger non-negative carrier value fails with native
+     * {@link Status#UNSUPPORTED_SHAPE} rather than narrowing or selecting another route.</p>
+     *
+     * @param context non-null live context whose ownership remains with the caller
+     * @param elementCount unsigned 64-bit ABI value represented by a non-negative Java
+     *     {@code long}; the successful custom domain is {@code 1..UINT32_MAX}
+     * @return a fresh non-null opaque custom-pipeline handle owned by the caller
+     * @throws IllegalArgumentException if {@code elementCount} is negative
+     * @throws RuntimeException if the count is outside the native custom domain, construction
+     *     fails, or the output-cell contract is violated
+     */
+    final Handle createNegKernelPipeline(Handle context, long elementCount) {
+        Objects.requireNonNull(context, "context");
+        if (elementCount < 0L) {
+            throw new IllegalArgumentException("elementCount must be non-negative");
+        }
+        NativeCreateResult result = Objects.requireNonNull(
+                createNegKernelPipelineNative(context, elementCount),
+                "native NEG kernel pipeline create result");
+        return finishCreate(
+                NEG_KERNEL_PIPELINE_CREATE_OPERATION,
+                result,
+                this::releaseNegKernelPipelineNative);
+    }
+
+    /**
+     * Returns the raw status/output-cell result of custom-pipeline creation.
+     *
+     * @param context non-null live context whose ownership remains with the caller
+     * @param elementCount exact {@code uint64_t} carrier value represented by a non-negative Java
+     *     {@code long}; native code enforces the successful {@code 1..UINT32_MAX} domain
+     * @return non-null raw status and nullable output-cell handle
+     * @throws RuntimeException if the native invocation itself fails
+     */
+    abstract NativeCreateResult createNegKernelPipelineNative(Handle context, long elementCount);
+
+    /**
+     * Consumes one live custom-NEG pipeline handle exactly once.
+     *
+     * @param pipeline non-null live custom-pipeline handle owned by the caller
+     * @throws NullPointerException if {@code pipeline} is {@code null}
+     * @throws RuntimeException if native release fails
+     */
+    final void releaseNegKernelPipeline(Handle pipeline) {
+        Objects.requireNonNull(pipeline, "pipeline");
+        checkExecutableStatus(NEG_KERNEL_PIPELINE_RELEASE_OPERATION,
+                releaseNegKernelPipelineNative(pipeline));
+    }
+
+    /**
+     * Returns the raw status of one custom-pipeline release invocation.
+     *
+     * @param pipeline non-null live custom-pipeline handle to consume
+     * @return exact raw native status
+     * @throws RuntimeException if the native invocation itself fails
+     */
+    abstract int releaseNegKernelPipelineNative(Handle pipeline);
+
+    /**
+     * Executes one custom NEG dispatch through direct input and assigned output buffer handles.
+     *
+     * <p>The matching native function submits one compute command and waits synchronously. It
+     * writes the supplied output buffer directly and performs no explicit host staging or
+     * intermediate output copy.</p>
+     *
+     * @param pipeline non-null live custom pipeline whose ownership remains with the caller
+     * @param inputBuffer non-null live direct input buffer
+     * @param outputBuffer non-null live direct output buffer
+     * @throws NullPointerException if an argument is {@code null}
+     * @throws RuntimeException if native validation or execution fails
+     */
+    final void runNegKernelPipeline(Handle pipeline, Handle inputBuffer, Handle outputBuffer) {
+        Objects.requireNonNull(pipeline, "pipeline");
+        Objects.requireNonNull(inputBuffer, "inputBuffer");
+        Objects.requireNonNull(outputBuffer, "outputBuffer");
+        checkExecutableStatus(NEG_KERNEL_PIPELINE_RUN_OPERATION,
+                runNegKernelPipelineNative(pipeline, inputBuffer, outputBuffer));
+    }
+
+    /**
+     * Returns the raw status of one custom NEG dispatch invocation.
+     *
+     * @param pipeline non-null live custom pipeline
+     * @param inputBuffer non-null live direct input buffer
+     * @param outputBuffer non-null live direct output buffer
+     * @return exact raw native status
+     * @throws RuntimeException if the native invocation itself fails
+     */
+    abstract int runNegKernelPipelineNative(
+            Handle pipeline, Handle inputBuffer, Handle outputBuffer);
+
+    /**
      * Ends the production symbol-lookup lifetime after every native handle has been released.
      *
      * <p>Production close is thread-safe and idempotent. Test implementations must preserve the
@@ -228,7 +330,7 @@ abstract class MetalNativeApi implements AutoCloseable {
     @Override
     public abstract void close();
 
-    /** Opaque non-null FFM carrier for one context or buffer handle. */
+    /** Opaque non-null FFM carrier for one context, buffer, executable, or pipeline handle. */
     static final class Handle {
         private final MemorySegment carrier;
 
@@ -265,25 +367,28 @@ abstract class MetalNativeApi implements AutoCloseable {
     record NativeCreateResult(int statusCode, Handle handle) {}
 
     private Handle finishExecutableCreate(NativeCreateResult result) {
+        return finishCreate(NEG_EXECUTABLE_CREATE_OPERATION, result, this::releaseExecutableNative);
+    }
+
+    private Handle finishCreate(
+            String operation, NativeCreateResult result, NativeHandleRelease release) {
         int status = result.statusCode();
         Handle handle = result.handle();
         if (status == 0 && handle != null) return handle;
         RuntimeException failure = status == 0
                 ? new IllegalStateException(
-                        NEG_EXECUTABLE_CREATE_OPERATION + " returned OK with a null handle")
-                : new NativeFailure(NEG_EXECUTABLE_CREATE_OPERATION, status);
+                        operation + " returned OK with a null handle")
+                : new NativeFailure(operation, status);
         if (handle != null) {
             try {
                 checkExecutableStatus(
-                        NEG_EXECUTABLE_CREATE_OPERATION + " malformed-handle cleanup",
-                        releaseExecutableNative(handle));
+                        operation + " malformed-handle cleanup", release.release(handle));
             } catch (RuntimeException | Error cleanup) {
                 if (cleanup != failure) failure.addSuppressed(cleanup);
             }
             if (status != 0) {
                 IllegalStateException contractFailure = new IllegalStateException(
-                        NEG_EXECUTABLE_CREATE_OPERATION
-                                + " returned failure with a non-null handle",
+                        operation + " returned failure with a non-null handle",
                         failure);
                 for (Throwable suppressed : failure.getSuppressed()) {
                     contractFailure.addSuppressed(suppressed);
@@ -294,11 +399,16 @@ abstract class MetalNativeApi implements AutoCloseable {
         throw failure;
     }
 
+    @FunctionalInterface
+    private interface NativeHandleRelease {
+        int release(Handle handle);
+    }
+
     private static void checkExecutableStatus(String operation, int status) {
         if (status != 0) throw new NativeFailure(operation, status);
     }
 
-    /** Stable version-two non-success status meanings. */
+    /** Stable version-three non-success status meanings. */
     enum Status {
         INVALID_ARGUMENT(1),
         NO_DEVICE(2),
@@ -310,7 +420,8 @@ abstract class MetalNativeApi implements AutoCloseable {
         UNSUPPORTED_SHAPE(8),
         GRAPH_COMPILATION_FAILED(9),
         INCOMPATIBLE_RESOURCE(10),
-        EXECUTION_FAILED(11);
+        EXECUTION_FAILED(11),
+        KERNEL_COMPILATION_FAILED(12);
 
         private final int code;
 
@@ -586,7 +697,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
     }
 
-    /** Production JDK Foreign Function and Memory binding of the exact ten-symbol ABI. */
+    /** Production JDK Foreign Function and Memory binding of the exact thirteen-symbol ABI. */
     private static final class Ffm extends MetalNativeApi {
         private static final String VERSION = "synaptik_metal_foundation_abi_version";
         private static final String CONTEXT_CREATE = "synaptik_metal_context_create";
@@ -601,6 +712,12 @@ abstract class MetalNativeApi implements AutoCloseable {
                 EXECUTABLE_RELEASE_OPERATION;
         private static final String EXECUTABLE_RUN =
                 EXECUTABLE_RUN_OPERATION;
+        private static final String NEG_KERNEL_PIPELINE_CREATE =
+                NEG_KERNEL_PIPELINE_CREATE_OPERATION;
+        private static final String NEG_KERNEL_PIPELINE_RELEASE =
+                NEG_KERNEL_PIPELINE_RELEASE_OPERATION;
+        private static final String NEG_KERNEL_PIPELINE_RUN =
+                NEG_KERNEL_PIPELINE_RUN_OPERATION;
 
         private final Arena lookupArena;
         private final MethodHandle contextCreate;
@@ -612,6 +729,9 @@ abstract class MetalNativeApi implements AutoCloseable {
         private final MethodHandle negExecutableCreate;
         private final MethodHandle executableRelease;
         private final MethodHandle executableRun;
+        private final MethodHandle negKernelPipelineCreate;
+        private final MethodHandle negKernelPipelineRelease;
+        private final MethodHandle negKernelPipelineRun;
         private final AtomicBoolean closed = new AtomicBoolean();
 
         private Ffm(
@@ -624,7 +744,10 @@ abstract class MetalNativeApi implements AutoCloseable {
                 MethodHandle bufferDownload,
                 MethodHandle negExecutableCreate,
                 MethodHandle executableRelease,
-                MethodHandle executableRun) {
+                MethodHandle executableRun,
+                MethodHandle negKernelPipelineCreate,
+                MethodHandle negKernelPipelineRelease,
+                MethodHandle negKernelPipelineRun) {
             this.lookupArena = lookupArena;
             this.contextCreate = contextCreate;
             this.contextRelease = contextRelease;
@@ -635,6 +758,9 @@ abstract class MetalNativeApi implements AutoCloseable {
             this.negExecutableCreate = negExecutableCreate;
             this.executableRelease = executableRelease;
             this.executableRun = executableRun;
+            this.negKernelPipelineCreate = negKernelPipelineCreate;
+            this.negKernelPipelineRelease = negKernelPipelineRelease;
+            this.negKernelPipelineRun = negKernelPipelineRun;
         }
 
         static Ffm open(Path path) {
@@ -682,9 +808,19 @@ abstract class MetalNativeApi implements AutoCloseable {
                         require(lookup, EXECUTABLE_RUN),
                         FunctionDescriptor.of(
                                 JAVA_INT, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT, ADDRESS));
+                MethodHandle negKernelPipelineCreate = linker.downcallHandle(
+                        require(lookup, NEG_KERNEL_PIPELINE_CREATE),
+                        FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, ADDRESS));
+                MethodHandle negKernelPipelineRelease = linker.downcallHandle(
+                        require(lookup, NEG_KERNEL_PIPELINE_RELEASE),
+                        FunctionDescriptor.of(JAVA_INT, ADDRESS));
+                MethodHandle negKernelPipelineRun = linker.downcallHandle(
+                        require(lookup, NEG_KERNEL_PIPELINE_RUN),
+                        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS));
                 return new Ffm(arena, contextCreate, contextRelease, bufferCreate, bufferRelease,
                         bufferUpload, bufferDownload, negExecutableCreate, executableRelease,
-                        executableRun);
+                        executableRun, negKernelPipelineCreate, negKernelPipelineRelease,
+                        negKernelPipelineRun);
             } catch (RuntimeException | Error failure) {
                 closeAfterFailure(arena, failure);
                 throw failure;
@@ -778,6 +914,36 @@ abstract class MetalNativeApi implements AutoCloseable {
             requireOpen();
             return invokeRunExecutable(executableRun, executable.carrier(),
                     inputCount, inputBuffers, outputCount, outputBuffers);
+        }
+
+        @Override
+        NativeCreateResult createNegKernelPipelineNative(Handle context, long elementCount) {
+            requireOpen();
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment output = arena.allocate(ADDRESS);
+                output.set(ADDRESS, 0L, MemorySegment.NULL);
+                int status = invokeIntCreateBuffer(
+                        negKernelPipelineCreate, NEG_KERNEL_PIPELINE_CREATE,
+                        context.carrier(), elementCount, output);
+                MemorySegment carrier = output.get(ADDRESS, 0L);
+                return new NativeCreateResult(
+                        status, carrier.address() == 0L ? null : new Handle(carrier));
+            }
+        }
+
+        @Override
+        int releaseNegKernelPipelineNative(Handle pipeline) {
+            requireOpen();
+            return invokeIntAddress(negKernelPipelineRelease,
+                    NEG_KERNEL_PIPELINE_RELEASE, pipeline.carrier());
+        }
+
+        @Override
+        int runNegKernelPipelineNative(
+                Handle pipeline, Handle inputBuffer, Handle outputBuffer) {
+            requireOpen();
+            return invokeIntThreeAddresses(negKernelPipelineRun, NEG_KERNEL_PIPELINE_RUN,
+                    pipeline.carrier(), inputBuffer.carrier(), outputBuffer.carrier());
         }
 
         @Override
@@ -911,6 +1077,21 @@ abstract class MetalNativeApi implements AutoCloseable {
                 long byteCount) {
             try {
                 return (int) handle.invokeExact(buffer, bufferOffset, bytes, byteCount);
+            } catch (RuntimeException | Error failure) {
+                throw failure;
+            } catch (Throwable failure) {
+                throw new IllegalStateException(operation + " invocation failed", failure);
+            }
+        }
+
+        private static int invokeIntThreeAddresses(
+                MethodHandle handle,
+                String operation,
+                MemorySegment first,
+                MemorySegment second,
+                MemorySegment third) {
+            try {
+                return (int) handle.invokeExact(first, second, third);
             } catch (RuntimeException | Error failure) {
                 throw failure;
             } catch (Throwable failure) {

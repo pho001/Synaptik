@@ -25,7 +25,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Complete baseline; optional provider 0004 Blocked/deferred | Native interop conventions needed by the provider are decided. | Required FLOAT32/FLOAT64 remains complete; the optional direct BFLOAT16-output capability stays fail-closed until both proof gaps are resolved. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through 0010J | Complete CPU 0010E–0010I, Prepare 0004, and tools/tuning 0001 establish the current local-candidate, lifecycle, opaque-handoff, and tuning-consumer seams. | CPU 0010J supplies the bounded session-scoped producer over retained 0008D/0008E alternatives with exact Phase-1 selection reuse; no additional CPU fingerprint prerequisite is required before tuning 0002. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0010 | Runtime 0016 and Prepare 0006 complete the inward owner and transactional handoff prerequisites. | Engine 0010 closes the outward prepared-handle lifecycle and temporary preparation paths. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0002 | Runtime 0016, Prepare 0006, Engine 0010, and Compiler 0006B7 satisfy the selected route's prerequisites. | The whole-maximal-partition FLOAT32 NEG MPSGraph route is implemented and validated; 0003 remains the next Draft row without a detailed specification. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0003 | Metal 0001–0002 and their Runtime, Prepare, Engine, and Compiler prerequisites are Complete. | Task 0003 adds a second backend-private route for one NEG/feed/target within a `UINT32_MAX` index domain without changing capability; 0004 remains Draft for typed route candidates and cache compatibility. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Shared backend contracts and CPU reference behavior are stable. | CUDA passes the applicable backend-conformance suite. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | The model representation and public tensor semantics are stable. | Selected import/export mappings and compatibility validation are complete. |
 | 15 | [`extensions/data`](extensions/data/master-plan.md) | Draft (architecture decision required) | An explicit architecture/module/dependency decision authorizes the new extension after its Model Tensor prerequisites are stable. | Canonical valid-length metadata, right-padded sequence batches, and selected focused numeric sample/sequence batchers are complete. |
@@ -636,8 +636,40 @@ outside the sandbox, focused backend conformance and architecture tests, source/
 inspection, clean documentation review, Javadoc, Markdown, exact 28-path, consistency, staged-file,
 and whitespace gates passed. The route adds no generic registry, public Metal Engine adapter,
 mixed-owner contract, per-run graph compilation, shared Runtime change, or backend-global owner.
-Model 0026 remains Draft and gates future FLOAT16 claims; no BFLOAT16 support is inferred. Metal
-0003 is the next Draft row and has no detailed specification.
+Model 0026 remains Draft and gates future FLOAT16 claims; no BFLOAT16 support is inferred.
+
+Detailed
+[Metal 0003 single-NEG custom Metal kernel route](backends/metal/tasks/0003-single-neg-custom-metal-kernel-route.md)
+is `Complete`. It is a bounded second-route proof, not a capability expansion: the provider
+remains unchanged, an exact one-NEG/one-feed/one-target Metal
+partition selects one direct custom `FLOAT32` compute pipeline only when its checked element count
+is no greater than `UINT32_MAX`, and every other currently supported NEG partition retains
+MPSGraph without repartitioning. Either a caller feed or the existing positive-rank splat feed is
+eligible. An otherwise matching singleton above the private 32-bit index domain remains MPSGraph.
+
+Metal analysis makes the deterministic unmeasured choice before declaring the custom route's two
+buffers or the MPSGraph route's existing buffers plus address workspace. The existing NEG plan,
+preparer, finalizer, prepared executable, and schedule assembler are extended in place; one new
+typed custom-pipeline resource prevents MPSGraph/custom handle reinterpretation. The fixed
+branch-free MSL source is compiled once during finalization, hot Java execution retains direct typed
+input/output handles and makes one native downcall, the supplied output remains directly resident,
+and native execution waits once at its route boundary. ABI version `3` preserves all ten ABI-v2
+symbols and statuses `0..11`, adds exactly three typed custom pipeline symbols and status `12`,
+and requires exact target/dispatch/error validation. Installed SDK contracts plus Apple's
+official 32-bit unsigned thread-position compute examples establish the route bound: it is a
+backend-private implementation-domain predicate, not capability, fallback, repartitioning, or a
+performance decision. Native create defensively rejects zero and greater-than-`UINT32_MAX` counts
+with `UNSUPPORTED_SHAPE`. The task makes no performance-superiority claim and adds no Engine,
+mixed-owner, fallback, operation/type/layout, packaging, or tuning work.
+
+The final Metal suite passed 42 of 45 tests with three expected native opt-in skips and no
+failures or errors. The native build produced a Mach-O arm64 dylib with exactly thirteen exports
+and expected framework linkage, and both real-device cases passed against that final rebuilt
+library. Source-contract and hot-shape inspection covered the fail-closed mappings and direct
+custom invocation. The independent documentation pass completed Metal Javadoc, Markdown,
+18-path scope, no-staged-file, and whitespace validation without repeating successful Java tests.
+Metal 0004 remains Draft without a detailed specification for typed complete route candidates and
+cache compatibility and is the next ordered Metal row.
 
 Detailed
 [Model 0025I NCW max/average Pool1d composition](modules/model/tasks/0025i-ncw-max-average-pool1d-composition.md)
@@ -735,8 +767,8 @@ keeps backpropagation through time fail-closed. Complete Compiler 0006B supplies
 adoption that precedes CPU 0008 and CPU 0008A; Draft Compiler 0006C separately owns gradient
 closure and does not block CPU forward execution. Compiler 0007 remains the later Draft exact-
 algebra row. Neither 0006C nor 0007 has a detailed specification. Compiler 0006B3–0006B6 are
-Complete; Compiler 0006B7 and Metal 0002 are Complete, while Metal 0003 remains Draft without a
-detailed specification.
+Complete; Compiler 0006B7 and Metal 0002–0003 are Complete, while Metal 0004 remains the next
+Draft backend-private route-planning row.
 
 The completed Runtime implementation frontier is
 [Runtime 0010 Prepared runner and dynamic execution](modules/runtime/tasks/0010-prepared-runner-and-dynamic-execution.md).
@@ -2247,7 +2279,8 @@ the complete current model operation inventory before higher-order work:
 | 0006C Conv3d adjoint expressibility and gradient closure | Draft | 0006B; proven public Tensor algebra or a separately selected Model prerequisite | Close Conv3d gradients only after group, geometry, overlap, symbolic-Shape, and higher-order expressibility are proved. |
 
 Compiler 0005A–0006B7 and their Model prerequisites are Complete. Metal 0002 is also Complete;
-Metal 0003 remains Draft without a detailed specification. Compiler 0006B4 delivered the
+detailed Metal 0003 is `Complete` without changing its completed Compiler prerequisites. Compiler
+0006B4 delivered the
 prerequisite inserted for the earlier Engine input-binding blocker, and detailed Compiler 0006B5
 closes the source-only published-constant logical descriptor found by the separate Engine 0006
 prerequisite diagnosis. Prepare 0005, CPU 0010H, and Engine 0006 are Complete. Complete Engine
@@ -2302,8 +2335,8 @@ Complete. Config 0006B is Complete, and detailed
 [Engine 0009](modules/engine/tasks/0009-public-complete-plan-autotuning-composition.md) is
 Complete. Detailed
 [Engine 0010](modules/engine/tasks/0010-prepared-handle-ownership-and-closure.md) is
-`Complete`; Compiler 0006B7 and Metal 0002 are Complete, while Metal 0003, Compiler 0006C, and NN
-0021B–0024 remain Draft without a detailed Metal 0003 specification.
+`Complete`; Compiler 0006B7 and Metal 0002–0003 are Complete, and
+Compiler 0006C plus NN 0021B–0024 remain Draft.
 Family tasks
 must not claim that every operation role has a gradient: BOOL, index, random-number-generator
 (RNG) state, mask, and configuration roles remain intentionally non-differentiable where
