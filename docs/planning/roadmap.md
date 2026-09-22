@@ -33,7 +33,7 @@ or task boundary; it does not promote Draft work to Ready.
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress, interleaved; 0001–0003 and 0006A–0006B Complete; 0004–0006 and 0007–0008 Draft | 0004 waits for a concrete cost-bearing Planning consumer; no Config task is Ready. |
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | Complete through 0006 | A separate reassessment must select any later cost-bearing frontier. |
 | 6 | [`modules/runtime`](modules/runtime/master-plan.md) | Complete through 0016 | No Runtime task is Ready. |
-| 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete through 0006B7; 0006C and 0007 Draft | 0006C needs proved Conv3d adjoint expressibility; relaxed 0007 work also waits for Config 0006. |
+| 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete through 0006B7; 0006B8 Ready; 0006C and 0007 Draft | Execute documentation-only 0006B8; it authorizes no Conv3d or relaxed-algebra implementation. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through 0006 | No Prepare task is Ready. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through 0010J; 0007A1D Review needed; 0010D1 and 0011 Blocked | No CPU task is Ready; vendor peers 0012–0015 and integrations 0016–0017 remain Draft. |
@@ -53,11 +53,12 @@ or task boundary; it does not promote Draft work to Ready.
 
 ## Current frontier
 
-No task is currently `Ready`. [Engine 0011](modules/engine/tasks/0011-compile-artifact-projection-boundary-reconciliation.md)
-completed the first explicitly authorized drift-remediation stage after Metal 0004. The next
-coordination action is the separate autograd-documentation repair, followed by reassessment of
-remaining contract drift; neither later stage has a detailed task or `Ready` status. Existing NN
-and completed Config exceptions authorize no additional work.
+[Compiler 0006B8](modules/compiler/tasks/0006b8-bounded-functional-autograd-contract-and-documentation-reconciliation.md)
+is `Ready` as the user-authorized second drift-remediation step after completed
+[Engine 0011](modules/engine/tasks/0011-compile-artifact-projection-boundary-reconciliation.md).
+It is documentation-only and reconciles the authoritative autograd contract and focused stale
+documentation with current bounded one/two-stage behavior. Compiler 0006C/0007 and all other
+Draft or blocked work remain unauthorized.
 
 ## Blocked, review-needed, and deferred work
 
@@ -80,8 +81,9 @@ and completed Config exceptions authorize no additional work.
 
 ## Nearest next step
 
-1. Separately define and execute the authorized autograd-documentation repair, then reassess
-   remaining contract drift. Do not infer another implementation frontier from Engine 0011.
+1. Execute Compiler 0006B8 through its clean documentation implementation and independent review
+   contexts, then reassess remaining contract drift. Do not infer another implementation frontier
+   from Engine 0011 or this documentation repair.
 
 ## History policy
 
