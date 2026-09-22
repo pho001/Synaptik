@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Change class
 
@@ -130,9 +130,10 @@ and planning only, with no executable, dependency, build, or architecture-contra
   explanatory/status drift from clean HEAD `a7be5679`. Model source, focused Javadocs, and the
   current Engine/public API already supply the needed authority; completed Model work through
   0025L and Engine work through 0012 satisfy the documentation prerequisites.
-- 0025M is inserted before unselected Draft task 0026 and is the sole authorized `Ready` frontier.
-  Engine, tuning, Prepare/backend, Runtime-boundary, and CPU-guide drift remain later separately
-  owned candidates without detailed briefs.
+- 0025M was inserted before unselected Draft task 0026 as the sole authorized `Ready` frontier.
+  Its clean implementation and independent targeted review are now complete. Engine, tuning,
+  Prepare/backend, Runtime-boundary, and CPU-guide drift remain later separately owned candidates
+  without detailed briefs.
 
 ## Documentation and review impact
 
@@ -146,6 +147,30 @@ and planning only, with no executable, dependency, build, or architecture-contra
 
 ## Result
 
-Empty until execution. Record changed files, exact example/documentation/scope validation,
-Javadoc and glossary conclusions, limitations or follow-up, and `Status: Complete` or
-`Status: Incomplete` with a specific follow-up.
+The clean documentation implementation rewrote `docs/user-guide/tensors.md` as a runnable current
+flat-import and unary-expression workflow, corrected only the stale opening cross-layer paragraph
+in `docs/api/tensor-api.md`, and synchronized this task, the Model plan, and the roadmap. Targeted
+source, Javadoc, focused-test, Engine, contract, and glossary review found no Java/Javadoc,
+glossary, architecture, test, or other-guide change: the implementation reuses current terms and
+documents existing behavior only.
+
+- `./gradlew :modules:model:classes`, exact guide-block comparison, `javac`, and `java` passed;
+  the thirteen output lines exactly matched the documented observations.
+- The independent targeted review checked the final diff against the named Model, Engine, and CPU
+  contracts; current Tensor, storage, factory, producer/provenance, and Engine source/Javadocs;
+  focused tests; and targeted glossary terms. It corrected the guide's backing-array inference
+  and association-only synchronization/lifetime/threading wording, then separated compile-time
+  publication requests, run-time input binding, and open-result materialization in the API status
+  paragraph.
+- The review reused the successful compile/run evidence because its corrections did not change
+  the exact Java or output blocks. A final comparison confirmed that the guide block still matched
+  `/tmp/TensorGuideExample.java` byte for byte.
+- The five-file Markdown validator passed links, generated anchors, fences, final newlines, and
+  whitespace; targeted opening/guide searches found none of the replaced stale claims.
+- The brief remained below 200 lines and 15 KB. The Java/Gradle scan was empty, the complete path
+  audit equaled the exact five-file allowlist, and `git diff --check` passed.
+- Javadoc, glossary, architecture, tests, and other guides need no change: the final documentation
+  describes current contracts and public behavior without changing Java, terminology, authority,
+  backend capability, or workflow beyond the two selected pages.
+
+Status: Complete

@@ -27,7 +27,7 @@ or task boundary; it does not promote Draft work to Ready.
 
 | Order | Project area | Current status | Entry or next gate |
 |---:|---|---|---|
-| 1 | [`modules/model`](modules/model/master-plan.md) | Implementation Complete through 0025L; documentation-only 0025M Ready; 0026 Draft | Execute the user-authorized Tensor guide/API status reconciliation; do not select 0026. |
+| 1 | [`modules/model`](modules/model/master-plan.md) | Implementation Complete through 0025L; documentation-only 0025M Complete; 0026 Draft | Select the next separately owned confirmed documentation-drift task; do not select 0026 implicitly. |
 | 2 | [`modules/trace`](modules/trace/master-plan.md) | In progress, deliberately interleaved; 0001–0002 Complete, 0003–0008 Draft | Resume 0003 only after its producer vocabulary is stable; no Trace task is Ready. |
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete through 0004 | Reopen only for a concrete shared-contract need. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress, interleaved; 0001–0003 and 0006A–0006B Complete; 0004–0006 and 0007–0008 Draft | 0004 waits for a concrete cost-bearing Planning consumer; no Config task is Ready. |
@@ -53,12 +53,12 @@ or task boundary; it does not promote Draft work to Ready.
 
 ## Current frontier
 
-The user-authorized sequential explanatory/status drift-remediation sequence now selects
-[Model 0025M](modules/model/tasks/0025m-tensor-guide-and-api-status-reconciliation.md) as its sole
-`Ready` frontier. Its current source, Javadoc, Engine/public API, and architecture authority
-prerequisites are complete. It reconciles only the stale pre-Tensor user guide and Tensor API
-opening status; Model 0026, Compiler 0006C/0007, and all other Draft or blocked work remain
-unauthorized.
+The user-authorized sequential explanatory/status drift-remediation sequence has completed
+[Model 0025M](modules/model/tasks/0025m-tensor-guide-and-api-status-reconciliation.md). Its clean
+documentation implementation and independent targeted review reconciled only the stale pre-Tensor
+user guide and Tensor API opening status. No task is `Ready`: selecting the next separately owned
+confirmed documentation-drift task still requires explicit planning, while Model 0026, Compiler
+0006C/0007, and all other Draft or blocked work remain unauthorized.
 
 ## Blocked, review-needed, and deferred work
 
@@ -81,9 +81,8 @@ unauthorized.
 
 ## Nearest next step
 
-1. Execute and independently review Model 0025M within its exact five-path allowlist.
-2. After 0025M is Complete, select only the next separately owned confirmed documentation-drift
-   task; do not promote Model 0026, Compiler 0006C/0007, or other Draft or blocked work implicitly.
+1. Select only the next separately owned confirmed documentation-drift task; do not promote Model
+   0026, Compiler 0006C/0007, or other Draft or blocked work implicitly.
 
 ## History policy
 

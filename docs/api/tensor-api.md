@@ -85,18 +85,16 @@ select expressions. `unfold` adds general-axis window materialization and `foldA
 overlap-summing target transformation. The two `unfold2d` forms add NCHW im2col with conceptual
 positive-zero or exact typed padding, while `fold2d` adds overlap-summing col2im with exact static
 or symbolic compatibility.
-Typed access, gradient publication delivery, native/runtime/backend allocation, the public
-compiler facade, runtime residency, and backend execution remain planned. Public
-`FunctionalGradientRequest` is current compiler input; it adds no Tensor lifecycle state.
-Current package-private compiler consumers include forward-only and phase-aware combined capture,
-binding-free operand/descriptor verification, bounded one/two-stage reverse-mode automatic
-differentiation
-(autograd), mandatory dense graph-local canonicalization, explicit logical-splat ingress, bounded
-integral/BOOL constant folding, whole-graph dead-code elimination, phase-local
-common-subexpression elimination, publication-role construction, backend-neutral Planning
-orchestration, and immutable `CompileArtifacts` assembly. These compiler steps do not turn public
-Tensor host storage into constant evidence, perform general numerical execution, deliver a
-publication, or add a public compile call.
+`HostTensorStorage` exposes current raw host-storage facts, but `Tensor` has no typed element
+getters or setters. The public Engine now owns the separate compile, prepare, and run lifecycle for
+Tensor expressions. Public compilation can request forward and supported first-order gradient
+publication occurrences; runs bind caller inputs, and an open `RunResult` can explicitly
+materialize one occurrence as a detached host value. `Engine.standard()` uses one fixed CPU-only
+composition; preparation and execution remain bounded by exact CPU capability and fail closed for
+unsupported operation, data-type, Shape, or layout combinations. This current lifecycle does not
+move compiler, prepared-execution, runtime-residency, or backend state into Tensor. Tensor-owned
+device residency, generic or mixed-backend composition, and universal execution coverage remain
+absent.
 The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 Completed model task 0025 supplies one narrow producer contract needed by pre-capture autograd:
