@@ -38,7 +38,7 @@ or task boundary; it does not promote Draft work to Ready.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through 0010J; 0007A1D Review needed; 0010D1 and 0011 Blocked | No CPU task is Ready; vendor peers 0012–0015 and integrations 0016–0017 remain Draft. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0010 | No later Engine task is Ready or detailed. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0003; 0004 Draft | 0004 is the next ordered Metal row and current planning frontier; it has no task brief yet. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0003; 0004 Ready | Implement the verified [0004 Metal-local route-candidate and session-compatibility foundation](backends/metal/tasks/0004-typed-metal-route-candidate-generators-and-cache-compatibility.md). |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
 | 15 | [`extensions/data`](extensions/data/master-plan.md) | Draft; architecture decision required | 0001 must authorize the Data/Text/Vision modules, build edges, decision record, and architecture tests first. |
@@ -53,13 +53,13 @@ or task boundary; it does not promote Draft work to Ready.
 
 ## Current frontier
 
-No task is currently `Ready` or `In progress`. The next ordered planning work is
-[`Metal 0004`](backends/metal/master-plan.md): typed complete route-candidate generation and
-canonical cache compatibility over the two implemented Metal routes. It remains `Draft`, has no
-detailed task brief, and is not implementation authorization.
+[`Metal 0004`](backends/metal/tasks/0004-typed-metal-route-candidate-generators-and-cache-compatibility.md)
+is `Ready` and is the sole current implementation frontier: a Metal-local typed complete
+route-candidate and session-compatible decision-codec foundation over the two implemented routes.
 
-The planner must verify the opaque Prepare/tuning boundary, artifact versioning, route ownership,
-and file isolation before creating a compact 0004 brief and marking it `Ready`. The recorded NN
+The 0004 readiness audit verified that the existing handoff is opaque but no current Metal
+adapter consumes the tools-owned outer cache; the task therefore adds only package-private
+session compatibility, with route ownership and exact file isolation preserved. The recorded NN
 interleave remains an explicit exception, but it does not promote NN 0021B–0024; each new
 interleaved task still requires specific authorization and non-overlap evidence. The completed
 Config 0006A/0006B staged exceptions authorize no additional Config work.
@@ -85,12 +85,9 @@ Config 0006A/0006B staged exceptions authorize no additional Config work.
 
 ## Nearest next step
 
-1. Reassess Metal 0004 against current Metal, Prepare, and tuning contracts and confirm its exact
-   candidate, compatibility, and artifact-version boundary.
-2. If selected, create only the compact Metal 0004 task brief, verify dependencies, and mark it
-   `Ready`; otherwise record the newly authorized frontier or ordering exception here and in its
-   owning master plan.
-3. After that task completes, keep its evidence in the task file, update the Metal master plan and
+1. Implement the Ready Metal 0004 brief in a clean Class C execution context, then complete its
+   independent targeted documentation/review pass.
+2. After that task completes, keep its evidence in the task file, update the Metal master plan and
    this index with one-line status, and reassess exactly one next frontier.
 
 ## History policy

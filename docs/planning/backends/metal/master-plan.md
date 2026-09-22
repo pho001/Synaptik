@@ -27,7 +27,8 @@ explain the shared boundary.
 
 Metal owns truthful capability, MPSGraph/custom lowering and route choice, Metal storage and
 workspace, native application binary interface (ABI), prepared resources, execution, trace
-contribution, typed route candidates, and compatible workload-cache lookup during prepare.
+contribution, typed route candidates, and the private compatibility needed before any outer
+workload-cache decision can be accepted during prepare. Tuning tooling owns cache orchestration.
 
 It does not own public Tensor semantics, global autograd, Planning ownership policy, shared
 Prepare/Runtime interpretation of private knobs, Engine composition, CPU Apple routes, or a
@@ -71,21 +72,20 @@ this map before extracting a package or widening visibility.
 | 0001 | [Metal capability, storage, and native foundation](tasks/0001-metal-capability-storage-and-native-foundation.md) | Complete | Complete shared planning, runtime, prepare, backend-contract, and trace contracts; no Model 0026 dependency while fail-closed | Added a fail-closed provider, native context, and run-owned storage without executable capability. |
 | 0002 | [MPSGraph prepared execution route](tasks/0002-mpsgraph-prepared-execution-route.md) | Complete | 0001; Runtime 0016; Prepare 0006; Engine 0010; Compiler 0006B7 | Added maximal-partition positive-shape contiguous FLOAT32 NEG through reusable MPSGraph preparation/execution. |
 | 0003 | [Single-NEG custom Metal kernel route](tasks/0003-single-neg-custom-metal-kernel-route.md) | Complete | 0001–0002 | Added a private custom route for one NEG/feed/target within `1..UINT32_MAX`; all other supported partitions retain MPSGraph. |
-| 0004 | Typed Metal route candidate generators and cache compatibility | Draft | 0002–0003, opaque prepare/tuning boundary and artifact versioning | Add typed complete route candidates and canonical workload compatibility without exposing Metal knobs. |
+| 0004 | [Typed Metal route candidate generators and cache compatibility](tasks/0004-typed-metal-route-candidate-generators-and-cache-compatibility.md) | Ready | 0002–0003, opaque prepare/tuning boundary and artifact versioning | Add a Metal-local typed candidate and session-compatible codec foundation without outer tuning integration. |
 
 ## Milestones and current frontier
 
 The native/storage foundation, first MPSGraph route, and bounded second-route proof are `Complete`
-through 0003. Task 0004 is the next ordered Metal row and current planning frontier. It remains
-`Draft`, has no task brief, and is not implementation authorization. No Metal task is `Ready` or
-`In progress`.
+through 0003. Task 0004 is the next ordered Metal row, is `Ready`, and is the current implementation
+frontier. No Metal task is `In progress`.
 
-Before a compact 0004 brief can become `Ready`, a planner must verify all four live gates against
-current source and contracts:
+The 0004 readiness audit verified all four live gates against current source and contracts:
 
-1. the Prepare/tuning handoff keeps complete Metal candidates and decisions opaque;
-2. candidate/compatibility schemas and any workload-cache artifact have explicit versions and
-   owners;
+1. the existing Prepare/tuning handoff can carry complete Metal candidates and decisions opaquely,
+   while 0004 adds only package-private Metal construction and authentication;
+2. Metal candidate/compatibility/decision schemas are versioned separately from the existing
+   tools-owned outer cache artifact, which 0004 neither reads nor writes;
 3. route selection, lowering, decoding, and resource declaration remain Metal-owned; and
 4. the production, test, and artifact file set is bounded and isolated except for explicit
    route-integration points.
@@ -117,13 +117,16 @@ current source and contracts:
 
 - 0004 must derive complete typed candidates from canonical workload facts, target capability,
   exact policy, and budget; operation family chooses a generator but is not a universal cache key.
-- Compatibility must include explicit schema/version and target/workload identity. A cache hit may
-  select only a compatible decision and must still lead to fresh authenticated preparation.
+- Compatibility must include explicit schema/version and target/workload identity. An optional
+  encoded decision may select only a compatible candidate and must still lead to fresh
+  authenticated preparation; 0004 adds no outer cache hit or measurement path.
 - Do not introduce `Map<String,Object>`, reflection, string dispatch, a central knob registry,
   generic parameter bags, Planning route choice, Runtime cache access, or hidden global resources.
-- Exact route-specific record shapes, target fingerprints, and version ownership remain the Draft
-  0004 planning decision. No broader operation/type, mixed-owner Engine path, async execution,
-  packaging/discovery, or performance claim is implied.
+- The Ready 0004 brief fixes route-specific typed shapes and conservatively session-scoped target
+  compatibility without changing cache-file or native ABI ownership. Its package-private codec is
+  a Metal-local foundation, not current `tools/tuning` or Engine composition. No broader
+  operation/type, mixed-owner Engine path, async execution, packaging/discovery, or performance
+  claim is implied.
 - Main risks are moving lowering into shared layers, leaking Metal fields through opaque seams,
   confusing capability with availability, and extending native/prepared lifetimes beyond their
   explicit owners.
