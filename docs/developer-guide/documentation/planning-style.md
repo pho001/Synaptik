@@ -4,26 +4,31 @@
 
 Planning documentation coordinates executable implementation work. It defines scope, order, constraints, acceptance, validation, and handoff evidence. It is not a tutorial and is not an architecture contract.
 
-The authoritative planning format and workflow are in the [Planning Guide](../../planning/planning-guide.md). Apply [General style](general-style.md) only where it improves clarity without turning a task specification into teaching material.
+The authoritative planning format and workflow are in the [Planning Guide](../../planning/planning-guide.md). Apply [General style](general-style.md) only where it improves clarity without turning a task brief into teaching material.
 
 ## Required content
 
-Master plans must keep ownership, package direction, ordered tasks, dependencies, status, risks, and current frontier visible. Detailed task specifications must follow the planning guide and include:
+Master plans are concise maps. They keep ownership, package direction, ordered tasks, real
+dependencies, status, risks, and the current frontier visible. Completed rows use a one-line
+summary and link rather than duplicating task evidence. Historical plans and completed tasks are
+not default executor reading.
 
+Compact task briefs follow the planning guide and include only:
+
+- title or ID, status, and change class with rationale;
 - exact goal and bounded scope;
 - explicit exclusions;
-- architecture references and constraints;
-- package and type placement;
-- expected affected files and maximum scope;
+- exact contract links or headings;
+- affected files and symbols;
 - falsifiable acceptance criteria;
-- exact validation commands at the appropriate task, capability-checkpoint, or repository tier;
-- dependencies and follow-up work;
-- architecture impact;
-- a self-contained implementation prompt;
-- local decisions, known limitations, evidence, implementation notes, and completion summary; and
-- the separate documentation-agent pass when code or behavior changes.
+- proportional validation commands;
+- dependencies and follow-up only when real;
+- documentation and review impact; and
+- a concise result after completion.
 
-Use concrete names, paths, commands, and outcomes. A `Ready` task must be executable by a clean-context agent without relying on remembered conversation. Keep its implementation prompt concise and put detailed execution rules in the task specification once.
+Use concrete names, paths, commands, and outcomes. Target at most 200 lines and 15 KB. If a brief
+exceeds 15 KB, justify it; above 25 KB, split it or record why atomic scope is safer. The brief plus
+a standard short launcher is the execution packet. Do not embed a per-task implementation prompt.
 
 ## Avoid
 
@@ -32,8 +37,11 @@ Use concrete names, paths, commands, and outcomes. A `Ready` task must be execut
 - unverifiable acceptance language such as “works well”;
 - hidden scope in implementation notes;
 - placeholder sections in a `Ready` task;
+- package/file boilerplate when irrelevant;
+- pre-implementation chronicles, context IDs, duplicated predecessor evidence, or verbose logs;
+- embedded per-task implementation prompts;
 - repeated full-repository suites for a small single-module change without a recorded risk;
-- duplicate Java-test execution by implementation and documentation agents without executable changes;
+- duplicate Java-test execution by implementation and review contexts without executable changes;
 - manual reflection, bytecode, or import checks that should be stable automated tests;
 - out-of-order work without recorded justification; and
 - marking work complete without evidence and synchronized status.
@@ -44,32 +52,29 @@ Use concrete names, paths, commands, and outcomes. A `Ready` task must be execut
 - Confirm every architecture constraint traces to the contract rather than the plan itself.
 - Check package impact, file limits, dependencies, commands, and status synchronization.
 - Verify that acceptance criteria can be observed or tested.
-- Confirm validation evidence records commands, results, justified manual checks, reused evidence, documentation review, checkpoint deferrals, and limitations.
+- Confirm validation evidence records exact commands and outcomes, key counts or skips when
+  meaningful, reused evidence, limitations, and documentation/review impact.
 
-## Task-specification template
+## Task-brief template
 
-Use the complete canonical template in the [Planning Guide](../../planning/planning-guide.md#task-specification-format). Its working outline is:
+Use the complete canonical template in the [Planning Guide](../../planning/planning-guide.md#task-brief-format). Its outline is:
 
 ```markdown
 # Task <ID>: <Title>
 
 ## Status
+## Change class
 ## Goal
 ## Scope
-## Out of scope
-## Architecture references and constraints
-## Package impact
-## Affected files and maximum scope
+## Non-goals
+## Contracts
+## Files and symbols
 ## Acceptance criteria
-## Tests / validation
-## Dependencies and follow-up tasks
-## Architecture impact
-## Implementation prompt
-## Local decisions
-## Known limitations
-## Validation evidence
-## Implementation notes
-## Completion summary
+## Validation
+## Dependencies and follow-up
+## Documentation and review impact
+## Result
 ```
 
-Do not copy this abbreviated outline when creating a task; use the canonical planning template and replace every placeholder before setting `Ready`.
+Omit the dependencies/follow-up section when there are none. Use the canonical planning template
+and replace every placeholder before setting `Ready`.

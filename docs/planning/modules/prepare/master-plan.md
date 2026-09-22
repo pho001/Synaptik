@@ -1,77 +1,83 @@
 # Prepare Master Plan
 
-## Goal
+## Goal and authority
 
-Define and validate the shared transition from immutable compile artifacts to prepared runtime state.
+Prepare coordinates the validated transition from immutable compile artifacts to one complete
+Runtime-ready recipe. This plan is a non-authoritative implementation map;
+[`ARCHITECTURE.md`](../../../../ARCHITECTURE.md), especially `Core lifecycle`,
+`modules/prepare`, and `Prepare lifecycle`, is authoritative.
 
-## Architecture references
+Focused explanations and decisions:
 
-- [Architecture contract](../../../../ARCHITECTURE.md)
+- [Lifecycle](../../../architecture/lifecycle.md)
 - [Module boundaries](../../../architecture/module-boundaries.md)
 - [Dependency rules](../../../architecture/dependency-rules.md)
+- [Runtime, Prepare, and Backend Boundary](../../../architecture/runtime-prepare-backend-boundary.md)
+- [ADR 0013: Prepared-execution persistent-resource lifecycle](../../../design/decisions/0013-prepared-execution-persistent-resource-lifecycle.md)
 
-## Scope
-
-- prepare context
-- backend partition preparer contract
-- prepared partitions
-- coverage, memory, and schedule validation
-- a narrow opaque-candidate transport boundary for later model tuning, after concrete backend
-  candidate contracts are stable
-- explicit workload-cache and model-plan artifact load/fallback handoff before runtime
-
-## Out of scope
-
-- concrete CPU, Metal, or CUDA lowering
-- kernel selection
-- backend executable and storage implementations
-- backend-specific candidate vocabulary or search-space generation
-- tuning measurement, comparison, and persistence algorithms
-
-## Module invariants
-
-- Shared prepare coordinates contracts and validation.
-- Concrete backends own deterministic analysis, lowering, route selection, and executable
-  construction.
-- Backend analysis declares exact shared resource requirements before slot assignment.
-- Backend finalization constructs executable state only after shared slot assignment and cannot
-  revise the selected route or declarations.
-- Shared prepare exposes complete candidates opaquely and does not interpret private backend
-  fields.
-- Concrete backend analysis owns route and representation requirements together. Shared Prepare
-  assigns and reconciles stable slots plus explicit materializations across the complete prepared
-  uses without interpreting concrete storage classes or route vocabulary.
-- Compatible cache hits and safe heuristics can prepare correct work without a tuning search.
-- Model-autotuning results become explicit prepared or cache state before runtime, never hidden
-  global state.
-
-## Allowed dependencies
-
-- modules/runtime
-- modules/planning
-- modules/compiler
-- modules/config
-- modules/backend-contract
-- modules/trace
-
-## Forbidden dependencies
-
-- concrete backend implementations
-
-## Package structure
+## Lifecycle position
 
 ```text
-io.github.pho001.synaptik.prepare/
-  analysis/  public immutable partition-local DAG and analysis request, opaque backend plan,
-             exact resource declarations, and backend analyzer collaboration
-  <root>     finalization input/result collaborations, finalized prepared-partition association,
-             complete graph-preparation transaction, schedule assembly, and validation contracts
+CompileArtifacts
+  -> partition-local analysis and exact resource declarations
+  -> shared buffer/workspace slot assignment
+  -> backend finalization against assigned slots
+  -> transactional resource aggregation
+  -> complete schedule assembly and validation
+  -> one-time ownership transfer to PreparedExecution
 ```
 
-Task 0001 opens only `analysis`. The request projects partition-scoped Model and Planning facts
-plus one typed opaque backend input that a concrete backend uses for resolved bindings,
-target/backend capabilities, configuration, and compatible cached decisions. It never exposes
-`CompileArtifacts` or another Compiler-owned type. Later root contracts remain unimplemented.
+Prepare stages and validates this transaction. Concrete backends analyze and finalize their own
+work; Runtime later owns and executes the accepted recipe.
+
+## Scope and non-goals
+
+Prepare owns partition projection, backend-neutral analysis/finalization collaborations, exact
+resource declarations, shared assignment, producerless published-constant contribution, opaque
+candidate transport, complete orchestration, schedule assembly, validation, rollback, and final
+ownership transfer.
+
+Prepare does not execute work, implement concrete CPU/Metal/CUDA lowering or storage, select a
+backend globally, interpret backend route/candidate fields, measure or rank tuning candidates,
+mutate caches, or allocate per-run physical representations.
+
+## Stable invariants and ownership
+
+- Backend analysis deterministically selects and retains backend-private lowering and route state
+  while declaring every shared buffer/workspace requirement before assignment.
+- Shared Prepare assigns stable Runtime slots across the complete ordered analyses without
+  interpreting concrete storage or route vocabulary.
+- Finalization receives the exact analysis, shared plan, and assignments. It constructs the
+  executable only after assignment and may not revise the route or introduce undeclared shared
+  requirements.
+- A finalizer owns every persistent resource until its complete result returns. Shared Prepare
+  then owns each exact identity transactionally and rolls back once in deterministic reverse
+  acquisition order after any later failure.
+- Duplicate resource identity is rejected without double close. Rollback preserves the primary
+  preparation failure and suppresses later distinct cleanup failures while avoiding
+  self-suppression.
+- Successful `PreparedExecution(memoryPlan, schedule, resources)` construction is the sole
+  ownership-transfer point. Prepare derives no ownership from executable or schedule occurrences.
+- Candidate batches and decisions cross shared code opaquely. Safe preparation never depends on a
+  tuning search, and Runtime receives no cache or candidate state.
+- Prepare constructs recipes and validates coverage; it performs no execution.
+
+## Dependencies
+
+Current allowed direct dependencies are `modules/runtime`, `modules/planning`,
+`modules/compiler`, `modules/config`, `modules/backend-contract`, and `modules/trace`.
+Dependencies on concrete backend implementations are forbidden; Engine supplies concrete
+collaborators from the outer composition root.
+
+## Package map
+
+| Package | Public or shared role | Internal boundary |
+|---|---|---|
+| `prepare.analysis` | Immutable partition-local DAG/context, opaque backend input/plan/tuning roles, exact resource declarations, and analyzer collaboration. | No `CompileArtifacts` aggregate, complete graph, tuning interpretation, slot assignment, executable, or physical resource. |
+| `prepare` root | Finalization input/result, assignments, `PreparedPartition`, producerless resources, `GraphPreparation`, and schedule assembly/validation contracts. | Complete-set handoff and transactional tracking stay package-private; concrete backends own lowering and physical mechanics. |
+
+The public Prepare surface is cross-module service-provider interface (SPI), not the ordinary
+Engine user facade.
 
 ## Task list
 
@@ -85,211 +91,41 @@ target/backend capabilities, configuration, and compatible cached decisions. It 
 | 0005 | [Producerless published-constant resource handoff and shared slot assignment](tasks/0005-producerless-published-constant-resource-handoff-and-shared-slot-assignment.md) | Complete | Compiler 0006B5; 0001–0004 | Contributed an explicit producerless published-constant resource to the complete preparation handoff and assigned its shared slot deterministically, without backend selection or physical geometry; preserved ordinary backend-analysis declarations and partition-connected projection. |
 | 0006 | [Persistent prepared-resource finalization transaction](tasks/0006-persistent-prepared-resource-finalization-transaction.md) | Complete | Runtime 0016; ADR 0013 | Returns each executable and its acquisition-ordered persistent resources atomically, rolls identity-unique resources back across every later preparation failure, and transfers successful ownership once to `PreparedExecution`; CPU remains resource-free. |
 
-## Milestones
+## Milestones and current frontier
 
-- Prepare contracts
-- Partition coverage validation
-- Prepared memory and schedule validation
+- Analysis/declaration, shared assignment/finalization, complete orchestration, and immutable
+  partition-local projection are Complete through 0003A.
+- Opaque tuning transport, producerless published-constant assignment, and the persistent-resource
+  transaction are Complete through 0006.
+- Runtime 0016 and Engine 0010 complete the adjacent owner and outward-handle lifecycle. Metal
+  0002 and 0003 are Complete; Metal 0004 is the next Draft repository planning frontier.
+- No Prepare task is `Ready` or `In progress`, and no later Prepare task is detailed.
 
-## Current status
+## Live risks and gates
 
-Complete through
-[Prepare 0006](tasks/0006-persistent-prepared-resource-finalization-transaction.md). Backend
-finalization now returns one immutable executable-and-resource result,
-`PreparedPartition(partition, executable)` remains unchanged, and shared Prepare owns each
-successful result transactionally until the complete `PreparedExecution` accepts the resources.
-CPU returns its existing executable with no persistent resources. Engine 0010 is the next Draft
-frontier without a detailed task file, and Metal 0002 remains blocked without a detailed task
-file until Engine ownership is complete.
+- Dynamic dimension binding remains unsupported. Any fact needed for route choice or exact
+  resource geometry must be resolved before analysis unless a future explicit contract preserves
+  route and assignment stability.
+- Keep backend candidates opaque and colocated with their owning backend. Metal 0004 remains
+  Draft without a task brief; its gate is completed 0002–0003 plus the opaque Prepare/tuning
+  boundary and artifact versioning. It must not move Metal fields, compatibility, or route choice
+  into Prepare.
+- Preserve analysis-before-assignment-before-finalization and the one-time ownership transaction;
+  never let finalization add undeclared shared resources or let Prepare execute physical work.
+- Producerless published constants contribute to complete assignment only; backend selection,
+  physical geometry, initialization, and materialization stay with their existing owners.
 
-Complete through
-[task 0003](tasks/0003-prepare-orchestration-and-validation.md) after completion of
-[task 0001](tasks/0001-backend-partition-analysis-and-resource-declaration.md). The current public
-`prepare.analysis` package contains the exact typed projection, backend input/plan marker roles,
-buffer/workspace requirement family, immutable analysis result, and backend preparer
-collaboration selected by ADR 0010. Its focused and final implementation validation passed four
-suites and 11 tests with no failures, errors, or skips. The separate documentation pass finalized
-the production/package Javadocs, backend guide, focused architecture status, glossary, and
-planning records without changing executable Java or repeating those successful tests.
+## Status normalization
 
-[Task 0003A](tasks/0003a-immutable-partition-local-dag-analysis-projection.md) is Complete. It
-reopened the otherwise completed Prepare milestone for one shared immutable partition-local
-structural projection before CPU MATMUL. CPU adoption remains a separate Draft CPU 0008E1 task.
+The task table and linked task status/results are controlling. The former downstream lifecycle-
+gate wording is normalized to the current state: Engine 0010, Metal 0002, and Metal 0003 are
+Complete; Metal 0004 alone is the current Draft frontier. No task status, order, dependency,
+ownership rule, API, or executable behavior changes here.
 
-Task 0001 remains deliberately analysis-only. `PrepareContext` accepts fully static partition
-facts and one backend-specific immutable input object carrying target capabilities,
-configuration, and compatible cached decisions. Its nodes match exact partition order; every
-node-referenced value resolves to a unique projection; every projected value has one
-descriptor-matching logical requirement; and exact-typed logical splats are limited to projected
-graph inputs. The result retains the selected backend plan opaquely and declares exact
-non-negative byte sizes plus positive power-of-two alignments.
+## History and update policy
 
-Runtime 0002–0004 and
-[task 0002](tasks/0002-backend-partition-finalization-handoff.md) are Complete. The Prepare root
-now exposes exact declaration-to-slot assignments, typed finalization input and collaboration,
-and the minimal `PreparedPartition(partition, executable)` association. Its package-private
-complete-set handoff validates all ordered sources before assignment, uses first-declaration
-buffer ordering with maximum geometry, gives every workspace declaration a distinct slot,
-constructs every finalization before invoking a backend, and rejects an executable that does not
-retain the exact shared memory plan.
-
-Task 0002 deliberately adds no public orchestration, physical allocation, closeable prepared
-resource, execution, or schedule. Complete Runtime 0005 defines the schedule consumer without a
-distinct `PreparedUnit`; Complete Runtime 0006 supplies the smallest final prepared-execution
-aggregate and exact-plan consistency contract; Runtime 0007–0010 complete representation
-creation, transfer, publication, and runner recipe boundaries. Complete task 0003 implements the
-smallest explicit complete-graph orchestration: positionally supplied typed backend
-collaborators, exact compile projection, existing finalization handoff, one Prepare-owned schedule
-assembler, one generic Runtime initialized-buffer origin for backend-materialized logical splats,
-structural source/execution/publication validation, and one final `PreparedExecution`. It adds no
-concrete backend, Engine facade, physical work in Prepare, or lookup. Its implementation pass
-passed the combined Runtime/Prepare suites, its independent documentation pass finalized all
-affected Javadocs and explanatory text, and the Prepare milestone checkpoint passed.
-
-The implementation context's final Prepare module run passed 7 suites and 22 tests with no
-skips, failures, or errors. The clean documentation pass finalized all six new production/package
-Javadocs, the five explanatory documents, and synchronized planning records without changing
-executable Java or repeating the successful tests. Prepare Javadoc, the Java 26 backend-finalizer
-example, nine-file Markdown validation, exact public/package-private shape, mechanism, exact
-18-path scope, unchanged architecture/build boundaries, status, and whitespace gates passed.
-
-User-authorized interleaved
-[task 0003A](tasks/0003a-immutable-partition-local-dag-analysis-projection.md) is Complete. It
-adds a shared immutable partition-local topology projection before CPU MATMUL so no concrete
-backend receives the complete cross-backend model DAG and each backend need not reconstruct exact
-structural occurrences independently. It preserves the completed 0001–0003
-analysis/finalization lifecycle and does not migrate CPU reconstruction; Draft CPU 0008E1 owns
-that later adoption. The implementation-owned final Prepare run passed 41 tests; the final shared
-checkpoint reported 42 Prepare tests and 2,491 repository tests overall with 3 expected skips and
-no failures or errors. Clean documentation context
-`01a043d7-113c-7ee2-8257-42678c1a7be4` finalized Javadocs, public and backend guidance, glossary,
-and planning evidence.
-
-[Task 0004](tasks/0004-opaque-backend-candidate-batch-and-selected-decision-handoff.md) is Complete.
-It adds only method-free opaque candidate-batch and decision roles plus one generic exact-partition
-transport. CPU retains and validates candidate and decision meaning, while tools/tuning later owns
-artifact decoding, corruption rejection, measurement, selection, and persistence. Tools/tuning
-0001 and Config 0006A are now Complete. The Engine-frontier audit found no new shared Prepare
-prerequisite: public `GraphPreparation.prepare(...)`, `PartitionPreparation`, and
-`PreparedScheduleAssembler` already provide the required explicit orchestration seam. Draft CPU
-0010F, not Prepare, owns the missing supported CPU integration adapter and concrete schedule
-assembly. These public Prepare contracts are cross-module SPI; the later supported Engine user
-facade must not expose them in ordinary compile, prepare, run, or one-shot signatures.
-
-The later Engine 0006 prerequisite diagnosis found a distinct source-only publication gap and
-inserted detailed Prepare 0005 after Complete Compiler 0006B5. Prepare 0005 is now Complete. It
-adds the exact producerless, consumerless published-constant contribution, validates it before
-backend work, and appends deterministic shared buffer assignments after ordinary declarations
-without projecting the value into a partition or assigning it to a finalizer. The implementation
-context passed 23 focused and 52 full Prepare tests with no failures, errors, or skips. Clean
-documentation context `01a0a5b6-e42c-7211-a8df-4a02d857314d` finalized the Javadocs, package/API
-explanations, glossary, and planning evidence without changing executable Java or rerunning those
-tests. Complete CPU 0010H separately supplies physical CPU declaration and initialized
-materialization in the current sole non-empty CPU composition. Draft Engine 0006 is the next task
-to reassess and plan in that historical sequence. Runtime 0016 and Prepare 0006 now complete the
-shared persistent-resource lifecycle chain.
-
-## Open questions
-
-- Dynamic dimension binding remains deliberately unresolved. Complete task 0003 preserves the
-  current fully-static `PrepareContext` boundary and fails before backend analysis when it cannot
-  project exact geometry.
-- A producerless published compile-time constant remains outside partition projection. Complete
-  Prepare 0005 now accepts an exact externally declared resource and appends its shared assignment;
-  it does not enable a zero-node schedule or invent backend selection, physical geometry,
-  initialization, or materialization.
-- The smallest opaque candidate handoff is implemented by Complete task 0004. It exposes only
-  nominal marker roles and one typed exact-partition transport; persistence and artifact
-  validation remain downstream tools/tuning work.
-- The future handoff must carry complete typed candidates for the exact operation occurrence or
-  partition and workload. Concrete backend analysis filters platform/provider availability,
-  operation attributes, data type, `Shape`, layout, numerical/determinism compatibility, and
-  resource validity before performance selection. Shared Prepare never imposes one global vendor
-  priority or interprets provider names.
-- The next detailed CPU task must define exact native buffer representation, lifetime, alignment,
-  and materialization declarations before shared Prepare can finalize their concrete handoff. This
-  plan records no Java shape or implemented allocation policy in advance.
-
-## Decisions made
-
-- The implementation must follow the current architecture contract.
-- Legacy code is capability evidence only; new implementation is written from scratch.
-- Compiler, planning, and concrete backends generate candidates for decisions they own. Shared
-  prepare coordinates complete candidates and validation without interpreting backend knobs.
-- Cache incompatibility or corruption must fail closed to safe heuristics or an explicit miss;
-  runtime never performs cache lookup or mutation.
-- `BackendPartitionPreparer`, `PrepareContext`, and `PreparedPartition` belong to Prepare.
-  `modules/backend-contract` remains closed and is not reopened for a prepare service.
-- A backend-facing Prepare contract must not expose `CompileArtifacts` because concrete backends
-  do not have an architecture-approved Compiler dependency.
-- Backend analysis produces exact buffer/workspace byte-size and alignment declarations, not
-  physical storage, resource handles, allocation, or per-run binding.
-- Workspace identity is local to one analysis result until Runtime assigns a stable slot; every
-  initial declaration receives a distinct slot.
-- Compatible cached tuning decisions are explicit analysis inputs. Analysis performs no search
-  or measurement and is deterministic from its complete inputs.
-- CPU analysis may select one exact portable generated specialization opaquely. Only CPU backend
-  finalization after shared slot assignment may consult its bounded generated-artifact cache and
-  generate or define the selected class on a miss. Shared Prepare and Runtime perform no
-  generated-artifact lookup, generation, class definition, or key interpretation.
-- The backend-owned in-memory generated-artifact cache is not the persistent tuning cache carried
-  through the future task-0004 handoff. Tuning chooses a compatible candidate; the CPU artifact
-  cache reuses already generated executable code for that selected candidate.
-- Exact/default numerical semantics filter candidates before call-overhead, safe-heuristic, or
-  compatible-cache comparison. A cached faster candidate cannot override semantic or determinism
-  incompatibility, and current semantics do not authorize relaxed/fast-math vendor routines.
-- A concrete CPU analysis may require the same native-backed `MemorySegment` representation for
-  scalar Java, Vector API, and FFM native routes; route transition alone is not a materialization.
-  It may keep a profitable compatible borrowed heap input as-is, or declare at most one necessary
-  native materialization for an exact selected downstream native route and reuse that
-  representation across compatible consumers. Shared Prepare reconciles those declarations with
-  complete partition uses, assigned slots, and explicit schedule work; Runtime later executes the
-  prepared work and tracks validity and residency.
-- Specialized opaque or prepacked layouts, CPU-to-device transfer, incompatible layout or
-  alignment, and explicit heap export remain valid reasons for distinct representations or
-  materialization. Shared Prepare does not impose a global all-Java/all-native mode or infer that
-  every external input is native.
-- Prepare 0002 assigns buffer slots in first-declaration order across the complete ordered
-  analyses, combines repeated value declarations with maximum size/alignment geometry, and
-  assigns every workspace declaration its own slot in declaration order.
-- `PreparedPartition` retains only the exact planned partition and finalized executable.
-  Complete Runtime 0005 establishes that list position plus `PreparedExecutable` is sufficient;
-  no distinct `PreparedUnit` is planned for current scheduling.
-- Prepare 0006 keeps that association unchanged. `BackendPartitionFinalizationResult` is the
-  separate atomic finalizer return value: it snapshots one executable plus persistent
-  `PreparedResource` instances in physical acquisition order. Shared Prepare derives ownership
-  only from successful finalizer results, never from executable or schedule occurrences.
-- A finalizer retains ownership of every resource until it successfully returns its complete
-  result. Shared Prepare then tracks exact identities once, rejects duplicates without a second
-  close, rolls back in reverse acquisition order after any later failure, and transfers ownership
-  only through successful `PreparedExecution(memoryPlan, schedule, resources)` construction.
-- The existing CPU finalizer returns the same executable with an empty resource list. This is an
-  API-shape migration, not a CPU lifecycle or execution behavior change.
-- Prepare 0003 uses one explicit `PreparedScheduleAssembler` after complete backend finalization.
-  It is a Prepare-owned recipe-construction seam supplied by future composition wiring, not a
-  backend-facing Compiler leak, global registry, discovery mechanism, or Runtime concern.
-- Prepare 0003 validates bindable-input, execution, representation-coordinate, and publication
-  coverage before returning the exact Runtime `PreparedExecution`; concrete backends still own
-  creators, transfers, executables, and their physical compatibility.
-- Complete Prepare 0005 owns producerless published-constant resource contribution to the complete
-  handoff and deterministic shared slot assignment only. It does not select a backend or define
-  physical geometry; CPU 0010H owns the current CPU declaration/materialization behavior.
-- Compile-time logical splats use the task-0003 `InitializedBuffer` origin: the backend creator
-  materializes a fresh run-owned representation and Runtime records only that its contents start
-  valid. Runtime receives no `ScalarValue`, graph value, or backend identity.
-
-## Risks
-
-- Accumulating concrete backend logic in the shared prepare layer.
-- Turning an opaque orchestration boundary into a generic parameter language or central knob
-  registry.
-- Hiding a Compiler dependency inside a nominally Prepare-owned backend collaboration.
-- Letting finalization change route choice or add resources after slot assignment.
-- Letting the schedule assembler become a backend registry, tuning extension point, or substitute
-  for Prepare-owned complete-result validation.
-- Reinterpreting a route change as an automatic copy or reconciling representation requirements
-  without the complete declared uses and explicit materialization work.
-
-## Notes
-
-Keep this master plan concise. Put executable work in small task specifications under `tasks/` and follow [the planning guide](../../planning-guide.md).
+Detailed results, validation commands, context identifiers, past ordering exceptions, and
+completed frontier narratives remain in linked task files and Git history. Update this map only
+when ownership, dependencies, task order/status, a milestone, or a live gate changes. Put
+executable scope and evidence in the task brief and follow the
+[planning guide](../../planning-guide.md).

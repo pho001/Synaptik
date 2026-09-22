@@ -1,6 +1,10 @@
 # Synaptik documentation
 
-The authoritative architecture contract is [`ARCHITECTURE.md`](../ARCHITECTURE.md). Documentation in this directory explains the architecture, APIs, workflows, and implementation plans without overriding that contract.
+[`ARCHITECTURE.md`](../ARCHITECTURE.md) is the authoritative architecture root and sole authority
+index. It incorporates exactly six scoped normative contracts under
+[`architecture/contracts/`](architecture/contracts/). All other documentation in this directory
+explains the architecture, APIs, workflows, and implementation plans without overriding that
+contract.
 
 ## Start here
 
@@ -13,9 +17,11 @@ The authoritative architecture contract is [`ARCHITECTURE.md`](../ARCHITECTURE.m
 The current implementation includes a runnable CPU-only lifecycle through `Engine.standard()`:
 Tensor expressions can be compiled, prepared once, run repeatedly with isolated invocation state,
 and materialized as detached host values. One-shot forward computation and a bounded
-scalar-objective backward convenience are also current. Metal, CUDA, mixed-backend execution,
-training orchestration, persistence, and generic graph/plan tuning remain planned; each focused
-page distinguishes current contracts from those future capabilities.
+scalar-objective backward convenience are also current. Metal has bounded MPSGraph and custom
+execution routes for supported static `FLOAT32` negation partitions; broader Metal coverage,
+standard or mixed-owner Metal composition, CUDA, training orchestration, persistence, and generic
+graph/plan tuning remain planned. Each focused page distinguishes current contracts from those
+future capabilities.
 
 ## Contributor guides
 

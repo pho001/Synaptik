@@ -6,37 +6,63 @@ These instructions apply to the entire repository unless a more specific `AGENTS
 
 ## Required reading
 
-Before making changes related to architecture, module boundaries, dependencies, compiler behavior, runtime behavior, backend behavior, tracing, tensor model, training, documentation, or build structure, read:
+Reading is indexed by role and actual change scope. Every contributor or agent reads:
 
-- `ARCHITECTURE.md`
-- `docs/architecture/current-architecture-plan.md`, if present
-- `docs/planning/planning-guide.md` and `docs/planning/roadmap.md`, before creating, updating, or executing implementation plans
-- the applicable master plan and task specification under `docs/planning/`, if they exist
+- this `AGENTS.md`;
+- the current task brief or user request;
+- affected source and focused tests; and
+- the exact authoritative contract headings named by the brief.
 
-`ARCHITECTURE.md` is the authoritative architecture contract.
+Planners and coordinators that create, reorder, or materially update plans also read
+`docs/planning/planning-guide.md`, `docs/planning/roadmap.md`, and the relevant active master-plan
+section. Before launching an executor, they verify the task is `Ready`, is at an authorized
+frontier, and has satisfied dependencies, then record that verification in the task brief.
 
-Files under `docs/` are explanatory unless they are explicitly referenced by `ARCHITECTURE.md`.
+Executors do not read the full planning guide, full roadmap, completed predecessor tasks, task
+histories, the full glossary, unrelated architecture sections, or prior completion evidence by
+default. They use the scope index in `ARCHITECTURE.md`, then read the exact root and incorporated
+scoped-contract headings identified by the task brief for every affected module or boundary. If
+an applicable contract is missing or ambiguous, stop and ask for clarification rather than
+inventing architecture.
 
-## Agent task isolation and completion
+Current source, focused tests, and authoritative current contracts take precedence over historical
+task narratives. Read a predecessor task only when unresolved historical evidence is explicitly
+needed.
 
-Do not perform coding or documentation implementation work directly in the main planning agent context.
+`ARCHITECTURE.md` is the authoritative architecture root and sole authority index. Only the six
+scoped files it explicitly incorporates are normative, and only within their stated scopes. All
+other files under `docs/` are explanatory or coordinative and cannot override the contract.
 
-The main agent context is for planning, architecture discussion, task decomposition, review, and coordination.
+## Change classification and task isolation
 
-Each concrete coding, refactoring, testing, or substantive documentation task must be executed in a separate agentic task/thread with a clean context.
+Classify work by actual impact, not Java visibility. If uncertain, classify upward.
 
-The separate task/thread must receive only the relevant instructions, files, constraints, and acceptance criteria needed for that task.
+- **Class A — Local:** bounded internal, test, or documentation-only work that changes none of the
+  following: observable semantics or numerics; public or supported API; lifecycle or ownership;
+  concurrency; persistence or application binary interface (ABI); backend capability; dependency
+  direction; cross-module workflow; or a hot-path contract. One context is sufficient, and the
+  main coordination context may implement it directly. The implementer performs the targeted
+  documentation and Javadoc impact review.
+- **Class B — Capability or public API:** a module capability, public or supported API,
+  user-visible behavior, or lasting module-local lifecycle contract. Non-trivial work uses a clean
+  implementation context. An independent documentation or review context is required when public
+  API, user workflow or behavior, terminology, or a durable contract changes; otherwise record a
+  reasoned no-change conclusion.
+- **Class C — Architecture or high-risk boundary:** a module edge or ownership rule, the
+  Runtime/Prepare boundary, native ABI or resource lifetime, concurrency, mixed-backend
+  composition, generated-code or hot-path invariant, or a similarly high-risk cross-module
+  contract. A clean implementation context and an independent targeted review/documentation
+  context are mandatory, together with ADR, architecture, conformance, or integration validation
+  where applicable.
 
-Do not rely on the implementation agent remembering prior conversation context unless that context is explicitly included in the task prompt.
+A private method is not automatically Class A. A behavior-changing bug fix is at least Class B
+and may be Class C.
 
-When creating a separate task context, include:
-
-- the exact task goal
-- relevant files or modules
-- applicable constraints from `ARCHITECTURE.md`
-- expected output
-- tests or validation to run
-- whether documentation or architecture tests must be updated
+The main context coordinates Classes B and C and may directly implement Class A. Give every clean
+execution context a compact packet containing the exact goal, relevant files and symbols, exact
+contract links or headings, acceptance criteria, validation, documentation impact, and completion
+status format. The task brief plus a standard short launcher is the execution packet; do not rely
+on remembered conversation context.
 
 The implementation agent must work toward a complete result and should not intentionally leave the task half-finished.
 
@@ -48,7 +74,7 @@ If the task cannot be fully completed, the implementation agent must clearly sta
 - what follow-up is required
 - which files or areas are affected
 
-At the end of every separate task/thread, the implementation agent must provide a completion summary.
+At the end of every execution context, the agent must provide a completion summary.
 
 The completion summary must include:
 
@@ -78,33 +104,54 @@ If architectural uncertainty appears during implementation, the implementation a
 
 ## Architecture contract
 
-All changes must preserve the architecture contract in `ARCHITECTURE.md`.
+All changes must preserve the architecture contract indexed by `ARCHITECTURE.md`, including its
+global rules and the one incorporated scoped contract that owns the affected concern.
 
-If a requested change conflicts with `ARCHITECTURE.md`, stop and explain the conflict before editing code.
+If a requested change conflicts with the root or an incorporated scoped contract, stop and explain
+the conflict before editing code.
 
-Do not duplicate architecture rules in this file. Architecture rules belong in `ARCHITECTURE.md`.
+Do not duplicate architecture rules in this file. Architecture rules belong in the root or the
+one scoped contract that the root explicitly incorporates for that concern.
 
 When an architectural decision changes, update all relevant files in the same change:
 
-1. `ARCHITECTURE.md`
-2. the relevant document under `docs/architecture/`
+1. `ARCHITECTURE.md` and the one owning scoped contract
+2. the relevant explanatory document under `docs/architecture/`
 3. an ADR under `docs/design/decisions/`, when the decision is significant
 4. architecture tests under `testing/architecture-tests/`, when dependency rules change
 
 ## Documentation discipline
 
-Substantive documentation creation or revision must be performed and finalized in a separate documentation-focused agent or thread with clean context, distinct from the implementation context. This is context isolation, not a separate branch, commit, or overall change: all required documentation must land in the same overall change before completion. An implementation agent may draft Javadoc while coding, but the documentation-focused agent must independently review and finalize affected Javadoc, explanatory documentation, and glossary impact before the task is marked `Complete`. The documentation pass is targeted: it reads the directly relevant contracts and profiles and does not repeat successful Java test suites unless it changes executable Java behavior or the task identifies a concrete reason. Follow `docs/developer-guide/documentation-rules.md` for the detailed workflow.
+Documentation review is risk-based. A separate clean documentation/review context is mandatory
+when work changes public or supported API, user-visible behavior or workflow, architecture or
+module boundaries, project terminology, a cross-module contract, a lasting module-local lifecycle
+or other durable contract, or any Class C boundary. It is not mandatory for ordinary internal
+changes. In that case, the implementer reviews affected explanatory documentation and Javadocs
+and records `Documentation impact: none; <reason>` when no update is needed.
 
-Before writing documentation, identify its document type and apply the matching profile under `docs/developer-guide/documentation/` together with the general style. Explain terms at first use, update the glossary when terminology changes, and include examples appropriate to that document type.
+An implementation agent may draft Javadoc while coding. When an independent pass is required, it
+finalizes affected Javadoc, explanatory documentation, examples, links, and glossary impact in the
+same overall change. The pass is targeted to the actual diff and relevant contracts. It reuses
+successful executable-test evidence unless it changes executable behavior or identifies a concrete
+reason to rerun a test. Follow `docs/developer-guide/documentation-rules.md` for the detailed
+workflow.
+
+Before writing documentation, identify its document type and apply the matching profile under
+`docs/developer-guide/documentation/` together with the general style. Explain terms at first use
+and include examples appropriate to that document type. Review the glossary with targeted search
+for relevant terms and anchors; never require reading the entire glossary by default.
 
 Documentation changes should keep the following distinction clear:
 
 ```text
 ARCHITECTURE.md
-  authoritative architecture contract
+  authoritative root and sole authority index
+
+docs/architecture/contracts/
+  six scoped normative contracts incorporated by the root
 
 docs/
-  explanations, guides, design notes, examples, ADRs
+  other explanations, guides, design notes, examples, ADRs
 
 docs/planning/
   non-authoritative implementation plans
@@ -123,13 +170,24 @@ Javadoc must always provide a meaningful, detailed description of the documented
 
 ## Planning discipline
 
-Implementation plans and task specifications live under `docs/planning/`. Before creating, updating, or executing planning tasks, read `docs/planning/planning-guide.md` and `docs/planning/roadmap.md`.
+Implementation plans and task briefs live under `docs/planning/`. Planners that create, reorder,
+or materially update them read the planning guide, roadmap, and relevant active master-plan
+section. Executors use the verified brief and scoped contracts rather than re-reading global
+history.
 
-Planning documents are not authoritative architecture contracts. If a planning document conflicts with `ARCHITECTURE.md`, the architecture contract wins and implementation must stop until the conflict is resolved.
+Planning documents are not authoritative architecture contracts. If a planning document conflicts
+with the root or an incorporated scoped contract, the architecture contract wins and
+implementation must stop until the conflict is resolved.
 
-Represent non-trivial implementation work as a cohesive task specification under the relevant `tasks/` directory. A task should normally deliver one complete capability inside one module rather than split its semantic type, public facade, tests, and documentation into separate mechanical tasks. Task specifications must follow the planning guide and define the goal, scope, exclusions, architecture constraints, affected files, acceptance criteria, validation, dependencies, follow-up tasks, implementation prompt, and completion summary.
+Represent non-trivial implementation work as a cohesive compact task brief under the relevant
+`tasks/` directory. A task should normally deliver one complete capability inside one module
+rather than split its semantic type, public facade, tests, and documentation into separate
+mechanical tasks. Follow the compact format and size guardrails in the planning guide. Existing
+completed task specifications remain valid and need no retrospective rewrite.
 
-Execute tasks in the order listed by the relevant master plan. Create a detailed task specification for the next unfinished task only. Parallel or out-of-order execution is an explicit exception that must be justified and recorded in the master plan.
+Execute tasks in the order listed by the relevant master plan. Create a detailed task brief for the
+next unfinished task only. Parallel or out-of-order execution is an explicit exception that must
+be justified and recorded in the master plan.
 
 ## Legacy implementation reference
 

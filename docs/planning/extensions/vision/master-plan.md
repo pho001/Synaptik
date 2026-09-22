@@ -143,9 +143,10 @@ operation. No hidden cache, shared mutable reader, or global registry is introdu
 | 0005 | Image batching | Draft | 0004; Data 0003 equal-shape numeric batching | Validate transformed sample compatibility, derive batch extent, delegate final numeric stacking to Data, and return an image-specific Tensor batch without a dataset/loader facade. |
 | 0006 | Vision capability checkpoint | Draft | 0003–0005 | Validate representative/corrupt/adversarial inputs, resource bounds, metadata semantics, Tensor values/layout, batch geometry, documentation, optional decoder dependency, and architecture enforcement. |
 
-No detailed Vision task exists. NN 0018 remains the sole new detailed `Ready` task in this
-planning program. Promote Vision 0001 only as part of the explicitly authorized coordinated
-architecture change.
+No detailed Vision task exists. No Vision, Checkpoint, or NN task is `Ready`. The repository's
+current planning frontier is Draft [Metal 0004](../../backends/metal/master-plan.md), which is not
+implementation authorization. Vision 0001 remains gated by the coordinated architecture decision
+owned by [Data 0001](../data/master-plan.md).
 
 ## Planned image-batch flow
 

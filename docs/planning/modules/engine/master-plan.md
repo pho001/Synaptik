@@ -1,96 +1,82 @@
 # Engine Master Plan
 
-## Goal
+## Goal and authority
 
-Provide the public lifecycle facade and explicit composition root for compiler, prepare, runtime, and concrete backends.
+Engine is the public lifecycle facade and explicit composition root for compiler, Prepare,
+Runtime, tuning, and concrete backends. This plan is a non-authoritative implementation map;
+[`ARCHITECTURE.md`](../../../../ARCHITECTURE.md), especially `Core lifecycle`,
+`modules/engine`, and the compile/prepare/run lifecycle headings, is authoritative.
 
-## Architecture references
+Focused explanations and decisions:
 
-- [Architecture contract](../../../../ARCHITECTURE.md)
+- [Lifecycle](../../../architecture/lifecycle.md)
 - [Module boundaries](../../../architecture/module-boundaries.md)
 - [Dependency rules](../../../architecture/dependency-rules.md)
+- [Runtime, Prepare, and Backend Boundary](../../../architecture/runtime-prepare-backend-boundary.md)
+- [ADR 0013: Prepared-execution persistent-resource lifecycle](../../../design/decisions/0013-prepared-execution-persistent-resource-lifecycle.md)
 
-## Scope
-
-- public compiled graph facade
-- explicit backend registration
-- deterministic standard composition of known built-in backends
-- compile and prepare orchestration
-- composition of runtime, validators, tracing, and backends
-- explicit typed caller-input binding and published-result access
-- explicit host materialization/publication needed by downstream persistence consumers
-
-## Out of scope
-
-- kernel implementations
-- backend internals
-- graph optimizer passes
-- runtime service locator and core reflective discovery
-- Tensor-owned execution, backward methods, gradients, or runtime state
-
-## Module invariants
-
-- Engine is the outer composition root.
-- Every usable backend is registered explicitly by Engine construction code. Task 0001 owns one
-  explicit CPU adapter because it is the sole supported complete lifecycle adapter. A later
-  standard factory may own a fixed ordered inventory of known built-ins only as their adapters and
-  complete schedule-composition contracts become real.
-- Backend eligibility and partition ownership are resolved before Runtime execution.
-- Concrete backends never depend on engine.
-
-## Allowed dependencies
-
-- modules/model
-- modules/planning
-- modules/compiler
-- modules/runtime
-- modules/prepare
-- modules/config
-- modules/trace
-- concrete backend modules
-- tools/tuning
-
-Engine declares dependencies directly for every public contract its source names. Task 0001's
-advanced API names Model `Tensor` and `HostTensorStorage`, while its package-private composition
-seam names Planning `BackendCapabilityProvider`; direct Model and Planning dependencies are
-therefore required rather than inherited transitively through Compiler, Prepare, or CPU.
-Complete task 0007 adds a direct implementation dependency on `tools/tuning` because Engine's
-package-private composition invokes that module's owned cache/measurement workflow. No tuning
-type enters the ordinary public API, and the tool remains independent of Engine. This is a
-concrete realization of the existing composition-root and tuning ownership rules, not a new
-authoritative architecture decision.
-
-## Forbidden dependencies
-
-- No inward module may depend on engine.
-
-## Package structure
+## Lifecycle position
 
 ```text
-io.github.pho001.synaptik.engine/
-  Engine                      public ordinary standard-composition owner
-  CompiledGraph               public ordinary owner-bound compile handle and input metadata
-  PreparedExecution           public ordinary owner-bound prepared handle
-  RunResult                   public ordinary publication lease and explicit materialization owner
-  HostTensorValue             public immutable detached canonical host payload
-  ScalarObjectiveBackwardResult
-                               public detached objective and target-aligned gradient values
-  ModelAutotuningRequest      public representative-value and caller model-identity request
-  ModelAutotuningPreparation  public prepared handle, outcome, and translated tuning evidence
-  AdvancedEngine              public advanced composition and lifecycle owner
-  AdvancedCompiledGraph       public opaque owner-bound compile handle
-  AdvancedPreparedExecution  public opaque owner-bound prepared handle
-  AdvancedRunResult           public lifecycle-only result wrapper
-  package-private composition and lifecycle machinery
+Tensor outputs -> Engine compile handle -> Engine prepared handle
+caller inputs  -> synchronous run -> leased RunResult
+publication    -> explicit materialization -> detached HostTensorValue
 ```
 
-The root package is a deliberate small facade. Task 0001 adds no public `spi` package or generic
-backend abstraction: its package-private composition seam has the current CPU realization and a
-focused fake test realization only. Task 0002 adds the distinct ordinary `Engine` owner with a
-construction-and-close surface only. Complete task 0003 adds the three ordinary handle/result
-types and lifecycle methods shown above without exposing the advanced representation-level
-surface. Complete task 0004 adds the one host payload and method shown above without widening the
-advanced surface.
+Engine owns composition and outward handles. Prepare constructs the accepted recipe; Runtime
+owns the inward `PreparedExecution`, its run lease, and physical prepared-resource lifetime.
+One-shot compute/backward and representative tuning use the same boundaries with temporary
+handles that Engine closes before returning or publishing another owner.
+
+## Scope and non-goals
+
+Engine owns standard and advanced composition, compilation/preparation orchestration, owner-bound
+handles, typed input binding and publication metadata, explicit host materialization, one-shot
+compute/backward workflows, and bounded optional model-autotuning composition.
+
+Engine does not implement kernels, lowering, backend storage, graph optimizer passes, Runtime
+state, a service locator, reflective discovery, Tensor-owned execution/backward state, or hidden
+backend selection during a run.
+
+## Stable invariants and ownership
+
+- Engine is the outer composition root. It explicitly constructs or takes ownership of concrete
+  adapters; concrete backends and inward modules never depend on Engine.
+- `Engine.standard()` currently owns one fresh fixed CPU composition. `AdvancedEngine` takes one
+  supported CPU integration. No current surface assembles a mixed-owner schedule.
+- Ordinary public signatures expose Engine/Model values, not Compiler, Prepare, Runtime, or CPU
+  SPI identities. The advanced surface remains an explicit lower-level integration boundary.
+- Ordinary and advanced prepared handles are explicit closeable owners of exactly one inward
+  Runtime execution. Closing a handle unregisters and closes that execution once but does not
+  independently close an already-returned result.
+- Runtime remains the unique run-lease authority. Engine synchronizes outward admission and
+  delegate ownership without adding a second resource lease or waiting close protocol.
+- Every one-shot, tuning trial, correctness run, loser, fallback rollback, and rejected
+  preparation is closed exactly once. A selected preparation has one published Engine owner.
+- Engine shutdown waits for admitted operations, then closes retained results in reverse run-
+  publication order, retained preparations in reverse prepare-publication order, and finally the
+  backend composition.
+- Materialization borrows one authenticated publication only while its result is open and returns
+  a detached immutable value. Engine never exposes a physical representation or backend handle.
+
+## Dependencies
+
+Current allowed direct dependencies are `modules/model`, `modules/planning`, `modules/compiler`,
+`modules/runtime`, `modules/prepare`, `modules/config`, `modules/trace`, `backends/cpu`,
+`backends/metal`, `backends/cuda`, and `tools/tuning`. Each edge exists only for a contract named
+by composition. No inward module or concrete backend may depend on `modules/engine`.
+
+## Package map
+
+All types remain in `io.github.pho001.synaptik.engine`; the root is a deliberately small facade,
+not a catch-all service registry.
+
+| Surface | Types and role |
+|---|---|
+| Ordinary public lifecycle | `Engine`, `CompiledGraph`, closeable `PreparedExecution`, closeable `RunResult`, detached `HostTensorValue`, and `ScalarObjectiveBackwardResult`. |
+| Public autotuning | `ModelAutotuningRequest` and `ModelAutotuningPreparation`, which publish one retained ordinary prepared handle plus outcome/evidence. |
+| Advanced public lifecycle | `AdvancedEngine`, `AdvancedCompiledGraph`, closeable `AdvancedPreparedExecution`, and closeable `AdvancedRunResult`. |
+| Package-private composition | `EngineBackendComposition`, the CPU realization, representative execution/correctness machinery, lifecycle registries, and cleanup arbitration. |
 
 ## Task list
 
@@ -110,288 +96,41 @@ advanced surface.
 | [0009](tasks/0009-public-complete-plan-autotuning-composition.md) | Public complete-plan autotuning composition | Complete | 0006A–0008A; Config 0006B; tools/tuning 0002; CPU 0010I–0010J; Prepare 0004; Runtime 0010/0015 | Composed the authenticated Phase-1 decision into CPU's complete-plan batch, adapted exact correctness and fresh execution to generic Phase 2, freshly prepared the authenticated winner, and extended existing public evidence without a new request, operation, or top-level public type. |
 | [0010](tasks/0010-prepared-handle-ownership-and-closure.md) | Prepared-handle ownership and closure | Complete | Runtime 0016; Prepare 0006; 0001–0009 | Made ordinary and advanced prepared handles explicit closeable owners, closed every one-shot/trial/loser/rollback preparation exactly once, and closed retained preparations after results and before backend integration shutdown. |
 
+## Milestones and current frontier
 
-## Milestones
+- Explicit CPU composition and advanced lifecycle are Complete through 0002.
+- Ordinary typed compile/prepare/run, publication, host materialization, compute, and backward are
+  Complete through 0006.
+- Representative and complete-plan autotuning composition plus its capability checkpoint are
+  Complete through 0009.
+- Prepared-handle ownership and closure are Complete through 0010. No later Engine task is
+  `Ready`, `In progress`, or detailed.
+- Runtime 0016 and Prepare 0006 supply the inward lifecycle. Metal 0002 and 0003 are Complete;
+  Draft Metal 0004 is the current repository planning frontier.
 
-- Explicit backend composition
-- Compile facade
-- Prepare and run lifecycle facade
+## Live risks and gates
 
-## Current status
+- Expanding standard composition requires another supported lifecycle adapter and a real
+  complete mixed-owner schedule-contribution contract. Fixed CPU-only composition must not imply
+  generic discovery or mixed-backend execution.
+- Preserve one owner for every prepared handle and close all temporary, losing, rollback, and
+  retained preparations in the established order. Never duplicate Runtime's lease protocol.
+- Keep public materialization detached and explicit; do not expose Runtime representations,
+  backend storage, or inward SPI types through ordinary signatures.
+- Metal 0004 owns Metal route candidates and cache compatibility. It does not require a new
+  Engine task or weaken backend-private route ownership.
 
-The established Engine foundation is Complete through task 0010. It composes completed
-tools/tuning 0002, CPU 0010J, Engine 0008A, and Config 0006B through the existing admitted
-representative session. The public operation preserves the exact authenticated Phase-1 decision,
-completes exact correctness before fresh Phase-2 timing, and freshly prepares only the
-authenticated complete-plan winner. `ModelAutotuningRequest` and `Engine.prepareTuned(...)`
-remain unchanged; existing result evidence now includes the narrow required complete-plan
-extension. Runtime 0016 supplies the inward close/lease owner and Prepare 0006 supplies the
-transactional finalizer handoff. Detailed
-[Engine 0010](tasks/0010-prepared-handle-ownership-and-closure.md) is `Complete` after corrected
-executable lifecycle arbitration and the mandatory fresh documentation-focused pass.
-It covers both public handles, one-shot forward/backward preparations, every
-representative correctness/measurement trial, selected/fallback publication rollback, and
-retained shutdown ordering as one cohesive Engine-owned lifecycle task. Ordinary and advanced
-prepared handles are now closeable outward owners. Metal 0002's Engine lifecycle prerequisite is
-satisfied, but its fresh owning audit and any later detailed specification remain separate; no
-later Engine task is Ready or detailed.
+## Status normalization
 
-The final capability checkpoint reused one
-fresh clean repository-wide run, reconciled the fourteen authorized documentation paths, and
-confirmed the current CPU-only lifecycle without executable or architecture changes. Complete
-[Compiler 0006B6](../compiler/tasks/0006b6-final-convolution-logical-layout-closure.md) now
-satisfies the original positive public dimensional-convolution exit condition with exact public
-Engine integration evidence.
+The task table and linked task status/results are controlling. This compaction removes historical
+frontier and blocker narratives while retaining the current state: Engine is Complete through
+0010. Metal 0002 and 0003 are Complete.
+Metal 0004 is Draft, and no Engine task is Ready or detailed. No task status, order, dependency,
+ownership rule, API, or executable behavior changes.
 
-The audit also corrected the earlier planned convolution claim. Model construction and ordinary
-inference preserve unresolved logical layouts for Conv2d and Conv3d results, including the Conv2d
-occurrence inside the visible Conv1d composition, while current CPU capability admission requires
-resolved convolution layouts. A later `contiguous()` result does not change the producer
-descriptor seen during ownership planning. Compiler owns final descriptors before Planning
-constructs capability queries, and Complete Compiler 0006B6 now performs the bounded final graph
-closure after optimization and validation: fully static unresolved Conv2d/Conv3d results become
-canonical contiguous logical values, and only the direct axis-two squeeze of a newly closed
-Conv2d result receives the view layout needed by visible Conv1d composition. Dynamic Shapes
-remain unresolved, CPU admission remains strict, and Prepare/Runtime infer no layout. Its public
-Engine fixtures positively execute NCW Conv1d, grouped NCHW Conv2d, and grouped NCDHW Conv3d, so
-task 0008 consumes that evidence without reimplementing or obscuring the boundary.
-Compiler 0006B3, Prepare 0003–0004, Runtime 0010 and its closure hardening,
-and CPU 0010F supply the bounded CPU-only Engine lifecycle without shared-contract changes:
-`GraphCompilationPort` supplies complete compile artifacts, `GraphPreparation` accepts explicit
-positional preparation plus one complete assembler, `PreparedExecutionRunner` runs
-representation-level inputs, and `CpuBackendIntegration` supplies all three CPU collaborations.
+## History and update policy
 
-The first clean implementation attempt exposed one planning error before any implementation was
-retained: the planned API directly names Model types and its package-private composition seam
-directly names a Planning type, but the Engine build does not yet declare either project. Task
-0001 now requires the exact direct `modules:model` and `modules:planning` dependencies, the
-focused Engine dependency inventory test, and repository-wide validation appropriate to a module-
-dependency change. This is a realization of the existing outer composition direction, not an
-architecture decision change.
-
-The corrected implementation then proved a second planning omission after Engine compilation,
-six focused Engine tests, one focused architecture test, and whitespace validation passed. The
-integration-test module depended only on Engine, whose deliberate `implementation` dependencies
-are not exported. Its test directly names CPU, Config, and Model contracts and javac must also
-resolve Compiler and Runtime types exposed by the advanced Engine signatures. Task 0001 therefore
-retains the integration module's Engine `implementation` dependency and adds exact ordered
-`testImplementation` dependencies on Compiler, Runtime, Config, Model, and CPU. It does not widen
-Engine dependencies to `api` or add unrelated integration dependencies. This is test-fixture
-dependency closure, not a production architecture decision change.
-
-Task 0001 is deliberately an advanced/integration foundation. It uses the current standalone
-`CompileMode`, `GraphOptimizationConfig`, `BackendIntent`, and `PartitionScoringConfig` values and
-the existing representation-level Runtime caller input. Missing `CompileConfig`, `PrepareConfig`,
-and `RunOptions` aggregates do not block that seam; their final convenience ownership remains in
-Config. The normal standard composition is current from Engine 0002, typed binding and result
-access are current from 0003, and host materialization is current from 0004. Therefore 0001 is not
-documented as the completed end-user experience.
-
-The critical seam audit does not support the earlier broad implication that several registered
-backends can already contribute to one schedule. CPU is the only supported concrete lifecycle
-adapter. Its assembler deliberately owns the complete schedule for exactly one non-empty maximal
-CPU partition; Metal and CUDA contain placeholders only. Task 0001 therefore takes ownership of
-exactly one caller-supplied CPU integration, keeps compiled and prepared delegates behind opaque
-owner-bound handles, and preserves CPU's zero/pass-through and mixed/multi-partition rejection.
-It adds no public hypothetical backend interface. A package-private composition collaboration is
-justified by the current CPU realization and lifecycle failure-injection tests.
-
-The current standard composition is compatible with the architecture and required no
-authoritative decision task. “Registered explicitly” permits its fixed Engine-owned factory to
-construct and register only known built-in adapters in deterministic order. It does not permit
-classpath or annotation scanning, `ServiceLoader`, hidden service location, mutable process-global
-Engine state, or Runtime backend selection. The compile/prepare lifecycle selects eligible
-partition ownership from that fixed composition. Until another concrete adapter and a shared
-complete-schedule contribution contract exist, the truthful standard inventory is CPU-only.
-Ordinary users will not name or construct a CPU adapter.
-
-The supported future user surface converges on Tensor expressions, standard or advanced Engine
-composition, compile/prepare/run, typed input bindings, typed/host results, one-shot convenience,
-and optional autotuning. Compiler, Prepare, Runtime, and CPU integration contracts are public SPI
-only and must not appear in ordinary user-facade signatures; `.internal` stays private.
-
-One-shot execution remains Engine-owned. Complete task 0005 historically introduced the ordinary
-explicit-input `Engine.forward(...)` singleton and ordered-output overloads. Complete task 0005A
-replaces both without compatibility aliases using the selected four `Engine.compute(...)`
-overloads. It transiently inventories provenance-free leaves from immutable Tensor expression
-provenance, then lets Compiler's final ordered bindings select the actual run inputs. This is not
-Compiler IR traversal or Engine-owned liveness inference, and no Tensor reference survives the
-synchronous call.
-Complete task 0006 lowers backward convenience to Compiler's explicit functional gradient
-request. Its outward API is restricted to a scalar objective with explicit gradient targets;
-0003's ordinary explicit-seed compile overload and the advanced full-request path remain
-available. Engine must not inspect the graph to guess targets or invent a no-argument backward
-promise whose seed/target meaning is undefined.
-
-Diagnosis context `01a0a570-06d4-7012-814b-ca71af8676e7` showed that the absent seed could survive
-as a source-only published compile-time constant with unresolved layout, no producer partition,
-and no consumer partition. At that point Prepare projected only partition-node-connected values,
-CPU received no source or assignment, and even a fabricated assignment would have left Engine
-host-copy preflight rejecting the unresolved layout. The completed architecture-owned repair is
-Compiler 0006B5 -> Prepare 0005 -> CPU 0010H: Compiler closes the canonical logical descriptor,
-CPU contributes exact physical geometry through Prepare's complete source-only handoff and shared
-assignment, and CPU builds a fresh initialized representation for each Runtime run state. Complete
-Engine 0005A was independent of that chain because Complete Compiler 0006B4 already supplies
-authoritative final ordered input bindings. Engine 0006 uses both completed seams without
-an inward API change. Runtime needs no new task because current initialization, validity, ordered
-publication/alias, lease, isolated-state, and cleanup contracts are sufficient.
-
-Config 0006A mapping and tools/tuning 0001 integration belong to optional Engine 0007, not Engine
-0001 or the standard untuned path. Complete
-[CPU 0010I](../../backends/cpu/tasks/0010i-supported-cpu-local-workload-tuning-composition-adapter.md)
-now lets outer composition code construct a `BackendPartitionTuningHandoff`, enumerate opaque CPU
-candidates, round-trip compatible decisions, and prepare an exact trial or selected recipe. It
-does not implement `BackendWorkloadTuning`, execute a complete candidate, or bind representative
-values. Config 0006A deliberately carries only a representative-profile identity, not
-representative Tensor values, a model fingerprint, occurrence weights/context, or ownership and
-cleanup rules for trial runs. Draft CPU 0016 instead generalizes tuning across later peer routes.
-Completed 0006A supplies the package-private representative binding/execution/cleanup and strict-
-versus-safe-heuristic fallback foundation. Detailed Engine 0007 now selects the public request,
-caller-defined model identity, sole occurrence-0/weight-1 mapping, Config/tuning translation, and
-Engine-owned result/evidence view without claiming graph/plan tuning.
-The post-CPU-0010J audit found that Engine must first add exact representative-output comparison:
-Runtime exposes result-indexed representations, CPU already supplies canonical host copying, and
-Engine alone owns publication descriptors, representative inputs, result cleanup, and fallback.
-Complete task 0008A now owns that package-private prerequisite. It preflights the complete ordered
-publication boundary, captures detached canonical represented bytes from one fresh execution, and
-returns only exact match/mismatch metadata for later fresh executions after cleanup. The completed
-fresh audits and implementations completed tools/tuning 0002 and Config 0006B. Complete task 0009
-now supplies the bounded public Phase-2 composition; it adds no inward contract or architecture
-change.
-
-Model/training checkpoint persistence may consume the completed task 0004 host-value boundary,
-but must not bypass it by reading backend storage from NN or Training. The boundary supplies
-detached bytes, not a checkpoint format or training workflow.
-
-The dimensional-convolution program adds no Engine operation switch or convolution-specific
-binding API. Task 0008 will exercise representative rank-one composition and first-class rank-two
-and rank-three convolution through the same typed logical-input, Prepare, Runtime, and publication
-mapping established by tasks 0001–0006. This is the execution-readiness gate for the later NN
-layer integration checkpoint; it does not move shape inference, lowering, or kernel selection into
-Engine.
-
-Detailed task 0001 records the exact advanced API, lifecycle gate, ownership transfer, failure
-rollback, file ceiling, validation, and clean documentation handoff. Its final evidence includes
-7/7 focused Engine tests, 2/2 integration tests, 1/1 focused architecture test, Engine Javadoc,
-the distinct-package public fixture, exact `javap` inspection, and the repository checkpoint of
-3,067 tests with zero failures or errors and 28 skipped. It also records the two historical
-compile failures that corrected dependency scope; neither is a final failure.
-
-Engine 0002 is Complete. Its implementation adds a distinct ordinary
-`Engine` type with `standard()`, `isClosed()`, and `close()` only. The standard factory owns one
-fresh CPU integration and delegates its lifetime to the already-proved advanced lifecycle; it
-does not expose that delegate. Typed compile/prepare/run signatures were reserved for task 0003 so the
-ordinary surface does not inherit Compiler, Runtime representation, or CPU integration types.
-The implementation and documentation contexts passed the exact 12/12 Engine, 1/1 integration,
-1/1 architecture, Javadoc, public-shape, fixture, bytecode, token, Markdown, scope, status,
-unchanged-Gradle/advanced-source, and whitespace gates recorded by the task.
-
-Detailed Engine 0003 is `Complete` after implementation context
-`01a0a46c-8a9e-7862-bd81-0d3495092894` and clean documentation context
-`01a0a488-b8dd-7bf1-a8fc-947f531f420f`. Complete Compiler 0006B4 exposes the immutable ordered
-`TensorId`/final-`ValueId` association for every caller-bindable input. Existing publication facts
-preserve forward and gradient Tensor identity, order, duplicates, and aliases; Prepare preserves
-caller-input and forward-then-gradient publication occurrence order; Runtime supplies isolated
-execution and a metadata-independent result lease; and CPU supplies the host-storage borrow seam.
-The ordinary API binds arbitrary-order caller Tensors by ID, snapshots current caller-owned host
-storage once per run, preserves every forward/gradient publication occurrence and alias role, and
-keeps numerical values behind explicit per-occurrence materialization. The corrected real CPU examples use
-only CONTIGUOUS over resolved FLOAT32 leaves, including `seedLeaf.contiguous()` as the repeated
-explicit seed. The exact lifecycle, ownership, validation order, 19-path implementation ceiling,
-tests, documentation handoff, and current limitations are recorded in the task. No architecture
-or inward-contract change was required.
-
-Independent Engine 0004 planning context `01a0a4b4-9b2f-7832-977e-ed984e291a4d` found two bounded
-prerequisite gaps and correctly left Engine blocked. Runtime 0015 and CPU 0010G subsequently
-closed them: Runtime now lends the exact indexed publication representation while its result lease
-is open, and CPU now copies an exact supported representation plus resolved static descriptor into
-fresh bounded canonical bytes for all six current types. Clean planning context
-`01a0a4f6-d1f9-7b61-9090-27a25b034228` fixed the ordinary API, occurrence authentication,
-validation, lifecycle/concurrency protocol, delegation, tests, documentation handoff, and 23-path
-ceiling in detailed task 0004. Implementation context
-`01a0a502-9546-7de3-b34f-882f918f8e97` completed the executable work, and documentation context
-`01a0a510-07fe-7bd1-816b-8e7318b5387b` finalized the public explanation and validation evidence.
-Engine 0004 is `Complete`. Detailed Engine 0005 is also `Complete` after clean planning context
-`01a0a527-b8d0-78e1-9c56-f39f73a91e26`, implementation context
-`01a0a533-6b58-7d70-9cb6-3bcc9b07ee6c`, scope-correction context
-`01a0a53c-4ea1-72d2-88d4-79c03a92a585`, completion context
-`01a0a540-aad0-7551-856b-b10109f56a68`, and clean documentation context
-`01a0a545-5c95-7cc0-84b8-ba3dd02914a2`. It adds the two exact ordinary `forward` overloads,
-explicit logical inputs, an aggregate returned-payload byte bound, ordered detached host values,
-one-admission lifecycle, and cleanup/failure rules within the corrected fourteen-path ceiling.
-Detailed Engine 0005A is `Complete` after implementation context
-`01a0afef-3f95-78d1-b56e-d44aaeaf002c` and its mandatory clean documentation finalization. It
-replaced the two explicit-input `forward(...)` overloads with four `compute(...)` overloads and
-uses transient Model-expression leaf inventory plus final Compiler binding selection. It executed
-before CPU 0010H under the recorded sequential ordering exception because it changed only
-Engine's ordinary convenience surface. Detailed Engine 0006 is `Complete` after implementation
-context `01a0b11d-cc89-7590-8836-0555b05e7001` and clean documentation context
-`01a0b126-f60b-7a11-8d7c-621e532952f0`. Its exact outward `backward(...)` API has no explicit
-input list, fixes Compiler's absent positive-one scalar seed and ERROR policy, and returns a
-detached objective plus target-aligned gradients under one aggregate byte bound. The real scalar
-CPU fixture proves the objective and positive-one gradient through the completed source-only
-constant chain. Engine 0005, Engine 0006A, Engine 0007, and Engine 0008 are `Complete`.
-
-## Open questions
-
-- Expand the standard built-in inventory only after another supported lifecycle adapter and a
-  complete multi-backend schedule-composition contract exist; task 0002 fixes the current
-  inventory to CPU only.
-- Define mixed-backend schedule contributions only after a second concrete lifecycle adapter
-  establishes a non-hypothetical consumer need. The current complete CPU assembler cannot be
-  combined with another complete assembler.
-- The already planned next dimensional-convolution frontier is NN 0025, followed by its 0025A
-  user-capability checkpoint. Those Draft rows own layer integration and must preserve Compiler
-  0006B6's descriptor boundary, strict CPU admission, and the explicit Conv3d-gradient limit.
-- Engine 0009 is Complete. It owns CPU 0010J adaptation, exact correctness and fresh execution,
-  selected production preparation, complete-plan evidence translation, and the existing public
-  fallback policy. Detailed Engine 0010 is Complete; no task after 0010 is Ready or detailed.
-
-## Decisions made
-
-- The implementation must follow the current architecture contract.
-- Legacy code is capability evidence only; new implementation is written from scratch.
-- Engine 0004 adds one final immutable `HostTensorValue` in the ordinary Engine facade. It
-  exposes `DataType dataType()`, `Shape shape()`, `long elementCount()`, `long byteSize()`, and a
-  fresh read-only `ByteBuffer bytes()` view over detached canonical row-major bytes. Multi-byte
-  values use big-endian order; BOOL uses one canonical `0` or `1` byte and BFLOAT16 retains its
-  represented 16 bits. It exposes no descriptor layout or physical span.
-- Ordinary materialization is an explicit lazy per-occurrence call
-  `RunResult.materialize(RunResult.Publication publication, long maximumBytes)`. Selection uses
-  the exact publication object from that result, not index, Tensor equality, `TensorId`, role, or
-  descriptor equality. Each successful call returns a fresh independent snapshot; repeated or
-  aliased occurrences are never cached, merged, or deduplicated.
-- The caller-supplied non-negative byte limit applies to the checked canonical logical byte count
-  before allocation or physical access. Static Shape, resolved layout, checked element/byte
-  counts, the byte limit, and the JVM array-size ceiling are validated before copying. All six
-  current data types and zero-element values are covered; binding-dependent Shape or unresolved
-  layout fails closed at this first boundary.
-- Materialization is valid only while the originating result is open. Result close and Engine
-  close wait for an admitted synchronous materialization; concurrent materializations on one
-  result are serialized. A completed `HostTensorValue` owns no closeable resource and remains
-  readable after result or Engine closure. Failure publishes no partial value and preserves the
-  original unchecked failure with distinct cleanup failures suppressed under the existing rules.
-- Runtime 0015 owns only leased result-indexed `BufferRepresentation` access. CPU 0010G owns the
-  descriptor-aware physical copy and canonical encoding. Engine owns publication selection,
-  outward lifecycle coordination, byte-budget validation defense, and the ordinary payload. No
-  Model, Prepare, Runtime, CPU, NN, Training, or Checkpoint contract is exposed through the
-  ordinary signatures.
-- Engine 0005 historically introduced `Engine.forward(Tensor, List<Tensor>, long)` and
-  `Engine.forward(List<Tensor>, List<Tensor>, long)`; completed 0005A removes them without aliases.
-- Engine 0005A replaces those methods rather than retaining aliases. It selects `compute(Tensor)`,
-  `compute(Tensor, long)`, `compute(List<Tensor>)`, and `compute(List<Tensor>, long)`; no-limit
-  forms delegate with `Long.MAX_VALUE`, while checked arithmetic and per-value JVM array ceilings
-  remain. The implementation inventories reachable provenance-free leaves identity-safely and
-  selects only matches in final `CompiledGraph.inputs()` order.
-- Complete Engine 0006 selects one explicit-target `Engine.backward(...)` method and one immutable
-  `ScalarObjectiveBackwardResult` separating the detached scalar objective from target-aligned
-  gradients. Compiler supplies the absent positive-one scalar seed and ERROR policy; existing
-  explicit-seed ordinary compilation and the advanced full request remain unchanged.
-
-## Risks
-
-- Becoming a service locator or absorbing backend implementation details.
-
-## Notes
-
-Keep this master plan concise. Put executable work in small task specifications under `tasks/` and follow [the planning guide](../../planning-guide.md).
+Detailed results, validation commands, context identifiers, audits, and past ordering exceptions
+remain in linked task files and Git history. Update this map only when ownership, dependencies,
+task order/status, a milestone, or a live gate changes. Put executable scope and evidence in the
+task brief and follow the [planning guide](../../planning-guide.md).

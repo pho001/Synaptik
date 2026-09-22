@@ -20,9 +20,10 @@ typed backend finalization input/collaboration, the minimal prepared-partition a
 compile projection, one immutable partition-local directed acyclic graph (DAG) per backend
 analysis context, explicit schedule assembly, complete schedule validation, and construction of
 the reusable prepared-execution root.
-The CPU backend now supplies the current physical allocation and access implementation, and
-Engine composes it into a public CPU-only prepare/run/materialization lifecycle. Other production
-backends and mixed-owner composition remain planned.
+The CPU backend now supplies the physical allocation and access implementation that Engine
+composes into its public CPU-only prepare/run/materialization lifecycle. Metal also supplies the
+current bounded MPSGraph and custom-kernel FLOAT32 `NEG` prepared routes, but current Engine
+composition does not expose them. CUDA and mixed-owner composition remain planned.
 The lifecycle flow therefore mixes current foundations with later stages; each focused section
 states its implementation status.
 [ADR 0011](../design/decisions/0011-per-run-runtime-resource-ownership.md) defines the
@@ -481,8 +482,14 @@ current: `BackendPartitionFinalizationResult` snapshots one executable and its a
 resources, shared Prepare rejects repeated exact identities, and graph preparation transfers the
 ordered unique resources only through successful `PreparedExecution` construction. Current CPU
 finalization returns an empty resource list. Current ordinary and advanced Engine prepared handles
-still do not close inward executions; Engine ownership remains planned for Engine 0010, and Metal
-0002 remains blocked on that task.
+are explicit closeable outward owners of one exact inward Runtime execution. Explicit handle close
+closes that execution once but does not independently close an already-returned result. Engine
+closes temporary, trial, and rollback preparations instead of publishing another owner, while
+Runtime remains the sole prepared-resource and run-lease authority. Engine shutdown closes
+retained results before retained preparations and then closes the backend composition.
+Completed Metal 0002 and 0003 consume this ownership chain for persistent MPSGraph executable
+and custom-kernel pipeline resources. Metal 0004 remains Draft, without a task brief, for typed
+route candidate generation and cache compatibility; it does not change this lifecycle.
 
 Preparation is transactional across this handoff. A finalizer cleans resources acquired before a
 failed return. After a successful return, shared Prepare tracks the unique resources in acquisition

@@ -1,14 +1,29 @@
 # Synaptik
 
-Synaptik is a modular Java foundation for compiling, preparing, and executing computational graphs across multiple backends. The project is under active development and currently provides its initial model foundations and repository structure.
+Synaptik is a modular Java foundation for compiling, preparing, and executing computational graphs
+across multiple backends. The project is under active development and currently provides a
+runnable CPU-only public lifecycle, backend-independent Tensor and compiler capabilities, and
+bounded Metal execution.
 
-The authoritative architecture contract is defined in [`ARCHITECTURE.md`](ARCHITECTURE.md). The contributor and agent workflow is defined in [`AGENTS.md`](AGENTS.md).
+[`ARCHITECTURE.md`](ARCHITECTURE.md) is the authoritative architecture root and sole authority
+index; it links the six incorporated scoped contracts. The contributor and agent workflow is
+defined in [`AGENTS.md`](AGENTS.md).
 
-Start with the [documentation index](docs/index.md). New contributors can follow [Getting started](docs/getting-started.md); the [implementation roadmap](docs/planning/roadmap.md) distinguishes implemented model contracts from planned lifecycle and backend work.
+Start with the [documentation index](docs/index.md). New contributors can follow
+[Getting started](docs/getting-started.md); the
+[implementation roadmap](docs/planning/roadmap.md) distinguishes current capabilities from
+planned work.
 
 ## Current implementation status
 
-The implemented public surface is currently limited to backend-independent model value types: data types, static and symbolic shapes, broadcasting, resolved layouts, and typed tensor/graph identifiers. Public tensors, graph compilation, preparation, execution, backends, tracing, and training remain planned. Documentation for those areas describes the architecture contract and intended workflow and is labeled accordingly; it is not a runnable API promise.
+The current public surface includes Tensor expressions, graph compilation, preparation, repeated
+execution with isolated invocation state, detached host materialization, one-shot forward
+computation, and a bounded scalar-objective backward convenience through one explicitly owned
+CPU composition. A bounded Metal backend can execute supported static `FLOAT32` negation
+partitions through MPSGraph or a single-operation custom route, but broader Metal coverage and
+standard or mixed-owner Metal composition remain planned. CUDA, training orchestration,
+persistence, and generic graph/plan tuning also remain planned. Focused documentation identifies
+the exact current boundary for each area.
 
 ## Prerequisites
 

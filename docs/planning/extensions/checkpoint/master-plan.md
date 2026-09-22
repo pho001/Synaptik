@@ -221,9 +221,9 @@ lambda or added as a generic reflective registry.
 | 0006 | Optional Training Checkpoint adapter | Draft | Architecture authorization for the optional project; 0002, 0004–0005 | Persist and restore the model plus optimizer/groups/progress/scheduler/RNG/sampler/scaler state without making model-only Checkpoint depend on Training. |
 | 0007 | Checkpoint capability and recovery checkpoint | Draft | 0004; 0006 when exact training resume is selected; Text 0003 for text integration | Validate corruption/resource bounds, atomic publication and interruption recovery, strict no-partial-install behavior, text fingerprint mismatch, model-only load, exact training resume, documentation, and dependency enforcement. |
 
-No detailed Checkpoint task exists. NN 0018 remains the sole new detailed `Ready` task in this
-planning program. Promote Checkpoint 0001 only when the architecture change is the active and
-explicitly authorized implementation frontier.
+No detailed Checkpoint task exists. No Vision, Checkpoint, or NN task is `Ready`. The repository's
+current planning frontier is Draft [Metal 0004](../../backends/metal/master-plan.md), which is not
+implementation authorization. Checkpoint 0001 remains gated by its explicit architecture decision.
 
 ## Planned end-to-end flows
 

@@ -2,282 +2,138 @@
 
 ## Goal
 
-Implement Metal capability, MPSGraph and custom-kernel preparation, storage, native integration, and execution.
+Keep Metal capability, backend-owned MPSGraph/custom-kernel routes, native resources, storage,
+preparation, and execution truthful across the cold Prepare and hot Runtime lifecycle.
 
-## Architecture references
+## Authority and contracts
 
-- [Architecture contract](../../../../ARCHITECTURE.md)
-- [Module boundaries](../../../architecture/module-boundaries.md)
-- [Dependency rules](../../../architecture/dependency-rules.md)
+[`ARCHITECTURE.md`](../../../../ARCHITECTURE.md) is authoritative. The exact applicable headings
+are [`modules/runtime`](../../../architecture/contracts/runtime-prepare-engine.md#modulesruntime),
+[`modules/prepare`](../../../architecture/contracts/runtime-prepare-engine.md#modulesprepare),
+[Concrete backend modules](../../../architecture/contracts/backend-execution.md#concrete-backend-modules),
+[Performance evidence and optimization tooling](../../../architecture/contracts/backend-execution.md#performance-evidence-and-optimization-tooling),
+[Metal backend](../../../architecture/contracts/backend-execution.md#metal-backend), and
+[Prepare lifecycle](../../../architecture/contracts/runtime-prepare-engine.md#prepare-lifecycle).
 
-## Scope
+The non-authoritative [Metal strategy note](../../../design/notes/metal-backend-strategy.md) records
+the residency/synchronization direction. [ADR 0002](../../../design/decisions/0002-backend-owned-lowering.md)
+owns backend lowering, and [ADR 0013](../../../design/decisions/0013-prepared-execution-persistent-resource-lifecycle.md)
+owns persistent prepared resources. The [module-boundary](../../../architecture/module-boundaries.md),
+[dependency](../../../architecture/dependency-rules.md), and
+[Runtime/Prepare/backend](../../../architecture/runtime-prepare-backend-boundary.md) documents
+explain the shared boundary.
 
-- Metal capability provider
-- MPSGraph and custom-kernel lowering
-- Metal executables, storage, workspace, and materialization
-- native bridge and typed tracing
-- typed, version-controlled, tested MPSGraph/custom-route candidate generators and compatible
-  workload-cache lookup during prepare
+## Scope and non-goals
 
-## Out of scope
+Metal owns truthful capability, MPSGraph/custom lowering and route choice, Metal storage and
+workspace, native application binary interface (ABI), prepared resources, execution, trace
+contribution, typed route candidates, and compatible workload-cache lookup during prepare.
 
-- global autograd
-- public Tensor ownership
-- engine dependency
-- training-owned Metal optimizer bridge
+It does not own public Tensor semantics, global autograd, Planning ownership policy, shared
+Prepare/Runtime interpretation of private knobs, Engine composition, CPU Apple routes, or a
+Training-to-Metal optimizer bridge.
 
-## Module invariants
+## Stable invariants and dependencies
 
-- Metal prepare owns lowering and route selection.
-- Planning must select Metal ownership before MPSGraph or a custom Metal kernel can be considered.
-- MPSGraph and custom Metal kernels are exclusive to this backend. CPU never calls them as an
-  internal Apple optimization route.
-- Metal-specific optimizer execution remains in backend prepare or kernels.
-- Metal backend never depends on engine.
-- Metal candidate generators return complete valid route-specific configurations and remain
-  opaque to shared tuning orchestration.
-- Safe Metal heuristics remain correct without a compatible tuning result.
-- Metal mixed-precision routes prioritize FLOAT16. BFLOAT16 remains a distinct logical type and is
-  eligible only through an exact capability-, device-, and operation-gated route.
-- Model task 0026 must define FLOAT16 and every affected input, accumulation/intermediate, and
-  output contract before Metal advertises FLOAT16. FLOAT32 accumulation is the expected default
-  for numerically sensitive 16-bit work unless Model explicitly specifies an exception.
-- A logical data type or 16-bit storage representation alone never advertises or selects a Metal
-  route. Exact target/operation/numerical filtering precedes route/workload benchmarking, safe
-  heuristics, or compatible tuning evidence.
+- Planning selects only `owner = Metal`; Metal analysis selects a backend-private route and
+  declares every shared requirement before slot assignment. Runtime invokes already-prepared work.
+- Capability is implemented semantic truth, not hardware/library availability. Target, operation,
+  type, Shape, layout, numerical policy, and resource validity filter before heuristic, cache, or
+  measurement comparison.
+- Candidate generators return complete valid typed route configurations, are version-controlled,
+  tested, and colocated with their routes. Shared orchestration treats them opaquely.
+- Safe heuristics remain correct without tuning. Model 0026 must define IEEE FLOAT16 and affected
+  numerical contracts before Metal advertises FLOAT16; two-byte storage does not imply BFLOAT16
+  or FLOAT16 capability.
+- Production dependencies may point to Model, Config, Planning, Runtime, Prepare,
+  Backend Contract, and Trace, never Engine or Training. Task 0002's Compiler edge is test-only.
 
-## Allowed dependencies
-
-- modules/model
-- modules/config
-- modules/planning
-- modules/runtime
-- modules/prepare
-- modules/backend-contract
-- modules/trace
-
-Task 0002 additionally permits `modules/compiler` only as a `testImplementation` dependency so
-the backend-local `GraphPreparation` integration test can construct typed `CompileArtifacts`.
-This does not add Compiler to Metal production dependencies. Backend-conformance may add a
-test-only dependency on Metal for the public capability/partition-closure check.
-
-## Forbidden dependencies
-
-- modules/engine
-- extensions/training implementation dependencies
-
-## Package structure
+## Package map
 
 ```text
 io.github.pho001.synaptik.backend.metal
-  Deliberate public backend surface. Task 0002 changes only the existing capability provider's
-  exact NEG answer; later supported integration types require their own task.
-
+  deliberate public capability surface
 io.github.pho001.synaptik.backend.metal.internal
-  Package-private native ABI, device/queue context, physical buffer/workspace representations,
-  checked host byte access, and resource lifetime. Task 0002 keeps its first small vertical
-  MPSGraph route, staged preparation, persistent resource, binding, and schedule assembly here so
-  it does not widen cross-package implementation visibility before a second route proves a seam.
-
+  native ABI, device/queue, storage/workspace, preparation, routes, binding, and resources
 io.github.pho001.synaptik.backend.metal.internal.prepare
-  Deferred package boundary for later preparation families after more than one route establishes
-  a stable split.
-
+  deferred extraction only after multiple preparation families prove the seam
 io.github.pho001.synaptik.backend.metal.internal.route.mpsgraph
-  Deferred package boundary for broader MPSGraph lowering after the task-0002 proof route. No
-  custom-kernel or CPU route belongs here.
+  deferred broader MPSGraph extraction; never a custom-kernel or CPU home
 ```
 
-The module root is not the default destination for implementation types. The first two tasks keep
-their coupled non-public foundation and proof route in one internal package. A later task must
-update this map before extracting a route or preparation subpackage.
+The first two executable routes remain in the coupled internal package. A later task must update
+this map before extracting a package or widening visibility.
 
 ## Task list
 
-| ID | Task | Status | Depends on | Summary |
+| ID | Task | Status | Depends on | One-line result or intent |
 |---|---|---|---|---|
-| 0001 | [Metal capability, storage, and native foundation](tasks/0001-metal-capability-storage-and-native-foundation.md) | Complete | Complete shared planning, runtime, prepare, backend-contract, and trace contracts; no Model 0026 dependency while fail-closed | Established a fail-closed provider plus native device/queue and run-owned storage lifecycle without executable operation or CPU-owned offload. |
-| 0002 | [MPSGraph prepared execution route](tasks/0002-mpsgraph-prepared-execution-route.md) | Complete | 0001; Runtime 0016; Prepare 0006; Engine 0010; Compiler 0006B7 | Added whole-maximal-partition positive-shape contiguous FLOAT32 NEG lowering with per-run splat initialization, ABI-v2 supplied MTLBuffer destinations, explicit run-owned binding storage, and reusable prepared ownership. |
-| 0003 | [Single-NEG custom Metal kernel route](tasks/0003-single-neg-custom-metal-kernel-route.md) | Complete | 0001–0002 | Added a second backend-private route for one NEG/feed/target with checked element count in `1..UINT32_MAX`; every other supported partition remains MPSGraph without changing capability. |
-| 0004 | Typed Metal route candidate generators and cache compatibility | Draft | 0002–0003, opaque prepare/tuning boundary and artifact versioning | Add colocated typed complete-candidate generation and canonical workload compatibility without exposing Metal knobs to planning or shared parameter bags. |
+| 0001 | [Metal capability, storage, and native foundation](tasks/0001-metal-capability-storage-and-native-foundation.md) | Complete | Complete shared planning, runtime, prepare, backend-contract, and trace contracts; no Model 0026 dependency while fail-closed | Added a fail-closed provider, native context, and run-owned storage without executable capability. |
+| 0002 | [MPSGraph prepared execution route](tasks/0002-mpsgraph-prepared-execution-route.md) | Complete | 0001; Runtime 0016; Prepare 0006; Engine 0010; Compiler 0006B7 | Added maximal-partition positive-shape contiguous FLOAT32 NEG through reusable MPSGraph preparation/execution. |
+| 0003 | [Single-NEG custom Metal kernel route](tasks/0003-single-neg-custom-metal-kernel-route.md) | Complete | 0001–0002 | Added a private custom route for one NEG/feed/target within `1..UINT32_MAX`; all other supported partitions retain MPSGraph. |
+| 0004 | Typed Metal route candidate generators and cache compatibility | Draft | 0002–0003, opaque prepare/tuning boundary and artifact versioning | Add typed complete route candidates and canonical workload compatibility without exposing Metal knobs. |
 
+## Milestones and current frontier
 
-## Milestones
+The native/storage foundation, first MPSGraph route, and bounded second-route proof are `Complete`
+through 0003. Task 0004 is the next ordered Metal row and current planning frontier. It remains
+`Draft`, has no task brief, and is not implementation authorization. No Metal task is `Ready` or
+`In progress`.
 
-- Capability, native bridge, and storage foundation: task 0001 is the foundation checkpoint and
-  closes only when its real macOS arm64 ABI/resource validation and documentation pass succeed.
-- MPSGraph preparation and first executable operation path: task 0002.
-- First custom route proof: task 0003, limited to the exact supported single-NEG partition whose
-  checked element count fits the custom 32-bit index domain, without a capability change or
-  performance claim.
-- Typed route candidates, cache compatibility, broader storage/materialization, and final backend
-  conformance: task 0004 and the final Metal checkpoint.
+Before a compact 0004 brief can become `Ready`, a planner must verify all four live gates against
+current source and contracts:
 
-## Current status
+1. the Prepare/tuning handoff keeps complete Metal candidates and decisions opaque;
+2. candidate/compatibility schemas and any workload-cache artifact have explicit versions and
+   owners;
+3. route selection, lowering, decoding, and resource declaration remain Metal-owned; and
+4. the production, test, and artifact file set is bounded and isolated except for explicit
+   route-integration points.
 
-Task 0001 is `Complete`. The implementation and independent documentation pass found the current
-Planning capability, Runtime representation/lifetime, Prepare staging, Backend Contract identity,
-and JDK 26 FFM contracts sufficient for a bounded fail-closed foundation. It requires no
-architecture, dependency, shared-module, or Engine change.
+## Delivered lifecycle and ABI boundary
 
-Task 0001 advertises no supported operation. Its native device/queue context and run-owned
-storage prove only backend-private resource mechanics. Model 0026 is not a blocker for that work;
-it remains mandatory before any later FLOAT16 semantic or capability claim. BFLOAT16 likewise
-gains no capability from a two-byte representation.
+- Task 0001 is deliberately non-executing and fail closed. Task 0002 truthfully admits only the
+  implemented fully static positive rank-`1..16`, dense-contiguous zero-offset FLOAT32 NEG domain.
+  Task 0003 changes route choice, not occurrence capability or partitioning.
+- The caller-supplied macOS arm64 native library uses an Objective-C C ABI reached through JDK 26
+  Foreign Function and Memory (FFM). It is not packaged or discovered by the backend. ABI version
+  1 established seven foundation functions and statuses `0..7`; version 2 retained them, added
+  three typed MPSGraph functions and statuses `8..11`; version 3 retained all ten, added three
+  custom-NEG functions and status `12`. Opaque resource kinds are never reinterpreted.
+- Analysis validates the complete maximal Metal partition, selects the route, and declares exact
+  buffers/workspaces. Finalization cannot change that route or add undeclared shared requirements;
+  it creates route-specific persistent resources only after slot assignment.
+- Finalizer, shared Prepare, and `PreparedExecution` transfer persistent resources transactionally.
+  The prepared execution is the sole long-lived Runtime owner; repeated executable or schedule
+  occurrences add no ownership. Physical cleanup stays backend-private and deterministic.
+- Caller buffers are borrowed per run; splat/output buffers and binding workspaces are run-owned.
+  Cold binding performs checked type/address work. The hot route uses direct typed handles and one
+  synchronous native submission/downcall into assigned destinations, without route selection.
+- `MTLBuffer` remains the resident representation across adjacent Metal work. A prepared
+  shape-specialized `MPSGraphExecutable` is not per-run workspace; transfers and waits occur only
+  at explicit boundaries required by the synchronous lifecycle.
 
-Detailed [task 0002](tasks/0002-mpsgraph-prepared-execution-route.md) is `Complete`. The public
-provider now reports exactly positive fully static rank-`1..16`, resolved dense-contiguous,
-non-view, zero-offset `FLOAT32` unary `NEG` occurrences with equal input/output shapes and gradient
-flags. Metal preparation accepts every resulting non-empty maximal partition as one executable,
-including chains, independent nodes, fan-out, repeated consumption, internal values, multiple
-boundaries, and differing valid shapes.
+## Task 0004 constraints, risks, and open decisions
 
-Analysis declares boundary buffers and one run-owned address workspace before shared slot
-assignment. Finalization compiles one persistent shape-specialized MPSGraph executable and hands
-its resource transactionally to `PreparedExecution`. Each run borrows caller buffers, creates
-fresh initialized splat and output buffers, and fills its own address workspace during cold
-binding. Hot execution makes one synchronous native downcall into supplied destinations. ABI
-version `2` preserves the original seven symbols and statuses `0..7`, adds exactly three
-executable symbols and statuses `8..11`, and links Foundation, Metal, and
-MetalPerformanceShadersGraph.
+- 0004 must derive complete typed candidates from canonical workload facts, target capability,
+  exact policy, and budget; operation family chooses a generator but is not a universal cache key.
+- Compatibility must include explicit schema/version and target/workload identity. A cache hit may
+  select only a compatible decision and must still lead to fresh authenticated preparation.
+- Do not introduce `Map<String,Object>`, reflection, string dispatch, a central knob registry,
+  generic parameter bags, Planning route choice, Runtime cache access, or hidden global resources.
+- Exact route-specific record shapes, target fingerprints, and version ownership remain the Draft
+  0004 planning decision. No broader operation/type, mixed-owner Engine path, async execution,
+  packaging/discovery, or performance claim is implied.
+- Main risks are moving lowering into shared layers, leaking Metal fields through opaque seams,
+  confusing capability with availability, and extending native/prepared lifetimes beyond their
+  explicit owners.
 
-Evidence is deliberately composed. Public `GraphCompilationPort`, shared `GraphPreparation`,
-Runtime, and real MPSGraph prove the caller-input route. Backend-local typed `PrepareContext`
-tests prove positive-rank splats through analysis, finalization, schedule assembly, and Runtime;
-existing shared Prepare tests prove `ConstantSource -> PrepareContext.constants() ->
-InitializedBuffer`. The public port cannot express explicit positive-rank forward constants, so
-no combined public-port splat test is claimed. Deterministic fake/native-seam coverage is the
-accepted status/error matrix.
+## History and update policy
 
-The final ordinary Metal suite passed 35 total tests with three expected opt-in skips; the focused
-prepared-execution suite passed 20 total tests with two expected opt-in skips. The native build,
-exact ten-export and three-framework inspections, both exact real-device tests outside the
-sandbox, focused two-test backend conformance, one-test dependency architecture check, source/
-`javap` hot-path inspection, independent documentation review, Metal Javadoc, Markdown, exact
-28-path scope, consistency, staged-file, and whitespace gates passed.
+Detailed ABI inventories, native/test evidence, context identifiers, and route implementation
+chronology remain in tasks 0001–0003 and Git history. The strategy note is planning guidance, not
+a capability, platform, ABI, or performance promise.
 
-The public Metal surface remains only `MetalCapabilityProvider`. Current standard Engine
-composition remains CPU-only; task 0002 adds no public Metal adapter, mixed-owner contract,
-fallback, or generic integration surface. `FLOAT16` remains gated by Model 0026, and no BFLOAT16
-support is inferred.
-
-Detailed [task 0003](tasks/0003-single-neg-custom-metal-kernel-route.md) is `Complete`. It narrows
-the former broad custom-route row to one bounded second-route proof. `MetalCapabilityProvider`
-stays byte-for-byte semantically unchanged. Metal
-analysis chooses a direct custom `FLOAT32` NEG pipeline only for a complete partition containing
-exactly one NEG occurrence, one unique feed, one unique target, and checked element count no
-greater than `UINT32_MAX`; either caller input or the existing positive-rank splat source is
-valid. Every other currently supported NEG partition—including an otherwise matching singleton
-above that private index domain—continues through the task-0002 MPSGraph route without
-repartitioning.
-
-Task 0003 extended the current NEG-specific plan, preparer, finalizer, prepared executable, and
-schedule assembler in place, and adds only one typed custom-pipeline persistent resource. It does
-not create a generic route framework or change the package map. Analysis selects the route and
-exact workspace-free/custom or address-workspace/MPSGraph declarations before assignment.
-Finalization compiles the fixed branch-free MSL pipeline once; custom hot execution retains direct
-typed input/output handles, makes one native downcall, writes the supplied destination, and waits
-once at its route boundary. The initial choice is deterministic but carries no performance
-superiority claim.
-
-The completed task uses the smallest additive ABI-v3 direction: it preserves all ten ABI-v2
-symbols, adds three typed custom-NEG pipeline create/release/run symbols, retains statuses
-`0..11`, and adds only kernel-compilation status `12`. Native build and inspection found a Mach-O
-arm64 dylib, exactly thirteen exports, and expected framework linkage. Both real-device native
-tests passed against the final rebuilt dylib; the final Metal suite passed 42 of 45 tests with
-three expected native opt-in skips and no failure or error. Branch-free non-uniform dispatch stays
-inside the `UINT32_MAX` route domain; no bounds guard can extend that 32-bit index domain. Engine,
-shared modules, Gradle, architecture authority, capability/conformance, another operation/type,
-packaging, tuning, and a detailed 0004 task remain out of scope. Metal 0004 remains Draft for
-typed complete route candidates and cache compatibility and is now the next ordered Metal row.
-
-The non-authoritative [Metal backend strategy note](../../../design/notes/metal-backend-strategy.md)
-records the intended residency and synchronization direction for later task planning. It selects
-`MTLBuffer` as the primary resident representation, preparation-time shape-specialized
-`MPSGraphExecutable` construction for a maximal supported Metal region, direct input and supplied
-output buffer binding, boundary-only transfers, and one synchronous wait at the region boundary or
-before CPU/host consumption. These are planning constraints, not current capability, performance,
-platform, or application binary interface promises.
-
-Compiling the graph on every run, hiding it in a backend-global integration object, treating it as
-per-run workspace, or relying on garbage-collection cleanup would violate cold-prepare, hot-run,
-ownership, or deterministic-cleanup rules. Task 0002 evolved the same library from foundation ABI
-version `1` to version `2`, preserved the original seven functions, and added exactly three opaque
-executable functions. Neither task authorizes a generic backend registry, mixed-owner Engine
-composition contract, or ABI workaround.
-
-## Open questions
-
-- Exact route-specific configuration records, target fingerprints, and candidate-schema versions
-  wait for implemented Metal routes and the shared opaque orchestration consumer.
-
-## Decisions made
-
-- The implementation must follow the current architecture contract.
-- Legacy code is capability evidence only; new implementation is written from scratch.
-- Task 0001 uses the current non-executing foundation pattern: stable `metal` identity,
-  unconditional fail-closed operation capability, opaque native resource ownership, and no
-  Prepare or Engine integration.
-- The macOS arm64 native foundation uses a versioned Objective-C C ABI reached through JDK 26 FFM
-  from an explicitly supplied library path. Task 0001 builds a local test dylib but does not
-  package, discover, extract, sign, notarize, or publish it.
-- Foundation ABI version `1` and its exact seven symbols, signatures, statuses, opaque-handle
-  ownership, output-cell rules, shared-storage/zero-byte behavior, FFM carriers, and eager
-  resolution order are fixed by task 0001 rather than delegated to implementation.
-- One native context owns the default Metal device and one command queue; run-owned buffer and
-  workspace representations retain child leases so context shutdown cannot release their native
-  prerequisite early. They implement Runtime's nominal representation roles, but task 0001 has
-  no prepared Runtime integration and submits no commands.
-- MPSGraph execution, the first truthful operation capability, and prepared-route integration are
-  an atomic task-0002 boundary. Native availability or storage allocation alone never makes a
-  capability answer true.
-- Task 0002 must not move MPSGraph compilation onto the hot run path or place its compiled native
-  executable in hidden backend-global ownership. Its detailed specification follows the completed
-  fresh audit after Runtime 0016, Prepare 0006, and Engine 0010.
-- Task 0002 must preserve Metal residency across adjacent Metal work, bind assigned input and
-  output `MTLBuffer` instances through `MPSGraphTensorData`, supply the preallocated Synaptik
-  destinations, and perform no explicit post-execution copy or requested hidden output
-  materialization. This makes no claim about MPSGraph internal temporary storage. Eligible
-  compile-time splats allocate and upload one fresh run-owned initialized Metal buffer during
-  cold run-state creation for each run; no persistent/shared prepared constant buffer or generic
-  constant materializer is introduced. No wait belongs
-  inside a compiled region; general asynchronous execution, custom kernels, and whole-plan
-  autotuning remain later work.
-- Task 0002 retains the exact `MetalDeviceContext` identity in its analysis plan and requires the
-  finalizer and schedule assembler to reject any different context. It declares one run-owned
-  binding workspace so cold binding can pre-marshal native address arrays with explicit lifetime;
-  bound execution allocates and marshals nothing in Java and performs one native downcall.
-- Task 0003 is a bounded second-route proof, not a capability expansion. The existing exact NEG
-  occurrence domain and maximal same-owner partitioning remain unchanged; only an exact
-  one-node/one-feed/one-target partition with checked element count in `1..UINT32_MAX` selects the
-  custom pipeline, and all other supported NEG partitions retain MPSGraph.
-- The `UINT32_MAX` test is a backend-private route implementation-domain predicate required by
-  the branch-free MSL oracle's `uint thread_position_in_grid`. It is not capability, fallback,
-  repartitioning, or a performance decision. Native create defensively rejects zero and larger
-  counts with `UNSUPPORTED_SHAPE`.
-- Task 0003 extends the existing NEG-specific preparation owners in place and adds one typed
-  `MetalNegKernelPipelineResource`. It does not introduce a generic route framework or update the
-  package map. Custom analysis declares no address workspace; MPSGraph retains its current one.
-- The initial task-0003 heuristic is deterministic and unmeasured. Metal 0004 remains the owner
-  of typed complete candidates, target/cache compatibility, and tuning integration.
-- ABI version `3` preserves the ten ABI-v2 functions and statuses `0..11`, adds exactly three
-  typed custom-NEG pipeline functions and status `12`, and never reinterprets an MPSGraph handle
-  as a custom pipeline handle.
-- Operation family selects the appropriate Metal candidate generator but is not a universal cache
-  key. Model tuning may compare complete plans while Metal retains route and lowering ownership.
-- Apple CPU acceleration through Accelerate belongs to the CPU backend. MPSGraph and custom Metal
-  kernels remain here and are available only after Planning selects `owner = Metal`; CPU does not
-  fall through or offload to this backend internally.
-- FLOAT16 is the prioritized Metal mixed-precision type, but only after Model owns its true
-  IEEE-754 binary16 semantics. BFLOAT16 remains supported only when exact device and operation
-  capabilities admit it; neither route follows from storage width alone.
-
-## Risks
-
-- Moving Metal lowering into shared prepare or training.
-- Exposing private Metal candidate fields through generic maps, reflection, or shared string
-  dispatch.
-
-## Notes
-
-Keep this master plan concise. Put executable work in small task specifications under `tasks/` and follow [the planning guide](../../planning-guide.md).
+Update this map only for task order/status/result, dependencies, package direction, the 0004 gate,
+or a live lifecycle/ABI risk. Keep detailed evidence in task briefs. If a planning change conflicts
+with `ARCHITECTURE.md` or an accepted ADR, stop and use the architecture-decision process.

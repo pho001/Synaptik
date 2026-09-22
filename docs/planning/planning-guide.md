@@ -2,13 +2,41 @@
 
 ## Purpose
 
-This guide defines how Synaptik coordinates non-trivial implementation work through module master plans and cohesive executable task specifications. The planning system keeps scope, dependencies, validation, decisions, and handoff evidence visible across isolated agentic implementation sessions without making repeated process work the primary cost of a change.
+This guide coordinates non-trivial Synaptik work through concise master plans and executable task
+briefs. Planning keeps order, scope, contracts, validation, and results visible without making
+historical reading or repeated process work the dominant cost of a change.
 
 ## Authority
 
-[`ARCHITECTURE.md`](../../ARCHITECTURE.md) is the authoritative architecture contract. Documents under [`docs/architecture/`](../architecture/) explain that architecture. Documents under `docs/planning/` coordinate implementation and are not authoritative.
+[`ARCHITECTURE.md`](../../ARCHITECTURE.md) is the authoritative architecture root and sole
+authority index. Only the six scoped contracts that it explicitly incorporates are normative,
+and only within their stated scopes. Other documents under
+[`docs/architecture/`](../architecture/) explain that architecture. Documents under
+`docs/planning/` coordinate implementation and are not authoritative.
 
-Planning documents must not introduce architecture changes silently. If a task cannot be completed without changing architecture, module boundaries, or dependency rules, the implementation agent must stop, record the conflict, and report it for an explicit architecture decision.
+Planning documents must not introduce architecture changes silently. If a task conflicts with an
+authoritative contract or requires an unapproved module, ownership, or dependency change, stop and
+request an explicit architecture decision.
+
+## Roles and reading
+
+Every participant reads `AGENTS.md`, the current task brief or user request, affected source,
+focused tests, and the exact authoritative contract headings named by the brief.
+
+A planner or coordinator that creates, reorders, or materially updates work also reads this guide,
+the [roadmap](roadmap.md), and the relevant active master-plan section. Before launching an
+executor, the planner verifies that the brief is `Ready`, the task is at an authorized frontier,
+and dependencies are satisfied. Put that verification in the brief so the executor does not need
+to reconstruct global history.
+
+An executor starts with the root scope index, then uses the brief's exact root and incorporated
+scoped-contract headings for each affected module or boundary. Executors do not read
+the full roadmap, full planning guide, completed predecessor tasks, task histories, full glossary,
+unrelated architecture sections, or prior completion evidence by default. If the applicable
+contract is missing or ambiguous, stop rather than assume.
+
+Current source, focused tests, and authoritative current contracts take precedence over historical
+task narratives. Read predecessor tasks only for explicitly identified unresolved evidence.
 
 ## Directory layout
 
@@ -19,8 +47,7 @@ docs/planning/
   roadmap.md
   modules/<module>/
     master-plan.md
-    tasks/
-      <task-id>-<short-title>.md
+    tasks/<task-id>-<short-title>.md
   backends/<backend>/
     master-plan.md
     tasks/
@@ -32,143 +59,176 @@ docs/planning/
     tasks/
 ```
 
-Each project area has one master plan. Detailed executable task specifications live beside it under `tasks/`.
+Each project area has one master plan. Detailed briefs live beside it under `tasks/`.
 
-## Progressive planning policy
+## Change classes
 
-Create master plans early for every module, backend, extension, and tool so ownership and sequencing remain visible. Create detailed task specifications only for the current implementation frontier or the immediately following frontier.
+Classify work by actual impact, not source visibility. If uncertain, classify upward.
 
-Do not create detailed task specs far ahead of implementation. Upstream public APIs, module contracts, and validation evidence may change the correct design of downstream work. Future work should remain a concise row in a master plan until its dependencies and constraints are sufficiently stable.
+### Class A — Local
 
-## Package structure planning
+Bounded internal, test, or documentation-only work with no change to observable semantics or
+numerics, public or supported API, lifecycle or ownership, concurrency, persistence or application
+binary interface (ABI), backend capability, dependency direction, cross-module workflow, or a
+hot-path contract.
 
-Package structure is part of implementation planning, not an incidental implementation decision. Do not default every new type to a module's root package merely because no package plan exists.
+One context is sufficient, and the main coordination context may implement the task. The
+implementer performs targeted documentation and Javadoc impact review.
 
-Use two levels of package planning:
+### Class B — Capability or public API
 
-- the module master plan defines the target package map, the responsibility of each package, and which packages form the intended public surface; and
-- each detailed task specification maps every expected production and test type to an existing or proposed package and explains any package it adds or changes.
+A module capability, public or supported API, user-visible behavior, or lasting module-local
+lifecycle contract.
 
-Plan the module-level map progressively. It should be detailed enough for the current and next implementation frontier without attempting to predict every future internal package. Group types by cohesive responsibility and useful visibility boundaries rather than by file count. A module root package may hold a small, deliberate public facade or closely related foundational contracts, but it must not become the automatic destination for unrelated APIs, implementation helpers, and internal models.
+Use a clean implementation context for non-trivial work. An independent documentation or review
+context is required when public API, user workflow or behavior, terminology, or a durable contract
+changes. Otherwise record a reasoned no-change conclusion.
 
-Package-private helpers should live with the contracts they support. Tests should normally mirror the production package when they need package-private access; black-box API tests may use a distinct test package when the task explains why. Avoid generic packages such as `util`, `common`, or `misc` unless the master plan gives them a narrow, stable responsibility.
+### Class C — Architecture or high-risk boundary
 
-A task must not become `Ready` until its package impact is explicit. Implementation must not create a different package structure silently. If evidence shows that the planned package placement is unsuitable, update the task and master-plan package map before continuing. Moving an already published or completed contract to another package requires an explicit refactoring or migration task with compatibility impact and validation; it must not be hidden inside unrelated work.
+A module edge or ownership rule, Runtime/Prepare boundary, native ABI or resource lifetime,
+concurrency, mixed-backend composition, generated-code or hot-path invariant, or similarly
+high-risk cross-module contract.
 
-## Task ordering
+A clean implementation context and independent targeted review/documentation context are
+mandatory. Add ADR, architecture, backend-conformance, integration, structural, or performance
+validation where the affected contract requires it.
 
-The task table in each master plan is an ordered implementation queue. Unless the master plan explicitly says otherwise, execute tasks in ascending ID and table order.
+A private method is not automatically Class A. A behavior-changing bug fix is at least Class B
+and may be Class C.
 
-At any time, create a detailed task specification only for the first task that is not `Complete`, `Superseded`, or `Cancelled`. Finish and validate that task, update its status and master-plan row, and only then create the specification for the next task.
+## Execution contexts
 
-Do not skip a task silently. Record why it is `Blocked`, `Superseded`, or `Cancelled`, and identify the next valid task. Parallel or out-of-order execution is allowed only when the master plan explicitly records the reason, confirms that dependencies and files do not overlap, and identifies how results will be integrated.
+The main context may implement Class A and coordinates Classes B and C. Every clean execution
+context receives only the compact packet needed to act:
 
-The global [implementation roadmap](roadmap.md) applies the same rule to project areas: finish the active module frontier before advancing to the next module or backend, except for an explicitly recorded parallel exception.
+- exact goal;
+- relevant files and symbols;
+- exact contract links or headings and applicable routing information;
+- acceptance criteria;
+- validation commands;
+- documentation and review impact; and
+- required completion status format.
+
+The task brief plus a standard short launcher is the complete execution packet. Do not embed a
+custom implementation prompt in every task or rely on remembered conversation.
+
+An executor works toward a complete result. On a contract ambiguity, architecture conflict, or
+scope expansion, stop and report the exact issue. Do not invent architecture or silently add work.
+
+## Progressive planning and ordering
+
+Create master plans early enough to make ownership and sequencing visible. Create a detailed task
+brief only for the current frontier or immediately following frontier.
+
+Master-plan task tables are ordered queues. Unless an explicit exception records non-overlapping
+dependencies and files plus an integration plan, execute tasks in ascending ID and table order.
+The roadmap applies the same rule across project areas.
+
+The planner controls status and ordering. Only the planner creates or materially replans `Ready`
+work, verifies frontier and dependencies before launch, and records any parallel or out-of-order
+exception. Executors receive that verification in the brief and do not re-audit completed global
+history.
+
+Do not skip work silently. Record `Blocked`, `Superseded`, or `Cancelled` with a concise reason and
+identify the next valid frontier.
 
 ## Task granularity
 
-A task should usually:
+A task normally delivers one cohesive capability or independently reviewable foundation, touches
+one module, has explicit acceptance and validation, and fits one focused execution context.
 
-- deliver one cohesive capability or one independently reviewable foundation contract;
-- touch one module;
-- affect approximately 3–12 source and test files;
-- have explicit acceptance criteria and validation commands; and
-- fit in one isolated agentic implementation session.
+Prefer a complete vertical module capability when semantics, supported facade, tests, Javadoc,
+and focused explanatory documentation form one decision. Split work when it crosses architecture
+boundaries, combines unrelated responsibilities, depends on an unresolved decision, or becomes too
+large to review safely. File count is a guardrail, not a reason to separate tightly coupled work.
 
-Prefer a complete vertical model capability when its semantic contracts, public facade, package-private construction helper, tests, Javadoc, and explanatory API documentation form one coherent decision. Do not split those artifacts into consecutive tasks merely because they are separate files. Split semantic definition from public API only when the semantic contract is an independently uncertain decision, is reused by multiple later capabilities, or can be validated meaningfully on its own.
-
-Avoid tasks named `implement module X`. Prefer focused names such as `implement data type model`, `implement shape model`, `define typed trace envelope`, or `implement binary comparison expressions`.
-
-If a task needs more than 12–18 files, split it unless a documented technical reason makes an atomic larger change safer. File count is a guardrail, not a reason to separate tightly coupled pieces of one capability. Split work that combines model API design with compiler, runtime, preparation, or backend behavior. If a task crosses architecture boundaries, split it along those boundaries or stop and request clarification.
+Package placement is explicit only where it matters. A master plan maintains the current and next
+frontier's package map. A task names every added or moved production type and its owning package,
+but does not repeat boilerplate for unchanged packages or files. Never change planned package
+structure silently.
 
 ## Validation tiers
 
-Validation effort must be proportional to the scope and risk of the change. Do not run the same successful suite again in another agent unless executable code changed after the recorded run or a concrete failure risk justifies repetition.
+Validation is proportional to impact and risk. Do not rerun the same successful suite in another
+context unless executable code changed, evidence is stale or missing, or a concrete risk requires
+an independent rerun.
 
 ### Task validation
 
-Every implementation task runs focused tests while developing and records one final test run for each affected module after executable code stabilizes. For a task limited to `modules/model`, the normal final Java validation is:
-
-```bash
-./gradlew :modules:model:test
-```
-
-The documentation-focused pass runs final Javadoc generation after it has finalized Javadoc and runs the applicable documentation checks. `git diff --check` must pass on the final combined change. The coordinator may reuse this evidence and normally needs only to inspect the final diff and status.
-
-Reflection, `javap`, bytecode inspection, import scans, and manual API-shape checks belong in a task only when they address a concrete risk that ordinary compilation and tests do not cover. A recurring invariant must be moved into an automated test or reusable test assertion instead of repeated manually in every task.
+Run focused tests during development and one final affected-module run after executable code
+stabilizes. Validate documentation after final edits. `git diff --check` passes on the combined
+change. Add reflection, bytecode, ABI, import, manual API-shape, or performance checks only for a
+named risk not covered by ordinary compilation and tests.
 
 ### Capability checkpoint
 
-A capability checkpoint closes a coherent family of tasks or a foundation-hardening sequence. The relevant master plan must identify the checkpoint. At that point run repository-wide tests, affected architecture tests, final documentation checks, and any cross-module validation that was intentionally deferred from individual tasks.
-
-Use a checkpoint before moving to a new operation family or architecture layer, after a sequence that changes a shared foundational contract, and before a release or merge when CI is not the final gate.
+At a master-plan checkpoint, run the identified cross-task tests, affected architecture or
+conformance suites, and final documentation checks. Use checkpoints for a completed capability
+family, shared foundation, release, or merge where CI is not the only final gate.
 
 ### Repository and CI validation
 
-Run the full repository suite for changes to module dependencies, architecture boundaries, shared Gradle configuration, multiple modules, or another repository-wide contract. CI remains the final independent repository-wide validation gate. A small single-module task does not run the full repository suite merely to duplicate coverage already supplied by its module tests and the next checkpoint.
+Run repository-wide validation for changes to dependencies, architecture boundaries, shared build
+configuration, multiple modules, or another repository-wide contract. CI is the final independent
+repository-wide gate. A small task does not run the full repository suite merely to duplicate
+focused coverage.
+
+Preserve focused architecture tests for dependency changes, backend-conformance tests for backend
+behavior, integration tests for end-to-end behavior, and precise lifecycle/ABI/concurrency
+acceptance where applicable.
 
 ## Status values
 
-- **Draft** — scope, dependencies, acceptance criteria, or decisions are incomplete.
-- **Ready** — the task or plan is actionable, bounded, and has sufficient validation criteria.
-- **In progress** — implementation is active; local decisions and evidence must be kept current.
-- **Blocked** — a recorded external dependency, missing decision, or architecture conflict prevents progress.
-- **Review needed** — implementation is complete enough for review but has not passed final acceptance.
-- **Complete** — all acceptance criteria and required validation have passed and the completion summary is final.
-- **Superseded** — another linked plan or task replaces this document.
-- **Cancelled** — the work will not proceed; the reason is recorded.
-
-Only mark a task `Complete` when its implementation, tests, documentation, validation evidence, and completion summary are all complete. When code or behavior changes, a documentation-focused agent or thread with clean context, separate from the implementation context, must independently review and finalize the affected explanatory documentation, Javadoc, and glossary impact. The separate context works on the same overall branch and change; it does not defer documentation to a later commit or task. It reuses successful implementation-test evidence and does not rerun Java tests unless it changes executable Java behavior or records a concrete reason.
+- **Draft** — scope, dependencies, acceptance, contracts, or decisions are incomplete.
+- **Ready** — actionable, bounded, at an authorized frontier, and dependency-verified.
+- **In progress** — execution is active.
+- **Blocked** — a recorded dependency, decision, or architecture conflict prevents progress.
+- **Review needed** — implementation is ready for a required review but not final acceptance.
+- **Complete** — acceptance, required validation, documentation, review, and result are complete.
+- **Superseded** — a linked task replaces the work.
+- **Cancelled** — work will not proceed and the reason is recorded.
 
 ## Master plan format
 
-A master plan defines the stable implementation outline for one project area. It should remain concise and should link to detailed tasks instead of duplicating them.
+A master plan is a concise map, not a duplicate task archive. Keep current ownership, package
+direction, ordered work, dependencies, milestones, risks, and frontier visible. Completed rows
+carry a one-line result summary and link to the task; evidence stays in the task brief.
 
 ~~~markdown
-# <Module Name> Master Plan
+# <Area> Master Plan
 
 ## Goal
-
-## Architecture references
-
-## Scope
-
-## Out of scope
-
-## Module invariants
-
-## Allowed dependencies
-
-## Forbidden dependencies
-
-## Package structure
-
-```text
-<base.package>/
-  <subpackage>/  <responsibility and intended visibility>
-```
-
+## Contracts
+## Scope and non-goals
+## Module invariants and dependencies
+## Package map
 ## Task list
 
-| ID | Task | Status | Depends on | Summary |
+| ID | Task | Status | Depends on | One-line result or intent |
 |---|---|---|---|---|
 
-## Milestones
-
-## Current status
-
-## Open questions
-
-## Decisions made
-
-## Risks
-
-## Notes
+## Milestones and current frontier
+## Open decisions and risks
 ~~~
 
-## Task specification format
+Existing completed master plans and tasks remain valid and need no retrospective rewrite.
+Historical/completed plans, evidence, and tasks are not default executor inputs.
 
-A task specification is the executable contract for one isolated implementation session. Replace every placeholder before changing its status to `Ready`.
+## Task brief size guardrails
+
+A task brief targets no more than 200 lines and 15 KB. This is a readability guardrail, not an
+excuse for dense prose. If it exceeds 15 KB, record why. If it exceeds 25 KB, split it or record
+why one atomic scope is safer than the split.
+
+Remove package/file boilerplate when irrelevant, embedded implementation prompts,
+pre-implementation chronicles, context IDs, duplicated predecessor evidence, and verbose
+completion logs.
+
+## Task brief format
+
+Omit `Dependencies and follow-up` when there are none. Keep the completed `Result` to about 20
+lines.
 
 ~~~markdown
 # Task <ID>: <Title>
@@ -177,223 +237,101 @@ A task specification is the executable contract for one isolated implementation 
 
 Draft
 
+## Change class
+
+Class <A, B, or C> — <impact-based rationale>.
+
 ## Goal
 
 ## Scope
 
-## Out of scope
+## Non-goals
 
-## Architecture references
+## Contracts
 
-## Architecture constraints
+- `ARCHITECTURE.md` heading `<exact root heading>` — <applicable global constraint and relative link>
+- `docs/architecture/contracts/<owner>.md` heading `<exact scoped heading>` — <applicable boundary>
 
-## Package impact
+If an applicable contract is missing or ambiguous, stop and report it.
 
-Existing packages used:
+## Files and symbols
 
-- ...
-
-Packages added or changed:
-
-- ...
-
-Type placement:
-
-- `<fully.qualified.Type>` — <reason this package owns the type>
-
-## Affected files
-
-Expected:
-
-- ...
-
-## Maximum scope
-
-This task may create or modify at most:
-
-- ...
-
-If more files are needed, stop and propose a follow-up task.
+- `<path>` — <symbols or responsibility>
 
 ## Acceptance criteria
 
 - ...
-- A separate documentation-focused agent pass has finalized affected documentation, Javadoc, and glossary impact in this same overall change.
 
-## Tests / validation
-
-Run:
+## Validation
 
 ```bash
-./gradlew <module-path>:test
+<exact focused commands>
 ```
 
-Documentation pass:
+Repository-wide validation: <required, named checkpoint/CI, or reasoned deferral>.
 
-```bash
-./gradlew <module-path>:javadoc
-git diff --check
-```
-
-Repository-wide validation: deferred to <named capability checkpoint or CI>, unless this task changes a repository-wide contract.
-
-## Dependencies
+## Dependencies and follow-up
 
 - ...
 
-## Follow-up tasks
+## Documentation and review impact
 
-- ...
+- <documents/Javadocs/terminology affected or `Documentation impact: none; <reason>`>
+- <implementer review or required independent targeted context and why>
 
-## Architecture impact
+## Result
 
-Expected impact: None.
+Empty until execution. On completion record:
 
-If this task requires architecture changes, stop and report the issue.
-
-## Implementation prompt
-
-Use this prompt in a separate agentic task/thread:
-
-```text
-You are working in the Synaptik repository.
-
-Read:
-- AGENTS.md
-- ARCHITECTURE.md
-- docs/planning/planning-guide.md
-- <this task file>
-
-Implement this task exactly as specified.
-Do not implement out-of-scope items.
-
-After code implementation and module validation, hand the resulting diff and recorded test evidence to a separate documentation-focused agent or thread with clean context. That targeted pass must follow docs/developer-guide/documentation-rules.md and finalize affected documentation, Javadoc, glossary impact, and documentation validation in the same overall change. It must not repeat successful Java tests unless it changes executable behavior or records a concrete reason.
-
-At the end, update this task file with implementation notes, validation evidence including the documentation-agent pass, completion summary, and final status. Do not mark the task Complete before that pass finishes.
-```
-
-## Local decisions
-
-Empty until implemented.
-
-## Known limitations
-
-Empty until implemented.
-
-## Validation evidence
-
-Empty until implemented.
-
-## Implementation notes
-
-Empty until implemented.
-
-## Completion summary
-
-Empty until implemented.
+- completed changes;
+- changed files;
+- exact validation commands and outcomes, with key counts/skips when meaningful;
+- documentation, Javadoc, and targeted glossary impact;
+- limitations or unresolved issues;
+- follow-up, if any; and
+- `Status: Complete`, or `Status: Incomplete` plus a specific follow-up.
 ~~~
 
-## Implementation prompt format
+## Documentation and review
 
-Every implementation prompt must create a separate agentic task or thread with a clean context. It must identify the exact task file and require the agent to read `AGENTS.md`, `ARCHITECTURE.md`, this guide, and the task specification.
+Follow the [documentation rules](../developer-guide/documentation-rules.md). Separate clean
+documentation/review is mandatory only for public or supported API, user-visible behavior or
+workflow, architecture or module boundaries, terminology, cross-module contracts, a lasting
+module-local lifecycle or other durable contract, or Class C. Ordinary internal work is reviewed
+by the implementer, including affected Javadocs. Record `Documentation impact: none; <reason>`
+when appropriate.
 
-Keep the implementation prompt short. The task specification is the single detailed execution contract, so the prompt should not reproduce its complete scope, exclusions, validation matrix, or file list. It must state only the task file, required authoritative reading, the instruction to implement exactly that specification, the stop condition for architecture or scope conflicts, the targeted documentation handoff, and whether commit or push is allowed. It must not rely on remembered conversation context.
+Review the glossary with targeted `rg` or search for relevant terms and anchors; never require a
+full-glossary read by default. Documentation review does not own executable tests and reuses
+current successful evidence unless executable behavior changes or a specific risk justifies a
+rerun.
 
-The prompt must require a second, documentation-focused agent or thread with clean context after implementation whenever code or behavior changes. That pass reviews the resulting diff and independently finalizes affected explanatory documentation, Javadoc, glossary impact, and documentation validation. Both contexts work in the same overall branch and change, and the task remains incomplete until the documentation pass and its evidence are present. The documentation agent receives the existing module-test evidence and does not reproduce it unless executable code changes after that evidence or a concrete risk requires a rerun.
+## Evidence and results
 
-The documentation-agent handoff must identify the task specification, affected APIs or behavior, implementation diff, architecture constraints, expected documentation, and validation to perform. See the [documentation rules](../developer-guide/documentation-rules.md) for the complete handoff and review workflow.
+The task brief is the single home for compact result evidence. Record the exact command and
+outcome, important test counts or skips when meaningful, and limitations. Detailed logs belong in
+CI or tool artifacts. Do not paste full build logs.
 
-## Completion summary format
+Master plans and the roadmap carry status, a one-line result, and links. They do not duplicate
+task narratives, context IDs, command transcripts, or completion evidence.
 
-Every completed or blocked implementation session must add a concise summary to its task specification:
+## Follow-up and architecture impact
 
-~~~markdown
-## Completion summary
+Do not expand a task silently. Add a follow-up only when the work is real and outside current
+acceptance; create its detailed brief only when it reaches the current or next frontier. A
+follow-up must not hide incomplete acceptance.
 
-- Completed changes: ...
-- Files changed or created: ...
-- Tests and validation: ...
-- Documentation-agent review: ...
-- Documentation impact: ...
-- Javadoc review: ...
-- Glossary impact: ...
-- Unresolved issues: None.
-- Follow-up required: None.
+The default architecture impact is none. If implementation requires an architecture change, stop
+and follow the coordinated architecture process in `AGENTS.md`. Preserve architecture authority,
+resource ownership, compile/prepare/run separation, dependency direction, fail-closed capability,
+performance and hot-path rules, and required conformance validation.
 
-Status: Complete
-~~~
+## Advancing the frontier
 
-For incomplete work, use:
+Before launching the next task, the planner confirms:
 
-```text
-Status: Incomplete
-Follow-up required: <specific follow-up>
-```
-
-Do not mark a task complete merely because its maximum scope or session time was reached.
-
-## Validation evidence
-
-Evidence must record:
-
-- every command executed;
-- whether it passed, failed, or was not run;
-- the relevant result, including test counts or task outcomes when available;
-- any environmental limitation or skipped validation; and
-- manual checks required by the acceptance criteria;
-- the separate documentation-focused agent or thread used, the files and topics it reviewed, and its result;
-- documentation, Javadoc, and glossary impact, including an explicit no-change conclusion with rationale where applicable;
-- documentation validation commands and link checks, including their results; and
-- confirmation that created and moved types match the package map and task-level type placement.
-
-Evidence may reference a successful command recorded by the implementation pass instead of rerunning it in the documentation or coordination pass. Identify which context ran the command and confirm whether executable code changed afterward. Do not claim independent execution when evidence was reused.
-
-Claims such as `tests pass` without commands and results are insufficient. Keep evidence concise; do not paste entire build logs when a result summary identifies the outcome.
-
-## Follow-up tasks
-
-Do not silently expand a task when implementation uncovers additional work. If the new work is not required to satisfy the current acceptance criteria, add it to the master plan and create a `Draft` follow-up task only when it is at the current or next frontier.
-
-Link follow-up tasks to their origin, record dependencies in both task specs, and identify whether they are required or optional. Do not use a follow-up task to hide incomplete acceptance criteria in the current task.
-
-## Local decisions
-
-Record implementation-level choices that resolve ambiguity without changing architecture. Include the decision, rationale, alternatives considered when material, and affected files or APIs.
-
-Local decisions must remain within the task's architecture constraints. A local decision cannot redefine module ownership or dependency direction.
-
-## Known limitations
-
-Record limitations that remain after implementation, including unsupported cases, deferred validation, portability constraints, or temporary compatibility boundaries. Every limitation must either be accepted by the task specification or linked to a follow-up task.
-
-## Architecture impact
-
-The default expected impact is `None`. Implementation must preserve the existing contract.
-
-If work reveals a required architecture change, stop implementation. Report the conflicting rule, affected modules, and the decision needed. Architecture changes require the coordinated updates defined in `AGENTS.md`; they cannot be approved by editing a planning document.
-
-## When to create a new task
-
-Create a new task when work:
-
-- introduces a separate concept or public contract;
-- introduces or restructures a package boundary beyond the current task's approved package impact;
-- belongs to another module or architecture layer;
-- exceeds the current file or scope limit;
-- needs independent validation;
-- depends on an unresolved decision; or
-- can be completed and reviewed independently.
-
-Keep a change in the current task when it is necessary to deliver one cohesive capability and remains inside its module, package plan, architecture constraints, and documented scope. Separate files or the presence of both a semantic contract and its public model facade are not by themselves reasons to split a task.
-
-## When to update architecture docs
-
-Update architecture documentation when implementation changes or clarifies architecture-related behavior. If an architectural decision or dependency rule changes, follow the coordinated update rules in `AGENTS.md`, including `ARCHITECTURE.md`, focused architecture documentation, an ADR when significant, and architecture tests when dependency rules change.
-
-Do not update architecture documentation merely to make a conflicting implementation appear compliant. Stop and resolve the architecture decision first.
-
-## Templates
-
-Use the [master plan format](#master-plan-format) for each project area and the [task specification format](#task-specification-format) for executable tasks. Copy templates into the relevant directory, replace all placeholders, and keep the master task table synchronized with task status.
-
-Existing master plans may adopt the package-structure section progressively, but the active project's master plan must contain it before the next detailed task becomes `Ready`. Existing task specifications do not need retrospective package sections after completion; every new or materially replanned task must use the current template.
+1. the current task has a final result and correct status;
+2. required validation and documentation/review are complete;
+3. master-plan and roadmap status/link updates are concise and synchronized;
+4. the next task is the authorized frontier with satisfied dependencies; and
+5. its compact brief is `Ready`.

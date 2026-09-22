@@ -2,7 +2,9 @@
 
 ## Purpose
 
-This index separates accepted architecture decisions from pre-implementation strategy notes. Neither category overrides [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
+This index separates accepted architecture decisions from pre-implementation strategy notes.
+Neither category overrides the authoritative root or the scoped contracts it incorporates through
+[`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 Decision records are retrospective summaries of rules present in the architecture contract. The repository does not preserve the original dates or full deliberation history, and the records say so rather than inventing it.
 
@@ -21,6 +23,7 @@ Decision records are retrospective summaries of rules present in the architectur
 - [ADR 0011: Per-run Runtime resource ownership and cold binding](decisions/0011-per-run-runtime-resource-ownership.md)
 - [ADR 0012: Fixed recurrent scan without graph regions](decisions/0012-fixed-recurrent-scan-without-regions.md)
 - [ADR 0013: Prepared-execution persistent-resource lifecycle](decisions/0013-prepared-execution-persistent-resource-lifecycle.md)
+- [ADR 0014: Scope-indexed normative architecture contracts](decisions/0014-scope-indexed-normative-architecture-contracts.md)
 
 ## Design notes
 
