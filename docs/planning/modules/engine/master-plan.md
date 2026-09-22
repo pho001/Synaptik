@@ -95,6 +95,7 @@ not a catch-all service registry.
 | [0008A](tasks/0008a-representative-complete-plan-correctness-oracle.md) | Representative complete-plan correctness oracle | Complete | 0004, 0006A–0008; Runtime 0015; CPU 0010G and 0010J | Added the smallest package-private Engine oracle that captures all ordered representative publications as bounded canonical bytes and compares later complete recipes by exact represented-bit equality. It owns no timing, tuning algorithm, cache, public request, selected preparation, or fallback policy. |
 | [0009](tasks/0009-public-complete-plan-autotuning-composition.md) | Public complete-plan autotuning composition | Complete | 0006A–0008A; Config 0006B; tools/tuning 0002; CPU 0010I–0010J; Prepare 0004; Runtime 0010/0015 | Composed the authenticated Phase-1 decision into CPU's complete-plan batch, adapted exact correctness and fresh execution to generic Phase 2, freshly prepared the authenticated winner, and extended existing public evidence without a new request, operation, or top-level public type. |
 | [0010](tasks/0010-prepared-handle-ownership-and-closure.md) | Prepared-handle ownership and closure | Complete | Runtime 0016; Prepare 0006; 0001–0009 | Made ordinary and advanced prepared handles explicit closeable owners, closed every one-shot/trial/loser/rollback preparation exactly once, and closed retained preparations after results and before backend integration shutdown. |
+| [0011](tasks/0011-compile-artifact-projection-boundary-reconciliation.md) | Compile-artifact projection boundary reconciliation | Ready | 0010; Prepare 0003A/0005/0006; CPU 0010F/0010H–0010J | Restore Engine/Prepare ownership of `CompileArtifacts` orchestration, remove CPU's production Compiler edge, and preserve current CPU preparation/tuning behavior through stable projections. |
 
 ## Milestones and current frontier
 
@@ -103,10 +104,10 @@ not a catch-all service registry.
   Complete through 0006.
 - Representative and complete-plan autotuning composition plus its capability checkpoint are
   Complete through 0009.
-- Prepared-handle ownership and closure are Complete through 0010. No later Engine task is
-  `Ready`, `In progress`, or detailed.
-- Runtime 0016 and Prepare 0006 supply the inward lifecycle. Metal 0002 and 0003 are Complete;
-  Draft Metal 0004 is the current repository planning frontier.
+- Prepared-handle ownership and closure are Complete through 0010.
+- [0011](tasks/0011-compile-artifact-projection-boundary-reconciliation.md) is `Ready` as the sole
+  user-authorized drift-remediation frontier. Runtime 0016, Prepare 0003A/0005/0006, and CPU
+  0010F/0010H–0010J satisfy its dependencies.
 
 ## Live risks and gates
 
@@ -119,14 +120,22 @@ not a catch-all service registry.
   backend storage, or inward SPI types through ordinary signatures.
 - Metal 0004 owns Metal route candidates and cache compatibility. It does not require a new
   Engine task or weaken backend-private route ownership.
+- 0011 must preserve current behavior while removing concrete CPU's direct Compiler aggregate
+  exposure. A need to change the authoritative contract or duplicate the existing Prepare
+  projection blocks implementation and returns the task to planning.
+
+## Authorized drift-remediation exception
+
+The user's requested repair order authorizes 0011 ahead of the normal post-Metal frontier
+reassessment: CPU boundary first, autograd documentation second, then remaining contract drift.
+0011 executes alone because its Prepare, CPU, Engine, Metal-consumer, build, test, and documentation
+files overlap one atomic boundary cutover. The later stages remain undetailed and are not `Ready`.
 
 ## Status normalization
 
-The task table and linked task status/results are controlling. This compaction removes historical
-frontier and blocker narratives while retaining the current state: Engine is Complete through
-0010. Metal 0002 and 0003 are Complete.
-Metal 0004 is Draft, and no Engine task is Ready or detailed. No task status, order, dependency,
-ownership rule, API, or executable behavior changes.
+The task table and linked task status/results are controlling. Engine is Complete through 0010;
+0011 is the sole `Ready` frontier under the recorded drift-remediation exception. Metal 0002–0004
+are Complete. No later Engine or drift-remediation task is detailed.
 
 ## History and update policy
 
