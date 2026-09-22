@@ -96,6 +96,7 @@ not a catch-all service registry.
 | [0009](tasks/0009-public-complete-plan-autotuning-composition.md) | Public complete-plan autotuning composition | Complete | 0006A–0008A; Config 0006B; tools/tuning 0002; CPU 0010I–0010J; Prepare 0004; Runtime 0010/0015 | Composed the authenticated Phase-1 decision into CPU's complete-plan batch, adapted exact correctness and fresh execution to generic Phase 2, freshly prepared the authenticated winner, and extended existing public evidence without a new request, operation, or top-level public type. |
 | [0010](tasks/0010-prepared-handle-ownership-and-closure.md) | Prepared-handle ownership and closure | Complete | Runtime 0016; Prepare 0006; 0001–0009 | Made ordinary and advanced prepared handles explicit closeable owners, closed every one-shot/trial/loser/rollback preparation exactly once, and closed retained preparations after results and before backend integration shutdown. |
 | [0011](tasks/0011-compile-artifact-projection-boundary-reconciliation.md) | Compile-artifact projection boundary reconciliation | Complete | 0010; Prepare 0003A/0005/0006; CPU 0010F/0010H–0010J | Restored Engine/Prepare ownership of `CompileArtifacts` orchestration, removed CPU's production Compiler edge, and preserved CPU preparation/tuning behavior through stable projections. |
+| [0012](tasks/0012-runtime-prepare-engine-authority-reconciliation.md) | Runtime, Prepare, and Engine authority reconciliation | Ready | 0011; Compiler 0006B8; current Engine/Prepare/Runtime APIs | Reconcile the root and incorporated lifecycle authority plus focused explanations with the current owner-bound Engine facade and Runtime schedule-step/executable model; remove current `PreparedUnit` and nonexistent builder/config API claims. |
 
 ## Milestones and current frontier
 
@@ -106,8 +107,8 @@ not a catch-all service registry.
   Complete through 0009.
 - Prepared-handle ownership, closure, and compile-artifact projection reconciliation are Complete
   through 0011.
-- No Engine task is `Ready`. The separately authorized autograd-documentation repair remains the
-  next coordination step before reassessing remaining contract drift.
+- [0012](tasks/0012-runtime-prepare-engine-authority-reconciliation.md) is `Ready` as the sole
+  active frontier for the next user-authorized sequential drift repair. No later task is selected.
 
 ## Live risks and gates
 
@@ -125,16 +126,17 @@ not a catch-all service registry.
 
 ## Authorized drift-remediation exception
 
-The user's requested repair order authorizes 0011 ahead of the normal post-Metal frontier
-reassessment: CPU boundary first, autograd documentation second, then remaining contract drift.
-0011 executed alone because its Prepare, CPU, Engine, Metal-consumer, build, test, and documentation
-files overlap one atomic boundary cutover. The later stages remain undetailed and are not `Ready`.
+The user's requested repair order authorizes sequential drift remediation ahead of the normal
+post-Metal frontier reassessment: Engine 0011 repaired the CPU boundary, Compiler 0006B8 repaired
+autograd documentation, and Engine 0012 is now the first confirmed remaining-drift cluster.
+0012 is bounded to seven documentation/planning paths and executes alone. Later drift remains
+undetailed and is not `Ready`.
 
 ## Status normalization
 
 The task table and linked task status/results are controlling. Engine is Complete through 0011;
-no Engine task is `Ready`. Metal 0002–0004 are Complete. No later Engine or drift-remediation task
-is detailed.
+0012 is the sole `Ready` frontier. Metal 0002–0004 are Complete. No later Engine or
+drift-remediation task is detailed.
 
 ## History and update policy
 
