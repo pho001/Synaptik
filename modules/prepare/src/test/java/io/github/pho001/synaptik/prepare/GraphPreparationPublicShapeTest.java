@@ -38,6 +38,9 @@ class GraphPreparationPublicShapeTest {
                 List.class,
                 List.class,
                 PreparedScheduleAssembler.class);
+        Method project = GraphPreparation.class.getDeclaredMethod(
+                "project", CompileArtifacts.class, PlannedPartition.class,
+                BackendAnalysisInputs.class);
         Method assemble = PreparedScheduleAssembler.class.getDeclaredMethod(
                 "assemble", PreparedScheduleContext.class);
 
@@ -56,7 +59,7 @@ class GraphPreparationPublicShapeTest {
                 () -> assertTrue(Modifier.isPrivate(
                         GraphPreparation.class.getDeclaredConstructors()[0].getModifiers())),
                 () -> assertEquals(0, GraphPreparation.class.getDeclaredFields().length),
-                () -> assertEquals(2, Arrays.stream(GraphPreparation.class.getDeclaredMethods())
+                () -> assertEquals(3, Arrays.stream(GraphPreparation.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
                         .count()),
                 () -> assertTrue(Modifier.isPublic(prepare.getModifiers())),
@@ -69,11 +72,15 @@ class GraphPreparationPublicShapeTest {
                 () -> assertEquals(
                         PreparedExecution.class,
                         prepareWithProducerlessResources.getReturnType()),
-                () -> assertEquals(1, Arrays.stream(
+                () -> assertTrue(Modifier.isPublic(project.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(project.getModifiers())),
+                () -> assertEquals(io.github.pho001.synaptik.prepare.analysis.PrepareContext.class,
+                        project.getReturnType()),
+                () -> assertEquals(2, Arrays.stream(
                                 PreparedScheduleAssembler.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
                         .count()),
-                () -> assertEquals(assemble, PreparedScheduleAssembler.class.getDeclaredMethods()[0]));
+                () -> assertTrue(Modifier.isPublic(assemble.getModifiers())));
     }
 
     @Test
@@ -85,7 +92,8 @@ class GraphPreparationPublicShapeTest {
                         PreparedBufferAssignment.class, "valueId", "slot", "planIndex"),
                 () -> assertRecordComponents(
                         PreparedScheduleContext.class,
-                        "artifacts", "memoryPlan", "partitions", "bufferAssignments"),
+                        "plannedPartitions", "graphValues", "bindableInputValueIds", "constants",
+                        "publicationValueIds", "memoryPlan", "partitions", "bufferAssignments"),
                 () -> assertRecordComponents(
                         ProducerlessPublishedConstantResource.class,
                         "value", "logicalRequirement", "byteSize", "byteAlignment"),

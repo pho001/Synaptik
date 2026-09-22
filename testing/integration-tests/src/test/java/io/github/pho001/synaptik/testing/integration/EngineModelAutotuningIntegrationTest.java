@@ -200,9 +200,25 @@ final class EngineModelAutotuningIntegrationTest {
         try {
             Object tuning = CpuBackendIntegration.class.getMethod("localWorkloadTuning")
                     .invoke(integration);
+            Object preparation = CpuBackendIntegration.class.getMethod("partitionPreparation")
+                    .invoke(integration);
+            Object inputs = preparation.getClass().getMethod("backendInputs")
+                    .invoke(preparation);
+            Class<?> inputsType = Class.forName(
+                    "io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs");
+            Class<?> preparationType = Class.forName(
+                    "io.github.pho001.synaptik.prepare.GraphPreparation");
+            Object partition = ((List<?>) CompileArtifacts.class.getMethod("partitions")
+                    .invoke(artifacts)).getFirst();
+            Object context = preparationType.getMethod("project", CompileArtifacts.class,
+                            Class.forName(
+                                    "io.github.pho001.synaptik.planning.partition.PlannedPartition"),
+                            inputsType)
+                    .invoke(null, artifacts, partition, inputs);
             Object maybeHandoff = tuning.getClass()
-                    .getMethod("candidateHandoff", CompileArtifacts.class)
-                    .invoke(tuning, artifacts);
+                    .getMethod("candidateHandoff", Class.forName(
+                            "io.github.pho001.synaptik.prepare.analysis.PrepareContext"))
+                    .invoke(tuning, context);
             Optional<?> handoff = (Optional<?>) maybeHandoff;
             if (handoff.isEmpty()) return false;
             Object batch = handoff.orElseThrow().getClass().getMethod("candidateBatch")

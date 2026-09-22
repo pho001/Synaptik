@@ -502,19 +502,23 @@ live Tensor, descriptor copy, provenance, or host storage.
 `CompileDiagnostics` carries deterministic text projections rather than a public predicate
 language, trace schema, or serialization.
 
-The public `backends:cpu` integration surface contains two supported types:
+The public `backends:cpu` integration surface contains four supported types:
 
 - `CpuCapabilityProvider`, the stateless fail-closed CPU capability provider; and
 - `CpuBackendIntegration`, the closeable lifecycle SPI intended for Engine composition rather
-  than ordinary application code.
+  than ordinary application code;
+- `CpuLocalWorkloadTuning`, the artifact-free Phase-1 route-candidate collaboration; and
+- `CpuCompletePlanTuning`, the artifact-free Phase-2 retained-plan collaboration.
 
 One `CpuBackendIntegration.open()` call creates the fixed exact/default CPU composition. It
 reports the immutable `cpu/host` availability fact, exposes the retained capability provider,
-builds the positional preparation and schedule-assembler collaborations for exactly one non-empty
-maximal CPU-owned partition, and exposes `prepare(CompileArtifacts)` as the complete CPU-owned
-composition entry. That entry derives exact physical declarations for eligible fully static,
-canonical source-only published splat constants and passes them to shared Prepare; Engine delegates
-without interpreting constant roles or CPU geometry. The integration also borrows intrinsically
+exposes one artifact-free positional `PartitionPreparation` and one retained schedule assembler
+for exactly one non-empty maximal CPU-owned partition, and provides artifact-free local and
+complete-plan tuning collaborations. Engine owns the `CompileArtifacts`, obtains the exact
+partition projection from `GraphPreparation`, and passes every ordinary, tuned, selected, or
+fallback preparation back through `GraphPreparation`. During complete preparation, shared Prepare
+identifies eligible fully static source-only published splat constants and asks the CPU assembler
+for their physical geometry. The integration also borrows intrinsically
 compatible `HostTensorStorage` as a non-owning Runtime buffer representation. Its
 `copyToCanonicalHostBytes(representation, descriptor, maximumBytes)` operation copies one exact
 current CPU publication representation into a fresh caller-owned mutable `byte[]`. This is
@@ -544,9 +548,9 @@ The accepted graph shape is deliberately exact. A pure zero-node constant or pas
 remains rejected because the CPU integration requires one non-empty maximal CPU partition. A
 mixed-owner or multi-partition artifact is rejected before CPU analysis or schedule assembly
 because combining multiple backend contributions remains later Engine/Prepare work. For an
-accepted artifact, the assembler describes creation of fresh run-owned CPU buffers and workspaces,
-initialization of Compiler constants, one prepared CPU execution occurrence, and publications in
-Compiler order. A source-only constant gains no executable schedule step. Assembly performs none
+accepted projection, the assembler describes creation of fresh run-owned CPU buffers and
+workspaces, initialization of projected constants, one prepared CPU execution occurrence, and
+publications in Prepare-supplied order. A source-only constant gains no executable schedule step. Assembly performs none
 of that physical work: `PreparedExecution` retains immutable recipes only, and creation of every
 fresh `RunState` invokes each initialized-buffer recipe exactly once. Sequential or concurrent
 runs therefore own distinct initialized representations.
@@ -563,9 +567,9 @@ source mutation or closure until return. Independent valid calls may run concurr
 mutation has no atomic-snapshot guarantee. Typed logical input binding, a simpler end-user execute
 surface, and ordinary typed or host-materialized results remain Engine work.
 
-The adapter does not expose CPU internals, discover backends for Runtime, perform tuning, or turn
-OpenBLAS into another backend identity. CPU directly depends on Compiler only because this SPI
-consumes public `CompileArtifacts`; CPU remains independent of Engine.
+The adapter does not expose CPU internals, discover backends for Runtime, run tuning policy, or
+turn OpenBLAS into another backend identity. CPU has no production Compiler or Engine dependency;
+its compiler-backed fixtures are tests only.
 
 The public `modules:runtime` surface now contains five focused packages:
 
@@ -709,19 +713,22 @@ partition and returned `PreparedExecutable`; resource ownership is never inferre
 association or from schedule occurrences. `PartitionPreparation` keeps each backend's typed
 inputs, preparer, and finalizer positionally associated. `PreparedBufferAssignment` translates one
 graph `ValueId` to its exact `BufferSlot` and dense plan index. `PreparedScheduleContext` exposes
-the complete immutable finalized facts to one explicit `PreparedScheduleAssembler`.
+only validated stable Model, Planning, Prepare, and Runtime facts to one explicit
+`PreparedScheduleAssembler`: planned partitions, graph values, bindable source IDs, constants,
+ordered publication IDs, the memory plan, prepared partitions, and buffer assignments. It
+contains no Compiler aggregate.
 `GraphPreparation.prepare(...)` rejects repeated resource identities, rolls successful results
 back after any later preparation failure, and transfers the ordered unique resources only by
 returning the exact validated `PreparedExecution`. Shared Prepare invokes cleanup but neither
 looks up a resource nor performs its physical allocation.
 
-The four-argument preparation form additionally accepts a complete list of
-`ProducerlessPublishedConstantResource` contributions. One such value carries the exact graph and
-logical-requirement references plus externally supplied physical byte size and alignment for a
-fully static source-only published compile-time constant. Shared Prepare validates the exact role,
-canonicalizes contributions by final graph-value encounter order, and appends their buffer slots
-after ordinary declarations. The value remains outside partition-local analysis and receives no
-partition-finalizer assignment. The existing three-argument form contributes an empty list.
+The ordinary three-argument preparation form identifies every producerless published compile-time
+constant in final graph-value order and asks the supplied assembler for a
+`ProducerlessPublishedConstantResource`. The assembler contributes only physical byte size and
+alignment from the stable value, logical requirement, and scalar. Shared Prepare validates the
+exact role and contribution association, appends the buffer slots after ordinary declarations,
+and keeps the value outside partition-local analysis and finalizer assignment. The four-argument
+form remains available for callers that already hold the complete explicit contribution list.
 
 The complete-set operation that validates coverage and source identity, assigns slots, constructs
 the shared memory plan, and invokes finalizers remains package-private behind the public graph

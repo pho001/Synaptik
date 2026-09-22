@@ -24,6 +24,7 @@ import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.prepare.analysis.BackendTuningCandidateBatch;
 import io.github.pho001.synaptik.prepare.analysis.BackendTuningDecision;
+import io.github.pho001.synaptik.prepare.GraphPreparation;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryPlanning;
 import java.lang.reflect.Constructor;
@@ -46,7 +47,17 @@ final class CpuLocalWorkloadTuningPublicTest {
                 () -> assertEquals(List.of(BackendTuningCandidateBatch.class),
                         List.of(CpuLocalWorkloadTuning.CandidateBatch.class.getInterfaces())),
                 () -> assertEquals(List.of(BackendTuningDecision.class),
-                        List.of(CpuLocalWorkloadTuning.SelectedDecision.class.getInterfaces())));
+                        List.of(CpuLocalWorkloadTuning.SelectedDecision.class.getInterfaces())),
+                () -> assertEquals(List.of("candidateHandoff", "candidateIdentity", "candidates",
+                                "compatibility", "decodeCompatibleDecision", "encodeDecision",
+                                "selectedDecision", "selectedPreparation", "trialPreparation"),
+                        Arrays.stream(CpuLocalWorkloadTuning.class.getDeclaredMethods())
+                                .filter(method -> Modifier.isPublic(method.getModifiers()))
+                                .map(method -> method.getName()).sorted().toList()),
+                () -> Arrays.stream(CpuLocalWorkloadTuning.class.getDeclaredMethods())
+                        .filter(method -> Modifier.isPublic(method.getModifiers()))
+                        .forEach(method -> assertFalse(
+                                method.toGenericString().contains(".compiler."))));
         for (Class<?> value : List.of(CpuLocalWorkloadTuning.CandidateBatch.class,
                 CpuLocalWorkloadTuning.SelectedDecision.class,
                 CpuLocalWorkloadTuning.Candidate.class,
@@ -59,6 +70,7 @@ final class CpuLocalWorkloadTuningPublicTest {
         assertAll(
                 () -> assertFalse(source.contains("tools.tuning")),
                 () -> assertFalse(source.contains("synaptik.engine")),
+                () -> assertFalse(source.contains("synaptik.compiler")),
                 () -> assertFalse(source.contains("java.io.")),
                 () -> assertFalse(source.contains("java.nio.file")),
                 () -> assertFalse(source.contains("reflect")));
@@ -71,14 +83,14 @@ final class CpuLocalWorkloadTuningPublicTest {
         CompileArtifacts artifacts = compile(integration, leaf(Shape.of(4)).contiguous());
         assertAll(
                 () -> assertSame(tuning, integration.localWorkloadTuning()),
-                () -> assertTrue(tuning.candidateHandoff(artifacts).isEmpty()));
+                () -> assertTrue(tuning.candidateHandoff(context(integration, artifacts)).isEmpty()));
         integration.close();
         integration.close();
         assertAll(
                 () -> assertThrows(IllegalStateException.class,
                         integration::localWorkloadTuning),
                 () -> assertThrows(IllegalStateException.class,
-                        () -> tuning.candidateHandoff(artifacts)));
+                        () -> tuning.candidateHandoff(context(integration, artifacts))));
     }
 
     @Test
@@ -90,7 +102,7 @@ final class CpuLocalWorkloadTuningPublicTest {
             Optional<io.github.pho001.synaptik.prepare.analysis.BackendPartitionTuningHandoff<
                     CpuLocalWorkloadTuning.CandidateBatch,
                     CpuLocalWorkloadTuning.SelectedDecision>> maybe =
-                    tuning.candidateHandoff(artifacts);
+                    tuning.candidateHandoff(context(integration, artifacts));
             if (maybe.isEmpty()) return; // portable-only installations are supported
             var handoff = maybe.orElseThrow();
             var batch = handoff.candidateBatch();
@@ -113,8 +125,8 @@ final class CpuLocalWorkloadTuningPublicTest {
                 byte[] encoded = tuning.encodeDecision(decision);
                 var decoded = tuning.decodeCompatibleDecision(batch, encoded).orElseThrow();
                 assertEquals(decision, decoded);
-                assertNotNull(tuning.prepareTrial(batch, candidate));
-                assertNotNull(tuning.prepareSelected(batch, decoded));
+                assertNotNull(tuning.trialPreparation(batch, candidate));
+                assertNotNull(tuning.selectedPreparation(batch, decoded));
                 byte[] corrupt = encoded.clone();
                 corrupt[corrupt.length - 1] ^= 1;
                 assertTrue(tuning.decodeCompatibleDecision(batch, corrupt).isEmpty());
@@ -124,13 +136,21 @@ final class CpuLocalWorkloadTuningPublicTest {
                         Arrays.copyOf(encoded, encoded.length + 1)).isEmpty());
             }
 
-            var secondBatch = tuning.candidateHandoff(artifacts).orElseThrow().candidateBatch();
+            var secondBatch = tuning.candidateHandoff(context(integration, artifacts))
+                    .orElseThrow().candidateBatch();
             assertThrows(IllegalArgumentException.class,
                     () -> tuning.selectedDecision(secondBatch, candidates.getFirst()));
             var firstDecision = tuning.selectedDecision(batch, candidates.getFirst());
             assertThrows(IllegalArgumentException.class,
-                    () -> tuning.prepareSelected(secondBatch, firstDecision));
+                    () -> tuning.selectedPreparation(secondBatch, firstDecision));
         }
+    }
+
+    private static io.github.pho001.synaptik.prepare.analysis.PrepareContext<?> context(
+            CpuBackendIntegration integration, CompileArtifacts artifacts) {
+        var preparation = integration.partitionPreparation();
+        return GraphPreparation.project(artifacts, artifacts.partitions().getFirst(),
+                preparation.backendInputs());
     }
 
     private static Tensor leaf(Shape shape) {

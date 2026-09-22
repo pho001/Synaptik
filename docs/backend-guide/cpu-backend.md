@@ -202,7 +202,7 @@ only after target, binary when available, thread-control, and bounded numerical 
 ## Prerequisites and terms
 
 Contributors need JDK 26 and the ownership rules in the [architecture
-contract](../../ARCHITECTURE.md#cpu-backend-routes). Real loading also requires a compatible
+contract](../architecture/contracts/backend-execution.md#cpu-backend-routes). Real loading also requires a compatible
 OpenBLAS binary already installed or otherwise available to the operating-system loader, plus
 deployment JVM permission for restricted native access.
 
@@ -241,31 +241,32 @@ runtime: invoke prepared CPU executable
 ## Supported lifecycle integration
 
 `CpuBackendIntegration.open()` owns one fixed exact/default CPU composition. It exposes the
-retained `CpuCapabilityProvider`, the immutable `cpu/host` availability snapshot, one positional
-preparation factory, one prepared-schedule assembler, the complete
-`prepare(CompileArtifacts)` composition entry, and intrinsic-only borrowing of compatible host
-storage. CPU declares a direct dependency on Compiler because these preparation operations consume
-that public compile recipe; CPU still has no Engine dependency, and Engine remains the outer
-composition root. Engine delegates complete preparation and does not derive source-only roles,
-descriptors, scalar values, byte geometry, or initialization facts.
+retained `CpuCapabilityProvider`, the immutable `cpu/host` availability snapshot, one artifact-free
+positional preparation, one prepared-schedule assembler, two artifact-free tuning collaborations,
+and intrinsic-only borrowing of compatible host storage. CPU has no production dependency on
+Compiler or Engine. Engine remains the outer composition root: it retains `CompileArtifacts`,
+uses shared `GraphPreparation` for the sole projection and complete orchestration, and passes only
+stable partition context into CPU tuning. Prepare derives source-only roles and asks CPU's
+assembler to contribute physical geometry without exposing the Compiler aggregate.
 
 The supported execution domain is exactly one non-empty maximal CPU-owned partition:
 
 ```text
-CompileArtifacts with one non-empty CPU partition
-  -> CpuBackendIntegration.prepare(...)
-  -> CPU derives exact source-only constant resources
-  -> shared GraphPreparation and the retained assembler
+CompileArtifacts retained by Engine
+  -> GraphPreparation projects one non-empty CPU partition
+  -> CpuBackendIntegration supplies one PartitionPreparation
+  -> shared GraphPreparation asks the retained assembler for source-only constant geometry
   -> representation creation
   -> one prepared CPU executable
   -> forward publications, then gradient publications
 ```
 
-The diagram reads from immutable Compiler output through cold Prepare recipe construction to
-Runtime schedule order. A fully static canonical source-only published splat is contributed in
-final graph-value order, assigned after ordinary buffers, and represented by one initialized-buffer
-recipe. It gains no executable schedule step. Schedule assembly allocates, initializes, borrows,
-executes, and publishes nothing. `PreparedExecution` owns only immutable recipes. Each fresh
+The diagram reads from Engine-owned immutable Compiler output through shared Prepare recipe
+construction to Runtime schedule order. Prepare identifies a fully static canonical source-only
+published splat in final graph-value order; CPU contributes its physical geometry; Prepare assigns
+it after ordinary buffers; and CPU represents it with one initialized-buffer recipe. It gains no
+executable schedule step. Schedule assembly allocates, initializes, borrows, executes, and
+publishes nothing. `PreparedExecution` owns only immutable recipes. Each fresh
 `RunState` invokes every initialized-buffer recipe exactly once, so sequential and concurrent runs
 own distinct initialized CPU representations; borrowed caller inputs remain caller-owned.
 
@@ -286,8 +287,8 @@ availability identity.
 `CpuBackendIntegration.localWorkloadTuning()` returns the same retained
 `CpuLocalWorkloadTuning` collaboration while the integration is open. This is a supported
 composition SPI for the current exact/default FLOAT32/FLOAT64 bare-MATMUL tuning slice, not an
-application tuning runner. Given one artifact in the integration's supported sole non-empty CPU
-partition domain, `candidateHandoff(...)` performs fresh CPU analysis and returns a handoff only
+application tuning runner. Given the exact stable `PrepareContext` for the supported sole
+non-empty CPU partition, `candidateHandoff(...)` performs fresh CPU analysis and returns a handoff only
 when that analysis finds the complete eligible OpenBLAS-versus-portable batch. A valid but
 non-tunable artifact returns an empty optional; unsupported partition shapes fail under the same
 domain rules as ordinary preparation.
@@ -306,11 +307,12 @@ caller's bytes and returns an empty optional for malformed, trailing, unsupporte
 wrong-session, or unknown-candidate data. The collaboration neither reads nor writes a cache or
 file; an outer owner decides whether and where encoded decisions are retained.
 
-`prepareTrial(...)` and `prepareSelected(...)` create complete `PreparedExecution` recipes only
-after fresh authoritative CPU analysis accepts the exact requested candidate or decision. They do
-not treat the earlier enumeration as authority and do not silently fall back to a heuristic
-choice. Ordinary `CpuBackendIntegration.prepare(...)` remains the independent safe-heuristic path
-and is unchanged when tuning is absent or abandoned.
+`trialPreparation(...)` and `selectedPreparation(...)` return only a CPU-owned
+`PartitionPreparation` after fresh authoritative CPU analysis accepts the exact requested
+candidate or decision. They do not treat the earlier enumeration as authority and do not silently
+fall back to a heuristic choice. Engine passes these values through `GraphPreparation`; ordinary
+or fallback composition uses `CpuBackendIntegration.partitionPreparation()` through the same
+shared path.
 
 The collaboration does not bind representative inputs, run a recipe, measure or benchmark it,
 choose a winner, manage warmups or samples, coordinate a cache, or decide strict-versus-heuristic
@@ -331,12 +333,12 @@ new collaboration work and uses the existing provider quiescence, restoration, a
 space:
 
 ```text
-same CompileArtifacts
+same exact stable partition projection
   -> same sole non-empty CPU partition
   -> one retained legal 0008D fused/split topology
   -> one retained 0008E direct, single-copy, or eligible disjoint-two-copy representation
   -> exact reused Phase-1 route/configuration decision, or freshly proved Phase-1 ineligibility
-  -> fresh complete PreparedExecution recipe
+  -> fresh CPU PartitionPreparation for shared composition
 ```
 
 The candidate does not change the Compiler graph, Planning owner or partition boundary, logical
@@ -345,8 +347,8 @@ supported one-partition lifecycle, but it is not a complete mixed-backend or mul
 model plan. Compiler graph alternatives, Planning ownership alternatives, a model-plan cache,
 and a user-facing Phase-2 Engine API remain unimplemented.
 
-`candidateHandoff(artifacts, phaseOneDecision)` first authenticates the exact artifact and
-integration association. When the artifact has an eligible Phase-1 local workload, the caller
+`candidateHandoff(context, phaseOneDecision)` first authenticates the exact projected context and
+integration association. When the projection has an eligible Phase-1 local workload, the caller
 must supply the exact selected `CpuLocalWorkloadTuning.SelectedDecision`; when it does not, the
 optional must be empty. Phase 2 keeps that state fixed. Fresh validation may regenerate the
 Phase-1 batch to prove compatibility, but it does not enumerate, rank, time, or substitute local
@@ -356,13 +358,14 @@ The returned batch contains every retained legal topology/representation combina
 order, or no batch when completeness cannot be proved or fewer than two alternatives exist.
 Candidate-only copied representations remain explicit alternatives for this collaboration; their
 presence does not promote them into ordinary heuristic preparation, which continues to select
-the established direct representation. `prepareTrial(...)` and `prepareSelected(...)` each
-repeat authoritative compatibility checks and construct a new shared memory plan, finalized CPU
-recipe, schedule, and `PreparedExecution`. Despite its name, `prepareTrial(...)` neither binds
-representative inputs nor runs or timestamps a trial.
+the established direct representation. `trialPreparation(...)` and
+`selectedPreparation(...)` each repeat authoritative compatibility checks and return a fresh
+CPU partition preparation. Engine then invokes shared assignment, finalization, schedule assembly,
+validation, and `PreparedExecution` construction. A trial preparation neither binds representative
+inputs nor runs or timestamps a trial.
 
 Batch, candidate, and live decision values are immutable exact-association values. They own no
-closeable resource and borrow the exact integration, artifacts, and partition association.
+closeable resource and borrow the exact integration, projected context, and partition association.
 Compatibility and candidate identities expose fresh defensive byte copies. Current compatibility
 is always `SESSION` scoped and includes an integration nonce; encoded decisions can therefore be
 reused only against a freshly generated compatible batch from that same live integration. The

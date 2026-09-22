@@ -1710,7 +1710,8 @@ final class RepresentativeExecutionSessionTest {
 
         @Override
         public io.github.pho001.synaptik.runtime.execution.PreparedExecution prepareTrial(
-                SyntheticBatch ignored, Integer candidate) throws Exception {
+                CompileArtifacts artifacts, SyntheticBatch ignored, Integer candidate)
+                throws Exception {
             trialPrepareCount.incrementAndGet();
             if (trialPreparationFailure instanceof Exception exception) throw exception;
             rethrow(trialPreparationFailure);
@@ -1782,7 +1783,8 @@ final class RepresentativeExecutionSessionTest {
         }
 
         @Override public io.github.pho001.synaptik.runtime.execution.PreparedExecution
-                prepareCompletePlanTrial(SyntheticPlanBatch ignored, Integer candidate) {
+                prepareCompletePlanTrial(CompileArtifacts artifacts,
+                        SyntheticPlanBatch ignored, Integer candidate) {
             completeTrialPrepareCount.incrementAndGet();
             rethrow(completeTrialPreparationFailure);
             TestPreparedResource resource = new TestPreparedResource(
@@ -1799,7 +1801,8 @@ final class RepresentativeExecutionSessionTest {
         @Override
         public io.github.pho001.synaptik.runtime.execution.PreparedExecution
                 prepareCompletePlanSelected(
-                        SyntheticPlanBatch ignored, SyntheticPlanDecision decision) {
+                        CompileArtifacts artifacts, SyntheticPlanBatch ignored,
+                        SyntheticPlanDecision decision) {
             selectedPrepareCount.incrementAndGet();
             if (selectedEntered != null) selectedEntered.countDown();
             if (selectedRelease != null) await(selectedRelease);

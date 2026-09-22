@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 /** Locks the concrete CPU backend's exact direct project dependency boundary. */
 final class CpuDependencyContractTest {
     private static final List<String> APPROVED = List.of(
-            "implementation(project(\":modules:compiler\"))",
+            "testImplementation(project(\":modules:compiler\"))",
             "implementation(project(\":modules:model\"))",
             "implementation(project(\":modules:config\"))",
             "implementation(project(\":modules:planning\"))",
@@ -22,12 +22,23 @@ final class CpuDependencyContractTest {
             "implementation(project(\":modules:trace\"))",
             "implementation(project(\":backends:openblas-provider\"))");
 
-    /** Confirms Compiler is direct, Engine is absent, and every other CPU edge remains exact. */
+    /** Confirms Compiler is test-only, Engine is absent, and every production edge remains exact. */
     @Test
     void cpuHasOnlyTheApprovedDirectDependencies() throws IOException {
         String build = Files.readString(repositoryRoot().resolve("backends/cpu/build.gradle.kts"));
         assertEquals(APPROVED, projectDependencyLines(build));
         assertFalse(build.contains(":modules:engine"));
+        Path production = repositoryRoot().resolve("backends/cpu/src/main");
+        try (var paths = Files.walk(production)) {
+            assertFalse(paths.filter(Files::isRegularFile).anyMatch(path -> {
+                try {
+                    return Files.readString(path).contains("io.github.pho001.synaptik.compiler")
+                            || Files.readString(path).contains("CompileArtifacts");
+                } catch (IOException failure) {
+                    throw new java.io.UncheckedIOException(failure);
+                }
+            }));
+        }
     }
 
     private static List<String> projectDependencyLines(String buildScript) {

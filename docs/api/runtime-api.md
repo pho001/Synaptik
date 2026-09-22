@@ -1107,13 +1107,12 @@ recipes:
 
 `PartitionPreparation<I,P>` positionally associates backend inputs, a typed preparer, and its
 matching finalizer. `GraphPreparation.prepare(...)` accepts one complete `CompileArtifacts`, one
-such value per planned partition, and one explicit `PreparedScheduleAssembler`. Its four-argument
-form also accepts the complete list of `ProducerlessPublishedConstantResource` values required by
-the artifacts. Each contribution retains the exact graph value, exact producerless/consumerless
-graph-output logical requirement, and concrete-composition-supplied byte size and alignment for a
-fully static source-only published compile-time constant. The three-argument form supplies an
-empty list and therefore preserves ordinary partition-connected behavior and fail-closed handling
-when such a source-only assignment is required.
+such value per planned partition, and one explicit `PreparedScheduleAssembler`. Its ordinary
+three-argument form identifies each required producerless published constant and asks the
+assembler to contribute a `ProducerlessPublishedConstantResource` from the exact stable graph
+value, producerless/consumerless graph-output logical requirement, and scalar. The contribution
+supplies backend-owned physical byte size and alignment. The four-argument form remains available
+for a caller that already holds the complete contribution list.
 
 Before backend work, Prepare snapshots the lists, validates exact artifact-reference membership
 and the complete graph-input, graph-output, constant-source, unconsumed logical role, and orders
@@ -1123,9 +1122,10 @@ required, so this handoff does not enable a zero-node execution.
 
 The operation constructs all partition contexts before analysis, invokes each preparer and
 finalizer once in partition order, then gives the assembler one immutable
-`PreparedScheduleContext`. That context retains the exact artifacts, shared memory plan, prepared
-partitions, and `PreparedBufferAssignment` values that map graph `ValueId` values to dense Runtime
-buffer positions.
+`PreparedScheduleContext`. That context contains no Compiler aggregate. It retains the validated
+stable planned partitions, graph values, bindable-source IDs, constants, ordered publication IDs,
+shared memory plan, prepared partitions, and `PreparedBufferAssignment` values that map graph
+`ValueId` values to dense Runtime buffer positions.
 
 The package-internal complete-set handoff validates expected partition coverage, exact projected
 source references, and backend ownership before assignment. It traverses partitions and

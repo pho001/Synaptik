@@ -29,6 +29,7 @@ import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.model.tensor.TensorId;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryPlanning;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
+import io.github.pho001.synaptik.prepare.GraphPreparation;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan;
 import io.github.pho001.synaptik.runtime.run.PreparedExecutionRunner;
 import io.github.pho001.synaptik.runtime.schedule.PreparedSchedule;
@@ -63,7 +64,7 @@ final class CpuBackendCompositionTest {
                             ScalarValue.float32(3.0f)));
             CompileArtifacts artifacts = withConstants(base, constants);
 
-            var execution = composition.prepare(artifacts);
+            var execution = prepare(composition, artifacts);
             var creation = assertInstanceOf(PreparedSchedule.RepresentationCreationStep.class,
                     execution.schedule().steps().getFirst());
             int ordinaryBufferCount = base.memory().requirements().size();
@@ -144,19 +145,19 @@ final class CpuBackendCompositionTest {
                     Optional.of(LayoutDescriptor.contiguous(overflowingShape)), false);
 
             assertTrue(assertThrows(IllegalArgumentException.class,
-                    () -> composition.prepare(withConstants(base, List.of(
+                    () -> prepare(composition, withConstants(base, List.of(
                             new ConstantCase(dynamic, ScalarValue.float32(1.0f))))))
                     .getMessage().contains("dynamic shape"));
             assertTrue(assertThrows(IllegalArgumentException.class,
-                    () -> composition.prepare(withConstants(base, List.of(
+                    () -> prepare(composition, withConstants(base, List.of(
                             new ConstantCase(unresolved, ScalarValue.float32(1.0f))))))
                     .getMessage().contains("unresolved layout"));
             assertTrue(assertThrows(IllegalArgumentException.class,
-                    () -> composition.prepare(withConstants(base, List.of(
+                    () -> prepare(composition, withConstants(base, List.of(
                             new ConstantCase(nonCanonical, ScalarValue.float32(1.0f))))))
                     .getMessage().contains("non-canonical layout"));
             assertThrows(ArithmeticException.class,
-                    () -> composition.prepare(withConstants(base, List.of(
+                    () -> prepare(composition, withConstants(base, List.of(
                             new ConstantCase(overflowing, ScalarValue.float64(1.0d))))));
         }
     }
@@ -246,9 +247,11 @@ final class CpuBackendCompositionTest {
         CpuLocalWorkloadTuning first = tuning(firstComposition);
         CpuLocalWorkloadTuning second = tuning(secondComposition);
         try {
-            var firstBatch = first.candidateHandoff(resolvedMatmul(firstComposition))
+            var firstBatch = first.candidateHandoff(context(
+                    firstComposition, resolvedMatmul(firstComposition)))
                     .orElseThrow().candidateBatch();
-            var secondBatch = second.candidateHandoff(resolvedMatmul(secondComposition))
+            var secondBatch = second.candidateHandoff(context(
+                    secondComposition, resolvedMatmul(secondComposition)))
                     .orElseThrow().candidateBatch();
             var candidate = first.candidates(firstBatch).getFirst();
             var decision = first.selectedDecision(firstBatch, candidate);
@@ -264,8 +267,8 @@ final class CpuBackendCompositionTest {
                     () -> assertTrue(first.decodeCompatibleDecision(firstBatch, new byte[0]).isEmpty()),
                     () -> assertTrue(first.decodeCompatibleDecision(firstBatch,
                             new byte[513]).isEmpty()),
-                    () -> assertNotNull(first.prepareTrial(firstBatch, candidate)),
-                    () -> assertNotNull(first.prepareSelected(firstBatch, decision)));
+                    () -> assertNotNull(first.trialPreparation(firstBatch, candidate)),
+                    () -> assertNotNull(first.selectedPreparation(firstBatch, decision)));
             byte[] unsupported = encoded.clone();
             unsupported[7] ^= 1;
             assertTrue(first.decodeCompatibleDecision(firstBatch, unsupported).isEmpty());
@@ -295,9 +298,11 @@ final class CpuBackendCompositionTest {
         try {
             CpuLocalWorkloadTuning first = tuning(firstComposition);
             CpuLocalWorkloadTuning second = tuning(secondComposition);
-            var firstBatch = first.candidateHandoff(resolvedMatmul(firstComposition))
+            var firstBatch = first.candidateHandoff(context(
+                    firstComposition, resolvedMatmul(firstComposition)))
                     .orElseThrow().candidateBatch();
-            var secondBatch = second.candidateHandoff(resolvedMatmul(secondComposition))
+            var secondBatch = second.candidateHandoff(context(
+                    secondComposition, resolvedMatmul(secondComposition)))
                     .orElseThrow().candidateBatch();
             var decision = first.selectedDecision(firstBatch, first.candidates(firstBatch).getFirst());
             byte[] encoded = first.encodeDecision(decision);
@@ -424,6 +429,19 @@ final class CpuBackendCompositionTest {
                 LogicalMemoryPlanning.plan(graph, base.partitions()), publication, constantPlan,
                 base.diagnostics(), new DerivativeGraphMetadata(
                         graph, base.derivatives().derivativeOrderByNode()));
+    }
+
+    private static io.github.pho001.synaptik.runtime.execution.PreparedExecution prepare(
+            CpuBackendComposition composition, CompileArtifacts artifacts) {
+        return GraphPreparation.prepare(artifacts, List.of(composition.preparation()),
+                composition.scheduleAssembler());
+    }
+
+    private static io.github.pho001.synaptik.prepare.analysis.PrepareContext<?> context(
+            CpuBackendComposition composition, CompileArtifacts artifacts) {
+        var preparation = composition.preparation();
+        return GraphPreparation.project(artifacts, artifacts.partitions().getFirst(),
+                preparation.backendInputs());
     }
 
     private static byte[] expectedBytes(ConstantCase constant) {

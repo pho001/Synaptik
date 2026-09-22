@@ -8,6 +8,9 @@ import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
+import io.github.pho001.synaptik.prepare.GraphPreparation;
+import io.github.pho001.synaptik.prepare.PartitionPreparation;
+import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import java.util.List;
@@ -62,6 +65,43 @@ final class CpuEngineBackendComposition implements EngineBackendComposition {
         return integration.completePlanTuning();
     }
 
+    /**
+     * Obtains the sole authoritative stable Prepare projection for CPU tuning.
+     *
+     * @param artifacts exact non-null Engine-owned compile result; inspected but not transferred
+     * @return a new non-null validated context for the sole CPU partition
+     * @throws NullPointerException if {@code artifacts} is {@code null}
+     * @throws IllegalArgumentException if partition coverage is not exactly one
+     * @throws IllegalStateException if the CPU integration is closed
+     */
+    PrepareContext<?> projectedContext(CompileArtifacts artifacts) {
+        Objects.requireNonNull(artifacts, "artifacts");
+        if (artifacts.partitions().size() != 1) {
+            throw new IllegalArgumentException(
+                    "CPU integration requires exactly one non-empty CPU partition");
+        }
+        PartitionPreparation<?, ?> preparation = integration.partitionPreparation();
+        return GraphPreparation.project(artifacts, artifacts.partitions().getFirst(),
+                preparation.backendInputs());
+    }
+
+    /**
+     * Composes one CPU-owned partition preparation through complete shared graph preparation.
+     *
+     * @param artifacts exact non-null Engine-owned compile result; inspected synchronously
+     * @param preparation exact non-null CPU-owned positional preparation; ownership is unchanged
+     * @return one non-null complete immutable prepared execution owned by the caller
+     * @throws NullPointerException if an argument or backend result is {@code null}
+     * @throws IllegalArgumentException if the preparation or returned schedule disagrees with
+     *     the compile projection
+     * @throws IllegalStateException if the CPU integration is closed
+     */
+    PreparedExecution prepare(
+            CompileArtifacts artifacts, PartitionPreparation<?, ?> preparation) {
+        return GraphPreparation.prepare(artifacts, List.of(preparation),
+                integration.scheduleAssembler());
+    }
+
     /** {@inheritDoc} */
     @Override
     public List<BackendCapabilityProvider> capabilityProviders() {
@@ -77,7 +117,7 @@ final class CpuEngineBackendComposition implements EngineBackendComposition {
     /** {@inheritDoc} */
     @Override
     public PreparedExecution prepare(CompileArtifacts artifacts) {
-        return integration.prepare(artifacts);
+        return prepare(artifacts, integration.partitionPreparation());
     }
 
     /** {@inheritDoc} */

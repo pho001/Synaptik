@@ -46,12 +46,12 @@ tools/tuning
 
 These diagrams express architectural direction; individual modules should depend only on the contracts they actually use.
 
-The concrete CPU backend now directly consumes Compiler-owned `CompileArtifacts` through its
-supported lifecycle integration adapter. Its build therefore declares
-`backends/cpu -> modules/compiler` directly rather than relying on Prepare to expose Compiler
-transitively. This is one concrete realization of the existing execution-side direction above:
-CPU still owns no compilation behavior, and the prohibited `backends/cpu -> modules/engine` edge
-remains absent.
+The concrete CPU backend consumes only shared Model, Planning, Prepare, Runtime, and backend
+contracts plus CPU-owned configuration. Engine passes Compiler-owned `CompileArtifacts` to
+shared Prepare, which projects stable partition and schedule facts before invoking CPU. The CPU
+build therefore has no production dependency on Compiler. Its compiler-backed fixtures use a
+test-only dependency, while the prohibited `backends/cpu -> modules/engine` edge also remains
+absent.
 
 The first advanced Engine lifecycle facade directly names Model-owned `Tensor` and
 `HostTensorStorage` in its advanced public surface and Planning-owned
@@ -131,15 +131,15 @@ training extension traverse declared parameters without knowing concrete layer t
 
 ## Dependency scenario
 
-A CPU partition preparer may implement a shared prepare contract and return a runtime
+A CPU partition preparer may implement a shared Prepare contract and return a Runtime
 `PreparedExecutable`; those dependencies point from the concrete backend toward shared inward
-contracts. The supported `CpuBackendIntegration.preparations(CompileArtifacts)` boundary also
-names Compiler's public immutable output directly, so CPU declares that dependency directly.
-Engine directly depends on each public inward contract its lifecycle source names, including
-Model and Planning contracts rather than receiving them transitively, and may depend on CPU to
-compose the adapter. If CPU imported Engine to find
-configuration or register itself, the inward module would depend back on the composition root and
-create the prohibited reverse edge.
+contracts. `CpuBackendIntegration` exposes an artifact-free `PartitionPreparation` and schedule
+assembler. Engine obtains the exact stable `PrepareContext` projection through
+`GraphPreparation`, supplies it to CPU tuning when needed, and passes the resulting positional
+preparation back to `GraphPreparation` for complete orchestration. Engine directly depends on
+each public inward contract its lifecycle source names and may depend on CPU to compose the
+adapter. If CPU imported Compiler artifacts or Engine to find configuration or register itself,
+the backend would bypass the projection boundary or depend back on the composition root.
 
 ## Related semantic dependency rules
 
@@ -164,7 +164,8 @@ Tests under `testing/architecture-tests/` should fail when forbidden module or p
 - backend independence from engine;
 - Engine's exact direct dependency inventory, including direct Model, Planning, and tuning
   dependencies, plus tuning's absence of an Engine dependency;
-- the CPU backend's exact direct dependency set, including Compiler and excluding Engine;
+- the CPU backend's exact production dependency set, excluding Compiler and Engine while allowing
+  compiler-backed test fixtures only;
 - the OpenBLAS provider's low-level leaf role;
 - absence of backend support APIs on `Operation`;
 - absence of compile-time graph types in the runtime hot path; and

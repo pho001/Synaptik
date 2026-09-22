@@ -6,12 +6,12 @@ import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasQualification;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasTuningBatch;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasTuningDecision;
-import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.planning.partition.PlannedPartition;
+import io.github.pho001.synaptik.prepare.PartitionPreparation;
+import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionTuningHandoff;
 import io.github.pho001.synaptik.prepare.analysis.BackendTuningCandidateBatch;
 import io.github.pho001.synaptik.prepare.analysis.BackendTuningDecision;
-import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -31,8 +31,8 @@ import java.util.UUID;
  * {@link CpuBackendIntegration#localWorkloadTuning()} and never close them independently. The
  * collaboration exposes only opaque owner-associated values and defensive canonical bytes. It
  * performs no measurement, execution, representative-input binding, cache or filesystem access,
- * winner selection, or fallback-policy choice. Every trial and final preparation repeats CPU
- * analysis and rejects a stale or mismatched selection.</p>
+ * winner selection, or fallback-policy choice. Every trial and final partition preparation
+ * repeats CPU analysis and rejects a stale or mismatched selection.</p>
  *
  * <p>Independent calls are safe while the owning integration remains open. Returned prepared
  * recipes borrow that integration's provider and coordination lifetime and must not outlive it.</p>
@@ -61,24 +61,25 @@ public final class CpuLocalWorkloadTuning {
     }
 
     /**
-     * Produces the current complete CPU tuning handoff for one supported artifact, when eligible.
+     * Produces the current complete CPU tuning handoff for one supported projection, when eligible.
      *
-     * @param artifacts non-null immutable artifacts containing exactly one non-empty CPU partition;
-     *     retained by exact reference in a successful opaque batch and never mutated or closed
+     * @param context non-null exact stable partition projection; retained by exact reference in a
+     *     successful opaque batch and never mutated or closed
      * @return a non-null optional containing the exact partition, an associated opaque batch, and
      *     no selected decision; empty for a valid workload with no current tunable peer
-     * @throws NullPointerException if {@code artifacts} is {@code null}
-     * @throws IllegalArgumentException if the artifacts are zero-partition, empty-partition,
-     *     non-CPU, mixed-owner, multi-partition, or otherwise invalid for CPU analysis
+     * @throws NullPointerException if {@code context} is {@code null}
+     * @throws IllegalArgumentException if the projected partition is empty, non-CPU, or otherwise
+     *     invalid for CPU analysis; the outer composition owner must reject a graph with multiple
+     *     partitions before projecting this partition-local context
      * @throws IllegalStateException if the owning integration is closed
      */
     public Optional<BackendPartitionTuningHandoff<CandidateBatch, SelectedDecision>>
-            candidateHandoff(CompileArtifacts artifacts) {
+            candidateHandoff(PrepareContext<?> context) {
         requireOpen();
-        Objects.requireNonNull(artifacts, "artifacts");
-        return composition.tuningBatch(artifacts).map(internal -> {
-            Association association = new Association(this, artifacts,
-                    artifacts.partitions().getFirst(), internal);
+        Objects.requireNonNull(context, "context");
+        return composition.tuningBatch(context).map(internal -> {
+            Association association = new Association(this, context,
+                    context.partition(), internal);
             var candidates = new ArrayList<Candidate>(internal.candidates().size());
             for (int index = 0; index < internal.candidates().size(); index++) {
                 candidates.add(new Candidate(association, index));
@@ -226,14 +227,15 @@ public final class CpuLocalWorkloadTuning {
      *
      * @param batch non-null originating batch
      * @param candidate non-null exact member of {@code batch}
-     * @return one complete immutable reusable prepared execution
+     * @return the immutable CPU-owned partition preparation for the trial candidate
      * @throws NullPointerException if an argument is {@code null}
      * @throws IllegalArgumentException if association, fresh eligibility, compatibility, or
      *     membership fails
      * @throws IllegalStateException if the owning integration is closed
      */
-    public PreparedExecution prepareTrial(CandidateBatch batch, Candidate candidate) {
-        return prepareSelected(batch, selectedDecision(batch, candidate));
+    public PartitionPreparation<?, ?> trialPreparation(
+            CandidateBatch batch, Candidate candidate) {
+        return selectedPreparation(batch, selectedDecision(batch, candidate));
     }
 
     /**
@@ -241,41 +243,42 @@ public final class CpuLocalWorkloadTuning {
      *
      * @param batch non-null originating batch
      * @param decision non-null decision associated with exactly {@code batch}
-     * @return one complete immutable reusable prepared execution
+     * @return the immutable CPU-owned partition preparation for the selected decision
      * @throws NullPointerException if an argument is {@code null}
      * @throws IllegalArgumentException if association, fresh eligibility, compatibility, or
      *     membership fails
      * @throws IllegalStateException if the owning integration is closed
      */
-    public PreparedExecution prepareSelected(CandidateBatch batch, SelectedDecision decision) {
+    public PartitionPreparation<?, ?> selectedPreparation(
+            CandidateBatch batch, SelectedDecision decision) {
         Association association = requireBatch(batch);
         requireDecision(decision);
         if (decision.association != association) {
             throw new IllegalArgumentException("decision does not belong to batch");
         }
-        return composition.prepareSelected(association.artifacts, decision.internal);
+        return composition.selectedPreparation(association.context, decision.internal);
     }
 
     /**
-     * Authenticates exact Phase-1 presence, ownership, artifacts, and association for Phase 2.
+     * Authenticates exact Phase-1 presence, ownership, projection, and association for Phase 2.
      *
-     * @param artifacts exact non-null artifacts to authenticate by reference
+     * @param context exact non-null current stable projection to authenticate
      * @param supplied non-null optional exact public Phase-1 decision; its value is borrowed and
      *     must originate from this live collaboration
      * @return the matched immutable internal decision, or empty when fresh analysis proves that
      *     no eligible local batch exists
      * @throws NullPointerException if an argument is {@code null}
-     * @throws IllegalArgumentException if decision presence, owner, artifacts, or partition
+     * @throws IllegalArgumentException if decision presence, owner, projection, or partition
      *     association does not match fresh analysis
      * @throws IllegalStateException if the owning integration is closed
      */
     Optional<CpuOpenBlasTuningDecision> authenticateCompletePlanPhaseOne(
-            CompileArtifacts artifacts, Optional<SelectedDecision> supplied) {
+            PrepareContext<?> context, Optional<SelectedDecision> supplied) {
         requireOpen();
-        Objects.requireNonNull(artifacts, "artifacts");
+        Objects.requireNonNull(context, "context");
         supplied = Objects.requireNonNull(supplied, "supplied");
         Optional<BackendPartitionTuningHandoff<CandidateBatch, SelectedDecision>> fresh =
-                candidateHandoff(artifacts);
+                candidateHandoff(context);
         if (fresh.isPresent() != supplied.isPresent()) {
             throw new IllegalArgumentException(fresh.isPresent()
                     ? "eligible CPU workload requires a Phase-1 decision"
@@ -284,12 +287,28 @@ public final class CpuLocalWorkloadTuning {
         if (supplied.isEmpty()) return Optional.empty();
         SelectedDecision decision = supplied.orElseThrow();
         requireDecision(decision);
-        if (decision.association.artifacts != artifacts
-                || decision.association.partition != artifacts.partitions().getFirst()) {
+        if (!sameProjection(decision.association.context, context)
+                || decision.association.partition != context.partition()) {
             throw new IllegalArgumentException(
-                    "Phase-1 decision does not belong to the exact artifacts");
+                    "Phase-1 decision does not belong to the exact projection");
         }
         return Optional.of(decision.internal);
+    }
+
+    private static boolean sameProjection(PrepareContext<?> left, PrepareContext<?> right) {
+        return left.partition() == right.partition()
+                && sameReferences(left.partitionDag().nodes(), right.partitionDag().nodes())
+                && sameReferences(left.values(), right.values())
+                && sameReferences(left.memoryRequirements(), right.memoryRequirements())
+                && left.constants().equals(right.constants());
+    }
+
+    private static boolean sameReferences(List<?> left, List<?> right) {
+        if (left.size() != right.size()) return false;
+        for (int index = 0; index < left.size(); index++) {
+            if (left.get(index) != right.get(index)) return false;
+        }
+        return true;
     }
 
     /**
@@ -599,13 +618,13 @@ public final class CpuLocalWorkloadTuning {
 
     private static final class Association {
         private final CpuLocalWorkloadTuning owner;
-        private final CompileArtifacts artifacts;
+        private final PrepareContext<?> context;
         private final PlannedPartition partition;
         private final CpuOpenBlasTuningBatch internal;
-        private Association(CpuLocalWorkloadTuning owner, CompileArtifacts artifacts,
+        private Association(CpuLocalWorkloadTuning owner, PrepareContext<?> context,
                 PlannedPartition partition, CpuOpenBlasTuningBatch internal) {
             this.owner = owner;
-            this.artifacts = artifacts;
+            this.context = context;
             this.partition = partition;
             this.internal = internal;
         }

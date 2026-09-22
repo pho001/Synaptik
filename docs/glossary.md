@@ -2439,8 +2439,8 @@ and lifetime.
 The current CPU local-workload batch contains portable/OpenBLAS Phase-1 route configurations.
 The separate current CPU complete-plan batch contains every proved retained combination of one
 legal 0008D topology and one direct, single-copy, or eligible disjoint-two-copy 0008E
-representation for the same compile artifacts and sole CPU partition. It also fixes the exact
-authenticated Phase-1 result. These two batches answer different questions; treating the local
+representation for the same exact projected context and sole CPU partition. It also fixes the
+exact authenticated Phase-1 result. These two batches answer different questions; treating the local
 batch as a plan batch would incorrectly repeat local route search.
 
 The Metal NEG batch is session-scoped. It contains only `CUSTOM_SINGLE_NEG` and `MPSGRAPH`
@@ -2450,12 +2450,14 @@ candidate schemas are version one, and no private field crosses the marker-role 
 ### Complete-plan candidate
 
 One complete alternative for all choices owned by the producer at the current Phase-2 boundary.
-The implemented CPU form keeps the same `CompileArtifacts`, sole non-empty CPU partition,
-Compiler graph, Planning owner, logical memory, and publication semantics. It chooses one already
+The implemented CPU form keeps the same exact stable partition projection, sole non-empty CPU
+partition, Planning owner, logical memory, and CPU configuration. Engine separately retains the
+same compiled graph and publication semantics. The candidate chooses one already
 legal 0008D fused/split topology, one retained 0008E direct or eligible one-/two-copy
 representation, and reuses the exact authenticated Phase-1 local route/configuration state.
-Fresh preparation realizes that choice as a new `PreparedExecution` recipe but does not execute
-or time it.
+Fresh CPU preparation realizes that choice as a new `PartitionPreparation`; Engine sends it
+through `GraphPreparation` to construct a complete `PreparedExecution` without executing or timing
+it.
 
 This current term does not mean a model-wide candidate with Compiler graph alternatives,
 Planning ownership alternatives, multiple partitions, or mixed backends. Candidate-only copied
@@ -4980,17 +4982,20 @@ physical binding, representation, residency fact, or mutable runtime state.
 
 The implemented stateless public Prepare operation that consumes one exact `CompileArtifacts`,
 one typed positional `PartitionPreparation` per planned partition, and one explicit
-`PreparedScheduleAssembler`. It constructs every partition `PrepareContext` before backend work,
+`PreparedScheduleAssembler`. Its public `project(...)` operation and complete preparation share
+one projection implementation. It constructs every partition `PrepareContext` before backend work,
 coordinates ordered analysis and finalization, supplies one complete immutable
 `PreparedScheduleContext` to the assembler, validates the returned recipe, and returns the exact
 `PreparedExecution`.
 
-Its four-argument form also accepts the complete set of
+Its ordinary three-argument form identifies required producerless published constants in stable
+graph-value order and asks the assembler to contribute their physical geometry. Its four-argument
+form also accepts an already complete set of
 [`producerless published-constant resources`](#producerless-published-constant-resource--producerlesspublishedconstantresource)
 required by the artifacts. It validates and snapshots them before backend work, canonicalizes
 them by final graph-value encounter order, and includes their appended shared buffer assignments
-in the assembler context without adding them to any partition-local analysis or finalizer. The
-three-argument form supplies an empty set. Neither form makes a zero-node graph executable.
+in the assembler context without adding them to any partition-local analysis or finalizer.
+Neither form makes a zero-node graph executable.
 
 Validation covers exact plan identity, caller-input order, initialized compile constants,
 executable coverage and order, representation coordinates, and forward-then-gradient publication
@@ -5001,19 +5006,33 @@ operation invokes no creator, allocates no physical resource itself, executes no
 no backend, and retains no collaborator. Concrete backend-facing contexts contain no Compiler
 aggregate; current Engine composition explicitly supplies the collaborators.
 
+### Prepared schedule context / `PreparedScheduleContext`
+
+The immutable Prepare-owned input to one `PreparedScheduleAssembler` after analysis, assignment,
+and finalization. It contains stable Model, Planning, Prepare, and Runtime facts only: planned
+partitions, graph values, bindable-source IDs, constants, ordered publication IDs, the exact
+memory plan, prepared partitions, and dense buffer assignments. Construction snapshots its
+collections and validates graph membership, planned/prepared partition identity, executable-plan
+identity, dense slot order, and assignment uniqueness before a concrete assembler observes it.
+
+The context deliberately contains no `CompileArtifacts`, Compiler plan, backend discovery,
+physical allocation, run-owned representation, or mutable run state. CPU and Metal use it only to
+construct immutable Runtime schedule recipes.
+
 ### Producerless published-constant resource / `ProducerlessPublishedConstantResource`
 
 An implemented immutable Prepare composition value for one fully static compile-time constant
 that is both a graph input and requested graph output but has no producing or consuming graph
-node. It retains by identity the exact Compiler `GraphValue` and Planning
+node. It retains by identity the exact stable Model `GraphValue` and Planning
 `LogicalMemoryRequirement`, plus a concrete-composition-supplied non-negative physical byte size
 and positive power-of-two byte alignment. Its accessors return those retained references and
 primitive geometry unchanged.
 
-Shared [`graph preparation`](#graph-preparation--graphpreparation) proves exact artifact
-membership, constant-source and publication roles, complete unique coverage, and canonical final
-graph-value order before backend analysis. Shared assignment appends the resource after every
-ordinary partition-declared buffer. It receives a `PreparedBufferAssignment` but no
+Shared [`graph preparation`](#graph-preparation--graphpreparation) proves exact graph membership,
+constant-source and publication roles, complete unique coverage, and canonical final graph-value
+order before backend analysis. The schedule assembler supplies geometry from the stable value,
+logical requirement, and scalar; shared assignment appends the resource after every ordinary
+partition-declared buffer. It receives a `PreparedBufferAssignment` but no
 `PreparationResourceAssignment`, because no partition or finalizer owns it.
 
 The value is a declaration and handoff only. It does not choose a backend, derive geometry,

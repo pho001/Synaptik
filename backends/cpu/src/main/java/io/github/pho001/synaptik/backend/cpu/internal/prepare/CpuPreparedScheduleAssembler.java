@@ -3,7 +3,12 @@ package io.github.pho001.synaptik.backend.cpu.internal.prepare;
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes;
 import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.graph.GraphValue;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
 import io.github.pho001.synaptik.prepare.PreparedBufferAssignment;
+import io.github.pho001.synaptik.prepare.ProducerlessPublishedConstantResource;
 import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
 import io.github.pho001.synaptik.prepare.PreparedScheduleContext;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan;
@@ -20,8 +25,8 @@ import java.util.function.BooleanSupplier;
  * Assembles the complete deterministic Runtime recipe for one non-empty maximal CPU partition.
  *
  * <p>The immutable assembler creates a representation-creation prefix, one exact finalized CPU
- * executable occurrence, and a forward-then-gradient publication suffix in Compiler publication
- * order. Source-only published constants use initialized-buffer recipes without gaining an
+ * executable occurrence, and a forward-then-gradient publication suffix in stable Prepare-supplied
+ * publication order. Source-only published constants use initialized-buffer recipes without gaining an
  * executable occurrence. It constructs recipes only: no creator is invoked and no physical
  * resource is allocated, initialized, borrowed, executed, or published during assembly.</p>
  */
@@ -37,6 +42,58 @@ public final class CpuPreparedScheduleAssembler implements PreparedScheduleAssem
      */
     public CpuPreparedScheduleAssembler(BooleanSupplier ownerOpen) {
         this.ownerOpen = Objects.requireNonNull(ownerOpen, "ownerOpen");
+    }
+
+    /**
+     * Derives CPU physical geometry for one stable producerless published splat.
+     *
+     * <p>The contribution retains the exact value and logical-requirement references. It creates
+     * no representation and performs no scalar materialization; schedule assembly later uses the
+     * validated contribution to describe a per-run initialized CPU buffer.</p>
+     *
+     * @param value exact non-null stable graph value with a fully static canonical descriptor
+     * @param logicalRequirement exact non-null matching producerless logical requirement
+     * @param scalar exact non-null compile-time scalar whose type must match the descriptor
+     * @return a new non-null immutable contribution with checked canonical byte geometry
+     * @throws NullPointerException if an argument is {@code null}
+     * @throws IllegalStateException if the owning CPU integration is closed
+     * @throws IllegalArgumentException if shape, layout, or scalar type is unsupported
+     * @throws ArithmeticException if referenced-span byte arithmetic overflows
+     */
+    @Override
+    public ProducerlessPublishedConstantResource producerlessPublishedConstant(
+            GraphValue value,
+            LogicalMemoryRequirement logicalRequirement,
+            ScalarValue scalar) {
+        Objects.requireNonNull(value, "value");
+        Objects.requireNonNull(logicalRequirement, "logicalRequirement");
+        Objects.requireNonNull(scalar, "scalar");
+        if (!ownerOpen.getAsBoolean()) {
+            throw new IllegalStateException("CPU backend integration is closed");
+        }
+        var descriptor = value.descriptor();
+        if (!descriptor.shape().isFullyStatic()) {
+            throw new IllegalArgumentException(
+                    "CPU source-only published constant has dynamic shape: " + value.id());
+        }
+        if (descriptor.layout().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "CPU source-only published constant has unresolved layout: " + value.id());
+        }
+        LayoutDescriptor layout = descriptor.layout().orElseThrow();
+        if (!layout.equals(LayoutDescriptor.contiguous(descriptor.shape()))) {
+            throw new IllegalArgumentException(
+                    "CPU source-only published constant has non-canonical layout: " + value.id());
+        }
+        if (scalar.dataType() != descriptor.dataType()) {
+            throw new IllegalArgumentException(
+                    "CPU source-only published constant scalar type disagrees with descriptor: "
+                            + value.id());
+        }
+        long byteSize = Math.multiplyExact(
+                layout.referencedElementSpan(), descriptor.dataType().byteWidth());
+        return new ProducerlessPublishedConstantResource(value, logicalRequirement, byteSize,
+                descriptor.dataType().byteWidth());
     }
 
     /**
@@ -61,13 +118,10 @@ public final class CpuPreparedScheduleAssembler implements PreparedScheduleAssem
         }
         validateSoleCpuPartition(context);
 
-        var descriptors = context.artifacts().graph().values().stream().collect(
+        var descriptors = context.graphValues().stream().collect(
                 java.util.stream.Collectors.toMap(value -> value.id(), value -> value.descriptor()));
-        var bindable = new HashSet<>(context.artifacts().constants().bindableInputs());
-        var constants = new HashMap<ValueId,
-                io.github.pho001.synaptik.model.datatype.ScalarValue>();
-        context.artifacts().constants().constantSources()
-                .forEach(source -> constants.put(source.valueId(), source.value()));
+        var bindable = new HashSet<>(context.bindableInputValueIds());
+        var constants = context.constants();
 
         var bufferPreparations = new ArrayList<
                 List<PreparedRepresentationPlan.BufferPreparation>>(
@@ -107,10 +161,7 @@ public final class CpuPreparedScheduleAssembler implements PreparedScheduleAssem
         context.bufferAssignments().forEach(assignment ->
                 assignments.put(assignment.valueId(), assignment));
         var publications = new ArrayList<ValueId>();
-        context.artifacts().publication().forwardBindings()
-                .forEach(binding -> publications.add(binding.valueId()));
-        context.artifacts().publication().gradientBindings()
-                .forEach(binding -> publications.add(binding.valueId()));
+        publications.addAll(context.publicationValueIds());
         for (int resultIndex = 0; resultIndex < publications.size(); resultIndex++) {
             PreparedBufferAssignment assignment = assignments.get(publications.get(resultIndex));
             if (assignment == null) {
@@ -131,11 +182,11 @@ public final class CpuPreparedScheduleAssembler implements PreparedScheduleAssem
      *     non-empty CPU-owned partition
      */
     private static void validateSoleCpuPartition(PreparedScheduleContext context) {
-        if (context.artifacts().partitions().size() != 1 || context.partitions().size() != 1) {
+        if (context.plannedPartitions().size() != 1 || context.partitions().size() != 1) {
             throw new IllegalArgumentException(
                     "CPU schedule requires exactly one non-empty CPU partition");
         }
-        var compiled = context.artifacts().partitions().getFirst();
+        var compiled = context.plannedPartitions().getFirst();
         var prepared = context.partitions().getFirst().partition();
         if (compiled.nodeIds().isEmpty() || prepared.nodeIds().isEmpty()
                 || !compiled.owner().equals(CpuCapabilityProvider.CPU_BACKEND_ID)

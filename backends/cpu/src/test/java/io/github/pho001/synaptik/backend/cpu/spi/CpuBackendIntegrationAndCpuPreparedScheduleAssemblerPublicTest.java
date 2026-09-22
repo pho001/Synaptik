@@ -27,6 +27,7 @@ import io.github.pho001.synaptik.prepare.PreparedBufferAssignment;
 import io.github.pho001.synaptik.prepare.PreparedPartition;
 import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
 import io.github.pho001.synaptik.prepare.PreparedScheduleContext;
+import io.github.pho001.synaptik.prepare.GraphPreparation;
 import io.github.pho001.synaptik.runtime.execution.BoundInvocation;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
 import io.github.pho001.synaptik.runtime.memory.BufferSlot;
@@ -57,7 +58,7 @@ final class CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest {
                         || Modifier.isProtected(constructor.getModifiers())).count());
         assertEquals(List.of("availabilitySnapshot", "borrow", "capabilityProvider", "close",
                         "completePlanTuning", "copyToCanonicalHostBytes", "localWorkloadTuning",
-                        "open", "preparations", "prepare", "scheduleAssembler"),
+                        "open", "partitionPreparation", "scheduleAssembler"),
                 Arrays.stream(CpuBackendIntegration.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
                         .map(method -> method.getName()).sorted().toList());
@@ -77,7 +78,7 @@ final class CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest {
             List<PreparedBufferAssignment> assignments = assignments(artifacts, memoryPlan);
             PreparedExecutable knownExecutable = new EmptyExecutable(memoryPlan);
             PreparedScheduleAssembler assembler = integration.scheduleAssembler();
-            PreparedSchedule schedule = assembler.assemble(new PreparedScheduleContext(
+            PreparedSchedule schedule = assembler.assemble(context(
                     artifacts, memoryPlan,
                     List.of(new PreparedPartition(
                             artifacts.partitions().getFirst(), knownExecutable)),
@@ -110,7 +111,7 @@ final class CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest {
                         () -> assertEquals(expectedResultIndex, publication.resultIndex()));
             }
 
-            var execution = integration.prepare(artifacts);
+            var execution = prepare(integration, artifacts);
             assertSame(execution.memoryPlan(), execution.schedule().memoryPlan());
             assertInstanceOf(PreparedSchedule.RepresentationCreationStep.class,
                     execution.schedule().steps().getFirst());
@@ -141,18 +142,16 @@ final class CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest {
             CompileArtifacts zero = compile(List.of(leaf()), List.of(integration.capabilityProvider()),
                     List.of(integration.availabilitySnapshot()));
             assertTrue(zero.partitions().isEmpty());
-            assertThrows(IllegalArgumentException.class, () -> integration.preparations(zero));
-            assertThrows(IllegalArgumentException.class, () -> integration.prepare(zero));
+            assertThrows(IllegalArgumentException.class, () -> prepare(integration, zero));
             PreparedMemoryPlan empty = new PreparedMemoryPlan(List.of(), List.of());
             assertThrows(IllegalArgumentException.class, () -> integration.scheduleAssembler()
-                    .assemble(new PreparedScheduleContext(zero, empty, List.of(), List.of())));
+                    .assemble(context(zero, empty, List.of(), List.of())));
 
             BackendId other = new BackendId("other");
             BackendCapabilityProvider provider = provider(other);
             CompileArtifacts nonCpu = compile(List.of(leaf().add(leaf())), List.of(provider),
                     List.of(snapshot(other)));
-            assertThrows(IllegalArgumentException.class, () -> integration.preparations(nonCpu));
-            assertThrows(IllegalArgumentException.class, () -> integration.prepare(nonCpu));
+            assertThrows(IllegalArgumentException.class, () -> prepare(integration, nonCpu));
             assertThrows(IllegalArgumentException.class, () -> integration.scheduleAssembler()
                     .assemble(context(nonCpu, empty)));
 
@@ -165,8 +164,7 @@ final class CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest {
                                     == io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind.ABS)),
                     List.of(snapshot(CpuCapabilityProvider.CPU_BACKEND_ID), snapshot(other)));
             assertEquals(2, mixed.partitions().size());
-            assertThrows(IllegalArgumentException.class, () -> integration.preparations(mixed));
-            assertThrows(IllegalArgumentException.class, () -> integration.prepare(mixed));
+            assertThrows(IllegalArgumentException.class, () -> prepare(integration, mixed));
             assertThrows(IllegalArgumentException.class, () -> integration.scheduleAssembler()
                     .assemble(context(mixed, empty)));
         }
@@ -207,8 +205,7 @@ final class CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest {
         }
         assertThrows(IllegalStateException.class, () -> integration.borrow(
                 new MemorySegmentStorage(DataType.BOOL, 1, MemorySegment.ofArray(new byte[1]))));
-        assertThrows(IllegalStateException.class, () -> integration.preparations(artifacts));
-        assertThrows(IllegalStateException.class, () -> integration.prepare(null));
+        assertThrows(IllegalStateException.class, integration::partitionPreparation);
         assertThrows(IllegalStateException.class, integration::scheduleAssembler);
     }
 
@@ -255,11 +252,34 @@ final class CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest {
 
     private static PreparedScheduleContext context(CompileArtifacts artifacts,
             PreparedMemoryPlan memoryPlan) {
-        return new PreparedScheduleContext(artifacts, memoryPlan,
+        return context(artifacts, memoryPlan,
                 artifacts.partitions().stream()
                         .map(partition -> new PreparedPartition(partition,
                                 new EmptyExecutable(memoryPlan)))
                         .toList(), List.of());
+    }
+
+    private static PreparedScheduleContext context(CompileArtifacts artifacts,
+            PreparedMemoryPlan memoryPlan, List<PreparedPartition> partitions,
+            List<PreparedBufferAssignment> assignments) {
+        var constants = new java.util.LinkedHashMap<ValueId,
+                io.github.pho001.synaptik.model.datatype.ScalarValue>();
+        artifacts.constants().constantSources().forEach(source ->
+                constants.put(source.valueId(), source.value()));
+        var publications = new java.util.ArrayList<ValueId>();
+        artifacts.publication().forwardBindings().forEach(binding ->
+                publications.add(binding.valueId()));
+        artifacts.publication().gradientBindings().forEach(binding ->
+                publications.add(binding.valueId()));
+        return new PreparedScheduleContext(artifacts.partitions(), artifacts.graph().values(),
+                artifacts.constants().bindableInputs(), constants, publications, memoryPlan,
+                partitions, assignments);
+    }
+
+    private static io.github.pho001.synaptik.runtime.execution.PreparedExecution prepare(
+            CpuBackendIntegration integration, CompileArtifacts artifacts) {
+        return GraphPreparation.prepare(artifacts, List.of(integration.partitionPreparation()),
+                integration.scheduleAssembler());
     }
 
     private static PreparedMemoryPlan memoryPlan(CompileArtifacts artifacts) {

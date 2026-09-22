@@ -7,14 +7,13 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRepresentationDecisi
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuBackendComposition;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasTuningDecision;
-import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.model.graph.ValueId;
-import io.github.pho001.synaptik.model.tensor.TensorId;
 import io.github.pho001.synaptik.planning.partition.PlannedPartition;
+import io.github.pho001.synaptik.prepare.PartitionPreparation;
+import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionTuningHandoff;
 import io.github.pho001.synaptik.prepare.analysis.BackendTuningCandidateBatch;
 import io.github.pho001.synaptik.prepare.analysis.BackendTuningDecision;
-import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -30,22 +29,23 @@ import java.util.zip.CRC32;
 /**
  * Supported CPU-owned collaboration for enumerating and freshly preparing complete CPU plans.
  *
- * <p>The collaboration is retained by one {@link CpuBackendIntegration}. For the same
- * {@link CompileArtifacts} and sole non-empty CPU partition, each candidate fixes one
+ * <p>The collaboration is retained by one {@link CpuBackendIntegration}. For the same exact
+ * projected sole non-empty CPU partition, each candidate fixes one
  * already-retained legal fusion/split topology, one direct, single-copy, or eligible
  * disjoint-two-copy representation, and the exact authenticated Phase-1 local route and
- * configuration when that workload is eligible. The Compiler graph, Planning ownership,
- * partition boundary, logical memory, and publication semantics remain fixed.</p>
+ * configuration when that workload is eligible. Upstream graph and publication semantics remain
+ * outside this collaboration; the supplied Planning ownership, partition boundary, and logical
+ * memory remain fixed.</p>
  *
  * <p>The collaboration exposes opaque, association-checked values only. It performs no
  * representative execution, measurement, Phase-1 ranking, cache input/output, Engine policy, or
  * Runtime selection. Candidate-only copied representations do not change ordinary heuristic
- * preparation. Trial preparation constructs a fresh {@link PreparedExecution} recipe but does
- * not bind inputs, execute, or timestamp a trial.</p>
+ * preparation. Trial selection returns a fresh backend preparation for Engine to compose; it
+ * does not bind inputs, execute, or timestamp a trial.</p>
  *
  * <p>Batch, candidate, and decision values are immutable, own no closeable resource, and borrow
- * the exact owning integration, artifacts, and partition association. Compatibility and identity
- * wrappers own defensive canonical bytes; current compatibility is session-scoped. Association
+ * the exact owning integration, projected context, and partition association. Compatibility and
+ * identity wrappers own defensive canonical bytes; current compatibility is session-scoped. Association
  * checks prevent accidental value mixing, while the checksum detects accidental byte corruption;
  * neither mechanism is a hostile-input security boundary.</p>
  */
@@ -78,35 +78,34 @@ public final class CpuCompletePlanTuning {
     }
 
     /**
-     * Produces every complete retained Phase-2 alternative for one supported CPU artifact.
+     * Produces every complete retained Phase-2 alternative for one supported CPU projection.
      *
-     * @param artifacts exact non-null one-partition compile artifacts retained by a successful
-     *     batch
+     * @param context exact non-null stable one-partition projection retained by a successful batch
      * @param phaseOneDecision non-null optional exact Phase-1 decision; required precisely when
-     *     the artifact has an eligible local tuning batch
+     *     the projection has an eligible local tuning batch
      * @return an associated batch in stable topology/representation order, or empty when fewer
      *     than two complete alternatives exist or completeness cannot be proved
      * @throws NullPointerException if an argument is {@code null}
-     * @throws IllegalArgumentException if the artifact or Phase-1 association is invalid
+     * @throws IllegalArgumentException if the projection or Phase-1 association is invalid
      * @throws IllegalStateException if the owning integration is closed
      */
     public Optional<BackendPartitionTuningHandoff<CandidateBatch, SelectedDecision>>
-            candidateHandoff(CompileArtifacts artifacts,
+            candidateHandoff(PrepareContext<?> context,
                     Optional<CpuLocalWorkloadTuning.SelectedDecision> phaseOneDecision) {
         requireOpen();
-        Objects.requireNonNull(artifacts, "artifacts");
+        Objects.requireNonNull(context, "context");
         phaseOneDecision = Objects.requireNonNull(phaseOneDecision, "phaseOneDecision");
         Optional<CpuOpenBlasTuningDecision> internalPhaseOne = localWorkloadTuning
-                .authenticateCompletePlanPhaseOne(artifacts, phaseOneDecision);
+                .authenticateCompletePlanPhaseOne(context, phaseOneDecision);
         byte[] phaseOneFingerprint = localWorkloadTuning
                 .completePlanPhaseOneFingerprint(phaseOneDecision);
         CpuPartitionPreparer.CompletePlanCandidates retained = composition
-                .completePlanCandidates(artifacts, internalPhaseOne);
+                .completePlanCandidates(context, internalPhaseOne);
         List<CpuRepresentationDecision.VariantIdentity> identities = retained.identities().stream()
                 .distinct().toList();
         if (!retained.complete() || identities.size() < 2) return Optional.empty();
-        Association association = new Association(this, artifacts,
-                artifacts.partitions().getFirst(), identities, phaseOneDecision,
+        Association association = new Association(this, context,
+                context.partition(), identities, phaseOneDecision,
                 internalPhaseOne, phaseOneFingerprint);
         var candidates = new ArrayList<Candidate>(identities.size());
         for (int index = 0; index < identities.size(); index++) {
@@ -258,13 +257,14 @@ public final class CpuCompletePlanTuning {
      *
      * @param batch non-null originating batch
      * @param candidate non-null exact member of {@code batch}
-     * @return fresh complete immutable prepared recipe borrowing the integration lifetime
+     * @return the immutable CPU-owned partition preparation for the trial candidate
      * @throws NullPointerException if an argument is {@code null}
      * @throws IllegalArgumentException if association or fresh compatibility fails
      * @throws IllegalStateException if the owning integration is closed
      */
-    public PreparedExecution prepareTrial(CandidateBatch batch, Candidate candidate) {
-        return prepareSelected(batch, selectedDecision(batch, candidate));
+    public PartitionPreparation<?, ?> trialPreparation(
+            CandidateBatch batch, Candidate candidate) {
+        return selectedPreparation(batch, selectedDecision(batch, candidate));
     }
 
     /**
@@ -272,33 +272,34 @@ public final class CpuCompletePlanTuning {
      *
      * @param batch non-null originating batch
      * @param decision non-null decision associated with exactly {@code batch}
-     * @return fresh complete immutable prepared recipe borrowing the integration lifetime
+     * @return the immutable CPU-owned partition preparation for the selected decision
      * @throws NullPointerException if an argument is {@code null}
      * @throws IllegalArgumentException if association, Phase-1 state, candidate set, or fresh
      *     exact selection fails
      * @throws IllegalStateException if the owning integration is closed
      */
-    public PreparedExecution prepareSelected(CandidateBatch batch, SelectedDecision decision) {
+    public PartitionPreparation<?, ?> selectedPreparation(
+            CandidateBatch batch, SelectedDecision decision) {
         Association association = requireBatch(batch).association;
         requireDecision(decision);
         if (decision.association != association) {
             throw new IllegalArgumentException("decision does not belong to batch");
         }
         Optional<CpuOpenBlasTuningDecision> phaseOne = localWorkloadTuning
-                .authenticateCompletePlanPhaseOne(association.artifacts,
+                .authenticateCompletePlanPhaseOne(association.context,
                         association.phaseOneDecision);
         if (!phaseOne.equals(association.internalPhaseOne)) {
             throw new IllegalArgumentException("CPU Phase-1 decision association changed");
         }
         CpuPartitionPreparer.CompletePlanCandidates fresh = composition.completePlanCandidates(
-                association.artifacts, phaseOne);
+                association.context, phaseOne);
         if (!fresh.complete() || !fresh.identities().equals(association.identities)) {
             throw new IllegalArgumentException("CPU complete-plan candidate set changed");
         }
         var selected = new CpuPartitionPreparer.SelectedCompletePlan(VALUE_SCHEMA,
                 association.identities.get(decision.index), unsigned(
                         association.phaseOneFingerprint));
-        return composition.prepareCompletePlan(association.artifacts, phaseOne, selected);
+        return composition.completePlanPreparation(association.context, phaseOne, selected);
     }
 
     private void requireOpen() { composition.assertOpen(); }
@@ -353,7 +354,7 @@ public final class CpuCompletePlanTuning {
         CanonicalSink sink = new CanonicalSink();
         sink.integer(VALUE_SCHEMA).integer(CANDIDATE_SCHEMA).integer(CPU_BACKEND_TAG)
                 .bytes(sessionNonce).integer(association.identities.size());
-        encodeGraph(sink, association.artifacts, association.partition);
+        encodeProjection(sink, association.context, association.partition);
         association.identities.forEach(identity -> encodeVariant(sink, identity));
         encodeEnumerationProfile(sink);
         sink.bytes(association.phaseOneFingerprint);
@@ -364,14 +365,14 @@ public final class CpuCompletePlanTuning {
         return new Compatibility(VALUE_SCHEMA, ReuseScope.SESSION, encoded);
     }
 
-    private static void encodeGraph(CanonicalSink sink, CompileArtifacts artifacts,
+    private static void encodeProjection(CanonicalSink sink, PrepareContext<?> context,
             PlannedPartition partition) {
         var values = new LinkedHashMap<ValueId, Integer>();
-        for (int index = 0; index < artifacts.graph().values().size(); index++) {
-            values.put(artifacts.graph().values().get(index).id(), index);
+        for (int index = 0; index < context.values().size(); index++) {
+            values.put(context.values().get(index).id(), index);
         }
-        sink.integer(artifacts.graph().values().size()).integer(partition.nodeIds().size());
-        artifacts.graph().values().forEach(value -> {
+        sink.integer(context.values().size()).integer(partition.nodeIds().size());
+        context.values().forEach(value -> {
             var descriptor = value.descriptor();
             sink.tag(descriptor.dataType()).integer(descriptor.shape().rank());
             descriptor.shape().dimensions().forEach(dimension ->
@@ -381,9 +382,20 @@ public final class CpuCompletePlanTuning {
                     .tag(layout.kind()).bool(layout.isView())
                     .longValue(layout.referencedElementSpan());
         });
+        sink.integer(context.memoryRequirements().size());
+        context.memoryRequirements().forEach(requirement -> {
+            sink.integer(values.get(requirement.valueId()));
+            sink.integer(requirement.producerPartition().isEmpty()
+                    ? 0
+                    : requirement.producerPartition().orElseThrow() == partition ? 1 : 2);
+            sink.integer(requirement.consumerPartitions().size());
+            requirement.consumerPartitions().forEach(consumer ->
+                    sink.integer(consumer == partition ? 1 : 0));
+            sink.bool(requirement.graphOutput());
+        });
         var nodes = new LinkedHashMap<io.github.pho001.synaptik.model.graph.NodeId,
                 io.github.pho001.synaptik.model.graph.CompiledNode>();
-        artifacts.graph().nodes().forEach(node -> nodes.put(node.id(), node));
+        context.partitionDag().nodes().forEach(node -> nodes.put(node.id(), node));
         partition.nodeIds().forEach(nodeId -> {
             var node = Objects.requireNonNull(nodes.get(nodeId), "partition node");
             sink.integer(node.inputs().size());
@@ -391,14 +403,13 @@ public final class CpuCompletePlanTuning {
             sink.integer(node.outputs().size());
             node.outputs().forEach(value -> sink.integer(values.get(value)));
         });
-        sink.integer(artifacts.graph().inputs().size());
-        artifacts.graph().inputs().forEach(value -> sink.integer(values.get(value)));
-        var constantSources = new LinkedHashMap<ValueId,
-                io.github.pho001.synaptik.model.datatype.ScalarValue>();
-        artifacts.constants().constantSources().forEach(source ->
-                constantSources.put(source.valueId(), source.value()));
-        artifacts.graph().inputs().forEach(valueId -> {
-            var scalar = constantSources.get(valueId);
+        var inputIds = context.memoryRequirements().stream()
+                .filter(value -> value.producerPartition().isEmpty())
+                .map(value -> value.valueId()).toList();
+        sink.integer(inputIds.size());
+        inputIds.forEach(value -> sink.integer(values.get(value)));
+        inputIds.forEach(valueId -> {
+            var scalar = context.constants().get(valueId);
             sink.bool(scalar != null);
             if (scalar != null) {
                 sink.tag(scalar.dataType());
@@ -412,19 +423,6 @@ public final class CpuCompletePlanTuning {
                     case BOOL -> sink.bool(scalar.booleanValue());
                 }
             }
-        });
-        sink.integer(artifacts.publication().forwardBindings().size());
-        var publicationAliases = new LinkedHashMap<TensorId, Integer>();
-        artifacts.publication().forwardBindings().forEach(binding -> {
-            sink.integer(publicationAliases.computeIfAbsent(binding.tensorId(), ignored ->
-                    publicationAliases.size())).integer(values.get(binding.valueId()));
-        });
-        sink.integer(artifacts.publication().gradientBindings().size());
-        artifacts.publication().gradientBindings().forEach(binding -> {
-            sink.integer(binding.derivativeOrder()).integer(binding.targetIndex())
-                    .integer(publicationAliases.computeIfAbsent(binding.target(), ignored ->
-                            publicationAliases.size()))
-                    .integer(values.get(binding.valueId()));
         });
     }
 
@@ -517,7 +515,7 @@ public final class CpuCompletePlanTuning {
 
     /**
      * Opaque immutable complete-plan candidate batch associated with one exact live integration,
-     * artifact, partition, and authenticated Phase-1 state.
+     * projected context, partition, and authenticated Phase-1 state.
      *
      * <p>The batch owns no resource and is meaningful only through its originating
      * {@link CpuCompletePlanTuning} while that integration remains open.</p>
@@ -640,20 +638,20 @@ public final class CpuCompletePlanTuning {
 
     private static final class Association {
         private final CpuCompletePlanTuning owner;
-        private final CompileArtifacts artifacts;
+        private final PrepareContext<?> context;
         private final PlannedPartition partition;
         private final List<CpuRepresentationDecision.VariantIdentity> identities;
         private final Optional<CpuLocalWorkloadTuning.SelectedDecision> phaseOneDecision;
         private final Optional<CpuOpenBlasTuningDecision> internalPhaseOne;
         private final byte[] phaseOneFingerprint;
-        private Association(CpuCompletePlanTuning owner, CompileArtifacts artifacts,
+        private Association(CpuCompletePlanTuning owner, PrepareContext<?> context,
                 PlannedPartition partition,
                 List<CpuRepresentationDecision.VariantIdentity> identities,
                 Optional<CpuLocalWorkloadTuning.SelectedDecision> phaseOneDecision,
                 Optional<CpuOpenBlasTuningDecision> internalPhaseOne,
                 byte[] phaseOneFingerprint) {
             this.owner = owner;
-            this.artifacts = artifacts;
+            this.context = context;
             this.partition = partition;
             this.identities = List.copyOf(identities);
             this.phaseOneDecision = phaseOneDecision;

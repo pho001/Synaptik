@@ -100,12 +100,14 @@ public final class AdvancedEngine implements AutoCloseable {
         Optional<BackendPartitionTuningHandoff<C, D>> candidateHandoff(CompileArtifacts artifacts);
         /**
          * Freshly prepares one complete trial recipe without starting Runtime execution.
+         * @param artifacts exact admitted compile artifacts retained by Engine
          * @param batch non-null backend-owned compatible candidate batch
          * @param candidate non-null opaque candidate from that batch
          * @return a fresh non-null complete trial recipe
          * @throws Exception if cold trial preparation cannot complete
          */
-        io.github.pho001.synaptik.runtime.execution.PreparedExecution prepareTrial(C batch, K candidate)
+        io.github.pho001.synaptik.runtime.execution.PreparedExecution prepareTrial(
+                CompileArtifacts artifacts, C batch, K candidate)
                 throws Exception;
         /** Obtains a decision-empty complete-plan batch around the exact Phase-1 decision.
          * @param artifacts exact admitted compile artifacts
@@ -147,20 +149,22 @@ public final class AdvancedEngine implements AutoCloseable {
          */
         Optional<PD> decodeCompatibleCompletePlanDecision(PC batch, byte[] encodedDecision);
         /** Freshly prepares one complete-plan trial without executing it.
+         * @param artifacts exact admitted compile artifacts retained by Engine
          * @param batch exact source batch
          * @param candidate exact candidate
          * @return fresh non-null trial recipe
          * @throws Exception if cold preparation fails
          */
         io.github.pho001.synaptik.runtime.execution.PreparedExecution prepareCompletePlanTrial(
-                PC batch, PK candidate) throws Exception;
+                CompileArtifacts artifacts, PC batch, PK candidate) throws Exception;
         /** Freshly prepares the authenticated complete-plan winner for production.
+         * @param artifacts exact admitted compile artifacts retained by Engine
          * @param batch exact source batch
          * @param decision exact authenticated winner decision
          * @return fresh non-null production recipe
          */
         io.github.pho001.synaptik.runtime.execution.PreparedExecution prepareCompletePlanSelected(
-                PC batch, PD decision);
+                CompileArtifacts artifacts, PC batch, PD decision);
     }
 
     /**
@@ -690,7 +694,8 @@ public final class AdvancedEngine implements AutoCloseable {
             try {
                 result = WorkloadTuning.tune(tuningRequest, tuning,
                         (batch, candidate) -> {
-                            var trial = tuning.prepareTrial(batch, candidate);
+                            var trial = tuning.prepareTrial(
+                                    compiledGraph.artifacts(), batch, candidate);
                             session.execute(trial);
                         });
             } catch (RuntimeException failure) {
@@ -720,8 +725,10 @@ public final class AdvancedEngine implements AutoCloseable {
                 completeResult = CompletePlanTuning.tune(
                         completeRequest,
                         completePlanBackend(tuning, completeCompatibility),
-                        completePlanCorrectness(tuning, session),
-                        completePlanMeasurement(tuning, session));
+                        completePlanCorrectness(
+                                tuning, compiledGraph.artifacts(), session),
+                        completePlanMeasurement(
+                                tuning, compiledGraph.artifacts(), session));
             } catch (CompletePlanTuning.CorrectnessMismatchException failure) {
                 throw new IllegalStateException(
                         "complete-plan candidate correctness mismatch", failure);
@@ -738,7 +745,7 @@ public final class AdvancedEngine implements AutoCloseable {
                             completeCompatibility, config);
             selectionAuthenticated = true;
             session.cleanupForProductionPreparation();
-            var inward = tuning.prepareCompletePlanSelected(
+            var inward = tuning.prepareCompletePlanSelected(compiledGraph.artifacts(),
                     completeSelected.candidateBatch(),
                     completeSelected.selectedDecision().orElseThrow());
             io.github.pho001.synaptik.engine.PreparedExecution prepared = null;
@@ -1687,9 +1694,10 @@ public final class AdvancedEngine implements AutoCloseable {
                 Objects.requireNonNull(session, "session");
         try {
             admittedSession.cleanupForProductionPreparation();
-            var prepared = Objects.requireNonNull(tuning, "tuning").prepareSelected(
+            var preparation = Objects.requireNonNull(tuning, "tuning").selectedPreparation(
                     Objects.requireNonNull(batch, "batch"),
                     Objects.requireNonNull(decision, "decision"));
+            var prepared = admittedSession.prepareCpuProduction(preparation);
             return admittedSession.completeProductionPreparation(prepared);
         } finally {
             admittedSession.releaseAdmission();
@@ -1938,11 +1946,12 @@ public final class AdvancedEngine implements AutoCloseable {
             CompletePlanCorrectness<PC, PK, CompleteCorrectnessReference>
             completePlanCorrectness(
                     ModelAutotuningTuning<C, D, K, PC, PD, PK> tuning,
+                    CompileArtifacts artifacts,
                     RepresentativeExecutionSession session) {
         return new CompletePlanCorrectness<>() {
             @Override public CompleteCorrectnessReference capture(
                     PC batch, PK candidate, long maximumAggregateBytes) throws Exception {
-                var trial = tuning.prepareCompletePlanTrial(batch, candidate);
+                var trial = tuning.prepareCompletePlanTrial(artifacts, batch, candidate);
                 return new CompleteCorrectnessReference(
                         session.captureCorrectnessReference(trial, maximumAggregateBytes),
                         maximumAggregateBytes);
@@ -1956,7 +1965,7 @@ public final class AdvancedEngine implements AutoCloseable {
                     throw new IllegalArgumentException(
                             "complete-plan correctness byte ceiling changed");
                 }
-                var trial = tuning.prepareCompletePlanTrial(batch, candidate);
+                var trial = tuning.prepareCompletePlanTrial(artifacts, batch, candidate);
                 return switch (session.compareCorrectness(reference.reference(), trial)) {
                     case MATCH -> Outcome.MATCH;
                     case MISMATCH -> Outcome.MISMATCH;
@@ -1969,9 +1978,10 @@ public final class AdvancedEngine implements AutoCloseable {
             PC extends BackendTuningCandidateBatch, PD extends BackendTuningDecision, PK>
             CompleteCandidateMeasurement<PC, PK> completePlanMeasurement(
                     ModelAutotuningTuning<C, D, K, PC, PD, PK> tuning,
+                    CompileArtifacts artifacts,
                     RepresentativeExecutionSession session) {
         return (batch, candidate) -> {
-            var trial = tuning.prepareCompletePlanTrial(batch, candidate);
+            var trial = tuning.prepareCompletePlanTrial(artifacts, batch, candidate);
             session.execute(trial);
         };
     }
@@ -2182,13 +2192,15 @@ public final class AdvancedEngine implements AutoCloseable {
         @Override public Optional<BackendPartitionTuningHandoff<
                 CpuLocalWorkloadTuning.CandidateBatch, CpuLocalWorkloadTuning.SelectedDecision>>
                 candidateHandoff(CompileArtifacts artifacts) {
-            return tuning().candidateHandoff(artifacts);
+            return tuning().candidateHandoff(composition.projectedContext(artifacts));
         }
 
         @Override public io.github.pho001.synaptik.runtime.execution.PreparedExecution prepareTrial(
+                CompileArtifacts artifacts,
                 CpuLocalWorkloadTuning.CandidateBatch batch,
                 CpuLocalWorkloadTuning.Candidate candidate) {
-            return tuning().prepareTrial(batch, candidate);
+            return composition.prepare(
+                    artifacts, tuning().trialPreparation(batch, candidate));
         }
 
         @Override public List<CpuLocalWorkloadTuning.Candidate> candidates(
@@ -2235,7 +2247,7 @@ public final class AdvancedEngine implements AutoCloseable {
                         CompileArtifacts artifacts,
                         CpuLocalWorkloadTuning.SelectedDecision phaseOneDecision) {
             return completeTuning().candidateHandoff(
-                    artifacts, Optional.of(phaseOneDecision));
+                    composition.projectedContext(artifacts), Optional.of(phaseOneDecision));
         }
 
         @Override public List<CpuCompletePlanTuning.Candidate> completePlanCandidates(
@@ -2279,16 +2291,20 @@ public final class AdvancedEngine implements AutoCloseable {
 
         @Override public io.github.pho001.synaptik.runtime.execution.PreparedExecution
                 prepareCompletePlanTrial(
+                        CompileArtifacts artifacts,
                         CpuCompletePlanTuning.CandidateBatch batch,
                         CpuCompletePlanTuning.Candidate candidate) {
-            return completeTuning().prepareTrial(batch, candidate);
+            return composition.prepare(
+                    artifacts, completeTuning().trialPreparation(batch, candidate));
         }
 
         @Override public io.github.pho001.synaptik.runtime.execution.PreparedExecution
                 prepareCompletePlanSelected(
+                        CompileArtifacts artifacts,
                         CpuCompletePlanTuning.CandidateBatch batch,
                         CpuCompletePlanTuning.SelectedDecision decision) {
-            return completeTuning().prepareSelected(batch, decision);
+            return composition.prepare(
+                    artifacts, completeTuning().selectedPreparation(batch, decision));
         }
     }
 

@@ -25,8 +25,9 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
  * Assembles the exact sole-partition all-Metal NEG Runtime recipe.
  *
  * <p>Feed buffers borrow caller inputs in stable feed order, target buffers are freshly allocated
- * per run, one execution step invokes the whole partition, and publication steps retain Compiler
- * result order including repeated aliases. Mixed-owner composition is rejected.</p>
+ * per run, one execution step invokes the whole partition, and publication steps retain the
+ * stable Prepare publication order including repeated aliases. Mixed-owner composition is
+ * rejected.</p>
  */
 final class MetalNegPreparedScheduleAssembler implements PreparedScheduleAssembler {
     private final MetalDeviceContext context;
@@ -38,7 +39,7 @@ final class MetalNegPreparedScheduleAssembler implements PreparedScheduleAssembl
      *
      * @param context non-null borrowed context used by run-owned output creators
      * @param plan non-null analyzed whole-partition lowering
-     * @param publicationValueIds non-null result identities in exact Compiler publication order,
+     * @param publicationValueIds non-null result identities in exact Prepare publication order,
      *     including repeated aliases
      * @throws NullPointerException if a reference or publication element is {@code null}
      */
@@ -66,7 +67,9 @@ final class MetalNegPreparedScheduleAssembler implements PreparedScheduleAssembl
     @Override
     public PreparedSchedule assemble(PreparedScheduleContext scheduleContext) {
         Objects.requireNonNull(scheduleContext, "scheduleContext");
-        if (scheduleContext.partitions().size() != 1
+        if (scheduleContext.plannedPartitions().size() != 1
+                || scheduleContext.plannedPartitions().getFirst() != plan.partition()
+                || scheduleContext.partitions().size() != 1
                 || !scheduleContext.partitions().getFirst().partition().owner()
                         .equals(MetalCapabilityProvider.METAL_BACKEND_ID)) {
             throw new IllegalArgumentException(

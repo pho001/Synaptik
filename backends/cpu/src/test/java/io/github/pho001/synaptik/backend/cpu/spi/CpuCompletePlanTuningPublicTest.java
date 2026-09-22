@@ -37,6 +37,7 @@ import io.github.pho001.synaptik.planning.memory.LogicalMemoryPlanning;
 import io.github.pho001.synaptik.planning.partition.PlannedPartition;
 import io.github.pho001.synaptik.prepare.analysis.BackendTuningCandidateBatch;
 import io.github.pho001.synaptik.prepare.analysis.BackendTuningDecision;
+import io.github.pho001.synaptik.prepare.GraphPreparation;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Constructor;
@@ -60,7 +61,17 @@ final class CpuCompletePlanTuningPublicTest {
                 () -> assertEquals(List.of(BackendTuningCandidateBatch.class),
                         List.of(CpuCompletePlanTuning.CandidateBatch.class.getInterfaces())),
                 () -> assertEquals(List.of(BackendTuningDecision.class),
-                        List.of(CpuCompletePlanTuning.SelectedDecision.class.getInterfaces())));
+                        List.of(CpuCompletePlanTuning.SelectedDecision.class.getInterfaces())),
+                () -> assertEquals(List.of("candidateHandoff", "candidateIdentity", "candidates",
+                                "compatibility", "decodeCompatibleDecision", "encodeDecision",
+                                "selectedDecision", "selectedPreparation", "trialPreparation"),
+                        Arrays.stream(CpuCompletePlanTuning.class.getDeclaredMethods())
+                                .filter(method -> Modifier.isPublic(method.getModifiers()))
+                                .map(method -> method.getName()).sorted().toList()),
+                () -> Arrays.stream(CpuCompletePlanTuning.class.getDeclaredMethods())
+                        .filter(method -> Modifier.isPublic(method.getModifiers()))
+                        .forEach(method -> assertFalse(
+                                method.toGenericString().contains(".compiler."))));
         for (Class<?> value : List.of(CpuCompletePlanTuning.CandidateBatch.class,
                 CpuCompletePlanTuning.SelectedDecision.class,
                 CpuCompletePlanTuning.Candidate.class,
@@ -73,6 +84,7 @@ final class CpuCompletePlanTuningPublicTest {
         assertAll(
                 () -> assertFalse(source.contains("tools.tuning")),
                 () -> assertFalse(source.contains("synaptik.engine")),
+                () -> assertFalse(source.contains("synaptik.compiler")),
                 () -> assertFalse(source.contains("java.io.")),
                 () -> assertFalse(source.contains("java.nio.file")),
                 () -> assertFalse(source.contains("reflect")));
@@ -83,7 +95,8 @@ final class CpuCompletePlanTuningPublicTest {
         try (CpuBackendIntegration integration = CpuBackendIntegration.open()) {
             CpuCompletePlanTuning tuning = integration.completePlanTuning();
             CompileArtifacts artifacts = pointwiseArtifacts(0);
-            var handoff = tuning.candidateHandoff(artifacts, Optional.empty()).orElseThrow();
+            var handoff = tuning.candidateHandoff(
+                    context(integration, artifacts), Optional.empty()).orElseThrow();
             var batch = handoff.candidateBatch();
             var candidates = tuning.candidates(batch);
             assertAll(
@@ -99,7 +112,9 @@ final class CpuCompletePlanTuningPublicTest {
             assertFalse(Arrays.equals(compatibility, tuning.compatibility(batch).bytes()));
             var identities = candidates.stream().map(tuning::candidateIdentity).toList();
             assertEquals(identities.size(), identities.stream().distinct().count());
-            var shifted = tuning.candidateHandoff(pointwiseArtifacts(10_000), Optional.empty())
+            var shiftedArtifacts = pointwiseArtifacts(10_000);
+            var shifted = tuning.candidateHandoff(
+                    context(integration, shiftedArtifacts), Optional.empty())
                     .orElseThrow().candidateBatch();
             assertAll(
                     () -> assertEquals(tuning.compatibility(batch),
@@ -111,8 +126,8 @@ final class CpuCompletePlanTuningPublicTest {
             byte[] encoded = tuning.encodeDecision(decision);
             var decoded = tuning.decodeCompatibleDecision(batch, encoded).orElseThrow();
             assertEquals(decision, decoded);
-            var first = tuning.prepareTrial(batch, candidates.getFirst());
-            var second = tuning.prepareSelected(batch, decoded);
+            var first = tuning.trialPreparation(batch, candidates.getFirst());
+            var second = tuning.selectedPreparation(batch, decoded);
             assertNotSame(first, second);
 
             byte[] corrupt = encoded.clone();
@@ -121,12 +136,13 @@ final class CpuCompletePlanTuningPublicTest {
             assertTrue(tuning.decodeCompatibleDecision(batch,
                     Arrays.copyOf(encoded, encoded.length - 1)).isEmpty());
 
-            var otherBatch = tuning.candidateHandoff(artifacts, Optional.empty())
+            var otherBatch = tuning.candidateHandoff(
+                    context(integration, artifacts), Optional.empty())
                     .orElseThrow().candidateBatch();
             assertThrows(IllegalArgumentException.class,
                     () -> tuning.selectedDecision(otherBatch, candidates.getFirst()));
             assertThrows(IllegalArgumentException.class,
-                    () -> tuning.prepareSelected(otherBatch, decision));
+                    () -> tuning.selectedPreparation(otherBatch, decision));
         }
     }
 
@@ -135,13 +151,22 @@ final class CpuCompletePlanTuningPublicTest {
         CpuBackendIntegration integration = CpuBackendIntegration.open();
         CpuCompletePlanTuning tuning = integration.completePlanTuning();
         CompileArtifacts artifacts = compile(integration, leaf().contiguous());
-        assertTrue(tuning.candidateHandoff(artifacts, Optional.empty()).isEmpty());
+        assertTrue(tuning.candidateHandoff(
+                context(integration, artifacts), Optional.empty()).isEmpty());
         integration.close();
         assertAll(
                 () -> assertThrows(IllegalStateException.class,
                         integration::completePlanTuning),
                 () -> assertThrows(IllegalStateException.class,
-                        () -> tuning.candidateHandoff(artifacts, Optional.empty())));
+                        () -> tuning.candidateHandoff(
+                                context(integration, artifacts), Optional.empty())));
+    }
+
+    private static io.github.pho001.synaptik.prepare.analysis.PrepareContext<?> context(
+            CpuBackendIntegration integration, CompileArtifacts artifacts) {
+        var preparation = integration.partitionPreparation();
+        return GraphPreparation.project(artifacts, artifacts.partitions().getFirst(),
+                preparation.backendInputs());
     }
 
     private static Tensor leaf() {

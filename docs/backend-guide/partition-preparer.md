@@ -379,12 +379,14 @@ PreparedExecution execution =
         GraphPreparation.prepare(artifacts, List.of(cpuPreparation), assembler);
 ```
 
-`artifacts`, `cpuInputs`, and `assembleExampleSchedule` are deliberately illustrative inputs; no
-public Compiler entry, production CPU backend, or Engine facade currently supplies them. The
-result is nevertheless the current API shape: Prepare first constructs all `PrepareContext`
-values, then analyzes and finalizes every partition in order, calls the assembler once with a
-complete immutable `PreparedScheduleContext`, validates the returned recipe, and returns the
-exact `PreparedExecution`.
+`artifacts`, `cpuInputs`, and `assembleExampleSchedule` are deliberately illustrative inputs.
+Production Engine obtains artifacts through `GraphCompilationPort`, asks CPU only for artifact-free
+`PartitionPreparation` and schedule-assembler collaborations, and invokes this same shared
+operation. Prepare first constructs all `PrepareContext` values, then analyzes and finalizes every
+partition in order, calls the assembler once with a complete immutable
+`PreparedScheduleContext`, validates the returned recipe, and returns the exact
+`PreparedExecution`. The schedule context exposes stable projected facts rather than the Compiler
+aggregate.
 
 The assembler must describe every bindable input with exactly one `CallerInput` in compiler input
 order. A compile-time logical splat instead needs at least one `InitializedBuffer` and no caller

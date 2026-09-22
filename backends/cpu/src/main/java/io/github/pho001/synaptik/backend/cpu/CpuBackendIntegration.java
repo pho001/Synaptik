@@ -2,14 +2,11 @@ package io.github.pho001.synaptik.backend.cpu;
 
 import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuBackendComposition;
-import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.prepare.PartitionPreparation;
 import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
-import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -86,40 +83,12 @@ public final class CpuBackendIntegration implements AutoCloseable {
      * this CPU-owned complete-schedule boundary and must be composed by later Engine/Prepare
      * integration.</p>
      *
-     * @param artifacts non-null immutable compile artifacts containing exactly one non-empty
-     *     maximal partition owned by CPU; the artifacts are inspected but not mutated
-     * @return a non-null immutable singleton whose CPU-private input and plan types remain hidden
+     * @return a non-null immutable preparation whose CPU-private input and plan types remain hidden
      *     behind shared Prepare roles
-     * @throws NullPointerException if {@code artifacts} is {@code null}
-     * @throws IllegalArgumentException if the artifacts have zero, multiple, empty, or non-CPU
-     *     partitions, or do not provide complete resolved CPU preparation facts
      * @throws IllegalStateException if this adapter is closed
      */
-    public List<PartitionPreparation<?, ?>> preparations(CompileArtifacts artifacts) {
-        return composition.preparations(artifacts);
-    }
-
-    /**
-     * Prepares the complete immutable Runtime recipe for exactly one non-empty CPU partition.
-     *
-     * <p>CPU derives physical geometry for any fully static canonical source-only published
-     * constants and supplies those declarations to shared Prepare. The returned execution retains
-     * initializer recipes only: every run creates and initializes fresh run-owned CPU
-     * representations exactly once while creating its new run state. A source-only constant adds
-     * no executable schedule occurrence. Pure zero-node constant graphs remain outside this
-     * adapter's supported one-partition domain.</p>
-     *
-     * @param artifacts non-null immutable compile artifacts containing exactly one non-empty
-     *     maximal partition owned by CPU; inspected but not mutated
-     * @return a non-null immutable reusable prepared recipe containing no run-owned CPU resource
-     * @throws NullPointerException if {@code artifacts} is {@code null}
-     * @throws IllegalArgumentException if the artifacts or a required source-only constant role,
-     *     descriptor, scalar type, or physical geometry is unsupported or inconsistent
-     * @throws ArithmeticException if canonical layout or byte-size arithmetic overflows
-     * @throws IllegalStateException if this adapter is closed
-     */
-    public PreparedExecution prepare(CompileArtifacts artifacts) {
-        return composition.prepare(artifacts);
+    public PartitionPreparation<?, ?> partitionPreparation() {
+        return composition.preparation();
     }
 
     /**

@@ -500,6 +500,24 @@ final class RepresentativeExecutionSession implements AutoCloseable {
     }
 
     /**
+     * Composes a CPU-selected partition preparation after representative cleanup.
+     *
+     * @param preparation exact non-null CPU-owned selected preparation; inspected synchronously
+     * @return a new non-null complete prepared execution not yet published from the admission
+     * @throws NullPointerException if {@code preparation} is {@code null}
+     * @throws IllegalStateException if this session does not use CPU composition
+     * @throws IllegalArgumentException if shared preparation rejects the selected association
+     */
+    synchronized PreparedExecution prepareCpuProduction(
+            io.github.pho001.synaptik.prepare.PartitionPreparation<?, ?> preparation) {
+        Objects.requireNonNull(preparation, "preparation");
+        if (!(composition instanceof CpuEngineBackendComposition cpu)) {
+            throw new IllegalStateException("representative session is not CPU-composed");
+        }
+        return cpu.prepare(artifacts, preparation);
+    }
+
+    /**
      * Publishes one already-complete public autotuning result through the retained admission.
      *
      * @param result non-null complete result that must not escape if closure won the race

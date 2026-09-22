@@ -242,10 +242,21 @@ back everything it acquires until its complete result returns successfully. Fina
 change route choice, add an undeclared shared need, or allocate per-run physical representations.
 
 The batch handoff, entry, and result remain package-private implementation details. Public
-`GraphPreparation.prepare(...)` now projects compile artifacts, coordinates the complete
-positionally supplied backend collaborations, invokes one explicit schedule assembler, and
-validates the result. It does not select or discover a backend set; future Engine composition
-supplies those collaborators explicitly.
+`GraphPreparation.project(...)` and `GraphPreparation.prepare(...)` share one projection
+implementation. The former exposes an exact partition-local `PrepareContext` so Engine can ask a
+backend for tuning candidates; the latter coordinates the complete positionally supplied backend
+collaborations, producerless constant contributions, assignment, finalization, schedule assembly,
+validation, rollback, and final `PreparedExecution`. Concrete backends never receive the
+`CompileArtifacts` aggregate. Graph preparation does not select or discover a backend set;
+current Engine composition supplies the collaborators explicitly.
+
+After finalization, `PreparedScheduleContext` carries only stable Model, Planning, Prepare, and
+Runtime facts: planned partitions, graph values, bindable-source IDs, constants, ordered
+publication IDs, the exact memory plan, prepared partitions, and buffer assignments. Prepare
+validates these associations before calling a concrete schedule assembler. For a producerless
+published constant, Prepare identifies and orders the exact logical role and asks the assembler
+to contribute physical geometry from the stable graph value, logical-memory requirement, and
+scalar. Prepare still validates complete coverage and owns assignment and transactionality.
 
 Any dynamic or unresolved Shape currently fails `PrepareContext` construction before backend
 analysis. A future fact may remain run-dynamic only when an explicit prepared contract represents
@@ -331,7 +342,7 @@ assembler. The analysis-side and finalization-side Prepare contracts described a
 current. `modules/prepare` owns `PrepareContext`,
 `BackendPartitionPreparer`, `BackendPartitionAnalysis`, shared resource declarations, current
 assignment and source associations, `PreparedPartition`, `GraphPreparation`, and complete
-schedule validation. Engine-level composition will supply explicitly registered backend implementations and
+schedule validation. Engine-level composition supplies explicitly registered backend implementations and
 their input facts. Prepare
 does not interpret the backend's opaque route plan.
 

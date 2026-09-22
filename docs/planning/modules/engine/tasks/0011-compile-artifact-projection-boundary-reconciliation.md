@@ -2,17 +2,22 @@
 
 ## Status
 
-Ready
+Complete
 
-Frontier verification: the user explicitly authorized this drift repair ahead of the normal
-roadmap reassessment, Engine 0010 and the required Prepare/CPU foundations are Complete, and no
-other task is `Ready` or `In progress`. This is the sole active frontier.
+Frontier verification at launch: the user explicitly authorized this drift repair ahead of the
+normal roadmap reassessment, Engine 0010 and the required Prepare/CPU foundations were Complete,
+and no other task was `Ready` or `In progress`. This executed as the sole active frontier.
 
 ## Change class
 
 Class C — this repairs the Compiler-to-Prepare-to-concrete-backend module edge, changes a
 supported CPU service-provider interface (SPI), and preserves the complete prepare/tuning
 lifecycle across Prepare, CPU, Engine, and one Metal schedule-context consumer.
+
+The brief exceeds the 15 KB planning target because one atomic Class C cutover must preserve and
+validate the ordinary path, two tuning phases, fallback, producerless resources, and two backend
+assemblers across four modules; splitting those coupled acceptance criteria would hide boundary
+coverage.
 
 ## Goal
 
@@ -196,5 +201,52 @@ SPI, concrete-backend SPI, build configuration, and multiple modules.
 
 ## Result
 
-Empty until execution. Record completed changes, changed files, exact validation outcomes,
-documentation/Javadoc/glossary impact, compatibility limitations, follow-up, and final status.
+Completed the boundary cutover without changing authority, Engine user APIs, execution behavior,
+numerics, route policy, or resource ownership. `GraphPreparation` now exposes the sole stable
+partition projection and remains the complete assignment/finalization/schedule/rollback owner.
+`PreparedScheduleContext` carries validated Model/Planning/Prepare/Runtime facts rather than
+`CompileArtifacts`; its assembler collaboration supplies CPU geometry for producerless published
+constants while Prepare retains role detection, ordering, validation, and assignment.
+
+CPU production now consumes only stable `PrepareContext` projections, shared preparation roles,
+and CPU-owned configuration. Ordinary, local-tuning trial/selection, complete-plan trial/selection,
+and fallback paths return a `PartitionPreparation` to Engine, which composes every complete recipe
+through `GraphPreparation`. OpenBLAS storage facts are derived from the projected values and
+logical requirements. Metal received only the stable-context mechanical adaptation. The CPU
+Compiler dependency is now test-only and architecture tests reject production Compiler imports or
+types.
+
+The implementation and focused tests changed 36 paths across Prepare, CPU, Engine, Metal, the CPU
+build, architecture/integration tests, explanatory documentation, glossary, and planning status.
+No top-level production type, architecture/ADR change, or unrelated capability was added.
+
+Validation completed successfully:
+
+- `./gradlew :modules:prepare:test :backends:cpu:test :modules:engine:test :backends:metal:test`
+  (`BUILD SUCCESSFUL`, 2m39s);
+- `./gradlew :testing:architecture-tests:test :testing:integration-tests:test`
+  (`BUILD SUCCESSFUL` after correcting the integration test's reflection-only dependency use);
+- `./gradlew :modules:prepare:javadoc :backends:cpu:javadoc :modules:engine:javadoc :backends:metal:javadoc`
+  (`BUILD SUCCESSFUL`; 94 existing unrelated CPU constructor warnings remain);
+- `./gradlew test` (`BUILD SUCCESSFUL`, 72 actionable tasks);
+- production CPU Compiler import/type search returned no matches, the production Compiler
+  dependency search returned no matches, and the test dependency search returned exactly one
+  `testImplementation` match;
+- changed-path, public-reflection, source-shape, glossary-term, Markdown link/anchor/fence,
+  final-newline, whitespace, and `git diff --check` audits passed.
+
+The mandatory independent targeted review inspected the final 36-path diff and the generated test
+and Javadoc evidence. It corrected two Javadoc boundary descriptions without changing executable
+behavior and found no remaining code, architecture, API, lifecycle, resource, or documentation
+defect within task scope.
+
+Documentation and Javadoc now explain artifact ownership, the stable schedule context, projected
+tuning association, producerless contribution, and test-only dependency. The glossary adds the
+prepared-schedule-context distinction and reconciles graph preparation and complete-plan terms.
+Ordinary and advanced Engine APIs remain source-compatible. The artifact-taking CPU integration
+and tuning descriptors plus the `PreparedScheduleContext` record descriptor are intentionally
+source/binary incompatible; session-scoped CPU tuning bytes retain no before/after continuity
+promise. No unresolved implementation issue remains. The separately authorized autograd
+documentation repair remains follow-up outside this task and is not detailed here.
+
+Status: Complete

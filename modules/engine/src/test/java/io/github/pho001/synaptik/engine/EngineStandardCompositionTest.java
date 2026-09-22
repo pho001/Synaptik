@@ -30,8 +30,8 @@ final class EngineStandardCompositionTest {
         String source = Files.readString(Path.of("src/main/java/io/github/pho001/synaptik/engine/"
                 + "CpuEngineBackendComposition.java"));
 
-        assertTrue(source.contains("return integration.prepare(artifacts);"));
-        assertFalse(source.contains("GraphPreparation"));
+        assertTrue(source.contains("GraphPreparation.prepare"));
+        assertTrue(source.contains("integration.partitionPreparation()"));
         assertFalse(source.contains("ProducerlessPublishedConstantResource"));
         assertFalse(source.contains("LogicalMemoryRequirement"));
         assertFalse(source.contains("LayoutDescriptor"));

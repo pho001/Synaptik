@@ -8,13 +8,12 @@ import java.util.Objects;
  * Contributes physical buffer geometry for one fully resolved compile-time constant that is
  * published without being produced or consumed by a graph partition.
  *
- * <p>The value retains the exact Compiler graph-value and Planning logical-requirement
+ * <p>The value retains the exact stable Model graph-value and Planning logical-requirement
  * references supplied by composition. Its component accessors return those same references and
- * the supplied primitive geometry without copying or mutation. Shared Prepare validates exact
- * reference membership and the complete source/publication role against one
- * {@code CompileArtifacts} instance before backend analysis. This record neither selects an
- * owner nor derives geometry, creates a representation, allocates storage, or materializes the
- * constant.</p>
+ * the supplied primitive geometry without copying or mutation. Shared Prepare validates their
+ * membership and complete source/publication role before asking the schedule assembler for this
+ * contribution. This record neither selects an owner nor derives geometry, creates a
+ * representation, allocates storage, or materializes the constant.</p>
  *
  * @param value exact non-null immutable graph value to retain and return by identity from
  *     {@link #value()}
@@ -35,7 +34,7 @@ public record ProducerlessPublishedConstantResource(
      * Validates the standalone association and generic Runtime-compatible physical geometry.
      *
      * Construction retains both immutable reference components by identity and has no side
-     * effect beyond fail-fast validation. It does not prove artifact membership, infer physical
+     * effect beyond fail-fast validation. It does not prove graph membership, infer physical
      * geometry, allocate a buffer, initialize a representation, or transfer ownership.
      *
      * @param value exact non-null immutable graph value to retain by identity

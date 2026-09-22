@@ -5,7 +5,7 @@ import org.gradle.external.javadoc.JavadocMemberLevel
 import org.gradle.api.tasks.testing.Test
 
 dependencies {
-    implementation(project(":modules:compiler"))
+    testImplementation(project(":modules:compiler"))
     implementation(project(":modules:model"))
     implementation(project(":modules:config"))
     implementation(project(":modules:planning"))

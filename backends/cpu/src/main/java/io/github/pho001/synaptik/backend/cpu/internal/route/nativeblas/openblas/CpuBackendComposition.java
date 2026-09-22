@@ -11,31 +11,13 @@ import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalys
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionFinalizer;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPreparedScheduleAssembler;
-import io.github.pho001.synaptik.compiler.CompileArtifacts;
-import io.github.pho001.synaptik.compiler.CompileConstantPlan;
-import io.github.pho001.synaptik.model.graph.ValueId;
-import io.github.pho001.synaptik.model.datatype.ScalarValue;
-import io.github.pho001.synaptik.model.graph.CompiledNode;
-import io.github.pho001.synaptik.model.graph.GraphValue;
-import io.github.pho001.synaptik.model.graph.NodeId;
-import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
-import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
-import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
-import io.github.pho001.synaptik.prepare.GraphPreparation;
 import io.github.pho001.synaptik.prepare.PartitionPreparation;
-import io.github.pho001.synaptik.prepare.ProducerlessPublishedConstantResource;
 import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
-import io.github.pho001.synaptik.prepare.analysis.PartitionDag;
-import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -154,65 +136,31 @@ public final class CpuBackendComposition implements AutoCloseable {
     /**
      * Builds the single positional CPU preparation after validating complete partition coverage.
      *
-     * @param artifacts non-null compile artifacts containing exactly one non-empty CPU-owned
-     *     partition with complete resolved facts required by current CPU analysis
-     * @return a non-null immutable singleton preparation hiding CPU-private types behind shared
+     * @return a non-null immutable preparation hiding CPU-private types behind shared
      *     Prepare roles
-     * @throws NullPointerException if {@code artifacts} is {@code null}
      * @throws IllegalStateException if this composition is closed
-     * @throws IllegalArgumentException if partition count, membership, ownership, graph
-     *     projection, or resolved CPU boundary facts are unsupported or incomplete
      */
-    public List<PartitionPreparation<?, ?>> preparations(CompileArtifacts artifacts) {
+    public PartitionPreparation<?, ?> preparation() {
         requireOpen();
-        Objects.requireNonNull(artifacts, "artifacts");
-        validateSoleCpuPartition(artifacts);
-        return preparationsForValidatedArtifacts(artifacts);
-    }
-
-    /**
-     * Builds the complete reusable CPU execution recipe, including exact physical declarations
-     * for canonical source-only published constants.
-     *
-     * <p>The returned recipe owns no physical constant representation. Each fresh Runtime run
-     * state invokes its retained initializer recipe once and owns the resulting distinct
-     * representation. Source-only constants add no executable schedule occurrence, and this
-     * operation continues to reject pure zero-node graphs.</p>
-     *
-     * @param artifacts non-null compile artifacts containing exactly one non-empty CPU partition
-     * @return non-null immutable reusable execution recipe with no run-owned physical resource
-     * @throws NullPointerException if {@code artifacts} is {@code null}
-     * @throws IllegalStateException if this composition is closed
-     * @throws IllegalArgumentException if the CPU partition domain or a source-only constant's
-     *     role, descriptor, scalar type, or geometry is unsupported or inconsistent
-     * @throws ArithmeticException if canonical layout or byte-size arithmetic overflows
-     */
-    public PreparedExecution prepare(CompileArtifacts artifacts) {
-        requireOpen();
-        Objects.requireNonNull(artifacts, "artifacts");
-        validateSoleCpuPartition(artifacts);
-        List<PartitionPreparation<?, ?>> preparations =
-                preparationsForValidatedArtifacts(artifacts);
-        List<ProducerlessPublishedConstantResource> resources =
-                producerlessPublishedConstantResources(artifacts);
-        return GraphPreparation.prepare(artifacts, preparations, resources, assembler);
+        return new PartitionPreparation<>(analysisInputs(Optional.empty(),
+                CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED), preparer, finalizer);
     }
 
     /**
      * Performs fresh CPU analysis and returns the current complete tunable batch, if any.
      *
-     * @param artifacts non-null artifacts in the supported sole-CPU-partition domain
+     * @param context non-null exact stable partition projection
      * @return the freshly analyzed immutable batch, or empty when the valid workload is not
      *     currently tunable
-     * @throws NullPointerException if {@code artifacts} is {@code null}
+     * @throws NullPointerException if {@code context} is {@code null}
      * @throws IllegalStateException if this composition is closed
-     * @throws IllegalArgumentException if the artifacts are outside the supported domain
+     * @throws IllegalArgumentException if the projection is outside the supported domain
      */
-    public Optional<CpuOpenBlasTuningBatch> tuningBatch(CompileArtifacts artifacts) {
+    public Optional<CpuOpenBlasTuningBatch> tuningBatch(PrepareContext<?> context) {
         requireOpen();
-        Objects.requireNonNull(artifacts, "artifacts");
-        validateSoleCpuPartition(artifacts);
-        return analyze(artifacts, Optional.empty()).plan().openBlasTuningBatch();
+        return analyze(cpuContext(context, analysisInputs(Optional.empty(),
+                CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED)))
+                .plan().openBlasTuningBatch();
     }
 
     /**
@@ -221,61 +169,61 @@ public final class CpuBackendComposition implements AutoCloseable {
      * <p>The method revalidates Phase-1 state and performs analysis only. It neither prepares nor
      * executes a recipe and does not time or rank alternatives.</p>
      *
-     * @param artifacts non-null exact supported one-partition artifacts; inspected but not
-     *     mutated
+     * @param context non-null exact stable one-partition projection; inspected but not mutated
      * @param phaseOneDecision non-null optional exact authenticated local selection, or empty for
      *     freshly proved absence; the decision is borrowed
      * @return a new immutable complete-plan identity snapshot and completeness outcome
      * @throws NullPointerException if an argument is {@code null}
-     * @throws IllegalArgumentException if artifacts or Phase-1 state are invalid
+     * @throws IllegalArgumentException if the projection or Phase-1 state is invalid
      * @throws ArithmeticException if exact candidate or resource arithmetic overflows
      * @throws IllegalStateException if this composition is closed
      */
     public CpuPartitionPreparer.CompletePlanCandidates completePlanCandidates(
-            CompileArtifacts artifacts, Optional<CpuOpenBlasTuningDecision> phaseOneDecision) {
+            PrepareContext<?> context, Optional<CpuOpenBlasTuningDecision> phaseOneDecision) {
         requireOpen();
-        Objects.requireNonNull(artifacts, "artifacts");
+        Objects.requireNonNull(context, "context");
         Objects.requireNonNull(phaseOneDecision, "phaseOneDecision");
-        validateSoleCpuPartition(artifacts);
-        validatePhaseOne(artifacts, phaseOneDecision);
-        CpuPartitionAnalysisInputs inputs = completePlanAnalysisInputs(artifacts,
-                phaseOneDecision);
-        return preparer.completePlanCandidates(context(artifacts, inputs));
+        validatePhaseOne(context, phaseOneDecision);
+        CpuPartitionAnalysisInputs inputs = analysisInputs(phaseOneDecision,
+                new CpuPartitionAnalysisInputs.MaterializationPolicy(true, 0, 1, 3, 1,
+                        1, Long.MAX_VALUE, 0, 0));
+        return preparer.completePlanCandidates(cpuContext(context, inputs));
     }
 
     /**
      * Freshly prepares one exact retained complete plan without heuristic substitution.
      *
-     * <p>Preparation repeats authoritative analysis, shared assignment, CPU finalization, and
-     * schedule validation. It creates no {@code RunState}, binds no representative input, and
-     * executes or times no trial.</p>
+     * <p>The returned collaboration fixes authoritative CPU analysis and finalization for the
+     * selected plan. Shared Prepare still owns assignment, finalization invocation, schedule
+     * assembly, validation, and construction of the complete execution. This operation creates
+     * no {@code RunState}, binds no representative input, and executes or times no trial.</p>
      *
-     * @param artifacts non-null exact supported one-partition artifacts; inspected but not
-     *     mutated
+     * @param context non-null exact stable one-partition projection; inspected but not mutated
      * @param phaseOneDecision non-null optional exact authenticated local selection, or empty for
      *     freshly proved absence; the decision is borrowed
      * @param selectedPlan non-null immutable retained complete-plan identity and association
      *     fingerprint; inspected but not mutated
-     * @return a fresh complete immutable prepared recipe that borrows this composition's lifetime
+     * @return a fresh immutable CPU-owned partition preparation borrowing this composition's
+     *     lifetime
      * @throws NullPointerException if an argument is {@code null}
      * @throws IllegalArgumentException if any fresh compatibility or selection check fails
      * @throws ArithmeticException if exact preparation geometry overflows
      * @throws IllegalStateException if this composition is closed
      */
-    public PreparedExecution prepareCompletePlan(CompileArtifacts artifacts,
+    public PartitionPreparation<?, ?> completePlanPreparation(PrepareContext<?> context,
             Optional<CpuOpenBlasTuningDecision> phaseOneDecision,
             CpuPartitionPreparer.SelectedCompletePlan selectedPlan) {
         requireOpen();
-        Objects.requireNonNull(artifacts, "artifacts");
+        Objects.requireNonNull(context, "context");
         Objects.requireNonNull(phaseOneDecision, "phaseOneDecision");
         Objects.requireNonNull(selectedPlan, "selectedPlan");
         if (selectedPlan.schemaVersion() != 1) {
             throw new IllegalArgumentException("CPU complete-plan schema is unsupported");
         }
-        validateSoleCpuPartition(artifacts);
-        validatePhaseOne(artifacts, phaseOneDecision);
-        CpuPartitionAnalysisInputs inputs = completePlanAnalysisInputs(artifacts,
-                phaseOneDecision);
+        validatePhaseOne(context, phaseOneDecision);
+        CpuPartitionAnalysisInputs inputs = analysisInputs(phaseOneDecision,
+                new CpuPartitionAnalysisInputs.MaterializationPolicy(true, 0, 1, 3, 1,
+                        1, Long.MAX_VALUE, 0, 0));
         var selectedPreparer = new io.github.pho001.synaptik.prepare.analysis.BackendPartitionPreparer<
                 CpuPartitionAnalysisInputs,
                 io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan>() {
@@ -284,14 +232,14 @@ public final class CpuBackendComposition implements AutoCloseable {
                 return preparer.analyzeSelected(context, selectedPlan);
             }
         };
-        var preparation = new PartitionPreparation<>(inputs, selectedPreparer, finalizer);
-        return GraphPreparation.prepare(artifacts, List.of(preparation),
-                producerlessPublishedConstantResources(artifacts), assembler);
+        return new PartitionPreparation<>(inputs, selectedPreparer, finalizer);
     }
 
-    private void validatePhaseOne(CompileArtifacts artifacts,
+    private void validatePhaseOne(PrepareContext<?> context,
             Optional<CpuOpenBlasTuningDecision> decision) {
-        Optional<CpuOpenBlasTuningBatch> fresh = analyze(artifacts, Optional.empty())
+        Optional<CpuOpenBlasTuningBatch> fresh = analyze(cpuContext(context,
+                analysisInputs(Optional.empty(),
+                        CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED)))
                 .plan().openBlasTuningBatch();
         if (fresh.isPresent() != decision.isPresent()) {
             throw new IllegalArgumentException("CPU Phase-1 eligibility changed");
@@ -302,7 +250,8 @@ public final class CpuBackendComposition implements AutoCloseable {
                             new IllegalArgumentException(
                                     "CPU Phase-1 decision is stale or incompatible"));
             BackendPartitionAnalysis<io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan>
-                    selected = analyze(artifacts, decision);
+                    selected = analyze(cpuContext(context, analysisInputs(decision,
+                            CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED)));
             if (!selected.plan().selectedOpenBlasTuningCandidate().orElseThrow()
                     .equals(matched.identity())) {
                 throw new IllegalArgumentException("CPU Phase-1 decision was not selected");
@@ -311,24 +260,25 @@ public final class CpuBackendComposition implements AutoCloseable {
     }
 
     /**
-     * Re-analyzes and prepares one exact CPU-owned tuning decision without heuristic fallback.
+     * Re-analyzes one exact CPU-owned tuning decision without heuristic fallback.
      *
-     * @param artifacts non-null exact artifacts retained by the supported tuning association
+     * @param context non-null exact stable projection retained by the tuning association
      * @param decision non-null CPU decision to validate against fresh authoritative analysis
-     * @return a complete immutable prepared execution for exactly the selected candidate
+     * @return an immutable CPU-owned partition preparation for exactly the selected candidate
      * @throws NullPointerException if an argument is {@code null}
      * @throws IllegalStateException if this composition is closed
      * @throws IllegalArgumentException if the decision is stale, ineligible, or not selected by
      *     the fresh batch
      */
-    public PreparedExecution prepareSelected(CompileArtifacts artifacts,
+    public PartitionPreparation<?, ?> selectedPreparation(PrepareContext<?> context,
             CpuOpenBlasTuningDecision decision) {
         requireOpen();
-        Objects.requireNonNull(artifacts, "artifacts");
+        Objects.requireNonNull(context, "context");
         Objects.requireNonNull(decision, "decision");
-        validateSoleCpuPartition(artifacts);
         BackendPartitionAnalysis<io.github.pho001.synaptik.backend.cpu.internal.prepare
-                .CpuPartitionPreparationPlan> analysis = analyze(artifacts, Optional.of(decision));
+                .CpuPartitionPreparationPlan> analysis = analyze(cpuContext(context,
+                        analysisInputs(Optional.of(decision),
+                                CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED)));
         var batch = analysis.plan().openBlasTuningBatch().orElseThrow(() ->
                 new IllegalArgumentException("CPU tuning decision is no longer eligible"));
         var matched = decision.match(batch).orElseThrow(() ->
@@ -337,183 +287,32 @@ public final class CpuBackendComposition implements AutoCloseable {
                 .equals(matched.identity())) {
             throw new IllegalArgumentException("CPU tuning decision was not selected");
         }
-        var preparation = new PartitionPreparation<>(analysisInputs(artifacts,
-                Optional.of(decision)), preparer, finalizer);
-        return GraphPreparation.prepare(artifacts, List.of(preparation),
-                producerlessPublishedConstantResources(artifacts), assembler);
+        return new PartitionPreparation<>(analysisInputs(Optional.of(decision),
+                CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED), preparer, finalizer);
     }
 
     /**
      * Reconstructs shared Prepare's authoritative partition projection and runs CPU analysis.
      *
-     * @param artifacts non-null already validated sole-partition artifacts
-     * @param decision non-null optional exact decision to validate during analysis
+     * @param context non-null exact stable CPU context to analyze
      * @return the fresh non-null immutable CPU analysis
      */
     private BackendPartitionAnalysis<io.github.pho001.synaptik.backend.cpu.internal.prepare
-            .CpuPartitionPreparationPlan> analyze(CompileArtifacts artifacts,
-            Optional<CpuOpenBlasTuningDecision> decision) {
-        CpuPartitionAnalysisInputs inputs = analysisInputs(artifacts, decision);
-        return preparer.analyze(context(artifacts, inputs));
+            .CpuPartitionPreparationPlan> analyze(
+                    PrepareContext<CpuPartitionAnalysisInputs> context) {
+        return preparer.analyze(context);
     }
 
-    /**
-     * Reconstructs the exact partition-local shared Prepare projection for supplied CPU inputs.
-     *
-     * @param artifacts non-null already validated sole-partition artifacts; inspected but not
-     *     mutated
-     * @param inputs non-null immutable CPU analysis inputs retained by the returned context
-     * @return a new non-null immutable partition-local preparation context
-     * @throws NullPointerException if a required projected fact is absent
-     * @throws IllegalArgumentException if projected facts violate shared Prepare invariants
-     */
-    private PrepareContext<CpuPartitionAnalysisInputs> context(CompileArtifacts artifacts,
-            CpuPartitionAnalysisInputs inputs) {
-        var partition = artifacts.partitions().getFirst();
-        var nodesById = new HashMap<NodeId, CompiledNode>();
-        artifacts.graph().nodes().forEach(node -> nodesById.put(node.id(), node));
-        var requirementsById = new HashMap<ValueId, LogicalMemoryRequirement>();
-        artifacts.memory().requirements().forEach(value ->
-                requirementsById.put(value.valueId(), value));
-        var nodes = partition.nodeIds().stream().map(nodesById::get).toList();
-        var projectedIds = new HashSet<ValueId>();
-        nodes.forEach(node -> {
-            projectedIds.addAll(node.inputs());
-            projectedIds.addAll(node.outputs());
-        });
-        var values = artifacts.graph().values().stream()
-                .filter(value -> projectedIds.contains(value.id())).toList();
-        var requirements = values.stream().map(value -> requirementsById.get(value.id())).toList();
-        var constants = new LinkedHashMap<ValueId, ScalarValue>();
-        artifacts.constants().constantSources().stream()
-                .filter(source -> projectedIds.contains(source.valueId()))
-                .forEach(source -> constants.put(source.valueId(), source.value()));
-        var context = new PrepareContext<>(new PartitionDag(partition, nodes), values,
-                requirements, constants, inputs);
-        return context;
-    }
-
-    /**
-     * Validates the complete-schedule domain before any CPU fact derivation or backend analysis.
-     *
-     * @param artifacts non-null compile artifacts already admitted by the caller
-     * @throws IllegalArgumentException if partition coverage is not exactly one non-empty
-     *     CPU-owned maximal partition
-     */
-    private static void validateSoleCpuPartition(CompileArtifacts artifacts) {
-        if (artifacts.partitions().size() != 1) {
+    private static PrepareContext<CpuPartitionAnalysisInputs> cpuContext(
+            PrepareContext<?> context, CpuPartitionAnalysisInputs inputs) {
+        Objects.requireNonNull(context, "context");
+        if (context.partition().nodeIds().isEmpty()
+                || !context.partition().owner().equals(CpuCapabilityProvider.CPU_BACKEND_ID)) {
             throw new IllegalArgumentException(
                     "CPU integration requires exactly one non-empty CPU partition");
         }
-        var partition = artifacts.partitions().getFirst();
-        if (partition.nodeIds().isEmpty()
-                || !partition.owner().equals(CpuCapabilityProvider.CPU_BACKEND_ID)) {
-            throw new IllegalArgumentException(
-                    "CPU integration requires exactly one non-empty CPU partition");
-        }
-    }
-
-    /**
-     * Constructs the existing positional CPU preparation after complete-domain validation.
-     *
-     * @param artifacts non-null artifacts already accepted by
-     *     {@link #validateSoleCpuPartition(CompileArtifacts)}
-     * @return a non-null immutable singleton preparation retaining current CPU analysis order
-     * @throws IllegalArgumentException if CPU boundary analysis rejects incomplete facts
-     */
-    private List<PartitionPreparation<?, ?>> preparationsForValidatedArtifacts(
-            CompileArtifacts artifacts) {
-        CpuPartitionAnalysisInputs inputs = analysisInputs(artifacts);
-        PartitionPreparation<CpuPartitionAnalysisInputs,
-                io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan>
-                preparation = new PartitionPreparation<>(inputs, preparer, finalizer);
-        return List.of(preparation);
-    }
-
-    /**
-     * Derives exact physical contributions for source-only published splats in graph-value order.
-     *
-     * @param artifacts non-null artifacts with an already validated executable CPU domain
-     * @return a non-null immutable ordered list retaining exact graph-value and logical-requirement
-     *     references; ordinary consumed or unpublished constants are excluded
-     * @throws IllegalArgumentException if source, publication, node-use, logical-memory, Shape,
-     *     layout, or scalar-type facts are contradictory or unsupported
-     * @throws ArithmeticException if canonical layout or checked byte-size arithmetic overflows
-     */
-    private static List<ProducerlessPublishedConstantResource>
-            producerlessPublishedConstantResources(CompileArtifacts artifacts) {
-        var inputs = new HashSet<>(artifacts.graph().inputs());
-        var publications = new HashSet<ValueId>();
-        artifacts.publication().forwardBindings()
-                .forEach(binding -> publications.add(binding.valueId()));
-        artifacts.publication().gradientBindings()
-                .forEach(binding -> publications.add(binding.valueId()));
-
-        var produced = new HashSet<ValueId>();
-        var consumed = new HashSet<ValueId>();
-        artifacts.graph().nodes().forEach(node -> {
-            produced.addAll(node.outputs());
-            consumed.addAll(node.inputs());
-        });
-
-        var sources = new LinkedHashMap<ValueId, CompileConstantPlan.ConstantSource>();
-        for (CompileConstantPlan.ConstantSource source : artifacts.constants().constantSources()) {
-            if (sources.putIfAbsent(source.valueId(), source) != null) {
-                throw new IllegalArgumentException(
-                        "CPU constant sources duplicate " + source.valueId());
-            }
-        }
-        var requirements = new HashMap<ValueId, LogicalMemoryRequirement>();
-        for (LogicalMemoryRequirement requirement : artifacts.memory().requirements()) {
-            if (requirements.putIfAbsent(requirement.valueId(), requirement) != null) {
-                throw new IllegalArgumentException(
-                        "CPU logical memory requirements duplicate " + requirement.valueId());
-            }
-        }
-
-        var resources = new ArrayList<ProducerlessPublishedConstantResource>();
-        for (var value : artifacts.graph().values()) {
-            CompileConstantPlan.ConstantSource source = sources.get(value.id());
-            if (source == null || !inputs.contains(value.id()) || !publications.contains(value.id())
-                    || consumed.contains(value.id()) || produced.contains(value.id())) {
-                continue;
-            }
-            LogicalMemoryRequirement requirement = requirements.get(value.id());
-            if (requirement == null
-                    || !requirement.descriptor().equals(value.descriptor())
-                    || requirement.producerPartition().isPresent()
-                    || !requirement.consumerPartitions().isEmpty()
-                    || !requirement.graphOutput()) {
-                throw new IllegalArgumentException(
-                        "CPU source-only published constant has contradictory logical memory: "
-                                + value.id());
-            }
-            var descriptor = value.descriptor();
-            var shape = descriptor.shape();
-            if (!shape.isFullyStatic()) {
-                throw new IllegalArgumentException(
-                        "CPU source-only published constant has dynamic shape: " + value.id());
-            }
-            if (descriptor.layout().isEmpty()) {
-                throw new IllegalArgumentException(
-                        "CPU source-only published constant has unresolved layout: " + value.id());
-            }
-            LayoutDescriptor layout = descriptor.layout().orElseThrow();
-            if (!layout.equals(LayoutDescriptor.contiguous(shape))) {
-                throw new IllegalArgumentException(
-                        "CPU source-only published constant has non-canonical layout: " + value.id());
-            }
-            if (source.value().dataType() != descriptor.dataType()) {
-                throw new IllegalArgumentException(
-                        "CPU source-only published constant scalar type disagrees with descriptor: "
-                                + value.id());
-            }
-            long byteSize = Math.multiplyExact(
-                    layout.referencedElementSpan(), descriptor.dataType().byteWidth());
-            resources.add(new ProducerlessPublishedConstantResource(
-                    value, requirement, byteSize, descriptor.dataType().byteWidth()));
-        }
-        return List.copyOf(resources);
+        return new PrepareContext<>(context.partitionDag(), context.values(),
+                context.memoryRequirements(), context.constants(), inputs);
     }
 
     /**
@@ -601,85 +400,15 @@ public final class CpuBackendComposition implements AutoCloseable {
     }
 
     /**
-     * Derives the immutable exact/default CPU-private facts for the accepted partition.
-     *
-     * @param artifacts the non-null already validated one-partition compile artifacts
-     * @return non-null CPU analysis inputs with no tuning decision and, when qualification exists,
-     *     only the bounded single-thread FLOAT32/FLOAT64 OpenBLAS candidate
-     * @throws IllegalArgumentException if an eligible MATMUL boundary lacks a graph node or
-     *     resolved descriptor
-     */
-    private CpuPartitionAnalysisInputs analysisInputs(CompileArtifacts artifacts) {
-        return analysisInputs(artifacts, Optional.empty());
-    }
-
-    /**
-     * Derives current immutable production analysis facts with an optional exact selection.
-     *
-     * @param artifacts non-null already validated artifacts; inspected but not mutated
-     * @param decision non-null optional decision retained only in immutable analysis input
-     * @return non-null complete CPU analysis inputs
-     */
-    private CpuPartitionAnalysisInputs analysisInputs(CompileArtifacts artifacts,
-            Optional<CpuOpenBlasTuningDecision> decision) {
-        return analysisInputs(artifacts, decision,
-                CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED);
-    }
-
-    /**
-     * Derives the fixed complete-plan enumeration profile without changing ordinary preparation.
-     *
-     * @param artifacts non-null already validated artifacts; inspected but not mutated
-     * @param decision non-null optional exact Phase-1 decision retained in immutable inputs
-     * @return new complete CPU analysis inputs with candidate-only representation enumeration
-     */
-    private CpuPartitionAnalysisInputs completePlanAnalysisInputs(CompileArtifacts artifacts,
-            Optional<CpuOpenBlasTuningDecision> decision) {
-        return analysisInputs(artifacts, decision,
-                new CpuPartitionAnalysisInputs.MaterializationPolicy(true, 0, 1, 3, 1,
-                        1, Long.MAX_VALUE, 0, 0));
-    }
-
-    /**
      * Derives immutable CPU analysis inputs for one explicit materialization policy.
      *
-     * @param artifacts non-null already validated artifacts; inspected but not mutated
      * @param decision non-null optional exact Phase-1 decision retained in immutable inputs
      * @param materializationPolicy non-null immutable policy retained in the returned inputs
      * @return new non-null complete CPU analysis inputs
-     * @throws IllegalArgumentException if an eligible MATMUL boundary lacks a graph node or
-     *     resolved descriptor
      */
-    private CpuPartitionAnalysisInputs analysisInputs(CompileArtifacts artifacts,
+    private CpuPartitionAnalysisInputs analysisInputs(
             Optional<CpuOpenBlasTuningDecision> decision,
             CpuPartitionAnalysisInputs.MaterializationPolicy materializationPolicy) {
-        List<CpuPartitionAnalysisInputs.BoundaryStorageFact> storageFacts = List.of();
-        var partition = artifacts.partitions().getFirst();
-        if (partition.nodeIds().size() == 1) {
-            var node = artifacts.graph().nodes().stream()
-                    .filter(candidate -> candidate.id().equals(partition.nodeIds().getFirst()))
-                    .findFirst().orElseThrow(() -> new IllegalArgumentException(
-                            "CPU partition node is absent from compile graph"));
-            if (node.operation().kind() == MatmulKind.MATMUL
-                    && node.inputs().size() == 2 && node.outputs().size() == 1) {
-                var bindable = java.util.Set.copyOf(artifacts.constants().bindableInputs());
-                var values = artifacts.graph().values().stream().collect(java.util.stream.Collectors
-                        .toMap(value -> value.id(), value -> value.descriptor()));
-                var facts = new java.util.ArrayList<CpuPartitionAnalysisInputs.BoundaryStorageFact>(3);
-                for (var valueId : List.of(node.inputs().get(0), node.inputs().get(1),
-                        node.outputs().getFirst())) {
-                    var descriptor = values.get(valueId);
-                    if (descriptor == null || descriptor.layout().isEmpty()) {
-                        throw new IllegalArgumentException(
-                                "CPU boundary requires a resolved descriptor");
-                    }
-                    facts.add(new CpuPartitionAnalysisInputs.BoundaryStorageFact(
-                            !bindable.contains(valueId), descriptor.dataType().byteWidth()));
-                }
-                storageFacts = List.copyOf(facts);
-            }
-        }
-
         var route = qualification
                 .<CpuPartitionAnalysisInputs.OpenBlasRouteConfig>map(value ->
                         CpuPartitionAnalysisInputs.OpenBlasRouteConfig.qualifiedSingleThread(
@@ -688,7 +417,7 @@ public final class CpuBackendComposition implements AutoCloseable {
         return new CpuPartitionAnalysisInputs(false, List.of(),
                 CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT,
                 materializationPolicy, false,
-                CpuPartitionAnalysisInputs.PartialReductionEvidence.NONE, storageFacts, route,
+                CpuPartitionAnalysisInputs.PartialReductionEvidence.NONE, List.of(), route,
                 CpuOpenBlasTuningBatch.HardwareIdentity.UNSPECIFIED,
                 CpuOpenBlasTuningBatch.WorkloadCohort.DEFAULT, decision);
     }

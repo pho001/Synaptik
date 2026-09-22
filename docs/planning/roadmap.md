@@ -37,7 +37,7 @@ or task boundary; it does not promote Draft work to Ready.
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through 0006 | No Prepare task is Ready. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through 0010J; 0007A1D Review needed; 0010D1 and 0011 Blocked | No CPU task is Ready; vendor peers 0012–0015 and integrations 0016–0017 remain Draft. |
-| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0010; 0011 Ready by explicit drift-remediation exception | Execute 0011 alone to restore the CompileArtifacts-to-Prepare projection boundary and remove CPU's production Compiler edge. |
+| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0011 | The CPU/Prepare projection boundary is reconciled; no Engine task is Ready. |
 | 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0004 | Reassess exactly one next frontier; no later Metal task is Ready. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -53,13 +53,11 @@ or task boundary; it does not promote Draft work to Ready.
 
 ## Current frontier
 
-[`Engine 0011`](modules/engine/tasks/0011-compile-artifact-projection-boundary-reconciliation.md)
-is `Ready` as the sole active frontier. The user explicitly authorized this drift-remediation
-exception after Metal 0004: repair the CPU/Prepare boundary first, then autograd documentation,
-then reassess remaining contract drift. 0011 executes atomically and alone because its shared
-Prepare, CPU, Engine, Metal-consumer, build, test, and documentation scope overlaps. The later
-stages are not yet detailed or `Ready`. Existing NN and completed Config exceptions authorize no
-additional work.
+No task is currently `Ready`. [Engine 0011](modules/engine/tasks/0011-compile-artifact-projection-boundary-reconciliation.md)
+completed the first explicitly authorized drift-remediation stage after Metal 0004. The next
+coordination action is the separate autograd-documentation repair, followed by reassessment of
+remaining contract drift; neither later stage has a detailed task or `Ready` status. Existing NN
+and completed Config exceptions authorize no additional work.
 
 ## Blocked, review-needed, and deferred work
 
@@ -82,9 +80,8 @@ additional work.
 
 ## Nearest next step
 
-1. Execute [Engine 0011](modules/engine/tasks/0011-compile-artifact-projection-boundary-reconciliation.md)
-   in the required clean implementation context and complete its independent documentation/review
-   pass before selecting the autograd-documentation repair.
+1. Separately define and execute the authorized autograd-documentation repair, then reassess
+   remaining contract drift. Do not infer another implementation frontier from Engine 0011.
 
 ## History policy
 

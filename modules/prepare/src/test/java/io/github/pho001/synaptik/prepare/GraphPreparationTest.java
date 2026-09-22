@@ -887,7 +887,7 @@ class GraphPreparationTest {
         steps.add(new RepresentationCreationStep(representations));
         steps.add(new ExecutionStep(context.partitions().getFirst().executable()));
         int resultIndex = 0;
-        for (ValueId valueId : context.artifacts().graph().outputs()) {
+        for (ValueId valueId : context.publicationValueIds()) {
             int bufferIndex = context.bufferAssignments().stream()
                     .filter(assignment -> assignment.valueId().equals(valueId))
                     .findFirst()

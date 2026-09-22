@@ -148,7 +148,9 @@ public final class CpuOpenBlasRouteSelector {
                 || (!canonical(unit.accessBindings().get(2), m, n, CpuAccessPlan.AccessKind.WRITE)
                     && !copyableOutput(unit.accessBindings().get(2), m, n))) return Optional.empty();
         List<CpuPartitionAnalysisInputs.BoundaryStorageFact> storage =
-                context.backendInputs().boundaryStorageFacts();
+                context.backendInputs().boundaryStorageFacts().isEmpty()
+                        ? boundaryStorageFacts(context, unit)
+                        : context.backendInputs().boundaryStorageFacts();
         if (storage.size() != 3) return Optional.empty();
         boolean leftDirect = canonical(unit.accessBindings().get(0), m, k,
                 CpuAccessPlan.AccessKind.READ) && directBoundary(unit, storage, 0, type);
@@ -330,6 +332,32 @@ public final class CpuOpenBlasRouteSelector {
         var fact = storage.get(boundary);
         return unit.carrierPattern().get(boundary) == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT
                 && fact.nativeSegment() && fact.byteAlignment() >= type.byteWidth();
+    }
+
+    private static List<CpuPartitionAnalysisInputs.BoundaryStorageFact> boundaryStorageFacts(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
+            CpuPartitionPreparationPlan.ExecutionUnitPlan unit) {
+        var requirements = context.memoryRequirements().stream().collect(
+                java.util.stream.Collectors.toMap(value -> value.valueId(), value -> value));
+        var values = context.values().stream().collect(
+                java.util.stream.Collectors.toMap(value -> value.id(), value -> value));
+        var result = new ArrayList<CpuPartitionAnalysisInputs.BoundaryStorageFact>(
+                unit.boundaryValues().size());
+        for (ValueId valueId : unit.boundaryValues()) {
+            var value = Objects.requireNonNull(values.get(valueId), "CPU boundary value");
+            var descriptor = value.descriptor();
+            if (descriptor.layout().isEmpty()) {
+                throw new IllegalArgumentException(
+                        "CPU boundary requires a resolved descriptor");
+            }
+            var requirement = Objects.requireNonNull(
+                    requirements.get(valueId), "CPU boundary logical requirement");
+            boolean nativeSegment = requirement.producerPartition().isPresent()
+                    || context.constants().containsKey(valueId);
+            result.add(new CpuPartitionAnalysisInputs.BoundaryStorageFact(
+                    nativeSegment, descriptor.dataType().byteWidth()));
+        }
+        return List.copyOf(result);
     }
     private static boolean canonical(CpuAccessPlan.Binding binding, long rows, long columns,
             CpuAccessPlan.AccessKind kind) {
