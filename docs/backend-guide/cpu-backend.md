@@ -5,8 +5,11 @@
 This guide defines the CPU integration boundary and helps contributors avoid treating CPU routes
 as separate backends. The current CPU module accepts the bounded, fully static portable families
 described below.
-It now publishes `CpuBackendIntegration` as the supported lifecycle service-provider interface
-(SPI) for future Engine composition. The SPI is not the ordinary end-user execution facade.
+It publishes `CpuBackendIntegration` as the supported lifecycle service-provider interface (SPI)
+used by the current fixed CPU-only Engine composition. `Engine.standard()` opens and owns a fresh
+integration, while `AdvancedEngine.takeOwnership(...)` accepts one explicitly supplied
+integration for advanced CPU-only composition. The SPI is not the ordinary end-user execution
+facade.
 A CPU-owned partition directed acyclic graph (DAG) contains one through eight supported compiled
 nodes. CPU analysis first decomposes it into established computation-unit seeds, then performs
 bounded deterministic vertical and horizontal fusion only among ordinary pointwise units. The
@@ -171,9 +174,11 @@ compatible repeated and cross-unit uses share one copy. Ordinary preparation sel
 declares none of those candidate-only resources. Capability and lowering fail closed for every other
 operation, type, shape, layout, parameter, alias, fan-out, publication, carrier, or route. In
 particular, cross-type CAST follows the completed Model conversion contract and does not infer a
-promotion or conversion mode. Tuning, excluded pointwise rows, broader native routes,
-model-autotuning promotion, and other operation families remain planned. The one current native
-exception is the exact OpenBLAS MATMUL route described below.
+promotion or conversion mode. Current tuning is limited to the bounded two-phase CPU-only
+workflow for eligible FLOAT32/FLOAT64 bare MATMUL described below. Excluded pointwise rows,
+broader native routes, automatic tuning of other operation families, and generic graph,
+ownership, or mixed-backend alternatives remain planned. The one current native route is the
+exact OpenBLAS MATMUL route described below.
 CPU-private specialized-subgraph recognition is current only
 as the cold, recognition-only boundary described below. Functional scatter,
 overlap fold, stable ordering, explicit-state random, cumulative-scan, and ordinary-aggregate
@@ -316,9 +321,11 @@ shared path.
 
 The collaboration does not bind representative inputs, run a recipe, measure or benchmark it,
 choose a winner, manage warmups or samples, coordinate a cache, or decide strict-versus-heuristic
-fallback. Those orchestration responsibilities remain outside the CPU backend and still require
-an Engine-owned representative-execution, input-binding, cleanup, and fallback contract. Runtime
-receives only the final prepared recipe; it never sees candidates or selects among them.
+fallback. Those orchestration responsibilities remain outside the CPU backend. Current
+`Engine.prepareTuned(...)` supplies representative execution, input binding, cleanup, and fallback
+policy for the bounded CPU-only workflow while `tools/tuning` owns measurement, cache
+coordination, and selection. Runtime receives only the final prepared recipe; it never sees
+candidates or selects among them.
 
 The collaboration has no independent close operation. It borrows the integration's provider,
 coordination, and lifecycle state, and its prepared recipes must not outlive that integration.
@@ -344,8 +351,9 @@ same exact stable partition projection
 The candidate does not change the Compiler graph, Planning owner or partition boundary, logical
 memory, or publication semantics. It contains every CPU-owned choice needed by the currently
 supported one-partition lifecycle, but it is not a complete mixed-backend or multi-partition
-model plan. Compiler graph alternatives, Planning ownership alternatives, a model-plan cache,
-and a user-facing Phase-2 Engine API remain unimplemented.
+model plan. Current `Engine.prepareTuned(...)` composes this bounded Phase-2 batch after Phase 1.
+Compiler graph alternatives, Planning ownership alternatives, mixed-backend composition, and
+persistent CPU model-plan cache reuse remain unimplemented.
 
 `candidateHandoff(context, phaseOneDecision)` first authenticates the exact projected context and
 integration association. When the projection has an eligible Phase-1 local workload, the caller
@@ -834,8 +842,8 @@ eligible copies whose consumers are disjoint at instruction level, and one copy 
 compatible repeated or cross-unit uses. Each intrinsic family workspace in a multi-unit plan has
 the final unit index as its partition-unique requirement ID and stays run-owned. Ordinary
 preparation selects direct, so Shared Prepare receives none of the candidate-only copy resources;
-an explicitly promoted future complete plan would declare them before assignment without asking
-Shared Prepare to interpret CPU topology.
+an explicitly selected current complete-plan candidate declares them before assignment without
+asking Shared Prepare to interpret CPU topology.
 
 Finalization resolves the complete buffer and workspace assignment sets before looking up or
 generating the first unit artifact, then realizes exactly one already-selected artifact per unit
@@ -2815,8 +2823,8 @@ An external ADD, activation, clamp, fan-out, or other Conv3d-led suffix fails th
 path and cannot select the Conv2d-only fused or materialized-suffix forms. Backward/training
 execution, general partition-DAG decomposition, external Conv3d epilogues, pooling,
 attention, losses, native convolution, packing, autotuning, dynamic or symbolic Shapes,
-unresolved layouts, public Engine integration, and cross-backend bitwise identity remain outside
-this current CPU capability.
+unresolved layouts, generic or mixed-backend Engine composition, and cross-backend bitwise
+identity remain outside this current CPU capability.
 
 ### Current portable MATMUL family
 
@@ -2969,9 +2977,11 @@ contains measurements, cache bytes, provider handles, native addresses, or Runti
 
 Candidate production and decision consumption perform no native query, benchmark, objective
 comparison, cache access, serialization, host discovery, allocation, assumed thread scaling, or
-fixed vendor-priority choice. Shared Prepare does not yet transport these CPU-owned values, and
-applications cannot yet request tuning through Config or Engine. Runtime receives only the
-selected prepared result and never sees or reselects a tuning candidate.
+fixed vendor-priority choice. Shared Prepare does not interpret CPU-owned candidate or decision
+values. For the bounded CPU-only workflow, Engine translates the Config-owned request into
+`tools/tuning` transactions and passes the selected opaque CPU partition preparation through
+`GraphPreparation`. Runtime receives only the selected prepared result and never sees or reselects
+a tuning candidate.
 
 The implemented qualified path has an explicit internal composition boundary:
 
@@ -2988,11 +2998,12 @@ loaded discovery session
 ```
 
 These names are technically visible CPU internals used by focused and conformance tests; they are
-not a currently supported Engine, Config, or CPU construction API. Applications cannot yet request
-this composition through a public Synaptik facade. The coordinator is not a singleton and cannot
-control another Java handle, class loader, coordinator, or arbitrary native consumer. Every work
-item that relies on the capacity guarantee must explicitly share the same budget, and every
-OpenBLAS call or writer that relies on exclusion must use the same coordinator.
+not supported Engine, Config, or CPU construction APIs. Applications may request the bounded
+CPU-only autotuning workflow through `Engine.prepareTuned(...)`, but they neither construct nor
+control this internal OpenBLAS composition. The coordinator is not a singleton and cannot control
+another Java handle, class loader, coordinator, or arbitrary native consumer. Every work item that
+relies on the capacity guarantee must explicitly share the same budget, and every OpenBLAS call or
+writer that relies on exclusion must use the same coordinator.
 
 The budget has one positive immutable capacity and owns no threads or lifecycle. Inline portable
 work consumes one permit. A portable worker submission consumes its actual worker participant
@@ -3062,8 +3073,11 @@ but a `LOADED` discovery result alone does not supply qualification, expected-st
 capacity, or cost facts. Disabled or exhausted discovery supplies no invocation and leaves
 portable composition available. A failed exact-name or exact-path request is exclusive: it does
 not continue with automatic candidates. Qualification is explicitly invoked and remains internal;
-CPU does not measure candidates, autotune a model, or mutate a tuning cache. Public Config intent,
-Engine lifecycle integration, automatic composition, and autotuning remain future work.
+CPU does not measure candidates, autotune a model, or mutate a tuning cache. Current Config values
+declare the bounded request, Engine owns representative execution and lifecycle composition, and
+`tools/tuning` owns measurement, cache coordination, and selection. Broader occurrence extraction,
+graph or ownership alternatives, mixed backends, and persistent CPU complete-plan reuse remain
+future work.
 
 The explicit CPU checkpoint evaluates FLOAT32 and FLOAT64 direct, left-transpose, right-gapped-
 affine, both-input-copy, output-copy, and both-input-plus-output-copy prepared routes
@@ -3463,10 +3477,12 @@ median `1.000326680` establishes affine-copy parity for the retained case, but t
 materialized/direct median `2.605250934` shows why that candidate is not promoted by ordinary
 preparation.
 
-Future Config 0006A, Prepare 0004, CPU 0016, and Tuning 0001–0002 may supply a compatible explicit
-complete candidate only after end-to-end measurement includes the copy and every consumer. That
-selection must complete before Runtime. Runtime executes the immutable prepared choice and never
-enumerates candidates, autotunes, reads a tuning cache, or chooses a representation.
+Current Config request data, Engine composition, shared Prepare, the CPU complete-plan producer,
+and `tools/tuning` may supply a compatible explicit complete candidate only after end-to-end
+measurement includes the copy and every consumer. The bounded public workflow keeps Phase-1 state
+fixed during Phase 2 and its current CPU complete-plan reuse is session-scoped. Selection completes
+before Runtime. Runtime executes the immutable prepared choice and never enumerates candidates,
+autotunes, reads a tuning cache, or chooses a representation.
 
 Shared Prepare remains blind to CPU units and fusion. Its narrow declaration hardening checks only
 cross-planned-partition values: the producer partition, when present, and every distinct external
@@ -3533,8 +3549,8 @@ expiry, eviction, background service, or hostile-byte authentication claim.
 
 A hit reuses verified Java Virtual Machine (JVM) class bytes only. It still defines a fresh hidden
 class that the JVM may independently interpret or just-in-time (JIT) compile and profile. Neither
-class bytes nor JIT machine code/profile are the future workload tuning cache: that separate cache
-will record compatible route/configuration decisions before finalization.
+class bytes nor JIT machine code/profile are the Phase-1 workload tuning cache: that separate
+`tools/tuning` cache records compatible route/configuration decisions before finalization.
 
 The opt-in CPU 0005D development evidence suite compared complete no-root generation against
 verified trusted-root hits on Oracle JDK 26.0.1, macOS 26.5.2, aarch64, with 16 available
@@ -3564,7 +3580,7 @@ loader. The first boundary chooses what to try; the second owns one loaded provi
 
 ### Internal automatic discovery and lifetime
 
-The CPU backend now has a package-private discovery operation intended for future composition.
+The CPU backend has a package-private discovery operation used by its current fixed composition.
 Calling it explicitly is the first point at which it reads platform properties or attempts a
 native load; constructing request values has no such side effect. Disabled mode performs neither
 operation. Exact-name and exact-absolute-path modes try only their unchanged selection. Automatic
@@ -3669,9 +3685,11 @@ Concurrent calls require caller-managed nonconflicting segment access, and calle
 
 This provider surface is an invocation boundary, not route selection. The current CPU route
 described above separately decides its exact bare-MATMUL eligibility, optional one-input affine
-copy, whole-plan cost, resource declarations, and prepared execution. Every broader transpose,
-packing, batch, higher-level operation, thread candidate, or fallback policy remains future CPU or
-composition work. Direct provider thread control does not perform any of those CPU decisions.
+copy, whole-plan cost, resource declarations, and prepared execution. The bounded CPU-only tuning
+workflow may compare its eligible OpenBLAS thread/configuration candidates and apply the explicit
+Engine fallback policy. Broader work on transpose, packing, batching, higher-level operations,
+generic native routes, and mixed-backend fallback remains future CPU or composition work. Direct
+provider thread control does not perform any of those CPU decisions.
 
 ### Direct thread control
 
@@ -3746,7 +3764,7 @@ invocation completed without a reported failure. It does not establish particula
 | A caller expects the provider to allocate or return `C` | The borrowed in-place ABI boundary was mistaken for a storage API. | Supply a writable, sufficiently large native `C` segment and retain its ownership. |
 | Two Java handles appear to have independent thread counts | Both may refer to the same loaded binary and mutable library/process state. | Conservatively coordinate their thread mutations together; do not infer sharing across independent copies or namespaces. |
 | A temporary thread setting remains after the Java owner closes | The provider owns only local lookup lifetime and does not retain or restore a prior value. | Capture a positive count, exclude competing native work, and restore explicitly through a still-open owner. |
-| Application code treats `CpuBackendIntegration` as the end-user execution API | A cross-module SPI was confused with the future Engine facade. | Let Engine own composition, typed logical binding, execution convenience, and result access; keep the adapter behind that boundary. |
+| Application code treats `CpuBackendIntegration` as the end-user execution API | A cross-module SPI was confused with the current Engine facade. | Let Engine own composition, typed logical binding, execution convenience, and result access; keep the adapter behind that boundary. |
 | A caller copies raw CPU storage bytes or assumes native byte order is portable | Physical layout/encoding was confused with the canonical logical snapshot contract. | Use the supported CPU integration copy with the exact publication descriptor and an explicit byte limit; interpret its result as row-major big-endian bytes. |
 | A caller closes or mutates a result representation while copying it | The fresh destination was mistaken for a lock or an extension of the source lease. | Keep the Runtime result and integration open and prevent source mutation or closure until the synchronous copy returns. |
 | A valid pass-through or mixed graph is expected to prepare through the CPU assembler | The adapter's exact one-partition complete-schedule domain was overlooked. | Use one non-empty all-CPU maximal partition today; leave pass-through publication and mixed-backend schedule composition to their future Prepare/Engine owners. |
@@ -3897,8 +3915,9 @@ No excluded
 aggregate/scatter form or later semantic family,
 BFLOAT16 pointwise SIMD or dropout numerical operation,
 cross-type CAST SIMD, dynamic layout, vector affine/scatter/fold/ordering execution, broader
-native fallback, public Engine integration, hardware-intrinsic guarantee, or performance result is
-implemented or promised.
+native fallback, hardware-intrinsic guarantee, or performance result is implemented or promised.
+Current public Engine integration remains fixed CPU-only; generic or mixed-backend composition
+remains planned.
 Ordinary provider tests
 prove Java validation and exact ABI forwarding, not installed-library numerical correctness. The
 native checkpoint proves only its selected binary and fixed cases.

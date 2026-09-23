@@ -236,7 +236,7 @@ The table owns order and status; linked tasks own detailed evidence.
 | 0010H | [Source-only published-constant CPU materialization](tasks/0010h-source-only-published-constant-cpu-materialization.md) | Complete | Compiler 0006B5; Prepare 0005; 0010F–0010G | Delivered source-only constant materialization for the sole non-empty CPU composition. |
 | 0010I | [Supported CPU local-workload tuning composition adapter](tasks/0010i-supported-cpu-local-workload-tuning-composition-adapter.md) | Complete | 0010E–0010H; Prepare 0004; tools/tuning 0001 consumer contract | Delivered supported local-workload tuning composition. |
 | 0010J | [Supported complete-plan candidate and decision producer](tasks/0010j-supported-complete-plan-candidate-and-decision-producer.md) | Complete | 0008D–0008F; 0010E–0010I; Prepare 0004; tools/tuning 0001 | Delivered supported complete-plan candidate production. |
-| 0010K | [CPU backend guide status reconciliation](tasks/0010k-cpu-backend-guide-status-reconciliation.md) | Ready | 0010J; Engine 0009/0013; tuning 0001–0004; Prepare 0007 | Reconcile only stale Engine/Config/Prepare/tuning/public-facade status in the CPU guide. |
+| 0010K | [CPU backend guide status reconciliation](tasks/0010k-cpu-backend-guide-status-reconciliation.md) | Complete | 0010J; Engine 0009/0013; tuning 0001–0004; Prepare 0007 | Reconciled current CPU Engine, Config, Prepare, tuning, and public-facade status. |
 | 0011 | Intel oneMKL BLAS and VML peer routes | Blocked | 0010E; 0005A; 0009; concrete Intel CPU use case and supported oneMKL ABI evidence | Blocked until a concrete Intel workload and supported oneMKL ABI evidence both exist. |
 | 0012 | Intel oneDNN partition peer routes | Draft | 0005A; 0009; stable common CPU lowering; concrete DNN/ML use case and supported oneDNN ABI evidence | Planned only after a concrete oneDNN use case and supported ABI evidence. |
 | 0013 | Apple Accelerate peer routes | Draft | 0005A; 0009; concrete Apple CPU use case and supported Accelerate ABI evidence | Planned only after a concrete Apple CPU use case and supported Accelerate ABI evidence. |
@@ -250,8 +250,8 @@ The table owns order and status; linked tasks own detailed evidence.
 - Portable coverage and closure are Complete through 0009G1; OpenBLAS and supported lifecycle/
   tuning collaborations are Complete through 0010J.
 - 0007A1D is Review needed; 0010D1 and 0011 are Blocked; 0012–0017 are Draft.
-- Documentation-only 0010K is `Ready` as the sole repository frontier. It changes no CPU
-  capability or executable behavior; blocked, review-needed, and Draft rows remain unchanged.
+- Documentation-only 0010K is Complete after independent Class C review. No CPU task is `Ready`
+  or `In progress`; blocked, review-needed, and Draft rows remain unchanged.
 
 ## Live gates and decisions
 
