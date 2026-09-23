@@ -45,6 +45,13 @@ Benchmarking never selects or mutates a production setting, tuning cache, or pre
 may record which route and configuration were supplied, but it does not install the fastest
 result. Correctness and conformance tests remain separate gates.
 
+The current standard CPU composition retains scalar, single-thread portable execution. CPU 0010M
+rejected a global vector-if-eligible escalation because machine-local measurements covered only a
+subset of the forms the policy would enable and did not establish representative target/JIT
+behavior. Its hardened schema-3 reports explicitly become ineligible for production decisions
+when the public lifecycle cannot record actual selected-plan facts. This conservative no-change
+adds no runtime search, persistent profile, automatic mutation, or user-facing tuning knob.
+
 ## One model-autotuning workflow
 
 `tools/tuning` coordinates one explicit workflow with two related phases. The phases share the

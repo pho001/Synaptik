@@ -44,6 +44,23 @@ Every mandatory family has non-empty compile and prepare timing, two repeated pr
 
 Timing uses `System.nanoTime()` and is a microbenchmark observation, not a release gate. Results are sensitive to JVM warmup, scheduler, thermal, and operating-system noise and are not correctness evidence. Checksums prove that host materialization was observed, not numerical conformance. The smoke profile is intentionally bounded; `baseline` provides three warmups and ten measurements for a longer comparison. Benchmarking is report-only and does not select routes, tune settings, write caches, or substitute for correctness/conformance tests.
 
+## CPU-default evidence extension
+
+[CPU task 0010M](../../../backends/cpu/tasks/0010m-evidence-backed-production-defaults.md)
+extended the completed harness without changing its report-only boundary. Report schema 3 uses a
+reusable public `InferenceSession`, separates timed repeated runs from untimed host
+materialization/checksums, retains per-sample iteration counts plus raw normalized and batch
+samples, and adds a strict `evidence` profile. Every retained repeated batch accumulates all timed
+executions until it reaches 25 ms; the profile fixes both heap bounds and JIT flags and requires
+source, configuration, fork/order, CPU, species, worker, materialization, and OpenBLAS metadata.
+
+The original scalar/vector attempt was invalidated and removed. Five regenerated scalar reports
+validate the hardened floor and metadata behavior only; they explicitly lack private selected-plan
+facts and are ineligible to authorize a production change. The exact commands and hashes plus a
+minimum future-comparison acceptance framework are retained under
+`backends/cpu/evidence/cpu-0010m-defaults/`; the framework is not measurement-ready. This benchmark
+task still neither selects nor mutates production settings.
+
 ## Verification
 
 - `./gradlew :tools:benchmarks:build` — passed.

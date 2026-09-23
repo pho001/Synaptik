@@ -44,7 +44,7 @@ commits, models, and environments.
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
-| 0001 | [Benchmark report and reproducible harness](tasks/0001-cpu-baseline.md) | Complete | Operational lifecycle and stable workload contracts | Public CPU Engine lifecycle baseline complete; smoke evidence covers pointwise, MATMUL, reduction, normalization, Conv2d, and Conv3d. |
+| 0001 | [Benchmark report and reproducible harness](tasks/0001-cpu-baseline.md) | Complete | Operational lifecycle and stable workload contracts | Public CPU Engine lifecycle harness covers six families with smoke/baseline and strict schema-3 evidence profiles; it remains report-only. |
 | 0002 | Operation and operation-family suites | Draft | 0001, stable workload classification | Add fixed representative workloads without inventing a production `OperationFamily` contract. |
 | 0003 | Model and end-to-end suites | Draft | 0001, operational engine paths | Compare complete model and lifecycle behavior with the same report-only boundary. |
 
@@ -57,20 +57,37 @@ commits, models, and environments.
 
 ## Current status
 
-Complete for benchmark task 0001: the report-only CPU lifecycle harness emits reproducible JSON evidence for all six mandatory smoke families through public Engine compile, prepare, and run. Tasks 0002 and 0003 remain Draft.
+Complete through benchmark task 0001 and CPU 0010M's evidence hardening: the report-only CPU
+lifecycle harness emits reproducible JSON observations for pointwise, MATMUL, reduction,
+normalization, Conv2d, and Conv3d through public Engine compile, reusable-session, repeated-run,
+one-shot, and host-materialization boundaries. Tasks 0002 and 0003 remain Draft.
 
-The recorded smoke command is:
+The directly runnable non-evidence profiles are:
 
 ```bash
 ./gradlew :tools:benchmarks:benchmark -Pprofile=smoke
+./gradlew :tools:benchmarks:benchmark -Pprofile=baseline
 ```
 
-It passed with Java 26.0.1 on Mac OS X aarch64, profile `smoke`, one warmup, two measurements, and exit code 0. Exact timings, repeated samples, shapes, checksums, and limitations are recorded in [task 0001](tasks/0001-cpu-baseline.md).
+`evidence` fixes representative shapes, five warmups, seven retained repeated measurements, three
+one-shot observations, a per-sample 25 ms floor, and fixed JVM compilation/heap flags. It also
+requires exact source/configuration/hash, fork/order, CPU, species, worker, materialization, and
+OpenBLAS metadata. CPU 0010M's manifest retains its exact structured invocations, five regenerated
+machine-local scalar reports, and a minimum future-comparison acceptance framework under
+`backends/cpu/evidence/cpu-0010m-defaults/`; it is not a sealed measurement protocol.
+
+Public Engine intentionally exposes no backend-private selected plan. Current schema-3 reports
+therefore mark themselves ineligible for a production route/default decision. CPU 0010M completed
+with the evidence-backed conclusion that production remains scalar/1/1/1; the invalidated
+scalar/vector attempt and its pooled aggregates were removed. The benchmark protocol is hardened,
+but a future comparison still requires a separately reviewed, fully sealed workload/target/
+statistical matrix. Exact procedure and limitations are recorded in
+[CPU task 0010M](../../backends/cpu/tasks/0010m-evidence-backed-production-defaults.md).
 
 ## Open questions
 
-- Exact workload identity and report schema wait for the operational paths and stable
-  classification they measure.
+- A future production-default comparison needs an approved source of verified selected-plan facts
+  without moving backend policy into Engine or making benchmark metadata authoritative.
 
 ## Decisions made
 

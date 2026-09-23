@@ -28,10 +28,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Owns the CPU-private exact/default preparation collaborators and optional OpenBLAS lifetime.
  *
  * <p>One composition always describes the fixed {@code cpu/host} device and retains the portable
- * route. Bounded automatic discovery and qualification may add one eligible OpenBLAS candidate;
- * provider presence neither changes backend identity nor guarantees native selection. The owner
- * is safe for concurrent collaborator access and idempotent close, but recipes and runs must not
- * outlive it.</p>
+ * scalar, single-thread compatibility route. Bounded automatic discovery and qualification may
+ * add one eligible single-thread OpenBLAS candidate; provider presence neither changes backend
+ * identity nor guarantees native selection. The owner is safe for concurrent collaborator access
+ * and idempotent close, but recipes and runs must not outlive it.</p>
  */
 public final class CpuBackendComposition implements AutoCloseable {
     private static final BackendAvailabilitySnapshot AVAILABILITY =

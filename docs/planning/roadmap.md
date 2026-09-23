@@ -40,7 +40,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete through documentation-only 0006B10; 0006C and 0007 Draft | No Compiler task is Ready. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through documentation-only 0008 | Reopen only for a concrete Prepare capability or separately authorized status correction. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
-| 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through documentation-only 0010L; 0007A1D Review needed; 0010D1 and 0011 Blocked | No CPU task is Ready; blocked, review-needed, and Draft rows remain unchanged. |
+| 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through evidence-backed no-change 0010M; 0007A1D Review needed; 0010D1 and 0011 Blocked | No CPU task is Ready; any future default comparison requires a separately reviewed sealed matrix. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0017 | No Engine task is Ready; reopen only for a separately authorized capability. |
 | 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0004; bounded mixed composition and reusable sessions current through Engine 0017 | No independent later Metal task is Ready. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
@@ -51,7 +51,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 18 | [`extensions/vision`](extensions/vision/master-plan.md) | Draft; architecture decision required | Join the coordinated Data 0001 decision before decoder or image APIs. |
 | 19 | [`extensions/training`](extensions/training/master-plan.md) | Draft | Begin only after stable NN parameters, published gradients, and Engine training execution justify 0001. |
 | 20 | [`extensions/checkpoint`](extensions/checkpoint/master-plan.md) | Draft; architecture decision required | Authorize the model-only and optional Training adapter boundaries before 0001. |
-| 21 | [`tools/benchmarks`](tools/benchmarks/master-plan.md) | Draft | Define 0001 only for stable operational paths and workload contracts. |
+| 21 | [`tools/benchmarks`](tools/benchmarks/master-plan.md) | Complete through 0001; 0002–0003 Draft | Report-only smoke, baseline, and evidence profiles are current; no benchmark task is Ready. |
 | 22 | [`tools/tuning`](tools/tuning/master-plan.md) | Complete through 0004 | No Tuning task is Ready. |
 | 23 | [`tools/cli`](tools/cli/master-plan.md) | Draft | Define commands only after their Engine and diagnostic contracts are stable. |
 
@@ -77,6 +77,10 @@ unauthorized.
   Intel workload and supported oneMKL interface evidence both exist.
 - CPU 0007A1D remains `Review needed`, not an active frontier; its stable semantic and structural
   evidence does not satisfy its failed performance gate.
+- CPU 0010M is `Complete` with an evidence-backed no-change conclusion: production retains scalar
+  compute, configured/available parallelism `1`/`1`, minimum elements per worker `1`, no worker
+  group, and all existing fallbacks/thresholds. The report-only protocol is hardened; a future
+  comparison still requires a separately reviewed, fully sealed matrix before measurement.
 - Model 0026 and Compiler 0006C/0007 are independent Draft side branches in their
   [Model](modules/model/master-plan.md) and [Compiler](modules/compiler/master-plan.md) plans.
   They gate only the capabilities named by those rows and do not block Metal 0004.

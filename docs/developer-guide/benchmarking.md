@@ -262,11 +262,47 @@ a generic parameter map.
 ./gradlew :tools:benchmarks:benchmark -Pprofile=baseline
 ```
 
-`CpuLifecycleBenchmark` reports JSON containing environment, profile, fixed workload shapes,
-compile and prepare timings, raw repeated prepared-run samples, one-shot compute totals, and
-FNV-1a checksums of explicitly materialized bytes. `smoke` uses one warmup and two measurements;
-`baseline` uses three warmups and ten measurements. It passes `--add-modules=jdk.incubator.vector`
-and `--enable-native-access=ALL-UNNAMED` to the benchmark JVM.
+`CpuLifecycleBenchmark` schema 3 reports environment and VM arguments, fixed input/output shapes,
+compile and prepare timings, per-sample iteration counts, raw batch and normalized repeated-run
+samples, minimum/median/maximum summaries, raw one-shot totals, stable FNV-1a checksums, preferred
+species bits/lanes, loaded-class hash, and evidence metadata. Execution uses public
+`Engine.standard()`, compilation, and a reusable `InferenceSession`; timed repeated samples exclude
+host export and checksum work. The checksum is materialized separately and any variation fails the
+run.
+
+`smoke` uses six tiny lifecycle workloads with one warmup and two measurements. `baseline` uses
+the same shapes with three warmups and ten measurements. `evidence` uses representative
+pointwise, matrix-vector, Conv2d, Conv3d, reduction, and normalization shapes with five warmups,
+seven measurements, and three one-shot observations. Each retained repeated sample accumulates
+timed executions until that sample reaches 25 ms; it retains all those executions and reports
+their count. No undersized sample is retained.
+
+The evidence JVM uses `-Xms1g -Xmx1g -XX:-TieredCompilation -Xbatch`; every profile adds
+`--add-modules=jdk.incubator.vector` and `--enable-native-access=ALL-UNNAMED`. Gradle normalizes
+profile spelling with `Locale.ROOT`, so `-Pprofile=EVIDENCE` receives the same flags as lowercase.
+Evidence also requires explicit `benchmarkBaseRevision`, executable-source tree, source/configuration
+and source-hash properties, fork/order/seed properties, CPU identity/features, and exact portable
+worker, materialization, and OpenBLAS policy values. It refuses to run when any is absent. CPU
+0010M's manifest retains the exact structured commands:
+`backends/cpu/evidence/cpu-0010m-defaults/manifest.json`.
+
+Public Engine intentionally hides backend-private selected-plan facts. Schema 3 records that
+limitation and sets `eligibleForProductionDecision=false`; its current reports can validate the
+observational harness and machine-local baseline but cannot authorize a route/default change. A
+future production comparison must additionally record and verify the actual selected route,
+strategy, preferred species, range count, workers, materializations, and OpenBLAS selection.
+
+Such a comparison treats fresh JVM forks, not within-fork samples, as independent units. Before
+measurement, its reviewed task must seal target strata, complete workload-policy cases,
+deterministic randomized paired process order and seed, no retry/discard, paired fork-median
+ratios, uncertainty calculation, per-family regression ceilings, and aggregate weighting/gate.
+CPU 0010M's manifest records a minimum acceptance framework—not a measurement-ready protocol—and
+why the earlier reports and pooled aggregates were invalidated.
+
+The `evidence` profile remains report-only. A reviewed backend task may cite only reports that
+satisfy its predeclared protocol and complete policy scope; running the benchmark never changes a
+route, threshold, cache, or later preparation.
+
 ## Typical mistakes
 
 | Symptom | Cause | Correction |
@@ -278,6 +314,9 @@ and `--enable-native-access=ALL-UNNAMED` to the benchmark JVM.
 | Faster code changes numerical behavior | Performance was accepted without correctness evidence. | Run reference and conformance tests before interpreting speed. |
 | Complete plans are timed before comparison | Correctness and timing were mixed. | Complete every Phase-2 correctness action before the first warmup or timed sample. |
 | A session-only CPU plan appears reusable after inspection | Stored-key equality was mistaken for backend authentication. | Treat `SESSION` as ineligible and a persistent exact-key match as decoder-required. |
+| Within-fork samples are treated as independent forks | Correlated samples inflated the apparent evidence count. | Use fresh JVM fork medians and paired fork ratios as the primary units. |
+| A public lifecycle report is used to infer a private route | Supplied configuration was mistaken for actual selected-plan evidence. | Record verified backend plan facts or mark the report ineligible for a production decision. |
+
 The harness uses `System.nanoTime()` around synchronous Engine lifecycle calls; it is a
 microbenchmark observation subject to JVM warmup, scheduler, thermal, and OS noise. It is not a
 release gate. The benchmark does not select routes, tune settings, write caches, or substitute

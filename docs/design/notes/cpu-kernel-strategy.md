@@ -2,7 +2,8 @@
 
 ## Purpose and status
 
-This pre-implementation note explains how CPU execution routes fit behind one backend owner. It does not define thresholds, supported operations, or performance guarantees.
+This note explains how CPU execution routes fit behind one backend owner and records the current
+ordinary-production safe heuristic. It does not define support or performance guarantees.
 
 ## Strategy
 
@@ -27,8 +28,32 @@ capabilities, workload facts, and the tuning budget. Matrix-multiplication candi
 supported JDK Vector API species/strategy, unroll, tile, parallelism, and OpenBLAS thread
 configurations. Scalar, vector, and OpenBLAS choices remain distinct typed configurations rather
 than flags in a parameter map. Physical vector lanes are constrained by hardware and supported
-species, so no candidate promises arbitrary lanes. For `[64, 128] × [128, 32]`, 262,144 multiply
-contributions provide a concrete size fact, but no route threshold is established yet.
+species, so no candidate promises arbitrary lanes. Concrete safe-heuristic thresholds remain
+backend-private and are changed only with reproducible evidence.
+
+## Current ordinary-production decision
+
+`CpuBackendComposition` retains scalar single-thread portable execution: maximum and available
+parallelism are one, no worker group is supplied, exact/default numerics remain fixed, and Runtime
+makes no decision. Explicit internal analysis and tuning inputs may still request the existing
+typed Vector API candidates; `CpuPartitionAnalysisInputs.DEFAULT` and ordinary production do not.
+
+[CPU task 0010M](../../planning/backends/cpu/tasks/0010m-evidence-backed-production-defaults.md)
+rejected a global production vector preference. The attempted Apple M3 Max comparison measured
+only dense FLOAT32 ADD and direct convolution among the substantially broader pointwise, MATMUL,
+and MSE policy it would enable. It also lacked cross-target strata, selected-plan facts, randomized
+paired execution, and a valid retained-batch floor. Those reports and aggregates were invalidated.
+
+The retained schema-3 scalar reports under
+`backends/cpu/evidence/cpu-0010m-defaults/` validate the hardened observational harness only. They
+are machine-local and explicitly ineligible to authorize a route/default change because public
+Engine does not expose backend-private selected-plan facts. The manifest retains a minimum future
+acceptance framework only. A future reviewed task must seal the exact target strata, workload
+cases, process order, aggregation, and uncertainty procedure before measuring either configuration.
+
+Parallelism, materialization, partial reductions, MATMUL/OpenBLAS thresholds, tiles,
+fusion/decomposition ceilings, and specialization budgets also remain unchanged. Benchmarking
+never mutates any of these settings.
 
 ## Risks and validation
 
@@ -39,4 +64,7 @@ contributions provide a concrete size fact, but no route threshold is establishe
 - Accepting an optimized route without reference comparisons could hide numerical differences.
 - Using benchmarks without fixed environment and inputs would produce weak evidence.
 
-Future tasks require unit and backend-conformance tests for route behavior, native cleanup tests, and reproducible benchmarks. See [CPU backend guide](../../backend-guide/cpu-backend.md), [Kernel routes](../../backend-guide/kernel-routes.md), and the [CPU master plan](../../planning/backends/cpu/master-plan.md).
+Route changes require unit and backend-conformance tests, native cleanup tests where applicable,
+and reproducible benchmarks. See [CPU backend guide](../../backend-guide/cpu-backend.md),
+[Kernel routes](../../backend-guide/kernel-routes.md), and the
+[CPU master plan](../../planning/backends/cpu/master-plan.md).

@@ -238,6 +238,7 @@ The table owns order and status; linked tasks own detailed evidence.
 | 0010J | [Supported complete-plan candidate and decision producer](tasks/0010j-supported-complete-plan-candidate-and-decision-producer.md) | Complete | 0008D–0008F; 0010E–0010I; Prepare 0004; tools/tuning 0001 | Delivered supported complete-plan candidate production. |
 | 0010K | [CPU backend guide status reconciliation](tasks/0010k-cpu-backend-guide-status-reconciliation.md) | Complete | 0010J; Engine 0009/0013; tuning 0001–0004; Prepare 0007 | Reconciled current CPU Engine, Config, Prepare, tuning, and public-facade status. |
 | 0010L | [CPU execution and public lifecycle status reconciliation](tasks/0010l-cpu-execution-and-public-lifecycle-status-reconciliation.md) | Complete | 0010K; Compiler 0006B10; Model 0025M; Engine 0013 | Reconciled bounded CPU execution, public Engine/training status, and the capability-provider complete-partition inventory without changing behavior or authority. |
+| 0010M | [Evidence-backed CPU production defaults](tasks/0010m-evidence-backed-production-defaults.md) | Complete | 0009G1; 0010L; Engine 0017; benchmarks 0001 | Evidence-backed no-change: retained scalar/1/1/1 production after broad vector evidence failed scope, reproducibility, and target gates; hardened the report-only protocol. |
 | 0011 | Intel oneMKL BLAS and VML peer routes | Blocked | 0010E; 0005A; 0009; concrete Intel CPU use case and supported oneMKL ABI evidence | Blocked until a concrete Intel workload and supported oneMKL ABI evidence both exist. |
 | 0012 | Intel oneDNN partition peer routes | Draft | 0005A; 0009; stable common CPU lowering; concrete DNN/ML use case and supported oneDNN ABI evidence | Planned only after a concrete oneDNN use case and supported ABI evidence. |
 | 0013 | Apple Accelerate peer routes | Draft | 0005A; 0009; concrete Apple CPU use case and supported Accelerate ABI evidence | Planned only after a concrete Apple CPU use case and supported Accelerate ABI evidence. |
@@ -250,6 +251,9 @@ The table owns order and status; linked tasks own detailed evidence.
 
 - Portable coverage and closure are Complete through 0009G1; OpenBLAS and supported lifecycle/
   tuning collaborations are Complete through 0010J.
+- Evidence-backed production-default task 0010M is `Complete`: ordinary production remains
+  scalar with configured/available parallelism `1`/`1` and minimum elements per worker `1`; the
+  invalid broad vector candidate was reverted and its reports removed.
 - 0007A1D is Review needed; 0010D1 and 0011 are Blocked; 0012–0017 are Draft.
 - Documentation-only 0010K and 0010L are Complete. No CPU task is `Ready` or `In progress`;
   blocked, review-needed, and Draft rows remain unchanged.
@@ -279,6 +283,14 @@ The table owns order and status; linked tasks own detailed evidence.
 - CPU 0016 extends tuning only across implemented vendor peers and adds no CPU measurement or
   generated-class persistence. CPU 0017 requires explicit Config numerical permission and keys
   numerical mode without hot-path policy lookup.
+
+- CPU 0010M retains five machine-local scalar reports and a minimum future-comparison acceptance
+  framework under `backends/cpu/evidence/cpu-0010m-defaults/`. The reports validate the hardened
+  timing floor and metadata but explicitly lack selected-plan facts and cannot authorize a
+  production change.
+  No compatible cross-target scalar/vector evidence covered the broad eligible policy, so
+  parallelism, vector preference, materialization, partial reductions, native thresholds, tiles,
+  fusion/decomposition, and specialization budgets all remain unchanged.
 
 ## Risks
 

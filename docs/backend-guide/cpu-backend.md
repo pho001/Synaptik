@@ -298,6 +298,11 @@ eligible under the current safe heuristic. It does not prove that OpenBLAS will 
 that it is faster. Failure retains the portable route and does not change the fixed `cpu/host`
 availability identity.
 
+For the portable route, ordinary production uses scalar single-thread execution: maximum and
+available parallelism are one, no worker group is installed, and no Runtime fallback or route
+search occurs. Existing typed analysis/tuning inputs may request preferred-species Vector API
+candidates, but the standard production composition does not.
+
 ### Cold local-workload tuning collaboration
 
 `CpuBackendIntegration.localWorkloadTuning()` returns the same retained
@@ -1029,13 +1034,14 @@ each class. CPU analysis receives the backend-owned prepared pattern, finalizati
 one matching artifact, and Runtime binding only validates matching concrete carriers; it neither
 generates nor specializes code.
 
-`CpuPartitionAnalysisInputs.DEFAULT` disables the lowering manifest, persistence,
-materialization, vector preference, and parallel execution. Its empty explicit carrier list means
-"select one exact `MemorySegment` form per boundary derived by lowering"; it is no longer a
-four-boundary topology contract. An explicit composition-created input may instead supply a
-non-null ordered heap/segment pattern. CPU analysis snapshots it and validates its count, type,
-and order against the derived declarations. No physical carrier object or general Config value
-enters the analysis input.
+`CpuPartitionAnalysisInputs.DEFAULT` is the standard production and compatibility configuration.
+It disables the lowering manifest, persistence, materialization, vector preference, and parallel
+execution. Its empty explicit carrier list means "select one exact `MemorySegment` form per
+boundary derived by lowering"; it is not a four-boundary topology contract. The standard
+`CpuBackendComposition` passes this value unchanged. An explicit composition-created input may
+instead supply another typed compute preference or a non-null ordered heap/segment pattern. CPU
+analysis snapshots that pattern and validates its count, type, and order against the derived
+declarations. No physical carrier object or general Config value enters the analysis input.
 
 ### Current bounded pointwise family
 

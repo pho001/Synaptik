@@ -2200,8 +2200,13 @@ model, or end-to-end workloads to compare commits, models, or environments. A **
 is the rich immutable evidence from one recorded run: workload and environment identity, supplied
 configuration, lifecycle boundary, samples or distributions, and summary statistics. Benchmarking
 never selects or mutates production settings and never substitutes for correctness tests. The
-current report-only CPU lifecycle harness and its baseline evidence live in `tools/benchmarks`;
-broader operation-family and model suites remain planned in its task list.
+current report-only CPU lifecycle harness and its smoke, baseline, and evidence profiles live in
+`tools/benchmarks`; CPU 0010M's hardened machine-local scalar baseline and minimum future
+acceptance framework live under `backends/cpu/evidence/cpu-0010m-defaults/`. The framework is not
+a sealed measurement protocol. Those reports are explicitly ineligible to authorize a production
+route/default change because the public lifecycle
+does not expose actual selected-plan facts. A benchmark never applies the measured setting;
+operation-family, model, and broader end-to-end suites remain planned in the benchmark task list.
 
 ### Backward graph
 

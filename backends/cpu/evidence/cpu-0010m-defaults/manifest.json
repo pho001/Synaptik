@@ -1,0 +1,233 @@
+{
+  "schema": 1,
+  "task": "CPU-0010M",
+  "baseRevision": "48354c47e93a4b9aa10bee329dd619d3d84f0019",
+  "decision": {
+    "productionChange": "none",
+    "portableComputePreference": "SCALAR",
+    "configuredMaximumParallelism": 1,
+    "availableParallelism": 1,
+    "minimumElementsPerWorker": 1,
+    "workerCount": 0,
+    "reason": "No compatible cross-target scalar-versus-vector evidence covers the policy scope of VECTOR_IF_ELIGIBLE. The attempted machine-local comparison was invalidated and removed."
+  },
+  "source": {
+    "identity": "perf/cpu-defaults-evidence@base-plus-hardened-harness",
+    "executableSourceTreeObjectFormat": "sha1",
+    "executableSourceTreeOid": "8dfbbccf152db96230fe914fab9a400c63c15929",
+    "sourceTreeDefinition": "Git tree formed from baseRevision with only production composition, benchmark build configuration, and benchmark Java source replaced by the sealed executable-source.patch content",
+    "executableSourcePatch": "backends/cpu/evidence/cpu-0010m-defaults/executable-source.patch",
+    "executableSourcePatchSha256": "3afd8ce5abd13f19bf6f2be63aa87210dde7bcf06f421cb078bbeeff5fad9e86",
+    "benchmarkSource": "tools/benchmarks/src/main/java/io/github/pho001/synaptik/tools/benchmarks/CpuLifecycleBenchmark.java",
+    "benchmarkSourceSha256": "b87a5040809c1dbfbae9ff947ae69e49cefb30087a93321b986f97376d2f5aa8",
+    "benchmarkClassSha256": "42e0a1bb8a6979feb79d104de5d53d4218db3242f54d1a7e9b8845c0263d502e",
+    "benchmarkBuild": "tools/benchmarks/build.gradle.kts",
+    "benchmarkBuildSha256": "b4bfd0ba81ab7ab8ff19bd8b0011f8dc32d3922eb878953cf31bb2b2a2b2fac6",
+    "productionComposition": "backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuBackendComposition.java",
+    "productionCompositionSha256": "e503eb62c269fccf8449abec78f5cbe14ce7037dcc7974cd3978e839e2c64ce6"
+  },
+  "invalidatedAttempt": {
+    "removedReportCount": 13,
+    "reasons": [
+      "81 of 420 scalar/vector repeated batches were below the claimed 25 ms floor",
+      "all scalar processes preceded all vector processes, confounding the comparison with time and thermal drift",
+      "within-fork samples were pooled as independent observations instead of treating JVM forks as the independent units",
+      "reports omitted source, command, CPU, species, and selected-plan identities",
+      "the measured matrix did not cover the broad VECTOR_IF_ELIGIBLE policy"
+    ],
+    "useForDecision": false
+  },
+  "currentBaseline": {
+    "purpose": "Validate the hardened observational protocol against unchanged scalar production; not compare candidates or authorize a route/default change.",
+    "machineLocal": true,
+    "eligibleForProductionDecision": false,
+    "selectedPlanFacts": "Unavailable through the public Engine lifecycle. Every report states this limitation and is ineligible for a production decision.",
+    "environment": {
+      "cpuIdentity": "Apple M3 Max; model Mac15,9",
+      "cpuFeatures": "arm64; NEON=1; FEAT_DotProd=1; FEAT_FP16=1; FEAT_I8MM=1",
+      "java": "OpenJDK 26.0.1+8-34",
+      "os": "Mac OS X 26.6.2 aarch64",
+      "preferredSpecies": {
+        "float32": {
+          "bits": 128,
+          "lanes": 4
+        },
+        "float64": {
+          "bits": 128,
+          "lanes": 2
+        },
+        "int32": {
+          "bits": 128,
+          "lanes": 4
+        },
+        "int64": {
+          "bits": 128,
+          "lanes": 2
+        },
+        "bool": {
+          "bits": 128,
+          "lanes": 16
+        }
+      }
+    },
+    "jvmFlags": [
+      "-Xms1g",
+      "-Xmx1g",
+      "-XX:-TieredCompilation",
+      "-Xbatch",
+      "--add-modules=jdk.incubator.vector",
+      "--enable-native-access=ALL-UNNAMED"
+    ],
+    "warmups": 5,
+    "samplesPerFork": 7,
+    "oneShotObservationsPerFork": 3,
+    "minimumRetainedBatchNanos": 25000000,
+    "noRetryOrDiscard": true,
+    "forksAreIndependentUnits": true,
+    "processOrderSeed": 104729,
+    "plannedOrder": [
+      "scalar-only-baseline-fork-1",
+      "scalar-only-baseline-fork-2",
+      "scalar-only-baseline-fork-3",
+      "scalar-only-baseline-fork-4",
+      "scalar-only-baseline-fork-5"
+    ],
+    "minimumObservedRetainedBatchNanos": 25170042,
+    "retainedBatchCount": 210,
+    "medianOfForkMediansNanos": {
+      "pointwise": 12951333,
+      "matmul": 266271,
+      "conv2d": 28719791,
+      "conv3d": 37864125,
+      "reduction": 15876833,
+      "normalization": 29217000
+    }
+  },
+  "command": {
+    "workingDirectory": "repository root",
+    "executable": "./gradlew",
+    "commonArguments": [
+      "-q",
+      ":tools:benchmarks:benchmark",
+      "-Pprofile=evidence",
+      "-PbenchmarkBaseRevision=48354c47e93a4b9aa10bee329dd619d3d84f0019",
+      "-PbenchmarkSourceIdentity=perf/cpu-defaults-evidence@base-plus-hardened-harness",
+      "-PbenchmarkGitTreeObjectSha1=8dfbbccf152db96230fe914fab9a400c63c15929",
+      "-PbenchmarkHarnessSourceSha256=b87a5040809c1dbfbae9ff947ae69e49cefb30087a93321b986f97376d2f5aa8",
+      "-PbenchmarkProductionSourceSha256=e503eb62c269fccf8449abec78f5cbe14ce7037dcc7974cd3978e839e2c64ce6",
+      "-PbenchmarkConfiguration=production-scalar-single-thread",
+      "-PbenchmarkOrderSeed=104729",
+      "-PbenchmarkCpuIdentity=Apple-M3-Max-Mac15,9",
+      "-PbenchmarkCpuFeatures=arm64,NEON=1,DotProd=1,FP16=1,I8MM=1",
+      "-PbenchmarkComputePreference=SCALAR",
+      "-PbenchmarkConfiguredMaximumParallelism=1",
+      "-PbenchmarkAvailableParallelism=1",
+      "-PbenchmarkMinimumElementsPerWorker=1",
+      "-PbenchmarkWorkerCount=0",
+      "-PbenchmarkMaterializationPolicy=DISABLED",
+      "-PbenchmarkOpenBlasPolicy=AUTOMATIC_QUALIFIED_SINGLE_THREAD_OR_PORTABLE_FALLBACK"
+    ],
+    "invocations": [
+      {
+        "additionalArguments": [
+          "-PbenchmarkFork=1",
+          "-PbenchmarkOrderIndex=1",
+          "-PbenchmarkPlannedOrder=scalar-only-baseline-fork-1"
+        ],
+        "output": "scalar-fork-1.json",
+        "sha256": "d3a81f996f56f6d385a7d0079552033f51fa63fa47613ed7e90e828d5fbf32c9"
+      },
+      {
+        "additionalArguments": [
+          "-PbenchmarkFork=2",
+          "-PbenchmarkOrderIndex=2",
+          "-PbenchmarkPlannedOrder=scalar-only-baseline-fork-2"
+        ],
+        "output": "scalar-fork-2.json",
+        "sha256": "e0d6dc19e2e3a6e867676f567d823744f034975e0fbed04c0f331bce3f3e22c2"
+      },
+      {
+        "additionalArguments": [
+          "-PbenchmarkFork=3",
+          "-PbenchmarkOrderIndex=3",
+          "-PbenchmarkPlannedOrder=scalar-only-baseline-fork-3"
+        ],
+        "output": "scalar-fork-3.json",
+        "sha256": "f9855915306043e80e8740759eae8f40655b941adc3b34224c9abca4db47f91c"
+      },
+      {
+        "additionalArguments": [
+          "-PbenchmarkFork=4",
+          "-PbenchmarkOrderIndex=4",
+          "-PbenchmarkPlannedOrder=scalar-only-baseline-fork-4"
+        ],
+        "output": "scalar-fork-4.json",
+        "sha256": "c807620937e90bb0b8432410d814a68c5d1c28e2a4a9bcf5705792fb0d2f80cf"
+      },
+      {
+        "additionalArguments": [
+          "-PbenchmarkFork=5",
+          "-PbenchmarkOrderIndex=5",
+          "-PbenchmarkPlannedOrder=scalar-only-baseline-fork-5"
+        ],
+        "output": "scalar-fork-5.json",
+        "sha256": "5b20cd173e3fb7f07c9e4378fbeb01d4dc6ee841d1c3f760ae3a9ae78e745df8"
+      }
+    ]
+  },
+  "historicalEvidenceSearch": {
+    "compatibleCrossTargetScalarVersusVectorEvidenceFound": false,
+    "notes": [
+      "Sealed CPU artifacts are predominantly generated-versus-direct parity, not scalar-versus-vector policy evidence.",
+      "Located scalar/vector-related performance records are machine-local macOS AArch64 observations and do not cover the current broad eligible family/type/access matrix.",
+      "No compatible x86-64 scalar-versus-vector evidence was found for a universal default."
+    ]
+  },
+  "futureComparisonAcceptanceFramework": {
+    "status": "minimum-framework-not-sealed-for-measurement",
+    "eligibleForMeasurement": false,
+    "candidateMustRecordActualSelectedPlanFacts": [
+      "route",
+      "executionStrategy",
+      "preferredSpeciesBitsAndLanes",
+      "selectedRangeCount",
+      "workerCount",
+      "materializationCount",
+      "OpenBLASSelectionAndThreadCount"
+    ],
+    "reportMustFailIfPlanFactsUnavailable": true,
+    "minimumForkPairsPerTargetStratum": 7,
+    "minimumRetainedBatchNanos": 25000000,
+    "noRetryOrDiscard": true,
+    "primaryExperimentalUnit": "one fresh JVM fork median",
+    "primaryComparison": "paired candidate/scalar fork-median ratio",
+    "minimumPerFamilyRegressionGate": "median paired ratio <= 1.05 and sealed upper uncertainty bound <= 1.10",
+    "minimumAggregateImprovementGate": "sealed equal-family aggregate median <= 0.95 and sealed upper uncertainty bound <= 1.00",
+    "correctnessGate": "all represented output checksums identical before timing",
+    "minimumTargetClasses": [
+      "AArch64 HotSpot with preferred 128-bit species",
+      "x86-64 HotSpot with preferred 256-bit species",
+      "x86-64 HotSpot with preferred 512-bit species"
+    ],
+    "minimumPolicyScope": [
+      "eligible direct and tiled MATMUL in FLOAT32 and FLOAT64, including contribution-count neighbors around 4,096, 16,384, and 65,536 strategy thresholds",
+      "dense MSE NONE in FLOAT32 and FLOAT64 at below-one-lane, exactly-one-lane, one-lane-plus-one, and representative large extents",
+      "dense and broadcast pointwise arithmetic in FLOAT32 and FLOAT64",
+      "floating transcendental and activation pointwise in FLOAT32 and FLOAT64",
+      "INT32 and INT64 pointwise arithmetic",
+      "BOOL, comparison, mask, and WHERE pointwise",
+      "one-node and fused pointwise topologies over dense and eligible contiguous-run access, covering heap-array, segment, and mixed carriers where each is supported",
+      "preferred-species lane boundaries at lanes-minus-one, lanes, lanes-plus-one, exact multiples, and masked tails, with ineligible scalar controls",
+      "direct Conv2d and Conv3d in FLOAT32 and FLOAT64, covering eligible full-interior blocks plus width-tail, edge, stride, dilation, layout, epilogue, and type fallback controls"
+    ],
+    "futureTaskMustSealBeforeAnyMeasurement": [
+      "exact CPU model, operating system, HotSpot/JDK build, enabled CPU features, JVM flags, and preferred species for every target stratum",
+      "exact operation, topology, data type, shape, layout, access regime, carrier combination, input data, and boundary/fallback control for every workload case",
+      "exact randomized interleaved process order and seed for every target stratum",
+      "exact family definitions, within-pair aggregation order, family weighting, and cross-family aggregate formula",
+      "exact uncertainty algorithm, bootstrap resample count, PRNG and seed expansion, one- or two-sided interval meaning, and quantile convention",
+      "exact report schema and verified source/configuration identity"
+    ],
+    "amendmentRule": "Seal these details in a separately reviewed future task before the first warmup or measured execution; do not amend them after observing timing."
+  }
+}
