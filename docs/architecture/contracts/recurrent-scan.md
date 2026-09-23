@@ -201,8 +201,8 @@ never traverses the padded suffix. In either direction:
 Padding is never a recurrent input. Before mutating any output representation, an executable
 backend must validate the complete length vector, every bound, and any representation-specific
 access precondition. Invalid lengths fail the run without partially written published results.
-The future Engine facade owns public exception translation; this architecture does not select its
-exception type.
+Engine owns any future public recurrent-execution exception translation; this architecture does
+not select the public exception type.
 
 ### Purity and lifecycle ownership
 

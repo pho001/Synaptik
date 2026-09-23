@@ -27,7 +27,7 @@ or task boundary; it does not promote Draft work to Ready.
 
 | Order | Project area | Current status | Entry or next gate |
 |---:|---|---|---|
-| 1 | [`modules/model`](modules/model/master-plan.md) | Implementation Complete through 0025L; 0025M Complete; 0025N Ready; 0026 Draft | Execute only the focused 0025N recurrent Engine status reconciliation. |
+| 1 | [`modules/model`](modules/model/master-plan.md) | Implementation Complete through 0025L; 0025M–0025N Complete; 0026 Draft | No Model task is Ready; do not promote 0026 implicitly. |
 | 2 | [`modules/trace`](modules/trace/master-plan.md) | In progress, deliberately interleaved; 0001–0002 Complete, 0003–0008 Draft | Resume 0003 only after its producer vocabulary is stable; no Trace task is Ready. |
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete through 0004 | Reopen only for a concrete shared-contract need. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress, interleaved; 0001–0003 and 0006A–0006B Complete; 0004–0006 and 0007–0008 Draft | 0004 waits for a concrete cost-bearing Planning consumer; no Config task is Ready. |
@@ -54,9 +54,8 @@ or task boundary; it does not promote Draft work to Ready.
 ## Current frontier
 
 The user-authorized sequential explanatory/status drift-remediation sequence is Complete through
-Prepare [0008](modules/prepare/tasks/0008-backend-partition-finalization-glossary-status-reconciliation.md).
-Model [0025N](modules/model/tasks/0025n-recurrent-engine-status-reconciliation.md) is the sole
-`Ready` task and must correct the remaining normative `future Engine facade` status sentence.
+Model [0025N](modules/model/tasks/0025n-recurrent-engine-status-reconciliation.md), including the
+remaining normative `future Engine facade` status correction.
 Model 0026, Compiler 0006C/0007, and all other Draft or blocked work remain unauthorized.
 
 ## Blocked, review-needed, and deferred work
@@ -86,8 +85,8 @@ Model 0026, Compiler 0006C/0007, and all other Draft or blocked work remain unau
 
 ## Nearest next step
 
-1. Execute and independently review Model 0025N; do not promote Model 0026, Compiler 0006C/0007,
-   or other Draft or blocked work implicitly.
+1. Select and authorize the next frontier explicitly; do not promote Model 0026, Compiler
+   0006C/0007, or other Draft or blocked work implicitly.
 
 ## History policy
 

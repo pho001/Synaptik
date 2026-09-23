@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Change class
 
@@ -37,7 +37,7 @@ recurrent-execution path and its exception translation remain future work.
 
 - [`ARCHITECTURE.md` heading `Module-ownership routing`](../../../../../ARCHITECTURE.md#module-ownership-routing)
   — Engine owns public lifecycle composition; Model owns operation semantics.
-- [`recurrent-scan.md` heading `Runtime valid-length semantics`](../../../../architecture/contracts/recurrent-scan.md#runtime-valid-length-semantics)
+- [`recurrent-scan.md` heading `Valid lengths, traversal, and outputs`](../../../../architecture/contracts/recurrent-scan.md#valid-lengths-traversal-and-outputs)
   — the sole normative paragraph to reconcile.
 - [`runtime-prepare-engine.md` heading `modules/engine`](../../../../architecture/contracts/runtime-prepare-engine.md#modulesengine)
   — Engine is the current composition root and generic/mixed composition remains planned.
@@ -49,7 +49,7 @@ If an applicable contract is missing or ambiguous, stop and report it.
 Exact implementation allowlist:
 
 - `docs/architecture/contracts/recurrent-scan.md` — only the final exception-translation sentence
-  under `Runtime valid-length semantics`.
+  under `Valid lengths, traversal, and outputs`.
 - `docs/planning/modules/model/tasks/0025n-recurrent-engine-status-reconciliation.md` — status and
   compact result evidence.
 - `docs/planning/modules/model/master-plan.md` — task row and frontier summary only.
@@ -74,7 +74,7 @@ No path outside the four-file implementation allowlist may change.
   the recurrent contract does not select the public exception type.
 - It does not imply current recurrent backend execution, current exception translation, BPTT, or
   a new Engine API.
-- The rest of `Runtime valid-length semantics` remains byte-for-byte unchanged.
+- The rest of `Valid lengths, traversal, and outputs` remains byte-for-byte unchanged.
 - Independent Class C review confirms wording against current authority/source/status and records
   reasoned no-change conclusions for root architecture, other scoped contracts, ADRs, API/guides,
   glossary, Javadoc, tests, Gradle, and executable behavior.
@@ -124,6 +124,30 @@ state, with no executable, build, dependency, or architecture-boundary change.
 
 ## Result
 
-Pending.
+- Replaced the stale final sentence under `Valid lengths, traversal, and outputs`: Engine is
+  current, while public recurrent-execution exception translation remains future work and this
+  contract selects no public exception type.
+- Corrected this brief's stale heading label and anchor to the actual owning contract heading.
+- Synchronized this brief, the Model master plan, and the roadmap at `Complete` after the
+  mandatory independent Class C review.
+- Changed only the four allowlisted Markdown paths; Java/Gradle scan was empty.
+- `./gradlew :modules:model:test --tests
+  io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanSemanticsTest` passed.
+- `./gradlew :modules:compiler:test --tests
+  io.github.pho001.synaptik.compiler.RecurrentScanCompilerTest` passed.
+- The independent Class C review confirmed current Engine lifecycle composition from `Engine` and
+  `AdvancedEngine`, Compiler forward-only adoption, absent recurrent backend capability, and the
+  fail-closed BPTT boundary. The wording implies no current recurrent execution, translation, or
+  new API and selects no public exception type. It reused the successful focused tests because no
+  executable behavior changed.
+- The specified Markdown validator passed all four files; the brief remained within 200 lines and
+  15 KB; exact-path audit and `git diff --check` passed.
+- Documentation impact is limited to the normative status correction and synchronized planning
+  evidence. Root architecture and other scoped contracts already assign lifecycle composition to
+  Engine and execution to backends, so they need no edit. ADRs, API/guides, and the glossary
+  already preserve the same current/future boundary and gain no decision, workflow, or term.
+  Javadocs, tests, Gradle, and executable behavior need no change because this task changes no
+  Java contract, build input, or behavior.
+- Repository-wide validation remains deferred for the reason recorded above.
 
-Status: Ready
+Status: Complete
