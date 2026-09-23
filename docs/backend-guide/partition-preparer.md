@@ -23,12 +23,13 @@ representative inputs: Phase 1 selects local workload decisions, and Phase 2 com
 prepared CPU plans.
 
 Public `GraphPreparation.prepare(...)` coordinates package-internal assignment and validates one
-complete schedule supplied by an explicit assembler. The current CPU integration supplies its
-production preparation and schedule assembly to fixed CPU `Engine.standard()` composition and to
-the explicit advanced CPU composition. Runtime then creates backend-owned physical
-representations per run and executes the prepared schedule. Generic backend registration and
-mixed-owner Engine composition remain planned. The example therefore demonstrates the shared
-analysis and finalization contracts with illustrative backend types; it is not the production CPU
+complete schedule supplied by an explicit assembler. CPU and Metal integrations currently supply
+production preparation and complete single-owner schedule assembly to ordinary Engine. Fixed CPU
+`Engine.standard()` and explicit CPU/Metal `Engine.builder()` composition are current; the
+advanced surface remains explicitly CPU-only. Runtime creates the selected backend's physical
+representations per run and executes the prepared schedule. Generic plugin registration and
+mixed-owner Engine execution remain planned. The example therefore demonstrates the shared
+analysis and finalization contracts with illustrative backend types rather than either production
 implementation.
 
 ## Prerequisites
@@ -470,12 +471,12 @@ idempotent close lifecycle after admitted runs release their leases.
 
 ## Registration, diagnostics, and validation
 
-Current ordinary composition is fixed CPU: each `Engine.standard()` owns a fresh CPU integration
-and supplies its preparation and schedule assembler to shared Prepare. Advanced CPU-only
-composition is explicit through `AdvancedEngine.takeOwnership(...)`. Neither surface registers a
-generic backend inventory or composes mixed owners. Future generic registration must remain
-explicit and Engine-owned; do not add runtime service lookup, reflection, or `ServiceLoader` as a
-substitute.
+Current ordinary composition is explicit: `Engine.standard()` owns one fresh CPU integration,
+while `Engine.builder()` can own opened CPU and/or Metal integrations and supplies the exact
+selected owner's preparation and schedule assembler to shared Prepare. Advanced CPU-only
+composition remains explicit through `AdvancedEngine.takeOwnership(...)`. No surface composes
+mixed owners or discovers plugins; do not add runtime service lookup, reflection, or
+`ServiceLoader` as a substitute.
 
 Prepare/trace payloads and emitters are also planned. A backend may design typed diagnostic facts
 for its analysis, but it must not leak business logic into trace data-transfer objects or use a
@@ -503,10 +504,10 @@ For the current shared contract, run:
 The current preparation lifecycle has no dynamic-dimension binding or workspace reuse. It does
 support exact shared-resource declarations, backend-owned per-run representation recipes, and
 persistent-resource transfer, but the concrete backend owns the physical mechanics and Runtime
-owns the per-run state. Fixed ordinary and explicit advanced CPU Engine composition are current;
-generic backend registration, mixed-owner schedules, and executable persistence are not. The
-current CPU complete-plan producer is session-scoped, so Phase 2 does not persist or reuse a
-complete prepared plan across sessions.
+owns the per-run state. Fixed CPU `Engine.standard()`, explicit single-owner CPU/Metal builder
+composition, and advanced CPU composition are current; generic plugin registration, mixed-owner
+schedules, and executable persistence are not. The current CPU complete-plan producer is
+session-scoped, so Phase 2 does not persist or reuse a complete prepared plan across sessions.
 
 The separate tuning tool provides bounded local measurement, selection, reusable workload-cache
 persistence, and rich evidence around the opaque handoff. Current Engine composition supplies the

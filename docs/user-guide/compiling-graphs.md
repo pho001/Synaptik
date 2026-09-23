@@ -51,14 +51,14 @@ backward lifecycle. For the narrower fresh scalar-objective case, use `Engine.ba
 
 ## Ordinary versus advanced compilation
 
-Ordinary `Engine.compile(...)` uses the current fixed settings and CPU-only standard composition.
+Ordinary `Engine.compile(...)` uses fixed compile settings. `Engine.standard()` supplies one CPU
+owner; an `Engine.builder()` instance compiles against its frozen explicit CPU/Metal inventory.
 There is no current `CompileConfig` aggregate facade. `AdvancedEngine.compile(...)` is the
 lower-level integration surface for callers that intentionally own the four standalone compile
 settings and transfer one `CpuBackendIntegration` to `AdvancedEngine.takeOwnership(...)`.
 
-Neither surface discovers backends, accepts a generic backend registry, or promises Metal, CUDA,
-or mixed-owner execution. Compilation may succeed even when current CPU preparation later rejects
-the artifact.
+Neither surface discovers backends or accepts a public generic plugin registry. Compilation may
+succeed even when single-owner preparation or the selected backend later rejects the artifact.
 
 ## Expected result
 
@@ -71,16 +71,18 @@ It contains no caller Tensor storage reference and performs no execution.
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | Compilation rejects an empty or repeated output list | The public boundary must be non-empty and identity-unique. | Supply each exact requested output Tensor once. |
-| `prepare(...)` rejects a graph that compiled | Current CPU preparation requires exactly one non-empty maximal CPU partition. | Use supported CPU operations and fully static compatible descriptors; compile success alone is not an execution promise. |
+| `prepare(...)` rejects a graph that compiled | Preparation requires a non-empty plan owned entirely by one registered backend, and that backend may impose narrower preparation constraints. | Use operations and fully static compatible descriptors supported by one registered owner; compile success alone is not an execution promise. |
 | A caller expects compilation to read input bytes | Compile operates on expression meaning and descriptors. | Keep storage live for `run(...)`, not for compilation itself. |
 | A caller expects `CompileConfig.auto()` | Config aggregate facades are not current. | Use ordinary fixed `Engine.compile(...)` or the explicitly advanced standalone settings. |
 
 ## Limitations
 
-Current public composition is CPU-only. Model construction leaves Conv2d and Conv3d result layouts
-unresolved; Compiler closes only eligible fully static final convolution descriptors before
-Planning capability admission. Dynamic or partially dynamic convolution results remain
-unresolved. Conv3d forward execution is current, but Conv3d gradients are not.
+Current public composition supports explicit single-owner CPU or Metal execution. Metal currently
+admits only its documented positive-shape contiguous `FLOAT32` NEG domain. Model construction
+leaves Conv2d and Conv3d result layouts unresolved; Compiler closes only eligible fully static
+final convolution descriptors before CPU Planning capability admission. Dynamic or partially
+dynamic convolution results remain unresolved. Conv3d forward execution is current on CPU, but
+Conv3d gradients are not.
 
 ## Related documentation
 

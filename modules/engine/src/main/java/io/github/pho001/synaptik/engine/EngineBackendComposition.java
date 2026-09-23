@@ -10,12 +10,13 @@ import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import java.util.List;
 
 /**
- * Supplies the exact inward collaborations owned by one advanced Engine composition.
+ * Supplies the exact inward collaborations owned by one registered Engine backend.
  *
- * <p>This package-private, Engine-owned seam exists for the current CPU composition and
- * deterministic lifecycle tests. Implementations and their returned collaborations are safe for
- * concurrent Engine calls. It is not a public backend service-provider interface and does not
- * imply that several complete backend schedules can be assembled together.</p>
+ * <p>This package-private, Engine-owned seam has current CPU and Metal implementations for the
+ * ordinary explicit builder and deterministic lifecycle tests. Implementations and their returned
+ * collaborations are safe for concurrent Engine calls. It is not a public backend
+ * service-provider interface and does not imply that several complete backend schedules can be
+ * assembled together.</p>
  */
 interface EngineBackendComposition extends AutoCloseable {
     /**

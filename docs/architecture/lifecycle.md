@@ -2,11 +2,11 @@
 
 This document explains the compile, prepare, run, and training lifecycles defined by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract remains authoritative.
 
-The ordinary public lifecycle is runnable today through `Engine.standard()`, whose fixed current
-composition owns one fresh CPU integration. It implements the compile, staged prepare, run,
-publication, and explicit host-materialization path described below. The architecture is broader
-than that implementation: Metal, CUDA, mixed-owner schedules, and training orchestration remain
-planned. The [roadmap](../planning/roadmap.md) records delivery status.
+The ordinary public lifecycle is runnable through `Engine.standard()` for fixed CPU ownership and
+through `Engine.builder()` for explicit CPU/Metal ownership. Both implement the compile, staged
+prepare, run, publication, and explicit host-materialization path described below. Mixed-owner
+schedules, CUDA execution, and training orchestration remain planned. The
+[roadmap](../planning/roadmap.md) records delivery status.
 
 ## State across the lifecycle
 
@@ -179,12 +179,11 @@ advanced composition currently assembles mixed-owner schedules or discovers back
 
 ## Explicit backend composition
 
-The architecture-selected, not-yet-implemented public composition surface is an
-`AutoCloseable Engine.Builder`. Its concrete `takeOwnership(...)` overloads accept opened CPU and
-Metal integrations. Ownership transfers at each non-null method entry, so the builder—not the
-caller—owns rollback even when registration fails. Successful `build()` moves the complete
-ordered registry into one Engine; unsuccessful construction and builder close release accepted
-integrations in reverse registration order.
+The public composition surface is an `AutoCloseable Engine.Builder`. Its concrete
+`takeOwnership(...)` overloads accept opened CPU and Metal integrations. Ownership transfers at
+each non-null method entry, so the builder—not the caller—owns rollback even when registration
+fails. Successful `build()` moves the complete ordered registry into one Engine; unsuccessful
+construction and builder close release accepted integrations in reverse registration order.
 
 ```text
 backend-owned configuration -> backend opens integration and native state
@@ -201,13 +200,12 @@ each registration and reused for every compile by that Engine. Equal backend IDs
 Compile-time Planning receives the immutable registration-ordered inputs and records only
 `BackendId` ownership; it receives no Engine registry or live integration.
 
-The first implementation boundary is deliberately single-owner. A plan may reach backend
+The current implementation boundary is deliberately single-owner. A plan may reach backend
 analysis only when it is non-empty and every planned partition names one equal registered owner.
 Registering CPU and Metal therefore permits either complete owner to be selected, but does not
-make a graph split between them executable. Until a later transfer contract defines
-cross-owner representations, transfer ownership, resource declarations, schedule ordering, and
-rollback, a missing, empty, or mixed owner set fails before backend analysis without retry or CPU
-fallback.
+make a graph split between them executable. Until a later transfer contract defines cross-owner
+representations, transfer ownership, resource declarations, schedule ordering, and rollback, a
+missing, empty, or mixed owner set fails before backend analysis without retry or CPU fallback.
 
 The prepared Engine handle keeps a direct non-owning reference to the selected adapter while
 Engine owns the integration. Run uses it to wrap caller host storage before Runtime admission, and
@@ -227,7 +225,7 @@ remain Runtime-owned. The registry map has no post-prepare execution role, and n
 query, availability check, reflection, or `ServiceLoader` lookup enters cold-bound Runtime
 execution. The Engine-handle adapter calls described above occur outside Runtime.
 
-`Engine.standard()` remains the current CPU-only convenience and will construct its fresh CPU
+`Engine.standard()` remains the current CPU-only convenience and constructs its fresh CPU
 integration through the same ownership path. Metal owns its configuration and native open
 operation; Engine accepts the opened integration and does not parse a native library path or
 select a Metal device. See

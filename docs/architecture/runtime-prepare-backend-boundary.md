@@ -20,12 +20,12 @@ typed backend finalization input/collaboration, the minimal prepared-partition a
 compile projection, one immutable partition-local directed acyclic graph (DAG) per backend
 analysis context, explicit schedule assembly, complete schedule validation, and construction of
 the reusable prepared-execution root.
-The CPU backend supplies the physical allocation and access implementation that current Engine
-composes into its public CPU-only prepare/run/materialization lifecycle. Metal supplies bounded
-MPSGraph and custom-kernel `FLOAT32 NEG` prepared routes, but current Engine composition does not
-expose them. Explicit CPU/Metal registration and single-owner routing are architecture-selected
-and not yet implemented; CUDA and mixed-owner composition remain later work. The lifecycle flow
-therefore mixes current foundations with selected later stages, and each focused section states
+The CPU backend supplies broad physical allocation, preparation, and access for
+`Engine.standard()` and explicit composition. Metal supplies bounded MPSGraph and custom-kernel
+`FLOAT32 NEG` routes plus explicit native configuration, host ingress, materialization, and close.
+`Engine.builder()` currently registers opened CPU and/or Metal integrations and routes a non-empty
+plan to one exact owner. CUDA and mixed-owner composition remain later work. The lifecycle flow
+therefore combines current foundations with selected later stages, and each focused section states
 its implementation status.
 [ADR 0011](../design/decisions/0011-per-run-runtime-resource-ownership.md) defines the
 resource-ownership and cold-binding architecture.
@@ -266,11 +266,11 @@ analysis. A future fact may remain run-dynamic only when an explicit prepared co
 it without changing the selected route, declared resources, or slot assignment. The current
 repository has no such run-dynamic fact contract.
 
-## Planned Engine composition and cold routing
+## Current explicit Engine composition and cold routing
 
-The selected public composition is an Engine-owned `AutoCloseable` builder. Concrete
+The current public composition is an Engine-owned `AutoCloseable` builder. Concrete
 `takeOwnership(...)` overloads accept already-opened CPU and Metal integrations, transfer
-ownership at method entry, and adapt them into a private registration-ordered map keyed by
+ownership at method entry, and adapt them into a private registration-ordered registry keyed by
 `BackendId`. Each registration captures one stable capability provider and one immutable
 point-in-time availability snapshot. An equal duplicate ID is rejected and the newly transferred
 integration is rolled back; no existing entry is replaced.

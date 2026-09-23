@@ -70,9 +70,12 @@ claim mixed-owner execution.
 - Runtime 0016, Prepare 0006, and Engine 0010 complete the inward resource owner, transactional
   handoff, close/run lease, and outward prepared-handle lifecycle. Metal does not need to change
   any of them.
-- The current Engine composition remains CPU-only and rejects mixed/multi-partition artifacts.
-  This task therefore proves the route through backend-local composition of the public shared
-  Prepare and Runtime contracts and makes no public Engine or mixed-backend claim.
+- At task 0002's completion frontier, Engine composition was CPU-only and rejected
+  mixed/multi-partition artifacts. This task therefore proved the route through backend-local
+  composition of the public shared Prepare and Runtime contracts and made no public Engine or
+  mixed-backend claim. Engine task 0015 later superseded only that public-composition status by
+  adding explicit CPU/Metal registration and current single-owner Metal execution; mixed-owner
+  execution remains unsupported.
 
 ### Installed SDK evidence
 
@@ -218,8 +221,8 @@ necessary for the first route.
 - Add the narrow backend-conformance coverage required for new backend behavior: public
   capability truth plus maximal-partition closure for adjacent eligible NEG occurrences. Add only
   a test dependency from `testing/backend-conformance` to `backends/metal`, and update the
-  existing exact dependency architecture test. Do not add an Engine integration test because the
-  supported Engine composition remains CPU-only.
+  existing exact dependency architecture test. Under task 0002's completion-time CPU-only Engine
+  frontier, do not add an Engine integration test.
 - Finalize affected Javadocs, the Metal backend guide, native README, glossary impact, and
   planning evidence in a separate clean documentation-focused context after executable behavior
   stabilizes.
@@ -723,17 +726,17 @@ required, stop and return the task to planning.
 - Concurrent runs use isolated buffers and may reuse the immutable executable. Tests use bounded
   latches, not sleeps, for Java lifecycle races; the native route makes no throughput or overlap
   claim.
-- Public Java surface remains `MetalCapabilityProvider` only. No Objective-C, MPSGraph, native
-  handle, storage, preparer, finalizer, executable, or context type becomes public.
-- No Engine source changes and no public standard-compute claim occur. Documentation explicitly
-  states that current Engine composition is still CPU-only and mixed-owner execution is absent.
-- `backends/metal` adds Compiler only as `testImplementation`; its production dependencies and
-  direction remain unchanged. Backend conformance proves public capability/maximal-partition
-  closure, and the architecture test locks `testImplementation(project(":backends:metal"))`
+- At task completion, the public Java surface was `MetalCapabilityProvider` only. No Objective-C,
+  MPSGraph, native handle, storage, preparer, finalizer, executable, or context type became public.
+- No Engine source changes and no public standard-compute claim occurred. Documentation stated
+  that the then-current Engine composition was CPU-only and mixed-owner execution was absent.
+- `backends/metal` added Compiler only as `testImplementation`; its production dependencies and
+  direction remained unchanged. Backend conformance proved public capability/maximal-partition
+  closure, and the architecture test locked `testImplementation(project(":backends:metal"))`
   in backend conformance and `testImplementation(project(":modules:compiler"))` in Metal while
   rejecting production forms of both edges and continuing to reject Engine and OpenBLAS-provider
-  edges. Generic Engine integration tests remain unchanged because no supported Metal Engine
-  composition exists.
+  edges. Generic Engine integration tests remained unchanged because no supported Metal Engine
+  composition existed at this task's completion frontier.
 - Focused fake-native tests, ordinary Metal tests, native build/symbol/link inspection, real
   native prepared execution, Javadoc, Markdown, exact scope/status/order, staged-file, and
   whitespace validation all pass.
@@ -826,10 +829,11 @@ NEG capability and that adjacent eligible occurrences form one maximal Metal par
 not reach package-private execution or create a public Metal integration seam. The focused
 architecture test reads both affected build files and enforces that their new edges are test-only.
 
-`testing/integration-tests` exercises supported end-to-end Engine composition. That composition
-remains CPU-only, so adding a Metal test there would be impossible without out-of-scope Engine
-work and would falsely imply public Metal support. It remains unchanged for a concrete
-architecture reason, not as a waiver of backend validation.
+`testing/integration-tests` exercised the supported end-to-end Engine composition at task 0002's
+completion frontier. That composition was CPU-only, so adding a Metal test there would have
+required out-of-scope Engine work and would have falsely implied public Metal support at that
+time. It remained unchanged for a concrete architecture reason, not as a waiver of backend
+validation.
 
 Documentation-focused pass, after all Javadocs and explanatory text stabilize:
 
@@ -978,9 +982,9 @@ Stop and return the task to planning if any of these occurs:
 
 - Capability remains limited to equal-shape/equal-gradient-flag, positive fully static rank
   `1..16`, resolved dense-contiguous non-view zero-offset `FLOAT32` unary `NEG` occurrences.
-- The schedule assembler accepts one sole all-Metal partition. There is no public Metal Engine
-  adapter, standard `compute` composition, mixed-owner schedule, CPU fallback, or cross-region
-  transfer claim.
+- At task 0002 completion, the schedule assembler accepted one sole all-Metal partition and no
+  public Metal Engine adapter or standard `compute` composition existed. The task made no
+  mixed-owner schedule, CPU fallback, or cross-region transfer claim.
 - The public compilation port has no explicit positive-rank forward-constant ingress. The task
   therefore does not claim one public `GraphCompilationPort` positive-rank-splat test.
 - Execution is synchronous and the native executable resource serializes its invocation boundary.
@@ -1006,11 +1010,12 @@ Stop and return the task to planning if any of these occurs:
   passed outside the sandbox with both real-device tests executed and no skips.
 - `./gradlew :testing:backend-conformance:test --tests '*MetalNegCapabilityPartitionConformanceTest'`
   passed two tests. `./gradlew :testing:architecture-tests:test --tests '*BackendConformanceDependencyContractTest'`
-  passed one test. These are the required focused conformance and dependency gates; no generic
-  Engine integration test applies because supported Engine composition remains CPU-only.
+  passed one test. These were the required focused conformance and dependency gates; under the
+  completion-time CPU-only Engine frontier, no generic Engine integration test applied.
 - Manual source and `javap -p` inspection covered `MetalCapabilityProvider` and
-  `MetalNegPreparedExecutable`: the provider is the only public Metal type; no native handle
-  accessor or Engine import was introduced; the cold-bound invocation directly calls
+  `MetalNegPreparedExecutable`: the provider was the only public Metal type delivered at that
+  frontier; no native handle accessor or Engine import was introduced; the cold-bound invocation
+  directly called
   `resource.run(...)`; and hot execution performs one native downcall with no Java address
   marshalling, allocation, lookup, or dispatch.
 - Evidence composition was reviewed against the source and tests. The real

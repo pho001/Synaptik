@@ -19,9 +19,10 @@ use without claiming executable tensor work:
 - exact bounded host upload and download access for buffer-foundation validation; and
 - explicit, tested allocation, concurrency, lifetime, cleanup, and native-failure behavior.
 
-The task proves a non-executing storage and native-resource foundation. MPSGraph lowering,
-executable creation, prepared schedules, operation capability, and public Engine composition all
-remain absent.
+At task 0001's completion frontier, the delivered work was a non-executing storage and
+native-resource foundation. MPSGraph lowering, executable creation, prepared schedules, operation
+capability, and public Engine composition were absent. Metal tasks 0002–0003 later added executable
+routes, and Engine task 0015 later added explicit single-owner Metal composition.
 
 ## Rationale and mental model
 
@@ -448,12 +449,12 @@ implementation; do not create a second detailed Metal task.
   integration case passes against the freshly built dylib on the current macOS arm64 host.
 - Public and internal Java declarations have meaningful Javadoc covering purpose, ownership,
   lifetime, thread safety, nullability, parameters, results, and failures.
-- The Metal guide states that only the fail-closed provider and storage/native foundation are
-  current; it does not claim an executable operation, Engine integration, MPSGraph route,
-  FLOAT16, BFLOAT16, synchronization, or performance.
+- At task 0001 completion, the Metal guide stated that only the fail-closed provider and
+  storage/native foundation were current; it claimed no executable operation, Engine integration,
+  MPSGraph route, FLOAT16, BFLOAT16, synchronization, or performance.
 - The glossary's existing backend-capability-provider and physical-runtime-representation entries
-  are updated with the bounded current Metal state: a fail-closed provider plus package-private
-  Metal buffer/workspace representations. No new glossary heading is added merely for Objective-C
+  were updated with the bounded task-0001 state: a fail-closed provider plus package-private Metal
+  buffer/workspace representations. No new glossary heading was added merely for Objective-C
   or Metal framework names.
 - A separate clean documentation-focused agent pass finalizes affected Javadocs, the Metal guide,
   glossary impact, links, and planning evidence in the same overall change.
@@ -594,11 +595,12 @@ acceptance criterion and the documentation pass succeed.
 - The sandboxed native invocation reached the bridge but could not see the default Metal device
   and returned `NO_DEVICE`. The coordinating main agent therefore performed the required exact
   opt-in round trip outside the sandbox, where it passed.
-- There is no supported operation, prepared Runtime integration, Engine composition, MPSGraph or
-  custom-kernel route, command submission, synchronization guarantee, FLOAT16 or BFLOAT16 support
-  claim, or performance claim.
-- Backend conformance, integration, and repository-wide validation remain deferred as specified:
-  this task advertises and executes no Model operation and changes no shared or build boundary.
+- At task 0001's completion frontier, there was no supported operation, prepared Runtime
+  integration, Engine composition, MPSGraph or custom-kernel route, command submission,
+  synchronization guarantee, FLOAT16 or BFLOAT16 support claim, or performance claim. Later Metal
+  route tasks and Engine task 0015 superseded only those execution/composition absences.
+- Backend conformance, integration, and repository-wide validation were deferred as specified:
+  this task advertised and executed no Model operation and changed no shared or build boundary.
 
 ## Validation evidence
 
@@ -641,11 +643,13 @@ acceptance criterion and the documentation pass succeed.
   changed Markdown file; balanced fences; final newlines; no trailing whitespace; the exact 18
   changed paths; no Metal 0002-or-later task specification; task/master/roadmap status agreement;
   package/type placement; and `git diff --check`. All passed.
-- The public surface remains exactly `MetalCapabilityProvider` plus inherited and ordinary JDK
-  members. The package/type map matches the master plan: the provider and root package summary
-  are in `io.github.pho001.synaptik.backend.metal`; all native/resource owners and their package
-  summary are in `io.github.pho001.synaptik.backend.metal.internal`; both tests mirror those
-  packages.
+- At task 0001's completion frontier, the public surface was exactly
+  `MetalCapabilityProvider` plus inherited and ordinary JDK members. The then-current package map
+  placed the provider and root package summary in `io.github.pho001.synaptik.backend.metal` and
+  native/resource owners plus their package summary in
+  `io.github.pho001.synaptik.backend.metal.internal`; tests mirrored those packages. Engine task
+  0015 later added public Metal configuration/integration and moved implementation owners beside
+  that facade as package-private types without changing task 0001's capability domain.
 - No architecture, shared-module, dependency, Gradle, architecture-test, backend-conformance, or
   integration-test path changed. No repeated Java suite, repository-wide suite, architecture
   suite, conformance suite, integration suite, benchmark, or performance measurement was run by

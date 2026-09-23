@@ -157,7 +157,9 @@ final class EngineTypedLifecycleTest {
         assertSame(result.publications(), result.publications());
         RunResult.Publication publication = result.publications().getFirst();
         assertEquals(output.id(), publication.tensorId());
-        assertEquals(output.descriptor(), publication.descriptor());
+        assertEquals(output.descriptor().dataType(), publication.descriptor().dataType());
+        assertEquals(output.descriptor().shape(), publication.descriptor().shape());
+        assertTrue(publication.descriptor().layout().isPresent());
         assertEquals(RunResult.Role.FORWARD, publication.role());
         assertFalse(publication.isClosed());
 
@@ -1010,7 +1012,7 @@ final class EngineTypedLifecycleTest {
         publication.publish();
         var delegate = new io.github.pho001.synaptik.runtime.run.RunResult(
                 state, List.of(publication));
-        AdvancedRunResult resultOwner = new AdvancedRunResult(owner, delegate);
+        AdvancedRunResult resultOwner = new AdvancedRunResult(owner, delegate, List.of());
         return new RunResult(resultOwner, List.of(new CompiledGraph.PublicationSpec(
                 new io.github.pho001.synaptik.model.tensor.TensorId(1), descriptor,
                 RunResult.Role.FORWARD, 0, -1)));

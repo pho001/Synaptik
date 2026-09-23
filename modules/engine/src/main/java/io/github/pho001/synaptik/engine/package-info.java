@@ -1,19 +1,24 @@
 /**
  * Provides ordinary standard construction and the advanced owner-bound Engine lifecycle facade.
  *
- * <p>The ordinary {@code Engine} currently opens one fresh independent CPU-only composition and
- * exposes owner-bound compile and prepared handles, Tensor-ID-based host-input binding, synchronous
+ * <p>The ordinary {@code Engine} supports explicit ownership composition of opened CPU and Metal
+ * integrations. Registration freezes each backend's capability provider and point-in-time
+ * availability in order. Compilation considers that immutable inventory; cold preparation
+ * requires one non-empty plan owned entirely by one registered backend and captures the selected
+ * adapter directly for host ingress and materialization. {@code Engine.standard()} remains the
+ * CPU-only convenience and uses the same builder path. There is no discovery, process-global
+ * registry, implicit fallback, or mixed-owner schedule assembly. The ordinary surface exposes
+ * owner-bound compile and prepared handles, Tensor-ID-based host-input binding, synchronous
  * execution, publication occurrences, explicit detached host materialization, one-shot compute
- * execution, lifecycle observation, and closure without backend discovery or process-global reuse.
- * One-shot compute transiently traverses immutable Tensor-expression provenance by exact object
- * identity, then uses final Compiler input metadata as the sole binding-membership and ordering
- * authority. Each
- * run snapshots caller-owned host associations; those storage lifetimes extend through result
- * closure even though execution is synchronous. Host
- * materialization performs a synchronous CPU copy and provides neither caching nor implicit
- * transfer. One-shot compute freshly compiles, prepares, runs, preflights the complete publication
- * set and aggregate returned canonical byte count, materializes every ordered output, and closes
- * each temporary result before its temporary preparation without retaining its leaf inventory.
+ * execution, lifecycle observation, and closure. One-shot compute transiently traverses immutable
+ * Tensor-expression provenance by exact object identity, then uses final Compiler input metadata
+ * as the sole binding-membership and ordering authority. Each run snapshots caller-owned host
+ * associations; those storage lifetimes extend through result closure even though execution is
+ * synchronous. Host materialization performs a synchronous selected-backend copy and provides
+ * neither caching nor implicit transfer. One-shot compute freshly compiles, prepares, runs,
+ * preflights the complete publication set and aggregate returned canonical byte count,
+ * materializes every ordered output, and closes each temporary result before its temporary
+ * preparation without retaining its leaf inventory.
  * Reusable prepared handles are explicit closeable outward owners and remain registered for
  * final Engine shutdown until explicitly closed. One-shot scalar-objective backward
  * execution uses the same discovery and lifecycle seams, fixes Compiler's absent unit seed and
@@ -36,10 +41,10 @@
  * closeable; Engine shutdown closes results first, then retained preparations, then composition.
  * Caller storage and borrowed input representations remain caller-owned.</p>
  *
- * <p>Neither surface performs backend discovery, mixed-backend composition, or successful
- * zero-node preparation. Current complete-plan tuning is exact-byte, session-scoped, CPU-only,
- * and performs no model-plan-cache file access. Inferred backward targets, multi-occurrence,
- * persistent complete-plan reuse, general Compiler/Planning graph-plan alternatives, and
- * cross-backend materialization are not current APIs.</p>
+ * <p>Neither surface performs backend discovery, mixed-backend execution, or successful zero-node
+ * preparation. Current complete-plan tuning is exact-byte, session-scoped, CPU-only, and performs
+ * no model-plan-cache file access. Inferred backward targets, multi-occurrence, persistent
+ * complete-plan reuse, general Compiler/Planning graph-plan alternatives, and cross-backend
+ * materialization are not current APIs.</p>
  */
 package io.github.pho001.synaptik.engine;

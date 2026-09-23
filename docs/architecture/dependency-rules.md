@@ -121,7 +121,7 @@ Runtime executes `PreparedExecutable` and schedule contracts. Concrete backend p
 
 Engine is the outer composition root: it knows and wires concrete backend modules. If a backend depended on engine, composition would become cyclic and backend implementation would be coupled to the public orchestration layer.
 
-The planned public composition builder preserves this direction with concrete Engine-owned
+The current public composition builder preserves this direction with concrete Engine-owned
 `takeOwnership(...)` overloads. CPU and Metal publish backend-owned integrations; neither
 implements an Engine-owned interface. Their appearance in public builder signatures makes the
 Engine-to-CPU and Engine-to-Metal dependencies API-visible to Engine consumers, but never adds a

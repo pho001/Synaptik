@@ -66,13 +66,14 @@ public final class RunResult implements AutoCloseable {
      * metadata, a matching index, or an occurrence from another run is not sufficient. The
      * synchronous call is valid only while both this result and its Engine remain open. Calls on
      * one result serialize with each other and with result closure; Engine closure waits for an
-     * admitted copy. Every success performs a new CPU copy and returns an independent value that
-     * remains readable after result or Engine closure. No result is cached or deduplicated, even
-     * when publication occurrences alias the same inward representation.</p>
+     * admitted copy. Every success performs a new selected-backend copy and returns an independent
+     * value that remains readable after result or Engine closure. No result is cached or
+     * deduplicated, even when publication occurrences alias the same inward representation.</p>
      *
-     * <p>Current support is the fixed CPU-only standard composition with a fully static Shape and
-     * resolved final layout. This operation performs no cross-backend transfer, route search,
-     * data-type conversion, Tensor construction, or implicit materialization.</p>
+     * <p>Current support is the exact CPU or Metal adapter captured during single-owner
+     * preparation, within that adapter's fully static resolved-layout materialization domain. This
+     * operation performs no cross-backend transfer, route search, data-type conversion, Tensor
+     * construction, or implicit materialization.</p>
      *
      * @param publication non-null exact occurrence object from {@link #publications()}
      * @param maximumBytes non-negative upper bound for the canonical payload in bytes
@@ -84,8 +85,8 @@ public final class RunResult implements AutoCloseable {
      * @throws IllegalStateException if Engine or result closure has begun, or backend byte length
      *     differs from the descriptor-derived canonical count
      * @throws ArithmeticException if checked logical count or byte-count arithmetic overflows
-     * @throws RuntimeException if Runtime or CPU validation or copying reports another unchecked
-     *     failure
+     * @throws RuntimeException if Runtime or selected-backend validation or copying reports
+     *     another unchecked failure
      * @throws Error if copying reports a fatal failure
      */
     public HostTensorValue materialize(Publication publication, long maximumBytes) {

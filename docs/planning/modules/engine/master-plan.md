@@ -43,12 +43,12 @@ backend selection during a run.
 
 - Engine is the outer composition root. It explicitly constructs or takes ownership of concrete
   adapters; concrete backends and inward modules never depend on Engine.
-- `Engine.standard()` currently owns one fresh fixed CPU composition. `AdvancedEngine` takes one
-  supported CPU integration. No current surface assembles a mixed-owner schedule.
-- Current ordinary compile/prepare/run signatures expose Engine/Model values, not Compiler,
-  Prepare, Runtime, or backend SPI identities. The planned builder exposes CPU/Metal integration
-  identities only at the explicit construction boundary; the advanced surface remains a
-  lower-level integration boundary.
+- `Engine.standard()` owns one fresh fixed CPU composition. `Engine.Builder` takes explicit
+  ownership of opened CPU and/or Metal integrations. `AdvancedEngine` remains a supported
+  CPU-only lower-level integration boundary. No current surface assembles a mixed-owner schedule.
+- Ordinary compile/prepare/run signatures expose Engine/Model values, not Compiler, Prepare,
+  Runtime, or backend SPI identities. Builder exposes CPU/Metal integration identities only at the
+  explicit construction boundary.
 - Ordinary and advanced prepared handles are explicit closeable owners of exactly one inward
   Runtime execution. Closing a handle unregisters and closes that execution once but does not
   independently close an already-returned result.
@@ -57,8 +57,8 @@ backend selection during a run.
 - Every one-shot, tuning trial, correctness run, loser, fallback rollback, and rejected
   preparation is closed exactly once. A selected preparation has one published Engine owner.
 - Engine shutdown waits for admitted operations, then closes retained results in reverse run-
-  publication order, retained preparations in reverse prepare-publication order, and its current
-  composition or planned integrations in reverse registration order.
+  publication order, retained preparations in reverse prepare-publication order, and integrations
+  in reverse registration order.
 - Materialization borrows one authenticated publication only while its result is open and returns
   a detached immutable value. Engine never exposes a physical representation or backend handle.
 
@@ -76,10 +76,10 @@ not a catch-all service registry.
 
 | Surface | Types and role |
 |---|---|
-| Ordinary public lifecycle | Current `Engine`, `CompiledGraph`, closeable `PreparedExecution`, closeable `RunResult`, detached `HostTensorValue`, and `ScalarObjectiveBackwardResult`; planned nested `Engine.Builder` explicit-composition owner. |
+| Ordinary public lifecycle | `Engine`, nested single-use `Engine.Builder`, `CompiledGraph`, closeable `PreparedExecution`, closeable `RunResult`, detached `HostTensorValue`, and `ScalarObjectiveBackwardResult`. |
 | Public autotuning | `ModelAutotuningRequest` and `ModelAutotuningPreparation`, which publish one retained ordinary prepared handle plus outcome/evidence. |
 | Advanced public lifecycle | `AdvancedEngine`, `AdvancedCompiledGraph`, closeable `AdvancedPreparedExecution`, and closeable `AdvancedRunResult`. |
-| Package-private composition | Current `EngineBackendComposition`, CPU realization, representative execution/correctness machinery, lifecycle registries, and cleanup arbitration; planned ordered backend registry and concrete Engine-owned adapters. |
+| Package-private composition | `EngineBackendComposition`, CPU and Metal realizations, the ordered backend registry, selected-adapter preparation result, representative execution/correctness machinery, lifecycle registries, and cleanup arbitration. |
 
 ## Task list
 
@@ -102,6 +102,7 @@ not a catch-all service registry.
 | [0012](tasks/0012-runtime-prepare-engine-authority-reconciliation.md) | Runtime, Prepare, and Engine authority reconciliation | Complete | 0011; Compiler 0006B8; current Engine/Prepare/Runtime APIs | Reconciled and independently reviewed the root, scoped contract, and focused explanations against the current owner-bound CPU Engine lifecycle and ordered Runtime schedule-step model. |
 | [0013](tasks/0013-prepared-execution-guide-status-reconciliation.md) | Prepared execution guide status reconciliation | Complete | 0012; Model 0025M; current Engine lifecycle and autotuning APIs | Reconciled and independently reviewed current bounded two-phase tuning, prepared-handle closure, and detached output materialization explanations. |
 | [0014](tasks/0014-explicit-backend-composition-architecture.md) | Explicit backend composition architecture | Complete | 0013; Metal 0004; current Compiler/Prepare/Runtime contracts | Selected the public Engine builder, concrete ownership overloads, fixed capability/availability inventory, construction and close lifecycle, single-owner cold routing, Metal configuration ownership, and fail-closed mixed-owner boundary without changing production behavior. |
+| [0015](tasks/0015-cpu-metal-single-owner-composition.md) | CPU/Metal single-owner Engine composition | Complete | 0014; Metal 0004; current Compiler/Prepare/Runtime contracts | Added the concrete builder ownership lifecycle, fixed registry, single-owner cold routing, direct adapter ingress/materialization, public Metal lifecycle integration, CPU-only tuning gate, and real CPU/Metal integration coverage. |
 
 ## Milestones and current frontier
 
@@ -112,20 +113,20 @@ not a catch-all service registry.
   Complete through 0009.
 - Prepared-handle ownership, closure, and compile-artifact projection reconciliation are Complete
   through 0011.
-- Explicit composition architecture is Complete through 0014. Its implementation is not yet
-  detailed or `Ready`; the current callable Engine surfaces remain CPU-only.
+- Explicit composition architecture and its independently reviewed CPU/Metal single-owner
+  implementation are Complete through 0015; no later Engine task is authorized.
 
 ## Live risks and gates
 
-- Implement explicit composition only through 0014's concrete Engine-owned builder adapters,
-  registration-time snapshots, and single-owner gate. Registration of CPU and Metal must not imply
-  mixed-owner scheduling, discovery, or fallback.
+- Preserve 0015's concrete Engine-owned builder adapters, registration-time snapshots, and
+  single-owner gate. Registration of CPU and Metal must not imply mixed-owner scheduling,
+  discovery, or fallback.
 - Preserve one owner for every prepared handle and close all temporary, losing, rollback, and
   retained preparations in the established order. Never duplicate Runtime's lease protocol.
 - Keep public materialization detached and explicit; do not expose Runtime representations,
   backend storage, or inward SPI types through ordinary signatures.
 - Metal 0004's route candidates and cache compatibility remain backend-private; explicit
-  composition must not expose or interpret them.
+  composition does not expose or interpret them.
 - Preserve 0011's repaired boundary: Engine/Prepare own Compiler aggregates and the single
   projection, while concrete CPU production remains Compiler-free.
 - Metal configuration, native open, and partial-open rollback remain Metal-owned; Engine may take
@@ -143,11 +144,14 @@ not `Ready`.
 Engine 0014 is a separate user-authorized contract-first workstream from exact base `83f2800`.
 The shared-document integration owner, not this branch, owns the later global-roadmap update.
 
+Engine 0015 is the user-authorized single-writer implementation workstream from exact base
+`6f5be27c`. Its implementation and shared explanatory/planning-document updates stay in one
+isolated worktree through mandatory independent Class C review.
+
 ## Status normalization
 
-The task table and linked task status/results are controlling. Engine is Complete through 0014,
-Metal 0002–0004 are Complete, and no Engine composition implementation task is detailed or
-`Ready`.
+The task table and linked task status/results are controlling. Engine is Complete through 0015;
+Metal 0002–0004 are Complete; no later Engine composition task is detailed or `Ready`.
 
 ## History and update policy
 

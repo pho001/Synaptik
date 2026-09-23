@@ -1,7 +1,6 @@
-package io.github.pho001.synaptik.backend.metal.internal;
+package io.github.pho001.synaptik.backend.metal;
 
 import io.github.pho001.synaptik.backend.contract.BackendId;
-import io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalization;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalizationResult;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalizer;
@@ -34,6 +33,7 @@ final class MetalNegPartitionFinalizer
         this(context, new FinalizedExecutableFactory() {
             @Override
             public MetalNegPreparedExecutable createMpsGraph(
+                    MetalNegPreparationPlan plan,
                     io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan memoryPlan,
                     int[] feedPlanIndices,
                     int[] targetPlanIndices,
@@ -41,7 +41,7 @@ final class MetalNegPartitionFinalizer
                     long[] feedRequiredBytes,
                     long[] targetRequiredBytes,
                     int workspacePlanIndex) {
-                return new MetalNegPreparedExecutable(memoryPlan, feedPlanIndices,
+                return new MetalNegPreparedExecutable(plan, memoryPlan, feedPlanIndices,
                         targetPlanIndices, resource, feedRequiredBytes,
                         targetRequiredBytes, workspacePlanIndex);
             }
@@ -157,7 +157,7 @@ final class MetalNegPartitionFinalizer
         MetalMpsGraphExecutableResource resource = context.createNegExecutable(plan);
         try {
             var executable = executableFactory.createMpsGraph(
-                    finalization.memoryPlan(), feedPlanIndices, targetPlanIndices, resource,
+                    plan, finalization.memoryPlan(), feedPlanIndices, targetPlanIndices, resource,
                     plan.feedRequiredBytes(), plan.targetRequiredBytes(), workspace.planIndex());
             return new BackendPartitionFinalizationResult(executable, List.of(resource));
         } catch (RuntimeException | Error failure) {
@@ -178,7 +178,8 @@ final class MetalNegPartitionFinalizer
         MetalNegKernelPipelineResource resource = context.createNegKernelPipeline(plan);
         try {
             var executable = executableFactory.createCustom(
-                    finalization.memoryPlan(), feedPlanIndices[0], targetPlanIndices[0], resource);
+                    plan, finalization.memoryPlan(),
+                    feedPlanIndices[0], targetPlanIndices[0], resource);
             return new BackendPartitionFinalizationResult(executable, List.of(resource));
         } catch (RuntimeException | Error failure) {
             closeAfterFailure(resource, failure);
@@ -203,6 +204,7 @@ final class MetalNegPartitionFinalizer
         /**
          * Constructs the immutable executable recipe after persistent resource acquisition.
          *
+         * @param plan exact immutable analyzed backend plan
          * @param memoryPlan exact finalized memory plan
          * @param feedPlanIndices stable feed positions in {@code memoryPlan}
          * @param targetPlanIndices stable target positions in {@code memoryPlan}
@@ -215,6 +217,7 @@ final class MetalNegPartitionFinalizer
          * @throws Error if construction reports an error
          */
         MetalNegPreparedExecutable createMpsGraph(
+                MetalNegPreparationPlan plan,
                 io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan memoryPlan,
                 int[] feedPlanIndices,
                 int[] targetPlanIndices,
@@ -226,6 +229,7 @@ final class MetalNegPartitionFinalizer
         /**
          * Constructs the workspace-free custom executable recipe after pipeline acquisition.
          *
+         * @param plan exact immutable analyzed backend plan
          * @param memoryPlan exact finalized memory plan
          * @param feedPlanIndex assigned singleton feed position
          * @param targetPlanIndex assigned singleton target position
@@ -235,12 +239,13 @@ final class MetalNegPartitionFinalizer
          * @throws Error if construction reports an error
          */
         default MetalNegPreparedExecutable createCustom(
+                MetalNegPreparationPlan plan,
                 io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan memoryPlan,
                 int feedPlanIndex,
                 int targetPlanIndex,
                 MetalNegKernelPipelineResource resource) {
             return new MetalNegPreparedExecutable(
-                    memoryPlan, feedPlanIndex, targetPlanIndex, resource);
+                    plan, memoryPlan, feedPlanIndex, targetPlanIndex, resource);
         }
     }
 }

@@ -1,6 +1,5 @@
-package io.github.pho001.synaptik.backend.metal.internal;
+package io.github.pho001.synaptik.backend.metal;
 
-import io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.prepare.PreparedBufferAssignment;
 import io.github.pho001.synaptik.prepare.PreparedPartition;
@@ -35,6 +34,19 @@ final class MetalNegPreparedScheduleAssembler implements PreparedScheduleAssembl
     private final List<ValueId> publicationValueIds;
 
     /**
+     * Creates the stable integration assembler that recovers the finalized immutable plan from
+     * the exact Metal executable during cold schedule assembly.
+     *
+     * @param context non-null borrowed device context
+     * @throws NullPointerException if {@code context} is {@code null}
+     */
+    MetalNegPreparedScheduleAssembler(MetalDeviceContext context) {
+        this.context = Objects.requireNonNull(context, "context");
+        this.plan = null;
+        this.publicationValueIds = null;
+    }
+
+    /**
      * Creates one immutable assembler for an analyzed route and its exact device context.
      *
      * @param context non-null borrowed context used by run-owned output creators
@@ -67,6 +79,17 @@ final class MetalNegPreparedScheduleAssembler implements PreparedScheduleAssembl
     @Override
     public PreparedSchedule assemble(PreparedScheduleContext scheduleContext) {
         Objects.requireNonNull(scheduleContext, "scheduleContext");
+        if (plan == null) {
+            if (scheduleContext.partitions().size() != 1
+                    || !(scheduleContext.partitions().getFirst().executable()
+                            instanceof MetalNegPreparedExecutable executable)) {
+                throw new IllegalArgumentException(
+                        "Metal NEG schedule requires one finalized Metal executable");
+            }
+            return new MetalNegPreparedScheduleAssembler(
+                    context, executable.preparationPlan(),
+                    scheduleContext.publicationValueIds()).assemble(scheduleContext);
+        }
         if (scheduleContext.plannedPartitions().size() != 1
                 || scheduleContext.plannedPartitions().getFirst() != plan.partition()
                 || scheduleContext.partitions().size() != 1

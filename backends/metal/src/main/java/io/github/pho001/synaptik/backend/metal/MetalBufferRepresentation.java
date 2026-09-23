@@ -1,4 +1,4 @@
-package io.github.pho001.synaptik.backend.metal.internal;
+package io.github.pho001.synaptik.backend.metal;
 
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import java.lang.foreign.MemorySegment;
@@ -18,6 +18,9 @@ final class MetalBufferRepresentation implements BufferRepresentation {
     private final MetalNativeApi api;
     private final MetalNativeApi.Handle handle;
     private final long logicalByteSize;
+    /** Optional caller storage retained for the complete borrowed-input wrapper lifetime. */
+    @SuppressWarnings("unused")
+    private final Object retainedBorrow;
     private boolean closed;
 
     /**
@@ -33,10 +36,29 @@ final class MetalBufferRepresentation implements BufferRepresentation {
             MetalNativeApi api,
             MetalNativeApi.Handle handle,
             long logicalByteSize) {
+        this(context, api, handle, logicalByteSize, null);
+    }
+
+    /**
+     * Creates one open owner that also retains a non-owning caller-storage borrow.
+     *
+     * @param context non-null context that owns the child lease
+     * @param api non-null native seam shared with the context
+     * @param handle non-null opaque buffer handle consumed by this owner
+     * @param logicalByteSize exact non-negative logical byte extent
+     * @param retainedBorrow optional caller-owned object retained but never closed
+     */
+    MetalBufferRepresentation(
+            MetalDeviceContext context,
+            MetalNativeApi api,
+            MetalNativeApi.Handle handle,
+            long logicalByteSize,
+            Object retainedBorrow) {
         this.context = Objects.requireNonNull(context, "context");
         this.api = Objects.requireNonNull(api, "api");
         this.handle = Objects.requireNonNull(handle, "handle");
         this.logicalByteSize = logicalByteSize;
+        this.retainedBorrow = retainedBorrow;
     }
 
     /** @return the exact non-negative logical byte extent, including zero */

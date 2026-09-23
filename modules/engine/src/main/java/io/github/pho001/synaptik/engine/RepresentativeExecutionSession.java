@@ -147,6 +147,15 @@ final class RepresentativeExecutionSession implements AutoCloseable {
     }
 
     /**
+     * Returns the direct adapter selected before representative storage inspection.
+     *
+     * @return the non-null retained adapter
+     */
+    EngineBackendComposition adapter() {
+        return composition;
+    }
+
+    /**
      * Reports whether one throwable is the exact failure retained from representative execution.
      * Identity, rather than equality or causal association, determines the result.
      *

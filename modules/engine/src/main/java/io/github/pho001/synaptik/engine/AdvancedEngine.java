@@ -77,7 +77,7 @@ public final class AdvancedEngine implements AutoCloseable {
     private enum Lifecycle { OPEN, CLOSING, CLOSED }
 
     private final Object lifecycleLock = new Object();
-    private final EngineBackendComposition composition;
+    private final EngineBackendRegistry composition;
     private final ModelAutotuningTuning<?, ?, ?, ?, ?, ?> tuningOverride;
     private final PreparedExecutionRunner runner = new PreparedExecutionRunner();
     private final ArrayList<AdvancedRunResult> openResults = new ArrayList<>();
@@ -191,7 +191,8 @@ public final class AdvancedEngine implements AutoCloseable {
      * @throws NullPointerException if {@code composition} is null
      */
     AdvancedEngine(EngineBackendComposition composition) {
-        this(composition, null);
+        this(new EngineBackendRegistry(List.of(
+                Objects.requireNonNull(composition, "composition"))), null);
     }
 
     /**
@@ -206,8 +207,33 @@ public final class AdvancedEngine implements AutoCloseable {
     AdvancedEngine(
             EngineBackendComposition composition,
             ModelAutotuningTuning<?, ?, ?, ?, ?, ?> tuningOverride) {
+        this(new EngineBackendRegistry(List.of(
+                Objects.requireNonNull(composition, "composition"))), tuningOverride);
+    }
+
+    /**
+     * Creates an Engine over a complete ordered registry whose ownership transfers at entry.
+     *
+     * @param composition non-null owned registry
+     */
+    AdvancedEngine(EngineBackendRegistry composition) {
+        this(composition, null);
+    }
+
+    private AdvancedEngine(
+            EngineBackendRegistry composition,
+            ModelAutotuningTuning<?, ?, ?, ?, ?, ?> tuningOverride) {
         this.composition = Objects.requireNonNull(composition, "composition");
         this.tuningOverride = tuningOverride;
+    }
+
+    /**
+     * Returns the sole adapter only for package-private ordinary result construction.
+     *
+     * @return the exact sole registered adapter
+     */
+    EngineBackendComposition soleAdapterForHandle() {
+        return composition.soleAdapter();
     }
 
     /**
@@ -284,7 +310,7 @@ public final class AdvancedEngine implements AutoCloseable {
         try {
             Objects.requireNonNull(compiledGraph, "compiledGraph");
             requireOwner(compiledGraph.owner());
-            inward = composition.prepare(compiledGraph.artifacts());
+            inward = composition.prepare(compiledGraph.artifacts()).execution();
             result = new AdvancedPreparedExecution(this, inward);
             inward = null;
         } catch (RuntimeException | Error failure) {
@@ -316,7 +342,7 @@ public final class AdvancedEngine implements AutoCloseable {
         BufferRepresentation result;
         try {
             Objects.requireNonNull(storage, "storage");
-            result = composition.borrow(storage);
+            result = composition.soleAdapter().borrow(storage);
         } catch (RuntimeException | Error failure) {
             finishFailure();
             throw failure;
@@ -533,8 +559,10 @@ public final class AdvancedEngine implements AutoCloseable {
             Objects.requireNonNull(owner, "owner");
             Objects.requireNonNull(compiledGraph, "compiledGraph");
             requireOrdinaryOwner(owner, compiledGraph.owner());
+            EngineBackendComposition adapter =
+                    composition.selectedAdapter(compiledGraph.artifacts());
             return new RepresentativeExecutionSession(
-                    this, compiledGraph, representativeInputs, composition, runner);
+                    this, compiledGraph, representativeInputs, adapter, runner);
         } catch (RuntimeException | Error failure) {
             finishFailure();
             throw failure;
@@ -649,8 +677,15 @@ public final class AdvancedEngine implements AutoCloseable {
             Objects.requireNonNull(request, "request");
             config = request.config();
             modelIdentity = request.modelIdentity();
+            EngineBackendComposition adapter =
+                    composition.selectedAdapter(compiledGraph.artifacts());
+            if (suppliedTuning == null
+                    && !(adapter instanceof CpuEngineBackendComposition)) {
+                throw new IllegalStateException(
+                        "model autotuning requires a CPU-owned partition plan");
+            }
             session = new RepresentativeExecutionSession(
-                    this, compiledGraph, request.representativeInputs(), composition, runner);
+                    this, compiledGraph, request.representativeInputs(), adapter, runner);
         } catch (RuntimeException | Error failure) {
             finishFailure();
             throw failure;
@@ -660,7 +695,8 @@ public final class AdvancedEngine implements AutoCloseable {
         try {
             tuning = suppliedTuning;
             if (tuning == null) {
-                tuning = new CpuTuningAdapter((CpuEngineBackendComposition) composition);
+                tuning = new CpuTuningAdapter(
+                        (CpuEngineBackendComposition) session.adapter());
             }
         } catch (RuntimeException | Error failure) {
             closeWithSuppression(session, failure);
@@ -754,7 +790,7 @@ public final class AdvancedEngine implements AutoCloseable {
                 ModelAutotuningPreparation.Evidence evidence = translateEvidence(
                         result.evidence(), completeResult, config, modelIdentity, context);
                 prepared = new io.github.pho001.synaptik.engine.PreparedExecution(
-                        owner, compiledGraph, inward);
+                        owner, compiledGraph, inward, session.adapter());
                 inward = null;
                 publicResult = new ModelAutotuningPreparation(
                         prepared, ModelAutotuningPreparation.Outcome.TUNED, Optional.of(evidence));
@@ -795,7 +831,7 @@ public final class AdvancedEngine implements AutoCloseable {
             ModelAutotuningPreparation result;
             try {
                 prepared = new io.github.pho001.synaptik.engine.PreparedExecution(
-                        owner, compiledGraph, inward);
+                        owner, compiledGraph, inward, session.adapter());
                 inward = null;
                 result = new ModelAutotuningPreparation(prepared,
                         ModelAutotuningPreparation.Outcome.SAFE_HEURISTIC_FALLBACK,
@@ -904,7 +940,7 @@ public final class AdvancedEngine implements AutoCloseable {
             var values = new ArrayList<HostTensorValue>(publications.size());
             for (int index = 0; index < publications.size(); index++) {
                 values.add(ordinaryRun.owner().materializeUnderAdmission(
-                        ordinaryRun.result(), publications.get(index), byteCounts[index], composition));
+                        ordinaryRun.result(), publications.get(index), byteCounts[index]));
             }
             detached = List.copyOf(values);
         } catch (RuntimeException | Error workFailure) {
@@ -955,12 +991,12 @@ public final class AdvancedEngine implements AutoCloseable {
             long[] byteCounts = preflightCanonicalByteCounts(
                     publications, maximumTotalBytes);
             HostTensorValue objectiveValue = ordinaryRun.owner().materializeUnderAdmission(
-                    ordinaryRun.result(), publications.getFirst(), byteCounts[0], composition);
+                    ordinaryRun.result(), publications.getFirst(), byteCounts[0]);
             var gradients = new ArrayList<HostTensorValue>(targets.size());
             for (int index = 0; index < targets.size(); index++) {
                 gradients.add(ordinaryRun.owner().materializeUnderAdmission(
                         ordinaryRun.result(), publications.get(index + 1),
-                        byteCounts[index + 1], composition));
+                        byteCounts[index + 1]));
             }
             detached =
                     new ScalarObjectiveBackwardResult(objectiveValue, gradients);
@@ -1078,11 +1114,12 @@ public final class AdvancedEngine implements AutoCloseable {
 
     private io.github.pho001.synaptik.engine.PreparedExecution prepareOrdinaryOpen(
             Engine owner, CompiledGraph compiledGraph) {
+        EnginePreparation preparation = composition.prepare(compiledGraph.artifacts());
         io.github.pho001.synaptik.runtime.execution.PreparedExecution inward =
-                composition.prepare(compiledGraph.artifacts());
+                preparation.execution();
         try {
             return new io.github.pho001.synaptik.engine.PreparedExecution(
-                    owner, compiledGraph, inward);
+                    owner, compiledGraph, inward, preparation.adapter());
         } catch (RuntimeException | Error failure) {
             closeWithSuppression(inward, failure);
             throw failure;
@@ -1140,8 +1177,9 @@ public final class AdvancedEngine implements AutoCloseable {
             for (int index = 0; index < required.size(); index++) {
                 validateStorage(required.get(index), storages.get(index));
             }
+            EngineBackendComposition adapter = preparedExecution.adapter();
             for (HostTensorStorage storage : storages) {
-                borrowed.add(composition.borrow(storage));
+                borrowed.add(adapter.borrow(storage));
             }
 
             inwardResult = runner.run(preparedExecution.execution(), borrowed);
@@ -1152,7 +1190,8 @@ public final class AdvancedEngine implements AutoCloseable {
                         "Runtime result count does not match publication count: expected="
                                 + specifications.size() + ", actual=" + inwardResult.resultCount());
             }
-            AdvancedRunResult resultOwner = new AdvancedRunResult(this, inwardResult, borrowed);
+            AdvancedRunResult resultOwner = new AdvancedRunResult(
+                    this, inwardResult, borrowed, adapter);
             io.github.pho001.synaptik.engine.RunResult result =
                     new io.github.pho001.synaptik.engine.RunResult(resultOwner, specifications);
             ownershipTransferred = true;
@@ -1431,7 +1470,7 @@ public final class AdvancedEngine implements AutoCloseable {
         beginOperation();
         try {
             return resultOwner.materializeUnderAdmission(
-                    result, publication, maximumBytes, composition);
+                    result, publication, maximumBytes);
         } finally {
             finishFailure();
         }

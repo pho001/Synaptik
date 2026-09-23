@@ -17,23 +17,24 @@ Compiler orchestration now consumes those three operations and uses the public i
 `FunctionalGradientRequest`, `GradientPublicationBinding`, `DerivativeGraphMetadata`,
 `CompileArtifacts`, `PublicationPlan`, `CompileConstantPlan`, and `CompileDiagnostics` contracts.
 Public `GraphCompilationPort` exposes that complete constant-free pipeline as a narrow
-cross-module integration service-provider interface (SPI). The CPU backend now also exposes the
-supported cross-module `CpuBackendIntegration` SPI described below, including a bounded canonical
-host-byte copy for a CPU publication representation borrowed from an open Runtime result. The
-advanced Engine composition surface connects these contracts for one CPU-only,
-representation-level compile,
-prepare, and run lifecycle. The ordinary `Engine.standard()` surface constructs and owns one
-fresh CPU-only composition and now exposes owner-bound compile and prepared handles,
-`TensorId`-matched host-input binding, synchronous run, forward and gradient publication
-occurrences, and explicit bounded materialization of one occurrence into a detached immutable
-host value. Its four one-shot `compute(...)` overloads automatically discover reachable
-provenance-free input leaves, then compose a fresh forward-only compile, prepare, run, complete
-publication and aggregate-byte preflight, ordered materialization, and cleanup under one Engine
-admission. Its one-shot `backward(objective, targets, maximumTotalBytes)` call applies automatic
-input discovery to one scalar floating gradient-eligible objective, fixes Compiler's absent
-positive-one scalar seed and disconnected-target `ERROR` policy, and returns a detached objective
-plus immutable target-aligned gradients. Reusable or public capability
-matrices and a public graph-wide Planning workflow also remain planned.
+cross-module integration service-provider interface (SPI). The CPU backend exposes the supported
+`CpuBackendIntegration` lifecycle SPI, including bounded canonical host-byte materialization. The
+Metal backend exposes `MetalBackendConfiguration`, `MetalBackendIntegration`, and its narrow
+`FLOAT32` NEG capability. `Engine.builder()` is the public explicit composition root for opened CPU
+and Metal integrations. It freezes their Planning inputs in registration order and supports a
+complete non-empty plan only when every partition has one exact registered owner. The ordinary
+`Engine.standard()` convenience still constructs one fresh CPU-only composition through that same
+path. Both forms expose owner-bound compile and prepared handles, `TensorId`-matched host-input
+binding, synchronous run, forward and gradient publication occurrences, and explicit bounded
+materialization into detached immutable host values. The four one-shot `compute(...)` overloads
+automatically discover reachable provenance-free input leaves, then compose a fresh forward-only
+compile, prepare, run, complete publication and aggregate-byte preflight, ordered materialization,
+and cleanup under one Engine admission. The one-shot
+`backward(objective, targets, maximumTotalBytes)` call applies automatic input discovery to one
+scalar floating gradient-eligible objective, fixes Compiler's absent positive-one scalar seed and
+disconnected-target `ERROR` policy, and returns a detached objective plus immutable target-aligned
+gradients. Reusable or public capability matrices and a public graph-wide Planning workflow remain
+planned.
 Prepare analysis, finalization, and complete graph-preparation contracts plus the initial Runtime
 geometry, prepared representation creation, per-run resource/validity, executable and transfer
 cold-binding, prepared publication and result leasing, and the ordered schedule contracts are
@@ -178,9 +179,10 @@ matcher, or score. Configuration owns whether a requirement is present. Current 
 evaluates it with availability and capability facts; an empty hard-eligible result then fails in
 the internal selector with
 `IllegalStateException("no hard-eligible backend is available for ownership selection")`.
-That internal message is not the ordinary public compile failure contract. Engine currently
-composes one CPU capability provider and complete CPU lifecycle. Generic provider registration,
-other executable backends, and a public graph-wide Planning surface remain planned.
+That internal message is not the ordinary public compile failure contract. `Engine.standard()`
+supplies one CPU provider; `Engine.builder()` compiles against the frozen providers of explicitly
+registered CPU and/or Metal integrations. Generic plugin registration, other executable backends,
+and a public graph-wide Planning surface remain planned.
 
 The implemented `modules:config` surface contains four standalone compile-configuration values:
 
@@ -740,17 +742,17 @@ transfer, residency, constant initialization or materialization, or publication.
 contributions still require at least one non-empty planned partition and therefore do not make a
 zero-node graph executable. The supplied assembler constructs an
 immutable schedule recipe once; Prepare validates exact source, execution, coordinate, and
-publication coverage before constructing the prepared root. The advanced Engine now composes this
-operation with the exact CPU integration that it owns.
+publication coverage before constructing the prepared root. Engine composes this operation with
+the exact selected single-owner integration captured during cold preparation.
 
-## Current ordinary and advanced CPU lifecycle
+## Current ordinary, explicit-composition, and advanced lifecycle
 
-`Engine.standard()` is the current ordinary entry point. Every invocation directly opens one
-fresh CPU integration, transfers its ownership into a private advanced lifecycle owner, and
-returns a distinct `Engine`. The fixed standard inventory is exactly CPU; Metal and CUDA have no
-current lifecycle adapters. There is no discovery, service lookup, caller-supplied backend set,
-or process-global Engine. `isClosed()` observes when delegated closure begins, and `close()` uses
-the advanced owner's thread-safe, idempotent, failure-retaining cleanup protocol.
+`Engine.standard()` remains the ordinary CPU-only convenience. Every invocation opens one fresh
+CPU integration, transfers ownership through `Engine.Builder`, and returns a distinct `Engine`.
+Callers that need explicit composition use `Engine.builder()` and transfer opened CPU or Metal
+integrations. There is no discovery, service lookup, process-global Engine, implicit fallback, or
+runtime owner substitution. `isClosed()` observes when delegated closure begins, and `close()`
+uses the advanced owner's thread-safe, idempotent, failure-retaining cleanup protocol.
 
 The ordinary lifecycle is:
 
@@ -773,10 +775,10 @@ prepared execution. Callers should use try-with-resources when its reuse window 
 Engine shutdown closes any still-retained handle. `run(...)` accepts every required logical
 Tensor exactly once in arbitrary order, matches by `TensorId`, validates the complete descriptor, and then
 snapshots each Tensor's current `HostTensorStorage` association once in final binding order. Each
-run borrows fresh non-owning CPU wrappers and owns an isolated Runtime state. The caller retains
-the storage and its arena and must keep its scope alive, accessible where used, and free from
-conflicting mutation until the returned result closes, including after synchronous `run(...)`
-returns. Replacing a Tensor's association after the snapshot cannot redirect that run.
+run creates fresh selected-backend input representations. The caller retains the storage and its
+arena and must keep its scope alive, accessible where used, and free from conflicting mutation
+until the returned result closes, including after synchronous `run(...)` returns. Replacing a
+Tensor's association after the snapshot cannot redirect that run.
 
 `RunResult.publications()` returns the same immutable forward-then-gradient occurrence list on
 every call. Each occurrence has a dense result index, final descriptor, role, and logical Tensor
@@ -802,12 +804,12 @@ wrapper cleanup attempt and replay the same immediate failure by identity.
 
 Closing the Engine waits for admitted operations, then closes still-open results in reverse
 successful-run order, retained prepared handles in reverse successful-prepare order, and finally
-the CPU integration. Result metadata remains readable after either close; compiled and prepared
-metadata also remains readable, and a completed `HostTensorValue` remains readable after either
-close, but a closed prepared handle or Engine cannot start new work. Materialization is current
-only for the fixed CPU
-composition and fully static resolved publication descriptors. It is not an implicit transfer,
-cross-backend format promise, Tensor, storage association, typed array, or persistence format.
+backend integrations in reverse registration order. Result metadata remains readable after either
+close; compiled and prepared metadata also remains readable, and a completed `HostTensorValue`
+remains readable after either close, but a closed prepared handle or Engine cannot start new work.
+Materialization uses the exact adapter captured at preparation and supports that adapter's
+documented fully static resolved publication domain. It is not an implicit cross-backend transfer,
+Tensor, storage association, typed array, or persistence format.
 
 Optional `prepareTuned(...)` is a cache-first CPU-only preparation path. This complete example
 uses a `CONTIGUOUS` expression, which has no eligible local tuning handoff in the current standard
@@ -1141,11 +1143,13 @@ gradient request to `compile(...)` invokes the existing compiler mode/request co
 not add those later conveniences or guarantee that the current CPU-only prepare step can lower
 the resulting artifact.
 
-## Planned explicit backend composition
+## Current explicit CPU and Metal composition
 
-The following API shape is architecture-selected but not implemented:
+The public composition shape is:
 
 ```java
+MetalBackendConfiguration metalConfiguration =
+        new MetalBackendConfiguration(nativeLibrary.toAbsolutePath());
 try (Engine.Builder builder = Engine.builder()) {
     builder.takeOwnership(CpuBackendIntegration.open());
     builder.takeOwnership(MetalBackendIntegration.open(metalConfiguration));
@@ -1160,55 +1164,52 @@ try (Engine.Builder builder = Engine.builder()) {
 }
 ```
 
-`Engine.Builder` will be a public single-use `AutoCloseable` construction owner. Its concrete
+`Engine.Builder` is a public single-use `AutoCloseable` construction owner. Its concrete
 `takeOwnership(CpuBackendIntegration)` and
 `takeOwnership(MetalBackendIntegration)` overloads transfer a non-null integration at method
 entry, including when later registration validation fails. Callers must not close or reuse an
 integration after invoking the overload. A successful `build()` atomically transfers the ordered
-backend set to the returned Engine; before success, closing the builder releases accepted
-integrations in reverse registration order.
+backend set to the returned Engine. Builder close and failed build release accepted integrations
+in reverse registration order; failed build is terminal.
 
-Because the overload parameters are backend-owned public types, the implemented Engine module will
-publish CPU and Metal as API-visible dependencies. Backend types remain confined to explicit
-construction and do not appear in compile, prepare, run, handle, or result signatures.
+Because the overload parameters are backend-owned public types, Engine publishes CPU and Metal as
+API-visible dependencies. Backend types remain confined to explicit construction and do not appear
+in compile, prepare, run, handle, or result signatures.
 
-Registration will capture one `BackendId`, stable capability provider, and immutable point-in-time
+Registration captures one `BackendId`, stable capability provider, and immutable point-in-time
 availability snapshot. Their backend IDs must be equal, and an equal duplicate ID is rejected
 without replacing the first entry. The snapshot remains fixed for that Engine's lifetime.
 Registration order supplies deterministic compile-time Planning input; it is not a runtime
 fallback order.
 
-Compilation will choose owner identities from that fixed inventory. Cold preparation will accept
-its first vertical slice only for a non-empty plan whose partitions all name one equal registered
-owner and will route those partitions to that integration. A missing owner, zero-partition plan,
-or mixed CPU/Metal plan will fail before backend analysis. There will be no implicit CPU fallback,
-retry, owner substitution, or cross-owner data movement. A separate architecture decision must
-define cross-owner representations, transfers, declarations, schedule order, and rollback before
-mixed-owner preparation can succeed.
+Compilation chooses owner identities from that fixed inventory. Cold preparation accepts only a
+non-empty plan whose partitions all name one equal registered owner and routes all partitions to
+that integration. A missing owner, zero-partition plan, or mixed CPU/Metal plan fails before
+backend analysis. There is no implicit CPU fallback, retry, owner substitution, or cross-owner
+data movement. A separate architecture decision must define cross-owner representations,
+transfers, declarations, schedule order, and rollback before mixed-owner preparation can succeed.
 
-The returned Engine prepared handle will retain a direct non-owning reference to the selected
-adapter beside its inward Runtime execution. `run(...)` will use that adapter to wrap caller host
-storage, and the returned result will use it for backend-owned host materialization. These outer
-calls do not re-query the registry, and Engine closure keeps the integration open until every
-result and prepared handle closes.
+The returned Engine prepared handle retains a direct non-owning reference to the selected adapter
+beside its inward Runtime execution. `run(...)` uses that adapter for caller-host ingress, and the
+returned result uses it for backend-owned host materialization. These outer calls do not re-query
+the registry, and Engine closure keeps the integration open until every result and prepared handle
+closes.
 
-The planned `MetalBackendConfiguration` and `MetalBackendIntegration` will be public Metal-owned
-types. Metal will validate and snapshot its configuration and acquire its native context before
-the integration is transferred. Engine will neither parse the native-library path nor own a
-duplicate Metal configuration. Merely adding `MetalCapabilityProvider` remains insufficient for
-public execution: the Metal integration must also supply the complete Prepare, host-ingress,
-materialization, and close contribution.
+`MetalBackendConfiguration` and `MetalBackendIntegration` are public Metal-owned types. Metal
+validates and snapshots the explicit absolute native-library path and acquires its default-device
+native context before the integration is transferred. Engine neither parses the native-library
+path nor owns a duplicate Metal configuration. The integration supplies the complete Prepare,
+host-ingress, materialization, and close contribution in addition to capability.
 
-`prepareTuned(...)` will remain the bounded CPU-only workflow. It may tune a CPU-owned plan when
-Metal is also registered, but a Metal-owned plan will fail with `IllegalStateException` before
+`prepareTuned(...)` remains the bounded CPU-only workflow. It can tune a CPU-owned plan when Metal
+is also registered, but a Metal-owned plan fails with `IllegalStateException` before
 representative input borrowing, candidate generation, or trial work. The allowed safe-heuristic
 fallback remains within the already-selected CPU integration and never changes owner or prepares
 Metal.
 
-The current `Engine.standard()` method remains the CPU-only convenience and will use the same
-ownership path internally. The current `AdvancedEngine.takeOwnership(CpuBackendIntegration)`
-surface remains CPU-only; this decision does not silently make it generic. No builder or Metal
-integration call is available until its implementation task completes.
+`Engine.standard()` remains the CPU-only convenience and uses this builder ownership path
+internally. `AdvancedEngine.takeOwnership(CpuBackendIntegration)` remains CPU-only; explicit
+multi-backend construction belongs to ordinary `Engine.Builder`.
 
 See the
 [authoritative Engine composition contract](../architecture/contracts/runtime-prepare-engine.md#public-explicit-composition)

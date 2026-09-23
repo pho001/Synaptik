@@ -9,13 +9,16 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
+import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
+import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import java.util.List;
+import java.util.Map;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Executors;
@@ -117,17 +120,28 @@ final class EngineStandardCompositionTest {
     }
 
     private static final class RecordingComposition implements EngineBackendComposition {
+        private static final BackendId BACKEND_ID = new BackendId("recording");
         private final AtomicInteger closeCount = new AtomicInteger();
         private Throwable closeFailure;
 
         @Override
         public List<BackendCapabilityProvider> capabilityProviders() {
-            throw new AssertionError("unexpected capability request");
+            return List.of(new BackendCapabilityProvider() {
+                @Override
+                public BackendId backendId() {
+                    return BACKEND_ID;
+                }
+
+                @Override
+                public boolean supports(OperationCapabilityQuery query) {
+                    return false;
+                }
+            });
         }
 
         @Override
         public List<BackendAvailabilitySnapshot> availabilitySnapshots() {
-            throw new AssertionError("unexpected availability request");
+            return List.of(new BackendAvailabilitySnapshot(BACKEND_ID, Map.of()));
         }
 
         @Override

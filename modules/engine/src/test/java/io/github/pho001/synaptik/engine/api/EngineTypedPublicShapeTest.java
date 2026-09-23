@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
+import io.github.pho001.synaptik.backend.metal.MetalBackendIntegration;
 import io.github.pho001.synaptik.engine.CompiledGraph;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.HostTensorValue;
@@ -31,6 +33,10 @@ final class EngineTypedPublicShapeTest {
             assertTrue(Modifier.isPublic(type.getModifiers()));
             assertTrue(Modifier.isFinal(type.getModifiers()));
         }
+        assertTrue(Modifier.isPublic(Engine.Builder.class.getModifiers()));
+        assertTrue(Modifier.isStatic(Engine.Builder.class.getModifiers()));
+        assertTrue(Modifier.isFinal(Engine.Builder.class.getModifiers()));
+        assertTrue(AutoCloseable.class.isAssignableFrom(Engine.Builder.class));
         assertTrue(CompiledGraph.Input.class.isRecord());
         assertTrue(AutoCloseable.class.isAssignableFrom(PreparedExecution.class));
         assertTrue(Modifier.isPublic(CompiledGraph.Input.class.getModifiers()));
@@ -39,9 +45,11 @@ final class EngineTypedPublicShapeTest {
                 CompiledGraph.Input.class.getRecordComponents()).map(component -> component.getType())
                 .toList());
 
-        assertEquals(List.of("backward", "close", "compile", "compile", "compute", "compute",
-                "compute", "compute", "isClosed", "prepare", "prepareTuned", "run", "standard"),
-                methodNames(Engine.class));
+        assertEquals(List.of("backward", "builder", "close", "compile", "compile", "compute",
+                "compute", "compute", "compute", "isClosed", "prepare", "prepareTuned", "run",
+                "standard"), methodNames(Engine.class));
+        assertEquals(List.of("build", "close", "takeOwnership", "takeOwnership"),
+                methodNames(Engine.Builder.class));
         assertEquals(List.of("inputs"), methodNames(CompiledGraph.class));
         assertEquals(List.of("close", "compiledGraph", "isClosed"),
                 methodNames(PreparedExecution.class));
@@ -56,6 +64,14 @@ final class EngineTypedPublicShapeTest {
         assertEquals(List.of("FORWARD", "GRADIENT"),
                 Arrays.stream(RunResult.Role.values()).map(Enum::name).toList());
 
+        assertEquals(Engine.Builder.class, Engine.class.getMethod("builder").getReturnType());
+        assertEquals(Engine.Builder.class,
+                Engine.Builder.class.getMethod(
+                        "takeOwnership", CpuBackendIntegration.class).getReturnType());
+        assertEquals(Engine.Builder.class,
+                Engine.Builder.class.getMethod(
+                        "takeOwnership", MetalBackendIntegration.class).getReturnType());
+        assertEquals(Engine.class, Engine.Builder.class.getMethod("build").getReturnType());
         assertEquals(CompiledGraph.class,
                 Engine.class.getMethod("compile", List.class).getReturnType());
         assertEquals(CompiledGraph.class,

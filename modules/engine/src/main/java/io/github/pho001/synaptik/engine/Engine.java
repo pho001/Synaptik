@@ -1,18 +1,21 @@
 package io.github.pho001.synaptik.engine;
 
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
+import io.github.pho001.synaptik.backend.metal.MetalBackendIntegration;
 import io.github.pho001.synaptik.model.tensor.Tensor;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 /**
- * Owns the ordinary standard Synaptik Engine composition and its lifetime.
+ * Owns one explicitly composed Synaptik Engine and its public lifecycle.
  *
- * <p>The current standard composition contains exactly one freshly opened CPU backend integration
- * per Engine. Each instance owns an independent composition; closing one instance does not affect
- * another, and no standard instance is cached or stored in process-global state. The CPU
- * integration and lower-level lifecycle owner remain private implementation details and never
- * transfer to the caller.</p>
+ * <p>{@link #builder()} accepts concrete CPU and Metal integrations through entry-time ownership
+ * transfer and freezes their provider and availability snapshots in registration order. Compile
+ * considers every registered entry deterministically. Cold preparation accepts only a non-empty
+ * plan with one exact registered owner, then captures that owner's direct adapter for host ingress
+ * and materialization. Mixed-owner execution remains deliberately unsupported. {@link #standard()}
+ * constructs one fresh CPU integration through that same composition path.</p>
  *
  * <p>The ordinary surface compiles Tensor expressions, prepares immutable reusable recipes, binds
  * logical input Tensors by identity in arbitrary order, and returns publication leases whose
@@ -32,37 +35,235 @@ public final class Engine implements AutoCloseable {
     private final AdvancedEngine delegate;
 
     /**
-     * Opens a new independent Engine with the fixed current built-in composition.
+     * Creates an empty single-use construction owner.
      *
-     * <p>The fixed inventory contains CPU only. Every call opens one fresh composition without
-     * discovery or global reuse. If construction fails after that opening, the partially
-     * transferred owner is closed exactly once. The original unchecked failure is preserved, and
-     * a distinct rollback failure is suppressed on it.</p>
+     * @return a fresh non-null open builder owning no integrations
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    /**
+     * Single-use owner for explicit built-in backend composition.
+     *
+     * <p>Each non-null integration transfers ownership at method entry, including calls made after
+     * this builder is spent or closed. Registration snapshots identity, provider, and availability
+     * once. A successful build atomically transfers every accepted entry to Engine. Failed build
+     * is terminal and closes accepted entries in reverse registration order. Explicit close is
+     * idempotent, attempt-all, and failure-retaining.</p>
+     */
+    public static final class Builder implements AutoCloseable {
+        private enum State { OPEN, SPENT, CLOSED }
+
+        private final ArrayList<EngineBackendRegistry.Registration> registrations =
+                new ArrayList<>();
+        private State state = State.OPEN;
+        private Throwable closeFailure;
+
+        private Builder() {
+        }
+
+        /**
+         * Transfers ownership of one CPU integration at method entry.
+         *
+         * @param integration non-null integration that the caller must never use or close after
+         *     this call begins, whether registration succeeds or fails
+         * @return this same builder
+         * @throws NullPointerException if {@code integration} is {@code null}; no ownership moves
+         * @throws IllegalArgumentException if its captured identity is already registered or its
+         *     provider and availability identities disagree
+         * @throws IllegalStateException if this builder is spent or closed
+         * @throws RuntimeException if interrogation or rejected-integration cleanup fails
+         * @throws Error if interrogation or cleanup reports a fatal failure
+         */
+        public synchronized Builder takeOwnership(CpuBackendIntegration integration) {
+            Objects.requireNonNull(integration, "integration");
+            return registerTransferred(
+                    integration, () -> new CpuEngineBackendComposition(integration));
+        }
+
+        /**
+         * Transfers ownership of one Metal integration at method entry.
+         *
+         * @param integration non-null integration that the caller must never use or close after
+         *     this call begins, whether registration succeeds or fails
+         * @return this same builder
+         * @throws NullPointerException if {@code integration} is {@code null}; no ownership moves
+         * @throws IllegalArgumentException if its captured identity is already registered or its
+         *     provider and availability identities disagree
+         * @throws IllegalStateException if this builder is spent or closed
+         * @throws RuntimeException if interrogation or rejected-integration cleanup fails
+         * @throws Error if interrogation or cleanup reports a fatal failure
+         */
+        public synchronized Builder takeOwnership(MetalBackendIntegration integration) {
+            Objects.requireNonNull(integration, "integration");
+            return registerTransferred(
+                    integration, () -> new MetalEngineBackendComposition(integration));
+        }
+
+        /**
+         * Package-private deterministic lifecycle seam for Engine-owned adapter tests.
+         *
+         * @param entry non-null adapter whose ownership transfers at method entry
+         * @return this same builder
+         */
+        synchronized Builder takeOwnership(EngineBackendComposition entry) {
+            Objects.requireNonNull(entry, "entry");
+            return registerTransferred(entry, () -> entry);
+        }
+
+        /**
+         * Builds one Engine and atomically transfers all accepted integrations to it.
+         *
+         * @return a new non-null Engine owning the complete ordered registry
+         * @throws IllegalArgumentException if no integration was accepted
+         * @throws IllegalStateException if this builder is spent or closed
+         * @throws RuntimeException if construction or reverse rollback fails
+         * @throws Error if construction or rollback reports a fatal failure
+         */
+        public synchronized Engine build() {
+            return build(registry -> new Engine(new AdvancedEngine(registry)));
+        }
+
+        /**
+         * Package-private deterministic construction-failure seam.
+         *
+         * @param construction non-null action receiving the registry after ownership transfer
+         * @return the non-null constructed Engine
+         */
+        synchronized Engine build(
+                java.util.function.Function<EngineBackendRegistry, Engine> construction) {
+            Objects.requireNonNull(construction, "construction");
+            requireOpen();
+            if (registrations.isEmpty()) {
+                IllegalArgumentException failure =
+                        new IllegalArgumentException("at least one backend integration is required");
+                failBuild(failure);
+                throw failure;
+            }
+            try {
+                EngineBackendRegistry registry =
+                        EngineBackendRegistry.fromCaptured(registrations);
+                Engine engine = Objects.requireNonNull(
+                        construction.apply(registry), "constructed engine");
+                registrations.clear();
+                state = State.SPENT;
+                return engine;
+            } catch (RuntimeException | Error failure) {
+                failBuild(failure);
+                throw failure;
+            }
+        }
+
+        /**
+         * Closes every still-owned integration in reverse registration order.
+         * Repeated calls after an explicit close replay the exact first cleanup failure. Closing a
+         * successfully spent builder is a no-op.
+         *
+         * @throws RuntimeException if cleanup first reports an unchecked failure
+         * @throws Error if cleanup first reports a fatal failure
+         */
+        @Override
+        public synchronized void close() {
+            if (state == State.SPENT) return;
+            if (state == State.OPEN) {
+                state = State.CLOSED;
+                closeFailure = closeEntries(null);
+            }
+            rethrow(closeFailure);
+        }
+
+        private Builder registerTransferred(
+                AutoCloseable transferred,
+                EntryFactory entryFactory) {
+            if (state != State.OPEN) {
+                IllegalStateException failure =
+                        new IllegalStateException("engine builder is spent or closed");
+                closeTransferred(transferred, failure);
+                throw failure;
+            }
+            EngineBackendComposition entry = null;
+            try {
+                entry = Objects.requireNonNull(entryFactory.create(), "backend entry");
+                EngineBackendRegistry.Registration captured =
+                        EngineBackendRegistry.capture(entry);
+                for (EngineBackendRegistry.Registration accepted : registrations) {
+                    if (accepted.backendId().equals(captured.backendId())) {
+                        throw new IllegalArgumentException(
+                                "duplicate backend ID: " + captured.backendId().value());
+                    }
+                }
+                registrations.add(captured);
+                return this;
+            } catch (RuntimeException | Error failure) {
+                closeTransferred(entry == null ? transferred : entry, failure);
+                throw failure;
+            }
+        }
+
+
+        private void requireOpen() {
+            if (state != State.OPEN) {
+                throw new IllegalStateException("engine builder is spent or closed");
+            }
+        }
+
+        private void failBuild(Throwable failure) {
+            state = State.CLOSED;
+            closeEntries(failure);
+        }
+
+        private Throwable closeEntries(Throwable primary) {
+            Throwable first = primary;
+            for (int index = registrations.size() - 1; index >= 0; index--) {
+                try {
+                    registrations.get(index).adapter().close();
+                } catch (RuntimeException | Error cleanupFailure) {
+                    if (first == null) first = cleanupFailure;
+                    else if (cleanupFailure != first) first.addSuppressed(cleanupFailure);
+                }
+            }
+            registrations.clear();
+            if (primary == null) closeFailure = first;
+            return first;
+        }
+
+        private static void closeTransferred(AutoCloseable transferred, Throwable primary) {
+            try {
+                transferred.close();
+            } catch (RuntimeException | Error cleanupFailure) {
+                if (cleanupFailure != primary) primary.addSuppressed(cleanupFailure);
+            } catch (Exception checkedFailure) {
+                primary.addSuppressed(new IllegalStateException(
+                        "backend integration cleanup reported a checked failure", checkedFailure));
+            }
+        }
+
+        private static void rethrow(Throwable failure) {
+            if (failure instanceof RuntimeException runtime) throw runtime;
+            if (failure instanceof Error error) throw error;
+        }
+
+
+        @FunctionalInterface
+        private interface EntryFactory {
+            EngineBackendComposition create();
+        }
+    }
+
+    /**
+     * Opens a new independent CPU Engine through the explicit builder path.
+     *
+     * <p>Every call opens one fresh default CPU integration without discovery or global reuse and
+     * transfers it at entry to a fresh builder. Construction and rollback therefore use the same
+     * ownership, identity, snapshot, and terminal-failure rules as explicit composition.</p>
      *
      * @return a new non-null open Engine owning an independent CPU-only composition
-     * @throws RuntimeException if CPU composition construction fails
+     * @throws RuntimeException if CPU opening or Engine construction fails
      * @throws Error if construction or rollback reports a fatal failure
      */
     public static Engine standard() {
-        CpuBackendIntegration integration = CpuBackendIntegration.open();
-        AdvancedEngine owner = null;
-        try {
-            owner = AdvancedEngine.takeOwnership(integration);
-            return new Engine(owner);
-        } catch (RuntimeException | Error failure) {
-            try {
-                if (owner == null) {
-                    integration.close();
-                } else {
-                    owner.close();
-                }
-            } catch (RuntimeException | Error cleanupFailure) {
-                if (cleanupFailure != failure) {
-                    failure.addSuppressed(cleanupFailure);
-                }
-            }
-            throw failure;
-        }
+        return builder().takeOwnership(CpuBackendIntegration.open()).build();
     }
 
     /**
@@ -121,8 +322,8 @@ public final class Engine implements AutoCloseable {
 
     /**
      * Prepares one compile handle created by this exact Engine.
-     * Current CPU preparation requires one non-empty maximal CPU partition and may therefore
-     * reject an artifact that compiled successfully.
+     * Preparation requires one non-empty plan owned entirely by one exact registered backend and
+     * may therefore reject an artifact that compiled successfully.
      *
      * <p>The returned handle owns the exact inward Runtime preparation and must be closed when
      * reuse ends, preferably with try-with-resources. Closing this Engine closes any retained
@@ -207,8 +408,8 @@ public final class Engine implements AutoCloseable {
      * @return a fresh non-null detached immutable host value
      * @throws NullPointerException if {@code output} is null
      * @throws IllegalArgumentException if output metadata is invalid, a payload exceeds the JVM
-     *     array ceiling, or an inward compile, prepare, binding, or CPU validation rejects the
-     *     request
+     *     array ceiling, or an inward compile, prepare, binding, or selected-backend validation
+     *     rejects the request
      * @throws IllegalStateException if Engine closure has begun, reachable Tensor identity is
      *     inconsistent, an authoritative compiled input has no reachable leaf, selected caller
      *     storage is absent, dead, or inaccessible, or result metadata is inconsistent
@@ -222,7 +423,7 @@ public final class Engine implements AutoCloseable {
     }
 
     /**
-     * Computes one forward output through a fresh complete CPU-only lifecycle and returns its
+     * Computes one forward output through a fresh complete single-owner lifecycle and returns its
      * detached canonical host value.
      *
      * <p>This is the singleton specialization of the ordered-output overload. One Engine
@@ -253,7 +454,7 @@ public final class Engine implements AutoCloseable {
      * @throws NullPointerException if {@code output} is null
      * @throws IllegalArgumentException if the byte limit is negative, logical binding or output
      *     metadata is invalid, the payload exceeds the limit or JVM array ceiling, or an inward
-     *     compile, prepare, binding, or CPU validation rejects the request
+     *     compile, prepare, binding, or selected-backend validation rejects the request
      * @throws IllegalStateException if Engine closure has begun, reachable Tensor identity is
      *     inconsistent, an authoritative compiled input has no reachable leaf, selected caller
      *     storage is absent, dead, or inaccessible, or result metadata is inconsistent
@@ -293,7 +494,7 @@ public final class Engine implements AutoCloseable {
     }
 
     /**
-     * Computes an ordered non-empty forward boundary through one fresh complete CPU-only
+     * Computes an ordered non-empty forward boundary through one fresh complete single-owner
      * lifecycle and returns detached canonical host values in exact requested publication order.
      *
      * <p>One Engine admission spans argument validation, one transient identity-safe inventory of
@@ -312,9 +513,9 @@ public final class Engine implements AutoCloseable {
      * <p>The aggregate byte limit covers only the sum of canonical returned payload lengths, not
      * inputs, Runtime buffers or workspaces, recipes, object overhead, defensive copies, peak
      * memory, or other allocation. Selected leaf storage remains caller-owned and must stay live,
-     * accessible, and free from conflicting mutation through synchronous completion. Current
-     * execution and host copying use the fixed CPU-only composition and require supported fully
-     * static outputs with resolved final layouts.</p>
+     * accessible, and free from conflicting mutation through synchronous completion. Execution
+     * and host copying use the exact adapter selected for the non-empty single-owner plan and
+     * require outputs supported by that adapter with fully static resolved final layouts.</p>
      *
      * @param outputs non-null non-empty ordered list of non-null identity-unique output Tensors;
      *     the container is snapshotted and not retained or mutated

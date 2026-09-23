@@ -37,17 +37,20 @@ Focused architecture documentation:
 - [ADR 0012: Fixed recurrent scan without graph regions](../design/decisions/0012-fixed-recurrent-scan-without-regions.md)
 - [ADR 0013: Prepared-execution persistent-resource lifecycle](../design/decisions/0013-prepared-execution-persistent-resource-lifecycle.md)
 - [ADR 0014: Scope-indexed normative architecture contracts](../design/decisions/0014-scope-indexed-normative-architecture-contracts.md)
+- [ADR 0015: Explicit Engine backend composition](../design/decisions/0015-explicit-engine-backend-composition.md)
 
 ## Status
 
 This index is current. The architecture describes the intended complete system. The repository
-now has substantive Model, Backend Contract, Planning, Compiler, Runtime, Prepare, Engine, and CPU
-implementations, plus partial Config and Trace contracts. The current public lifecycle is
-runnable through one explicitly owned CPU composition. Metal has bounded MPSGraph and custom
-execution routes for supported static `FLOAT32` negation partitions, while broader Metal
-coverage, standard or mixed-owner Metal composition, CUDA, generic graph/plan tuning,
-persistence, and training orchestration remain planned. The [implementation
-roadmap](../planning/roadmap.md) records the exact delivery frontier.
+now has substantive Model, Backend Contract, Planning, Compiler, Runtime, Prepare, Engine, CPU,
+and Metal implementations, plus partial Config and Trace contracts. The public lifecycle is
+runnable through fixed CPU `Engine.standard()` or explicit `Engine.builder()` registration of
+opened CPU and Metal integrations. Each prepared plan must still have one registered owner.
+Explicit single-owner Metal execution is current for supported static `FLOAT32` negation
+partitions through MPSGraph or the custom singleton route. A standard-Metal convenience,
+mixed-owner execution, generic plugin registration/discovery, broader Metal coverage, CUDA,
+generic graph/plan tuning, persistence, and training orchestration remain planned. The
+[implementation roadmap](../planning/roadmap.md) records the exact delivery frontier.
 
 ## Decisions and strategies
 

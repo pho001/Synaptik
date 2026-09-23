@@ -53,17 +53,18 @@ Training-to-Metal optimizer bridge.
 
 ```text
 io.github.pho001.synaptik.backend.metal
-  deliberate public capability surface
-io.github.pho001.synaptik.backend.metal.internal
-  native ABI, device/queue, storage/workspace, preparation, routes, binding, and resources
-io.github.pho001.synaptik.backend.metal.internal.prepare
+  public capability, explicit native-library configuration, and closeable Engine integration;
+  package-private native ABI, device/queue, storage/workspace, preparation, routes, binding,
+  and resources
+io.github.pho001.synaptik.backend.metal.prepare
   deferred extraction only after multiple preparation families prove the seam
-io.github.pho001.synaptik.backend.metal.internal.route.mpsgraph
+io.github.pho001.synaptik.backend.metal.route.mpsgraph
   deferred broader MPSGraph extraction; never a custom-kernel or CPU home
 ```
 
-The first two executable routes remain in the coupled internal package. A later task must update
-this map before extracting a package or widening visibility.
+The first two executable routes remain coupled package-private types beside the three public
+facade types. A later task must update this map before extracting a package or widening
+visibility.
 
 ## Task list
 
@@ -77,8 +78,9 @@ this map before extracting a package or widening visibility.
 ## Milestones and current frontier
 
 The native/storage foundation, two NEG routes, and Metal-local candidate/session-compatibility
-foundation are `Complete` through 0004. No later Metal task is detailed or `Ready`; selecting any
-next Metal work requires a fresh planning reassessment. No Metal task is `In progress`.
+foundation are `Complete` through 0004. Engine 0015's independently reviewed public CPU/Metal
+single-owner composition is also `Complete` and consumes Metal's public configuration/integration
+without changing capability or native ABI. No later Metal-local task is detailed or `Ready`.
 
 The 0004 readiness audit verified all four live gates against current source and contracts:
 
@@ -112,6 +114,10 @@ The 0004 readiness audit verified all four live gates against current source and
 - `MTLBuffer` remains the resident representation across adjacent Metal work. A prepared
   shape-specialized `MPSGraphExecutable` is not per-run workspace; transfers and waits occur only
   at explicit boundaries required by the synchronous lifecycle.
+- Public `MetalBackendConfiguration` snapshots one explicit absolute native-library path.
+  `MetalBackendIntegration.open(...)` validates ABI, opens one default-device context, supplies
+  capability/availability/Prepare/ingress/materialization roles, and rolls partial opening back.
+  Ownership transfers only through Engine's explicit builder; Metal performs no discovery.
 
 ## Task 0004 delivered constraints and remaining risks
 
@@ -123,9 +129,10 @@ The 0004 readiness audit verified all four live gates against current source and
 - The delivered boundary contains no `Map<String,Object>`, reflection, string dispatch, central
   knob registry, generic parameter bag, Planning route choice, Runtime cache access, or hidden
   global resource.
-- The completed 0004 brief fixes route-specific typed shapes and conservatively session-scoped target
-  compatibility without changing cache-file or native ABI ownership. Its package-private codec is
-  a Metal-local foundation, not current `tools/tuning` or Engine composition. No broader
+- The completed 0004 brief fixes route-specific typed shapes and conservatively session-scoped
+  target compatibility without changing cache-file or native ABI ownership. Its package-private
+  codec remains unconsumed by current `tools/tuning` and Engine tuning composition. Explicit
+  single-owner Metal Engine execution is current without consuming that codec. No broader
   operation/type, mixed-owner Engine path, async execution, packaging/discovery, or performance
   claim is implied.
 - Main risks are moving lowering into shared layers, leaking Metal fields through opaque seams,

@@ -16,26 +16,31 @@ public final class PreparedExecution implements AutoCloseable {
     private final Engine owner;
     private final CompiledGraph compiledGraph;
     private final io.github.pho001.synaptik.runtime.execution.PreparedExecution execution;
+    private final EngineBackendComposition adapter;
     private boolean closed;
     private boolean cleanupComplete;
     private Throwable closeFailure;
 
     /**
-     * Retains the exact ordinary owner, compile handle, and immutable Runtime recipe.
+     * Retains the exact ordinary owner, compile handle, immutable Runtime recipe, and the direct
+     * selected backend adapter used for this handle's host ingress and result materialization.
      *
      * @param owner non-null exact Engine owner
      * @param compiledGraph non-null exact originating compile handle
      * @param execution non-null immutable inward prepared recipe
+     * @param adapter non-null direct selected adapter owned by {@code owner}
      * @throws NullPointerException if an argument is {@code null}
      * @throws IllegalArgumentException if the compiled handle has another owner
      */
     PreparedExecution(
             Engine owner,
             CompiledGraph compiledGraph,
-            io.github.pho001.synaptik.runtime.execution.PreparedExecution execution) {
+            io.github.pho001.synaptik.runtime.execution.PreparedExecution execution,
+            EngineBackendComposition adapter) {
         this.owner = Objects.requireNonNull(owner, "owner");
         this.compiledGraph = Objects.requireNonNull(compiledGraph, "compiledGraph");
         this.execution = Objects.requireNonNull(execution, "execution");
+        this.adapter = Objects.requireNonNull(adapter, "adapter");
         if (compiledGraph.owner() != owner) {
             throw new IllegalArgumentException("compiled graph belongs to another engine");
         }
@@ -52,6 +57,15 @@ public final class PreparedExecution implements AutoCloseable {
 
     Engine owner() {
         return owner;
+    }
+
+    /**
+     * Returns the selected direct adapter only to package-private cold run orchestration.
+     *
+     * @return the non-null adapter retained at successful preparation
+     */
+    EngineBackendComposition adapter() {
+        return adapter;
     }
 
     /**

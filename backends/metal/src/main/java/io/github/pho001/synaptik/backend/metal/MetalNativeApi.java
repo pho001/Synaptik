@@ -1,4 +1,4 @@
-package io.github.pho001.synaptik.backend.metal.internal;
+package io.github.pho001.synaptik.backend.metal;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_INT;

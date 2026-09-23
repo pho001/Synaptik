@@ -27,13 +27,13 @@ public surface contains:
 The geometry, reusable creation description, package-private all-or-cleaned setup, structural
 residency, explicit per-buffer-copy validity, cold-bound invocation and transfer contracts,
 creation, execution, transfer, and dense publication-suffix schedule recipes, the whole-state
-result lease, lifecycle-bearing prepared-execution root,
-Prepare-owned resource assignments, typed backend finalization, `PreparedPartition`, and complete
-graph preparation are current. Ordinary CPU-only compile, prepare, logical host-input binding,
-synchronous run, typed publication metadata, and explicit bounded detached host materialization
-are current through `Engine.standard()`. The current CPU integration implements
-physical allocation, storage access, finalization, schedule assembly, and execution for Engine's
-deliberately restricted one-partition path.
+result lease, lifecycle-bearing prepared-execution root, Prepare-owned resource assignments,
+typed backend finalization, `PreparedPartition`, and complete graph preparation are current.
+Ordinary compile, single-owner prepare, logical host-input binding, synchronous run, typed
+publication metadata, and explicit bounded detached host materialization are current through
+`Engine`. `Engine.standard()` supplies fixed CPU ownership; `Engine.builder()` can supply explicit
+CPU or Metal ownership. The selected integration implements physical allocation, storage access,
+finalization, schedule assembly, execution, ingress, and materialization for its supported domain.
 
 ## Mental model
 
@@ -243,8 +243,9 @@ inside the graph. The four occurrences expose metadata until the caller explicit
 for materialization; this example proves neither optimizer integration nor training. A shared seed leaf without `contiguous()` would be a zero-node pass-through
 publication with no current prepared buffer assignment.
 
-Host materialization is current only for this CPU-only fully static resolved boundary. The four
-ordinary `Engine.compute(...)` overloads now provide Engine-owned one-shot forward execution for
+Host materialization is current for fully static resolved publications supported by the exact CPU
+or Metal adapter captured during single-owner preparation. The four ordinary
+`Engine.compute(...)` overloads provide Engine-owned one-shot forward execution for
 one output or an ordered non-empty output list, with or without an explicit aggregate byte bound.
 They transiently inventory reachable provenance-free Tensor leaves by exact object identity and
 join them by `TensorId` to final `CompiledGraph.inputs()` membership and order. This is Model
@@ -260,9 +261,10 @@ or caller storage escapes through the return value.
 The convenience creates no cache and reuses no compile or prepared recipe. A failure returns no
 partial value list; cleanup still runs, with a distinct cleanup failure suppressed on the primary
 failure. Engine close waits for an admitted call through cleanup, while a call that loses
-admission fails before argument inspection. Current support retains the same CPU-only, one
-non-empty-partition, fully static, resolved-layout domain described above. The aggregate limit is
-not a bound on inputs, Runtime allocation, workspaces, object overhead, defensive copies, or peak
+admission fails before argument inspection. Current support requires one non-empty plan owned by
+one registered backend, with fully static resolved layouts in that adapter's supported domain.
+The aggregate limit is not a bound on inputs, Runtime allocation, workspaces, object overhead,
+defensive copies, or peak
 memory. Use the explicit `compile -> prepare -> run -> materialize` lifecycle for repeated runs or
 selective output copies. The explicit reusable `run(preparedExecution, inputs)` path intentionally
 continues to require caller-supplied logical inputs. Automatic discovery is only the one-shot
@@ -286,7 +288,7 @@ readable after temporary result, Engine, and caller storage close. No explicit i
 tape, Tensor mutation, inferred target, no-argument backward, or Runtime liveness inference is
 introduced. Explicit seeds, multiple outputs, reusable execution, `ZERO`, and higher-order/full
 request policies stay on the existing ordinary or advanced lower-level lifecycle. See the
-[complete one-shot examples](public-api.md#current-ordinary-and-advanced-cpu-lifecycle).
+[complete one-shot examples](public-api.md#current-ordinary-explicit-composition-and-advanced-lifecycle).
 
 ## Current advanced Engine prepare and run boundary
 

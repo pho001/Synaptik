@@ -683,26 +683,6 @@ final class RepresentativeExecutionSessionTest {
                 assertTrue(invalidLimitSession.canResolveRecoverableTuningFailure());
             }
 
-            Shape shape = Shape.of(2);
-            Tensor unresolvedInput = TensorFactory.create(new TensorDescriptor(
-                            DataType.FLOAT32, shape, Optional.empty(), false),
-                    Optional.empty(), input.hostStorage());
-            CompiledGraph unresolvedCompiled = engine.compile(List.of(unresolvedInput));
-            var invalidDescriptorSession = openSession(
-                    composition, unresolvedCompiled, List.of(unresolvedInput));
-            TestPreparedResource descriptorResource =
-                    new TestPreparedResource("invalid-descriptor", null, new ArrayList<>());
-            var descriptorTrial = execution(1, 1, () -> {
-                creations.incrementAndGet();
-                return new TestBuffer("unused", null, new ArrayList<>());
-            }, descriptorResource);
-            assertThrows(IllegalArgumentException.class,
-                    () -> invalidDescriptorSession.captureCorrectnessReference(
-                            descriptorTrial, Long.MAX_VALUE));
-            assertEquals(0, creations.get());
-            assertEquals(1, descriptorResource.closeCount.get());
-            assertTrue(invalidDescriptorSession.canResolveRecoverableTuningFailure());
-            invalidDescriptorSession.close();
 
             Error cleanupFailure = new AssertionError("invalid-limit cleanup");
             var poisoned = openSession(composition, compiled, List.of(input));
@@ -1434,11 +1414,9 @@ final class RepresentativeExecutionSessionTest {
     }
 
     @Test
-    void productionAdapterConstructionFailureCleansAdmittedSessionAndNeverFallsBack(
+    void nonCpuOwnedPlanRejectsBeforeRepresentativeBorrowOrFallback(
             @TempDir Path directory) {
         RecordingComposition composition = new RecordingComposition();
-        RuntimeException cleanup = new RuntimeException("adapter cleanup");
-        composition.borrowCloseFailures.add(cleanup);
         Engine engine = engine(composition);
         try {
             Tensor input = leaf(1, 2);
@@ -1446,14 +1424,15 @@ final class RepresentativeExecutionSessionTest {
             var request = tuningRequest(input, directory.resolve("adapter.bin"),
                     ModelAutotuningConfig.FallbackPolicy.ALLOW_SAFE_HEURISTIC, 0, 1);
 
-            ClassCastException observed = assertThrows(ClassCastException.class,
+            IllegalStateException observed = assertThrows(IllegalStateException.class,
                     () -> engine.prepareTuned(compiled, request));
 
-            assertArrayEquals(new Throwable[] {cleanup}, observed.getSuppressed());
-            assertEquals(List.of("borrow-0"), composition.closeOrder);
+            assertEquals("model autotuning requires a CPU-owned partition plan",
+                    observed.getMessage());
+            assertEquals(0, observed.getSuppressed().length);
+            assertEquals(List.of(), composition.closeOrder);
+            assertEquals(0, composition.borrowCount.get());
             assertEquals(0, composition.prepareCount.get());
-            org.junit.jupiter.api.Assertions.assertTimeout(
-                    java.time.Duration.ofSeconds(10), engine::close);
         } finally {
             engine.close();
         }

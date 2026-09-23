@@ -6,10 +6,10 @@ This guide defines the CPU integration boundary and helps contributors avoid tre
 as separate backends. The current CPU module accepts the bounded, fully static portable families
 described below.
 It publishes `CpuBackendIntegration` as the supported lifecycle service-provider interface (SPI)
-used by the current fixed CPU-only Engine composition. `Engine.standard()` opens and owns a fresh
-integration, while `AdvancedEngine.takeOwnership(...)` accepts one explicitly supplied
-integration for advanced CPU-only composition. The SPI is not the ordinary end-user execution
-facade.
+used by `Engine.standard()` and explicit `Engine.builder()` composition.
+`Engine.standard()` opens and owns a fresh integration, while
+`AdvancedEngine.takeOwnership(...)` accepts one explicitly supplied integration for advanced
+CPU-only composition. The SPI is not the ordinary end-user execution facade.
 
 Before ownership selection, Compiler completes canonical logical layouts for fully static,
 layout-unresolved results only from explicitly proven materializing operation families and
@@ -3925,8 +3925,8 @@ aggregate/scatter form or later semantic family,
 BFLOAT16 pointwise SIMD or dropout numerical operation,
 cross-type CAST SIMD, dynamic layout, vector affine/scatter/fold/ordering execution, broader
 native fallback, hardware-intrinsic guarantee, or performance result is implemented or promised.
-Current public Engine integration remains fixed CPU-only; generic or mixed-backend composition
-remains planned.
+Public `Engine.Builder` can register CPU alone or beside Metal, while `Engine.standard()` remains
+fixed CPU-only. Generic plugin composition and mixed-owner execution remain unsupported.
 Ordinary provider tests
 prove Java validation and exact ABI forwarding, not installed-library numerical correctness. The
 native checkpoint proves only its selected binary and fixed cases.

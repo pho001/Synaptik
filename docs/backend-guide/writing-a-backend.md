@@ -103,11 +103,11 @@ does not replay a failure.
 This contract is for immutable state reused across runs. Per-run buffers and workspaces still
 belong to one `RunState`; backend-global caches, schedule occurrences, and executable references
 must not become alternative owners. A finalizer owns local rollback before successful return;
-shared Prepare owns later rollback and the single successful Runtime transfer. Complete Engine
-0010 closes inward owners through ordinary and advanced prepared handles:
-published handles close explicitly or during Engine shutdown, and temporary one-shot or tuning
-preparations close after their results. Metal 0002 remains a separate blocked audit/spec frontier;
-this lifecycle prerequisite does not itself implement or advertise a Metal route.
+shared Prepare owns later rollback and the single successful Runtime transfer. Engine closes
+inward owners through ordinary and advanced prepared handles: published handles close explicitly
+or during Engine shutdown, and temporary one-shot or tuning preparations close after their
+results. Metal currently exercises this contract with typed custom-pipeline and MPSGraph
+resources, and explicit `Engine.builder()` composition exposes its supported single-owner route.
 
 ## Current representation-creation pattern
 
@@ -374,23 +374,29 @@ explicit Runtime validity transitions. If the desired result exists in another r
 the schedule must contain a prepared transfer before its publication suffix. Publication never
 discovers a source, selects a route, converts or copies bytes, retries, or falls back.
 
-After every dense ordered occurrence publishes, current `RunResult` privately retains the direct
-references and leases the complete `RunState`. It exposes no physical representation or output
-value. Closing the result delegates cleanup orchestration to the state, which still skips borrowed
-inputs and calls backend-owned cleanup only for run-owned representations. Intentional result
-aliases do not duplicate cleanup because state binding identity remains unique.
+After every dense ordered occurrence publishes, current Runtime `RunResult` privately retains the
+direct references and leases the complete `RunState`. The outward Engine result exposes metadata
+and explicit detached bounded host materialization, never a physical representation or live
+backend value. Closing the result delegates cleanup orchestration to the state, which still skips
+borrowed inputs and calls backend-owned cleanup only for run-owned representations. Intentional
+result aliases do not duplicate cleanup because state binding identity remains unique.
 
-## Conceptual registration
+## Current explicit built-in registration
 
 ```java
-// Conceptual API; engine and backend factories are not implemented.
-SynaptikEngine engine = SynaptikEngine.builder()
-        .addBackend(cpuBackend())
-        .addBackend(metalBackend())
-        .build();
+try (Engine.Builder builder = Engine.builder()) {
+    builder.takeOwnership(CpuBackendIntegration.open());
+    builder.takeOwnership(MetalBackendIntegration.open(metalConfiguration));
+    try (Engine engine = builder.build()) {
+        // compile, prepare, run, and explicitly materialize one single-owner plan
+    }
+}
 ```
 
-Each `addBackend` call makes composition visible before compilation and preparation. Runtime must not use classpath scanning, `ServiceLoader`, or a service locator to discover the same components during execution.
+Each `takeOwnership` call makes a supported built-in integration visible before compilation and
+preparation. Runtime does not use classpath scanning, `ServiceLoader`, or a service locator to
+discover the same components during execution. A generic backend plugin registration SPI and
+mixed-owner execution remain planned.
 
 ## Resources, concurrency, and failures
 

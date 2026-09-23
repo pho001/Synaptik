@@ -170,7 +170,9 @@ MPSGraph execution. Positive-rank compile-time splat construction uses backend-l
 
 ## Boundaries
 
-The bridge implements no library discovery, packaging, public Engine composition, mixed-owner
+The bridge itself implements no library discovery, packaging, Engine composition, mixed-owner
 schedule, CPU fallback, general custom-kernel framework, asynchronous API, buffer pool,
 persistent constant buffer, executable serialization, tuning, FLOAT16, BFLOAT16, or performance
-claim. The public Metal surface remains only `MetalCapabilityProvider`.
+claim. The public Java Metal surface is `MetalCapabilityProvider`,
+`MetalBackendConfiguration`, and `MetalBackendIntegration`; Engine accepts an explicitly opened
+integration through `Engine.builder()`.

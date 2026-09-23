@@ -3,8 +3,9 @@
 This document explains the module responsibilities established by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract is authoritative when a summary here is incomplete.
 
 The boundaries apply to both implemented and planned modules. Model, Backend Contract, Planning,
-Compiler, Runtime, Prepare, Engine, and CPU have substantive implementations; Config and Trace are
-partial. The current public execution path is CPU-only. Other concrete backends and most
+Compiler, Runtime, Prepare, Engine, CPU, and the narrow Metal NEG route have substantive
+implementations; Config and Trace are partial. The current public execution path supports explicit
+single-owner CPU or Metal composition. Other concrete backends, mixed-owner execution, and most
 extensions remain planned or incomplete. The [roadmap](../planning/roadmap.md) records exact
 delivery status.
 
@@ -147,23 +148,22 @@ materialization, fresh one-shot compute/backward conveniences, and bounded optio
 autotuning. `AdvancedEngine.takeOwnership(...)` instead takes explicit cleanup ownership of one
 supported CPU integration and exposes the lower-level representation lifecycle.
 
-The selected public multi-backend construction boundary is a planned `Engine.Builder` with
-concrete CPU and Metal `takeOwnership(...)` overloads. Engine owns the builder, ordered private
-registry, backend adapters, compile-time provider/availability inventory, cold Prepare routing,
-direct selected-adapter references in outward prepared/result handles, construction rollback, and
-outer close order. It rejects duplicate backend IDs and mixed-owner preparation before backend
-analysis. The registry is neither visible to inward modules nor consulted by Runtime; Engine uses
-the captured adapter for caller-storage ingress and host materialization outside Runtime.
+The public multi-backend construction boundary is `Engine.Builder` with concrete CPU and Metal
+`takeOwnership(...)` overloads. Engine owns the builder, ordered private registry, backend
+adapters, compile-time provider/availability inventory, cold Prepare routing, direct selected-
+adapter references in outward prepared/result handles, construction rollback, and outer close
+order. It rejects duplicate backend IDs and mixed-owner preparation before backend analysis. The
+registry is neither visible to inward modules nor consulted by Runtime; Engine uses the captured
+adapter for caller-storage ingress and host materialization outside Runtime.
 
 Engine does not own kernels, backend internals, native backend configuration, graph optimization
 passes, a runtime service locator, reflective plugin discovery, or a process-global registry.
 Concrete backends never depend on Engine.
 
-The current fixed standard factory is explicit composition, not generic registration or
-discovery. The builder and Metal integration named above are architecture-selected but not yet
-implemented; neither current Engine surface combines multiple backend owners. The first planned
-vertical slice can prepare a non-empty complete plan only when all partitions share one registered
-owner. Mixed-owner schedule assembly remains blocked on a separate cross-owner transfer contract.
+The fixed standard factory and public builder are explicit composition, not generic registration
+or discovery. The first implemented builder slice prepares a non-empty complete plan only when all
+partitions share one registered owner. Mixed-owner schedule assembly remains blocked on a separate
+cross-owner transfer contract.
 
 The builder does not generalize current CPU model autotuning. `prepareTuned(...)` accepts only a
 single CPU-owned plan, and its allowed fallback stays with that CPU owner. A Metal-owned plan

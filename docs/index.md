@@ -14,14 +14,16 @@ contract.
 - [Current architecture documentation index](architecture/current-architecture-plan.md)
 - [Implementation plans](planning/README.md)
 
-The current implementation includes a runnable CPU-only lifecycle through `Engine.standard()`:
-Tensor expressions can be compiled, prepared once, run repeatedly with isolated invocation state,
-and materialized as detached host values. One-shot forward computation and a bounded
-scalar-objective backward convenience are also current. Metal has bounded MPSGraph and custom
-execution routes for supported static `FLOAT32` negation partitions; broader Metal coverage,
-standard or mixed-owner Metal composition, CUDA, training orchestration, persistence, and generic
-graph/plan tuning remain planned. Each focused page distinguishes current contracts from those
-future capabilities.
+The current implementation includes a runnable public lifecycle. `Engine.standard()` supplies
+fixed CPU ownership, while `Engine.builder()` explicitly owns opened CPU and/or Metal integrations
+and executes each complete plan through one registered owner. Tensor expressions can be compiled,
+prepared once, run repeatedly with isolated invocation state, and materialized as detached host
+values. One-shot forward computation and a bounded scalar-objective backward convenience are also
+current. Metal executes supported static `FLOAT32` negation partitions through MPSGraph or a
+custom singleton route. A standard-Metal convenience, mixed-owner execution, generic plugin
+registration/discovery, broader Metal coverage, CUDA, training orchestration, persistence, and
+generic graph/plan tuning remain planned. Each focused page distinguishes current contracts from
+those future capabilities.
 
 ## Contributor guides
 

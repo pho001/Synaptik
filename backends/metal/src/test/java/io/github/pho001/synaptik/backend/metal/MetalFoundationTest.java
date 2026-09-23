@@ -1,4 +1,4 @@
-package io.github.pho001.synaptik.backend.metal.internal;
+package io.github.pho001.synaptik.backend.metal;
 
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -264,6 +264,145 @@ class MetalFoundationTest {
         assertArrayEquals(new Throwable[] {cleanup}, actual.getSuppressed());
         assertEquals(1, api.closeCalls.get());
         assertEquals(0, api.contextReleaseCalls.get());
+    }
+
+    @Test
+    void nativeOwnerPublicationRollbackIsReverseAttemptAllAndAvoidsSelfSuppression() {
+        RuntimeException contextPrimary = new RuntimeException("context publish");
+        RuntimeException contextLookupCleanup = new RuntimeException("context lookup cleanup");
+        FakeNativeApi contextApi = new FakeNativeApi();
+        contextApi.contextReleaseFailure = contextPrimary;
+        contextApi.closeFailure = contextLookupCleanup;
+        RuntimeException observedContext = assertThrows(RuntimeException.class,
+                () -> MetalDeviceContext.open(
+                        contextApi,
+                        MetalDeviceContext.ResourcePublisher.DEFAULT,
+                        (api, handle, resources) -> {
+                            throw contextPrimary;
+                        }));
+        assertSame(contextPrimary, observedContext);
+        assertArrayEquals(
+                new Throwable[] {contextLookupCleanup}, observedContext.getSuppressed());
+        assertEquals(List.of("context", "api"), contextApi.cleanupOrder);
+        assertEquals(1, contextApi.contextReleaseCalls.get());
+        assertEquals(1, contextApi.closeCalls.get());
+
+        RuntimeException runtimePrimary = new RuntimeException("runtime publish");
+        RuntimeException runtimeLookupCleanup = new RuntimeException("runtime lookup cleanup");
+        FakeNativeApi runtimeApi = new FakeNativeApi();
+        MetalDeviceContext runtimeContext = MetalDeviceContext.open(runtimeApi);
+        runtimeApi.contextReleaseFailure = runtimePrimary;
+        runtimeApi.closeFailure = runtimeLookupCleanup;
+        RuntimeException observedRuntime = assertThrows(RuntimeException.class,
+                () -> MetalBackendRuntime.takeOwnership(runtimeContext, context -> {
+                    throw runtimePrimary;
+                }));
+        assertSame(runtimePrimary, observedRuntime);
+        assertArrayEquals(
+                new Throwable[] {runtimeLookupCleanup}, observedRuntime.getSuppressed());
+        assertEquals(List.of("context", "api"), runtimeApi.cleanupOrder);
+        assertEquals(1, runtimeApi.contextReleaseCalls.get());
+        assertEquals(1, runtimeApi.closeCalls.get());
+
+        RuntimeException integrationPrimary = new RuntimeException("integration publish");
+        RuntimeException integrationLookupCleanup =
+                new RuntimeException("integration lookup cleanup");
+        FakeNativeApi integrationApi = new FakeNativeApi();
+        MetalDeviceContext integrationContext = MetalDeviceContext.open(integrationApi);
+        MetalBackendRuntime runtime = new MetalBackendRuntime(integrationContext);
+        integrationApi.contextReleaseFailure = integrationPrimary;
+        integrationApi.closeFailure = integrationLookupCleanup;
+        MetalBackendConfiguration configuration = new MetalBackendConfiguration(
+                Path.of("").toAbsolutePath().resolve("bridge.dylib"));
+        RuntimeException observedIntegration = assertThrows(RuntimeException.class,
+                () -> MetalBackendIntegration.open(
+                        configuration,
+                        ignored -> runtime,
+                        (snapshot, acquired) -> {
+                            throw integrationPrimary;
+                        }));
+        assertSame(integrationPrimary, observedIntegration);
+        assertArrayEquals(
+                new Throwable[] {integrationLookupCleanup},
+                observedIntegration.getSuppressed());
+        assertEquals(List.of("context", "api"), integrationApi.cleanupOrder);
+        assertEquals(1, integrationApi.contextReleaseCalls.get());
+        assertEquals(1, integrationApi.closeCalls.get());
+    }
+
+    @Test
+    void bufferBorrowAndWorkspacePublicationRollbackReleaseEveryNativeHandleOnce() {
+        RuntimeException bufferPrimary = new RuntimeException("buffer publish");
+        RuntimeException bufferCleanup = new RuntimeException("buffer cleanup");
+        FakeNativeApi bufferApi = new FakeNativeApi();
+        bufferApi.bufferReleaseFailure = bufferCleanup;
+        MetalDeviceContext bufferContext = MetalDeviceContext.open(
+                bufferApi, failingResources(bufferPrimary), MetalDeviceContext::new);
+        RuntimeException observedBuffer = assertThrows(
+                RuntimeException.class, () -> bufferContext.createBuffer(4));
+        assertSame(bufferPrimary, observedBuffer);
+        assertArrayEquals(new Throwable[] {bufferCleanup}, observedBuffer.getSuppressed());
+        bufferContext.close();
+        assertEquals(List.of("buffer", "context", "api"), bufferApi.cleanupOrder);
+        assertEquals(1, bufferApi.bufferReleaseCalls.get());
+        assertEquals(1, bufferApi.contextReleaseCalls.get());
+        assertEquals(1, bufferApi.closeCalls.get());
+
+        RuntimeException borrowPrimary = new RuntimeException("borrow publish");
+        FakeNativeApi borrowApi = new FakeNativeApi();
+        borrowApi.bufferReleaseFailure = borrowPrimary;
+        MetalDeviceContext borrowContext = MetalDeviceContext.open(
+                borrowApi, failingResources(borrowPrimary), MetalDeviceContext::new);
+        RuntimeException observedBorrow = assertThrows(RuntimeException.class,
+                () -> borrowContext.createBorrowedBuffer(4, new Object()));
+        assertSame(borrowPrimary, observedBorrow);
+        assertArrayEquals(new Throwable[0], observedBorrow.getSuppressed());
+        borrowContext.close();
+        assertEquals(List.of("buffer", "context", "api"), borrowApi.cleanupOrder);
+        assertEquals(1, borrowApi.bufferReleaseCalls.get());
+        assertEquals(1, borrowApi.contextReleaseCalls.get());
+        assertEquals(1, borrowApi.closeCalls.get());
+
+        RuntimeException workspacePrimary = new RuntimeException("workspace publish");
+        RuntimeException workspaceCleanup = new RuntimeException("workspace cleanup");
+        FakeNativeApi workspaceApi = new FakeNativeApi();
+        workspaceApi.bufferReleaseFailure = workspaceCleanup;
+        MetalDeviceContext workspaceContext = MetalDeviceContext.open(
+                workspaceApi, failingResources(workspacePrimary), MetalDeviceContext::new);
+        RuntimeException observedWorkspace = assertThrows(
+                RuntimeException.class, () -> workspaceContext.createWorkspace(4));
+        assertSame(workspacePrimary, observedWorkspace);
+        assertArrayEquals(
+                new Throwable[] {workspaceCleanup}, observedWorkspace.getSuppressed());
+        workspaceContext.close();
+        assertEquals(List.of("buffer", "context", "api"), workspaceApi.cleanupOrder);
+        assertEquals(1, workspaceApi.bufferReleaseCalls.get());
+        assertEquals(1, workspaceApi.contextReleaseCalls.get());
+        assertEquals(1, workspaceApi.closeCalls.get());
+    }
+
+    private static MetalDeviceContext.ResourcePublisher failingResources(
+            RuntimeException failure) {
+        return new MetalDeviceContext.ResourcePublisher() {
+            @Override
+            public MetalBufferRepresentation publishBuffer(
+                    MetalDeviceContext context,
+                    MetalNativeApi api,
+                    MetalNativeApi.Handle handle,
+                    long logicalByteSize,
+                    Object retainedBorrow) {
+                throw failure;
+            }
+
+            @Override
+            public MetalWorkspaceRepresentation publishWorkspace(
+                    MetalDeviceContext context,
+                    MetalNativeApi api,
+                    MetalNativeApi.Handle handle,
+                    long logicalByteSize) {
+                throw failure;
+            }
+        };
     }
 
     @Test
@@ -578,6 +717,8 @@ class MetalFoundationTest {
         private final AtomicInteger uploadCalls = new AtomicInteger();
         private final AtomicInteger downloadCalls = new AtomicInteger();
         private final AtomicInteger closeCalls = new AtomicInteger();
+        private final List<String> cleanupOrder =
+                Collections.synchronizedList(new ArrayList<>());
         private final AtomicInteger executableCreateCalls = new AtomicInteger();
         private CountDownLatch uploadEntered = new CountDownLatch(1);
         private final CountDownLatch continueUpload = new CountDownLatch(1);
@@ -597,6 +738,7 @@ class MetalFoundationTest {
 
         @Override
         void releaseContext(Handle context) {
+            cleanupOrder.add("context");
             contextReleaseCalls.incrementAndGet();
             if (contextReleaseFailure != null) {
                 throw contextReleaseFailure;
@@ -617,6 +759,7 @@ class MetalFoundationTest {
 
         @Override
         synchronized void releaseBuffer(Handle buffer) {
+            cleanupOrder.add("buffer");
             bufferReleaseCalls.incrementAndGet();
             buffers.remove(buffer.carrier().address());
             if (bufferReleaseFailure != null) {
@@ -703,6 +846,7 @@ class MetalFoundationTest {
 
         @Override
         public void close() {
+            cleanupOrder.add("api");
             closeCalls.incrementAndGet();
             if (closeFailure != null) {
                 throw closeFailure;

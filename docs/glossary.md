@@ -84,10 +84,11 @@ exact shared buffer/workspace needs. Slot assignment, finalization, prepared-exe
 construction, the minimal `PreparedPartition` association, complete graph preparation, explicit
 schedule assembly, and schedule validation are current Prepare contracts. Executable,
 buffer-transfer, and publication scheduling plus shared runner execution are current Runtime
-contracts. The first advanced CPU-only Engine composition and production operation route are now
-current at the representation level. General physical-resource composition, mixed-backend
-routing, and public output-value access remain planned. The Runtime executable contract itself is
-current; a current Prepare finalizer constructs a backend subclass against assigned slots.
+contracts. Advanced CPU representation-level composition and ordinary single-owner CPU/Metal
+composition are current. Public detached output materialization is current through the selected
+adapter; general mixed-owner physical-resource composition and routing remain planned. The Runtime
+executable contract itself is current; a current Prepare finalizer constructs a backend subclass
+against assigned slots.
 
 The exact arithmetic scan contains seven semantic rules: duplicate-input binary `MIN` and `MAX`;
 scalar `MUL` by exact typed positive one for all five numeric types; scalar `DIV` and `POW` by exact
@@ -1033,15 +1034,14 @@ this ownership domain but does not implement the backend role.
 
 The Engine-owned construction-time association between explicitly supplied backend integrations,
 their equal [`BackendId`](#backend-identity--backendid) values, stable capability providers, and
-point-in-time availability snapshots. The selected public design uses an ordered private
+point-in-time availability snapshots. The public implementation uses an ordered private
 `Engine.Builder` registry: ownership transfers through concrete CPU and Metal overloads,
 duplicate identities fail, and compile-time Planning receives the frozen provider/snapshot order.
-The builder and Metal integration are architecture-selected but not yet implemented.
 
 Composition is not backend discovery, a public or global registry, a Runtime service locator, or
-a fallback chain. Its first planned preparation slice admits only one distinct registered owner
-for a non-empty complete plan; mixed ownership remains blocked until cross-owner representation
-and transfer semantics are defined.
+a fallback chain. The current preparation slice admits only one distinct registered owner for a
+non-empty complete plan; mixed ownership remains blocked until cross-owner representation and
+transfer semantics are defined.
 
 ### Backend availability snapshot / `BackendAvailabilitySnapshot`
 
@@ -2398,7 +2398,8 @@ for the synchronous copy. The operation neither selects a publication nor perfor
 conversion, synchronization, Tensor construction, or cross-backend materialization. Completed
 Engine task 0004 composes that inward SPI behind
 `RunResult.materialize(publication, maximumBytes)` and wraps each fresh copy in an immutable
-`HostTensorValue`; this remains CPU-only rather than a cross-backend promise. See
+`HostTensorValue`. Explicit Metal composition supplies its own canonical `FLOAT32` download; this
+is selected-adapter materialization, not a cross-backend transfer promise. See
 [canonical caller-owned host snapshots](backend-guide/cpu-backend.md#canonical-caller-owned-host-snapshots).
 
 ### Canonical workload signature
@@ -2538,10 +2539,10 @@ The current package-private compiler implements the lifecycle through a validate
 combined one/two-stage functional-derivative graph followed by publication roles, per-node owner
 selection, maximal partitions, logical memory, constants, diagnostics, derivative-order metadata,
 and immutable `CompileArtifacts`. Public `GraphCompilationPort` exposes that complete constant-free
-pipeline as a narrow module-integration boundary. Current public Engine composes compilation,
-preparation, and execution through fixed ordinary and advanced CPU-only lifecycles; the ordinary
-lifecycle also delivers publications. Those later lifecycle responsibilities do not belong to
-Compiler or this port.
+pipeline as a narrow module-integration boundary. Current ordinary Engine composes compilation,
+single-owner CPU/Metal preparation, execution, and publications; `Engine.standard()` is the fixed
+CPU convenience. Advanced Engine remains the CPU representation-level lifecycle. Those later
+lifecycle responsibilities do not belong to Compiler or this port.
 
 ### Compile artifacts
 
@@ -5063,9 +5064,9 @@ custom runs retain direct typed input and output references with no workspace.
 
 Hot execution makes one route-specific synchronous native downcall. The custom route submits one
 command buffer and compute encoder, waits once, and writes the assigned `MTLBuffer` output without
-an explicit host-staging or intermediate-copy step. The term does not imply public Metal Engine
-composition, a mixed-owner schedule, backend-global executable cache, per-run compilation,
-universal custom kernels, or that MPSGraph uses no internal temporary storage.
+an explicit host-staging or intermediate-copy step. The term does not imply a mixed-owner
+schedule, backend-global executable cache, per-run compilation, universal custom kernels, or that
+MPSGraph uses no internal temporary storage.
 
 ### Prepared executable / `PreparedExecutable`
 
@@ -5412,9 +5413,9 @@ forward-then-gradient list of logical [publication occurrences](#publication-occ
 the Engine-created non-owning input wrappers. Closing it releases the Runtime lease and those
 wrappers but never caller storage. Engine closure closes still-open results. Its count,
 publication list, and immutable occurrence metadata remain readable after closure. While both it
-and its Engine are open, `materialize` copies one exact occurrence through the current CPU-only
-composition into a detached `HostTensorValue`; no storage, representation, Tensor, or inward state
-is exposed, and a completed value outlives both owners.
+and its Engine are open, `materialize` copies one exact occurrence through the CPU or Metal adapter
+captured during single-owner preparation into a detached `HostTensorValue`; no storage,
+representation, Tensor, or inward state is exposed, and a completed value outlives both owners.
 
 ### Host tensor value / `HostTensorValue`
 
@@ -5446,12 +5447,13 @@ handle or open result lease. It does not mean cached, eager Tensor execution, as
 backward execution, tuning, or cross-backend transfer. The no-limit overloads use
 `Long.MAX_VALUE`; checked arithmetic, per-value array ceilings, and inward limits remain. Selected
 leaf storage remains caller-owned through synchronous completion, and no Tensor/provenance state
-or cache survives the call. Current support
-is the same CPU-only, fully static, resolved-layout, one-non-empty-partition domain as the ordinary
-Engine lifecycle. The aggregate limit covers returned canonical payload lengths only. Use the
-explicit `compile -> prepare -> run(prepared, explicit inputs) -> materialize` lifecycle for repeated runs or selective
-publication copying. See [Public API](api/public-api.md#current-ordinary-and-advanced-cpu-lifecycle)
-and [Runtime API](api/runtime-api.md#current-ordinary-engine-boundary).
+or cache survives the call. Current support requires one registered backend to own the complete
+non-empty, fully static, resolved-layout plan. The aggregate limit covers returned canonical
+payload lengths only. Use the explicit
+`compile -> prepare -> run(prepared, explicit inputs) -> materialize` lifecycle for repeated runs
+or selective publication copying. See
+[Public API](api/public-api.md#current-ordinary-explicit-composition-and-advanced-lifecycle) and
+[Runtime API](api/runtime-api.md#current-ordinary-engine-boundary).
 
 ### One-shot scalar-objective backward execution
 
@@ -5472,10 +5474,10 @@ resource and remains readable after Engine and caller storage close.
 This term does not mean Tensor mutation, an eager tape, inferred inputs or targets, a reusable
 prepared execution, gradient accumulation, an optimizer step, a training session, or checkpoint
 state. Explicit seeds, multiple outputs, `ZERO`, higher-order/full policies, selective copying,
-and reuse stay on the existing lower-level ordinary or advanced APIs. Current execution is
-CPU-only and requires a supported non-empty static/resolved composition; pure zero-node and mixed
+and reuse stay on the existing lower-level ordinary or advanced APIs. Current execution requires a
+supported non-empty single-owner static/resolved composition; pure zero-node and mixed
 compositions remain unsupported. See
-[Public API](api/public-api.md#current-ordinary-and-advanced-cpu-lifecycle) and
+[Public API](api/public-api.md#current-ordinary-explicit-composition-and-advanced-lifecycle) and
 [Compile API](api/compile-api.md#current-ordinary-and-advanced-engine-compile-boundaries).
 
 ### Run state / `RunState`

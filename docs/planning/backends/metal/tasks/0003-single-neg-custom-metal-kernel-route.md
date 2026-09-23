@@ -56,8 +56,10 @@ owner of complete typed route candidates, target/cache compatibility, and tuning
 - `PreparedExecution` and shared Prepare already provide the required identity-unique persistent
   resource ownership, transactional finalization handoff, reverse cleanup, suppression rules,
   close/run leases, and concurrent-run isolation.
-- The public Metal surface remains only `MetalCapabilityProvider`; current public Engine
-  composition remains CPU-only.
+- At task 0003's completion frontier, the public Metal surface was only
+  `MetalCapabilityProvider`, and public Engine composition was CPU-only. Engine task 0015 later
+  added public Metal configuration/integration plus explicit single-owner Metal Engine execution;
+  it did not change this task's route, capability, or mixed-owner exclusions.
 
 The audit therefore selects an in-place extension of the existing NEG-specific owners. It does
 not rename or split the preparer, finalizer, prepared executable, or schedule assembler, and it
@@ -603,8 +605,9 @@ planning rather than widening it silently.
 - Source and compiled-shape inspection confirms the MSL oracle, one compile site, typed handle
   separation, route-specific bound invocations, exact one-downcall custom hot path, and absence
   of a generic route framework or new public Metal type.
-- Public Engine composition remains CPU-only; no Engine, mixed-owner, CPU fallback, public
-  storage, or standard-compute claim appears in code or documentation.
+- At task 0003's completion frontier, public Engine composition was CPU-only; this task's
+  acceptance scope permitted no Engine, mixed-owner, CPU fallback, public storage, or
+  standard-compute claim in code or documentation.
 - The Metal guide and native README clearly distinguish the custom singleton route from the
   retained whole-partition MPSGraph route, describe ABI version `3`, and make no performance
   superiority claim.
@@ -682,10 +685,10 @@ unsandboxed device access and record both outcomes. If custom pipeline compilati
 dispatch, assigned output, or exact NEG semantics cannot be proved, keep task 0003 incomplete and
 return it to planning; do not change capability or silently use MPSGraph for the exact case.
 
-No backend-conformance test is rerun solely for this task because the provider and partitioning
-behavior do not change. No integration test applies because supported Engine composition remains
-CPU-only. No architecture test applies because no dependency/build/module boundary changes. If
-any such path becomes necessary, stop and replan before editing it.
+No backend-conformance test was rerun solely for this task because the provider and partitioning
+behavior did not change. Under the completion-time CPU-only Engine frontier, no integration test
+applied. No architecture test applied because no dependency/build/module boundary changed. If
+any such path had become necessary, the task required replanning before editing it.
 
 Inspect source and compiled Java shape:
 
@@ -697,8 +700,9 @@ javap -classpath backends/metal/build/classes/java/main -c -p \
 
 Manually confirm the exact MSL source, branch/guard decision, one pipeline compile site, direct
 buffer indices `0` and `1`, one dispatch, one completion wait, one custom Java downcall, no hot
-route branch/allocation/marshalling, no cross-family handle use, no public Metal type, and no
-Engine import. Recurring semantic and lifecycle invariants belong in automated tests; this manual
+route branch/allocation/marshalling, no cross-family handle use, no public Metal type added by
+task 0003, and no Engine import. Recurring semantic and lifecycle invariants belong in automated
+tests; this manual
 inspection addresses generated/native/hot-path shape that ordinary assertions cannot fully prove.
 
 Documentation-focused pass, after Javadocs and explanatory text stabilize:
@@ -848,8 +852,9 @@ Stop and return the task to planning if:
   bandwidth, occupancy, or energy claim.
 - Execution remains synchronous and may serialize native use through the persistent resource.
   No asynchronous or concurrent-overlap guarantee is made.
-- Current standard Engine composition remains CPU-only; the route is proved through the existing
-  backend-local typed preparation/runtime integration.
+- At task 0003's completion frontier, the ordinary Engine lifecycle was CPU-only; this task proved
+  the route through backend-local typed preparation/runtime integration. Engine task 0015 later
+  added explicit single-owner Metal execution while leaving `Engine.standard()` CPU-only.
 - MSL is compiled from fixed source during each preparation finalization. There is no metallib,
   pipeline cache, binary archive, serialization, package, discovery, or tuning integration.
 - All task-0002 type/Shape/layout/public-composition and platform limitations remain.
@@ -964,8 +969,9 @@ No-change conclusions:
 - `ARCHITECTURE.md`, focused architecture explanations, and ADRs remain accurate because route
   choice, lowering, and persistent ownership stay inside the existing Metal Prepare boundary.
 - Capability, backend conformance, integration, public Engine, shared modules, Gradle, build
-  structure, and native build script require no change. The provider and public API do not expand,
-  and standard Engine composition remains CPU-only.
+  structure, and native build script required no change for task 0003. Its provider and public API
+  did not expand, and the Engine composition available at that completion frontier was CPU-only.
+  Engine task 0015 later superseded that public-composition status.
 - The glossary required a targeted change because its physical-representation and MPSGraph-only
   prepared-executable text was stale; no new cross-project abstraction or public term was added.
 - Existing Javadocs that were not changed remain accurate after review. The affected route, ABI,

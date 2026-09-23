@@ -1,4 +1,4 @@
-package io.github.pho001.synaptik.backend.metal.internal;
+package io.github.pho001.synaptik.backend.metal;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
@@ -13,7 +13,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider;
 import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
 import io.github.pho001.synaptik.backend.contract.BackendDeviceId;
 import io.github.pho001.synaptik.backend.contract.DeviceClass;
@@ -359,6 +358,7 @@ class MetalNegPreparedExecutionTest {
                 new MetalNegPartitionFinalizer.FinalizedExecutableFactory() {
                     @Override
                     public MetalNegPreparedExecutable createMpsGraph(
+                            MetalNegPreparationPlan plan,
                             PreparedMemoryPlan memoryPlan,
                             int[] feeds,
                             int[] targets,
@@ -371,6 +371,7 @@ class MetalNegPreparedExecutionTest {
 
                     @Override
                     public MetalNegPreparedExecutable createCustom(
+                            MetalNegPreparationPlan plan,
                             PreparedMemoryPlan memoryPlan,
                             int feed,
                             int target,
@@ -888,7 +889,7 @@ class MetalNegPreparedExecutionTest {
         RuntimeException primary = new RuntimeException("recipe construction");
         api.releaseStatus = 7;
         var finalizer = new MetalNegPartitionFinalizer(context,
-                (memoryPlan, feeds, targets, resource, feedBytes, targetBytes, workspace) -> {
+                (plan, memoryPlan, feeds, targets, resource, feedBytes, targetBytes, workspace) -> {
                     throw primary;
                 });
         try {

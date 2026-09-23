@@ -1,4 +1,4 @@
-package io.github.pho001.synaptik.backend.metal.internal;
+package io.github.pho001.synaptik.backend.metal;
 
 import io.github.pho001.synaptik.prepare.analysis.BackendTuningDecision;
 import java.util.Objects;

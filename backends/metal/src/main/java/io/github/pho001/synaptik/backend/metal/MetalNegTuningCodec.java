@@ -1,4 +1,4 @@
-package io.github.pho001.synaptik.backend.metal.internal;
+package io.github.pho001.synaptik.backend.metal;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

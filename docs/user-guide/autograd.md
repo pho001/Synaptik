@@ -69,8 +69,8 @@ second-stage or disconnected-zero policy.
 
 The result is an owner-bound reusable compile handle, not computed gradient bytes. Prepare and
 run it through the ordinary Engine lifecycle, then inspect its forward and gradient publication
-occurrences. A successful compile does not by itself promise that the current CPU-only
-composition can prepare or execute every accepted graph.
+occurrences. A successful compile does not by itself promise that one registered owner can prepare
+or execute every accepted graph.
 
 ## Build a bounded functional request
 
@@ -187,6 +187,6 @@ numerical or backend coverage from formula construction alone.
 - [Compile API and functional-gradient examples](../api/compile-api.md#functional-gradient-examples)
 - [Compiler-owned automatic differentiation contract](../architecture/contracts/compiler-autograd.md#compiler-owned-automatic-differentiation)
 - [Training graph explanation](../architecture/training-graph.md)
-- [Public API lifecycle](../api/public-api.md#current-ordinary-and-advanced-cpu-lifecycle)
+- [Public API lifecycle](../api/public-api.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
 - [Tensor API](../api/tensor-api.md)
 - [Training API status](../api/training-api.md)

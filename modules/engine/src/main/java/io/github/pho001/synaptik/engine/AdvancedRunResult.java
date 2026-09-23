@@ -19,6 +19,7 @@ public final class AdvancedRunResult implements AutoCloseable {
     private final AdvancedEngine owner;
     private final RunResult delegate;
     private final List<BufferRepresentation> ownedBorrowedInputs;
+    private final EngineBackendComposition adapter;
     private final int resultCount;
     private boolean closed;
     private boolean cleanupComplete;
@@ -32,7 +33,7 @@ public final class AdvancedRunResult implements AutoCloseable {
      * @throws NullPointerException if either argument is null
      */
     AdvancedRunResult(AdvancedEngine owner, RunResult delegate) {
-        this(owner, delegate, List.of());
+        this(owner, delegate, List.of(), null);
     }
 
     /**
@@ -48,6 +49,24 @@ public final class AdvancedRunResult implements AutoCloseable {
             AdvancedEngine owner,
             RunResult delegate,
             List<BufferRepresentation> ownedBorrowedInputs) {
+        this(owner, delegate, ownedBorrowedInputs,
+                Objects.requireNonNull(owner, "owner").soleAdapterForHandle());
+    }
+
+    /**
+     * Creates one ordinary result owner with its direct selected adapter.
+     *
+     * @param owner non-null lifecycle owner
+     * @param delegate non-null Runtime result whose ownership transfers
+     * @param ownedBorrowedInputs non-null borrow-order wrapper snapshot
+     * @param adapter non-null direct selected adapter retained for materialization
+     * @throws NullPointerException if a required argument or wrapper is {@code null}
+     */
+    AdvancedRunResult(
+            AdvancedEngine owner,
+            RunResult delegate,
+            List<BufferRepresentation> ownedBorrowedInputs,
+            EngineBackendComposition adapter) {
         this.owner = Objects.requireNonNull(owner, "owner");
         this.delegate = Objects.requireNonNull(delegate, "delegate");
         Objects.requireNonNull(ownedBorrowedInputs, "ownedBorrowedInputs");
@@ -56,6 +75,7 @@ public final class AdvancedRunResult implements AutoCloseable {
                     ownedBorrowedInputs.get(index), "ownedBorrowedInputs[" + index + "]");
         }
         this.ownedBorrowedInputs = List.copyOf(ownedBorrowedInputs);
+        this.adapter = adapter;
         resultCount = delegate.resultCount();
     }
 
@@ -90,28 +110,31 @@ public final class AdvancedRunResult implements AutoCloseable {
     /**
      * Materializes one ordinary occurrence while holding this result's lifecycle monitor.
      * Result closure is checked before the selector or limit, and the monitor remains held through
-     * validation, representation borrowing, physical copy, and detached-value construction.
+     * validation, representation borrowing, physical copy, and detached-value construction. The
+     * direct selected adapter captured at preparation is retained by this result owner.
      *
      * @param result non-null ordinary result backed by this owner
      * @param publication possibly null publication selector validated by the ordinary result only
      *     after Engine and result lifecycle admission
      * @param maximumBytes caller byte limit validated by the ordinary result after selector
      *     authentication
-     * @param composition non-null owned composition used for the physical copy
      * @return a fresh detached host value
      * @throws IllegalStateException if result closure has begun
-     * @throws RuntimeException if outward validation or Runtime/CPU copying fails
+     * @throws RuntimeException if outward validation or Runtime/backend copying fails
      * @throws Error if copying reports a fatal failure
      */
     synchronized HostTensorValue materializeUnderAdmission(
             io.github.pho001.synaptik.engine.RunResult result,
             io.github.pho001.synaptik.engine.RunResult.Publication publication,
-            long maximumBytes,
-            EngineBackendComposition composition) {
+            long maximumBytes) {
         if (closed) {
             throw new IllegalStateException("run result is closed");
         }
-        return result.materializeOpen(publication, maximumBytes, delegate, composition);
+        return result.materializeOpen(
+                publication,
+                maximumBytes,
+                delegate,
+                Objects.requireNonNull(adapter, "ordinary result adapter"));
     }
 
     /**

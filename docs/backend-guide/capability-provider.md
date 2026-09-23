@@ -6,14 +6,15 @@ This guide explains the current backend-neutral contract through which a concret
 report whether it can semantically own one operation occurrence. `OperationCapabilityQuery` and
 `BackendCapabilityProvider` are current public planning contracts. The shared backend identities,
 supplied availability snapshot, hard-requirement vocabulary, and `BackendIntent` optionality are
-also current. The CPU backend ships the public `CpuCapabilityProvider`. Current ordinary and
-advanced Engine compile workflows explicitly supply that provider through the fixed CPU
-composition to the public cross-module `GraphCompilationPort` service-provider interface (SPI).
+also current. CPU and Metal ship public capability providers. `Engine.standard()` supplies the CPU
+provider, while `Engine.builder()` freezes the providers and availability snapshots from
+explicitly registered CPU and/or Metal integrations. Ordinary Engine compilation passes that
+inventory to the public cross-module `GraphCompilationPort` service-provider interface (SPI).
 The port delegates to package-private `GraphCompiler`, which creates one query for every final
 graph node and calls public `BackendOwnerPlanning.selectOwner(...)`. That Planning collaboration
 composes internal per-query hard eligibility and baseline owner comparison without exposing their
 intermediate. Reusable/public capability matrices, a public graph-wide Planning workflow, numeric
-cost scoring, generic provider registration, and multi-backend Engine composition remain planned.
+cost scoring, generic plugin registration, and mixed-owner Engine execution remain planned.
 
 A capability is a declarative answer to “can this backend own this work?” It is not a live
 executable, a kernel registry, or a route selection.

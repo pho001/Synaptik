@@ -1,4 +1,4 @@
-package io.github.pho001.synaptik.backend.metal.internal;
+package io.github.pho001.synaptik.backend.metal;
 
 import java.nio.file.Path;
 import java.util.Objects;
@@ -17,13 +17,19 @@ final class MetalDeviceContext implements AutoCloseable {
     private final MetalNativeApi api;
     private final MetalNativeApi.Handle handle;
     private final SessionNonce sessionNonce;
+    private final ResourcePublisher resourcePublisher;
     private boolean closed;
     private boolean nativeReleased;
     private int childLeases;
 
-    private MetalDeviceContext(MetalNativeApi api, MetalNativeApi.Handle handle) {
-        this.api = api;
-        this.handle = handle;
+    MetalDeviceContext(
+            MetalNativeApi api,
+            MetalNativeApi.Handle handle,
+            ResourcePublisher resourcePublisher) {
+        this.api = Objects.requireNonNull(api, "api");
+        this.handle = Objects.requireNonNull(handle, "handle");
+        this.resourcePublisher = Objects.requireNonNull(
+                resourcePublisher, "resourcePublisher");
         UUID nonce = UUID.randomUUID();
         this.sessionNonce = new SessionNonce(
                 nonce.getMostSignificantBits(), nonce.getLeastSignificantBits());
@@ -74,12 +80,28 @@ final class MetalDeviceContext implements AutoCloseable {
      * @throws Error if creation or cleanup reports an error
      */
     static MetalDeviceContext open(MetalNativeApi api) {
+        return open(api, ResourcePublisher.DEFAULT, MetalDeviceContext::new);
+    }
+
+    static MetalDeviceContext open(
+            MetalNativeApi api,
+            ResourcePublisher resourcePublisher,
+            ContextPublisher contextPublisher) {
         Objects.requireNonNull(api, "api");
+        Objects.requireNonNull(resourcePublisher, "resourcePublisher");
+        Objects.requireNonNull(contextPublisher, "contextPublisher");
+        MetalNativeApi.Handle context = null;
         try {
-            MetalNativeApi.Handle context = Objects.requireNonNull(
+            context = Objects.requireNonNull(
                     api.createContext(), "native context handle");
-            return new MetalDeviceContext(api, context);
+            return Objects.requireNonNull(
+                    contextPublisher.publish(api, context, resourcePublisher),
+                    "Metal device context");
         } catch (RuntimeException | Error failure) {
+            if (context != null) {
+                MetalNativeApi.Handle acquired = context;
+                suppressDistinct(failure, () -> api.releaseContext(acquired));
+            }
             suppressDistinct(failure, api::close);
             throw failure;
         }
@@ -100,7 +122,47 @@ final class MetalDeviceContext implements AutoCloseable {
         MetalNativeApi.Handle buffer = Objects.requireNonNull(
                 api.createBuffer(handle, logicalByteSize), "native buffer handle");
         childLeases++;
-        return new MetalBufferRepresentation(this, api, buffer, logicalByteSize);
+        try {
+            return Objects.requireNonNull(
+                    resourcePublisher.publishBuffer(
+                            this, api, buffer, logicalByteSize, null),
+                    "Metal buffer representation");
+        } catch (RuntimeException | Error failure) {
+            suppressDistinct(failure, () -> api.releaseBuffer(buffer));
+            suppressDistinct(failure, () -> releaseChild(failure));
+            throw failure;
+        }
+    }
+
+    /**
+     * Allocates one Metal input buffer while retaining a non-owning caller-storage borrow.
+     *
+     * @param logicalByteSize exact non-negative logical size in bytes
+     * @param retainedBorrow non-null caller-owned storage object retained but never closed
+     * @return a new open buffer representation; never {@code null}
+     * @throws NullPointerException if {@code retainedBorrow} is {@code null}
+     * @throws IllegalStateException if context close has begun
+     * @throws IllegalArgumentException if {@code logicalByteSize} is negative
+     * @throws RuntimeException if native allocation fails
+     */
+    synchronized MetalBufferRepresentation createBorrowedBuffer(
+            long logicalByteSize, Object retainedBorrow) {
+        requireOpen();
+        requireNonNegative(logicalByteSize);
+        Objects.requireNonNull(retainedBorrow, "retainedBorrow");
+        MetalNativeApi.Handle buffer = Objects.requireNonNull(
+                api.createBuffer(handle, logicalByteSize), "native buffer handle");
+        childLeases++;
+        try {
+            return Objects.requireNonNull(
+                    resourcePublisher.publishBuffer(
+                            this, api, buffer, logicalByteSize, retainedBorrow),
+                    "Metal borrowed-buffer representation");
+        } catch (RuntimeException | Error failure) {
+            suppressDistinct(failure, () -> api.releaseBuffer(buffer));
+            suppressDistinct(failure, () -> releaseChild(failure));
+            throw failure;
+        }
     }
 
     /**
@@ -118,7 +180,16 @@ final class MetalDeviceContext implements AutoCloseable {
         MetalNativeApi.Handle buffer = Objects.requireNonNull(
                 api.createBuffer(handle, logicalByteSize), "native workspace handle");
         childLeases++;
-        return new MetalWorkspaceRepresentation(this, api, buffer, logicalByteSize);
+        try {
+            return Objects.requireNonNull(
+                    resourcePublisher.publishWorkspace(
+                            this, api, buffer, logicalByteSize),
+                    "Metal workspace representation");
+        } catch (RuntimeException | Error failure) {
+            suppressDistinct(failure, () -> api.releaseBuffer(buffer));
+            suppressDistinct(failure, () -> releaseChild(failure));
+            throw failure;
+        }
     }
 
     /**
@@ -337,6 +408,55 @@ final class MetalDeviceContext implements AutoCloseable {
         if (logicalByteSize < 0L) {
             throw new IllegalArgumentException("logicalByteSize must be non-negative");
         }
+    }
+
+    @FunctionalInterface
+    interface ContextPublisher {
+        MetalDeviceContext publish(
+                MetalNativeApi api,
+                MetalNativeApi.Handle handle,
+                ResourcePublisher resourcePublisher);
+    }
+
+    interface ResourcePublisher {
+        ResourcePublisher DEFAULT = new ResourcePublisher() {
+            @Override
+            public MetalBufferRepresentation publishBuffer(
+                    MetalDeviceContext context,
+                    MetalNativeApi api,
+                    MetalNativeApi.Handle handle,
+                    long logicalByteSize,
+                    Object retainedBorrow) {
+                return retainedBorrow == null
+                        ? new MetalBufferRepresentation(
+                                context, api, handle, logicalByteSize)
+                        : new MetalBufferRepresentation(
+                                context, api, handle, logicalByteSize, retainedBorrow);
+            }
+
+            @Override
+            public MetalWorkspaceRepresentation publishWorkspace(
+                    MetalDeviceContext context,
+                    MetalNativeApi api,
+                    MetalNativeApi.Handle handle,
+                    long logicalByteSize) {
+                return new MetalWorkspaceRepresentation(
+                        context, api, handle, logicalByteSize);
+            }
+        };
+
+        MetalBufferRepresentation publishBuffer(
+                MetalDeviceContext context,
+                MetalNativeApi api,
+                MetalNativeApi.Handle handle,
+                long logicalByteSize,
+                Object retainedBorrow);
+
+        MetalWorkspaceRepresentation publishWorkspace(
+                MetalDeviceContext context,
+                MetalNativeApi api,
+                MetalNativeApi.Handle handle,
+                long logicalByteSize);
     }
 
     private static void suppressDistinct(Throwable primary, Runnable cleanup) {

@@ -34,8 +34,8 @@ The `RunResult` is a lease over completed Runtime publications. Its immutable oc
 ordered forward publications followed by gradient publications. Each occurrence authenticates
 its owning result and records logical identity, descriptor, role, index, and gradient metadata;
 it does not expose backend storage. `materialize(...)` accepts one exact occurrence from that
-result and copies its canonical CPU value. Repeated calls and inward aliases produce independent
-detached values.
+result and copies its canonical value through the adapter captured during preparation. Repeated
+calls and inward aliases produce independent detached values.
 
 ## Reuse and concurrency
 
@@ -64,10 +64,10 @@ close. Publication metadata remains readable after close, but further materializ
 
 ## Limitations
 
-Current public execution and materialization use the fixed CPU-only composition. There is no
-asynchronous run API, implicit transfer API, persistence format, generic device result, or
-mixed-backend execution. `HostTensorValue` is a detached canonical host payload, not a Tensor or a
-live backend representation.
+Current public execution and materialization use the exact CPU or Metal adapter selected during
+cold preparation. There is no asynchronous run API, implicit cross-owner transfer API, persistence
+format, generic device result, or mixed-backend execution. `HostTensorValue` is a detached
+canonical host payload, not a Tensor or a live backend representation.
 
 ## Related documentation
 

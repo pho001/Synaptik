@@ -6,10 +6,10 @@ Accepted — 2026-09-23
 
 ## Context
 
-Synaptik has an Engine-owned CPU composition and independently executable Metal Prepare/Runtime
-building blocks. The current public convenience `Engine.standard()` deliberately constructs one
-fresh CPU integration, while `AdvancedEngine.takeOwnership(...)` accepts one CPU integration.
-Neither surface can explicitly compose more than one available backend, and Metal has no public
+Before this decision, Synaptik had an Engine-owned CPU composition and independently executable
+Metal Prepare/Runtime building blocks. The public convenience `Engine.standard()` constructed one
+fresh CPU integration, while `AdvancedEngine.takeOwnership(...)` accepted one CPU integration.
+Neither surface could explicitly compose more than one available backend, and Metal had no public
 Engine lifecycle adapter.
 
 Adding composition without a complete contract would create several failure modes: duplicate
@@ -64,7 +64,7 @@ preparation. Runtime selection and fallback would violate the prepared-schedule 
 
 Synaptik selects the Engine builder with concrete ownership overloads.
 
-The planned public shape is:
+The current public shape is:
 
 ```java
 try (Engine.Builder builder = Engine.builder()) {
@@ -150,25 +150,26 @@ analysis prevents partial preparation-time resource acquisition and accidental f
 - Availability is intentionally stale for one Engine lifetime; callers rebuild to refresh it.
 - A registry containing CPU and Metal can still reject a graph at Prepare when Planning assigns
   more than one owner.
-- The first Metal Engine slice also needs Metal-owned host ingress, host materialization, complete
-  schedule contribution, and conformance evidence; capability alone is insufficient.
+- The current Metal Engine slice includes Metal-owned host ingress, host materialization, complete
+  schedule contribution, and conformance evidence; capability alone remains insufficient.
 - Metal's backend-local route candidates do not make public model autotuning generic;
   `prepareTuned(...)` remains CPU-only for this slice.
 - The existing CPU-only advanced surface is not made generic by this decision.
 
-### Migration, testing, and follow-up
+### Implementation evidence and follow-up
 
-The implementation must extend the public Engine API-shape test with `builder`, `Builder`, its two
-ownership overloads, `build`, and `close`; add lifecycle tests for entry-time transfer, duplicate
-IDs, snapshot timing, partial-construction rollback, reverse close, suppressed failures, and
-post-build builder closure; and update architecture tests for the intentional API-visible
-Engine-to-CPU/Metal edges while retaining the prohibition on every backend production dependency
-on Engine. Prepare/integration tests must prove one registered CPU owner and one registered Metal
-owner independently, direct selected-adapter ingress/materialization without a registry lookup,
-and pre-analysis rejection for missing, empty, and mixed owner sets. Tuning tests must cover a
-CPU-owned plan with Metal also registered, pre-trial Metal rejection, and CPU-only fallback.
-Hot-path validation must continue to prove that Runtime executes direct prepared references
-without registry or adapter lookup.
+Engine task 0015 implemented the public builder, its two ownership overloads, atomic build, and
+close lifecycle. API-shape and lifecycle tests cover entry-time transfer, duplicate IDs, snapshot
+timing, registration and construction rollback, reverse close, distinct suppression,
+self-suppression avoidance, and post-build builder closure. Architecture tests lock the
+intentional API-visible Engine-to-CPU/Metal edges while retaining the prohibition on every
+backend production dependency on Engine.
+
+Preparation and integration tests prove registered CPU and Metal owners independently, direct
+selected-adapter ingress/materialization without registry lookup, and pre-analysis rejection for
+missing, empty, and mixed owner sets. Tuning tests cover a CPU-owned plan with Metal also
+registered, pre-trial Metal rejection, and CPU-only fallback. Runtime continues to execute direct
+prepared references without registry or adapter lookup.
 
 A separate architecture decision is required before mixed-owner execution. It must define the
 transfer contract named above before any implementation relaxes the fail-closed gate.
@@ -179,6 +180,7 @@ transfer contract named above before any implementation relaxes the fail-closed 
 - [Authoritative Metal backend contract](../../architecture/contracts/backend-execution.md#metal-backend)
 - [Lifecycle explanation](../../architecture/lifecycle.md#explicit-backend-composition)
 - [Module boundaries](../../architecture/module-boundaries.md#modulesengine)
-- [Public API status](../../api/public-api.md#planned-explicit-backend-composition)
+- [Public API status](../../api/public-api.md#current-explicit-cpu-and-metal-composition)
 - [ADR 0006: No runtime service locator](0006-no-runtime-service-locator.md)
 - [Engine task 0014](../../planning/modules/engine/tasks/0014-explicit-backend-composition-architecture.md)
+- [Engine task 0015 implementation](../../planning/modules/engine/tasks/0015-cpu-metal-single-owner-composition.md)

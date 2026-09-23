@@ -101,7 +101,7 @@ final field-free `model.tensor.RecurrentScan` exposes exactly six static biased 
 `rnn`, `gru`, and `lstm` methods with explicit time-major `input` first. This amendment preserves
 the historical 0025E sequence rather than presenting the corrected placement as its original
 decision. The complete exact current signatures are recorded in the
-[architecture contract](../../../ARCHITECTURE.md#fixed-family-and-planned-model-surface).
+[architecture contract](../../architecture/contracts/recurrent-scan.md#fixed-family-and-current-model-surface).
 
 The namespace is advanced low-level Model expression construction. It is not a layer, module,
 execution service, registry, or general scan-body abstraction, and `Tensor` has no recurrent
@@ -266,7 +266,7 @@ no Compiler, backend, Runtime, or execution behavior.
 
 ## Related documentation
 
-- [Architecture contract](../../../ARCHITECTURE.md#fixed-recurrent-scan-without-graph-regions)
+- [Architecture contract](../../architecture/contracts/recurrent-scan.md#fixed-recurrent-scan-without-graph-regions)
 - [Lifecycle](../../architecture/lifecycle.md#planned-fixed-recurrent-scan-through-the-lifecycle)
 - [Module boundaries](../../architecture/module-boundaries.md)
 - [Runtime, Prepare, and Backend boundary](../../architecture/runtime-prepare-backend-boundary.md#planned-fixed-recurrent-scan-handoff)

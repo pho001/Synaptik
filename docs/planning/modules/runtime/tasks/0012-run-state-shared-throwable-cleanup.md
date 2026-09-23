@@ -61,8 +61,8 @@ architecture-enforcement findings remain Draft follow-ups.
 ## Architecture references
 
 - [Architecture contract](../../../../../ARCHITECTURE.md)
-- [Runtime module responsibilities](../../../../../ARCHITECTURE.md#modulesruntime)
-- [Run lifecycle](../../../../../ARCHITECTURE.md#run-lifecycle)
+- [Runtime module responsibilities](../../../../architecture/contracts/runtime-prepare-engine.md#modulesruntime)
+- [Run lifecycle](../../../../architecture/contracts/runtime-prepare-engine.md#run-lifecycle)
 - [Runtime master plan](../master-plan.md)
 - [Runtime contract closure audit](../runtime-contract-closure-audit.md)
 - [Runtime 0003 run-state foundation](0003-run-state-and-runtime-resource-foundation.md)

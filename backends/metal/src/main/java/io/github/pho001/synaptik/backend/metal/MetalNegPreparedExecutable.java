@@ -1,4 +1,4 @@
-package io.github.pho001.synaptik.backend.metal.internal;
+package io.github.pho001.synaptik.backend.metal;
 
 import io.github.pho001.synaptik.runtime.execution.BoundInvocation;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
@@ -26,6 +26,7 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
  * intermediate-copy step.</p>
  */
 final class MetalNegPreparedExecutable extends PreparedExecutable {
+    private final MetalNegPreparationPlan preparationPlan;
     private final MetalMpsGraphExecutableResource mpsGraphResource;
     private final MetalNegKernelPipelineResource customResource;
     private final int inputCount;
@@ -34,6 +35,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
     /**
      * Creates the immutable recipe from assigned feed and target plan positions.
      *
+     * @param preparationPlan exact non-null immutable backend analysis plan
      * @param memoryPlan exact non-null shared prepared memory plan
      * @param feedPlanIndices non-null stable feed buffer positions
      * @param targetPlanIndices non-null stable target buffer positions
@@ -45,6 +47,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
      * @throws IllegalArgumentException if selection and geometry cardinalities disagree
      */
     MetalNegPreparedExecutable(
+            MetalNegPreparationPlan preparationPlan,
             PreparedMemoryPlan memoryPlan,
             int[] feedPlanIndices,
             int[] targetPlanIndices,
@@ -55,6 +58,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         super(memoryPlan, selections(feedPlanIndices, targetPlanIndices),
                 List.of(new WorkspaceSelection(workspacePlanIndex)),
                 accesses(feedPlanIndices.length, targetPlanIndices.length));
+        this.preparationPlan = Objects.requireNonNull(preparationPlan, "preparationPlan");
         this.mpsGraphResource = Objects.requireNonNull(resource, "resource");
         this.customResource = null;
         this.inputCount = feedPlanIndices.length;
@@ -71,6 +75,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
     /**
      * Creates the workspace-free custom singleton recipe.
      *
+     * @param preparationPlan exact non-null immutable backend analysis plan
      * @param memoryPlan exact non-null shared prepared memory plan
      * @param feedPlanIndex assigned input position
      * @param targetPlanIndex assigned output position
@@ -79,6 +84,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
      * @throws IllegalArgumentException if either plan index is outside the memory plan
      */
     MetalNegPreparedExecutable(
+            MetalNegPreparationPlan preparationPlan,
             PreparedMemoryPlan memoryPlan,
             int feedPlanIndex,
             int targetPlanIndex,
@@ -88,10 +94,16 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                         new BufferSelection(targetPlanIndex, 0)),
                 List.of(),
                 List.of(BufferAccess.READ_ONLY, BufferAccess.WRITE_ONLY));
+        this.preparationPlan = Objects.requireNonNull(preparationPlan, "preparationPlan");
         this.mpsGraphResource = null;
         this.customResource = Objects.requireNonNull(resource, "resource");
         this.inputCount = 1;
         this.requiredBytes = new long[] {resource.requiredBytes(), resource.requiredBytes()};
+    }
+
+    /** @return the exact immutable backend plan retained for cold schedule assembly */
+    MetalNegPreparationPlan preparationPlan() {
+        return preparationPlan;
     }
 
     @Override

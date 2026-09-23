@@ -6,8 +6,8 @@ dependencies {
     implementation(project(":modules:prepare"))
     implementation(project(":modules:config"))
     implementation(project(":modules:trace"))
-    implementation(project(":backends:cpu"))
-    implementation(project(":backends:metal"))
+    api(project(":backends:cpu"))
+    api(project(":backends:metal"))
     implementation(project(":backends:cuda"))
     implementation(project(":tools:tuning"))
 }

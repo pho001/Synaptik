@@ -35,8 +35,8 @@ Run these commands from the repository root:
 ```
 
 A successful command ends with `BUILD SUCCESSFUL`. The build verifies the repository under the
-active JDK. It does not imply that planned Metal, CUDA, mixed-backend, persistence, or training
-capabilities are available.
+active JDK. It does not exercise the opt-in real-device Metal path or imply that CUDA,
+mixed-backend, persistence, or training capabilities are available.
 
 ## Run one CPU computation
 
@@ -101,7 +101,8 @@ Engine and arena close. Every `compute(...)` call compiles and prepares afresh.
 | Gradle reports an unsupported Java version | The wrapper is running with a JDK older than 26. | Set the IDE Gradle JVM and `JAVA_HOME` to JDK 26, then rerun `java -version`. |
 | `Engine.standard()` cannot prepare an expression | The current CPU composition requires one non-empty supported CPU partition with fully static compatible descriptors. | Start with the `contiguous()` example, then check the operation and descriptor constraints in the public API status. |
 | A detached result exceeds the caller limit | The canonical payload is larger than `maximumTotalBytes`. | Increase the explicit bound after checking the expected output shape and data type. |
-| A Metal, CUDA, or mixed-owner example fails | Those execution paths are not current public capabilities. | Use the fixed CPU composition and follow the roadmap for later backends. |
+| A Metal example fails | Real Metal execution requires Apple silicon, a built native bridge, and explicit `MetalBackendConfiguration` plus `Engine.builder()` ownership. | Build the native bridge, supply its absolute path, and use the supported `FLOAT32` NEG domain. |
+| A CUDA or mixed-owner example fails | CUDA lifecycle integration and CPU/Metal cross-owner schedules are not current public capabilities. | Use one complete CPU- or Metal-owned plan and follow the roadmap for later composition. |
 
 Java preview features are disabled by default. Incubator or preview APIs are configured only by
 focused module tasks when stable Java 26 APIs are insufficient.

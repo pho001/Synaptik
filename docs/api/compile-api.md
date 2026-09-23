@@ -3,14 +3,14 @@
 ## Purpose and implementation status
 
 This reference separates the compile-time contracts implemented today from later Engine
-conveniences. The ordinary `Engine.standard()` method constructs and owns a CPU-only composition
-and now exposes forward-only and explicitly seeded first-order compile overloads. The compiler
-module contains package-private `GraphCompiler`.
-Its five-argument entry compiles a forward-only or combined one/two-stage functional derivative
-Tensor expression into package-private immutable `GraphCompilation`. A second package-private
-nine-argument entry completes publication and backend-neutral planning and returns public
-immutable `CompileArtifacts`. The advanced Engine now exposes that complete artifact path as an
-explicit CPU-only composition seam.
+conveniences. Ordinary `Engine` exposes forward-only and explicitly seeded first-order compile
+overloads. `Engine.standard()` supplies fixed CPU ownership, while `Engine.builder()` compiles
+against an explicit frozen CPU/Metal inventory. The compiler module contains package-private
+`GraphCompiler`. Its five-argument entry compiles a forward-only or combined one/two-stage
+functional derivative Tensor expression into package-private immutable `GraphCompilation`. A
+second package-private nine-argument entry completes publication and backend-neutral planning and
+returns public immutable `CompileArtifacts`. Advanced Engine exposes that complete artifact path
+as an explicit CPU-only composition seam.
 
 The current stages are fail-closed autograd preflight, formula construction through public Tensor
 operations, one phase-aware capture, binding-free captured-graph verification with retained
@@ -109,13 +109,13 @@ collection, and returns a fresh `AdvancedCompiledGraph` bound to the exact open 
 compiled it. The handle is immutable and opaque: callers cannot inspect its model, partitions,
 publication plan, constants, or diagnostics, and it owns no independently closeable resource.
 
-The current Engine supplies one CPU capability provider to the compiler. It does not discover
-backends, build a reusable capability matrix, create `CompileConfig`, translate failures into an
-ordinary Engine exception hierarchy, run model tuning, or promise that every successfully
-compiled artifact is preparable by the CPU-only composition. In particular, preparation is a
-separate boundary and rejects zero, mixed-owner, or multiple maximal partitions. A successful
-compile is therefore not a promise that the current CPU composition can prepare or execute the
-artifact.
+`AdvancedEngine` supplies one CPU capability provider to the compiler. Ordinary `Engine` supplies
+the frozen provider and availability inventory captured by its builder. Neither path discovers
+backends, builds a public reusable capability matrix, creates `CompileConfig`, or promises that
+every successfully compiled artifact is preparable. Preparation is a separate boundary: ordinary
+Engine requires a non-empty plan with one exact registered owner before applying that backend's
+constraints; Advanced Engine retains its narrower CPU restriction. Compile success is therefore
+not an execution promise.
 
 ## Current model contracts
 
@@ -1885,7 +1885,7 @@ does not itself introduce an optimizer, optimizer-update graph, session, publica
 schedule, or execution behavior. `GraphCompilationPort` and `AdvancedEngine.compile(...)` accept
 all three values subject to the existing mode/request validation. The advanced Engine adds no
 training-step execution, backward convenience, or guarantee that the resulting artifact can pass
-its CPU-only prepare restriction.
+its CPU-only advanced prepare restriction.
 
 `io.github.pho001.synaptik.config.compile.GraphOptimizationConfig` is another current value:
 

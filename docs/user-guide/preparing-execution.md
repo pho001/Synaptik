@@ -58,8 +58,8 @@ prevents new runs and is the final cleanup boundary for a handle the caller leav
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | Preparation rejects a handle from another Engine | Owner identity is part of the lifecycle contract. | Compile and prepare with the same open Engine. |
-| Preparation rejects a zero-node graph | Current CPU composition requires one non-empty maximal partition. | Compile a supported operation such as `input.contiguous()`, not a leaf-only publication. |
-| Preparation rejects mixed or multiple partitions | Current composition has one CPU lifecycle adapter and no mixed-owner assembler. | Use a CPU-only graph; Metal/CUDA and mixed-owner execution remain planned. |
+| Preparation rejects a zero-node graph | Current composition requires a non-empty partition plan. | Compile an operation supported by a registered owner, not a leaf-only publication. |
+| Preparation rejects mixed owners | The first public builder slice has no cross-owner transfer or schedule assembly. | Use a graph whose complete plan has one registered owner; registering CPU beside Metal does not enable a split schedule. |
 | A prepared handle is rebuilt for every run | One-shot and reusable lifecycles were confused. | Retain one prepared handle and call `run(...)` repeatedly. |
 
 ## Related documentation
