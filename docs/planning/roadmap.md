@@ -31,7 +31,7 @@ or task boundary; it does not promote Draft work to Ready.
 | 2 | [`modules/trace`](modules/trace/master-plan.md) | In progress, deliberately interleaved; 0001–0002 Complete, 0003–0008 Draft | Resume 0003 only after its producer vocabulary is stable; no Trace task is Ready. |
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete through 0004 | Reopen only for a concrete shared-contract need. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress, interleaved; 0001–0003 and 0006A–0006B Complete; 0004–0006 and 0007–0008 Draft | 0004 waits for a concrete cost-bearing Planning consumer; no Config task is Ready. |
-| 5 | [`modules/planning`](modules/planning/master-plan.md) | Complete through 0006 | A separate reassessment must select any later cost-bearing frontier. |
+| 5 | [`modules/planning`](modules/planning/master-plan.md) | Complete through 0006; 0007 Ready | Execute only the capability-provider status reconciliation. |
 | 6 | [`modules/runtime`](modules/runtime/master-plan.md) | Complete through 0016 | No Runtime task is Ready. |
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete through documentation-only 0006B9; 0006C and 0007 Draft | Reassess exactly one later Compiler frontier; no Compiler implementation task is Ready. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through 0006 | No Prepare task is Ready. |
@@ -53,11 +53,11 @@ or task boundary; it does not promote Draft work to Ready.
 
 ## Current frontier
 
-The user-authorized sequential explanatory/status drift-remediation sequence has completed
-[tuning 0004](tools/tuning/tasks/0004-package-javadoc-status-reconciliation.md). No task is
-currently `Ready` or `In progress`; the next action is to plan the separately owned confirmed
-capability-provider guide drift. Model 0026, Compiler 0006C/0007, and all other Draft or blocked
-work remain unauthorized.
+The user-authorized sequential explanatory/status drift-remediation sequence has advanced to
+[Planning 0007](modules/planning/tasks/0007-capability-provider-status-reconciliation.md), the
+sole `Ready` frontier. It corrects only the shipped CPU provider and current public Engine compile
+consumer status. Model 0026, Compiler 0006C/0007, and all other Draft or blocked work remain
+unauthorized.
 
 ## Blocked, review-needed, and deferred work
 
@@ -80,8 +80,8 @@ work remain unauthorized.
 
 ## Nearest next step
 
-1. Plan the confirmed capability-provider guide drift as a separate documentation-only task; do
-   not promote Model 0026, Compiler 0006C/0007, or other Draft or blocked work implicitly.
+1. Execute and independently review Planning 0007; do not promote later drift, Model 0026,
+   Compiler 0006C/0007, or other Draft or blocked work implicitly.
 
 ## History policy
 
