@@ -18,19 +18,22 @@ import java.util.Objects;
  * adapters. {@link #standard()} constructs one fresh CPU integration through that same
  * composition path.</p>
  *
- * <p>The ordinary surface compiles Tensor expressions, prepares immutable reusable recipes, binds
- * logical input Tensors by identity in arbitrary order, and returns publication leases whose
- * exact occurrences can be materialized explicitly as detached immutable host values. A
+ * <p>The ordinary surface compiles Tensor expressions and can open a public
+ * {@link InferenceSession} that owns one immutable prepared recipe for repeated or concurrent
+ * runs. Sessions borrow this Engine's composition lifetime, accept current logical input Tensors
+ * by identity in arbitrary order, and return publication leases whose exact occurrences can be
+ * materialized explicitly as detached immutable host values. The lower-level public
+ * compile/prepare/run lifecycle remains available for direct prepared-handle ownership. A
  * one-shot compute convenience discovers reachable expression leaves, then performs fresh
  * compilation, preparation, execution, complete publication and aggregate-byte preflight,
  * ordered host materialization, and cleanup in one synchronous call. Forward publications retain
  * requested-output identity; gradient publications retain explicit target identity and position
  * even when roles alias inwardly. A one-shot scalar-objective backward convenience accepts an
  * explicit target list and returns detached objective and target-aligned gradient values without
- * mutating any Tensor. Implicit targets remain outside the current surface. Prepared handles are
- * explicit closeable outward owners; Engine closure is the final safety boundary for handles a
- * caller leaves open. Lifecycle observation and closure are thread-safe and inherit the owned
- * lifecycle's idempotent, failure-retaining semantics.</p>
+ * mutating any Tensor. Implicit targets remain outside the current surface. Sessions and prepared
+ * handles are explicit closeable outward owners; Engine closure is the final safety boundary for
+ * owners a caller leaves open. Lifecycle observation and closure are thread-safe and inherit the
+ * owned lifecycle's idempotent, failure-retaining semantics.</p>
  */
 public final class Engine implements AutoCloseable {
     private final AdvancedEngine delegate;
@@ -345,6 +348,35 @@ public final class Engine implements AutoCloseable {
     }
 
     /**
+     * Opens one reusable inference session for an already compiled graph.
+     *
+     * <p>Construction validates exact Engine ownership, prepares the graph once, and publishes a
+     * session that owns that one prepared execution. The Engine is borrowed rather than
+     * transferred and remains the composition and final lifecycle owner. The graph fixes input
+     * membership and Compiler occurrence order plus all forward and gradient publication
+     * occurrences. Each session run supplies current matching Tensor storage associations and
+     * receives the existing independently closeable {@link RunResult}.</p>
+     *
+     * <p>Closing the session rejects later runs and closes its preparation without waiting for an
+     * already leased Runtime run. Engine closure waits for admitted Engine operations, closes
+     * retained results first, then sessions and standalone prepared handles in their shared
+     * reverse preparation-publication order, and finally backend composition. Construction, not
+     * run, performs Compiler-independent preparation, backend analysis, schedule construction,
+     * adapter capture, and registry lookup.</p>
+     *
+     * @param compiledGraph non-null compile handle created by this exact Engine
+     * @return a fresh non-null closeable session owning one reusable preparation
+     * @throws NullPointerException if {@code compiledGraph} is {@code null}
+     * @throws IllegalArgumentException if ownership or inward preparation is invalid
+     * @throws IllegalStateException if Engine closure has begun
+     * @throws RuntimeException if inward preparation reports another unchecked failure
+     * @throws Error if inward preparation reports a fatal failure
+     */
+    public InferenceSession session(CompiledGraph compiledGraph) {
+        return delegate.openInferenceSession(this, compiledGraph);
+    }
+
+    /**
      * Performs one bounded two-phase CPU autotuning transaction and returns a fresh production
      * preparation, or the explicitly permitted safe heuristic fallback.
      *
@@ -401,6 +433,17 @@ public final class Engine implements AutoCloseable {
     }
 
     /**
+     * Runs one session-owned preparation after checking its close gate before caller input state.
+     *
+     * @param preparedExecution non-null exact hidden preparation owned by the session
+     * @param inputs caller inputs inspected only after Engine and prepared admission
+     * @return a fresh non-null publication lease
+     */
+    RunResult runSession(PreparedExecution preparedExecution, List<Tensor> inputs) {
+        return delegate.runSessionOrdinary(this, preparedExecution, inputs);
+    }
+
+    /**
      * Computes one forward output without an aggregate caller byte limit.
      *
      * <p>This overload delegates to {@link #compute(Tensor, long)} with
@@ -437,9 +480,10 @@ public final class Engine implements AutoCloseable {
      * identity; final {@link CompiledGraph#inputs()} metadata alone determines which discovered
      * leaves are bound and in what order. No Tensor or provenance state is retained after the
      * synchronous call. The call does not cache or reuse a compiled or prepared recipe; callers
-     * performing repeated runs or selective materialization should use {@link #compile(List)},
-     * {@link #prepare(CompiledGraph)}, {@link #run(PreparedExecution, List)}, and
-     * {@link RunResult#materialize}.</p>
+     * performing ordinary repeated runs or selective materialization should use {@link
+     * #compile(List)}, {@link #session(CompiledGraph)}, {@link InferenceSession#run(List)}, and
+     * {@link RunResult#materialize}. Direct {@link #prepare(CompiledGraph)} ownership remains
+     * available when the lower-level prepared handle itself is required.</p>
      *
      * <p>The byte limit covers only the returned canonical payload, not inputs, intermediate or
      * peak memory, recipes, object overhead, or backend workspace. The caller retains ownership
@@ -553,8 +597,9 @@ public final class Engine implements AutoCloseable {
      * The Compiler receives one absent cotangent seed and
      * {@link io.github.pho001.synaptik.compiler.FunctionalGradientRequest.DisconnectedPolicy#ERROR};
      * it alone validates scalar, floating, gradient, connectivity, and derivative semantics.
-     * Callers needing explicit seeds, multiple outputs, another policy, reuse, or the full request
-     * surface should use the reusable ordinary compile lifecycle or {@link AdvancedEngine}.</p>
+     * Callers needing explicit seeds, multiple outputs, another policy, or reuse should use the
+     * ordinary compile overload followed by {@link #session(CompiledGraph)}; the full request
+     * surface remains on {@link AdvancedEngine}.</p>
      *
      * <p>The limit covers the canonical bytes of the objective and every gradient, not inputs,
      * recipes, Runtime resources, object overhead, or peak memory. All descriptor sizes and the
@@ -610,9 +655,10 @@ public final class Engine implements AutoCloseable {
     /**
      * Closes the owned composition through its concurrent, idempotent lifecycle protocol.
      * The first close rejects new work, waits for admitted Engine operations, then attempts all
-     * retained results in reverse run-publication order, all retained prepared handles in reverse
-     * prepare-publication order, and the backend composition. Repeated and concurrent callers
-     * wait for that attempt and observe its exact retained first failure, if any.
+     * retained results in reverse run-publication order, all retained inference sessions and
+     * standalone prepared handles in reverse preparation-publication order, and the backend
+     * composition. Repeated and concurrent callers wait for that attempt and observe its exact
+     * retained first failure, if any.
      *
      * @throws RuntimeException if owned cleanup reports an unchecked failure
      * @throws Error if owned cleanup reports a fatal failure

@@ -157,4 +157,4 @@ must keep its segment alive, and may access it only from threads permitted by th
 - [Unary numeric transforms](../api/tensor-api.md#unary-numeric-transforms-and-floating-classifications)
   describes `neg()` and the other storage-free expression constructors.
 - [Current public Engine lifecycle](../architecture/lifecycle.md#current-public-engine-lifecycle)
-  explains the separate compile, prepare, run, and materialization boundary.
+  explains the separate compile, session, run, and materialization boundary.

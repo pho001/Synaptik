@@ -48,11 +48,12 @@ import io.github.pho001.synaptik.tools.tuning.WorkloadTuningResult;
  * adapter and admits synchronous operations through a cold lifecycle gate. Compilation produces
  * an opaque owner-bound handle, preparation produces an opaque reusable owner-bound handle, and
  * each run creates isolated mutable Runtime state behind a lifecycle-only result. Engine closure
- * closes successful open results in reverse run order, retained prepared handles in reverse
- * publication order, and then the adapter. Caller storage
- * and advanced caller-created borrowed input representations remain caller-owned. Ordinary runs
- * reuse this lifecycle owner privately but transfer cleanup of their Engine-created non-owning
- * wrappers to the registered result; the wrapped storage never transfers.</p>
+ * closes successful open results in reverse run order, retained ordinary inference sessions and
+ * standalone ordinary/advanced prepared handles in reverse preparation-publication order, and
+ * then the adapter. Caller storage and advanced caller-created borrowed input representations
+ * remain caller-owned. Ordinary runs reuse this lifecycle owner privately but transfer cleanup of
+ * their Engine-created non-owning wrappers to the registered result; the wrapped storage never
+ * transfers.</p>
  *
  * <p>Closure rejects new work, waits uninterruptibly for admitted calls while restoring the
  * waiting thread's interrupt status, attempts all cleanup, and retains the first unchecked
@@ -562,6 +563,40 @@ public final class AdvancedEngine implements AutoCloseable {
         return finishPreparedHandle(result);
     }
 
+    /**
+     * Admits one session construction, performs one ordinary preparation, and registers only the
+     * resulting session as the outward preparation owner.
+     *
+     * @param owner non-null ordinary Engine facade owning {@code compiledGraph}
+     * @param compiledGraph non-null compile handle created by {@code owner}
+     * @return a fresh non-null registered inference session
+     * @throws NullPointerException if an argument is {@code null}
+     * @throws IllegalArgumentException if ownership or inward preparation is invalid
+     * @throws IllegalStateException if Engine closure has begun
+     * @throws RuntimeException if preparation or rollback reports an unchecked failure
+     * @throws Error if preparation or rollback reports a fatal failure
+     */
+    InferenceSession openInferenceSession(Engine owner, CompiledGraph compiledGraph) {
+        beginOperation();
+        io.github.pho001.synaptik.engine.PreparedExecution preparedExecution = null;
+        InferenceSession result;
+        try {
+            Objects.requireNonNull(owner, "owner");
+            Objects.requireNonNull(compiledGraph, "compiledGraph");
+            requireOrdinaryOwner(owner, compiledGraph.owner());
+            preparedExecution = prepareOrdinaryOpen(owner, compiledGraph);
+            result = new InferenceSession(owner, compiledGraph, preparedExecution);
+            preparedExecution = null;
+        } catch (RuntimeException | Error failure) {
+            if (preparedExecution != null) {
+                closeWithSuppression(preparedExecution, failure);
+            }
+            finishFailure();
+            throw failure;
+        }
+        return finishPreparedHandle(result);
+    }
+
     /** Poisons later registry lookup for focused ordinary direct-reference lifecycle evidence. */
     void poisonBackendLookupForTesting() {
         composition.poisonLookupForTesting();
@@ -579,6 +614,40 @@ public final class AdvancedEngine implements AutoCloseable {
             finishFailure();
             throw failure;
         }
+        return finishOrdinaryRun(ordinaryRun);
+    }
+
+    /**
+     * Admits one session run and checks the hidden preparation before any caller-input state.
+     * Engine lifecycle admission intentionally remains first.
+     *
+     * @param owner non-null exact ordinary Engine owner
+     * @param preparedExecution non-null hidden preparation owned by the session
+     * @param inputs caller inputs inspected only after prepared admission
+     * @return a fresh non-null publication lease
+     */
+    io.github.pho001.synaptik.engine.RunResult runSessionOrdinary(
+            Engine owner,
+            io.github.pho001.synaptik.engine.PreparedExecution preparedExecution,
+            List<Tensor> inputs) {
+        beginOperation();
+        OrdinaryRun ordinaryRun;
+        try {
+            Objects.requireNonNull(owner, "owner");
+            Objects.requireNonNull(preparedExecution, "preparedExecution");
+            requireOrdinaryOwner(owner, preparedExecution.owner());
+            io.github.pho001.synaptik.runtime.execution.PreparedExecution execution =
+                    preparedExecution.execution();
+            ordinaryRun = runOrdinaryOpen(
+                    owner, preparedExecution, inputs, execution);
+        } catch (RuntimeException | Error failure) {
+            finishFailure();
+            throw failure;
+        }
+        return finishOrdinaryRun(ordinaryRun);
+    }
+
+    private io.github.pho001.synaptik.engine.RunResult finishOrdinaryRun(OrdinaryRun ordinaryRun) {
         synchronized (lifecycleLock) {
             if (lifecycle == Lifecycle.OPEN) {
                 openResults.add(ordinaryRun.owner());
@@ -1246,6 +1315,14 @@ public final class AdvancedEngine implements AutoCloseable {
             Engine owner,
             io.github.pho001.synaptik.engine.PreparedExecution preparedExecution,
             List<Tensor> inputs) {
+        return runOrdinaryOpen(owner, preparedExecution, inputs, null);
+    }
+
+    private OrdinaryRun runOrdinaryOpen(
+            Engine owner,
+            io.github.pho001.synaptik.engine.PreparedExecution preparedExecution,
+            List<Tensor> inputs,
+            io.github.pho001.synaptik.runtime.execution.PreparedExecution precheckedExecution) {
         var borrowed = new ArrayList<BufferRepresentation>();
         io.github.pho001.synaptik.runtime.run.RunResult inwardResult = null;
         boolean ownershipTransferred = false;
@@ -1303,7 +1380,11 @@ public final class AdvancedEngine implements AutoCloseable {
                 borrowed.add(inputAdapters.get(index).borrow(storages.get(index)));
             }
 
-            inwardResult = runner.run(preparedExecution.execution(), borrowed);
+            io.github.pho001.synaptik.runtime.execution.PreparedExecution execution =
+                    precheckedExecution == null
+                            ? preparedExecution.execution()
+                            : precheckedExecution;
+            inwardResult = runner.run(execution, borrowed);
             List<CompiledGraph.PublicationSpec> specifications =
                     preparedExecution.compiledGraph().publicationSpecs();
             if (inwardResult.resultCount() != specifications.size()) {
@@ -1616,13 +1697,18 @@ public final class AdvancedEngine implements AutoCloseable {
     }
 
     /**
-     * Quiesces admitted calls, closes registered results and prepared handles in reverse
-     * publication order, and then closes the owned composition. Result cleanup is completed
-     * before prepared-handle cleanup begins. Concurrent/repeated callers wait for the first
-     * attempt and rethrow its exact retained first cleanup failure, if any.
+     * Rejects new work, waits for admitted Engine operations, closes retained results in reverse
+     * successful-run publication order, then closes inference sessions and standalone prepared
+     * handles in their shared reverse preparation-publication order, and finally closes the owned
+     * backend composition. Closing a session or prepared handle rejects later runs but does not
+     * close an already returned result; a run that already owns Runtime's prepared lease may
+     * finish, with deferred prepared-resource cleanup performed when its last lease releases.
+     * Concurrent and repeated Engine-close callers wait for the first attempt and rethrow its
+     * exact retained first cleanup failure, if any.
      *
-     * @throws RuntimeException if result, preparation, or composition cleanup first reports one
-     * @throws Error if result, preparation, or composition cleanup first reports one
+     * @throws RuntimeException if result, session, preparation, or composition cleanup first
+     *     reports one
+     * @throws Error if result, session, preparation, or composition cleanup first reports one
      */
     @Override
     public void close() {
@@ -1702,6 +1788,12 @@ public final class AdvancedEngine implements AutoCloseable {
     void unregister(AdvancedPreparedExecution preparation) {
         synchronized (lifecycleLock) {
             openPreparations.remove(preparation);
+        }
+    }
+
+    void unregister(InferenceSession session) {
+        synchronized (lifecycleLock) {
+            openPreparations.remove(session);
         }
     }
 

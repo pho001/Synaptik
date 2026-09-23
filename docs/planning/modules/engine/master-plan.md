@@ -16,25 +16,27 @@ Focused explanations and decisions:
 - [ADR 0013: Prepared-execution persistent-resource lifecycle](../../../design/decisions/0013-prepared-execution-persistent-resource-lifecycle.md)
 - [ADR 0015: Explicit Engine backend composition](../../../design/decisions/0015-explicit-engine-backend-composition.md)
 - [ADR 0016: CPU/Metal mixed-owner prepared schedule](../../../design/decisions/0016-cpu-metal-mixed-owner-schedule.md)
+- [ADR 0017: Reusable inference session facade](../../../design/decisions/0017-reusable-inference-session-facade.md)
 
 ## Lifecycle position
 
 ```text
-Tensor outputs -> Engine compile handle -> Engine prepared handle
-caller inputs  -> synchronous run -> leased RunResult
+Tensor outputs -> Engine compile handle -> InferenceSession with one prepared execution
+caller inputs  -> synchronous session run -> leased RunResult
 publication    -> explicit materialization -> detached HostTensorValue
 ```
 
-Engine owns composition and outward handles. Prepare constructs the accepted recipe; Runtime
-owns the inward `PreparedExecution`, its run lease, and physical prepared-resource lifetime.
-One-shot compute/backward and representative tuning use the same boundaries with temporary
-handles that Engine closes before returning or publishing another owner.
+Engine owns composition and outward handles. An inference session borrows its Engine and owns one
+existing ordinary prepared handle. Prepare constructs the accepted recipe; Runtime owns the inward
+`PreparedExecution`, its run lease, and physical prepared-resource lifetime. Direct standalone
+prepared ownership, one-shot compute/backward, and representative tuning use the same boundaries.
 
 ## Scope and non-goals
 
 Engine owns standard and advanced composition, compilation/preparation orchestration, owner-bound
-handles, typed input binding and publication metadata, explicit host materialization, one-shot
-compute/backward workflows, and bounded optional model-autotuning composition.
+handles and reusable inference sessions, typed input binding and publication metadata, explicit
+host materialization, one-shot compute/backward workflows, and bounded optional model-autotuning
+composition.
 
 Engine does not implement kernels, lowering, backend storage, graph optimizer passes, Runtime
 state, a service locator, reflective discovery, Tensor-owned execution/backward state, or hidden
@@ -48,19 +50,23 @@ backend selection during a run.
   ownership of opened CPU and/or Metal integrations and prepares CPU-only, Metal-only, or supported
   mixed-owner schedules through the same shared Prepare transaction. `AdvancedEngine` remains a
   supported CPU-only lower-level integration boundary.
-- Ordinary compile/prepare/run signatures expose Engine/Model values, not Compiler, Prepare,
-  Runtime, or backend SPI identities. Builder exposes CPU/Metal integration identities only at the
-  explicit construction boundary.
-- Ordinary and advanced prepared handles are explicit closeable owners of exactly one inward
-  Runtime execution. Closing a handle unregisters and closes that execution once but does not
-  independently close an already-returned result.
+- Ordinary compile/session/run and direct compile/prepare/run signatures expose Engine/Model
+  values, not Compiler, Prepare, Runtime, or backend SPI identities. Builder exposes CPU/Metal
+  integration identities only at the explicit construction boundary.
+- An inference session is the explicit closeable outward owner of one hidden ordinary prepared
+  handle. Standalone ordinary and advanced prepared handles expose the same direct ownership. Each
+  prepared owner controls exactly one inward Runtime execution; closing it unregisters and closes
+  that execution once without closing an already returned result.
 - Runtime remains the unique run-lease authority. Engine synchronizes outward admission and
-  delegate ownership without adding a second resource lease or waiting close protocol.
+  delegate ownership without adding a second resource lease or waiting close protocol. A run that
+  already acquired its prepared lease may finish; prepared-owner close does not wait, and the final
+  lease release performs deferred prepared-resource cleanup.
 - Every one-shot, tuning trial, correctness run, loser, fallback rollback, and rejected
-  preparation is closed exactly once. A selected preparation has one published Engine owner.
-- Engine shutdown waits for admitted operations, then closes retained results in reverse run-
-  publication order, retained preparations in reverse prepare-publication order, and integrations
-  in reverse registration order.
+  preparation is closed exactly once. A selected standalone preparation has one published Engine
+  owner.
+- Engine shutdown waits for admitted operations, closes retained results in reverse
+  run-publication order, then sessions and standalone prepared handles in their shared reverse
+  preparation-publication order, and finally integrations in reverse registration order.
 - Materialization borrows one authenticated publication only while its result is open and returns
   a detached immutable value. Engine never exposes a physical representation or backend handle.
 
@@ -78,7 +84,7 @@ not a catch-all service registry.
 
 | Surface | Types and role |
 |---|---|
-| Ordinary public lifecycle | `Engine`, nested single-use `Engine.Builder`, `CompiledGraph`, closeable `PreparedExecution`, closeable `RunResult`, detached `HostTensorValue`, and `ScalarObjectiveBackwardResult`. |
+| Ordinary public lifecycle | `Engine`, nested single-use `Engine.Builder`, `CompiledGraph`, closeable `InferenceSession`, closeable standalone `PreparedExecution`, closeable `RunResult`, detached `HostTensorValue`, and `ScalarObjectiveBackwardResult`. |
 | Public autotuning | `ModelAutotuningRequest` and `ModelAutotuningPreparation`, which publish one retained ordinary prepared handle plus outcome/evidence. |
 | Advanced public lifecycle | `AdvancedEngine`, `AdvancedCompiledGraph`, closeable `AdvancedPreparedExecution`, and closeable `AdvancedRunResult`. |
 | Package-private composition | `EngineBackendComposition`, CPU and Metal realizations, the ordered backend registry, selected-adapter preparation result, representative execution/correctness machinery, lifecycle registries, and cleanup arbitration. |
@@ -106,6 +112,7 @@ not a catch-all service registry.
 | [0014](tasks/0014-explicit-backend-composition-architecture.md) | Explicit backend composition architecture | Complete | 0013; Metal 0004; current Compiler/Prepare/Runtime contracts | Selected the public Engine builder, concrete ownership overloads, fixed capability/availability inventory, construction and close lifecycle, single-owner cold routing, Metal configuration ownership, and fail-closed mixed-owner boundary without changing production behavior. |
 | [0015](tasks/0015-cpu-metal-single-owner-composition.md) | CPU/Metal single-owner Engine composition | Complete | 0014; Metal 0004; current Compiler/Prepare/Runtime contracts | Added the concrete builder ownership lifecycle, fixed registry, single-owner cold routing, direct adapter ingress/materialization, public Metal lifecycle integration, CPU-only tuning gate, and real CPU/Metal integration coverage. |
 | [0016](tasks/0016-cpu-metal-mixed-owner-schedule.md) | CPU/Metal mixed-owner schedule and transfer | Complete | 0015; Prepare 0006; Runtime 0016; Metal 0004 | Added independently reviewed owner-indexed shared representations, Compiler-ordered caller inputs, complete-set Prepare routing, explicit bounded bidirectional F32 CPU/Metal transfer, ordered mixed scheduling, direct per-occurrence handle capture, rollback, and real public lifecycle evidence. |
+| [0017](tasks/0017-reusable-inference-session-api.md) | Reusable inference session API | Complete | 0016 | Added the independently reviewed thin public session that prepares one owner-bound graph once and delegates repeated/concurrent input binding, run, result, materialization, and close behavior to the existing lifecycle without another compiler, scheduler, runner, or result. |
 
 ## Milestones and current frontier
 
@@ -118,14 +125,21 @@ not a catch-all service registry.
   through 0011.
 - Explicit composition architecture and its independently reviewed CPU/Metal single-owner and
   bounded mixed-owner implementations are Complete through 0016.
+- The reusable inference-session facade from exact base `4fc4fd3d` is Complete as 0017 after the
+  required Class C and narrow documentation review sequence.
 
 ## Live risks and gates
 
 - Preserve 0016's exact owner-indexed representation assignment, explicit transfer preflight,
   shared Prepare transaction, and immutable direct-reference schedule. Registration of CPU and
   Metal must not imply fallback, discovery, conversion, or an unsupported transfer path.
-- Preserve one owner for every prepared handle and close all temporary, losing, rollback, and
-  retained preparations in the established order. Never duplicate Runtime's lease protocol.
+- Preserve one outward owner for every prepared execution: session-hidden or standalone. Close all
+  temporary, losing, and rollback preparations exactly once. Engine shutdown must retain the
+  results-first, sessions-plus-standalone-prepared-handles second, integrations-last order above.
+  Never duplicate Runtime's lease protocol.
+- Keep `InferenceSession` a thin owner of one existing prepared handle. It must not acquire another
+  Runtime lease, add another input/output ordering convention, hide Engine composition, or perform
+  compile/prepare/provider/registry work per run.
 - Keep public materialization detached and explicit; do not expose Runtime representations,
   backend storage, or inward SPI types through ordinary signatures.
 - Metal 0004's route candidates and cache compatibility remain backend-private; explicit
@@ -152,10 +166,12 @@ Engine 0015 is the completed single-owner implementation workstream from exact b
 Engine 0016 is the completed and independently reviewed mixed-owner workstream from exact base
 `0fe35a845a18fb9c70cdf87081b6a6c688fece47`.
 
+Engine 0017 is the completed and independently reviewed reusable inference-session workstream from
+exact base `4fc4fd3d1e44613cdbdc44051e0bc637992d0de4`.
+
 ## Status normalization
 
-The task table and linked task status/results are controlling. Engine is Complete through 0016;
-Metal 0002–0004 are Complete. No Engine task is Ready.
+Engine is Complete through 0017; no later Engine task is Ready.
 
 ## History and update policy
 

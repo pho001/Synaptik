@@ -111,7 +111,9 @@ focused module tasks when stable Java 26 APIs are insufficient.
 ## Next reading
 
 - [Compile graphs](user-guide/compiling-graphs.md) explains ordinary and advanced compilation.
-- [Prepare execution](user-guide/preparing-execution.md) explains reusable prepared state.
-- [Run models](user-guide/running-models.md) explains leases and detached values.
+- [Prepare execution](user-guide/preparing-execution.md) explains reusable sessions and direct
+  prepared-handle ownership.
+- [Run models](user-guide/running-models.md) explains session reuse, result leases, and detached
+  values.
 - [Public API status](api/public-api.md) records current limitations and complete examples.
 - [Glossary](glossary.md) defines project-specific terms.

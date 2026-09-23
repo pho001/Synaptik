@@ -34,6 +34,25 @@ and Metal own their concrete lowering, specialization, route choice, physical st
 executable construction, and direct transfer endpoints. Runtime receives the completed recipe and
 does not repeat those decisions.
 
+## Prefer an inference session for ordinary repeated runs
+
+`InferenceSession` is the thin user-facing owner for the same prepared execution:
+
+```java
+CompiledGraph graph = engine.compile(List.of(output));
+try (InferenceSession session = engine.session(graph)) {
+    try (RunResult result = session.run(inputs)) {
+        // Inspect or materialize this run's ordered publications.
+    }
+}
+```
+
+`engine.session(graph)` performs the same ordinary preparation exactly once and keeps its
+`PreparedExecution` private. The session adds no compiler, scheduler, runner, cache, result type,
+backend discovery, or per-run lookup. Use it when one fixed graph should run repeatedly. Use the
+lower-level standalone prepared handle when direct handle ownership is required, including the
+existing bounded autotuning handoff.
+
 ## Optional bounded CPU-local autotuning
 
 `engine.prepareTuned(graph, request)` is a separate current bounded two-phase CPU-only path. Phase
@@ -63,11 +82,11 @@ prevents new runs and is the final cleanup boundary for a handle the caller leav
 | Preparation rejects a handle from another Engine | Owner identity is part of the lifecycle contract. | Compile and prepare with the same open Engine. |
 | Preparation rejects a zero-node graph | Current composition requires a non-empty partition plan. | Compile an operation supported by a registered owner, not a leaf-only publication. |
 | Preparation rejects mixed-owner transfer | One required edge is outside the exact static canonical contiguous `FLOAT32` CPU/Metal transfer domain, or an owner is not registered. | Register both integrations and keep cross-owner values inside the supported descriptor and native-storage boundary; there is no fallback or conversion. |
-| A prepared handle is rebuilt for every run | One-shot and reusable lifecycles were confused. | Retain one prepared handle and call `run(...)` repeatedly. |
+| A prepared recipe is rebuilt for every run | One-shot and reusable lifecycles were confused. | Open one session for ordinary reuse; retain a standalone prepared handle only when direct ownership is required. |
 
 ## Related documentation
 
 - [Compile a graph](compiling-graphs.md)
-- [Run a prepared model](running-models.md)
+- [Run a reusable inference session](running-models.md)
 - [Runtime/Prepare/backend boundary](../architecture/runtime-prepare-backend-boundary.md)
 - [Public API status](../api/public-api.md)

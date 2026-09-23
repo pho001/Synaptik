@@ -382,7 +382,7 @@ compiles, prepares, runs, materializes, and cleans up its temporary result. The 
 four values are all `-3.5f`. Caller storage is never transferred to the Engine.
 
 For repeated execution, selective publication copies, or explicit input ordering, use the
-[reusable compile, prepare, run, and materialize workflow](runtime-api.md#current-ordinary-engine-boundary).
+[reusable compile, session, run, and materialize workflow](runtime-api.md#current-ordinary-engine-boundary).
 
 The current boundary is deliberately forward-oriented. These NN layers do not compile, prepare,
 select a backend, execute values, or expose Engine behavior. Existing compiler rules cover the

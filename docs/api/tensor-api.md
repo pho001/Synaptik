@@ -86,11 +86,12 @@ overlap-summing target transformation. The two `unfold2d` forms add NCHW im2col 
 positive-zero or exact typed padding, while `fold2d` adds overlap-summing col2im with exact static
 or symbolic compatibility.
 `HostTensorStorage` exposes current raw host-storage facts, but `Tensor` has no typed element
-getters or setters. The public Engine now owns the separate compile, prepare, and run lifecycle for
-Tensor expressions. Public compilation can request forward and supported first-order gradient
-publication occurrences; runs bind caller inputs, and an open `RunResult` can explicitly
-materialize one occurrence as a detached host value. `Engine.standard()` uses one fixed CPU-only
-composition; preparation and execution remain bounded by exact CPU capability and fail closed for
+getters or setters. The public Engine now owns the separate compile, inference-session, and run
+lifecycle for Tensor expressions. Public compilation can request forward and supported
+first-order gradient publication occurrences; session runs bind caller inputs, and an open
+`RunResult` can explicitly materialize one occurrence as a detached host value.
+`Engine.standard()` uses one fixed CPU-only composition; preparation and execution remain bounded
+by exact CPU capability and fail closed for
 unsupported operation, data-type, Shape, or layout combinations. This current lifecycle does not
 move compiler, prepared-execution, runtime-residency, or backend state into Tensor. Tensor-owned
 device residency, generic or mixed-backend composition, and universal execution coverage remain

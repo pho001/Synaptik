@@ -10,23 +10,26 @@
  * adapters per caller-input and publication occurrence for run and materialization.
  * {@code Engine.standard()} remains the CPU-only convenience and uses the same builder path. There
  * is no discovery, process-global registry, or implicit fallback. The ordinary surface exposes
- * owner-bound compile and prepared handles, Tensor-ID-based host-input binding, synchronous
- * execution, publication occurrences, explicit detached host materialization, one-shot compute
- * execution, lifecycle observation, and closure. One-shot compute transiently traverses immutable
- * Tensor-expression provenance by exact object identity, then uses final Compiler input metadata
- * as the sole binding-membership and ordering authority. Each run snapshots caller-owned host
- * associations; those storage lifetimes extend through result closure even though execution is
- * synchronous. Host materialization performs a synchronous selected-backend copy and provides
- * neither caching nor implicit transfer. One-shot compute freshly compiles, prepares, runs,
- * preflights the complete publication set and aggregate returned canonical byte count,
+ * owner-bound compiled graphs and a reusable {@code InferenceSession} that prepares once, owns
+ * exactly one inward execution, and borrows its Engine composition lifetime. Sequential and
+ * concurrent session runs reuse the immutable recipe and captured adapters while Runtime creates
+ * one isolated mutable state per run. The lower-level closeable prepared handle remains available
+ * for direct ownership. Both forms use Tensor-ID-based host-input binding, synchronous execution,
+ * publication occurrences, and explicit detached host materialization. Each run snapshots current
+ * caller-owned host associations; those storage lifetimes extend through result closure even
+ * though execution is synchronous. Host materialization performs a synchronous selected-backend
+ * copy and provides neither caching nor implicit transfer. One-shot compute transiently traverses
+ * immutable Tensor-expression provenance by exact object identity, then uses final Compiler input
+ * metadata as the sole binding-membership and ordering authority. It freshly compiles, prepares,
+ * runs, preflights the complete publication set and aggregate returned canonical byte count,
  * materializes every ordered output, and closes each temporary result before its temporary
  * preparation without retaining its leaf inventory.
- * Reusable prepared handles are explicit closeable outward owners and remain registered for
- * final Engine shutdown until explicitly closed. One-shot scalar-objective backward
- * execution uses the same discovery and lifecycle seams, fixes Compiler's absent unit seed and
- * disconnected-target error policy, and returns a detached objective plus target-aligned first
- * derivatives. Repeated execution, explicit seeds, and selective output access should use the
- * reusable explicit-input lifecycle instead. Optional model-autotuning accepts one caller-defined
+ * Sessions and standalone prepared handles remain registered for final Engine shutdown until
+ * explicitly closed. One-shot scalar-objective backward execution uses the same discovery and
+ * lifecycle seams, fixes Compiler's absent unit seed and disconnected-target error policy, and
+ * returns a detached objective plus target-aligned first derivatives. Explicit seeds and
+ * selective output access are also available through inference sessions. Optional
+ * model-autotuning accepts one caller-defined
  * model identity and one live representative input set. It first completes bounded CPU-local
  * workload selection, then preserves that exact decision while checking and measuring the
  * session-scoped complete CPU plan alternatives. Every correctness, warmup, and timed action uses

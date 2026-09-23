@@ -50,9 +50,9 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         descriptor, arena, 1.25f, -2.5f);
 
                 var metalCompiled = engine.compile(List.of(input.neg()));
-                try (var prepared = engine.prepare(metalCompiled)) {
+                try (var session = engine.session(metalCompiled)) {
                     for (int run = 0; run < 2; run++) {
-                        try (var result = engine.run(prepared, List.of(input))) {
+                        try (var result = session.run(List.of(input))) {
                             ByteBuffer canonical = result.materialize(
                                     result.publications().getFirst(), 8L).bytes();
                             assertEquals(Float.floatToRawIntBits(-1.25f),
@@ -141,9 +141,9 @@ final class EngineExplicitCompositionMetalIntegrationTest {
             List<Tensor> inputs,
             float first,
             float second) {
-        try (var prepared = engine.prepare(compiled)) {
+        try (var session = engine.session(compiled)) {
             for (int run = 0; run < 2; run++) {
-                try (var result = engine.run(prepared, inputs)) {
+                try (var result = session.run(inputs)) {
                     ByteBuffer canonical = result.materialize(
                             result.publications().getFirst(), 8L).bytes();
                     assertEquals(Float.floatToRawIntBits(first), canonical.getInt());
@@ -157,10 +157,10 @@ final class EngineExplicitCompositionMetalIntegrationTest {
             Engine engine,
             io.github.pho001.synaptik.engine.CompiledGraph compiled,
             List<Tensor> inputs) {
-        try (var prepared = engine.prepare(compiled)) {
+        try (var session = engine.session(compiled)) {
             EngineMixedOwnerTestAccess.poisonBackendLookup(engine);
             for (int run = 0; run < 2; run++) {
-                try (var result = engine.run(prepared, inputs)) {
+                try (var result = session.run(inputs)) {
                     assertEquals(2, result.resultCount());
                     assertCanonical(
                             result.materialize(result.publications().get(0), 8L).bytes(),

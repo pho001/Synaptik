@@ -89,6 +89,6 @@ Conv3d gradients are not.
 ## Related documentation
 
 - [Prepare execution](preparing-execution.md)
-- [Run a prepared model](running-models.md)
+- [Run a reusable inference session](running-models.md)
 - [Public API status](../api/public-api.md)
 - [Lifecycle architecture](../architecture/lifecycle.md)

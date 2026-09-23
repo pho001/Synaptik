@@ -2932,6 +2932,22 @@ from the categorical-loss `MEAN` denominator. The value is operation attributes 
 than a Tensor producer input; the public API uses one required scalar overload rather than a
 public `Optional`.
 
+### Inference session / `InferenceSession`
+
+The implemented public Engine owner for repeated execution of one exact `CompiledGraph`.
+`Engine.session(graph)` performs one ordinary preparation and publishes a session that owns that
+one prepared execution while borrowing the Engine's composition lifetime. `compiledGraph()`
+returns the exact graph. Its stable `inputs()` metadata defines logical input membership and
+Compiler occurrence order; each `run(...)` accepts those Tensors in arbitrary order and snapshots
+their current caller-owned host-storage associations in compiled order.
+
+The session adds no compiler, scheduler, runner, cache, result type, backend discovery, or tuning
+surface. Sequential and concurrent calls reuse the immutable prepared recipe and direct captured
+adapters while Runtime creates isolated mutable state and run-owned resources. Each call returns
+the existing ordered `RunResult` publication lease. Session close rejects later runs and closes
+the prepared execution without waiting for a run that already acquired Runtime's lease; it does
+not close an already returned result. Engine shutdown remains the final cleanup boundary.
+
 ### Dimension
 
 The size description for one axis of a [shape](#shape). A `StaticDimension` has a known
@@ -5455,9 +5471,9 @@ backward execution, tuning, or cross-backend transfer. The no-limit overloads us
 leaf storage remains caller-owned through synchronous completion, and no Tensor/provenance state
 or cache survives the call. Current support requires every owner and directed transfer in the
 non-empty, fully static, resolved-layout plan to be registered and supported. The aggregate limit
-covers returned canonical payload lengths only. Use the explicit
-`compile -> prepare -> run(prepared, explicit inputs) -> materialize` lifecycle for repeated runs
-or selective publication copying. See
+covers returned canonical payload lengths only. Use
+`compile -> session -> run(explicit inputs) -> materialize` for ordinary repeated runs or selective
+publication copying; direct prepared-handle ownership remains available at the lower level. See
 [Public API](api/public-api.md#current-ordinary-explicit-composition-and-advanced-lifecycle) and
 [Runtime API](api/runtime-api.md#current-ordinary-engine-boundary).
 

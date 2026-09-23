@@ -87,12 +87,13 @@ discovery or graph interpretation.
 
 `Engine.standard()` creates a fresh independent CPU-only composition and privately owns its
 advanced lifecycle delegate. `compile(...)` returns an immutable owner-bound `CompiledGraph`,
-whose `inputs()` list reports the final caller-bindable `TensorId` and descriptor pairs.
-`prepare(...)` accepts only a handle from the same exact Engine and returns a fresh immutable
-`io.github.pho001.synaptik.engine.PreparedExecution`. That Engine facade must not be confused with
-the inward Runtime recipe of the same simple name; its sole public accessor returns the exact
-originating `CompiledGraph`. It is also the closeable outward owner of that one inward recipe.
-
+whose `inputs()` list reports final caller-bindable `TensorId` and descriptor pairs.
+`session(...)` accepts only a graph from the same exact Engine, prepares it once, and returns a
+closeable `InferenceSession` that owns that one preparation while borrowing the Engine. Its
+`compiledGraph()` accessor returns the exact graph, and every `run(...)` delegates to the existing
+prepared run path. The lower-level `prepare(...)` method remains available and returns a fresh
+immutable `io.github.pho001.synaptik.engine.PreparedExecution` owner for direct lifecycle and
+tuning handoff. Neither facade exposes the inward Runtime recipe of the same simple name.
 `run(...)` accepts every required logical Tensor exactly once in arbitrary caller order. It
 matches `Tensor.id()` by value equality, verifies the complete descriptor, then reads each
 Tensor's current `HostTensorStorage` association exactly once in final Compiler binding order.
@@ -113,19 +114,27 @@ an explicit second operation: while both result and Engine remain open, the call
 exact occurrence object to `materialize(publication, maximumBytes)` and receives a fresh detached
 `HostTensorValue`.
 
-Closing the result releases its inward Runtime lease and Engine-created wrappers but never caller
-storage. Closing a prepared handle rejects later run admission without closing an already returned
-result. Delegate retrieval is synchronized with the inward close transition but does not itself
-admit a run or hold the wrapper monitor over execution; Runtime's unique lease authority decides
-that later race. Once outward `isClosed()` is observable as true, inward close has transitioned
-and no later delegate retrieval can admit work. An already leased run may finish after handle
-close and performs any deferred inward resource cleanup when its lease releases. Closing the
-Engine waits for admitted operations, then
-closes any still-open results in reverse successful-run order, retained prepared handles in
-reverse prepare-publication order, and its CPU integration. Immutable result metadata and any
-completed detached host value remain readable after closure. Closing one
-standard Engine does not affect another, and repeated or concurrent close calls share the
-delegated exactly-once cleanup result.
+Closing a result releases its inward Runtime lease and Engine-created wrappers but never caller
+storage. Closing an inference session or standalone prepared handle rejects later run admission
+without closing an already returned result. Delegate retrieval is synchronized with the inward
+close transition but does not itself admit a run or hold the wrapper monitor over execution;
+Runtime's unique lease authority decides that later race. Once outward `isClosed()` is observable
+as true, inward close has transitioned and no later delegate retrieval can admit work. An already
+leased run may finish after session or prepared-handle close and performs any deferred inward
+resource cleanup when its lease releases.
+
+Session run checks the Engine lifecycle before all other work. Under an open Engine it retrieves
+and checks the exact hidden prepared delegate before inspecting inputs or adapters, so a
+post-session-close call reports `prepared execution is closed` without input validation or storage
+borrow. Engine closure instead reports `advanced engine is closed` before argument inspection.
+
+Closing the Engine waits for admitted operations, then closes any still-open results in reverse
+successful-run order, retained inference sessions and standalone prepared handles in their shared
+reverse preparation-publication order, and its backend integrations. Immutable session graph and
+result metadata plus completed detached host values remain readable after closure. Closing one
+standard
+Engine does not affect another, and repeated or concurrent close calls share the delegated
+exactly-once cleanup result.
 
 The current fixed CPU path requires fully static Shapes and resolved compatible layouts. Ordinary
 builder composition may prepare multiple CPU/Metal partitions and transfers only fully static
@@ -141,6 +150,7 @@ caller-owned shared arena:
 import io.github.pho001.synaptik.engine.CompiledGraph;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.HostTensorValue;
+import io.github.pho001.synaptik.engine.InferenceSession;
 import io.github.pho001.synaptik.engine.RunResult;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
@@ -182,8 +192,8 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
     Tensor rightOutput = right.contiguous();
 
     CompiledGraph graph = engine.compile(List.of(leftOutput, rightOutput));
-    try (var prepared = engine.prepare(graph);
-            RunResult result = engine.run(prepared, List.of(right, left))) {
+    try (InferenceSession session = engine.session(graph);
+            RunResult result = session.run(List.of(right, left))) {
         assert graph.inputs().stream().map(CompiledGraph.Input::tensorId).toList()
                 .equals(List.of(left.id(), right.id()));
         assert result.publications().stream()
@@ -223,8 +233,8 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
             List.of(leftOutput, rightOutput),
             List.of(seed, seed),
             List.of(left, right));
-    try (var prepared = engine.prepare(graph);
-            RunResult result = engine.run(prepared, List.of(seedLeaf, right, left))) {
+    try (InferenceSession session = engine.session(graph);
+            RunResult result = session.run(List.of(seedLeaf, right, left))) {
         assert result.publications().stream().map(RunResult.Publication::role).toList()
                 .equals(List.of(
                         RunResult.Role.FORWARD,
@@ -266,10 +276,11 @@ admission fails before argument inspection. Current support requires one non-emp
 owners have exact registered adapters. Single-owner plans remain supported; mixed CPU/Metal plans
 must stay inside the positive rank-1..16 fully static canonical contiguous `FLOAT32` transfer
 domain. The aggregate limit is not a bound on inputs, Runtime allocation, workspaces, object
-overhead, defensive copies, or peak memory. Use the explicit
-`compile -> prepare -> run -> materialize` lifecycle for repeated runs or selective output copies.
-The explicit reusable `run(preparedExecution, inputs)` path intentionally continues to require
-caller-supplied logical inputs. Automatic discovery is only the one-shot convenience. Selected
+overhead, defensive copies, or peak memory. Use
+`compile -> session -> run -> materialize` for ordinary repeated runs or selective output copies.
+Each session run intentionally continues to require caller-supplied logical inputs. The lower-level
+`compile -> prepare -> run` lifecycle remains available when direct prepared-handle ownership is
+required. Automatic discovery is only the one-shot convenience. Selected
 storage remains caller-owned through synchronous completion, no Tensor or provenance state escapes
 the call, and no cache is retained. This adds no `output.execute()` Tensor method, implicit
 fallback, general conversion or transfer domain, tuning, or cache.

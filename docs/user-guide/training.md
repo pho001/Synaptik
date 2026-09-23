@@ -3,7 +3,7 @@
 ## Outcome
 
 This guide explains the intended first training lifecycle. Bounded Compiler autograd and the
-public Engine compile, prepare, run, and one-shot backward lifecycle are current for supported
+public Engine compile, session, run, and one-shot backward lifecycle are current for supported
 single-owner or mixed CPU/Metal plans. The Training extension, training sessions, optimizer API
 and updates, and complete training workflow remain planned, so the example below is conceptual
 rather than runnable Synaptik code.
@@ -13,7 +13,7 @@ rather than runnable Synaptik code.
 1. Mark selected public tensor state as trainable parameters.
 2. Build a forward expression and loss.
 3. Compile a forward-and-backward graph.
-4. Prepare and run it to publish parameter gradients.
+4. Open a reusable inference session and run it to publish parameter gradients.
 5. Apply a backend-independent optimizer step.
 
 ```text

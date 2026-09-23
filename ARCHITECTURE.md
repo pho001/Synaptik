@@ -151,15 +151,17 @@ ordinary public API shape is:
 ```java
 try (Engine engine = Engine.standard()) {
     CompiledGraph graph = engine.compile(List.of(output));
-    try (PreparedExecution execution = engine.prepare(graph);
-            RunResult result = engine.run(execution, List.of(input))) {
+    try (InferenceSession session = engine.session(graph);
+            RunResult result = session.run(List.of(input))) {
         // Inspect publication metadata or explicitly materialize an occurrence while open.
     }
 }
 ```
 
-The Engine owns compile, prepare, and run orchestration. Each prepared handle and run result is a
-distinct closeable owner; caller input storage remains borrowed for the result lifetime.
+The Engine owns compile, prepare, and run orchestration. An inference session owns one prepared
+execution and borrows its Engine's composition lifetime; each run result is a distinct closeable
+owner. Caller input storage remains borrowed for the result lifetime. The lower-level explicit
+`prepare` and `run` methods remain available when a caller needs direct prepared-handle ownership.
 
 ## Core invariants
 

@@ -41,8 +41,8 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through documentation-only 0008 | Reopen only for a concrete Prepare capability or separately authorized status correction. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through documentation-only 0010L; 0007A1D Review needed; 0010D1 and 0011 Blocked | No CPU task is Ready; blocked, review-needed, and Draft rows remain unchanged. |
-| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0016 | No Engine task is Ready; reopen only for a concrete authorized capability. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0004; bounded mixed composition current through Engine 0016 | No independent later Metal task is Ready. |
+| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0017 | No Engine task is Ready; reopen only for a separately authorized capability. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0004; bounded mixed composition and reusable sessions current through Engine 0017 | No independent later Metal task is Ready. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
 | 15 | [`extensions/data`](extensions/data/master-plan.md) | Draft; architecture decision required | 0001 must authorize the Data/Text/Vision modules, build edges, decision record, and architecture tests first. |
@@ -57,11 +57,14 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 
 ## Authorized frontiers
 
-The user-authorized serial Engine
-[0016](modules/engine/tasks/0016-cpu-metal-mixed-owner-schedule.md) is Complete from exact base
-`0fe35a845a18fb9c70cdf87081b6a6c688fece47` after mandatory independent Class C review and final
-narrow documentation approval. No active Engine implementation frontier is authorized; Model 0026,
-Compiler 0006C/0007, and all other Draft, blocked, or review-needed work remain unauthorized.
+Engine
+[0017](modules/engine/tasks/0017-reusable-inference-session-api.md) is Complete from exact base
+`4fc4fd3d1e44613cdbdc44051e0bc637992d0de4`. Its required review sequence was: initial Class C
+`BLOCK`; code re-review `APPROVE` with one documentation `BLOCK`; narrow documentation `BLOCK` for
+two residuals; final Class C and narrow review `APPROVE`. The task records the exact findings,
+remediation, and validation evidence. No later Engine implementation frontier is authorized;
+Model 0026, Compiler 0006C/0007, and all other Draft, blocked, or review-needed work remain
+unauthorized.
 
 ## Blocked, review-needed, and deferred work
 
@@ -90,7 +93,7 @@ Compiler 0006C/0007, and all other Draft, blocked, or review-needed work remain 
 
 ## Nearest next step
 
-1. No Engine task is Ready. Authorize and brief a concrete next capability before implementation.
+1. No Engine task is Ready; select another frontier only through the normal authorization policy.
 
 ## History policy
 

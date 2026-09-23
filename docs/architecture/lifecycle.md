@@ -149,31 +149,43 @@ neither another lease nor a waiting close.
 
 ## Current public Engine lifecycle
 
-The ordinary reusable path is:
+The ordinary reusable session path is:
 
 ```text
-Tensor outputs -> engine.compile(...) -> engine.prepare(...)
-caller-owned input Tensors -> engine.run(...) -> leased RunResult
+Tensor outputs -> engine.compile(...) -> engine.session(...)
+caller-owned input Tensors -> session.run(...) -> leased RunResult
 exact publication occurrence -> result.materialize(...) -> detached HostTensorValue
 ```
 
-`CompiledGraph.inputs()` supplies the authoritative caller-input membership and order. A caller
-may pass those Tensors to `run(...)` in any order because Engine matches exact Tensor identities.
-The prepared recipe is immutable and reusable; its Engine handle is explicitly closeable, and
-every run receives isolated mutable `RunState`.
-`RunResult` retains publication leases until it closes, while each `HostTensorValue` is a copied,
-immutable value that remains readable after the result, Engine, and caller storage close.
+`Engine.session(compiledGraph)` performs one ordinary preparation and makes the returned
+`InferenceSession` its sole outward owner. The session borrows rather than owns the Engine and
+therefore cannot outlive the Engine composition. Its `compiledGraph()` returns the exact graph;
+`CompiledGraph.inputs()` supplies authoritative caller-input membership and occurrence order. A
+caller may pass those Tensors to `run(...)` in any order because Engine matches exact Tensor
+identities, then snapshots their current storage associations in compiled order.
 
+The session adds no execution mechanism. Every run uses the same immutable prepared recipe and
+direct captured adapters through the existing Engine and stateless Runtime runner. It performs no
+compile, prepare, provider, availability, registry, route, or schedule lookup. Every run receives
+isolated mutable `RunState` and fresh run-owned resources, so repeated and concurrent calls share
+only immutable prepared state. `RunResult` retains its publication lease and caller-input borrows
+until close, while each materialized `HostTensorValue` is a copied immutable value that remains
+readable after the result, session, Engine, and caller storage close.
+
+Closing a session closes its exact prepared execution, rejects new runs, and does not wait for a
+run that already acquired Runtime's lease. Such a run may finish, and an already returned result
+remains independently usable while its Engine remains open. Engine shutdown first waits for
+admitted operations, then closes retained results in reverse run-publication order, sessions and
+standalone prepared handles in their shared reverse preparation-publication order, and backend
+composition.
+
+The lower-level `engine.prepare(graph)` and `engine.run(prepared, inputs)` lifecycle remains
+available for direct prepared-handle ownership and bounded tuning handoff. It uses the same
+prepared recipe, binding, run, result, and close semantics; it is not a separate execution path.
 `Engine.compute(...)` is a different lifetime choice: it discovers reachable expression leaves,
 then freshly compiles, prepares, runs, materializes, closes the temporary result, and closes the
 temporary preparation during every call. `Engine.backward(...)` does the same for one scalar
-objective and explicit gradient targets. It
-does not install gradient state on Tensor. Use the reusable path when compilation or preparation
-should be amortized across runs.
-
-Engine shutdown first waits for admitted operations, then closes retained results in reverse run
-publication order, retained preparations in reverse prepare-publication order, and backend
-composition. A prepared-handle close does not independently close an already returned result.
+objective and explicit gradient targets. Neither convenience installs gradient state on Tensor.
 
 `AdvancedEngine.takeOwnership(...)` is the lower-level CPU-only explicit-composition surface. Its
 caller supplies one supported CPU integration and transfers ownership to Engine. Ordinary builder
@@ -212,24 +224,28 @@ creation contributions, and assembles explicit execution, transfer, and publicat
 Current CPU/Metal transfers are exact fully static canonical contiguous `FLOAT32`; there is no
 retry, owner substitution, conversion, heap staging, or CPU fallback.
 
-The prepared Engine handle keeps direct non-owning adapter references in caller-input and
+An inference session owns one hidden prepared handle; a standalone prepared Engine handle exposes
+that ownership directly. Both keep direct non-owning adapter references in caller-input and
 publication occurrence order while Engine owns the integrations. Run uses each input adapter to
-wrap caller host storage before Runtime admission, and each result publication uses its captured
-adapter for backend-owned host materialization. Neither operation re-queries the registry. Engine
-closes results and prepared handles before integrations, so no captured reference can outlive its
-owner.
+wrap caller host storage, and each result publication uses its captured adapter for backend-owned
+host materialization. Neither operation re-queries the registry. Engine shutdown closes retained
+results first, then sessions and standalone prepared handles in their shared reverse
+preparation-publication order, then integrations, so no captured reference can outlive its owner.
 
 The existing `prepareTuned(...)` workflow stays CPU-only. It can tune a single CPU-owned plan even
 when Metal is also registered. A Metal-owned plan fails before representative input borrowing or
 trial work, and the allowed safe-heuristic fallback remains within the already-selected CPU owner;
 it never changes ownership or prepares Metal.
 
-Engine shutdown preserves the existing outward lifecycle: it rejects new work, waits for admitted
-Engine operations, closes results and prepared handles in reverse publication order, then closes
-backend integrations in reverse registration order. Prepared-execution resources and run leases
-remain Runtime-owned. The registry map has no post-prepare execution role, and no capability
-query, availability check, reflection, or `ServiceLoader` lookup enters cold-bound Runtime
-execution. The Engine-handle adapter calls described above occur outside Runtime.
+Engine shutdown rejects new work, waits for admitted Engine operations, closes retained results in
+reverse successful-run publication order, then sessions and standalone prepared handles in their
+shared reverse preparation-publication order, and finally backend integrations in reverse
+registration order. Closing a session or standalone prepared handle rejects later runs without
+closing an already returned result. A run that already acquired Runtime's prepared lease may
+finish; close does not wait for it, and deferred prepared-resource cleanup occurs when the final
+lease releases. The registry map has no post-prepare execution role, and no capability query,
+availability check, reflection, or `ServiceLoader` lookup enters cold-bound Runtime execution.
+The Engine-handle adapter calls described above occur outside Runtime.
 
 `Engine.standard()` remains the current CPU-only convenience and constructs its fresh CPU
 integration through the same ownership path. Metal owns its configuration and native open

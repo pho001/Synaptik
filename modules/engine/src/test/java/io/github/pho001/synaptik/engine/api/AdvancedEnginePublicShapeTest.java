@@ -30,7 +30,7 @@ final class AdvancedEnginePublicShapeTest {
 
         assertEquals(List.of("backward", "builder", "close", "compile", "compile", "compute",
                         "compute", "compute", "compute", "isClosed", "prepare", "prepareTuned",
-                        "run", "standard"),
+                        "run", "session", "standard"),
                 publicMethodNames(Engine.class));
         assertEquals(List.of("borrow", "close", "compile", "isClosed", "prepare", "run",
                         "takeOwnership"), publicMethodNames(AdvancedEngine.class));

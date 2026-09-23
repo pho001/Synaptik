@@ -541,12 +541,16 @@ That Runtime owner and lease protocol is current. The Prepare finalizer-return t
 current: `BackendPartitionFinalizationResult` snapshots one executable and its acquisition-ordered
 resources, shared Prepare rejects repeated exact identities, and graph preparation transfers the
 ordered unique resources only through successful `PreparedExecution` construction. Current CPU
-finalization returns an empty resource list. Current ordinary and advanced Engine prepared handles
-are explicit closeable outward owners of one exact inward Runtime execution. Explicit handle close
-closes that execution once but does not independently close an already-returned result. Engine
-closes temporary, trial, and rollback preparations instead of publishing another owner, while
-Runtime remains the sole prepared-resource and run-lease authority. Engine shutdown closes
-retained results before retained preparations and then closes the backend composition.
+finalization returns an empty resource list. An ordinary inference session owns one hidden
+ordinary prepared handle; standalone ordinary and advanced prepared handles expose that ownership
+directly. Closing a session or standalone prepared handle rejects later runs and closes its exact
+inward Runtime execution once without closing an already returned result. A run that already
+acquired the prepared lease may finish; close does not wait, and its final lease release performs
+deferred prepared-resource cleanup. Engine closes temporary, trial, and rollback preparations
+instead of publishing another owner, while Runtime remains the sole prepared-resource and run-lease
+authority. Engine shutdown waits for admitted operations, closes retained results in reverse
+run-publication order, then sessions and standalone prepared handles in their shared reverse
+preparation-publication order, and finally the backend integrations.
 Completed Metal 0002 and 0003 consume this ownership chain for persistent MPSGraph executable and
 custom-kernel pipeline resources. Metal 0004 adds typed route-candidate generation and cache
 compatibility without changing this lifecycle.

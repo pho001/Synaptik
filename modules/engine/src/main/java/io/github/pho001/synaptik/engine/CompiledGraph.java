@@ -64,8 +64,9 @@ public final class CompiledGraph {
 
     /**
      * Returns caller-bindable logical inputs in final Compiler binding order.
-     * Callers may later supply matching Tensors to {@link Engine#run} in any list order; this
-     * descriptive list carries no storage or execution authority.
+     * Callers may later supply matching Tensors in any list order to {@link InferenceSession#run}
+     * or the lower-level {@link Engine#run}; this descriptive list carries no storage or execution
+     * authority.
      *
      * @return the same non-null immutable ordered metadata snapshot on every call
      */

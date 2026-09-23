@@ -16,9 +16,10 @@ planned work.
 
 ## Current implementation status
 
-The current public surface includes Tensor expressions, graph compilation, preparation, repeated
-execution with isolated invocation state, detached host materialization, one-shot forward
-computation, and a bounded scalar-objective backward convenience. `Engine.standard()` owns a fixed
+The current public surface includes Tensor expressions, graph compilation, reusable inference
+sessions that prepare once and run with isolated invocation state, detached host materialization,
+one-shot forward computation, and a bounded scalar-objective backward convenience.
+`Engine.standard()` owns a fixed
 CPU composition; `Engine.builder()` explicitly owns opened CPU and/or Metal integrations and
 executes non-empty single-owner plans or bounded mixed CPU/Metal plans through deterministic
 owner-indexed representations and ordered transfer steps. Current cross-owner transfer supports

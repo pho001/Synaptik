@@ -101,42 +101,46 @@ final class EngineTypedLifecycleIntegrationTest {
                     List.of(leftOutput, rightOutput), List.of(seed, seed), List.of(left, right));
             assertEquals(List.of(left.id(), right.id(), seedLeaf.id()),
                     compiled.inputs().stream().map(input -> input.tensorId()).toList());
-            var prepared = engine.prepare(compiled);
-            RunResult first = engine.run(prepared, List.of(seedLeaf, right, left));
-            RunResult second = engine.run(prepared, List.of(left, right, seedLeaf));
-            List<RunResult.Publication> firstPublications = first.publications();
-            List<RunResult.Publication> secondPublications = second.publications();
-            try (first; second) {
-                assertNotSame(first, second);
-                assertEquals(4, first.resultCount());
-                assertEquals(List.of(RunResult.Role.FORWARD, RunResult.Role.FORWARD,
-                                RunResult.Role.GRADIENT,
-                                RunResult.Role.GRADIENT),
-                        firstPublications.stream().map(RunResult.Publication::role).toList());
-                assertEquals(List.of(leftOutput.id(), rightOutput.id(), left.id(), right.id()),
-                        firstPublications.stream().map(RunResult.Publication::tensorId).toList());
-                assertEquals(List.of(0, 1, 2, 3),
-                        firstPublications.stream().map(RunResult.Publication::index).toList());
-                assertTrue(firstPublications.get(0).derivativeOrder().isEmpty());
-                assertTrue(firstPublications.get(1).derivativeOrder().isEmpty());
-                assertEquals(1, firstPublications.get(2).derivativeOrder().orElseThrow());
-                assertEquals(1, firstPublications.get(3).derivativeOrder().orElseThrow());
-                assertTrue(firstPublications.get(0).targetIndex().isEmpty());
-                assertTrue(firstPublications.get(1).targetIndex().isEmpty());
-                assertEquals(0, firstPublications.get(2).targetIndex().orElseThrow());
-                assertEquals(1, firstPublications.get(3).targetIndex().orElseThrow());
-                assertNotSame(firstPublications.get(2), firstPublications.get(3));
-                assertNotSame(firstPublications.get(2), secondPublications.get(2));
-                assertFalse(first.isClosed());
-                HostTensorValue firstGradient = first.materialize(firstPublications.get(2), 8);
-                HostTensorValue aliasedGradient = first.materialize(firstPublications.get(3), 8);
-                assertNotSame(firstGradient, aliasedGradient);
-                assertArrayEquals(read(firstGradient), read(aliasedGradient));
+            try (var session = engine.session(compiled)) {
+                assertSame(compiled, session.compiledGraph());
+                RunResult first = session.run(List.of(seedLeaf, right, left));
+                RunResult second = session.run(List.of(left, right, seedLeaf));
+                List<RunResult.Publication> firstPublications = first.publications();
+                List<RunResult.Publication> secondPublications = second.publications();
+                try (first; second) {
+                    assertNotSame(first, second);
+                    assertEquals(4, first.resultCount());
+                    assertEquals(List.of(RunResult.Role.FORWARD, RunResult.Role.FORWARD,
+                                    RunResult.Role.GRADIENT,
+                                    RunResult.Role.GRADIENT),
+                            firstPublications.stream().map(RunResult.Publication::role).toList());
+                    assertEquals(List.of(leftOutput.id(), rightOutput.id(), left.id(), right.id()),
+                            firstPublications.stream().map(RunResult.Publication::tensorId).toList());
+                    assertEquals(List.of(0, 1, 2, 3),
+                            firstPublications.stream().map(RunResult.Publication::index).toList());
+                    assertTrue(firstPublications.get(0).derivativeOrder().isEmpty());
+                    assertTrue(firstPublications.get(1).derivativeOrder().isEmpty());
+                    assertEquals(1, firstPublications.get(2).derivativeOrder().orElseThrow());
+                    assertEquals(1, firstPublications.get(3).derivativeOrder().orElseThrow());
+                    assertTrue(firstPublications.get(0).targetIndex().isEmpty());
+                    assertTrue(firstPublications.get(1).targetIndex().isEmpty());
+                    assertEquals(0, firstPublications.get(2).targetIndex().orElseThrow());
+                    assertEquals(1, firstPublications.get(3).targetIndex().orElseThrow());
+                    assertNotSame(firstPublications.get(2), firstPublications.get(3));
+                    assertNotSame(firstPublications.get(2), secondPublications.get(2));
+                    assertFalse(first.isClosed());
+                    HostTensorValue firstGradient =
+                            first.materialize(firstPublications.get(2), 8);
+                    HostTensorValue aliasedGradient =
+                            first.materialize(firstPublications.get(3), 8);
+                    assertNotSame(firstGradient, aliasedGradient);
+                    assertArrayEquals(read(firstGradient), read(aliasedGradient));
+                }
+                assertTrue(first.isClosed());
+                assertTrue(second.isClosed());
+                assertTrue(firstPublications.stream().allMatch(RunResult.Publication::isClosed));
+                assertTrue(secondPublications.stream().allMatch(RunResult.Publication::isClosed));
             }
-            assertTrue(first.isClosed());
-            assertTrue(second.isClosed());
-            assertTrue(firstPublications.stream().allMatch(RunResult.Publication::isClosed));
-            assertTrue(secondPublications.stream().allMatch(RunResult.Publication::isClosed));
         }
     }
 

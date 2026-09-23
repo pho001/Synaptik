@@ -143,11 +143,13 @@ finalization through the existing staged lifecycle.
 ### `modules/engine`
 
 Owns the public lifecycle facade and explicit composition root. Current `Engine.standard()`
-constructs and owns one fresh fixed CPU composition. It exposes owner-bound compile and prepare
-handles, typed logical input binding, leased publication metadata, explicit detached host
-materialization, fresh one-shot compute/backward conveniences, and bounded optional CPU-local
-autotuning. `AdvancedEngine.takeOwnership(...)` instead takes explicit cleanup ownership of one
-supported CPU integration and exposes the lower-level representation lifecycle.
+constructs and owns one fresh fixed CPU composition. It exposes owner-bound compile handles,
+`InferenceSession` as the ordinary reusable one-graph/one-preparation owner, typed logical input
+binding, leased publication metadata, explicit detached host materialization, fresh one-shot
+compute/backward conveniences, and bounded optional CPU-local autotuning. Direct
+`PreparedExecution` ownership and `run(preparedExecution, inputs)` remain available as the
+lower-level public lifecycle. `AdvancedEngine.takeOwnership(...)` instead takes explicit cleanup
+ownership of one supported CPU integration and exposes the representation lifecycle.
 
 The public multi-backend construction boundary is `Engine.Builder` with concrete CPU and Metal
 `takeOwnership(...)` overloads. Engine owns the builder, ordered private registry, backend

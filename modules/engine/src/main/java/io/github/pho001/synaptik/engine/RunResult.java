@@ -8,15 +8,17 @@ import java.util.Objects;
 import java.util.OptionalInt;
 
 /**
- * Owns one ordinary publication lease returned by an {@link Engine} run.
+ * Owns one ordinary publication lease returned by an {@link Engine} or
+ * {@link InferenceSession} run.
  *
  * <p>Every publication occurrence remains distinct even when occurrences select the same inward
  * representation. Closing the result releases the Runtime lease and Engine-created non-owning
- * input wrappers but never caller storage. Immutable metadata remains readable after closure.
- * While both result and Engine are open, an exact occurrence may be copied explicitly into a
- * detached {@link HostTensorValue}; host storage, physical alias identity, and backend
- * representations are never exposed. Caller storage captured for this run must remain usable
- * until this result closes.</p>
+ * input wrappers but never caller storage. Session or standalone prepared-handle close does not
+ * close an already returned result. Immutable metadata remains readable after closure. While both
+ * result and Engine are open, an exact occurrence may be copied explicitly into a detached
+ * {@link HostTensorValue}; host storage, physical alias identity, and backend representations are
+ * never exposed. Caller storage captured for this run must remain usable until this result
+ * closes.</p>
  */
 public final class RunResult implements AutoCloseable {
     private final AdvancedRunResult owner;

@@ -24,17 +24,17 @@ Metal backend exposes `MetalBackendConfiguration`, `MetalBackendIntegration`, an
 and Metal integrations. It freezes their Planning inputs in registration order and supports a
 complete non-empty plan only when every partition has one exact registered owner. The ordinary
 `Engine.standard()` convenience still constructs one fresh CPU-only composition through that same
-path. Both forms expose owner-bound compile and prepared handles, `TensorId`-matched host-input
-binding, synchronous run, forward and gradient publication occurrences, and explicit bounded
-materialization into detached immutable host values. The four one-shot `compute(...)` overloads
-automatically discover reachable provenance-free input leaves, then compose a fresh forward-only
-compile, prepare, run, complete publication and aggregate-byte preflight, ordered materialization,
-and cleanup under one Engine admission. The one-shot
+path. Both forms expose owner-bound compiled graphs, reusable `InferenceSession` construction,
+`TensorId`-matched per-run host-input binding, synchronous execution, forward and gradient
+publication occurrences, and explicit bounded materialization into detached immutable host values.
+A session owns exactly one prepared execution and reuses it across concurrent or sequential runs.
+The four one-shot `compute(...)` overloads automatically discover reachable provenance-free input
+leaves, then compose a fresh forward-only compile, prepare, run, complete publication and aggregate-
+byte preflight, ordered materialization, and cleanup under one Engine admission. The one-shot
 `backward(objective, targets, maximumTotalBytes)` call applies automatic input discovery to one
 scalar floating gradient-eligible objective, fixes Compiler's absent positive-one scalar seed and
 disconnected-target `ERROR` policy, and returns a detached objective plus immutable target-aligned
-gradients. Reusable or public capability matrices and a public graph-wide Planning workflow remain
-planned.
+gradients. Public capability matrices and a public graph-wide Planning workflow remain planned.
 Prepare analysis, finalization, and complete graph-preparation contracts plus the initial Runtime
 geometry, prepared representation creation, per-run resource/validity, executable and transfer
 cold-binding, prepared publication and result leasing, and the ordered schedule contracts are
@@ -756,12 +756,12 @@ integrations. There is no discovery, service lookup, process-global Engine, impl
 runtime owner substitution. `isClosed()` observes when delegated closure begins, and `close()`
 uses the advanced owner's thread-safe, idempotent, failure-retaining cleanup protocol.
 
-The ordinary lifecycle is:
+The ordinary user-facing lifecycle is:
 
 ```text
 ordered Tensor output expressions -> CompiledGraph
-CompiledGraph                     -> PreparedExecution
-PreparedExecution + caller Tensors in any order -> RunResult
+CompiledGraph                     -> InferenceSession with one prepared execution
+InferenceSession + caller Tensors in any order -> RunResult
 ```
 
 `compile(List<Tensor>)` creates a forward-only handle. Its three-list overload accepts ordered
@@ -771,16 +771,23 @@ provide no-argument backward. `CompiledGraph.inputs()` reports the final caller-
 `TensorId` and descriptor pairs in Compiler binding order. Compilation and preparation retain no
 caller Tensor or host-storage reference and do not read current host associations.
 
-`prepare(...)` accepts only a compile handle from the same exact Engine and returns a fresh,
-immutable, reusable, closeable owner-bound handle. The handle owns exactly one inward Runtime
-prepared execution. Callers should use try-with-resources when its reuse window is bounded;
-Engine shutdown closes any still-retained handle. `run(...)` accepts every required logical
-Tensor exactly once in arbitrary order, matches by `TensorId`, validates the complete descriptor, and then
-snapshots each Tensor's current `HostTensorStorage` association once in final binding order. Each
-run creates fresh selected-backend input representations. The caller retains the storage and its
-arena and must keep its scope alive, accessible where used, and free from conflicting mutation
-until the returned result closes, including after synchronous `run(...)` returns. Replacing a
-Tensor's association after the snapshot cannot redirect that run.
+`session(...)` accepts only a compile handle from the same exact Engine, prepares it once, and
+returns a reusable closeable session. The session owns exactly one inward Runtime prepared
+execution and borrows its Engine's composition lifetime. `compiledGraph()` returns the exact
+originating graph. Callers should use try-with-resources; Engine shutdown closes a retained session
+after its retained results.
+
+`InferenceSession.run(...)` accepts every required logical Tensor exactly once in arbitrary order,
+matches by `TensorId`, validates the complete descriptor, and then snapshots each Tensor's current
+`HostTensorStorage` association once in final binding order. Each run creates fresh selected-backend
+input representations and isolated Runtime state. The caller retains the storage and its arena and
+must keep its scope alive, accessible where used, and free from conflicting mutation until the
+returned result closes, including after synchronous `run(...)` returns. Replacing a Tensor's
+association after the snapshot cannot redirect that run.
+
+The lower-level `prepare(...)` plus `engine.run(...)` methods expose the same lifecycle through a
+standalone owner-bound `PreparedExecution`; they remain available for direct prepared ownership and
+the bounded tuning handoff. They do not define another compiler, scheduler, runner, or result.
 
 `RunResult.publications()` returns the same immutable forward-then-gradient occurrence list on
 every call. Each occurrence has a dense result index, final descriptor, role, and logical Tensor
@@ -794,24 +801,30 @@ exact occurrence object from that result and returns a fresh detached `HostTenso
 calls and aliased occurrences are copied independently; there is no cache or deduplication.
 
 Closing a result releases its Runtime lease and Engine-created wrappers but never caller storage.
-Closing a prepared handle terminally rejects later runs through it and delegates persistent
-resource cleanup to Runtime. It does not close an already returned result. If handle close races a
-run, Runtime serializes lease admission with close: a lease-first run completes and may perform
-deferred cleanup, while a close-first run is rejected. Obtaining the inward delegate does not by
-itself admit a run; that run still arbitrates with close at Runtime's unique lease authority. The
-wrapper synchronizes delegate retrieval with Runtime's close transition, not with the complete
-run. Once outward `isClosed()` returns true, that inward transition has occurred and no later
-delegate retrieval can admit work. Concurrent or repeated handle close calls wait for the first
-wrapper cleanup attempt and replay the same immediate failure by identity.
+Closing a session or standalone prepared handle terminally rejects later runs through it and
+delegates persistent resource cleanup to Runtime. It does not close an already returned result. If
+close races a run, Runtime serializes lease admission with close: a lease-first run completes and
+may perform deferred cleanup, while a close-first run is rejected. Obtaining the inward delegate
+does not itself admit a run; that run still arbitrates with close at Runtime's unique lease
+authority. Once outward `isClosed()` returns true, the inward transition has occurred and no later
+delegate retrieval can admit work. Concurrent or repeated close calls share the prepared handle's
+exactly-once, failure-retaining cleanup.
+
+Engine lifecycle admission has first precedence. Under an open Engine, a session checks its exact
+hidden prepared delegate before inspecting the caller input list, Tensor metadata, storage, or
+adapters. A post-close session run therefore fails as `prepared execution is closed` without a
+caller-storage borrow even when its arguments are invalid. If Engine closure has begun,
+`advanced engine is closed` wins before all argument inspection.
 
 Closing the Engine waits for admitted operations, then closes still-open results in reverse
-successful-run order, retained prepared handles in reverse successful-prepare order, and finally
-backend integrations in reverse registration order. Result metadata remains readable after either
-close; compiled and prepared metadata also remains readable, and a completed `HostTensorValue`
-remains readable after either close, but a closed prepared handle or Engine cannot start new work.
-Materialization uses the exact adapter captured at preparation and supports that adapter's
-documented fully static resolved publication domain. It is not an implicit cross-backend transfer,
-Tensor, storage association, typed array, or persistence format.
+successful-run order, retained sessions and standalone prepared handles in their shared reverse
+preparation-publication order, and finally backend integrations in reverse registration order.
+Session and result metadata remain readable after closure, as does a completed
+`HostTensorValue`; a closed session, prepared
+handle, or Engine cannot start new work. A session run uses the direct input and publication
+adapters captured during its sole preparation. It performs no compile, prepare, provider,
+availability, registry, route, kernel, or schedule lookup and is not an implicit cross-backend
+transfer, Tensor, storage association, typed array, cache, or persistence format.
 
 Optional `prepareTuned(...)` is a cache-first CPU-only preparation path. This complete example
 uses a `CONTIGUOUS` expression, which has no eligible local tuning handoff in the current standard
@@ -953,8 +966,9 @@ failures follow the ordinary primary/suppressed failure rules. The returned
 after Engine and caller storage close.
 
 The fixed seed and policy keep this convenience narrow. Use ordinary explicit-seed
-`compile -> prepare -> run -> materialize` for reusable execution, explicit cotangent seeds, or
-multiple forward outputs. Use `AdvancedEngine.compile(...)` with a
+`compile -> session -> session.run -> materialize` for reusable execution, explicit cotangent
+seeds, or multiple forward outputs. Direct `prepare -> run` remains available when the prepared
+handle itself must be owned. Use `AdvancedEngine.compile(...)` with a
 `FunctionalGradientRequest` for `ZERO`, two stages, higher-order construction, or the full policy
 surface.
 
@@ -1011,9 +1025,10 @@ assert first.remaining() == 2 * Float.BYTES;
 
 The expression leaves are discovered automatically, while the returned positions still follow
 the output request. Both values remain readable after Engine and caller arena closure, while the
-arena itself stayed caller-owned. Every call compiles and prepares afresh. Use the lower-level
-`compile -> prepare -> run -> materialize` lifecycle when a prepared recipe should be reused or
-only selected publications should be copied.
+arena itself stayed caller-owned. Every call compiles and prepares afresh. Use
+`compile -> session -> session.run -> materialize` when a prepared recipe should be reused or only
+selected publications should be copied. The direct prepared-handle lifecycle remains available
+when its lower-level ownership is specifically required.
 
 This complete one-shot backward example uses the currently supported resolved scalar `FLOAT32`
 CPU path. Its input storage remains caller-owned, while the two returned values remain readable
@@ -1095,8 +1110,9 @@ try (Engine engine = Engine.standard()) {
 
 `model.forward(input)` constructs the Tensor expression directed acyclic graph (DAG); it does not
 execute it. `engine.compute(output)` performs execution and host materialization. Repeated model
-execution should retain the expression and use `compile -> prepare -> run(prepared, explicit
-inputs)` rather than paying the one-shot compile and prepare cost on every call.
+execution should retain the expression and use
+`compile -> session -> session.run(explicit inputs)` rather than paying the one-shot compile and
+prepare cost on every call.
 
 `AdvancedEngine` is the current low-level composition root. Construction accepts the exact
 `CpuBackendIntegration` returned by `CpuBackendIntegration.open()` and takes ownership of it.
@@ -1157,8 +1173,8 @@ try (Engine.Builder builder = Engine.builder()) {
     builder.takeOwnership(MetalBackendIntegration.open(metalConfiguration));
     try (Engine engine = builder.build()) {
         CompiledGraph graph = engine.compile(List.of(output));
-        try (PreparedExecution prepared = engine.prepare(graph);
-                RunResult result = engine.run(prepared, List.of(input))) {
+        try (InferenceSession session = engine.session(graph);
+                RunResult result = session.run(List.of(input))) {
             HostTensorValue value =
                     result.materialize(result.publications().getFirst(), maximumBytes);
         }
@@ -1196,11 +1212,15 @@ transfer per logical value and distinct destination owner immediately before tha
 consumer, then appends the dense publication suffix. Current CPU/Metal transfer is direct native
 host-staged, fully static canonical contiguous `FLOAT32` in either direction.
 
-The returned Engine prepared handle retains direct non-owning adapters in caller-input and
-publication occurrence order beside its inward Runtime execution. `run(...)` uses each captured
-input adapter for caller-host ingress, and the result uses each publication's captured adapter for
-backend-owned host materialization. These outer calls do not re-query the registry, and Engine
-closure keeps every integration open until all results and prepared handles close.
+An inference session owns one hidden prepared handle; direct `prepare(...)` exposes the standalone
+owner. Both retain direct non-owning adapters in caller-input and publication occurrence order
+beside the inward Runtime execution. Run uses each captured input adapter for caller-host ingress,
+and the result uses each publication's captured adapter for backend-owned host materialization.
+These outer calls do not re-query the registry. Engine shutdown closes retained results first,
+then sessions and standalone prepared handles in their shared reverse preparation-publication
+order, then integrations. Closing either prepared owner rejects later runs without closing an
+already returned result; an already leased Runtime run may finish, and its final lease release
+performs deferred prepared-resource cleanup.
 
 `MetalBackendConfiguration` and `MetalBackendIntegration` are public Metal-owned types. Metal
 validates and snapshots the explicit absolute native-library path and acquires its default-device
