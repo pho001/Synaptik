@@ -40,6 +40,7 @@ import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionAttrs;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLoweringTest;
 import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
@@ -858,6 +859,64 @@ public class CpuPartitionPreparerTest {
                 () -> assertTrue(plan.boundaryValues().contains(old.valueId())),
                 () -> assertEquals(List.of(), plan.units().getFirst().dependencies()),
                 () -> assertEquals(List.of(0), plan.units().get(1).dependencies()));
+    }
+
+    @Test void retainsBoundedAffineAddressTopologyAfterPointwiseProducerUnit() {
+        Shape shape = Shape.of(2, 3);
+        TensorDescriptor descriptor = descriptor(DataType.FLOAT32, shape);
+        CompiledNode add = new CompiledNode(
+                new NodeId(0),
+                new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE),
+                List.of(new ValueId(0), new ValueId(1)),
+                List.of(new ValueId(2)));
+        CompiledNode contiguous = new CompiledNode(
+                new NodeId(1),
+                new Operation(ContiguousKind.CONTIGUOUS, NoOperationAttrs.INSTANCE),
+                List.of(new ValueId(2)),
+                List.of(new ValueId(3)));
+
+        CpuPartitionPreparationPlan plan = new CpuPartitionPreparer()
+                .analyze(arbitraryContext(
+                        List.of(add, contiguous),
+                        List.of(descriptor, descriptor, descriptor, descriptor),
+                        CpuPartitionAnalysisInputs.DEFAULT))
+                .plan();
+        var producer = plan.units().get(0);
+        var affine = plan.units().get(1);
+        long[] pairs = affine.runtimeFacts().affineAddressPairs();
+
+        assertAll(
+                () -> assertEquals(CpuPartitionPreparationPlan.PlanForm.GENERAL_PARTITION,
+                        plan.form()),
+                () -> assertEquals(List.of(new ValueId(0), new ValueId(1), new ValueId(2),
+                                new ValueId(3)),
+                        plan.boundaryValues()),
+                () -> assertEquals(List.of(0), producer.memberNodeOrdinals()),
+                () -> assertEquals(List.of(), producer.dependencies()),
+                () -> assertEquals(List.of(new ValueId(0), new ValueId(1), new ValueId(2)),
+                        producer.boundaryValues()),
+                () -> assertEquals(1, producer.outputCount()),
+                () -> assertEquals(List.of(1), affine.memberNodeOrdinals()),
+                () -> assertEquals(List.of(0), affine.dependencies()),
+                () -> assertEquals(List.of(new ValueId(2), new ValueId(3)),
+                        affine.boundaryValues()),
+                () -> assertEquals(1, affine.outputCount()),
+                () -> assertTrue(affine.portablePlan().portableKernelIr()
+                        instanceof CpuAffineCopyIr),
+                () -> assertEquals(Math.multiplyExact(affine.elementCount(), 2), pairs.length),
+                () -> assertArrayEquals(
+                        new long[] {0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5},
+                        pairs),
+                () -> {
+                    long sourceSpan = descriptor.layout().orElseThrow()
+                            .referencedElementSpan();
+                    long resultSpan = descriptor.layout().orElseThrow()
+                            .referencedElementSpan();
+                    for (int index = 0; index < pairs.length; index += 2) {
+                        assertTrue(pairs[index] >= 0 && pairs[index] < sourceSpan);
+                        assertTrue(pairs[index + 1] >= 0 && pairs[index + 1] < resultSpan);
+                    }
+                });
     }
 
     @Test void horizontallyFusesIndependentSameDomainPointwiseBranchesIntoTwoStores() {

@@ -23,6 +23,7 @@ import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection;
 import io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.LstmRecurrentScanResult;
 import io.github.pho001.synaptik.model.tensor.RecurrentScan;
@@ -215,7 +216,15 @@ final class RecurrentScanCompilerTest {
                 () -> assertEquals(
                         producer.inputs().stream().map(Tensor::descriptor).toList(),
                         query.inputs()),
-                () -> assertEquals(producer.outputDescriptors(), query.outputs()),
+                () -> assertEquals(
+                        producer.outputDescriptors().stream()
+                                .map(descriptor -> new TensorDescriptor(
+                                        descriptor.dataType(),
+                                        descriptor.shape(),
+                                        Optional.of(LayoutDescriptor.contiguous(descriptor.shape())),
+                                        descriptor.requiresGrad()))
+                                .toList(),
+                        query.outputs()),
                 () -> assertEquals(2, artifacts.publication().forwardBindings().size()),
                 () -> assertEquals(List.of(node.outputs().get(1), node.outputs().get(0)),
                         artifacts.graph().outputs()),

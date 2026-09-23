@@ -394,37 +394,45 @@ observe the final descriptors. The closure asserts no backend capability and cho
 representation, allocation, storage, materialization, preparation, kernel, or execution behavior.
 It is not a general layout-inference or propagation policy.
 
-The Compiler then performs one final, narrower unary-negation (`NEG`) logical-layout closure. An
-exact one-input, one-output `UnaryElementwiseKind.NEG` occurrence with
-`NoOperationAttrs.INSTANCE` receives `LayoutDescriptor.contiguous(shape)` for its output if and
-only if the final output Shape is fully static and its layout is still unresolved. The pass also
-closes that occurrence's direct input if and only if the value is a graph input, has an explicit
-compile-time splat entry, has a fully static Shape, and still has unresolved layout. Shared direct
-splat inputs are one graph value and therefore receive one descriptor replacement even when
-multiple eligible NEG occurrences consume them.
+The Compiler then applies one operation-aware static-result logical-layout closure. A fully static,
+layout-unresolved result receives `LayoutDescriptor.contiguous(shape)` only when its exact
+operation family proves a newly materialized logical result, or when the operation is the explicit
+`CONTIGUOUS` request. The allowlist covers the current elementwise, indexing, functional update,
+materializing movement, linear-algebra, loss, normalization, ordering, pooling, random, recurrent,
+reduction, scan, and attention result families. Unknown future kinds remain unresolved. Exact
+unary NEG results are one ordinary allowlisted case, replacing the former NEG-only pass.
 
-The rule deliberately excludes caller-bindable inputs, constants produced or forwarded through
-another operation, splats not consumed directly by NEG, dynamic or partially dynamic Shapes,
-already resolved descriptors, every other operation kind, and near-matching occurrences with a
-different attributes value or cardinality. Rank-zero and zero-extent static Shapes are valid
-logical closure cases because the Model's canonical layout factory defines them. That fact does
-not make them executable by a backend whose capability domain requires positive extents or a
-non-scalar rank.
+Affine/view results are deliberately excluded: `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`,
+`SQUEEZE`, slice extraction, and scalar `SELECT` must retain a layout derived from their input
+offset and strides or remain unresolved. The earlier specialized convolution closure continues to
+derive the direct Conv1d squeeze view. This prevents canonical completion from changing an affine
+mapping, including offset or zero-stride geometry.
 
-NEG closure runs after optimization, validation, published-constant closure, and convolution
-closure in both forward-only and backward-capable compilation. It therefore completes before
-forward and gradient bindings, publication, constant/bindable source projection, capability
-queries, owner selection, partitioning, and logical-memory planning. The pass changes only
-eligible `GraphValue` descriptors. It preserves topology, IDs, node and operation references,
-boundary order, phases, constants, bindable Tensor identities, constraints, derivative-order
-metadata, and optimization results, and returns the exact validated graph object when no value is
-eligible. Checked canonical-layout overflow fails with NEG node, value, and input/output role
-context while retaining the arithmetic cause.
+Explicit compile-time splat graph inputs receive canonical logical geometry because they have no
+caller binding whose descriptor must remain exact. The pass preserves caller-bindable graph
+inputs, dynamic or partially dynamic Shapes, and every already resolved layout.
 
-This is one bounded Compiler descriptor rule required by an exact downstream capability query.
-It is not general elementwise layout inference, propagation from input to output, a default
-logical-layout policy, constant materialization, physical storage selection, or a claim that any
-backend can execute NEG.
+Rank-zero and zero-extent Shapes use the Model's existing checked canonical layout rules. Checked
+stride or referenced-span overflow rejects compilation with the affected node-output or splat
+input identity and retains the arithmetic failure as the cause. Resolving a descriptor does not
+admit its operation: capability providers still validate exact kind, attributes, arity, data types,
+layout restrictions, gradient metadata, and backend availability, while backend lowering
+independently revalidates complete partition topology and executable geometry.
+
+Static-result closure runs after optimization, validation, published-constant closure, and the
+specialized convolution/Conv1d-view closure in both forward-only and backward-capable compilation.
+It completes before forward and gradient bindings, publication, constant/bindable source
+projection, capability queries, owner selection, partitioning, and logical-memory planning. The
+pass changes only eligible `GraphValue` descriptors and graph-owning immutable sidecars. It
+preserves topology, IDs, exact node and operation references, boundary order, phases, constants,
+bindable Tensor identities, constraints, derivative-order metadata, and optimization results, and
+returns the exact validated graph object when no value is eligible.
+
+This is backend-neutral logical descriptor completion, not physical layout selection. It creates
+no storage, representation, allocation, slot, route, kernel, executable, or backend capability.
+Concrete backends remain responsible for lowering the completed logical geometry to physical
+representations and fail closed when an otherwise completed occurrence is outside their supported
+matrix.
 
 ### Current package-private pre-capture autograd
 
@@ -908,7 +916,7 @@ sequence:
 optimized and validated graph
   -> published compile-time constant descriptor closure
   -> final convolution logical-layout closure
-  -> final NEG logical-layout closure
+  -> final static-result logical-layout closure
   -> final GraphCompilation
   -> PublicationPlan
   -> CompileConstantPlan + CompileDiagnostics
@@ -2189,7 +2197,7 @@ forward Tensor outputs
   -> one phase-aware capture
   -> inference and validation
   -> canonicalization and one-shot exact whole-graph optimization
-  -> published-constant, final convolution, and final NEG logical-descriptor closure
+  -> published-constant, final convolution, and static-result logical-descriptor closure
   -> publication, backend ownership, partitions, and logical memory
   -> CompileArtifacts
 ```

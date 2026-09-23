@@ -183,6 +183,81 @@ final class EngineTypedLifecycleIntegrationTest {
     }
 
     @Test
+    void computesAndReusesPreparedStaticTensorExpressionsWithUnresolvedDerivedLayouts() {
+        try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+            Tensor addLeft = floatTensor(
+                    arena, Shape.of(2, 3), new float[] {1, 2, 3, 4, 5, 6});
+            Tensor addRight = floatTensor(
+                    arena, Shape.of(2, 3), new float[] {6, 5, 4, 3, 2, 1});
+            Tensor matmulLeft = floatTensor(
+                    arena, Shape.of(2, 3), new float[] {1, 2, 3, 4, 5, 6});
+            Tensor matmulRight = floatTensor(
+                    arena,
+                    Shape.of(3, 4),
+                    new float[] {1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0});
+            float[] reductionValues = new float[64];
+            for (int index = 0; index < reductionValues.length; index++) {
+                reductionValues[index] = index + 1;
+            }
+            Tensor reductionInput =
+                    floatTensor(arena, Shape.of(4, 16), reductionValues);
+            Tensor normalizationInput =
+                    floatTensor(arena, Shape.of(4, 16), new float[64]);
+
+            List<CpuExpression> expressions = List.of(
+                    new CpuExpression(
+                            "pointwise",
+                            addLeft.add(addRight),
+                            List.of(addLeft, addRight),
+                            new float[] {7, 7, 7, 7, 7, 7}),
+                    new CpuExpression(
+                            "matmul",
+                            matmulLeft.matmul(matmulRight),
+                            List.of(matmulLeft, matmulRight),
+                            new float[] {4, 5, 2, 1, 10, 11, 5, 4}),
+                    new CpuExpression(
+                            "reduction",
+                            reductionInput.sum(),
+                            List.of(reductionInput),
+                            new float[] {2080}),
+                    new CpuExpression(
+                            "normalization",
+                            normalizationInput.layerNorm(
+                                    Shape.of(16),
+                                    io.github.pho001.synaptik.model.datatype.ScalarValue
+                                            .float32(1e-5f)),
+                            List.of(normalizationInput),
+                            new float[64]));
+
+            for (CpuExpression expression : expressions) {
+                assertTrue(
+                        expression.output().descriptor().layout().isEmpty(),
+                        expression.name() + " derived layout");
+                assertArrayEquals(
+                        floatBytes(expression.expected()),
+                        read(engine.compute(expression.output())),
+                        expression.name() + " compute");
+
+                Tensor published = expression.output().contiguous();
+                var prepared = engine.prepare(engine.compile(List.of(published)));
+                try (prepared) {
+                    for (int run = 0; run < 2; run++) {
+                        try (RunResult result = engine.run(prepared, expression.inputs())) {
+                            HostTensorValue actual = result.materialize(
+                                    result.publications().getFirst(),
+                                    (long) expression.expected().length * Float.BYTES);
+                            assertArrayEquals(
+                                    floatBytes(expression.expected()),
+                                    read(actual),
+                                    expression.name() + " reusable run " + run);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     void backwardDiscoversScalarInputAndReturnsDetachedObjectiveAndPositiveOneGradient() {
         ScalarObjectiveBackwardResult retained;
         try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
@@ -225,6 +300,23 @@ final class EngineTypedLifecycleIntegrationTest {
         MemorySegment.copy(source, 0, segment, 0, source.byteSize());
         return TensorFactory.create(descriptor, Optional.empty(), Optional.of(
                 new MemorySegmentStorage(DataType.FLOAT32, values.length, segment)));
+    }
+
+    private static Tensor floatTensor(Arena arena, Shape shape, float[] values) {
+        assertEquals(shape.knownElementCount().orElseThrow(), values.length);
+        TensorDescriptor descriptor = new TensorDescriptor(
+                DataType.FLOAT32,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                false);
+        MemorySegment source = MemorySegment.ofArray(values);
+        MemorySegment segment = arena.allocate(source.byteSize(), Float.BYTES);
+        MemorySegment.copy(source, 0, segment, 0, source.byteSize());
+        return TensorFactory.create(
+                descriptor,
+                Optional.empty(),
+                Optional.of(new MemorySegmentStorage(
+                        DataType.FLOAT32, values.length, segment)));
     }
 
     private static Tensor scalarFloatTensor(
@@ -272,6 +364,26 @@ final class EngineTypedLifecycleIntegrationTest {
         }
         assertArrayEquals(expected, read(value));
         return value;
+    }
+
+    private static byte[] floatBytes(float[] values) {
+        ByteBuffer bytes = bytes(Math.multiplyExact(values.length, Float.BYTES));
+        for (float value : values) {
+            bytes.putFloat(value);
+        }
+        return bytes.array();
+    }
+
+    private record CpuExpression(
+            String name, Tensor output, List<Tensor> inputs, float[] expected) {
+        private CpuExpression {
+            expected = expected.clone();
+        }
+
+        @Override
+        public float[] expected() {
+            return expected.clone();
+        }
     }
 
     private static ByteBuffer bytes(int size) {

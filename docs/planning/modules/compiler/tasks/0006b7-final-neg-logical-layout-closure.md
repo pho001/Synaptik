@@ -4,6 +4,11 @@
 
 Complete
 
+Historical implementation note: task 0006B11 supersedes the dedicated pass and test named below
+with an operation-aware static-result closure. NEG remains an explicitly proven materialized-result
+family, while affine/view results fail closed. The following sections intentionally preserve the
+0006B7 completion evidence rather than describing the current source tree.
+
 ## Goal
 
 Close the one newly proved Compiler prerequisite for Metal 0002: after final validation,

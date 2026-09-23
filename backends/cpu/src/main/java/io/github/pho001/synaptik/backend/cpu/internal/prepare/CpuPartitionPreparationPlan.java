@@ -43,10 +43,13 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool2dLowering
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLowering;
 
 /**
- * Route-neutral immutable selected CPU partition plan. General plans retain one through eight
+ * <p>Route-neutral immutable selected CPU partition plan. General plans retain one through eight
  * topologically ordered units and a deduplicated partition resource view; legacy top-level
  * geometry components remain authoritative only for the established one-unit form. Unit-local
- * runtime and specialized-family geometry lives in each {@link ExecutionUnitPlan}.
+ * runtime and specialized-family geometry lives in each {@link ExecutionUnitPlan}. General-plan
+ * validation compares generated access plans with boundary bindings except for structural
+ * families such as affine copies whose generated address-table domain intentionally differs from
+ * their validated physical boundary geometry.</p>
  *
  * @param units non-null computation-oriented units; copied defensively
  * @param route non-null route selected after common lowering
@@ -1303,8 +1306,11 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
 
     private static boolean unitAccessesAgree(ExecutionUnitPlan unit) {
         if (unit.portablePlan().portableKernelIr()
-                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAttentionIr)
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAttentionIr
+                || unit.portablePlan().portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr) {
             return true;
+        }
         var values = unit.portablePlan().kernelIr().values().stream()
                 .filter(value -> value.kind() != CpuKernelIr.Value.Kind.VIRTUAL).toList();
         if (values.size() != unit.accessBindings().size()) return false;

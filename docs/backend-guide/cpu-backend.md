@@ -10,6 +10,15 @@ used by the current fixed CPU-only Engine composition. `Engine.standard()` opens
 integration, while `AdvancedEngine.takeOwnership(...)` accepts one explicitly supplied
 integration for advanced CPU-only composition. The SPI is not the ordinary end-user execution
 facade.
+
+Before ownership selection, Compiler completes canonical logical layouts for fully static,
+layout-unresolved results only from explicitly proven materializing operation families and
+`CONTIGUOUS`, plus explicit compile-time splat inputs. Affine/view results remain input-derived or
+unresolved, so offsets and non-contiguous or zero-stride mappings are never replaced with
+canonical geometry. Caller-bindable input descriptors remain exact. This completion grants no CPU
+capability: the provider and complete-partition lowering still reject unsupported semantics, data
+types, Shapes, resolved geometry, topology, carriers, and resource requirements.
+
 A CPU-owned partition directed acyclic graph (DAG) contains one through eight supported compiled
 nodes. CPU analysis first decomposes it into established computation-unit seeds, then performs
 bounded deterministic vertical and horizontal fusion only among ordinary pointwise units. The
