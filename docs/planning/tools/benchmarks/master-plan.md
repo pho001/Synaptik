@@ -44,7 +44,7 @@ commits, models, and environments.
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
-| 0001 | Benchmark report and reproducible harness | Draft | Operational lifecycle and stable workload contracts | Incomplete: harness exists but mandatory smoke baseline is blocked by current CPU capability/native prerequisites. |
+| 0001 | [Benchmark report and reproducible harness](tasks/0001-cpu-baseline.md) | Complete | Operational lifecycle and stable workload contracts | Public CPU Engine lifecycle baseline complete; smoke evidence covers pointwise, MATMUL, reduction, normalization, Conv2d, and Conv3d. |
 | 0002 | Operation and operation-family suites | Draft | 0001, stable workload classification | Add fixed representative workloads without inventing a production `OperationFamily` contract. |
 | 0003 | Model and end-to-end suites | Draft | 0001, operational engine paths | Compare complete model and lifecycle behavior with the same report-only boundary. |
 
@@ -57,9 +57,15 @@ commits, models, and environments.
 
 ## Current status
 
-Draft.
+Complete for benchmark task 0001: the report-only CPU lifecycle harness emits reproducible JSON evidence for all six mandatory smoke families through public Engine compile, prepare, and run. Tasks 0002 and 0003 remain Draft.
 
-This tool is not yet planned in detail. Detailed task specifications will be created when it becomes the current or next implementation frontier.
+The recorded smoke command is:
+
+```bash
+./gradlew :tools:benchmarks:benchmark -Pprofile=smoke
+```
+
+It passed with Java 26.0.1 on Mac OS X aarch64, profile `smoke`, one warmup, two measurements, and exit code 0. Exact timings, repeated samples, shapes, checksums, and limitations are recorded in [task 0001](tasks/0001-cpu-baseline.md).
 
 ## Open questions
 

@@ -2196,7 +2196,8 @@ model, or end-to-end workloads to compare commits, models, or environments. A **
 is the rich immutable evidence from one recorded run: workload and environment identity, supplied
 configuration, lifecycle boundary, samples or distributions, and summary statistics. Benchmarking
 never selects or mutates production settings and never substitutes for correctness tests. The
-report contract and harness remain planned in `tools/benchmarks`.
+current report-only CPU lifecycle harness and its baseline evidence live in `tools/benchmarks`;
+broader operation-family and model suites remain planned in its task list.
 
 ### Backward graph
 
