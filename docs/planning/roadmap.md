@@ -36,7 +36,7 @@ or task boundary; it does not promote Draft work to Ready.
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete through documentation-only 0006B9; 0006C and 0007 Draft | Reassess exactly one later Compiler frontier; no Compiler implementation task is Ready. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through documentation-only 0007 | No Prepare task is Ready. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
-| 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through 0010J; 0007A1D Review needed; 0010D1 and 0011 Blocked | No CPU task is Ready; vendor peers 0012–0015 and integrations 0016–0017 remain Draft. |
+| 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through 0010J; 0010K Ready; 0007A1D Review needed; 0010D1 and 0011 Blocked | Execute only the CPU backend guide status reconciliation; later capability rows remain unchanged. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0013 | No Engine task is Ready. |
 | 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0004 | Reassess exactly one next frontier; no later Metal task is Ready. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
@@ -53,10 +53,10 @@ or task boundary; it does not promote Draft work to Ready.
 
 ## Current frontier
 
-The user-authorized sequential explanatory/status drift-remediation sequence is Complete through
-[Prepare 0007](modules/prepare/tasks/0007-partition-preparer-guide-status-reconciliation.md).
-The next confirmed cluster is the stale CPU backend guide; no detailed task brief is Ready yet.
-Later focused work must also reconcile the stale glossary `Compile` entry and
+The user-authorized sequential explanatory/status drift-remediation sequence has advanced to
+[CPU 0010K](backends/cpu/tasks/0010k-cpu-backend-guide-status-reconciliation.md), the sole `Ready`
+frontier. It corrects only stale Engine/Config/Prepare/tuning/public-facade status in the CPU
+backend guide. Later focused work must also reconcile the stale glossary `Compile` entry and
 `GraphCompilationPort` Javadoc found during Planning 0007 review, plus the stale CPU-finalizer
 status paragraph found during Prepare 0007 review. Model 0026, Compiler 0006C/0007, and all other
 Draft or blocked work remain unauthorized.
@@ -88,9 +88,8 @@ Draft or blocked work remain unauthorized.
 
 ## Nearest next step
 
-1. Create only the compact brief for the confirmed CPU backend guide status cluster, then verify
-   its frontier and dependencies before execution; do not promote Model 0026, Compiler 0006C/0007,
-   or other Draft or blocked work implicitly.
+1. Execute and independently review CPU 0010K; do not promote Model 0026, Compiler 0006C/0007, or
+   other Draft or blocked work implicitly.
 
 ## History policy
 
