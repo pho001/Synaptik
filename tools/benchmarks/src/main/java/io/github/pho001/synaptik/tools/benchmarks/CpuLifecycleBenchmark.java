@@ -128,28 +128,30 @@ public final class CpuLifecycleBenchmark {
                 reduction("reduction", tensor(Shape.of(4, 16))),
                 normalization("normalization", tensor(Shape.of(4, 16))));
     }
-    private static Workload binaryAdd(String name, Tensor input, Tensor second) {
-        return finish(name, input.add(second), input, second);
+
+    private static Workload unary(String name, Tensor input, Tensor second, boolean matmul) {
+        Tensor output = matmul ? input.matmul(second).contiguous() : name.equals("conv2d")
+                ? input.conv2d(second, Conv2dAttrs.defaults())
+                : input.conv3d(second, Conv3dAttrs.defaults());
+        return finish(name, output, input, second);
     }
 
     private static Workload finish(String name, Tensor output, Tensor... inputs) {
         return new Workload(name, output, List.of(inputs));
     }
 
-    private static Workload unary(String name, Tensor input, Tensor second, boolean matmul) {
-        Tensor output = matmul ? input.matmul(second) : name.equals("conv2d")
-                ? input.conv2d(second, Conv2dAttrs.defaults())
-                : input.conv3d(second, Conv3dAttrs.defaults());
-        return finish(name, output, input, second);
+    private static Workload reduction(String name, Tensor input) {
+        return finish(name, input.sum().contiguous(), input);
     }
-
-    private static Workload reduction(String name, Tensor input) { return finish(name, input.sum(), input); }
     private static Workload normalization(String name, Tensor input) {
         return finish(name, input.layerNorm(Shape.of(16),
-                io.github.pho001.synaptik.model.datatype.ScalarValue.float32(1e-5f)), input);
+                io.github.pho001.synaptik.model.datatype.ScalarValue.float32(1e-5f)).contiguous(), input);
     }
 
 
+    private static Workload binaryAdd(String name, Tensor input, Tensor second) {
+        return finish(name, input.add(second).contiguous(), input, second);
+    }
     private static Tensor tensor(Shape shape) {
         int count = Math.toIntExact(shape.knownElementCount().orElseThrow());
         float[] data = new float[count];
