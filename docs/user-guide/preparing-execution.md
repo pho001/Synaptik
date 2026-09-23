@@ -3,15 +3,17 @@
 ## Outcome
 
 This guide turns a current ordinary `CompiledGraph` into an immutable reusable
-`PreparedExecution`. Preparation performs CPU lowering and route selection, declares and assigns
-shared resource slots, constructs executable recipes, and validates the schedule. It does not bind
-caller inputs or create per-run mutable state.
+`PreparedExecution`. Preparation analyzes every backend-owned partition, declares and assigns
+shared logical slots plus deterministic owner-indexed physical representations, constructs
+executable and transfer recipes, and validates one complete schedule. It does not bind caller
+inputs or create per-run mutable state.
 
 ## Prerequisites
 
-- One open `Engine.standard()`.
+- One open `Engine.standard()`, or one open explicitly composed CPU/Metal Engine.
 - A `CompiledGraph` created by that exact Engine.
-- One non-empty maximal CPU-owned partition with supported fully static descriptors.
+- One non-empty partition plan whose owners are registered and whose required directed transfers
+  are supported.
 
 ## Prepare once
 
@@ -26,10 +28,11 @@ try (PreparedExecution prepared = engine.prepare(graph)) {
 The returned handle is bound to the exact Engine and graph. It is immutable and may be reused or
 shared by concurrent callers because every `run(...)` creates isolated invocation state.
 
-Shared Prepare owns validation, partition-scoped projection, exact shared slot assignment, and
-schedule assembly. CPU owns concrete lowering, specialization, route choice, storage geometry,
-and executable construction. Runtime receives the completed recipe and does not repeat those
-decisions.
+Shared Prepare owns validation, partition-scoped projection, exact logical slot and
+representation-position assignment, contribution coverage, schedule assembly, and rollback. CPU
+and Metal own their concrete lowering, specialization, route choice, physical storage geometry,
+executable construction, and direct transfer endpoints. Runtime receives the completed recipe and
+does not repeat those decisions.
 
 ## Optional bounded CPU-local autotuning
 
@@ -59,7 +62,7 @@ prevents new runs and is the final cleanup boundary for a handle the caller leav
 |---|---|---|
 | Preparation rejects a handle from another Engine | Owner identity is part of the lifecycle contract. | Compile and prepare with the same open Engine. |
 | Preparation rejects a zero-node graph | Current composition requires a non-empty partition plan. | Compile an operation supported by a registered owner, not a leaf-only publication. |
-| Preparation rejects mixed owners | The first public builder slice has no cross-owner transfer or schedule assembly. | Use a graph whose complete plan has one registered owner; registering CPU beside Metal does not enable a split schedule. |
+| Preparation rejects mixed-owner transfer | One required edge is outside the exact static canonical contiguous `FLOAT32` CPU/Metal transfer domain, or an owner is not registered. | Register both integrations and keep cross-owner values inside the supported descriptor and native-storage boundary; there is no fallback or conversion. |
 | A prepared handle is rebuilt for every run | One-shot and reusable lifecycles were confused. | Retain one prepared handle and call `run(...)` repeatedly. |
 
 ## Related documentation

@@ -56,9 +56,11 @@ final class CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest {
         assertEquals(0, Arrays.stream(CpuBackendIntegration.class.getDeclaredConstructors())
                 .filter(constructor -> Modifier.isPublic(constructor.getModifiers())
                         || Modifier.isProtected(constructor.getModifiers())).count());
-        assertEquals(List.of("availabilitySnapshot", "borrow", "capabilityProvider", "close",
+        assertEquals(List.of("acceptsContiguousFloat32Transfer", "availabilitySnapshot",
+                        "bindContiguousFloat32Transfer", "borrow", "capabilityProvider", "close",
                         "completePlanTuning", "copyToCanonicalHostBytes", "localWorkloadTuning",
-                        "open", "partitionPreparation", "scheduleAssembler"),
+                        "open", "partitionPreparation", "scheduleAssembler",
+                        "scheduleContributor"),
                 Arrays.stream(CpuBackendIntegration.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
                         .map(method -> method.getName()).sorted().toList());
@@ -271,9 +273,17 @@ final class CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest {
                 publications.add(binding.valueId()));
         artifacts.publication().gradientBindings().forEach(binding ->
                 publications.add(binding.valueId()));
-        return new PreparedScheduleContext(artifacts.partitions(), artifacts.graph().values(),
-                artifacts.constants().bindableInputs(), constants, publications, memoryPlan,
-                partitions, assignments);
+        return new PreparedScheduleContext(
+                artifacts.partitions(),
+                artifacts.graph().values(),
+                artifacts.memory().requirements(),
+                artifacts.constants().bindableInputs(),
+                constants,
+                publications,
+                memoryPlan,
+                partitions,
+                assignments,
+                List.of());
     }
 
     private static io.github.pho001.synaptik.runtime.execution.PreparedExecution prepare(
@@ -299,9 +309,7 @@ final class CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest {
             CompileArtifacts artifacts, PreparedMemoryPlan memoryPlan) {
         var assignments = new java.util.ArrayList<PreparedBufferAssignment>();
         for (int index = 0; index < artifacts.graph().values().size(); index++) {
-            assignments.add(new PreparedBufferAssignment(
-                    artifacts.graph().values().get(index).id(),
-                    memoryPlan.buffers().get(index).slot(), index));
+            assignments.add(new PreparedBufferAssignment(artifacts.graph().values().get(index).id(), memoryPlan.buffers().get(index).slot(), index, java.util.List.of(io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider.CPU_BACKEND_ID)));
         }
         return List.copyOf(assignments);
     }

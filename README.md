@@ -2,8 +2,8 @@
 
 Synaptik is a modular Java foundation for compiling, preparing, and executing computational graphs
 across multiple backends. The project is under active development and currently provides a
-runnable public lifecycle with fixed CPU convenience and explicit single-owner CPU/Metal
-composition, plus backend-independent Tensor and compiler capabilities.
+runnable public lifecycle with fixed CPU convenience and explicit single- or bounded mixed-owner
+CPU/Metal composition, plus backend-independent Tensor and compiler capabilities.
 
 [`ARCHITECTURE.md`](ARCHITECTURE.md) is the authoritative architecture root and sole authority
 index; it links the six incorporated scoped contracts. The contributor and agent workflow is
@@ -20,11 +20,13 @@ The current public surface includes Tensor expressions, graph compilation, prepa
 execution with isolated invocation state, detached host materialization, one-shot forward
 computation, and a bounded scalar-objective backward convenience. `Engine.standard()` owns a fixed
 CPU composition; `Engine.builder()` explicitly owns opened CPU and/or Metal integrations and
-executes a complete plan through one registered owner. Metal currently executes supported static
-`FLOAT32` negation partitions through MPSGraph or a single-operation custom route. A
-standard-Metal convenience, mixed-owner execution, generic plugin registration/discovery,
-broader Metal coverage, CUDA, training orchestration, persistence, and generic graph/plan tuning
-remain planned. Focused documentation identifies the exact current boundary for each area.
+executes non-empty single-owner plans or bounded mixed CPU/Metal plans through deterministic
+owner-indexed representations and ordered transfer steps. Current cross-owner transfer supports
+positive rank-1..16 fully static canonical contiguous `FLOAT32` values in both directions. Metal
+executes supported static `FLOAT32` negation partitions through MPSGraph or a single-operation
+custom route. A standard-Metal convenience, generic plugin registration/discovery, broader Metal
+coverage, CUDA, training orchestration, persistence, and generic graph/plan tuning remain planned.
+Focused documentation identifies the exact current boundary for each area.
 
 ## Prerequisites
 

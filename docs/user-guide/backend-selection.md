@@ -4,9 +4,9 @@
 
 This guide explains what callers can select today. `Engine.standard()` owns a fixed CPU-only
 composition. `Engine.builder()` accepts explicitly opened CPU and Metal integrations and freezes
-their registration order, capability providers, and availability snapshots. A prepared graph must
-still have one non-empty plan owned entirely by one registered backend; mixed-owner execution is
-not supported.
+their registration order, capability providers, and availability snapshots. Compilation selects
+one owner per operation; ordinary preparation can combine both registered owners through a
+validated shared schedule and explicit bounded transfers.
 
 ## Mental model
 
@@ -15,10 +15,12 @@ ordinary: Engine.standard() -> fixed explicit CPU composition
 
 explicit: caller opens CPU and/or Metal integrations -> transfers them to Engine.Builder
           compile chooses one owner per operation from the frozen inventory
-          prepare requires one owner for the complete non-empty plan
+          prepare validates the complete owner set and every required transfer before analysis
+          shared Prepare finalizes every partition and assembles one immutable schedule
 
-prepare:  selected owner chooses its private route and executable
-run:      uses the captured adapter and prepared references; no selection or discovery
+run:      binds caller inputs through captured per-occurrence adapters
+          executes direct partition/transfer references; no selection or discovery
+result:   materializes each publication through its captured adapter
 ```
 
 CPU scalar, Java Vector API, generated JVM bytecode, and OpenBLAS are CPU-internal routes. They are
@@ -55,9 +57,10 @@ try (Engine.Builder builder = Engine.builder()) {
 
 Each non-null `takeOwnership(...)` call transfers the integration at method entry. Do not close or
 reuse it afterward, even when registration reports an error. Registration order is deterministic
-Planning input, not fallback priority. A graph supported entirely by Metal can select Metal; a
-graph supported entirely by CPU can select CPU. A plan containing both owners fails before backend
-analysis because no cross-owner transfer schedule exists.
+Planning input, not fallback priority. A graph supported entirely by one owner stays on that
+owner. A CPU/Metal graph is prepared only when every directed cross-owner edge is supported;
+current transfer is exact host-staged, fully static canonical contiguous `FLOAT32` in either
+direction and performs no type/layout conversion or fallback.
 
 ## Use explicit advanced ownership
 
@@ -100,8 +103,9 @@ backend.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| A caller expects `Engine.standard()` to discover Metal or CUDA | Fixed standard composition was mistaken for plugin discovery. | Use `Engine.builder()` for explicit Metal ownership; CUDA has no public lifecycle integration. |
-| Registration order is treated as fallback order | Deterministic Planning input was mistaken for retry priority. | Expect a missing or mixed owner to fail without owner substitution. |
+| A caller expects `Engine.standard()` to discover Metal or CUDA | Fixed standard composition was mistaken for explicit registration. | Use `Engine.builder()` for explicit Metal ownership; CUDA has no public lifecycle integration. |
+| Registration order is treated as fallback order | Deterministic Planning input was mistaken for retry priority. | Expect a missing owner or unsupported transfer to fail without owner substitution. |
+| A mixed plan fails before backend analysis | One required directed edge is outside the current static contiguous `FLOAT32` CPU/Metal transfer domain. | Use supported descriptors and native host storage for CPU transfer endpoints, or keep that value on one owner. |
 | CPU scalar and OpenBLAS appear as separate owners | Backend route and backend identity were confused. | Let CPU preparation choose its internal route. |
 | Runtime changes owner after a failure | Ownership was deferred past compilation/preparation. | Runtime must execute the already prepared schedule. |
 | `unconstrained()` is treated as guaranteed fallback | Absence of a hard requirement was mistaken for a valid candidate. | Expect compilation to fail when no supplied backend is eligible. |
@@ -110,8 +114,9 @@ backend.
 ## Limitations
 
 There is no current `CompileConfig` aggregate, reflective or service-based registration/discovery,
-CUDA lifecycle adapter, device-level public selector, mixed-owner schedule composition, or runtime
-fallback. Explicit CPU/Metal composition does not change those boundaries.
+CUDA lifecycle adapter, device-level public selector, general transfer/conversion system, or
+runtime fallback. Mixed-owner execution is specifically bounded to the registered CPU/Metal
+integrations and exact static canonical contiguous `FLOAT32` transfer.
 
 ## Related documentation
 

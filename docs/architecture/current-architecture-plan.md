@@ -38,6 +38,7 @@ Focused architecture documentation:
 - [ADR 0013: Prepared-execution persistent-resource lifecycle](../design/decisions/0013-prepared-execution-persistent-resource-lifecycle.md)
 - [ADR 0014: Scope-indexed normative architecture contracts](../design/decisions/0014-scope-indexed-normative-architecture-contracts.md)
 - [ADR 0015: Explicit Engine backend composition](../design/decisions/0015-explicit-engine-backend-composition.md)
+- [ADR 0016: CPU/Metal mixed-owner prepared schedule](../design/decisions/0016-cpu-metal-mixed-owner-schedule.md)
 
 ## Status
 
@@ -45,11 +46,13 @@ This index is current. The architecture describes the intended complete system. 
 now has substantive Model, Backend Contract, Planning, Compiler, Runtime, Prepare, Engine, CPU,
 and Metal implementations, plus partial Config and Trace contracts. The public lifecycle is
 runnable through fixed CPU `Engine.standard()` or explicit `Engine.builder()` registration of
-opened CPU and Metal integrations. Each prepared plan must still have one registered owner.
-Explicit single-owner Metal execution is current for supported static `FLOAT32` negation
-partitions through MPSGraph or the custom singleton route. A standard-Metal convenience,
-mixed-owner execution, generic plugin registration/discovery, broader Metal coverage, CUDA,
-generic graph/plan tuning, persistence, and training orchestration remain planned. The
+opened CPU and Metal integrations. Ordinary preparation composes non-empty plans across their
+registered owners, with deterministic owner-indexed representations and explicit direct
+CPU-to-Metal and Metal-to-CPU transfers for fully static canonical contiguous `FLOAT32` values.
+Metal execution remains bounded to supported static `FLOAT32` negation partitions through
+MPSGraph or the custom singleton route. A standard-Metal convenience, generic plugin
+registration/discovery, broader Metal and transfer coverage, CUDA, generic graph/plan tuning,
+persistence, and training orchestration remain planned. The
 [implementation roadmap](../planning/roadmap.md) records the exact delivery frontier.
 
 ## Decisions and strategies

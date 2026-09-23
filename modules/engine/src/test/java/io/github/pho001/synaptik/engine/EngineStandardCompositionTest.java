@@ -145,6 +145,40 @@ final class EngineStandardCompositionTest {
         }
 
         @Override
+        public io.github.pho001.synaptik.prepare.PartitionPreparation<?, ?>
+                partitionPreparation() {
+            throw new AssertionError("unexpected partition preparation");
+        }
+
+        @Override
+        public io.github.pho001.synaptik.prepare.PreparedScheduleContributor
+                scheduleContributor() {
+            throw new AssertionError("unexpected schedule contribution");
+        }
+
+        @Override
+        public io.github.pho001.synaptik.prepare.PreparedScheduleAssembler scheduleAssembler() {
+            throw new AssertionError("unexpected schedule assembly");
+        }
+
+        @Override
+        public boolean supportsTransferTo(
+                EngineBackendComposition destination, TensorDescriptor descriptor) {
+            return false;
+        }
+
+        @Override
+        public io.github.pho001.synaptik.runtime.execution.PreparedBufferTransfer
+                prepareTransferTo(
+                        EngineBackendComposition destination,
+                        io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan memoryPlan,
+                        int bufferIndex,
+                        int sourceRepresentationIndex,
+                        int destinationRepresentationIndex,
+                        TensorDescriptor descriptor) {
+            throw new AssertionError("unexpected transfer preparation");
+        }
+
         public PreparedExecution prepare(CompileArtifacts artifacts) {
             throw new AssertionError("unexpected preparation");
         }

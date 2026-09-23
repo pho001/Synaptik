@@ -234,17 +234,22 @@ public final class GraphPreparation {
 
         BackendPartitionFinalizationHandoff.Result handoff =
                 BackendPartitionFinalizationHandoff.finalizePartitions(
-                        artifacts.partitions(), entries, canonicalProducerlessResources);
+                        artifacts.partitions(),
+                        entries,
+                        artifacts.constants().bindableInputs(),
+                        canonicalProducerlessResources);
         try {
             PreparedScheduleContext context = new PreparedScheduleContext(
                     artifacts.partitions(),
                     artifacts.graph().values(),
+                    artifacts.memory().requirements(),
                     artifacts.constants().bindableInputs(),
                     constants(artifacts),
                     publicationValueIds(artifacts),
                     handoff.memoryPlan(),
                     handoff.partitions(),
-                    handoff.bufferAssignments());
+                    handoff.bufferAssignments(),
+                    handoff.workspaceAssignments());
             PreparedSchedule schedule = Objects.requireNonNull(
                     scheduleAssembler.assemble(context), "scheduleAssembler returned null");
             validateSchedule(context, schedule);

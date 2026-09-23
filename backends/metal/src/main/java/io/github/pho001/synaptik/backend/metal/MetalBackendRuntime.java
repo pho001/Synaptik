@@ -5,10 +5,12 @@ import io.github.pho001.synaptik.backend.contract.BackendDeviceId;
 import io.github.pho001.synaptik.backend.contract.DeviceClass;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutKind;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.prepare.PartitionPreparation;
 import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
+import io.github.pho001.synaptik.prepare.PreparedScheduleContributor;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -17,6 +19,7 @@ import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /** Package-private native-lifecycle owner used only by {@link MetalBackendIntegration}. */
 final class MetalBackendRuntime implements AutoCloseable {
@@ -95,6 +98,11 @@ final class MetalBackendRuntime implements AutoCloseable {
         return scheduleAssembler;
     }
 
+    /** @return the retained physical-creation contributor used by shared mixed-owner assembly */
+    PreparedScheduleContributor scheduleContributor() {
+        return (PreparedScheduleContributor) scheduleAssembler;
+    }
+
     /**
      * Creates one Metal-owned input representation from caller-owned host storage.
      *
@@ -139,6 +147,63 @@ final class MetalBackendRuntime implements AutoCloseable {
             }
             throw failure;
         }
+    }
+
+    /**
+     * Reports whether one nominal representation is an exact live Metal side of a prepared
+     * contiguous FLOAT32 transfer.
+     *
+     * @param representation non-null candidate representation
+     * @param descriptor non-null exact logical descriptor
+     * @return whether representation type, context, layout, data type, and byte extent match
+     */
+    boolean acceptsContiguousFloat32Transfer(
+            BufferRepresentation representation, TensorDescriptor descriptor) {
+        Objects.requireNonNull(representation, "representation");
+        Objects.requireNonNull(descriptor, "descriptor");
+        if (!isContiguousFloat32(descriptor)) {
+            return false;
+        }
+        long byteCount = transferByteCount(descriptor);
+        return representation instanceof MetalBufferRepresentation metal
+                && metal.belongsTo(context)
+                && metal.byteSize() == byteCount;
+    }
+
+    /**
+     * Cold-binds one exact Metal destination to a direct upload action.
+     *
+     * @param representation non-null candidate destination
+     * @param descriptor non-null exact logical descriptor
+     * @return non-null immutable action capturing the exact typed destination
+     */
+    Consumer<MemorySegment> bindContiguousFloat32Upload(
+            BufferRepresentation representation, TensorDescriptor descriptor) {
+        if (!acceptsContiguousFloat32Transfer(representation, descriptor)) {
+            throw new IllegalArgumentException(
+                    "Metal upload requires an exact live contiguous FLOAT32 representation");
+        }
+        MetalBufferRepresentation metal = (MetalBufferRepresentation) representation;
+        long byteCount = transferByteCount(descriptor);
+        return source -> metal.upload(0L, source, 0L, byteCount);
+    }
+
+    /**
+     * Cold-binds one exact Metal source to a direct download action.
+     *
+     * @param representation non-null candidate source
+     * @param descriptor non-null exact logical descriptor
+     * @return non-null immutable action capturing the exact typed source
+     */
+    Consumer<MemorySegment> bindContiguousFloat32Download(
+            BufferRepresentation representation, TensorDescriptor descriptor) {
+        if (!acceptsContiguousFloat32Transfer(representation, descriptor)) {
+            throw new IllegalArgumentException(
+                    "Metal download requires an exact live contiguous FLOAT32 representation");
+        }
+        MetalBufferRepresentation metal = (MetalBufferRepresentation) representation;
+        long byteCount = transferByteCount(descriptor);
+        return destination -> metal.download(0L, destination, 0L, byteCount);
     }
 
     /**
@@ -205,6 +270,19 @@ final class MetalBackendRuntime implements AutoCloseable {
             }
         }
         return result;
+    }
+
+    private static boolean isContiguousFloat32(TensorDescriptor descriptor) {
+        return descriptor.dataType() == DataType.FLOAT32
+                && descriptor.shape().isFullyStatic()
+                && descriptor.layout().isPresent()
+                && descriptor.layout().orElseThrow().equals(
+                        LayoutDescriptor.contiguous(descriptor.shape()));
+    }
+
+    private static long transferByteCount(TensorDescriptor descriptor) {
+        return Math.multiplyExact(
+                descriptor.shape().knownElementCount().orElseThrow(), Float.BYTES);
     }
 
     /**

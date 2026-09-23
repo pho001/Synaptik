@@ -189,6 +189,9 @@ The following invariants must remain true:
 - Backend prepare owns backend-specific lowering and kernel selection.
 - Backend preparation is staged: backend analysis and exact shared-resource declaration precede
   shared slot assignment, and backend finalization follows slot assignment.
+- Shared Prepare assigns one logical buffer slot per materialized graph value and one deterministic
+  representation position per participating backend owner. Cross-owner availability is realized
+  only by explicit prepared transfer steps between those positions.
 - Model autotuning, when requested, must complete before runtime hot-path execution.
 - Runtime profiling is passive observation and must not select or mutate execution settings.
 - Runtime executes prepared schedules only.

@@ -1,5 +1,6 @@
 package io.github.pho001.synaptik.engine;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -16,31 +17,35 @@ public final class PreparedExecution implements AutoCloseable {
     private final Engine owner;
     private final CompiledGraph compiledGraph;
     private final io.github.pho001.synaptik.runtime.execution.PreparedExecution execution;
-    private final EngineBackendComposition adapter;
+    private final List<EngineBackendComposition> inputAdapters;
+    private final List<EngineBackendComposition> publicationAdapters;
     private boolean closed;
     private boolean cleanupComplete;
     private Throwable closeFailure;
 
     /**
-     * Retains the exact ordinary owner, compile handle, immutable Runtime recipe, and the direct
-     * selected backend adapter used for this handle's host ingress and result materialization.
+     * Retains the exact ordinary owner, compile handle, immutable Runtime recipe, and direct
+     * adapters aligned with every caller-input and publication occurrence.
      *
      * @param owner non-null exact Engine owner
      * @param compiledGraph non-null exact originating compile handle
      * @param execution non-null immutable inward prepared recipe
-     * @param adapter non-null direct selected adapter owned by {@code owner}
-     * @throws NullPointerException if an argument is {@code null}
+     * @param inputAdapters non-null exact adapters in caller-input occurrence order
+     * @param publicationAdapters non-null exact adapters in publication occurrence order
+     * @throws NullPointerException if an argument or indexed adapter is {@code null}
      * @throws IllegalArgumentException if the compiled handle has another owner
      */
     PreparedExecution(
             Engine owner,
             CompiledGraph compiledGraph,
             io.github.pho001.synaptik.runtime.execution.PreparedExecution execution,
-            EngineBackendComposition adapter) {
+            List<EngineBackendComposition> inputAdapters,
+            List<EngineBackendComposition> publicationAdapters) {
         this.owner = Objects.requireNonNull(owner, "owner");
         this.compiledGraph = Objects.requireNonNull(compiledGraph, "compiledGraph");
         this.execution = Objects.requireNonNull(execution, "execution");
-        this.adapter = Objects.requireNonNull(adapter, "adapter");
+        this.inputAdapters = List.copyOf(inputAdapters);
+        this.publicationAdapters = List.copyOf(publicationAdapters);
         if (compiledGraph.owner() != owner) {
             throw new IllegalArgumentException("compiled graph belongs to another engine");
         }
@@ -60,12 +65,21 @@ public final class PreparedExecution implements AutoCloseable {
     }
 
     /**
-     * Returns the selected direct adapter only to package-private cold run orchestration.
+     * Returns the direct adapters aligned with caller-input occurrences to cold run orchestration.
      *
-     * @return the non-null adapter retained at successful preparation
+     * @return non-null immutable ordered adapter snapshot retained at successful preparation
      */
-    EngineBackendComposition adapter() {
-        return adapter;
+    List<EngineBackendComposition> inputAdapters() {
+        return inputAdapters;
+    }
+
+    /**
+     * Returns direct adapters aligned with result publication occurrences to result ownership.
+     *
+     * @return non-null immutable ordered adapter snapshot retained at successful preparation
+     */
+    List<EngineBackendComposition> publicationAdapters() {
+        return publicationAdapters;
     }
 
     /**

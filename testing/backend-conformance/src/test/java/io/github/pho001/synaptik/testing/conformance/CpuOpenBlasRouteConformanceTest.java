@@ -446,8 +446,8 @@ final class CpuOpenBlasRouteConformanceTest {
                 var slot = new BufferSlot(buffers.size());
                 buffers.add(new PreparedMemoryPlan.BufferEntry(slot, buffer.byteSize(),
                         buffer.byteAlignment()));
-                assignments.add(new PreparationResourceAssignment.Buffer(buffer, slot,
-                        buffers.size() - 1));
+                assignments.add(new PreparationResourceAssignment.Buffer(
+                        buffer, slot, buffers.size() - 1, 0));
             } else if (requirement instanceof PreparationResourceRequirement.Workspace workspace) {
                 var slot = new WorkspaceSlot(workspaces.size());
                 workspaces.add(new PreparedMemoryPlan.WorkspaceEntry(slot, workspace.byteSize(),
@@ -479,8 +479,8 @@ final class CpuOpenBlasRouteConformanceTest {
                 var slot = new BufferSlot(buffers.size());
                 buffers.add(new PreparedMemoryPlan.BufferEntry(slot, buffer.byteSize(),
                         buffer.byteAlignment()));
-                assignments.add(new PreparationResourceAssignment.Buffer(buffer, slot,
-                        buffers.size() - 1));
+                assignments.add(new PreparationResourceAssignment.Buffer(
+                        buffer, slot, buffers.size() - 1, 0));
             } else if (requirement instanceof PreparationResourceRequirement.Workspace workspace) {
                 var slot = new WorkspaceSlot(workspaces.size());
                 workspaces.add(new PreparedMemoryPlan.WorkspaceEntry(slot, workspace.byteSize(),

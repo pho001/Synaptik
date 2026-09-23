@@ -55,7 +55,7 @@ class FinalizationPublicShapeTest {
                         java.util.Set.of(PreparationResourceAssignment.class.getPermittedSubclasses())),
                 () -> assertRecordComponents(
                         PreparationResourceAssignment.Buffer.class,
-                        "requirement", "slot", "planIndex"),
+                        "requirement", "slot", "planIndex", "representationIndex"),
                 () -> assertRecordComponents(
                         PreparationResourceAssignment.Workspace.class,
                         "requirement", "slot", "planIndex"),
@@ -71,7 +71,11 @@ class FinalizationPublicShapeTest {
                         "context", "analysis", "finalizer"),
                 () -> assertRecordComponents(
                         BackendPartitionFinalizationHandoff.Result.class,
-                        "memoryPlan", "partitions", "bufferAssignments", "resources"),
+                        "memoryPlan",
+                        "partitions",
+                        "bufferAssignments",
+                        "workspaceAssignments",
+                        "resources"),
                 () -> assertTrue(Arrays.stream(
                                 BackendPartitionFinalizationHandoff.class.getDeclaredMethods())
                         .anyMatch(method -> method.getName().equals("finalizePartitions")

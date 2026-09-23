@@ -46,6 +46,7 @@ final class RepresentativeExecutionSession implements AutoCloseable {
     private final EngineBackendComposition composition;
     private final io.github.pho001.synaptik.compiler.CompileArtifacts artifacts;
     private final AdvancedEngine lifecycleOwner;
+    private final AdvancedEngine.OrdinaryPreparationOverride ordinaryPreparationOverride;
     private State state = State.OPEN;
     private boolean poisoned;
     private boolean inputsCleanupAttempted;
@@ -81,12 +82,14 @@ final class RepresentativeExecutionSession implements AutoCloseable {
             CompiledGraph compiledGraph,
             List<Tensor> inputs,
             EngineBackendComposition composition,
-            PreparedExecutionRunner runner) {
+            PreparedExecutionRunner runner,
+            AdvancedEngine.OrdinaryPreparationOverride ordinaryPreparationOverride) {
         Objects.requireNonNull(compiledGraph, "compiledGraph");
         Objects.requireNonNull(inputs, "inputs");
         this.composition = Objects.requireNonNull(composition, "composition");
         this.runner = Objects.requireNonNull(runner, "runner");
         this.lifecycleOwner = Objects.requireNonNull(lifecycleOwner, "lifecycleOwner");
+        this.ordinaryPreparationOverride = ordinaryPreparationOverride;
         artifacts = compiledGraph.artifacts();
         publicationSpecs = List.copyOf(compiledGraph.publicationSpecs());
         var descriptors = new ArrayList<TensorDescriptor>(publicationSpecs.size());
@@ -484,7 +487,16 @@ final class RepresentativeExecutionSession implements AutoCloseable {
             throw new IllegalStateException(
                     "representative execution session is not ready for fallback");
         }
-        return composition.prepare(artifacts);
+        if (ordinaryPreparationOverride != null) {
+            return Objects.requireNonNull(
+                    ordinaryPreparationOverride.prepare(artifacts),
+                    "ordinary preparation override result");
+        }
+        if (!(composition instanceof CpuEngineBackendComposition cpu)) {
+            throw new IllegalStateException(
+                    "ordinary tuning fallback requires CPU composition");
+        }
+        return cpu.prepare(artifacts, cpu.partitionPreparation());
     }
 
     /**

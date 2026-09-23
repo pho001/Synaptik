@@ -546,13 +546,14 @@ preserve their two's-complement bit patterns; and `BOOL` accepts only the exact 
 not exceed either `maximumBytes` or `Integer.MAX_VALUE`; arithmetic overflow and a genuine JVM
 allocation failure remain distinct failures.
 
-The accepted graph shape is deliberately exact. A pure zero-node constant or pass-through graph
-remains rejected because the CPU integration requires one non-empty maximal CPU partition. A
-mixed-owner or multi-partition artifact is rejected before CPU analysis or schedule assembly
-because combining multiple backend contributions remains later Engine/Prepare work. For an
-accepted projection, the assembler describes creation of fresh run-owned CPU buffers and
-workspaces, initialization of projected constants, one prepared CPU execution occurrence, and
-publications in Prepare-supplied order. A source-only constant gains no executable schedule step. Assembly performs none
+The backend-local CPU complete-assembler entry remains deliberately exact. A pure zero-node
+constant or pass-through graph is rejected because it requires one non-empty maximal CPU
+partition; direct use also rejects mixed-owner or multiple-partition artifacts. Ordinary Engine
+mixed-owner preparation instead invokes CPU through its partition finalizer and physical
+contributor, then composes all owners centrally. For a backend-local accepted projection, the CPU
+assembler describes creation of fresh run-owned buffers and workspaces, initialization of
+projected constants, one prepared CPU execution occurrence, and publications in Prepare-supplied
+order. A source-only constant gains no executable schedule step. Assembly performs none
 of that physical work: `PreparedExecution` retains immutable recipes only, and creation of every
 fresh `RunState` invokes each initialized-buffer recipe exactly once. Sequential or concurrent
 runs therefore own distinct initialized representations.
@@ -742,8 +743,9 @@ transfer, residency, constant initialization or materialization, or publication.
 contributions still require at least one non-empty planned partition and therefore do not make a
 zero-node graph executable. The supplied assembler constructs an
 immutable schedule recipe once; Prepare validates exact source, execution, coordinate, and
-publication coverage before constructing the prepared root. Engine composes this operation with
-the exact selected single-owner integration captured during cold preparation.
+publication coverage before constructing the prepared root. Ordinary Engine composes this
+operation from all exact partition owners, backend physical contributions, and explicit transfer
+recipes captured during cold preparation.
 
 ## Current ordinary, explicit-composition, and advanced lifecycle
 
@@ -1182,24 +1184,30 @@ without replacing the first entry. The snapshot remains fixed for that Engine's 
 Registration order supplies deterministic compile-time Planning input; it is not a runtime
 fallback order.
 
-Compilation chooses owner identities from that fixed inventory. Cold preparation accepts only a
-non-empty plan whose partitions all name one equal registered owner and routes all partitions to
-that integration. A missing owner, zero-partition plan, or mixed CPU/Metal plan fails before
-backend analysis. There is no implicit CPU fallback, retry, owner substitution, or cross-owner
-data movement. A separate architecture decision must define cross-owner representations,
-transfers, declarations, schedule order, and rollback before mixed-owner preparation can succeed.
+Compilation chooses owner identities from that fixed inventory. Cold preparation requires a
+non-empty plan, resolves every distinct partition owner, and validates every required directed
+cross-owner transfer before backend analysis. A missing owner, zero-partition plan, or unsupported
+transfer fails without implicit CPU fallback, retry, owner substitution, or conversion.
 
-The returned Engine prepared handle retains a direct non-owning reference to the selected adapter
-beside its inward Runtime execution. `run(...)` uses that adapter for caller-host ingress, and the
-returned result uses it for backend-owned host materialization. These outer calls do not re-query
-the registry, and Engine closure keeps the integration open until every result and prepared handle
-closes.
+Shared Prepare analyzes and finalizes partitions in plan order, assigns one logical slot and one
+deterministic representation position per participating owner, and obtains exact backend physical
+creators. Engine assembles execution occurrences in partition order, inserting one immutable
+transfer per logical value and distinct destination owner immediately before that owner's first
+consumer, then appends the dense publication suffix. Current CPU/Metal transfer is direct native
+host-staged, fully static canonical contiguous `FLOAT32` in either direction.
+
+The returned Engine prepared handle retains direct non-owning adapters in caller-input and
+publication occurrence order beside its inward Runtime execution. `run(...)` uses each captured
+input adapter for caller-host ingress, and the result uses each publication's captured adapter for
+backend-owned host materialization. These outer calls do not re-query the registry, and Engine
+closure keeps every integration open until all results and prepared handles close.
 
 `MetalBackendConfiguration` and `MetalBackendIntegration` are public Metal-owned types. Metal
 validates and snapshots the explicit absolute native-library path and acquires its default-device
 native context before the integration is transferred. Engine neither parses the native-library
-path nor owns a duplicate Metal configuration. The integration supplies the complete Prepare,
-host-ingress, materialization, and close contribution in addition to capability.
+path nor owns a duplicate Metal configuration. The integration supplies partition preparation,
+physical creation contribution, exact transfer endpoints, host ingress, materialization, and
+close in addition to capability.
 
 `prepareTuned(...)` remains the bounded CPU-only workflow. It can tune a CPU-owned plan when Metal
 is also registered, but a Metal-owned plan fails with `IllegalStateException` before
@@ -1212,15 +1220,16 @@ internally. `AdvancedEngine.takeOwnership(CpuBackendIntegration)` remains CPU-on
 multi-backend construction belongs to ordinary `Engine.Builder`.
 
 See the
-[authoritative Engine composition contract](../architecture/contracts/runtime-prepare-engine.md#public-explicit-composition)
-and [ADR 0015](../design/decisions/0015-explicit-engine-backend-composition.md).
+[authoritative Engine composition contract](../architecture/contracts/runtime-prepare-engine.md#public-explicit-composition),
+[ADR 0015](../design/decisions/0015-explicit-engine-backend-composition.md), and
+[ADR 0016](../design/decisions/0016-cpu-metal-mixed-owner-schedule.md).
 
 ## Current CPU limitations and planned conveniences
 
-The current CPU composition prepares exactly one non-empty maximal CPU partition. Zero-node
-pass-through graphs, mixed-owner graphs, and multiple partitions are rejected. Inputs and every
-CPU operation occurrence require fully static Shapes and resolved compatible layouts; adding
-`contiguous()` after an operation does not retroactively resolve that operation's inputs or
+The fixed CPU-only and advanced CPU compositions prepare exactly one non-empty maximal CPU
+partition. Zero-node pass-through and direct multi-partition artifacts are rejected. Inputs and
+every CPU operation occurrence require fully static Shapes and resolved compatible layouts;
+adding `contiguous()` after an operation does not retroactively resolve that operation's inputs or
 output. A compile success therefore does not guarantee CPU preparation or execution success.
 
 The focused supported examples use `CONTIGUOUS` directly over resolved `FLOAT32` leaves. The

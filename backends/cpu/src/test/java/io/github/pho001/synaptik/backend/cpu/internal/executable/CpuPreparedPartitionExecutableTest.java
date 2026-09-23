@@ -149,8 +149,7 @@ class CpuPreparedPartitionExecutableTest {
             var slot = new BufferSlot(buffers.size());
             buffers.add(new PreparedMemoryPlan.BufferEntry(slot, buffer.byteSize(),
                     buffer.byteAlignment()));
-            assignments.add(new PreparationResourceAssignment.Buffer(buffer, slot,
-                    buffers.size() - 1));
+            assignments.add(new PreparationResourceAssignment.Buffer(buffer, slot, buffers.size() - 1, 0));
         }
         var memory = new PreparedMemoryPlan(buffers, List.of());
         return (CpuPreparedPartitionExecutable) new CpuPartitionFinalizer().finalizePartition(

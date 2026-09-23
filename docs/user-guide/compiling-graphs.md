@@ -58,7 +58,8 @@ lower-level integration surface for callers that intentionally own the four stan
 settings and transfer one `CpuBackendIntegration` to `AdvancedEngine.takeOwnership(...)`.
 
 Neither surface discovers backends or accepts a public generic plugin registry. Compilation may
-succeed even when single-owner preparation or the selected backend later rejects the artifact.
+succeed even when preparation later finds a missing registered owner, an unsupported cross-owner
+transfer, or a backend-specific unsupported partition.
 
 ## Expected result
 
@@ -71,13 +72,14 @@ It contains no caller Tensor storage reference and performs no execution.
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | Compilation rejects an empty or repeated output list | The public boundary must be non-empty and identity-unique. | Supply each exact requested output Tensor once. |
-| `prepare(...)` rejects a graph that compiled | Preparation requires a non-empty plan owned entirely by one registered backend, and that backend may impose narrower preparation constraints. | Use operations and fully static compatible descriptors supported by one registered owner; compile success alone is not an execution promise. |
+| `prepare(...)` rejects a graph that compiled | Preparation requires every planned owner to be registered, every cross-owner edge to have an explicit supported transfer, and each backend to accept its own partitions. | Register the required built-ins and use operations and fully static compatible descriptors in their current domains; compile success alone is not an execution promise. |
 | A caller expects compilation to read input bytes | Compile operates on expression meaning and descriptors. | Keep storage live for `run(...)`, not for compilation itself. |
 | A caller expects `CompileConfig.auto()` | Config aggregate facades are not current. | Use ordinary fixed `Engine.compile(...)` or the explicitly advanced standalone settings. |
 
 ## Limitations
 
-Current public composition supports explicit single-owner CPU or Metal execution. Metal currently
+Current public composition supports fixed CPU execution and explicit CPU/Metal mixed-owner
+execution. Cross-owner values must be fully static canonical contiguous `FLOAT32`; Metal currently
 admits only its documented positive-shape contiguous `FLOAT32` NEG domain. Model construction
 leaves Conv2d and Conv3d result layouts unresolved; Compiler closes only eligible fully static
 final convolution descriptors before CPU Planning capability admission. Dynamic or partially

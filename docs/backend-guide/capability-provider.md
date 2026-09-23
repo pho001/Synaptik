@@ -14,7 +14,8 @@ The port delegates to package-private `GraphCompiler`, which creates one query f
 graph node and calls public `BackendOwnerPlanning.selectOwner(...)`. That Planning collaboration
 composes internal per-query hard eligibility and baseline owner comparison without exposing their
 intermediate. Reusable/public capability matrices, a public graph-wide Planning workflow, numeric
-cost scoring, generic plugin registration, and mixed-owner Engine execution remain planned.
+cost scoring, and generic plugin registration remain planned. Ordinary Engine can execute the
+mixed CPU/Metal ownership selected by the current inventory when every transfer is supported.
 
 A capability is a declarative answer to “can this backend own this work?” It is not a live
 executable, a kernel registry, or a route selection.

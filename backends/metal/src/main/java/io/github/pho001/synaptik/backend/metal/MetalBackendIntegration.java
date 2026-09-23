@@ -5,7 +5,10 @@ import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.prepare.PartitionPreparation;
 import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
+import io.github.pho001.synaptik.prepare.PreparedScheduleContributor;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
+import java.lang.foreign.MemorySegment;
+import java.util.function.Consumer;
 import java.util.Objects;
 
 /**
@@ -16,7 +19,9 @@ import java.util.Objects;
  * validates its ABI, creates native ownership, and rolls back every partially opened native owner
  * before failing. The integration and its immutable collaborators may be used concurrently while
  * Engine coordinates their lifetime. It performs no library discovery, CPU fallback, backend
- * registration, or mixed-owner transfer.</p>
+ * registration, or transfer scheduling. It exposes a physical schedule contributor and checked
+ * native upload/download binders that Engine uses for the bounded mixed-owner CPU/Metal transfer
+ * domain.</p>
  */
 public final class MetalBackendIntegration implements AutoCloseable {
     private final MetalBackendConfiguration configuration;
@@ -102,13 +107,24 @@ public final class MetalBackendIntegration implements AutoCloseable {
     }
 
     /**
-     * Returns the retained complete single-owner Metal schedule assembler.
+     * Returns the retained backend-local complete Metal schedule assembler.
      *
      * @return a non-null shared Prepare role borrowing this integration lifetime
      * @throws IllegalStateException if native ownership is no longer available when used
      */
     public PreparedScheduleAssembler scheduleAssembler() {
         return runtime.scheduleAssembler();
+    }
+
+    /**
+     * Returns the retained Metal physical-creation contributor used by shared mixed-owner
+     * assembly.
+     *
+     * @return non-null retained immutable contributor; ownership remains with this integration
+     * @throws IllegalStateException if native ownership is no longer available when used
+     */
+    public PreparedScheduleContributor scheduleContributor() {
+        return runtime.scheduleContributor();
     }
 
     /**
@@ -124,6 +140,55 @@ public final class MetalBackendIntegration implements AutoCloseable {
      */
     public BufferRepresentation borrow(HostTensorStorage storage) {
         return runtime.borrow(storage);
+    }
+
+    /**
+     * Reports whether a nominal representation is the exact live Metal side of a prepared
+     * contiguous FLOAT32 transfer.
+     *
+     * @param representation non-null candidate Metal representation
+     * @param descriptor non-null exact logical descriptor
+     * @return whether representation type, context, layout, data type, and byte extent match
+     * @throws NullPointerException if an object argument is null
+     */
+    public boolean acceptsContiguousFloat32Transfer(
+            BufferRepresentation representation, TensorDescriptor descriptor) {
+        return runtime.acceptsContiguousFloat32Transfer(representation, descriptor);
+    }
+
+    /**
+     * Cold-binds one exact Metal destination to a direct native upload action.
+     *
+     * <p>The returned action retains the typed destination directly. Invoking it performs exactly
+     * one upload from the supplied live native host segment and allocates no staging storage.</p>
+     *
+     * @param representation non-null exact destination representation
+     * @param descriptor non-null exact static canonical contiguous FLOAT32 descriptor
+     * @return non-null immutable action retaining the typed destination and checked byte extent
+     * @throws NullPointerException if an object argument is null
+     * @throws IllegalArgumentException if type, context, layout, or byte extent is incompatible
+     */
+    public Consumer<MemorySegment> bindContiguousFloat32Upload(
+            BufferRepresentation representation, TensorDescriptor descriptor) {
+        return runtime.bindContiguousFloat32Upload(representation, descriptor);
+    }
+
+    /**
+     * Cold-binds one exact Metal source to a direct native download action.
+     *
+     * <p>The returned action retains the typed source directly. Invoking it performs exactly one
+     * download into the supplied live writable native host segment and allocates no staging
+     * storage.</p>
+     *
+     * @param representation non-null exact source representation
+     * @param descriptor non-null exact static canonical contiguous FLOAT32 descriptor
+     * @return non-null immutable action retaining the typed source and checked byte extent
+     * @throws NullPointerException if an object argument is null
+     * @throws IllegalArgumentException if type, context, layout, or byte extent is incompatible
+     */
+    public Consumer<MemorySegment> bindContiguousFloat32Download(
+            BufferRepresentation representation, TensorDescriptor descriptor) {
+        return runtime.bindContiguousFloat32Download(representation, descriptor);
     }
 
     /**

@@ -61,8 +61,9 @@ class PreparedScheduleContextTest {
 
         assertAll(
                 () -> assertEquals("plannedPartitions", assertThrows(NullPointerException.class,
-                        () -> new PreparedScheduleContext(null, null, null, null, null,
-                                null, null, null)).getMessage()),
+                        () -> new PreparedScheduleContext(
+                                null, null, null, null, null, null, null, null, null, null))
+                                .getMessage()),
                 () -> assertEquals(
                         "partitions[0] does not retain plannedPartitions[0]",
                         assertThrows(IllegalArgumentException.class, () -> context(
@@ -74,8 +75,7 @@ class PreparedScheduleContextTest {
                         assertThrows(IllegalArgumentException.class, () -> context(
                                 fixture, memoryPlan, partitions,
                                 List.of(assignments.get(0), assignments.get(1), assignments.get(2),
-                                        new PreparedBufferAssignment(new ValueId(99),
-                                                assignments.get(3).slot(), 3))))
+                                        new PreparedBufferAssignment(new ValueId(99), assignments.get(3).slot(), 3, java.util.List.of(new io.github.pho001.synaptik.backend.contract.BackendId("test"))))))
                                 .getMessage()));
     }
 
@@ -89,10 +89,17 @@ class PreparedScheduleContextTest {
                 publications.add(binding.valueId()));
         fixture.artifacts().publication().gradientBindings().forEach(binding ->
                 publications.add(binding.valueId()));
-        return new PreparedScheduleContext(fixture.artifacts().partitions(),
+        return new PreparedScheduleContext(
+                fixture.artifacts().partitions(),
                 fixture.artifacts().graph().values(),
-                fixture.artifacts().constants().bindableInputs(), constants(fixture), publications,
-                memoryPlan, partitions, assignments);
+                fixture.artifacts().memory().requirements(),
+                fixture.artifacts().constants().bindableInputs(),
+                constants(fixture),
+                publications,
+                memoryPlan,
+                partitions,
+                assignments,
+                List.of());
     }
 
     private static LinkedHashMap<ValueId, io.github.pho001.synaptik.model.datatype.ScalarValue>
@@ -115,8 +122,7 @@ class PreparedScheduleContextTest {
     private static List<PreparedBufferAssignment> assignments(PreparedMemoryPlan plan) {
         var assignments = new ArrayList<PreparedBufferAssignment>();
         for (int index = 0; index < plan.buffers().size(); index++) {
-            assignments.add(new PreparedBufferAssignment(
-                    new ValueId(index), plan.buffers().get(index).slot(), index));
+            assignments.add(new PreparedBufferAssignment(new ValueId(index), plan.buffers().get(index).slot(), index, java.util.List.of(new io.github.pho001.synaptik.backend.contract.BackendId("test"))));
         }
         return List.copyOf(assignments);
     }

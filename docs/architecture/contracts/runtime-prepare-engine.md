@@ -142,18 +142,29 @@ shared buffer and workspace requirement exactly enough for shared preparation to
 runtime slot identities. Shared preparation does not interpret the opaque backend plan or private
 route vocabulary.
 
-After shared preparation assigns slots, the same backend finalizes the analysis against those
-assignments and constructs the `PreparedExecutable` and `PreparedPartition`. Backend
-finalization must not change the selected route or introduce undeclared shared requirements. It
-may acquire immutable persistent prepared resources after assignment. A finalizer owns rollback
-before it returns; shared Prepare owns returned resources transactionally until a completely
-validated `PreparedExecution` accepts ownership. Any intervening failure closes the acquired
-resources once in deterministic reverse order. Finalizer results list resources in acquisition
-order; Prepare concatenates them in partition-finalization order, rejects repeated exact resource
-identities, and never derives ownership from executable or schedule occurrences. Rollback
-preserves the preparation failure and suppresses distinct resource-close failures in cleanup
-encounter order, skipping self-suppression. Per-run physical allocation and binding remain
-runtime/backend concerns after preparation.
+After shared preparation assigns slots, it assigns every participating backend owner one stable
+representation position for each declared logical buffer. The producing owner is first when one
+exists; otherwise the first consuming owner is first. Remaining distinct consumer owners follow
+logical consumer-partition order, and repeated partitions with the same owner reuse that owner's
+position. The exact position is part of each buffer assignment supplied to the finalizer, so a
+backend executable selects its own representation directly rather than assuming position zero.
+The memory-plan buffer order begins with Compiler bindable-input IDs in exact caller occurrence
+order, independent of partition and backend declaration order. Remaining ordinary buffers retain
+first-declaration order and producerless resources remain last. The plan-ordered buffer association
+retains the complete owner order, and each workspace association retains its exact partition owner.
+
+The same backend then finalizes the analysis against those assignments and constructs the
+`PreparedExecutable` and `PreparedPartition`. Backend finalization must not change the selected
+route or introduce undeclared shared requirements. It may acquire immutable persistent prepared
+resources after assignment. A finalizer owns rollback before it returns; shared Prepare owns
+returned resources transactionally until a completely validated `PreparedExecution` accepts
+ownership. Any intervening contribution, transfer-recipe, schedule-assembly, validation, or
+aggregate-construction failure closes the acquired resources once in deterministic reverse order.
+Finalizer results list resources in acquisition order; Prepare concatenates them in partition-
+finalization order, rejects repeated exact resource identities, and never derives ownership from
+executable, transfer, or schedule occurrences. Rollback preserves the preparation failure and
+suppresses distinct resource-close failures in cleanup encounter order, skipping self-suppression.
+Per-run physical allocation and binding remain runtime/backend concerns after preparation.
 
 Backend analysis is deterministic from its explicit facts, configuration, and compatible cache
 inputs. An explicitly enabled later model-autotuning workflow may instead supply a selected
@@ -196,11 +207,14 @@ Prepare is where these are created:
 
 Concrete backend lowering occurs in concrete backend modules.
 Route selection and shared-resource discovery occur during backend analysis. Executable
-construction occurs only during backend finalization after shared slot assignment. Shared Prepare
-assembles and validates ordered schedule-step occurrences, then constructs the Runtime
-`PreparedExecution` with the exact assigned memory plan, exact schedule, and acquisition-ordered
-persistent resources. Successful construction transfers unique ownership of those resources to
-that Runtime aggregate.
+construction occurs only during backend finalization after shared slot and representation-position
+assignment. Each participating backend contributes exact representation creators for its assigned
+buffer positions and workspace creators for its partition-owned workspace positions. Contributions
+are physical creation recipes, not an alternative schedule. Shared preparation validates complete,
+non-overlapping contribution coverage, assembles and validates ordered schedule-step occurrences,
+then constructs the Runtime `PreparedExecution` with the exact assigned memory plan, exact
+schedule, and acquisition-ordered persistent resources. Successful construction transfers unique
+ownership of those resources to that Runtime aggregate.
 
 
 ## Run lifecycle
@@ -211,24 +225,37 @@ Run lifecycle:
 PreparedExecutionRunner.run(PreparedExecution, callerInputs)
   -> acquire one prepared-execution run lease
   -> create exactly one RunState for the complete logical run
-     - bind caller inputs as borrowed representations
+     - bind each logical caller input once through its prepared source-owner representation
      - invoke the optional first representation-creation recipe for run-owned buffers/workspaces
   -> cold-bind every executable, transfer, and publication occurrence
      to typed direct-reference actions
-  -> traverse PreparedSchedule.Step occurrences in order
-     - execute PreparedExecutable occurrences
-     - perform explicit prepared buffer-transfer/materialization occurrences
+  -> traverse the immutable PreparedSchedule.Step occurrences in order
+     - execute each partition executable in compile-partition order
+     - immediately before a destination owner's first consuming partition, perform each required
+       explicit source-owner-to-destination-owner buffer transfer
      - publish the dense final suffix
   -> RunResult
      - owns the complete RunState lease and releases resources still owned by the run on close
   -> release the prepared-execution run lease before the synchronous call returns
 ```
 
+One logical value has at most one representation per participating backend owner. A transfer
+copies from the producing owner's representation, or from the first consuming owner's caller-input
+representation when the value has no producer, to one distinct consuming owner's representation.
+Fan-out creates one immutable transfer recipe per distinct destination owner and schedules it once
+before that owner's first consumer. The source remains valid. Runtime marks the destination valid
+only after successful physical transfer; failure leaves source and destination validity unchanged
+and triggers ordinary reverse run cleanup with the transfer failure primary.
+
 `PreparedExecutionRunner` owns this synchronous orchestration. It is stateless and creates one
-isolated `RunState` per call; concurrent calls may share the immutable prepared recipe but not
-mutable run state. `PreparedExecution` remains the unique owner of persistent prepared resources.
-Executable and transfer binding create backend-owned typed actions; Runtime publication binding
-retains the selected representation directly without transferring its ownership.
+isolated `RunState` per call; concurrent and repeated calls may share the immutable prepared recipe
+but not mutable state or run-owned representations. `PreparedExecution` remains the unique owner
+of persistent prepared resources. Concrete transfer recipes retain exact direction, byte geometry,
+and direct backend-owned cold binders. Cold binding validates concrete representations once and
+creates an action with direct typed source, destination, and staging references. Executable and
+transfer execution, and Runtime publication binding, perform no Engine, registry, backend-ID,
+provider, availability, configuration, discovery, reflection, or representation-map lookup.
+Publication binding retains the selected representation directly without transferring ownership.
 
 Run must not perform:
 
@@ -362,55 +389,67 @@ reverse registration order. Cleanup is attempt-all, idempotent, and failure-reta
 prepared handle closes its one inward Runtime execution but does not close an already-returned
 result. Runtime remains the unique prepared-resource and run-lease authority.
 
-### Compile ownership and Prepare routing
+### Compile ownership and mixed-owner Prepare routing
 
 Each compile receives the immutable provider and availability snapshots in registration order.
 Planning selects a `BackendId` owner before preparation and compile artifacts retain identities,
-not live integration objects. Registration order is deterministic compile-time input; it is not
-a runtime fallback chain.
+not live integration objects. Registration order is deterministic compile-time input; it is not a
+runtime fallback chain.
 
-During cold preparation, Engine validates the complete planned-partition owner set and routes
-each partition by exact `BackendId` to the matching private registry entry. Shared Prepare still
-owns projection, staged analysis/finalization, slot assignment, transactional resource transfer,
-schedule validation, and construction of the one Runtime `PreparedExecution`. A concrete backend
-receives only its partition-scoped Prepare projection and never receives the Engine registry or
-Compiler aggregate.
+During cold preparation, Engine validates the complete non-empty planned-partition owner set and
+routes every partition by exact `BackendId` to the matching private registry entry. A missing
+owner fails before backend analysis. Engine then supplies one positional preparation per partition
+to the existing shared `GraphPreparation` transaction; a concrete backend receives only its
+partition-scoped projection and never receives the Engine registry or Compiler aggregate. There is
+no retry, implicit CPU fallback, recompilation, owner substitution, or normalized-ID match.
 
-The first explicit-composition implementation is a single-owner vertical slice: a non-empty
-compile plan may prepare only when every planned partition has one equal registered owner. Engine
-then supplies that owner's complete preparation and schedule contribution. A missing owner,
-zero-partition plan, or more than one distinct owner fails before any backend analysis or
-preparation-time persistent-resource acquisition. There is no retry, implicit CPU fallback,
-recompilation, or owner change.
+Before analysis, Engine derives every cross-owner edge from `LogicalMemoryRequirement` producer
+and consumer partitions and validates the exact ordered source/destination adapter pair, tensor
+descriptor, layout, data type, and byte geometry. Unsupported direction, representation,
+layout, data type, or size fails closed before backend analysis or persistent-resource acquisition.
+The currently supported heterogeneous transfer domain is CPU to Metal and Metal to CPU for
+positive rank-1..16 fully static canonical contiguous `FLOAT32` values within Metal's real NEG
+capability and with checked element and byte geometry. It performs no conversion. The CPU
+run-owned native representation is the reusable host staging storage: CPU to
+Metal uploads its exact bytes, while Metal to CPU downloads into it. No per-element object,
+canonical-byte materialization, or additional hot-path copy is permitted.
 
-On successful single-owner preparation, the outward Engine prepared handle retains a direct,
-non-owning reference to that owner's private adapter alongside its one inward Runtime execution.
-Engine retains integration ownership. `Engine.run(...)` uses the direct adapter to create
-backend-owned representations that borrow caller `HostTensorStorage` before invoking Runtime; the
-returned Engine result retains the same direct adapter for authenticated backend-owned host
-materialization. These references are Engine-handle state, not Runtime recipe state or registry
-lookups. Closing results and prepared handles before integrations keeps every direct adapter
-reference within its owner lifetime.
+One complete Engine preparation supplies one shared schedule assembler. Each exact owner adapter
+contributes only the representation and workspace creators for positions assigned to that owner.
+The assembler emits the sole optional representation-creation prefix, then partition executions in
+compile order with required transfer steps immediately before each destination owner's first
+consumer, and finally the dense publication suffix. Schedule construction uses the stable logical
+producer/consumer facts and shared assignments; it does not rescore ownership, inspect backend
+routes, or create a second scheduling convention.
 
-Mixed-owner preparation remains fail-closed until a separate contract defines cross-owner
-representation creation, transfer direction and ownership, transfer capability and failure,
-schedule ordering, shared-slot declarations, and rollback across backend contributions. Merely
-registering CPU and Metal does not authorize a mixed-owner schedule.
+On successful preparation, the outward Engine prepared handle retains immutable direct adapter
+lists aligned with logical caller inputs and publication occurrences. Exactly one source-owner
+adapter creates each caller-input representation. Each publication captures the adapter owning its
+selected representation, including mixed result lists. Engine run and materialization use those
+direct references; they do not query the registry. Transfer recipes retain only the direct
+backend-owned binders and native context references selected during preparation. Closing results
+and prepared handles before integrations keeps every captured reference within its owner lifetime.
 
-`Engine.prepareTuned(...)` remains the current bounded CPU-only workflow. After ordinary argument
-and owner validation, it may proceed only when the complete non-empty plan has the single
-registered CPU owner; a registry that also contains Metal does not prevent that CPU-owned plan
-from tuning. A single Metal owner fails with `IllegalStateException` before representative-input
-borrowing, candidate generation, trial preparation, or execution. Missing, empty, and mixed owner
-sets retain the ordinary preparation rejection. `ALLOW_SAFE_HEURISTIC` may fall back only within
-that already-selected CPU entry after a recoverable CPU tuning failure; it never changes owner,
-uses Metal, or turns unavailable tuning into ordinary Metal preparation.
+Preparation is transactional across all owner contributions. A finalizer retains rollback
+responsibility until it returns. Shared Prepare then owns all returned persistent resources across
+later finalizers, contribution assembly, transfer-recipe creation, schedule validation, Runtime
+aggregate construction, and outward-handle publication. Failure closes acquired persistent
+resources in reverse partition/acquisition order. Per-run representation creation is separately
+transactional in `RunStateCreation`; a later creation, binding, transfer, execution, or publication
+failure closes only run-owned resources in reverse acquisition order and never closes borrowed
+caller storage.
 
-The registry map has no post-prepare execution role. Runtime receives direct prepared executable,
-transfer, representation, and publication references, while outer Engine run and materialization
-use the direct selected adapter captured in their handles. Runtime and its cold-bound hot path
-never query the Engine, registry, adapter, provider, availability snapshot, configuration, backend
-ID, `ServiceLoader`, reflection, or a global lookup.
+`Engine.prepareTuned(...)` remains CPU-only. It rejects an empty, missing, Metal-only, or mixed
+owner plan before representative-input borrowing, candidate generation, trial preparation, or
+execution. A complete CPU-owned plan may tune when Metal is also registered.
+`ALLOW_SAFE_HEURISTIC` may fall back only within that already-selected CPU entry after a
+recoverable CPU tuning failure; it never changes owner or admits a heterogeneous trial.
+
+The registry map has no post-prepare execution role. Runtime receives immutable schedules with
+direct prepared executable, transfer, representation-creation, and publication references. Outer
+Engine handles retain direct per-input and per-publication adapters. Runtime's cold-bound action
+array and hot traversal never query the Engine, registry, adapter inventory, provider, availability
+snapshot, configuration, backend ID, `ServiceLoader`, reflection, or a global lookup.
 
 ## Runtime service locator
 

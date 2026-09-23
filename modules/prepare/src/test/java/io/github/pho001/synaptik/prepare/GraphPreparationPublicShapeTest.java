@@ -89,14 +89,16 @@ class GraphPreparationPublicShapeTest {
                 () -> assertRecordComponents(
                         PartitionPreparation.class, "backendInputs", "preparer", "finalizer"),
                 () -> assertRecordComponents(
-                        PreparedBufferAssignment.class, "valueId", "slot", "planIndex"),
+                        PreparedBufferAssignment.class,
+                        "valueId", "slot", "planIndex", "representationOwners"),
                 () -> assertRecordComponents(
                         PreparedScheduleContext.class,
-                        "plannedPartitions", "graphValues", "bindableInputValueIds", "constants",
-                        "publicationValueIds", "memoryPlan", "partitions", "bufferAssignments"),
+                        "plannedPartitions", "graphValues", "logicalMemoryRequirements",
+                        "bindableInputValueIds", "constants", "publicationValueIds", "memoryPlan",
+                        "partitions", "bufferAssignments", "workspaceAssignments"),
                 () -> assertRecordComponents(
                         ProducerlessPublishedConstantResource.class,
-                        "value", "logicalRequirement", "byteSize", "byteAlignment"),
+                        "value", "logicalRequirement", "owner", "byteSize", "byteAlignment"),
                 () -> assertEquals(
                         BackendAnalysisInputs.class,
                         PartitionPreparation.class.getTypeParameters()[0].getBounds()[0]),
@@ -158,15 +160,15 @@ class GraphPreparationPublicShapeTest {
                 () -> assertFailure(
                         NullPointerException.class,
                         "valueId",
-                        () -> new PreparedBufferAssignment(null, null, -1)),
+                        () -> new PreparedBufferAssignment(null, null, -1, java.util.List.of(new io.github.pho001.synaptik.backend.contract.BackendId("test")))),
                 () -> assertFailure(
                         NullPointerException.class,
                         "slot",
-                        () -> new PreparedBufferAssignment(new ValueId(0), null, -1)),
+                        () -> new PreparedBufferAssignment(new ValueId(0), null, -1, java.util.List.of(new io.github.pho001.synaptik.backend.contract.BackendId("test")))),
                 () -> assertFailure(
                         IllegalArgumentException.class,
                         "planIndex must be non-negative",
-                        () -> new PreparedBufferAssignment(new ValueId(0), slot, -1)));
+                        () -> new PreparedBufferAssignment(new ValueId(0), slot, -1, java.util.List.of(new io.github.pho001.synaptik.backend.contract.BackendId("test")))));
     }
 
     @Test
@@ -180,7 +182,7 @@ class GraphPreparationPublicShapeTest {
 
         assertAll(
                 () -> assertEquals(
-                        7,
+                        8,
                         Arrays.stream(ProducerlessPublishedConstantResource.class.getDeclaredMethods())
                                 .filter(method -> Modifier.isPublic(method.getModifiers()))
                                 .count()),
@@ -190,44 +192,33 @@ class GraphPreparationPublicShapeTest {
                 () -> assertFailure(
                         NullPointerException.class,
                         "value",
-                        () -> new ProducerlessPublishedConstantResource(null, null, -1, 0)),
+                        () -> new ProducerlessPublishedConstantResource(null, null, new io.github.pho001.synaptik.backend.contract.BackendId("test"), -1, 0)),
                 () -> assertFailure(
                         NullPointerException.class,
                         "logicalRequirement",
-                        () -> new ProducerlessPublishedConstantResource(value, null, -1, 0)),
+                        () -> new ProducerlessPublishedConstantResource(value, null, new io.github.pho001.synaptik.backend.contract.BackendId("test"), -1, 0)),
                 () -> assertFailure(
                         IllegalArgumentException.class,
                         "logicalRequirement.valueId must match value.id",
-                        () -> new ProducerlessPublishedConstantResource(
-                                value,
-                                new LogicalMemoryRequirement(
-                                        new ValueId(11), descriptor, Optional.empty(), List.of(), true),
-                                -1,
-                                0)),
+                        () -> new ProducerlessPublishedConstantResource(value, new LogicalMemoryRequirement(
+                                new ValueId(11), descriptor, Optional.empty(), List.of(), true), new io.github.pho001.synaptik.backend.contract.BackendId("test"), -1, 0)),
                 () -> assertFailure(
                         IllegalArgumentException.class,
                         "logicalRequirement.descriptor must match value.descriptor",
-                        () -> new ProducerlessPublishedConstantResource(
-                                value,
-                                new LogicalMemoryRequirement(
-                                        value.id(), resolvedDescriptor(2), Optional.empty(), List.of(), true),
-                                -1,
-                                0)),
+                        () -> new ProducerlessPublishedConstantResource(value, new LogicalMemoryRequirement(
+                                value.id(), resolvedDescriptor(2), Optional.empty(), List.of(), true), new io.github.pho001.synaptik.backend.contract.BackendId("test"), -1, 0)),
                 () -> assertFailure(
                         IllegalArgumentException.class,
                         "logicalRequirement must be producerless",
-                        () -> new ProducerlessPublishedConstantResource(
-                                value, requirement(value, Optional.of(partition), List.of(), true), -1, 0)),
+                        () -> new ProducerlessPublishedConstantResource(value, requirement(value, Optional.of(partition), List.of(), true), new io.github.pho001.synaptik.backend.contract.BackendId("test"), -1, 0)),
                 () -> assertFailure(
                         IllegalArgumentException.class,
                         "logicalRequirement must be consumerless",
-                        () -> new ProducerlessPublishedConstantResource(
-                                value, requirement(value, Optional.empty(), List.of(partition), true), -1, 0)),
+                        () -> new ProducerlessPublishedConstantResource(value, requirement(value, Optional.empty(), List.of(partition), true), new io.github.pho001.synaptik.backend.contract.BackendId("test"), -1, 0)),
                 () -> assertFailure(
                         IllegalArgumentException.class,
                         "logicalRequirement must require graph output",
-                        () -> new ProducerlessPublishedConstantResource(
-                                value, requirement(value, Optional.empty(), List.of(), false), -1, 0)),
+                        () -> new ProducerlessPublishedConstantResource(value, requirement(value, Optional.empty(), List.of(), false), new io.github.pho001.synaptik.backend.contract.BackendId("test"), -1, 0)),
                 () -> {
                     TensorDescriptor dynamic = new TensorDescriptor(
                             DataType.FLOAT32,
@@ -238,11 +229,7 @@ class GraphPreparationPublicShapeTest {
                     assertFailure(
                             IllegalArgumentException.class,
                             "value descriptor shape must be fully static",
-                            () -> new ProducerlessPublishedConstantResource(
-                                    dynamicValue,
-                                    requirement(dynamicValue, Optional.empty(), List.of(), true),
-                                    -1,
-                                    0));
+                            () -> new ProducerlessPublishedConstantResource(dynamicValue, requirement(dynamicValue, Optional.empty(), List.of(), true), new io.github.pho001.synaptik.backend.contract.BackendId("test"), -1, 0));
                 },
                 () -> {
                     TensorDescriptor unresolved = new TensorDescriptor(
@@ -251,27 +238,23 @@ class GraphPreparationPublicShapeTest {
                     assertFailure(
                             IllegalArgumentException.class,
                             "value descriptor layout must be resolved",
-                            () -> new ProducerlessPublishedConstantResource(
-                                    unresolvedValue,
-                                    requirement(unresolvedValue, Optional.empty(), List.of(), true),
-                                    -1,
-                                    0));
+                            () -> new ProducerlessPublishedConstantResource(unresolvedValue, requirement(unresolvedValue, Optional.empty(), List.of(), true), new io.github.pho001.synaptik.backend.contract.BackendId("test"), -1, 0));
                 },
                 () -> assertFailure(
                         IllegalArgumentException.class,
                         "byteSize must be non-negative",
-                        () -> new ProducerlessPublishedConstantResource(value, valid, -1, 0)),
+                        () -> new ProducerlessPublishedConstantResource(value, valid, new io.github.pho001.synaptik.backend.contract.BackendId("test"), -1, 0)),
                 () -> assertFailure(
                         IllegalArgumentException.class,
                         "byteAlignment must be a positive power of two",
-                        () -> new ProducerlessPublishedConstantResource(value, valid, 0, 0)),
+                        () -> new ProducerlessPublishedConstantResource(value, valid, new io.github.pho001.synaptik.backend.contract.BackendId("test"), 0, 0)),
                 () -> assertFailure(
                         IllegalArgumentException.class,
                         "byteAlignment must be a positive power of two",
-                        () -> new ProducerlessPublishedConstantResource(value, valid, 0, 3)),
+                        () -> new ProducerlessPublishedConstantResource(value, valid, new io.github.pho001.synaptik.backend.contract.BackendId("test"), 0, 3)),
                 () -> {
                     ProducerlessPublishedConstantResource resource =
-                            new ProducerlessPublishedConstantResource(value, valid, 0, 8);
+                            new ProducerlessPublishedConstantResource(value, valid, new io.github.pho001.synaptik.backend.contract.BackendId("test"), 0, 8);
                     assertSameReferences(value, valid, resource);
                 });
     }

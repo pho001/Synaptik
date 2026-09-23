@@ -71,6 +71,10 @@ class BackendPartitionFinalizationHandoffTest {
         var firstWorkspace = (PreparationResourceAssignment.Workspace) first.assignments().get(1);
         var sharedSecond = (PreparationResourceAssignment.Buffer) second.assignments().get(1);
         var secondWorkspace = (PreparationResourceAssignment.Workspace) second.assignments().get(0);
+        PreparedBufferAssignment sharedAssignment = result.bufferAssignments().stream()
+                .filter(assignment -> assignment.valueId().equals(fixture.sharedValue.id()))
+                .findFirst()
+                .orElseThrow();
 
         assertAll(
                 () -> assertEquals(List.of("first", "second"), fixture.callOrder),
@@ -86,6 +90,16 @@ class BackendPartitionFinalizationHandoffTest {
                 () -> assertSame(sharedFirst.slot(), sharedSecond.slot()),
                 () -> assertEquals(0, sharedFirst.planIndex()),
                 () -> assertEquals(0, sharedSecond.planIndex()),
+                () -> assertEquals(0, sharedFirst.representationIndex()),
+                () -> assertEquals(0, sharedSecond.representationIndex()),
+                () -> assertEquals(
+                        List.of(new BackendId("cpu")),
+                        sharedAssignment.representationOwners()),
+                () -> assertEquals(
+                        List.of(new BackendId("cpu"), new BackendId("cpu")),
+                        result.workspaceAssignments().stream()
+                                .map(assignment -> assignment.partition().owner())
+                                .toList()),
                 () -> assertNotSame(firstWorkspace.slot(), secondWorkspace.slot()),
                 () -> assertEquals(0, firstWorkspace.planIndex()),
                 () -> assertEquals(1, secondWorkspace.planIndex()),
@@ -98,6 +112,67 @@ class BackendPartitionFinalizationHandoffTest {
                 () -> assertSame(plan, result.partitions().get(0).executable().memoryPlan()),
                 () -> assertThrows(
                         UnsupportedOperationException.class, () -> result.partitions().clear()));
+    }
+
+    @Test
+    void assignsDistinctRepresentationPositionsForDistinctPartitionOwners() {
+        Fixture fixture = fixture(new BackendId("gpu"));
+
+        var result = BackendPartitionFinalizationHandoff.finalizePartitions(
+                fixture.partitions, fixture.entries);
+        var first = (PreparationResourceAssignment.Buffer)
+                fixture.firstFinalizer.seen.getFirst().assignments().get(0);
+        var second = (PreparationResourceAssignment.Buffer)
+                fixture.secondFinalizer.seen.getFirst().assignments().get(1);
+        PreparedBufferAssignment shared = result.bufferAssignments().stream()
+                .filter(assignment -> assignment.valueId().equals(fixture.sharedValue.id()))
+                .findFirst()
+                .orElseThrow();
+
+        assertAll(
+                () -> assertEquals(0, first.representationIndex()),
+                () -> assertEquals(1, second.representationIndex()),
+                () -> assertEquals(
+                        List.of(new BackendId("cpu"), new BackendId("gpu")),
+                        shared.representationOwners()));
+    }
+
+    @Test
+    void leadingOrdinaryBufferOrderOverridesPartitionDeclarationOrder() {
+        Fixture fixture = fixture();
+
+        var result = BackendPartitionFinalizationHandoff.finalizePartitions(
+                fixture.partitions,
+                fixture.entries,
+                List.of(fixture.outputValues.get(1).id(), fixture.sharedValue.id()),
+                List.of());
+        var first = fixture.firstFinalizer.seen.getFirst().assignments();
+        var second = fixture.secondFinalizer.seen.getFirst().assignments();
+
+        assertAll(
+                () -> assertEquals(
+                        List.of(
+                                fixture.outputValues.get(1).id(),
+                                fixture.sharedValue.id(),
+                                fixture.outputValues.get(0).id()),
+                        result.bufferAssignments().stream()
+                                .map(PreparedBufferAssignment::valueId)
+                                .toList()),
+                () -> assertEquals(
+                        1,
+                        ((PreparationResourceAssignment.Buffer) first.get(0)).planIndex()),
+                () -> assertEquals(
+                        2,
+                        ((PreparationResourceAssignment.Buffer) first.get(2)).planIndex()),
+                () -> assertEquals(
+                        1,
+                        ((PreparationResourceAssignment.Buffer) second.get(1)).planIndex()),
+                () -> assertEquals(
+                        0,
+                        ((PreparationResourceAssignment.Buffer) second.get(2)).planIndex()),
+                () -> assertEquals(20, result.memoryPlan().buffers().get(0).byteSize()),
+                () -> assertEquals(10, result.memoryPlan().buffers().get(1).byteSize()),
+                () -> assertEquals(12, result.memoryPlan().buffers().get(2).byteSize()));
     }
 
     @Test
@@ -444,16 +519,20 @@ class BackendPartitionFinalizationHandoffTest {
         GraphValue value = new GraphValue(new ValueId(id), descriptor);
         LogicalMemoryRequirement requirement = new LogicalMemoryRequirement(
                 value.id(), descriptor, Optional.empty(), List.of(), true);
-        return new ProducerlessPublishedConstantResource(
-                value, requirement, byteSize, byteAlignment);
+        return new ProducerlessPublishedConstantResource(value, requirement, new io.github.pho001.synaptik.backend.contract.BackendId("test"), byteSize, byteAlignment);
     }
 
     private static Fixture fixture() {
+        return fixture(new BackendId("cpu"));
+    }
+
+    private static Fixture fixture(BackendId secondOwner) {
         BackendId cpu = new BackendId("cpu");
         CompiledNode firstNode = node(10, new ValueId(0), new ValueId(1));
         CompiledNode secondNode = node(11, new ValueId(0), new ValueId(2));
         PlannedPartition firstPartition = new PlannedPartition(cpu, List.of(firstNode.id()));
-        PlannedPartition secondPartition = new PlannedPartition(cpu, List.of(secondNode.id()));
+        PlannedPartition secondPartition =
+                new PlannedPartition(secondOwner, List.of(secondNode.id()));
         List<PlannedPartition> partitions = List.of(firstPartition, secondPartition);
 
         GraphValue shared = new GraphValue(new ValueId(0), descriptor());
@@ -492,7 +571,7 @@ class BackendPartitionFinalizationHandoffTest {
 
         var callOrder = new ArrayList<String>();
         var firstFinalizer = new FakeFinalizer(cpu, "first", callOrder);
-        var secondFinalizer = new FakeFinalizer(cpu, "second", callOrder);
+        var secondFinalizer = new FakeFinalizer(secondOwner, "second", callOrder);
         List<BackendPartitionFinalizationHandoff.Entry<?, ?>> entries = List.of(
                 new BackendPartitionFinalizationHandoff.Entry<>(
                         firstContext, firstAnalysis, firstFinalizer),

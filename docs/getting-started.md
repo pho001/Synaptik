@@ -102,7 +102,8 @@ Engine and arena close. Every `compute(...)` call compiles and prepares afresh.
 | `Engine.standard()` cannot prepare an expression | The current CPU composition requires one non-empty supported CPU partition with fully static compatible descriptors. | Start with the `contiguous()` example, then check the operation and descriptor constraints in the public API status. |
 | A detached result exceeds the caller limit | The canonical payload is larger than `maximumTotalBytes`. | Increase the explicit bound after checking the expected output shape and data type. |
 | A Metal example fails | Real Metal execution requires Apple silicon, a built native bridge, and explicit `MetalBackendConfiguration` plus `Engine.builder()` ownership. | Build the native bridge, supply its absolute path, and use the supported `FLOAT32` NEG domain. |
-| A CUDA or mixed-owner example fails | CUDA lifecycle integration and CPU/Metal cross-owner schedules are not current public capabilities. | Use one complete CPU- or Metal-owned plan and follow the roadmap for later composition. |
+| A CUDA example fails | CUDA has no current public lifecycle integration. | Use fixed CPU or explicitly registered CPU/Metal integrations. |
+| A mixed CPU/Metal example fails | The required edge, descriptor, or host carrier is outside the exact native-host static canonical contiguous `FLOAT32` transfer domain. | Keep cross-owner values inside the documented transfer boundary; there is no conversion or fallback. |
 
 Java preview features are disabled by default. Incubator or preview APIs are configured only by
 focused module tasks when stable Java 26 APIs are insufficient.

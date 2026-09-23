@@ -3,10 +3,12 @@
 This document explains the compile, prepare, run, and training lifecycles defined by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract remains authoritative.
 
 The ordinary public lifecycle is runnable through `Engine.standard()` for fixed CPU ownership and
-through `Engine.builder()` for explicit CPU/Metal ownership. Both implement the compile, staged
-prepare, run, publication, and explicit host-materialization path described below. Mixed-owner
-schedules, CUDA execution, and training orchestration remain planned. The
-[roadmap](../planning/roadmap.md) records delivery status.
+through `Engine.builder()` for explicit CPU/Metal ownership. Builder preparation composes
+single-owner or mixed-owner partitions through deterministic owner-indexed representations and
+explicit bidirectional transfer for the bounded static canonical contiguous `FLOAT32` domain.
+Both surfaces implement the compile, staged prepare, run, publication, and explicit
+host-materialization path described below. CUDA execution and training orchestration remain
+planned. The [roadmap](../planning/roadmap.md) records delivery status.
 
 ## State across the lifecycle
 
@@ -173,9 +175,10 @@ Engine shutdown first waits for admitted operations, then closes retained result
 publication order, retained preparations in reverse prepare-publication order, and backend
 composition. A prepared-handle close does not independently close an already returned result.
 
-`AdvancedEngine.takeOwnership(...)` is the lower-level explicit-composition surface. Its caller
-supplies one supported CPU integration and transfers ownership to Engine. Neither ordinary nor
-advanced composition currently assembles mixed-owner schedules or discovers backends.
+`AdvancedEngine.takeOwnership(...)` is the lower-level CPU-only explicit-composition surface. Its
+caller supplies one supported CPU integration and transfers ownership to Engine. Ordinary builder
+composition can assemble registered CPU/Metal mixed-owner schedules; neither surface discovers
+backends.
 
 ## Explicit backend composition
 
@@ -189,10 +192,11 @@ construction and builder close release accepted integrations in reverse registra
 backend-owned configuration -> backend opens integration and native state
                             -> Engine.Builder takes ownership
                             -> capture BackendId + capability provider + availability snapshot
-                            -> Engine.compile selects owner identities
-                            -> Engine.prepare routes by owner and captures its direct adapter
-                            -> Engine run/materialize use that adapter at the outer boundary
-                            -> Runtime executes direct prepared references
+                            -> Engine.compile selects one owner identity per operation
+                            -> Engine.prepare validates all owners/transfers, then runs one shared
+                               Prepare transaction and captures per-occurrence outer adapters
+                            -> Engine run/materialize use those captured direct references
+                            -> Runtime executes the immutable prepared schedule
 ```
 
 The capability provider reference and point-in-time availability snapshot are captured once for
@@ -200,18 +204,20 @@ each registration and reused for every compile by that Engine. Equal backend IDs
 Compile-time Planning receives the immutable registration-ordered inputs and records only
 `BackendId` ownership; it receives no Engine registry or live integration.
 
-The current implementation boundary is deliberately single-owner. A plan may reach backend
-analysis only when it is non-empty and every planned partition names one equal registered owner.
-Registering CPU and Metal therefore permits either complete owner to be selected, but does not
-make a graph split between them executable. Until a later transfer contract defines cross-owner
-representations, transfer ownership, resource declarations, schedule ordering, and rollback, a
-missing, empty, or mixed owner set fails before backend analysis without retry or CPU fallback.
+Ordinary cold preparation requires a non-empty plan and resolves every partition owner against the
+frozen registry. Before any backend analysis, it rejects a missing owner or unsupported directed
+transfer pair. Shared Prepare then analyzes and finalizes every partition, assigns one logical slot
+plus one deterministic representation position per participating owner, collects backend physical
+creation contributions, and assembles explicit execution, transfer, and publication occurrences.
+Current CPU/Metal transfers are exact fully static canonical contiguous `FLOAT32`; there is no
+retry, owner substitution, conversion, heap staging, or CPU fallback.
 
-The prepared Engine handle keeps a direct non-owning reference to the selected adapter while
-Engine owns the integration. Run uses it to wrap caller host storage before Runtime admission, and
-the result uses it for backend-owned host materialization. Neither operation re-queries the
-registry. Engine closes results and prepared handles before integrations, so the reference cannot
-outlive its owner.
+The prepared Engine handle keeps direct non-owning adapter references in caller-input and
+publication occurrence order while Engine owns the integrations. Run uses each input adapter to
+wrap caller host storage before Runtime admission, and each result publication uses its captured
+adapter for backend-owned host materialization. Neither operation re-queries the registry. Engine
+closes results and prepared handles before integrations, so no captured reference can outlive its
+owner.
 
 The existing `prepareTuned(...)` workflow stays CPU-only. It can tune a single CPU-owned plan even
 when Metal is also registered. A Metal-owned plan fails before representative input borrowing or

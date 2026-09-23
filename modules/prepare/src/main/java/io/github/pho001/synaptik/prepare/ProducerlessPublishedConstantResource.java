@@ -1,5 +1,6 @@
 package io.github.pho001.synaptik.prepare;
 
+import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
 import java.util.Objects;
@@ -12,14 +13,15 @@ import java.util.Objects;
  * references supplied by composition. Its component accessors return those same references and
  * the supplied primitive geometry without copying or mutation. Shared Prepare validates their
  * membership and complete source/publication role before asking the schedule assembler for this
- * contribution. This record neither selects an owner nor derives geometry, creates a
- * representation, allocates storage, or materializes the constant.</p>
+ * contribution. The explicit owner supplies the initialized representation used for publication.
+ * This record does not create a representation, allocate storage, or materialize the constant.</p>
  *
  * @param value exact non-null immutable graph value to retain and return by identity from
  *     {@link #value()}
  * @param logicalRequirement exact non-null immutable producerless, consumerless graph-output
  *     requirement for {@code value}, retained and returned by identity from
  *     {@link #logicalRequirement()}
+ * @param owner exact non-null backend owner of the initialized representation
  * @param byteSize non-negative physical buffer size in bytes, supplied by concrete composition
  *     and returned unchanged from {@link #byteSize()}
  * @param byteAlignment positive power-of-two physical byte alignment supplied by concrete
@@ -28,6 +30,7 @@ import java.util.Objects;
 public record ProducerlessPublishedConstantResource(
         GraphValue value,
         LogicalMemoryRequirement logicalRequirement,
+        BackendId owner,
         long byteSize,
         long byteAlignment) {
     /**
@@ -40,10 +43,11 @@ public record ProducerlessPublishedConstantResource(
      * @param value exact non-null immutable graph value to retain by identity
      * @param logicalRequirement exact non-null immutable logical requirement to retain by
      *     identity
+     * @param owner exact non-null representation owner
      * @param byteSize non-negative supplied physical buffer size in bytes
      * @param byteAlignment positive power-of-two supplied physical byte alignment
-     * @throws NullPointerException if {@code value} or {@code logicalRequirement} is null,
-     *     checked in component order
+     * @throws NullPointerException if {@code value}, {@code logicalRequirement}, or {@code owner}
+     *     is null, checked in component order
      * @throws IllegalArgumentException if the references disagree by value identity or
      *     descriptor, the logical role is not producerless/consumerless/output-required, the
      *     descriptor is dynamic or unresolved, or the physical geometry is outside its required
@@ -52,6 +56,7 @@ public record ProducerlessPublishedConstantResource(
     public ProducerlessPublishedConstantResource {
         Objects.requireNonNull(value, "value");
         Objects.requireNonNull(logicalRequirement, "logicalRequirement");
+        Objects.requireNonNull(owner, "owner");
         if (!logicalRequirement.valueId().equals(value.id())) {
             throw new IllegalArgumentException(
                     "logicalRequirement.valueId must match value.id");

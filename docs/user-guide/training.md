@@ -3,8 +3,8 @@
 ## Outcome
 
 This guide explains the intended first training lifecycle. Bounded Compiler autograd and the
-public single-owner Engine compile, prepare, run, and one-shot backward lifecycle are current for
-the selected backend's supported domain. The Training extension, training sessions, optimizer API
+public Engine compile, prepare, run, and one-shot backward lifecycle are current for supported
+single-owner or mixed CPU/Metal plans. The Training extension, training sessions, optimizer API
 and updates, and complete training workflow remain planned, so the example below is conceptual
 rather than runnable Synaptik code.
 

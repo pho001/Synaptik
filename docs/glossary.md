@@ -84,11 +84,13 @@ exact shared buffer/workspace needs. Slot assignment, finalization, prepared-exe
 construction, the minimal `PreparedPartition` association, complete graph preparation, explicit
 schedule assembly, and schedule validation are current Prepare contracts. Executable,
 buffer-transfer, and publication scheduling plus shared runner execution are current Runtime
-contracts. Advanced CPU representation-level composition and ordinary single-owner CPU/Metal
-composition are current. Public detached output materialization is current through the selected
-adapter; general mixed-owner physical-resource composition and routing remain planned. The Runtime
-executable contract itself is current; a current Prepare finalizer constructs a backend subclass
-against assigned slots.
+contracts. Advanced CPU representation-level composition and ordinary fixed CPU or explicit
+CPU/Metal composition are current. Ordinary mixed-owner preparation assigns one logical slot and
+one deterministic physical representation per participating owner, composes backend physical
+contributions, and schedules explicit exact static canonical contiguous `FLOAT32` CPU/Metal
+transfers. Public detached output materialization uses the adapter captured for each publication.
+The Runtime executable contract itself is current; a Prepare finalizer constructs a backend
+subclass against its assigned slot and representation position.
 
 The exact arithmetic scan contains seven semantic rules: duplicate-input binary `MIN` and `MAX`;
 scalar `MUL` by exact typed positive one for all five numeric types; scalar `DIV` and `POW` by exact
@@ -1039,9 +1041,11 @@ point-in-time availability snapshots. The public implementation uses an ordered 
 duplicate identities fail, and compile-time Planning receives the frozen provider/snapshot order.
 
 Composition is not backend discovery, a public or global registry, a Runtime service locator, or
-a fallback chain. The current preparation slice admits only one distinct registered owner for a
-non-empty complete plan; mixed ownership remains blocked until cross-owner representation and
-transfer semantics are defined.
+a fallback chain. Current ordinary preparation accepts non-empty single-owner or mixed CPU/Metal
+plans, assigns one logical slot plus deterministic owner-indexed representations, and schedules
+bounded bidirectional static canonical contiguous `FLOAT32` transfer. Prepared handles retain
+direct adapters per input and publication occurrence, so run and materialization do not consult
+the registry.
 
 ### Backend availability snapshot / `BackendAvailabilitySnapshot`
 
@@ -2540,9 +2544,10 @@ combined one/two-stage functional-derivative graph followed by publication roles
 selection, maximal partitions, logical memory, constants, diagnostics, derivative-order metadata,
 and immutable `CompileArtifacts`. Public `GraphCompilationPort` exposes that complete constant-free
 pipeline as a narrow module-integration boundary. Current ordinary Engine composes compilation,
-single-owner CPU/Metal preparation, execution, and publications; `Engine.standard()` is the fixed
-CPU convenience. Advanced Engine remains the CPU representation-level lifecycle. Those later
-lifecycle responsibilities do not belong to Compiler or this port.
+single-owner or mixed CPU/Metal preparation, execution, transfers, and publications;
+`Engine.standard()` is the fixed CPU convenience. Advanced Engine remains the CPU
+representation-level lifecycle. Those later lifecycle responsibilities do not belong to Compiler
+or this port.
 
 ### Compile artifacts
 
@@ -5414,8 +5419,9 @@ the Engine-created non-owning input wrappers. Closing it releases the Runtime le
 wrappers but never caller storage. Engine closure closes still-open results. Its count,
 publication list, and immutable occurrence metadata remain readable after closure. While both it
 and its Engine are open, `materialize` copies one exact occurrence through the CPU or Metal adapter
-captured during single-owner preparation into a detached `HostTensorValue`; no storage,
-representation, Tensor, or inward state is exposed, and a completed value outlives both owners.
+captured for that publication during cold preparation into a detached `HostTensorValue`; no
+storage, representation, Tensor, or inward state is exposed, and a completed value outlives both
+owners.
 
 ### Host tensor value / `HostTensorValue`
 
@@ -5447,9 +5453,9 @@ handle or open result lease. It does not mean cached, eager Tensor execution, as
 backward execution, tuning, or cross-backend transfer. The no-limit overloads use
 `Long.MAX_VALUE`; checked arithmetic, per-value array ceilings, and inward limits remain. Selected
 leaf storage remains caller-owned through synchronous completion, and no Tensor/provenance state
-or cache survives the call. Current support requires one registered backend to own the complete
-non-empty, fully static, resolved-layout plan. The aggregate limit covers returned canonical
-payload lengths only. Use the explicit
+or cache survives the call. Current support requires every owner and directed transfer in the
+non-empty, fully static, resolved-layout plan to be registered and supported. The aggregate limit
+covers returned canonical payload lengths only. Use the explicit
 `compile -> prepare -> run(prepared, explicit inputs) -> materialize` lifecycle for repeated runs
 or selective publication copying. See
 [Public API](api/public-api.md#current-ordinary-explicit-composition-and-advanced-lifecycle) and
@@ -5475,8 +5481,8 @@ This term does not mean Tensor mutation, an eager tape, inferred inputs or targe
 prepared execution, gradient accumulation, an optimizer step, a training session, or checkpoint
 state. Explicit seeds, multiple outputs, `ZERO`, higher-order/full policies, selective copying,
 and reuse stay on the existing lower-level ordinary or advanced APIs. Current execution requires a
-supported non-empty single-owner static/resolved composition; pure zero-node and mixed
-compositions remain unsupported. See
+supported non-empty static/resolved composition; ordinary CPU/Metal mixed-owner execution is
+bounded to its exact transfer domain, and pure zero-node compositions remain unsupported. See
 [Public API](api/public-api.md#current-ordinary-explicit-composition-and-advanced-lifecycle) and
 [Compile API](api/compile-api.md#current-ordinary-and-advanced-engine-compile-boundaries).
 

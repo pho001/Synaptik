@@ -182,11 +182,23 @@ Metal backend owns:
 - Metal storage
 - native bridge integration
 - Metal-specific materialization
+- direct cold binding of exact live Metal buffer representations for prepared host-staged upload
+  and download without exposing a native handle or performing backend lookup
 - Metal trace contributions
 
 Engine may take ownership of a successfully opened Metal integration, but it must not duplicate
 or interpret Metal configuration, discover a library, select a Metal device, or construct native
 Metal state itself. Metal must not depend on Engine.
+
+The current cross-owner transfer capability is deliberately exact: positive rank-1..16 fully
+static canonical contiguous `FLOAT32` buffers with checked element and byte geometry may move CPU
+to Metal by uploading from a live CPU native representation, or Metal to CPU by downloading into
+one. CPU owns the native host staging representation and its per-run lifetime; Metal owns the
+device-buffer type check and native copy. Both backends validate descriptor, byte extent, context,
+openness, and current-thread access during cold binding. The bound transfer retains direct typed
+references and performs exactly one native copy when invoked. Other ranks, zero extents, data
+types, layouts, directions, conversion, canonical-byte materialization, and heap staging are
+unsupported and must fail before backend analysis.
 
 Metal-specific optimizer execution belongs to Metal backend prepare/kernels, not to training.
 

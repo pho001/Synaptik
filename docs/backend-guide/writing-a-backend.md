@@ -107,7 +107,8 @@ shared Prepare owns later rollback and the single successful Runtime transfer. E
 inward owners through ordinary and advanced prepared handles: published handles close explicitly
 or during Engine shutdown, and temporary one-shot or tuning preparations close after their
 results. Metal currently exercises this contract with typed custom-pipeline and MPSGraph
-resources, and explicit `Engine.builder()` composition exposes its supported single-owner route.
+resources, and explicit `Engine.builder()` composition exposes both its complete backend-local
+route and its contribution to supported mixed CPU/Metal schedules.
 
 ## Current representation-creation pattern
 
@@ -388,15 +389,17 @@ try (Engine.Builder builder = Engine.builder()) {
     builder.takeOwnership(CpuBackendIntegration.open());
     builder.takeOwnership(MetalBackendIntegration.open(metalConfiguration));
     try (Engine engine = builder.build()) {
-        // compile, prepare, run, and explicitly materialize one single-owner plan
+        // compile, prepare, and run a single-owner or supported mixed-owner plan
     }
 }
 ```
 
 Each `takeOwnership` call makes a supported built-in integration visible before compilation and
-preparation. Runtime does not use classpath scanning, `ServiceLoader`, or a service locator to
-discover the same components during execution. A generic backend plugin registration SPI and
-mixed-owner execution remain planned.
+preparation. Shared Prepare assigns deterministic owner-indexed representations; each backend
+contributes its exact physical creators, while Engine composes explicit transfer occurrences.
+Runtime does not use classpath scanning, `ServiceLoader`, or a service locator to discover those
+components during execution. A generic backend plugin registration SPI and general cross-backend
+conversion system remain planned.
 
 ## Resources, concurrency, and failures
 

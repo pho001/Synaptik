@@ -12,10 +12,11 @@ import java.util.Objects;
  *
  * <p>{@link #builder()} accepts concrete CPU and Metal integrations through entry-time ownership
  * transfer and freezes their provider and availability snapshots in registration order. Compile
- * considers every registered entry deterministically. Cold preparation accepts only a non-empty
- * plan with one exact registered owner, then captures that owner's direct adapter for host ingress
- * and materialization. Mixed-owner execution remains deliberately unsupported. {@link #standard()}
- * constructs one fresh CPU integration through that same composition path.</p>
+ * considers every registered entry deterministically. Cold preparation validates the complete
+ * non-empty owner set and required transfer directions before analysis, composes all finalized
+ * partition contributions into one immutable schedule, and captures direct input/publication
+ * adapters. {@link #standard()} constructs one fresh CPU integration through that same
+ * composition path.</p>
  *
  * <p>The ordinary surface compiles Tensor expressions, prepares immutable reusable recipes, binds
  * logical input Tensors by identity in arbitrary order, and returns publication leases whose
@@ -321,9 +322,11 @@ public final class Engine implements AutoCloseable {
     }
 
     /**
-     * Prepares one compile handle created by this exact Engine.
-     * Preparation requires one non-empty plan owned entirely by one exact registered backend and
-     * may therefore reject an artifact that compiled successfully.
+     * Prepares one compile handle created by this exact Engine. Preparation requires a non-empty
+     * plan whose owners exactly match registered adapters. It accepts single-owner plans and mixed
+     * CPU/Metal plans in the bounded positive rank-1..16 static canonical contiguous FLOAT32
+     * transfer domain; unsupported ownership, direction, layout, type, or geometry may therefore
+     * reject an artifact that compiled successfully before backend analysis.
      *
      * <p>The returned handle owns the exact inward Runtime preparation and must be closed when
      * reuse ends, preferably with try-with-resources. Closing this Engine closes any retained
@@ -423,8 +426,8 @@ public final class Engine implements AutoCloseable {
     }
 
     /**
-     * Computes one forward output through a fresh complete single-owner lifecycle and returns its
-     * detached canonical host value.
+     * Computes one forward output through a fresh complete lifecycle and returns its detached
+     * canonical host value.
      *
      * <p>This is the singleton specialization of the ordered-output overload. One Engine
      * admission spans argument validation, transient iterative discovery of provenance-free
@@ -494,8 +497,8 @@ public final class Engine implements AutoCloseable {
     }
 
     /**
-     * Computes an ordered non-empty forward boundary through one fresh complete single-owner
-     * lifecycle and returns detached canonical host values in exact requested publication order.
+     * Computes an ordered non-empty forward boundary through one fresh complete lifecycle and
+     * returns detached canonical host values in exact requested publication order.
      *
      * <p>One Engine admission spans argument validation, one transient identity-safe inventory of
      * reachable provenance-free leaves, one compilation, Compiler-authoritative ordered input
@@ -514,8 +517,8 @@ public final class Engine implements AutoCloseable {
      * inputs, Runtime buffers or workspaces, recipes, object overhead, defensive copies, peak
      * memory, or other allocation. Selected leaf storage remains caller-owned and must stay live,
      * accessible, and free from conflicting mutation through synchronous completion. Execution
-     * and host copying use the exact adapter selected for the non-empty single-owner plan and
-     * require outputs supported by that adapter with fully static resolved final layouts.</p>
+     * uses the complete captured mixed-owner schedule; each host copy uses the adapter captured
+     * for that publication and requires a fully static resolved final layout.</p>
      *
      * @param outputs non-null non-empty ordered list of non-null identity-unique output Tensors;
      *     the container is snapshotted and not retained or mutated
@@ -585,6 +588,11 @@ public final class Engine implements AutoCloseable {
     public ScalarObjectiveBackwardResult backward(
             Tensor objective, List<Tensor> targets, long maximumTotalBytes) {
         return delegate.backwardOrdinary(this, objective, targets, maximumTotalBytes);
+    }
+
+    /** Package-private focused seam proving prepared ordinary work performs no registry lookup. */
+    void poisonBackendLookupForTesting() {
+        delegate.poisonBackendLookupForTesting();
     }
 
     /**

@@ -171,7 +171,8 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                     || entry.byteAlignment() < declaration.byteAlignment()) {
                 throw new IllegalArgumentException("buffer assignment geometry disagrees");
             }
-            selections.add(new PreparedExecutable.BufferSelection(match.planIndex(), 0));
+            selections.add(new PreparedExecutable.BufferSelection(
+                    match.planIndex(), match.representationIndex()));
         }
         long bufferAssignments = finalization.assignments().stream()
                 .filter(PreparationResourceAssignment.Buffer.class::isInstance).count();

@@ -436,8 +436,7 @@ public class CpuPartitionFinalizerTest {
                 var slot = new BufferSlot(entries.size());
                 entries.add(new PreparedMemoryPlan.BufferEntry(slot, buffer.byteSize(),
                         buffer.byteAlignment()));
-                assignments.add(new PreparationResourceAssignment.Buffer(buffer, slot,
-                        entries.size() - 1));
+                assignments.add(new PreparationResourceAssignment.Buffer(buffer, slot, entries.size() - 1, 0));
             }
         }
         var result = new CpuPartitionFinalizer(Optional.of(artifactRoot), Optional.empty()).finalizePartition(
@@ -477,7 +476,7 @@ public class CpuPartitionFinalizerTest {
             var slot = new BufferSlot(i);
             entries.add(new PreparedMemoryPlan.BufferEntry(slot, requirement.byteSize(),
                     requirement.byteAlignment()));
-            assignments.add(new PreparationResourceAssignment.Buffer(requirement, slot, i));
+            assignments.add(new PreparationResourceAssignment.Buffer(requirement, slot, i, 0));
         }
         var memoryPlan = new PreparedMemoryPlan(entries, workspaceEntries);
         var result = new CpuPartitionFinalizer(root, workerGroup).finalizePartition(
@@ -511,8 +510,7 @@ public class CpuPartitionFinalizerTest {
                 var slot = new BufferSlot(entries.size());
                 entries.add(new PreparedMemoryPlan.BufferEntry(slot, requirement.byteSize(),
                         requirement.byteAlignment()));
-                assignments.add(new PreparationResourceAssignment.Buffer(requirement, slot,
-                        entries.size() - 1));
+                assignments.add(new PreparationResourceAssignment.Buffer(requirement, slot, entries.size() - 1, 0));
             }
         }
         var memoryPlan = new PreparedMemoryPlan(entries, workspaceEntries);
@@ -582,8 +580,7 @@ public class CpuPartitionFinalizerTest {
                 var slot = new BufferSlot(buffers.size());
                 buffers.add(new PreparedMemoryPlan.BufferEntry(slot, buffer.byteSize(),
                         buffer.byteAlignment()));
-                assignments.add(new PreparationResourceAssignment.Buffer(buffer, slot,
-                        buffers.size() - 1));
+                assignments.add(new PreparationResourceAssignment.Buffer(buffer, slot, buffers.size() - 1, 0));
             } else if (requirement instanceof PreparationResourceRequirement.Workspace workspace) {
                 var slot = new WorkspaceSlot(workspaces.size());
                 workspaces.add(new PreparedMemoryPlan.WorkspaceEntry(slot, workspace.byteSize(),

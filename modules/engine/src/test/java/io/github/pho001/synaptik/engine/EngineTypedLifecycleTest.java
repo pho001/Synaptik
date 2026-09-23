@@ -349,7 +349,7 @@ final class EngineTypedLifecycleTest {
     @Test
     void rejectsAbsentStorageAndAnotherPreparedOwnerBeforeBorrow() {
         RecordingComposition shared = new RecordingComposition();
-        AdvancedEngine delegate = new AdvancedEngine(shared);
+        AdvancedEngine delegate = new AdvancedEngine(shared, shared::prepare);
         Engine first = new Engine(delegate);
         Engine second = new Engine(delegate);
         Tensor absent = leaf(false, false);
@@ -558,7 +558,7 @@ final class EngineTypedLifecycleTest {
     @Test
     void materializeValidatesDescriptorCountsBeforePhysicalAccess() {
         RecordingComposition composition = new RecordingComposition();
-        AdvancedEngine advanced = new AdvancedEngine(composition);
+        AdvancedEngine advanced = new AdvancedEngine(composition, composition::prepare);
         Engine engine = new Engine(advanced);
         TestBuffer representation = new TestBuffer(null, null, "publication");
 
@@ -998,7 +998,7 @@ final class EngineTypedLifecycleTest {
     }
 
     private static Engine engine(RecordingComposition composition) {
-        return new Engine(new AdvancedEngine(composition));
+        return new Engine(new AdvancedEngine(composition, composition::prepare));
     }
 
     private static RunResult syntheticResult(
@@ -1082,6 +1082,40 @@ final class EngineTypedLifecycleTest {
         }
 
         @Override
+        public io.github.pho001.synaptik.prepare.PartitionPreparation<?, ?>
+                partitionPreparation() {
+            throw new AssertionError("unexpected partition preparation");
+        }
+
+        @Override
+        public io.github.pho001.synaptik.prepare.PreparedScheduleContributor
+                scheduleContributor() {
+            throw new AssertionError("unexpected schedule contribution");
+        }
+
+        @Override
+        public io.github.pho001.synaptik.prepare.PreparedScheduleAssembler scheduleAssembler() {
+            throw new AssertionError("unexpected schedule assembly");
+        }
+
+        @Override
+        public boolean supportsTransferTo(
+                EngineBackendComposition destination, TensorDescriptor descriptor) {
+            return false;
+        }
+
+        @Override
+        public io.github.pho001.synaptik.runtime.execution.PreparedBufferTransfer
+                prepareTransferTo(
+                        EngineBackendComposition destination,
+                        PreparedMemoryPlan memoryPlan,
+                        int bufferIndex,
+                        int sourceRepresentationIndex,
+                        int destinationRepresentationIndex,
+                        TensorDescriptor descriptor) {
+            throw new AssertionError("unexpected transfer preparation");
+        }
+
         public PreparedExecution prepare(CompileArtifacts artifacts) {
             preparedArtifacts = artifacts;
             int inputCount = artifacts.constants().bindableInputs().size();

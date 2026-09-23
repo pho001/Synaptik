@@ -9,8 +9,11 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
 import io.github.pho001.synaptik.prepare.PreparedBufferAssignment;
 import io.github.pho001.synaptik.prepare.ProducerlessPublishedConstantResource;
+import io.github.pho001.synaptik.prepare.PreparedScheduleContribution;
+import io.github.pho001.synaptik.prepare.PreparedScheduleContributor;
 import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
 import io.github.pho001.synaptik.prepare.PreparedScheduleContext;
+import io.github.pho001.synaptik.prepare.PreparedWorkspaceAssignment;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan;
 import io.github.pho001.synaptik.runtime.run.PreparedPublication;
 import io.github.pho001.synaptik.runtime.schedule.PreparedSchedule;
@@ -30,7 +33,8 @@ import java.util.function.BooleanSupplier;
  * executable occurrence. It constructs recipes only: no creator is invoked and no physical
  * resource is allocated, initialized, borrowed, executed, or published during assembly.</p>
  */
-public final class CpuPreparedScheduleAssembler implements PreparedScheduleAssembler {
+public final class CpuPreparedScheduleAssembler
+        implements PreparedScheduleAssembler, PreparedScheduleContributor {
     private final BooleanSupplier ownerOpen;
 
     /**
@@ -92,10 +96,85 @@ public final class CpuPreparedScheduleAssembler implements PreparedScheduleAssem
         }
         long byteSize = Math.multiplyExact(
                 layout.referencedElementSpan(), descriptor.dataType().byteWidth());
-        return new ProducerlessPublishedConstantResource(value, logicalRequirement, byteSize,
+        return new ProducerlessPublishedConstantResource(
+                value,
+                logicalRequirement,
+                CpuCapabilityProvider.CPU_BACKEND_ID,
+                byteSize,
                 descriptor.dataType().byteWidth());
     }
 
+
+    /** {@inheritDoc} */
+    @Override
+    public io.github.pho001.synaptik.backend.contract.BackendId backendId() {
+        return CpuCapabilityProvider.CPU_BACKEND_ID;
+    }
+
+    /**
+     * Contributes every externally assigned CPU buffer representation and workspace creator.
+     *
+     * @param context exact non-null complete shared schedule context
+     * @return non-null immutable sparse CPU contribution
+     * @throws NullPointerException if {@code context} is null
+     * @throws IllegalStateException if the owning integration is closed
+     * @throws IllegalArgumentException if a CPU-assigned buffer lacks a graph descriptor
+     */
+    @Override
+    public PreparedScheduleContribution contribute(PreparedScheduleContext context) {
+        Objects.requireNonNull(context, "context");
+        if (!ownerOpen.getAsBoolean()) {
+            throw new IllegalStateException("CPU backend integration is closed");
+        }
+        var descriptors = context.graphValues().stream().collect(
+                java.util.stream.Collectors.toMap(
+                        value -> value.id(), value -> value.descriptor()));
+        var bindable = new HashSet<>(context.bindableInputValueIds());
+        var buffers = new ArrayList<PreparedScheduleContribution.Buffer>();
+        for (PreparedBufferAssignment assignment : context.bufferAssignments()) {
+            int representationIndex =
+                    assignment.representationOwners().indexOf(CpuCapabilityProvider.CPU_BACKEND_ID);
+            if (representationIndex < 0) {
+                continue;
+            }
+            var descriptor = descriptors.get(assignment.valueId());
+            if (descriptor == null) {
+                throw new IllegalArgumentException(
+                        "prepared CPU buffer has no graph descriptor");
+            }
+            PreparedRepresentationPlan.BufferPreparation preparation;
+            if (representationIndex == 0 && bindable.contains(assignment.valueId())) {
+                preparation = new PreparedRepresentationPlan.CallerInput();
+            } else if (representationIndex == 0
+                    && context.constants().containsKey(assignment.valueId())) {
+                preparation = new PreparedRepresentationPlan.InitializedBuffer(
+                        CpuRepresentationRecipes.initializedBuffer(
+                                descriptor.dataType(),
+                                context.memoryPlan().buffers().get(assignment.planIndex()),
+                                context.constants().get(assignment.valueId())));
+            } else {
+                preparation = new PreparedRepresentationPlan.CreatedBuffer(
+                        CpuRepresentationRecipes.buffer(
+                                descriptor.dataType(),
+                                context.memoryPlan().buffers().get(assignment.planIndex())));
+            }
+            buffers.add(new PreparedScheduleContribution.Buffer(
+                    assignment, representationIndex, preparation));
+        }
+
+        var workspaces = new ArrayList<PreparedScheduleContribution.Workspace>();
+        for (PreparedWorkspaceAssignment assignment : context.workspaceAssignments()) {
+            if (!assignment.partition().owner().equals(CpuCapabilityProvider.CPU_BACKEND_ID)) {
+                continue;
+            }
+            workspaces.add(new PreparedScheduleContribution.Workspace(
+                    assignment,
+                    CpuRepresentationRecipes.workspace(
+                            context.memoryPlan().workspaces().get(assignment.planIndex()))));
+        }
+        return new PreparedScheduleContribution(
+                CpuCapabilityProvider.CPU_BACKEND_ID, buffers, workspaces);
+    }
     /**
      * Assembles one immutable CPU representation, execution, and publication schedule.
      *

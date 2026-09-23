@@ -23,31 +23,37 @@ the reusable prepared-execution root.
 The CPU backend supplies broad physical allocation, preparation, and access for
 `Engine.standard()` and explicit composition. Metal supplies bounded MPSGraph and custom-kernel
 `FLOAT32 NEG` routes plus explicit native configuration, host ingress, materialization, and close.
-`Engine.builder()` currently registers opened CPU and/or Metal integrations and routes a non-empty
-plan to one exact owner. CUDA and mixed-owner composition remain later work. The lifecycle flow
-therefore combines current foundations with selected later stages, and each focused section states
-its implementation status.
+`Engine.builder()` currently registers opened CPU and/or Metal integrations and composes their
+non-empty partition sets through one shared preparation. It preflights every owner and required
+directed transfer before backend analysis, then captures direct per-input, executable, transfer,
+and publication references. Current CPU/Metal transfer is bounded to fully static canonical
+contiguous `FLOAT32`; CUDA and broader conversion/transfer composition remain later work. The
+lifecycle flow therefore combines current foundations with selected later stages, and each focused
+section states its implementation status.
 [ADR 0011](../design/decisions/0011-per-run-runtime-resource-ownership.md) defines the
 resource-ownership and cold-binding architecture.
 [ADR 0013](../design/decisions/0013-prepared-execution-persistent-resource-lifecycle.md) defines
 the persistent prepared-resource ownership and close lifecycle.
 [ADR 0015](../design/decisions/0015-explicit-engine-backend-composition.md) selects explicit
-Engine registration, construction ownership, and the fail-closed single-owner first slice.
+Engine registration and construction ownership.
+[ADR 0016](../design/decisions/0016-cpu-metal-mixed-owner-schedule.md) selects owner-indexed
+representations, physical contribution composition, and explicit bidirectional transfer.
 
 ## Boundary in one flow
 
 ```text
 CompileArtifacts
-  -> shared prepare validation and orchestration
-  -> Prepare-owned partition analysis request
-  -> concrete backend analysis, lowering, route choice, and exact resource declaration
-  -> BackendPartitionAnalysis[]
-  -> shared buffer/workspace slot assignment and PreparedMemoryPlan
-  -> concrete backend finalization against assigned slots
-  -> PreparedPartition[] + PreparedExecutable[]
-  -> PreparedSchedule
+  -> Engine validates every partition owner and required directed transfer
+  -> shared Prepare validation and per-partition analysis
+  -> concrete backend lowering, route choice, and exact resource declaration
+  -> deterministic logical buffer/workspace assignment
+     + one buffer representation position per participating owner
+  -> concrete backend finalization against exact slots and representation positions
+  -> backend physical-creation contributions
+  -> Engine composition of partition execution, explicit transfer, and publication occurrences
+  -> validated PreparedSchedule + PreparedMemoryPlan
   -> PreparedExecution
-  -> runtime execution with RunState
+  -> Runtime execution with one heterogeneous RunState
 ```
 
 Read the arrows from compile-time facts toward reusable runtime state. Prepare turns an immutable
@@ -254,9 +260,11 @@ validation, rollback, and final `PreparedExecution`. Concrete backends never rec
 current Engine composition supplies the collaborators explicitly.
 
 After finalization, `PreparedScheduleContext` carries only stable Model, Planning, Prepare, and
-Runtime facts: planned partitions, graph values, bindable-source IDs, constants, ordered
-publication IDs, the exact memory plan, prepared partitions, and buffer assignments. Prepare
-validates these associations before calling a concrete schedule assembler. For a producerless
+Runtime facts: planned partitions, graph values, Compiler-ordered bindable-source IDs, constants,
+ordered publication IDs, the exact memory plan, prepared partitions, and buffer assignments.
+Prepare places bindable buffers first in that exact occurrence order, independently of partition
+analysis/declaration order, and validates these associations before calling a concrete schedule
+assembler. For a producerless
 published constant, Prepare identifies and orders the exact logical role and asks the assembler
 to contribute physical geometry from the stable graph value, logical-memory requirement, and
 scalar. Prepare still validates complete coverage and owns assignment and transactionality.
@@ -275,22 +283,26 @@ ownership at method entry, and adapt them into a private registration-ordered re
 point-in-time availability snapshot. An equal duplicate ID is rejected and the newly transferred
 integration is rolled back; no existing entry is replaced.
 
-That map has only two cold responsibilities. Compile receives the frozen provider/snapshot lists
-in registration order so Planning selects owner identities. Prepare validates the complete owner
-set and resolves each planned partition to its registered contribution. The first implementation
-admits only a non-empty complete plan with one distinct registered owner. It supplies that owner's
-partition preparations and complete schedule contribution to `GraphPreparation`; shared Prepare
-retains projection, slot assignment, finalization, transactionality, and schedule validation.
+That map has only cold responsibilities. Compile receives the frozen provider/snapshot lists in
+registration order so Planning selects owner identities. Prepare validates the complete non-empty
+owner set and every required directed transfer before the first backend analysis call, resolves
+each planned partition to its registered preparation, and performs one shared `GraphPreparation`
+transaction. Shared Prepare assigns one logical slot plus deterministic owner-indexed physical
+representations, finalizes partitions, and collects backend buffer/workspace contributions.
+Engine then assembles partition execution in compile order, one transfer per logical value and
+distinct destination owner immediately before that owner's first consumer, and the dense
+publication suffix.
 
-A missing owner, no planned partition, or more than one owner fails before the first backend
-analysis call. CPU and Metal registration alone cannot define a transfer. Mixed ownership remains
-blocked until a separate contract defines cross-owner representation creation, transfer
-capability and direction, declarations, schedule ordering, and rollback.
+A missing owner, no planned partition, or an unsupported transfer fails before backend analysis.
+The current CPU/Metal path supports exact native-host-staged transfer in both directions only for
+positive rank-1..16 fully static canonical contiguous `FLOAT32` with checked element and byte
+geometry. It performs no conversion, retry, fallback, heap staging, or owner substitution.
 
 Once `GraphPreparation` returns, the registry map has no execution role. The outward prepared
-handle captures a direct non-owning reference to the selected Engine adapter. Engine run uses it
-for backend-owned caller-storage ingress, and the outward result uses the same adapter for
-authenticated host materialization; both occur outside Runtime and before integration closure.
+handle captures direct non-owning adapter references in caller-input and publication occurrence
+order. Engine run uses the input references for backend-owned caller-storage ingress, and each
+outward publication uses its own captured adapter for authenticated host materialization; both
+occur outside Runtime and before integration closure.
 The prepared schedule carries direct executable, representation-creation, transfer, and
 publication recipes. Runtime cold binding turns them into typed direct-reference actions; neither
 binding nor traversal consults Engine, the adapter, a backend ID, capability provider,

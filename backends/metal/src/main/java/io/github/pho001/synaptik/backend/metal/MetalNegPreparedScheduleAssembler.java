@@ -4,7 +4,10 @@ import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.prepare.PreparedBufferAssignment;
 import io.github.pho001.synaptik.prepare.PreparedPartition;
 import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
+import io.github.pho001.synaptik.prepare.PreparedScheduleContribution;
+import io.github.pho001.synaptik.prepare.PreparedScheduleContributor;
 import io.github.pho001.synaptik.prepare.PreparedScheduleContext;
+import io.github.pho001.synaptik.prepare.PreparedWorkspaceAssignment;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan;
 import io.github.pho001.synaptik.runtime.run.PreparedPublication;
@@ -21,14 +24,15 @@ import java.lang.foreign.MemorySegment;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 
 /**
- * Assembles the exact sole-partition all-Metal NEG Runtime recipe.
+ * Supplies Metal NEG physical creation contributions and assembles the exact legacy
+ * sole-partition Runtime recipe.
  *
- * <p>Feed buffers borrow caller inputs in stable feed order, target buffers are freshly allocated
- * per run, one execution step invokes the whole partition, and publication steps retain the
- * stable Prepare publication order including repeated aliases. Mixed-owner composition is
- * rejected.</p>
+ * <p>Shared mixed-owner composition uses {@link #contribute(PreparedScheduleContext)} and owns
+ * global execution, transfer, and publication ordering. The complete assembler entry remains the
+ * backend-local single-owner construction seam. Both paths create recipes only.</p>
  */
-final class MetalNegPreparedScheduleAssembler implements PreparedScheduleAssembler {
+final class MetalNegPreparedScheduleAssembler
+        implements PreparedScheduleAssembler, PreparedScheduleContributor {
     private final MetalDeviceContext context;
     private final MetalNegPreparationPlan plan;
     private final List<ValueId> publicationValueIds;
@@ -65,6 +69,104 @@ final class MetalNegPreparedScheduleAssembler implements PreparedScheduleAssembl
             throw new IllegalArgumentException("Metal NEG analysis/schedule context mismatch");
         }
         this.publicationValueIds = List.copyOf(publicationValueIds);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public io.github.pho001.synaptik.backend.contract.BackendId backendId() {
+        return MetalCapabilityProvider.METAL_BACKEND_ID;
+    }
+
+    /**
+     * Contributes every externally assigned Metal buffer representation and workspace creator.
+     *
+     * @param scheduleContext exact non-null complete shared schedule context
+     * @return non-null immutable sparse Metal contribution
+     * @throws NullPointerException if {@code scheduleContext} is null
+     * @throws IllegalArgumentException if an assigned descriptor, constant, executable, or
+     *     workspace is outside the current Metal NEG domain
+     */
+    @Override
+    public PreparedScheduleContribution contribute(PreparedScheduleContext scheduleContext) {
+        Objects.requireNonNull(scheduleContext, "scheduleContext");
+        var descriptors = scheduleContext.graphValues().stream().collect(
+                java.util.stream.Collectors.toMap(
+                        value -> value.id(), value -> value.descriptor()));
+        var bindable = new HashSet<>(scheduleContext.bindableInputValueIds());
+        var buffers = new ArrayList<PreparedScheduleContribution.Buffer>();
+        for (PreparedBufferAssignment assignment : scheduleContext.bufferAssignments()) {
+            int representationIndex = assignment.representationOwners().indexOf(
+                    MetalCapabilityProvider.METAL_BACKEND_ID);
+            if (representationIndex < 0) {
+                continue;
+            }
+            var descriptor = descriptors.get(assignment.valueId());
+            if (descriptor == null
+                    || descriptor.dataType()
+                            != io.github.pho001.synaptik.model.datatype.DataType.FLOAT32
+                    || !descriptor.shape().isFullyStatic()
+                    || descriptor.layout().isEmpty()
+                    || !descriptor.layout().orElseThrow().equals(
+                            io.github.pho001.synaptik.model.layout.LayoutDescriptor.contiguous(
+                                    descriptor.shape()))) {
+                throw new IllegalArgumentException(
+                        "Metal NEG assigned buffer requires static contiguous FLOAT32");
+            }
+            long bytes = scheduleContext.memoryPlan().buffers()
+                    .get(assignment.planIndex()).byteSize();
+            PreparedRepresentationPlan.BufferPreparation preparation;
+            if (representationIndex == 0 && bindable.contains(assignment.valueId())) {
+                preparation = new PreparedRepresentationPlan.CallerInput();
+            } else if (representationIndex == 0
+                    && scheduleContext.constants().containsKey(assignment.valueId())) {
+                var scalar = scheduleContext.constants().get(assignment.valueId());
+                if (scalar.dataType()
+                        != io.github.pho001.synaptik.model.datatype.DataType.FLOAT32) {
+                    throw new IllegalArgumentException(
+                            "Metal NEG initialized buffer requires FLOAT32 scalar");
+                }
+                int bits = Float.floatToRawIntBits(scalar.float32Value());
+                preparation = new PreparedRepresentationPlan.InitializedBuffer(
+                        () -> createSplatBuffer(bytes, bits));
+            } else {
+                preparation = new PreparedRepresentationPlan.CreatedBuffer(
+                        () -> context.createBuffer(bytes));
+            }
+            buffers.add(new PreparedScheduleContribution.Buffer(
+                    assignment, representationIndex, preparation));
+        }
+
+        var workspaces = new ArrayList<PreparedScheduleContribution.Workspace>();
+        for (PreparedWorkspaceAssignment assignment : scheduleContext.workspaceAssignments()) {
+            if (!assignment.partition().owner().equals(
+                    MetalCapabilityProvider.METAL_BACKEND_ID)) {
+                continue;
+            }
+            MetalNegPreparedExecutable executable = null;
+            for (PreparedPartition partition : scheduleContext.partitions()) {
+                if (partition.partition() == assignment.partition()
+                        && partition.executable() instanceof MetalNegPreparedExecutable metal) {
+                    executable = metal;
+                    break;
+                }
+            }
+            if (executable == null
+                    || executable.preparationPlan().route()
+                            != MetalNegPreparationPlan.Route.MPSGRAPH) {
+                throw new IllegalArgumentException(
+                        "Metal NEG workspace has no exact MPSGraph executable");
+            }
+            MetalNegPreparationPlan executablePlan = executable.preparationPlan();
+            int pointerCount = Math.addExact(
+                    executablePlan.feedValueIds().size(),
+                    executablePlan.targetValueIds().size());
+            workspaces.add(new PreparedScheduleContribution.Workspace(
+                    assignment,
+                    () -> new MetalNegPreparedExecutable.AddressWorkspace(
+                            context, pointerCount)));
+        }
+        return new PreparedScheduleContribution(
+                MetalCapabilityProvider.METAL_BACKEND_ID, buffers, workspaces);
     }
 
     /**

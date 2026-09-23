@@ -10,8 +10,12 @@ import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.prepare.GraphPreparation;
 import io.github.pho001.synaptik.prepare.PartitionPreparation;
+import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
+import io.github.pho001.synaptik.prepare.PreparedScheduleContributor;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
+import io.github.pho001.synaptik.runtime.execution.PreparedBufferTransfer;
+import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import java.util.List;
 import java.util.Objects;
@@ -41,6 +45,11 @@ final class CpuEngineBackendComposition implements EngineBackendComposition {
         this.integration = Objects.requireNonNull(integration, "integration");
         capabilityProviders = List.of(integration.capabilityProvider());
         availabilitySnapshots = List.of(integration.availabilitySnapshot());
+    }
+
+    /** @return the exact retained CPU integration for direct prepared transfer binding */
+    CpuBackendIntegration integration() {
+        return integration;
     }
 
     /**
@@ -116,8 +125,52 @@ final class CpuEngineBackendComposition implements EngineBackendComposition {
 
     /** {@inheritDoc} */
     @Override
-    public PreparedExecution prepare(CompileArtifacts artifacts) {
-        return prepare(artifacts, integration.partitionPreparation());
+    public PartitionPreparation<?, ?> partitionPreparation() {
+        return integration.partitionPreparation();
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public PreparedScheduleContributor scheduleContributor() {
+        return integration.scheduleContributor();
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public PreparedScheduleAssembler scheduleAssembler() {
+        return integration.scheduleAssembler();
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public boolean supportsTransferTo(
+            EngineBackendComposition destination, TensorDescriptor descriptor) {
+        Objects.requireNonNull(destination, "destination");
+        return destination instanceof MetalEngineBackendComposition
+                && CpuMetalPreparedBufferTransfer.supports(descriptor);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public PreparedBufferTransfer prepareTransferTo(
+            EngineBackendComposition destination,
+            PreparedMemoryPlan memoryPlan,
+            int bufferIndex,
+            int sourceRepresentationIndex,
+            int destinationRepresentationIndex,
+            TensorDescriptor descriptor) {
+        if (!(destination instanceof MetalEngineBackendComposition metal)) {
+            throw new IllegalArgumentException(
+                    "CPU transfer destination is not the registered Metal adapter");
+        }
+        return CpuMetalPreparedBufferTransfer.cpuToMetal(
+                integration,
+                metal.integration(),
+                memoryPlan,
+                bufferIndex,
+                sourceRepresentationIndex,
+                destinationRepresentationIndex,
+                descriptor);
     }
 
     /** {@inheritDoc} */

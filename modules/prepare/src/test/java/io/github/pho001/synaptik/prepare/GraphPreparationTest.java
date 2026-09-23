@@ -582,8 +582,7 @@ class GraphPreparationTest {
                     GraphValue equalValue = new GraphValue(
                             resource.value().id(), resource.value().descriptor());
                     ProducerlessPublishedConstantResource foreignValue =
-                            new ProducerlessPublishedConstantResource(
-                                    equalValue, resource.logicalRequirement(), 12, 8);
+                            new ProducerlessPublishedConstantResource(equalValue, resource.logicalRequirement(), new io.github.pho001.synaptik.backend.contract.BackendId("test"), 12, 8);
                     assertFailure(
                             IllegalArgumentException.class,
                             "producerlessResources[0] value reference does not match artifacts graph value: ValueId[value=70]",
@@ -602,8 +601,7 @@ class GraphPreparationTest {
                             logical.consumerPartitions(),
                             logical.graphOutput());
                     ProducerlessPublishedConstantResource foreignRequirement =
-                            new ProducerlessPublishedConstantResource(
-                                    resource.value(), equalRequirement, 12, 8);
+                            new ProducerlessPublishedConstantResource(resource.value(), equalRequirement, new io.github.pho001.synaptik.backend.contract.BackendId("test"), 12, 8);
                     assertFailure(
                             IllegalArgumentException.class,
                             "producerlessResources[0] logical requirement reference does not match artifacts memory requirement: ValueId[value=70]",
@@ -619,8 +617,7 @@ class GraphPreparationTest {
                     LogicalMemoryRequirement bindableRequirement =
                             bindableArtifacts.memory().requirements().getFirst();
                     ProducerlessPublishedConstantResource extra =
-                            new ProducerlessPublishedConstantResource(
-                                    bindableValue, bindableRequirement, 4, 4);
+                            new ProducerlessPublishedConstantResource(bindableValue, bindableRequirement, new io.github.pho001.synaptik.backend.contract.BackendId("test"), 4, 4);
                     assertFailure(
                             IllegalArgumentException.class,
                             "producerlessResources[0] is not a required producerless published constant: ValueId[value=81]",
@@ -697,8 +694,7 @@ class GraphPreparationTest {
                 () -> GraphPreparation.prepare(
                         artifacts,
                         List.of(),
-                        List.of(new ProducerlessPublishedConstantResource(
-                                value, requirement, 4, 4)),
+                        List.of(new ProducerlessPublishedConstantResource(value, requirement, new io.github.pho001.synaptik.backend.contract.BackendId("test"), 4, 4)),
                         context -> {
                             assemblers.incrementAndGet();
                             return new PreparedSchedule(context.memoryPlan(), List.of());
@@ -1096,8 +1092,7 @@ class GraphPreparationTest {
                 .filter(candidate -> candidate.valueId().equals(value.id()))
                 .findFirst()
                 .orElseThrow();
-        return new ProducerlessPublishedConstantResource(
-                value, requirement, byteSize, byteAlignment);
+        return new ProducerlessPublishedConstantResource(value, requirement, new io.github.pho001.synaptik.backend.contract.BackendId("test"), byteSize, byteAlignment);
     }
 
     private static CompileArtifacts producerlessZeroNodeArtifacts() {

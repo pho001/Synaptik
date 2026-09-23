@@ -256,8 +256,7 @@ class CpuPartitionDagResourceTest {
                         ? buffer.byteSize() - 1 : buffer.byteSize();
                 buffers.add(new PreparedMemoryPlan.BufferEntry(slot, size,
                         buffer.byteAlignment()));
-                assignments.add(new PreparationResourceAssignment.Buffer(buffer, slot,
-                        buffers.size() - 1));
+                assignments.add(new PreparationResourceAssignment.Buffer(buffer, slot, buffers.size() - 1, 0));
             } else {
                 var workspace = (PreparationResourceRequirement.Workspace) requirement;
                 var slot = new WorkspaceSlot(workspaces.size());

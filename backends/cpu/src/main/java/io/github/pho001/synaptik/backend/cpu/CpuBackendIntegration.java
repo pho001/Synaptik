@@ -1,13 +1,18 @@
 package io.github.pho001.synaptik.backend.cpu;
 
+import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferRepresentation;
 import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuBackendComposition;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.prepare.PartitionPreparation;
 import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
+import io.github.pho001.synaptik.prepare.PreparedScheduleContributor;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import java.util.Objects;
+import java.lang.foreign.MemorySegment;
 
 /**
  * Supported CPU service-provider integration boundary for lifecycle composition.
@@ -76,12 +81,13 @@ public final class CpuBackendIntegration implements AutoCloseable {
     }
 
     /**
-     * Creates the sole positional preparation for exactly one non-empty CPU partition.
+     * Creates one positional preparation for a non-empty CPU-owned partition.
      *
-     * <p>A zero-node pass-through graph has no prepared buffer assignment under the current
-     * Prepare contract and is rejected. A mixed-owner or multi-partition schedule is also outside
-     * this CPU-owned complete-schedule boundary and must be composed by later Engine/Prepare
-     * integration.</p>
+     * <p>A zero-node pass-through graph has no partition or prepared buffer assignment and remains
+     * rejected by ordinary preparation. For a mixed or multi-partition plan, Engine and shared
+     * Prepare combine this partition collaboration with
+     * {@link #scheduleContributor() CPU's physical contribution} and the other registered
+     * owners' contributions into one complete schedule.</p>
      *
      * @return a non-null immutable preparation whose CPU-private input and plan types remain hidden
      *     behind shared Prepare roles
@@ -138,6 +144,16 @@ public final class CpuBackendIntegration implements AutoCloseable {
     }
 
     /**
+     * Returns the retained CPU physical-creation contributor used by shared mixed-owner assembly.
+     *
+     * @return the non-null retained immutable contributor; ownership remains with this integration
+     * @throws IllegalStateException if this integration is closed
+     */
+    public PreparedScheduleContributor scheduleContributor() {
+        return (PreparedScheduleContributor) composition.scheduleAssembler();
+    }
+
+    /**
      * Borrows intrinsically valid CPU-compatible host storage without taking ownership.
      *
      * <p>This operation validates only facts available from the storage itself. It does not
@@ -158,6 +174,62 @@ public final class CpuBackendIntegration implements AutoCloseable {
      */
     public BufferRepresentation borrow(HostTensorStorage storage) {
         return composition.borrow(storage);
+    }
+
+    /**
+     * Reports whether one nominal representation can be cold-bound as exact native host staging
+     * for a prepared CPU/Metal transfer.
+     *
+     * @param representation non-null candidate CPU representation
+     * @param descriptor non-null exact logical descriptor
+     * @param writable whether the transfer writes into the CPU representation
+     * @return {@code true} only for a live current-thread-accessible native, exact-size,
+     *     canonical contiguous FLOAT32 CPU representation with the requested mutability
+     * @throws NullPointerException if an object argument is null
+     * @throws IllegalStateException if this integration is closed
+     */
+    public boolean acceptsContiguousFloat32Transfer(
+            BufferRepresentation representation,
+            TensorDescriptor descriptor,
+            boolean writable) {
+        composition.assertOpen();
+        Objects.requireNonNull(representation, "representation");
+        Objects.requireNonNull(descriptor, "descriptor");
+        if (!isContiguousFloat32(descriptor)
+                || !(representation instanceof CpuBufferRepresentation cpu)
+                || cpu.dataType() != DataType.FLOAT32
+                || !cpu.isAccessible()) {
+            return false;
+        }
+        MemorySegment segment = cpu.segment();
+        long byteCount = transferByteCount(descriptor);
+        return cpu.byteSize() == byteCount
+                && segment.byteSize() == byteCount
+                && segment.isNative()
+                && (!writable || !segment.isReadOnly());
+    }
+
+    /**
+     * Cold-binds one exact CPU representation as reusable native host staging.
+     *
+     * @param representation non-null candidate CPU representation
+     * @param descriptor non-null exact logical descriptor
+     * @param writable whether the transfer will write into the returned segment
+     * @return the exact non-owning live native segment retained by the representation
+     * @throws NullPointerException if an object argument is null
+     * @throws IllegalArgumentException if representation, type, layout, byte extent, native
+     *     carrier, accessibility, or mutability is incompatible
+     * @throws IllegalStateException if this integration or representation is closed
+     */
+    public MemorySegment bindContiguousFloat32Transfer(
+            BufferRepresentation representation,
+            TensorDescriptor descriptor,
+            boolean writable) {
+        if (!acceptsContiguousFloat32Transfer(representation, descriptor, writable)) {
+            throw new IllegalArgumentException(
+                    "CPU transfer requires an exact live native contiguous FLOAT32 representation");
+        }
+        return ((CpuBufferRepresentation) representation).segment();
     }
 
     /**
@@ -200,6 +272,19 @@ public final class CpuBackendIntegration implements AutoCloseable {
     public byte[] copyToCanonicalHostBytes(BufferRepresentation representation,
             TensorDescriptor descriptor, long maximumBytes) {
         return composition.copyToCanonicalHostBytes(representation, descriptor, maximumBytes);
+    }
+
+    private static boolean isContiguousFloat32(TensorDescriptor descriptor) {
+        return descriptor.dataType() == DataType.FLOAT32
+                && descriptor.shape().isFullyStatic()
+                && descriptor.layout().isPresent()
+                && descriptor.layout().orElseThrow().equals(
+                        LayoutDescriptor.contiguous(descriptor.shape()));
+    }
+
+    private static long transferByteCount(TensorDescriptor descriptor) {
+        return Math.multiplyExact(
+                descriptor.shape().knownElementCount().orElseThrow(), Float.BYTES);
     }
 
     /**

@@ -34,15 +34,15 @@ class BackendPartitionFinalizationTest {
                 () -> assertFailure(
                         NullPointerException.class,
                         "requirement",
-                        () -> new PreparationResourceAssignment.Buffer(null, null, -1)),
+                        () -> new PreparationResourceAssignment.Buffer(null, null, -1, 0)),
                 () -> assertFailure(
                         NullPointerException.class,
                         "slot",
-                        () -> new PreparationResourceAssignment.Buffer(buffer, null, -1)),
+                        () -> new PreparationResourceAssignment.Buffer(buffer, null, -1, 0)),
                 () -> assertFailure(
                         IllegalArgumentException.class,
                         "planIndex must be non-negative",
-                        () -> new PreparationResourceAssignment.Buffer(buffer, new BufferSlot(0), -1)),
+                        () -> new PreparationResourceAssignment.Buffer(buffer, new BufferSlot(0), -1, 0)),
                 () -> assertFailure(
                         NullPointerException.class,
                         "requirement",
@@ -124,8 +124,7 @@ class BackendPartitionFinalizationTest {
                                 fixture.analysis,
                                 fixture.memoryPlan,
                                 List.of(
-                                        new PreparationResourceAssignment.Buffer(
-                                                foreignBuffer, fixture.bufferSlot, 0),
+                                        new PreparationResourceAssignment.Buffer(foreignBuffer, fixture.bufferSlot, 0, 0),
                                         fixture.assignments.get(1)))),
                 () -> assertFailure(
                         IllegalArgumentException.class,
@@ -134,8 +133,7 @@ class BackendPartitionFinalizationTest {
                                 fixture.analysis,
                                 fixture.memoryPlan,
                                 List.of(
-                                        new PreparationResourceAssignment.Buffer(
-                                                fixture.bufferRequirement, fixture.bufferSlot, 1),
+                                        new PreparationResourceAssignment.Buffer(fixture.bufferRequirement, fixture.bufferSlot, 1, 0),
                                         fixture.assignments.get(1)))),
                 () -> assertFailure(
                         IllegalArgumentException.class,
@@ -144,8 +142,7 @@ class BackendPartitionFinalizationTest {
                                 fixture.analysis,
                                 fixture.memoryPlan,
                                 List.of(
-                                        new PreparationResourceAssignment.Buffer(
-                                                fixture.bufferRequirement, foreignSlot, 0),
+                                        new PreparationResourceAssignment.Buffer(fixture.bufferRequirement, foreignSlot, 0, 0),
                                         fixture.assignments.get(1)))),
                 () -> assertFailure(
                         IllegalArgumentException.class,
@@ -218,7 +215,7 @@ class BackendPartitionFinalizationTest {
                 List.of(new PreparedMemoryPlan.BufferEntry(bufferSlot, 4, 4)),
                 List.of(new PreparedMemoryPlan.WorkspaceEntry(workspaceSlot, 8, 8)));
         List<PreparationResourceAssignment> assignments = List.of(
-                new PreparationResourceAssignment.Buffer(bufferRequirement, bufferSlot, 0),
+                new PreparationResourceAssignment.Buffer(bufferRequirement, bufferSlot, 0, 0),
                 new PreparationResourceAssignment.Workspace(workspaceRequirement, workspaceSlot, 0));
         return new Fixture(
                 partition,

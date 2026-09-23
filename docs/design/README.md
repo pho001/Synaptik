@@ -27,6 +27,7 @@ acceptance date and considered alternatives.
 - [ADR 0013: Prepared-execution persistent-resource lifecycle](decisions/0013-prepared-execution-persistent-resource-lifecycle.md)
 - [ADR 0014: Scope-indexed normative architecture contracts](decisions/0014-scope-indexed-normative-architecture-contracts.md)
 - [ADR 0015: Explicit Engine backend composition](decisions/0015-explicit-engine-backend-composition.md)
+- [ADR 0016: CPU/Metal mixed-owner prepared schedule](decisions/0016-cpu-metal-mixed-owner-schedule.md)
 
 ## Design notes
 

@@ -29,11 +29,12 @@ residency, explicit per-buffer-copy validity, cold-bound invocation and transfer
 creation, execution, transfer, and dense publication-suffix schedule recipes, the whole-state
 result lease, lifecycle-bearing prepared-execution root, Prepare-owned resource assignments,
 typed backend finalization, `PreparedPartition`, and complete graph preparation are current.
-Ordinary compile, single-owner prepare, logical host-input binding, synchronous run, typed
-publication metadata, and explicit bounded detached host materialization are current through
-`Engine`. `Engine.standard()` supplies fixed CPU ownership; `Engine.builder()` can supply explicit
-CPU or Metal ownership. The selected integration implements physical allocation, storage access,
-finalization, schedule assembly, execution, ingress, and materialization for its supported domain.
+Ordinary compile, shared single-owner or mixed-owner prepare, logical host-input binding,
+synchronous run, typed publication metadata, and explicit bounded detached host materialization
+are current through `Engine`. `Engine.standard()` supplies fixed CPU ownership;
+`Engine.builder()` can explicitly compose CPU and Metal. Their exact integrations implement
+physical allocation, storage access, finalization and contribution, execution, transfer endpoints,
+ingress, and materialization for their supported domains.
 
 ## Mental model
 
@@ -126,12 +127,12 @@ completed detached host value remain readable after closure. Closing one
 standard Engine does not affect another, and repeated or concurrent close calls share the
 delegated exactly-once cleanup result.
 
-The current CPU path accepts exactly one non-empty maximal CPU partition and requires fully static
-Shapes and resolved compatible layouts for its occurrences. Zero-node pass-through, mixed-owner,
-and multiple-partition preparation remain rejected. In particular, public `ADD` currently has an
-unresolved result layout; applying `contiguous()` afterward resolves only the new CONTIGUOUS
-occurrence and does not make the preceding ADD executable. Compile success is therefore not a
-prepare or run guarantee.
+The current fixed CPU path requires fully static Shapes and resolved compatible layouts. Ordinary
+builder composition may prepare multiple CPU/Metal partitions and transfers only fully static
+canonical contiguous `FLOAT32` values between them. Zero-node pass-through remains rejected. In
+particular, public `ADD` currently has an unresolved result layout; applying `contiguous()`
+afterward resolves only the new CONTIGUOUS occurrence and does not make the preceding ADD
+executable. Compile success is therefore not a prepare or run guarantee.
 
 The following complete setup creates exact-size, resolved `FLOAT32` input leaves backed by a
 caller-owned shared arena:
@@ -243,8 +244,8 @@ inside the graph. The four occurrences expose metadata until the caller explicit
 for materialization; this example proves neither optimizer integration nor training. A shared seed leaf without `contiguous()` would be a zero-node pass-through
 publication with no current prepared buffer assignment.
 
-Host materialization is current for fully static resolved publications supported by the exact CPU
-or Metal adapter captured during single-owner preparation. The four ordinary
+Host materialization is current for fully static resolved publications and uses the exact CPU or
+Metal adapter captured for each publication during cold preparation. The four ordinary
 `Engine.compute(...)` overloads provide Engine-owned one-shot forward execution for
 one output or an ordered non-empty output list, with or without an explicit aggregate byte bound.
 They transiently inventory reachable provenance-free Tensor leaves by exact object identity and
@@ -261,16 +262,17 @@ or caller storage escapes through the return value.
 The convenience creates no cache and reuses no compile or prepared recipe. A failure returns no
 partial value list; cleanup still runs, with a distinct cleanup failure suppressed on the primary
 failure. Engine close waits for an admitted call through cleanup, while a call that loses
-admission fails before argument inspection. Current support requires one non-empty plan owned by
-one registered backend, with fully static resolved layouts in that adapter's supported domain.
-The aggregate limit is not a bound on inputs, Runtime allocation, workspaces, object overhead,
-defensive copies, or peak
-memory. Use the explicit `compile -> prepare -> run -> materialize` lifecycle for repeated runs or
-selective output copies. The explicit reusable `run(preparedExecution, inputs)` path intentionally
-continues to require caller-supplied logical inputs. Automatic discovery is only the one-shot
-convenience. Selected storage remains caller-owned through synchronous completion, no Tensor or
-provenance state escapes the call, and no cache is retained. This adds no `output.execute()` Tensor method, cross-backend transfer,
-tuning, or cache.
+admission fails before argument inspection. Current support requires one non-empty plan whose
+owners have exact registered adapters. Single-owner plans remain supported; mixed CPU/Metal plans
+must stay inside the positive rank-1..16 fully static canonical contiguous `FLOAT32` transfer
+domain. The aggregate limit is not a bound on inputs, Runtime allocation, workspaces, object
+overhead, defensive copies, or peak memory. Use the explicit
+`compile -> prepare -> run -> materialize` lifecycle for repeated runs or selective output copies.
+The explicit reusable `run(preparedExecution, inputs)` path intentionally continues to require
+caller-supplied logical inputs. Automatic discovery is only the one-shot convenience. Selected
+storage remains caller-owned through synchronous completion, no Tensor or provenance state escapes
+the call, and no cache is retained. This adds no `output.execute()` Tensor method, implicit
+fallback, general conversion or transfer domain, tuning, or cache.
 
 `Engine.backward(objective, targets, maximumTotalBytes)` is the current one-shot backward
 counterpart. It discovers candidate leaves from the objective expression, uses final compiled

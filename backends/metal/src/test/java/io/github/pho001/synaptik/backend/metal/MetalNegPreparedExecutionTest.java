@@ -361,7 +361,9 @@ class MetalNegPreparedExecutionTest {
                             MetalNegPreparationPlan plan,
                             PreparedMemoryPlan memoryPlan,
                             int[] feeds,
+                            int[] feedRepresentations,
                             int[] targets,
+                            int[] targetRepresentations,
                             MetalMpsGraphExecutableResource resource,
                             long[] feedBytes,
                             long[] targetBytes,
@@ -374,7 +376,9 @@ class MetalNegPreparedExecutionTest {
                             MetalNegPreparationPlan plan,
                             PreparedMemoryPlan memoryPlan,
                             int feed,
+                            int feedRepresentation,
                             int target,
+                            int targetRepresentation,
                             MetalNegKernelPipelineResource resource) {
                         throw primary;
                     }
@@ -639,8 +643,7 @@ class MetalNegPreparedExecutionTest {
                 var assignments = new ArrayList<>(valid.assignments());
                 var source = (PreparationResourceAssignment.Buffer) assignments.get(pair[0]);
                 var replaced = (PreparationResourceAssignment.Buffer) assignments.get(pair[1]);
-                assignments.set(pair[1], new PreparationResourceAssignment.Buffer(
-                        replaced.requirement(), source.slot(), source.planIndex()));
+                assignments.set(pair[1], new PreparationResourceAssignment.Buffer(replaced.requirement(), source.slot(), source.planIndex(), 0));
                 var malformed = new BackendPartitionFinalization<>(
                         analysis, valid.memoryPlan(), assignments);
                 assertThrows(IllegalArgumentException.class,
@@ -889,7 +892,16 @@ class MetalNegPreparedExecutionTest {
         RuntimeException primary = new RuntimeException("recipe construction");
         api.releaseStatus = 7;
         var finalizer = new MetalNegPartitionFinalizer(context,
-                (plan, memoryPlan, feeds, targets, resource, feedBytes, targetBytes, workspace) -> {
+                (plan,
+                        memoryPlan,
+                        feeds,
+                        feedRepresentations,
+                        targets,
+                        targetRepresentations,
+                        resource,
+                        feedBytes,
+                        targetBytes,
+                        workspace) -> {
                     throw primary;
                 });
         try {
@@ -1476,10 +1488,8 @@ class MetalNegPreparedExecutionTest {
                 BufferSlot slot = new BufferSlot(500 + bufferIndex);
                 bufferEntries.add(new PreparedMemoryPlan.BufferEntry(
                         slot, declaration.byteSize(), declaration.byteAlignment()));
-                finalAssignments.add(new PreparationResourceAssignment.Buffer(
-                        declaration, slot, bufferIndex));
-                preparedAssignments.add(new PreparedBufferAssignment(
-                        declaration.valueId(), slot, bufferIndex));
+                finalAssignments.add(new PreparationResourceAssignment.Buffer(declaration, slot, bufferIndex, 0));
+                preparedAssignments.add(new PreparedBufferAssignment(declaration.valueId(), slot, bufferIndex, java.util.List.of(io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider.METAL_BACKEND_ID)));
                 bufferIndex++;
             }
             WorkspaceSlot workspaceSlot = new WorkspaceSlot(900);
@@ -1657,13 +1667,11 @@ class MetalNegPreparedExecutionTest {
             var declaration = plan.declarations().get(declarationIndex);
             entries.add(new PreparedMemoryPlan.BufferEntry(
                     slots[planIndex], declaration.byteSize(), declaration.byteAlignment()));
-            preparedByIndex[planIndex] = new PreparedBufferAssignment(
-                    declaration.valueId(), slots[planIndex], planIndex);
+            preparedByIndex[planIndex] = new PreparedBufferAssignment(declaration.valueId(), slots[planIndex], planIndex, java.util.List.of(io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider.METAL_BACKEND_ID));
         }
         for (int declarationIndex = 0; declarationIndex < count; declarationIndex++) {
             int planIndex = reversePlanOrder ? count - 1 - declarationIndex : declarationIndex;
-            assignments.add(new PreparationResourceAssignment.Buffer(
-                    plan.declarations().get(declarationIndex), slots[planIndex], planIndex));
+            assignments.add(new PreparationResourceAssignment.Buffer(plan.declarations().get(declarationIndex), slots[planIndex], planIndex, 0));
         }
         var workspaceEntries = new ArrayList<PreparedMemoryPlan.WorkspaceEntry>();
         plan.addressWorkspace().ifPresent(requirement -> {

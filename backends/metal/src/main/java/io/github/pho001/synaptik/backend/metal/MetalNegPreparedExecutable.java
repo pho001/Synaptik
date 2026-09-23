@@ -38,7 +38,9 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
      * @param preparationPlan exact non-null immutable backend analysis plan
      * @param memoryPlan exact non-null shared prepared memory plan
      * @param feedPlanIndices non-null stable feed buffer positions
+     * @param feedRepresentationIndices non-null owner positions aligned with feed buffers
      * @param targetPlanIndices non-null stable target buffer positions
+     * @param targetRepresentationIndices non-null owner positions aligned with target buffers
      * @param resource non-null borrowed persistent executable resource owned by PreparedExecution
      * @param feedRequiredBytes non-null byte extents aligned with feeds
      * @param targetRequiredBytes non-null byte extents aligned with targets
@@ -50,12 +52,20 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             MetalNegPreparationPlan preparationPlan,
             PreparedMemoryPlan memoryPlan,
             int[] feedPlanIndices,
+            int[] feedRepresentationIndices,
             int[] targetPlanIndices,
+            int[] targetRepresentationIndices,
             MetalMpsGraphExecutableResource resource,
             long[] feedRequiredBytes,
             long[] targetRequiredBytes,
             int workspacePlanIndex) {
-        super(memoryPlan, selections(feedPlanIndices, targetPlanIndices),
+        super(
+                memoryPlan,
+                selections(
+                        feedPlanIndices,
+                        feedRepresentationIndices,
+                        targetPlanIndices,
+                        targetRepresentationIndices),
                 List.of(new WorkspaceSelection(workspacePlanIndex)),
                 accesses(feedPlanIndices.length, targetPlanIndices.length));
         this.preparationPlan = Objects.requireNonNull(preparationPlan, "preparationPlan");
@@ -67,7 +77,9 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         System.arraycopy(targetRequiredBytes, 0, requiredBytes,
                 feedRequiredBytes.length, targetRequiredBytes.length);
         if (feedPlanIndices.length != feedRequiredBytes.length
-                || targetPlanIndices.length != targetRequiredBytes.length) {
+                || feedPlanIndices.length != feedRepresentationIndices.length
+                || targetPlanIndices.length != targetRequiredBytes.length
+                || targetPlanIndices.length != targetRepresentationIndices.length) {
             throw new IllegalArgumentException("Metal NEG selection geometry disagrees");
         }
     }
@@ -78,7 +90,9 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
      * @param preparationPlan exact non-null immutable backend analysis plan
      * @param memoryPlan exact non-null shared prepared memory plan
      * @param feedPlanIndex assigned input position
+     * @param feedRepresentationIndex assigned Metal input representation position
      * @param targetPlanIndex assigned output position
+     * @param targetRepresentationIndex assigned Metal output representation position
      * @param resource non-null borrowed custom pipeline owned by PreparedExecution
      * @throws NullPointerException if {@code memoryPlan} or {@code resource} is {@code null}
      * @throws IllegalArgumentException if either plan index is outside the memory plan
@@ -87,11 +101,15 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             MetalNegPreparationPlan preparationPlan,
             PreparedMemoryPlan memoryPlan,
             int feedPlanIndex,
+            int feedRepresentationIndex,
             int targetPlanIndex,
+            int targetRepresentationIndex,
             MetalNegKernelPipelineResource resource) {
-        super(memoryPlan,
-                List.of(new BufferSelection(feedPlanIndex, 0),
-                        new BufferSelection(targetPlanIndex, 0)),
+        super(
+                memoryPlan,
+                List.of(
+                        new BufferSelection(feedPlanIndex, feedRepresentationIndex),
+                        new BufferSelection(targetPlanIndex, targetRepresentationIndex)),
                 List.of(),
                 List.of(BufferAccess.READ_ONLY, BufferAccess.WRITE_ONLY));
         this.preparationPlan = Objects.requireNonNull(preparationPlan, "preparationPlan");
@@ -254,12 +272,26 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         }
     }
 
-    private static List<BufferSelection> selections(int[] feeds, int[] targets) {
+    private static List<BufferSelection> selections(
+            int[] feeds,
+            int[] feedRepresentations,
+            int[] targets,
+            int[] targetRepresentations) {
         Objects.requireNonNull(feeds, "feedPlanIndices");
+        Objects.requireNonNull(feedRepresentations, "feedRepresentationIndices");
         Objects.requireNonNull(targets, "targetPlanIndices");
+        Objects.requireNonNull(targetRepresentations, "targetRepresentationIndices");
+        if (feeds.length != feedRepresentations.length
+                || targets.length != targetRepresentations.length) {
+            throw new IllegalArgumentException("Metal NEG selection positions disagree");
+        }
         var result = new ArrayList<BufferSelection>(feeds.length + targets.length);
-        for (int value : feeds) result.add(new BufferSelection(value, 0));
-        for (int value : targets) result.add(new BufferSelection(value, 0));
+        for (int index = 0; index < feeds.length; index++) {
+            result.add(new BufferSelection(feeds[index], feedRepresentations[index]));
+        }
+        for (int index = 0; index < targets.length; index++) {
+            result.add(new BufferSelection(targets[index], targetRepresentations[index]));
+        }
         return result;
     }
 

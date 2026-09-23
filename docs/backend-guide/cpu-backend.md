@@ -183,11 +183,11 @@ compatible repeated and cross-unit uses share one copy. Ordinary preparation sel
 declares none of those candidate-only resources. Capability and lowering fail closed for every other
 operation, type, shape, layout, parameter, alias, fan-out, publication, carrier, or route. In
 particular, cross-type CAST follows the completed Model conversion contract and does not infer a
-promotion or conversion mode. Current tuning is limited to the bounded two-phase CPU-only
-workflow for eligible FLOAT32/FLOAT64 bare MATMUL described below. Excluded pointwise rows,
-broader native routes, automatic tuning of other operation families, and generic graph,
-ownership, or mixed-backend alternatives remain planned. The one current native route is the
-exact OpenBLAS MATMUL route described below.
+promotion or conversion mode. Current tuning is limited to the bounded two-phase CPU-only workflow
+for eligible FLOAT32/FLOAT64 bare MATMUL described below. Ordinary preparation already composes
+CPU-owned work into the bounded mixed CPU/Metal schedule defined by ADR 0016. Generic
+plugin/backend alternatives, broader transfer domains, and broader Metal operation coverage remain
+planned. The one current native CPU route is the exact OpenBLAS MATMUL route described below.
 CPU-private specialized-subgraph recognition is current only
 as the cold, recognition-only boundary described below. Functional scatter,
 overlap fold, stable ordering, explicit-state random, cumulative-scan, and ordinary-aggregate
@@ -284,11 +284,13 @@ publishes nothing. `PreparedExecution` owns only immutable recipes. Each fresh
 `RunState` invokes every initialized-buffer recipe exactly once, so sequential and concurrent runs
 own distinct initialized CPU representations; borrowed caller inputs remain caller-owned.
 
-A pure zero-node constant or pass-through artifact remains rejected because this integration
-requires one non-empty CPU partition. Mixed-owner and multi-partition artifacts are rejected before
-CPU resource derivation or analysis; combining backend-owned schedule contributions remains future
-Engine/Prepare composition work. Planning's maximal same-owner partitioning means this restriction
-still accepts every current non-empty all-CPU graph.
+A pure zero-node constant or pass-through artifact remains rejected because ordinary preparation
+requires a non-empty partition plan. Ordinary Engine now composes single-owner CPU and mixed
+CPU/Metal artifacts through one shared Prepare transaction: CPU contributes only its assigned
+representations, workspaces, and executable recipes, while Engine inserts explicit transfers in
+the bounded positive rank-1..16 static canonical contiguous `FLOAT32` domain. Unsupported owner
+pairs, directions, layouts, types, and geometries reject before CPU or Metal analysis. Planning's
+maximal same-owner partitioning continues to accept every current non-empty all-CPU graph.
 
 Opening the integration attempts only the existing bounded automatic OpenBLAS discovery and
 qualification sequence. Success may make one single-thread FLOAT32/FLOAT64 native candidate
@@ -361,7 +363,7 @@ The candidate does not change the Compiler graph, Planning owner or partition bo
 memory, or publication semantics. It contains every CPU-owned choice needed by the currently
 supported one-partition lifecycle, but it is not a complete mixed-backend or multi-partition
 model plan. Current `Engine.prepareTuned(...)` composes this bounded Phase-2 batch after Phase 1.
-Compiler graph alternatives, Planning ownership alternatives, mixed-backend composition, and
+Compiler graph alternatives, Planning ownership alternatives, mixed-backend autotuning, and
 persistent CPU model-plan cache reuse remain unimplemented.
 
 `candidateHandoff(context, phaseOneDecision)` first authenticates the exact projected context and
@@ -3776,7 +3778,7 @@ invocation completed without a reported failure. It does not establish particula
 | Application code treats `CpuBackendIntegration` as the end-user execution API | A cross-module SPI was confused with the current Engine facade. | Let Engine own composition, typed logical binding, execution convenience, and result access; keep the adapter behind that boundary. |
 | A caller copies raw CPU storage bytes or assumes native byte order is portable | Physical layout/encoding was confused with the canonical logical snapshot contract. | Use the supported CPU integration copy with the exact publication descriptor and an explicit byte limit; interpret its result as row-major big-endian bytes. |
 | A caller closes or mutates a result representation while copying it | The fresh destination was mistaken for a lock or an extension of the source lease. | Keep the Runtime result and integration open and prevent source mutation or closure until the synchronous copy returns. |
-| A valid pass-through or mixed graph is expected to prepare through the CPU assembler | The adapter's exact one-partition complete-schedule domain was overlooked. | Use one non-empty all-CPU maximal partition today; leave pass-through publication and mixed-backend schedule composition to their future Prepare/Engine owners. |
+| A pass-through or unsupported mixed graph is expected to prepare through the CPU complete-schedule assembler | The non-empty-plan requirement or ordinary Engine's exact mixed-transfer domain was overlooked. | Keep a non-empty plan. Ordinary Engine composes supported CPU/Metal partitions through backend contributions; owner pairs, directions, types, layouts, and geometries outside the documented transfer domain still fail before backend analysis. |
 
 ## Toolchain and resources
 
@@ -3926,8 +3928,10 @@ BFLOAT16 pointwise SIMD or dropout numerical operation,
 cross-type CAST SIMD, dynamic layout, vector affine/scatter/fold/ordering execution, broader
 native fallback, hardware-intrinsic guarantee, or performance result is implemented or promised.
 Public `Engine.Builder` can register CPU alone or beside Metal, while `Engine.standard()` remains
-fixed CPU-only. Generic plugin composition and mixed-owner execution remain unsupported.
-Ordinary provider tests
+fixed CPU-only. Ordinary composition can execute mixed CPU/Metal plans by assigning one physical
+representation per participating owner and scheduling direct native host-staged transfers for
+fully static canonical contiguous `FLOAT32` values. Generic plugin composition, conversion, and
+broader transfer domains remain unsupported. Ordinary provider tests
 prove Java validation and exact ABI forwarding, not installed-library numerical correctness. The
 native checkpoint proves only its selected binary and fixed cases.
 Future CPU work must compare optimized routes with a scalar reference through backend-conformance

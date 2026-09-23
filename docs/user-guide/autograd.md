@@ -67,10 +67,10 @@ output's exact Shape and floating data type and must not request gradients. This
 uses one stage, `createGraph == false`, and `DisconnectedPolicy.ERROR`; it does not expose the
 second-stage or disconnected-zero policy.
 
-The result is an owner-bound reusable compile handle, not computed gradient bytes. Prepare and
-run it through the ordinary Engine lifecycle, then inspect its forward and gradient publication
-occurrences. A successful compile does not by itself promise that one registered owner can prepare
-or execute every accepted graph.
+The result is an owner-bound reusable compile handle, not computed gradient bytes. Prepare and run
+it through the ordinary Engine lifecycle, then inspect its forward and gradient publication
+occurrences. A successful compile does not by itself promise that every planned owner and transfer
+is registered and supported or that each backend can prepare its partitions.
 
 ## Build a bounded functional request
 

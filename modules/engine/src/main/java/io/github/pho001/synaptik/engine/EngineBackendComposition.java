@@ -1,22 +1,26 @@
 package io.github.pho001.synaptik.engine;
 
 import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
-import io.github.pho001.synaptik.compiler.CompileArtifacts;
+import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
-import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
+import io.github.pho001.synaptik.prepare.PartitionPreparation;
+import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
+import io.github.pho001.synaptik.prepare.PreparedScheduleContributor;
+import io.github.pho001.synaptik.runtime.execution.PreparedBufferTransfer;
+import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import java.util.List;
 
 /**
- * Supplies the exact inward collaborations owned by one registered Engine backend.
+ * Supplies exact inward collaborations owned by one registered Engine backend.
  *
  * <p>This package-private, Engine-owned seam has current CPU and Metal implementations for the
- * ordinary explicit builder and deterministic lifecycle tests. Implementations and their returned
+ * ordinary explicit builder and deterministic lifecycle tests. Implementations and returned
  * collaborations are safe for concurrent Engine calls. It is not a public backend
- * service-provider interface and does not imply that several complete backend schedules can be
- * assembled together.</p>
+ * service-provider interface. Shared Engine/Prepare composition combines positional partition
+ * preparations and physical creation contributions into one complete schedule.</p>
  */
 interface EngineBackendComposition extends AutoCloseable {
     /**
@@ -36,15 +40,59 @@ interface EngineBackendComposition extends AutoCloseable {
     List<BackendAvailabilitySnapshot> availabilitySnapshots();
 
     /**
-     * Prepares one graph using collaborations owned by this composition.
+     * Returns one fresh positional preparation for a partition owned by this backend.
      *
-     * @param artifacts non-null immutable artifacts produced for this Engine; not mutated
-     * @return a non-null immutable reusable Runtime recipe whose cleanup ownership transfers to
-     *     the caller; the caller must close it or transfer it exactly once to an Engine handle
-     * @throws RuntimeException if preparation rejects the artifacts or backend work fails
-     * @throws Error if backend work reports a fatal failure
+     * @return non-null immutable preparation whose collaborations borrow this adapter lifetime
+     * @throws IllegalStateException if the underlying integration is closed
      */
-    PreparedExecution prepare(CompileArtifacts artifacts);
+    PartitionPreparation<?, ?> partitionPreparation();
+
+    /**
+     * Returns the retained physical representation-creation contributor.
+     *
+     * @return non-null immutable contributor with this adapter's exact backend identity
+     * @throws IllegalStateException if the underlying integration is closed
+     */
+    PreparedScheduleContributor scheduleContributor();
+
+    /**
+     * Returns the backend's retained complete assembler for producerless constant geometry.
+     *
+     * @return non-null immutable assembler borrowing this adapter lifetime
+     * @throws IllegalStateException if the underlying integration is closed
+     */
+    PreparedScheduleAssembler scheduleAssembler();
+
+    /**
+     * Reports whether this exact source adapter supports transfer to a direct destination adapter
+     * for one logical descriptor.
+     *
+     * @param destination non-null exact registered destination adapter
+     * @param descriptor non-null exact logical descriptor
+     * @return whether the ordered path and descriptor are supported
+     */
+    boolean supportsTransferTo(
+            EngineBackendComposition destination, TensorDescriptor descriptor);
+
+    /**
+     * Creates one immutable direct transfer recipe after successful capability preflight.
+     *
+     * @param destination non-null exact destination adapter
+     * @param memoryPlan exact non-null shared memory plan
+     * @param bufferIndex dense buffer position
+     * @param sourceRepresentationIndex source owner representation position
+     * @param destinationRepresentationIndex destination owner representation position
+     * @param descriptor exact non-null logical descriptor
+     * @return non-null immutable transfer recipe retaining no physical run resource
+     * @throws IllegalArgumentException if path, descriptor, or coordinates are unsupported
+     */
+    PreparedBufferTransfer prepareTransferTo(
+            EngineBackendComposition destination,
+            PreparedMemoryPlan memoryPlan,
+            int bufferIndex,
+            int sourceRepresentationIndex,
+            int destinationRepresentationIndex,
+            TensorDescriptor descriptor);
 
     /**
      * Creates a non-owning representation of caller-owned host storage.

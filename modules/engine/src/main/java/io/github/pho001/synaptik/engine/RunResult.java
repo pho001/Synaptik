@@ -70,10 +70,10 @@ public final class RunResult implements AutoCloseable {
      * value that remains readable after result or Engine closure. No result is cached or
      * deduplicated, even when publication occurrences alias the same inward representation.</p>
      *
-     * <p>Current support is the exact CPU or Metal adapter captured during single-owner
-     * preparation, within that adapter's fully static resolved-layout materialization domain. This
-     * operation performs no cross-backend transfer, route search, data-type conversion, Tensor
-     * construction, or implicit materialization.</p>
+     * <p>Current support uses the exact CPU or Metal adapter captured for each publication during
+     * shared preparation, within that adapter's fully static resolved-layout materialization
+     * domain. This operation performs no cross-backend transfer, route search, data-type
+     * conversion, Tensor construction, or implicit materialization.</p>
      *
      * @param publication non-null exact occurrence object from {@link #publications()}
      * @param maximumBytes non-negative upper bound for the canonical payload in bytes
@@ -98,7 +98,7 @@ public final class RunResult implements AutoCloseable {
             Publication publication,
             long maximumBytes,
             io.github.pho001.synaptik.runtime.run.RunResult delegate,
-            EngineBackendComposition composition) {
+            List<EngineBackendComposition> publicationAdapters) {
         Objects.requireNonNull(publication, "publication");
         if (publication.result != this) {
             throw new IllegalArgumentException(
@@ -127,6 +127,12 @@ public final class RunResult implements AutoCloseable {
             throw new IllegalArgumentException(
                     "canonical byte count exceeds JVM byte[] limit: " + byteCount);
         }
+        if (publicationAdapters.size() != publications.size()) {
+            throw new IllegalStateException(
+                    "publication adapter count does not match publication count");
+        }
+        EngineBackendComposition composition =
+                publicationAdapters.get(publication.index);
         byte[] bytes = composition.copyToCanonicalHostBytes(
                 delegate.publicationRepresentation(publication.index), descriptor, maximumBytes);
         Objects.requireNonNull(bytes, "canonicalBytes");

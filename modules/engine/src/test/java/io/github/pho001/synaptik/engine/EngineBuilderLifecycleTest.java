@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
 import io.github.pho001.synaptik.backend.contract.BackendDeviceId;
@@ -21,7 +22,6 @@ import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithm
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
-import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import java.util.ArrayList;
 import java.util.List;
@@ -225,14 +225,14 @@ final class EngineBuilderLifecycleTest {
     }
 
     @Test
-    void emptyAndMixedOwnerPlansRejectBeforeAnyBackendPreparation() {
+    void emptyAndUnsupportedMixedOwnerPlansRejectBeforeAnyBackendPreparation() {
         RecordingEntry all = new RecordingEntry(FIRST, true, new ArrayList<>());
         try (Engine engine = Engine.builder().takeOwnership(all).build()) {
             CompiledGraph empty = engine.compile(List.of(leaf()));
             assertEquals("preparation requires a non-empty partition plan",
                     assertThrows(IllegalArgumentException.class,
                             () -> engine.prepare(empty)).getMessage());
-            assertEquals(0, all.prepareCount.get());
+            assertEquals(0, all.analysisCount.get());
         }
 
         RecordingEntry neg = new RecordingEntry(
@@ -249,11 +249,53 @@ final class EngineBuilderLifecycleTest {
                 .build()) {
             Tensor input = leaf();
             CompiledGraph mixed = engine.compile(List.of(input.neg().add(input)));
-            assertEquals("preparation requires exactly one backend owner",
-                    assertThrows(IllegalArgumentException.class,
-                            () -> engine.prepare(mixed)).getMessage());
-            assertEquals(0, neg.prepareCount.get());
-            assertEquals(0, add.prepareCount.get());
+            IllegalArgumentException failure = assertThrows(
+                    IllegalArgumentException.class, () -> engine.prepare(mixed));
+            assertTrue(failure.getMessage().startsWith(
+                    "unsupported cross-owner transfer from first to second for "));
+            assertEquals(0, neg.analysisCount.get());
+            assertEquals(0, add.analysisCount.get());
+        }
+    }
+
+    @Test
+    void unsupportedTransferGeometryRejectsBeforeEitherBackendAnalysis() {
+        List<Shape> unsupportedShapes = List.of(
+                Shape.of(Long.MAX_VALUE),
+                Shape.of(0),
+                Shape.of(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1));
+        for (Shape shape : unsupportedShapes) {
+            RecordingEntry neg = new RecordingEntry(
+                    FIRST,
+                    query -> query.operation().kind() == UnaryElementwiseKind.NEG,
+                    new ArrayList<>());
+            RecordingEntry add = new RecordingEntry(
+                    SECOND,
+                    query -> query.operation().kind() == BinaryArithmeticKind.ADD,
+                    new ArrayList<>());
+            neg.transferSupport = CpuMetalPreparedBufferTransfer::supports;
+            add.transferSupport = CpuMetalPreparedBufferTransfer::supports;
+            try (Engine engine = Engine.builder()
+                    .takeOwnership(neg)
+                    .takeOwnership(add)
+                    .build()) {
+                TensorDescriptor descriptor = new TensorDescriptor(
+                        DataType.FLOAT32,
+                        shape,
+                        Optional.of(LayoutDescriptor.contiguous(shape)),
+                        false);
+                Tensor input = TensorFactory.create(
+                        descriptor, Optional.empty(), Optional.empty());
+                CompiledGraph mixed = engine.compile(List.of(input.neg().add(input)));
+
+                IllegalArgumentException failure = assertThrows(
+                        IllegalArgumentException.class, () -> engine.prepare(mixed));
+
+                assertTrue(failure.getMessage().startsWith(
+                        "unsupported cross-owner transfer from first to second for "));
+                assertEquals(0, neg.analysisCount.get());
+                assertEquals(0, add.analysisCount.get());
+            }
         }
     }
 
@@ -270,7 +312,7 @@ final class EngineBuilderLifecycleTest {
             assertEquals("no registered backend owns plan: second",
                     assertThrows(IllegalArgumentException.class,
                             () -> registry.selectedAdapter(artifacts)).getMessage());
-            assertEquals(0, registered.prepareCount.get());
+            assertEquals(0, registered.analysisCount.get());
         } finally {
             registry.close();
         }
@@ -289,10 +331,11 @@ final class EngineBuilderLifecycleTest {
         private final AtomicInteger closeCount = new AtomicInteger();
         private final AtomicInteger providerReads = new AtomicInteger();
         private final AtomicInteger snapshotReads = new AtomicInteger();
-        private final AtomicInteger prepareCount = new AtomicInteger();
+        private final AtomicInteger analysisCount = new AtomicInteger();
         private BackendId providerBackendId;
         private BackendId snapshotBackendId;
         private Predicate<OperationCapabilityQuery> support;
+        private Predicate<TensorDescriptor> transferSupport = ignored -> false;
         private RuntimeException closeFailure;
         private RuntimeException providerFailure;
 
@@ -345,10 +388,41 @@ final class EngineBuilderLifecycleTest {
         }
 
         @Override
-        public PreparedExecution prepare(CompileArtifacts artifacts) {
-            prepareCount.incrementAndGet();
-            throw new AssertionError("unexpected preparation");
+        public io.github.pho001.synaptik.prepare.PartitionPreparation<?, ?>
+                partitionPreparation() {
+            analysisCount.incrementAndGet();
+            throw new AssertionError("unexpected partition preparation");
         }
+
+        @Override
+        public io.github.pho001.synaptik.prepare.PreparedScheduleContributor
+                scheduleContributor() {
+            throw new AssertionError("unexpected schedule contribution");
+        }
+
+        @Override
+        public io.github.pho001.synaptik.prepare.PreparedScheduleAssembler scheduleAssembler() {
+            throw new AssertionError("unexpected schedule assembly");
+        }
+
+        @Override
+        public boolean supportsTransferTo(
+                EngineBackendComposition destination, TensorDescriptor descriptor) {
+            return transferSupport.test(descriptor);
+        }
+
+        @Override
+        public io.github.pho001.synaptik.runtime.execution.PreparedBufferTransfer
+                prepareTransferTo(
+                        EngineBackendComposition destination,
+                        io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan memoryPlan,
+                        int bufferIndex,
+                        int sourceRepresentationIndex,
+                        int destinationRepresentationIndex,
+                        TensorDescriptor descriptor) {
+            throw new AssertionError("unexpected transfer preparation");
+        }
+
 
         @Override
         public BufferRepresentation borrow(HostTensorStorage storage) {

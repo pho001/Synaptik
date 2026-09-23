@@ -324,19 +324,20 @@ composed Engine may register Metal alone or beside CPU.
 
 `MetalBackendIntegration.open(MetalBackendConfiguration)` owns configuration validation, native
 library loading, context construction, availability production, host ingress and materialization,
-its complete single-owner preparation contribution, and partial-open rollback.
-`Engine.Builder.takeOwnership(MetalBackendIntegration)` transfers that complete opened owner into
-Engine. Engine owns registration, duplicate-ID validation, compile-time inventory, cold owner
-routing, direct adapter capture in its outward prepared/result handles, and outer closure. That
-adapter performs Metal host ingress and materialization outside Runtime without re-querying the
-registry. The dependency remains one-way: Engine may depend on Metal; Metal production never
-depends on Engine.
+partition preparation, physical contribution, direct upload/download endpoints, and partial-open
+rollback. `Engine.Builder.takeOwnership(MetalBackendIntegration)` transfers that complete opened
+owner into Engine. Engine owns registration, duplicate-ID validation, compile-time inventory,
+complete owner/transfer preflight, shared preparation, global schedule composition, per-occurrence
+outer adapter capture, and closure. Metal host ingress and materialization occur outside Runtime
+without re-querying the registry. The dependency remains one-way: Engine may depend on Metal;
+Metal production never depends on Engine.
 
-The first Engine slice remains single-owner. A complete non-empty plan may use Metal only when all
-planned partitions have the equal registered Metal owner. Registering CPU beside Metal does not
-authorize a CPU/Metal schedule: mixed ownership fails before backend analysis until a separate
-cross-owner representation and transfer contract exists. Runtime executes only direct prepared
-references and never looks up the integration or configuration.
+An explicitly composed Engine may mix CPU and Metal partitions. Shared Prepare assigns one
+representation position per participating owner; Metal contributes its exact buffer/workspace
+creators. Engine inserts a direct CPU-to-Metal upload or Metal-to-CPU download once for each
+distinct destination owner immediately before its first consumer. The current path accepts only
+fully static canonical contiguous `FLOAT32` and performs no conversion, retry, fallback, or
+on-demand discovery. Runtime executes only the resulting direct prepared references.
 
 The builder does not make Metal's current backend-local candidates available to public
 `prepareTuned(...)`. A Metal-owned plan rejects that CPU-only workflow before representative
@@ -345,11 +346,14 @@ cannot select or prepare Metal.
 
 Metal production has no Compiler or Engine dependency. Architecture tests lock that direction and
 the API-visible Engine dependency on Metal. Builder lifecycle tests cover entry-time transfer,
-snapshot and order freezing, duplicate-ID rejection, terminal failed build, and reverse cleanup.
-The real public integration test covers Metal compile, prepare, run, canonical materialization,
-mixed-owner rejection, CPU tuning with Metal registered, and early Metal tuning rejection. These
-implement the coverage required by
-[ADR 0015](../design/decisions/0015-explicit-engine-backend-composition.md).
+snapshot and order freezing, duplicate-ID rejection, terminal failed build, reverse cleanup, and
+pre-analysis transfer-domain rejection. The real public integration test covers single-owner
+Metal execution, CPU-to-Metal and Metal-to-CPU transfer, repeated mixed prepared runs, a
+three-partition fan-out, per-owner publications after registry lookup is poisoned, CPU tuning with
+Metal registered, and early Metal tuning rejection. These implement the construction boundary in
+[ADR 0015](../design/decisions/0015-explicit-engine-backend-composition.md) and the current
+owner-indexed mixed schedule in
+[ADR 0016](../design/decisions/0016-cpu-metal-mixed-owner-schedule.md).
 
 ## Limitations and related documentation
 
