@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Change class
 
@@ -59,7 +59,7 @@ Exact implementation allowlist:
 Read-only evidence:
 
 - `modules/compiler/src/test/java/io/github/pho001/synaptik/compiler/spi/GraphCompilationPortPublicShapeTest.java`.
-- `modules/engine/src/main/java/io/github/pho001/synaptik/api/AdvancedEngine.java`.
+- `modules/engine/src/main/java/io/github/pho001/synaptik/engine/AdvancedEngine.java`.
 - `docs/api/compile-api.md` focused `GraphCompilationPort` and `AdvancedEngine.compile(...)` sections.
 - `docs/api/public-api.md` focused Compiler and Engine status sections.
 
@@ -116,11 +116,23 @@ Javadoc, with no executable, dependency, build, or architecture-boundary change.
 ## Documentation and review impact
 
 - Types: public SPI Javadoc, glossary terminology/status, and planning status; apply General,
-  API/Javadoc, Glossary, and Planning profiles.
+  API/Javadoc, and Planning profiles, with the General profile's glossary-alignment rules.
 - A clean implementation context and independent targeted documentation review are required.
 
 ## Result
 
-Pending.
+Implementation corrected the public SPI Javadoc and shared `Compile` glossary entry against the
+current fixed CPU-only Engine composition. Independent Class B review confirmed that Engine uses
+`GraphCompilationPort`, ordinary applications use Engine, and fixed ordinary plus explicitly
+owned advanced composition remain CPU-only. Review clarified that publication delivery belongs
+to the ordinary lifecycle and corrected the read-only `AdvancedEngine` source path in this brief.
 
-Status: Ready
+The focused public-shape test and Compiler Javadoc succeeded in the implementation context and
+were reused because review changed no executable Java or final Javadoc. Final Markdown, brief-size,
+exact five-path, and whitespace checks passed. The API guides require no edit because they already
+state the current boundaries. Architecture and ADRs require no edit because ownership and module
+edges did not change; other guides/glossary entries, tests, Gradle, and executable behavior require
+no edit because this task only reconciles current documentation. The separately stale backend-
+partition-finalization glossary status remains follow-up work.
+
+Status: Complete

@@ -33,7 +33,7 @@ or task boundary; it does not promote Draft work to Ready.
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress, interleaved; 0001–0003 and 0006A–0006B Complete; 0004–0006 and 0007–0008 Draft | 0004 waits for a concrete cost-bearing Planning consumer; no Config task is Ready. |
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | Complete through documentation-only 0007 | Reopen only for a concrete Planning capability or separately authorized status correction. |
 | 6 | [`modules/runtime`](modules/runtime/master-plan.md) | Complete through 0016 | No Runtime task is Ready. |
-| 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete through documentation-only 0006B9; 0006B10 Ready; 0006C and 0007 Draft | Execute only the focused 0006B10 documentation reconciliation. |
+| 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete through documentation-only 0006B10; 0006C and 0007 Draft | No Compiler task is Ready. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through documentation-only 0007 | No Prepare task is Ready. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through documentation-only 0010K; 0007A1D Review needed; 0010D1 and 0011 Blocked | No CPU task is Ready. |
@@ -54,11 +54,10 @@ or task boundary; it does not promote Draft work to Ready.
 ## Current frontier
 
 The user-authorized sequential explanatory/status drift-remediation sequence is Complete through
-[CPU 0010K](backends/cpu/tasks/0010k-cpu-backend-guide-status-reconciliation.md). Compiler
-[0006B10](modules/compiler/tasks/0006b10-compile-integration-status-reconciliation.md) is the sole
-`Ready` task and must reconcile the stale glossary `Compile` entry and `GraphCompilationPort`
-Javadoc. The stale CPU-finalizer glossary paragraph follows separately. Model 0026, Compiler
-0006C/0007, and all other Draft or blocked work remain unauthorized.
+Compiler [0006B10](modules/compiler/tasks/0006b10-compile-integration-status-reconciliation.md),
+which reconciled and independently reviewed the stale glossary `Compile` entry and
+`GraphCompilationPort` Javadoc. The stale CPU-finalizer glossary paragraph follows separately.
+Model 0026, Compiler 0006C/0007, and all other Draft or blocked work remain unauthorized.
 
 ## Blocked, review-needed, and deferred work
 
@@ -75,8 +74,8 @@ Javadoc. The stale CPU-finalizer glossary paragraph follows separately. Model 00
   [Model](modules/model/master-plan.md) and [Compiler](modules/compiler/master-plan.md) plans.
   They gate only the capabilities named by those rows and do not block Metal 0004.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
-  `GraphCompilationPort` Javadoc about the Engine facade. They require one separate focused
-  documentation task and do not reopen Planning capability work.
+  `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
+  independently reviewed both without reopening Planning capability work.
 - Prepare 0007 review found a stale CPU-finalizer status paragraph in the glossary's `Backend
   partition finalization` entry. Reconcile it with the other focused glossary status defects
   rather than widening a bounded backend-guide task.
@@ -87,8 +86,8 @@ Javadoc. The stale CPU-finalizer glossary paragraph follows separately. Model 00
 
 ## Nearest next step
 
-1. Execute and independently review Compiler 0006B10; do not promote Model 0026, Compiler
-   0006C/0007, or other Draft or blocked work implicitly.
+1. Separately reconcile the stale CPU-finalizer glossary status paragraph; do not promote Model
+   0026, Compiler 0006C/0007, or other Draft or blocked work implicitly.
 
 ## History policy
 

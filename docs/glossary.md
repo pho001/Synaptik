@@ -2523,8 +2523,10 @@ The current package-private compiler implements the lifecycle through a validate
 combined one/two-stage functional-derivative graph followed by publication roles, per-node owner
 selection, maximal partitions, logical memory, constants, diagnostics, derivative-order metadata,
 and immutable `CompileArtifacts`. Public `GraphCompilationPort` exposes that complete constant-free
-pipeline as a narrow module-integration boundary. An ordinary-user Engine compile lifecycle,
-publication delivery, preparation, and execution remain planned.
+pipeline as a narrow module-integration boundary. Current public Engine composes compilation,
+preparation, and execution through fixed ordinary and advanced CPU-only lifecycles; the ordinary
+lifecycle also delivers publications. Those later lifecycle responsibilities do not belong to
+Compiler or this port.
 
 ### Compile artifacts
 

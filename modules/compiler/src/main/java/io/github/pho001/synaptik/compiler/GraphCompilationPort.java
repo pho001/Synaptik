@@ -11,13 +11,14 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Provides the narrow Compiler integration boundary used by lifecycle-composition modules.
+ * Provides the narrow Compiler integration boundary used by current Engine and other
+ * lifecycle-composition code.
  *
  * <p>This service-provider interface (SPI) exposes the complete immutable Compiler result without
- * exposing the package-private graph compiler or its explicit logical-constant ingress. It exists
- * for future Engine and other lifecycle-composition code; ordinary application code should use
- * the future Engine facade instead. This type does not provide an Engine lifecycle, preparation,
- * or execution.</p>
+ * exposing the package-private graph compiler or its explicit logical-constant ingress. Current
+ * Engine and other lifecycle-composition code use this boundary; ordinary application code
+ * should use Engine instead. This type does not provide an Engine lifecycle, preparation, or
+ * execution.</p>
  *
  * <p>Because this boundary always supplies empty explicit constant ingress, every reachable
  * provenance-free forward leaf remains caller-bindable and is associated with its immutable
