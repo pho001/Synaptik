@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 Frontier verification: Prepare 0001–0006 and Planning 0007 are Complete, no task is `Ready` or
 `In progress`, and the user authorized the next confirmed drift repair. This task is the sole
@@ -135,4 +135,26 @@ and no code, dependency, or authority. Independent review reuses successful focu
 
 ## Result
 
-Empty until execution.
+Implementation and mandatory independent Class C review are complete.
+
+- Reconciled the focused guide with current CPU preparation, fixed ordinary and explicit advanced
+  Engine composition, bounded two-phase tuning, per-run physical representations, and persistent
+  prepared-resource ownership.
+- Preserved generic registration, mixed-owner composition, dynamic dimensions, workspace reuse,
+  persistent CPU complete-plan reuse, and executable persistence as unsupported or planned.
+- Updated the illustrative finalizer to return the current resource-bearing
+  `BackendPartitionFinalizationResult`; it remains explicitly non-production and resource-free.
+- Independent review checked the finalization result example and every CPU/Engine/tuning,
+  per-run representation, ownership-transfer, rollback, lease, and fixed-versus-generic
+  composition claim against current contracts, source, tests, ADR 0013, and current API guides.
+  It tightened the request type and `RunState`/`RunResult` cleanup wording without changing scope.
+- Review reused the successful focused Prepare, Runtime, CPU, and Engine Gradle evidence because
+  no executable Java changed. Stale-text, Java/Gradle diff, exact four-path inventory, local
+  Markdown target/anchor, heading, fence, final-newline, whitespace, example/source-consistency,
+  and `git diff --check` validation passed.
+- Documentation impact: guide, task, master-plan frontier, and roadmap frontier updated; no new
+  glossary term was introduced. Targeted glossary review found a pre-existing stale CPU-finalizer
+  status paragraph under `Backend partition finalization`; it is outside this four-path task and
+  is recorded for the next focused glossary reconciliation rather than widened into this change.
+
+Status: Complete

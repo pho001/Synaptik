@@ -13,17 +13,23 @@ batch and an optional backend-owned selected decision. The transport keeps both 
 ties them to one exact planned partition, but it is not part of `PrepareContext`, analysis,
 assignment, or finalization and performs no tuning work.
 
-The current `tools/tuning` module can consume these handoffs through a generic caller-supplied cold
-collaboration. That tool performs cache-first deduplication, bounded warmup and sampling,
-deterministic median selection, and atomic workload-cache publication without adding methods to
-Prepare's opaque roles or interpreting backend fields. There is no supported CPU adapter,
-graph-preparation integration, Engine composition, or Config facade yet.
+The current `tools/tuning` module consumes these handoffs through cold caller-supplied
+collaborations. It performs cache-first deduplication, bounded warmup and sampling, deterministic
+median selection, and atomic workload-cache publication without adding methods to Prepare's
+opaque roles or interpreting backend fields. The CPU backend supplies the current adapter and
+candidate collaborations. `Engine.prepareTuned(...)` composes them into a bounded two-phase
+CPU-only workflow from an explicit `ModelAutotuningRequest` carrying Config-owned policy and
+representative inputs: Phase 1 selects local workload decisions, and Phase 2 compares complete
+prepared CPU plans.
 
-Public `GraphPreparation.prepare(...)` now coordinates the package-internal batch assignment and
-validates one complete schedule supplied by an explicit assembler. Physical allocation, backend
-registration, production schedule assembly, and end-to-end Engine execution remain planned. The
-example therefore demonstrates current analysis and finalization contracts with illustrative
-backend types, not a production backend or runnable engine.
+Public `GraphPreparation.prepare(...)` coordinates package-internal assignment and validates one
+complete schedule supplied by an explicit assembler. The current CPU integration supplies its
+production preparation and schedule assembly to fixed CPU `Engine.standard()` composition and to
+the explicit advanced CPU composition. Runtime then creates backend-owned physical
+representations per run and executes the prepared schedule. Generic backend registration and
+mixed-owner Engine composition remain planned. The example therefore demonstrates the shared
+analysis and finalization contracts with illustrative backend types; it is not the production CPU
+implementation.
 
 ## Prerequisites
 
@@ -67,9 +73,11 @@ capability reporting and Planning ownership
   -> BackendPartitionPreparer.analyze                        current
   -> BackendPartitionAnalysis + exact requirements           current
   -> shared BufferSlot/WorkspaceSlot assignment              current, package-internal
-  -> same backend finalizes the opaque plan                  current contract
-  -> PreparedPartition + PreparedExecutable                  current contracts
+  -> same backend finalizes the opaque plan                  current implementation
+  -> PreparedPartition + PreparedExecutable                  current implementation
+  -> persistent prepared-resource transaction               current implementation
   -> explicit assembler + Prepare schedule validation        current shared contract
+  -> Runtime creates per-run physical representations        current shared/backend contract
   -> Runtime executes the prepared schedule                  current shared runner contract
 ```
 
@@ -247,6 +255,7 @@ assignments and implement checked representation binding through Runtime's prote
 ```java
 import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalization;
+import io.github.pho001.synaptik.prepare.BackendPartitionFinalizationResult;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalizer;
 import io.github.pho001.synaptik.prepare.PreparationResourceAssignment;
 import io.github.pho001.synaptik.prepare.PreparedPartition;
@@ -299,12 +308,13 @@ final class CpuFinalizer implements BackendPartitionFinalizer<CpuPlan> {
     }
 
     @Override
-    public PreparedExecutable finalizePartition(
+    public BackendPartitionFinalizationResult finalizePartition(
             BackendPartitionFinalization<CpuPlan> finalization) {
         if (!finalization.analysis().plan().route().equals("vector")) {
             throw new IllegalArgumentException("unexpected example route");
         }
-        return new CpuExecutable(finalization.memoryPlan());
+        return new BackendPartitionFinalizationResult(
+                new CpuExecutable(finalization.memoryPlan()));
     }
 }
 ```
@@ -344,8 +354,9 @@ BackendPartitionFinalization<CpuPlan> finalization =
                                 workspaceRequirement, workspaceSlot, 0)));
 
 BackendId cpu = context.partition().owner();
-PreparedExecutable executable =
+BackendPartitionFinalizationResult finalized =
         new CpuFinalizer(cpu).finalizePartition(finalization);
+PreparedExecutable executable = finalized.executable();
 PreparedPartition prepared =
         new PreparedPartition(context.partition(), executable);
 ```
@@ -353,9 +364,11 @@ PreparedPartition prepared =
 `prepared.partition()` is the exact analyzed partition, and
 `prepared.executable().memoryPlan()` is the exact `memoryPlan` object. The assignment list follows
 analysis declaration order and retains the exact requirement and slot references. This proves the
-current typed finalization handoff. Public orchestration performs equivalent assignment and
-finalization internally, then validates a separately assembled schedule. The snippet does not
-prove physical allocation, binding, execution, or cleanup of a persistent prepared resource.
+current typed finalization handoff. `finalized.resources()` is empty because this illustrative
+finalizer acquired no persistent resource. Public orchestration performs equivalent assignment
+and finalization internally, then owns every returned resource transactionally while it assembles
+and validates the schedule. The snippet does not prove per-run physical allocation, binding, or
+execution.
 
 ### Current complete-graph orchestration
 
@@ -439,19 +452,30 @@ interference are not represented by the current API.
   cache, allocate physical resources, compile native executables, or retain per-run bindings.
 - Do not return a `PreparedExecutable`, slot, address, storage handle, or resource lifetime from
   analysis.
-- Current finalization constructs immutable Java recipe state only. Native-handle acquisition and
-  cleanup require a later finalized prepared-resource lifecycle; the current analysis and
-  finalization values own none.
+- Finalization may acquire immutable persistent prepared resources, such as a compiled native
+  executable, only after shared slot assignment. Before a complete finalizer result returns, the
+  backend owns rollback. After return, shared Prepare owns the unique resource identities until a
+  successfully constructed `PreparedExecution` accepts ownership; any intervening failure closes
+  them in reverse acquisition order.
+- The current CPU finalizer returns an empty persistent-resource list. CPU buffer and workspace
+  representations are separate per-run physical resources created by CPU-owned schedule recipes,
+  retained by one Runtime `RunState`, and closed when its Runtime `RunResult` lease closes or
+  failed setup or execution rolls the state back.
 
 The contracts are immutable and can be shared safely when the backend's marker-role
-implementations are themselves immutable. They do not add synchronization or define concurrent
-access to future native resources.
+implementations are themselves immutable. One prepared execution may be reused by concurrent
+runs; each run has an isolated `RunState` and separately owned mutable physical representations.
+Persistent resources remain immutable and are released by the prepared execution's explicit,
+idempotent close lifecycle after admitted runs release their leases.
 
 ## Registration, diagnostics, and validation
 
-Engine composition and explicit backend registration are not implemented yet. Do not add runtime
-service lookup, reflection, or `ServiceLoader` as a substitute. A future engine will supply the
-explicitly registered concrete preparations and schedule assembler before Runtime execution.
+Current ordinary composition is fixed CPU: each `Engine.standard()` owns a fresh CPU integration
+and supplies its preparation and schedule assembler to shared Prepare. Advanced CPU-only
+composition is explicit through `AdvancedEngine.takeOwnership(...)`. Neither surface registers a
+generic backend inventory or composes mixed owners. Future generic registration must remain
+explicit and Engine-owned; do not add runtime service lookup, reflection, or `ServiceLoader` as a
+substitute.
 
 Prepare/trace payloads and emitters are also planned. A backend may design typed diagnostic facts
 for its analysis, but it must not leak business logic into trace data-transfer objects or use a
@@ -462,9 +486,9 @@ For a concrete implementation, add:
 - focused unit tests for supported analysis, failure order, immutable results, exact partition
   identity, deterministic ordering, and duplicate rejection;
 - architecture validation when dependencies change;
-- backend-conformance tests once a concrete backend can prepare and execute its claimed
-  capabilities;
-- integration tests once Engine composition and end-to-end execution exist; and
+- backend-conformance tests for every concrete backend capability claimed through the shared
+  lifecycle;
+- integration tests for fixed or explicit Engine composition and end-to-end execution; and
 - native resource and platform validation when finalization begins owning native resources.
 
 For the current shared contract, run:
@@ -476,17 +500,22 @@ For the current shared contract, run:
 
 ## Limitations and related documentation
 
-The current Prepare API has no dynamic-dimension binding, workspace reuse, physical resource,
-production Engine composition, or direct tuning integration. The separate tuning tool now
-provides generic caller-supplied local measurement, selection, reusable bounded persistence, and
-rich evidence around the narrow opaque handoff. Prepare itself still performs no measurement,
-selection, cache access, persistence, model aggregation, or tuning-aware graph preparation. There
-is no supported CPU adapter, Config facade, workload extraction, or bounded complete graph/plan
-tuning yet. Slot
-assignment, finalization input/collaboration, prepared partition, explicit schedule assembly and
-validation, prepared-execution construction, and shared runner contracts are current. Compatible
-cached decisions may be explicit immutable backend inputs, but analysis neither loads nor mutates
-a cache.
+The current preparation lifecycle has no dynamic-dimension binding or workspace reuse. It does
+support exact shared-resource declarations, backend-owned per-run representation recipes, and
+persistent-resource transfer, but the concrete backend owns the physical mechanics and Runtime
+owns the per-run state. Fixed ordinary and explicit advanced CPU Engine composition are current;
+generic backend registration, mixed-owner schedules, and executable persistence are not. The
+current CPU complete-plan producer is session-scoped, so Phase 2 does not persist or reuse a
+complete prepared plan across sessions.
+
+The separate tuning tool provides bounded local measurement, selection, reusable workload-cache
+persistence, and rich evidence around the opaque handoff. Current Engine composition supplies the
+CPU collaborations for a bounded two-phase workflow. Prepare itself still performs no
+measurement, selection, cache access, persistence, model aggregation, or tuning-aware graph
+preparation. Slot assignment, finalization input/result, prepared partition, explicit schedule
+assembly and validation, prepared-execution construction, and shared runner contracts are
+current. Compatible cached decisions may be explicit immutable backend inputs, but analysis
+neither loads nor mutates a cache.
 
 See the [Runtime/Prepare/Backend boundary](../architecture/runtime-prepare-backend-boundary.md),
 [Planning ownership and partition scoring](../architecture/partition-scoring.md), and
