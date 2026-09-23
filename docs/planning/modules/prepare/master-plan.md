@@ -91,6 +91,7 @@ Engine user facade.
 | 0005 | [Producerless published-constant resource handoff and shared slot assignment](tasks/0005-producerless-published-constant-resource-handoff-and-shared-slot-assignment.md) | Complete | Compiler 0006B5; 0001–0004 | Contributed an explicit producerless published-constant resource to the complete preparation handoff and assigned its shared slot deterministically, without backend selection or physical geometry; preserved ordinary backend-analysis declarations and partition-connected projection. |
 | 0006 | [Persistent prepared-resource finalization transaction](tasks/0006-persistent-prepared-resource-finalization-transaction.md) | Complete | Runtime 0016; ADR 0013 | Returns each executable and its acquisition-ordered persistent resources atomically, rolls identity-unique resources back across every later preparation failure, and transfers successful ownership once to `PreparedExecution`; CPU remains resource-free. |
 | 0007 | [Partition preparer guide status reconciliation](tasks/0007-partition-preparer-guide-status-reconciliation.md) | Complete | 0006; current CPU/Engine/tuning lifecycle | Reconciled the focused guide with current fixed CPU preparation, Engine/tuning composition, per-run representations, and transactional persistent-resource ownership. |
+| 0008 | [Backend partition finalization glossary status reconciliation](tasks/0008-backend-partition-finalization-glossary-status-reconciliation.md) | Ready | 0007; CPU 0010K; Engine 0013; current CPU finalizer/integration evidence | Correct the stale CPU composition and topology status in the shared finalization glossary entry. |
 
 ## Milestones and current frontier
 
@@ -100,9 +101,8 @@ Engine user facade.
   transaction are Complete through 0006.
 - Runtime 0016 and Engine 0010 complete the adjacent owner and outward-handle lifecycle. Metal
   0002 and 0003 are Complete; Metal 0004 is the next Draft repository planning frontier.
-- Documentation-only 0007 is Complete after implementation and mandatory independent Class C
-  review. It changes no Prepare contract or executable behavior; no Prepare task is `Ready` or
-  `In progress`.
+- Documentation-only 0007 is Complete. Documentation-only 0008 is the sole authorized `Ready`
+  frontier and changes no Prepare contract or executable behavior.
 
 ## Live risks and gates
 
@@ -122,8 +122,8 @@ Engine user facade.
 
 The task table and linked task status/results are controlling. The former downstream lifecycle-
 gate wording is normalized to the current state: Engine 0010, Metal 0002, and Metal 0003 are
-Complete; Metal 0004 alone is the current Draft frontier. No task status, order, dependency,
-ownership rule, API, or executable behavior changes here.
+Complete; Prepare 0008 is the sole `Ready` documentation frontier. No product task status, order,
+dependency, ownership rule, API, or executable behavior changes here.
 
 ## History and update policy
 
