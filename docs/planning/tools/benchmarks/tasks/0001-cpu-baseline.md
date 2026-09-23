@@ -1,6 +1,7 @@
 # 0001 — Reproducible CPU lifecycle baseline
 
-Status: Ready
+Status: Incomplete
+Follow-up required: Supply a runnable current CPU capability/native environment and resolve mandatory workload failures; smoke must produce timings/checksums for every workload.
 
 Depends on: Operational Engine lifecycle and stable public Tensor contracts (satisfied at common base `83f28005fbfcb6518af3fbd8760297c90ea12e1e`).
 Conflicts with: None.

@@ -4,6 +4,11 @@ import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.HostTensorValue;
 import io.github.pho001.synaptik.engine.PreparedExecution;
 import io.github.pho001.synaptik.engine.RunResult;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.nio.FloatBuffer;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
 import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
@@ -20,6 +25,7 @@ import java.util.Optional;
 /** Runnable, report-only CPU Engine lifecycle baseline using fixed public Tensor and Engine APIs. */
 public final class CpuLifecycleBenchmark {
     private CpuLifecycleBenchmark() {}
+    private static final Arena ARENA = Arena.ofShared();
 
     /** Runs the selected profile and writes one JSON report to stdout. */
     public static void main(String[] args) {
@@ -32,10 +38,12 @@ public final class CpuLifecycleBenchmark {
         List<Workload> workloads = workloads();
         long started = System.nanoTime();
         List<String> reports = new ArrayList<>();
+        boolean mandatoryFailure = false;
         for (Workload workload : workloads) {
             try {
                 reports.add(run(workload, warmups, measurements));
             } catch (RuntimeException failure) {
+                mandatoryFailure = true;
                 reports.add("{\"name\":\"" + workload.name + "\",\"status\":\"unavailable\",\"error\":\""
                         + esc(failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage()) + "\"}");
             }
@@ -47,6 +55,7 @@ public final class CpuLifecycleBenchmark {
                 + "\",\"os\":\"" + esc(System.getProperty("os.name") + " " + System.getProperty("os.arch"))
                 + "\",\"elapsedNanos\":" + elapsed + ",\"workloads\":["
                 + String.join(",", reports) + "]}");
+        if (mandatoryFailure) System.exit(2);
     }
 
     private static String run(Workload workload, int warmups, int measurements) {
@@ -62,17 +71,17 @@ public final class CpuLifecycleBenchmark {
             begin = System.nanoTime();
             try (PreparedExecution prepared = engine.prepare(graph)) {
                 prepareNanos = System.nanoTime() - begin;
-                for (int i = 0; i < warmups; i++) checksum ^= runPrepared(engine, prepared, workload.inputs);
+                for (int i = 0; i < warmups; i++) checksum += runPrepared(engine, prepared, workload.inputs);
                 for (int i = 0; i < measurements; i++) {
                     begin = System.nanoTime();
-                    checksum ^= runPrepared(engine, prepared, workload.inputs);
+                    checksum += runPrepared(engine, prepared, workload.inputs);
                     repeated.add(System.nanoTime() - begin);
                 }
             }
-            for (int i = 0; i < warmups; i++) checksum ^= compute(engine, workload.output);
+            for (int i = 0; i < warmups; i++) checksum += compute(engine, workload.output);
             for (int i = 0; i < measurements; i++) {
                 begin = System.nanoTime();
-                checksum ^= compute(engine, workload.output);
+                checksum += compute(engine, workload.output);
                 oneShotNanos += System.nanoTime() - begin;
             }
         }
@@ -123,20 +132,8 @@ public final class CpuLifecycleBenchmark {
         return finish(name, input.add(second), input, second);
     }
 
-    private static Tensor inputData(Tensor template) {
-        Shape shape = template.descriptor().shape();
-        int count = Math.toIntExact(shape.knownElementCount().orElseThrow());
-        float[] data = new float[count];
-        for (int i = 0; i < count; i++) data[i] = ((i * 17) % 101 - 50) / 101.0f;
-        return TensorFactory.fromFlatArray(new TensorDescriptor(DataType.FLOAT32, shape,
-                Optional.of(io.github.pho001.synaptik.model.layout.LayoutDescriptor.contiguous(shape)), false),
-                Optional.empty(), data);
-    }
-
     private static Workload finish(String name, Tensor output, Tensor... inputs) {
-        List<Tensor> data = new ArrayList<>(inputs.length);
-        for (Tensor input : inputs) data.add(inputData(input));
-        return new Workload(name, output, List.copyOf(data));
+        return new Workload(name, output, List.of(inputs));
     }
 
     private static Workload unary(String name, Tensor input, Tensor second, boolean matmul) {
@@ -152,9 +149,17 @@ public final class CpuLifecycleBenchmark {
                 io.github.pho001.synaptik.model.datatype.ScalarValue.float32(1e-5f)), input);
     }
 
+
     private static Tensor tensor(Shape shape) {
-        return TensorFactory.create(new TensorDescriptor(DataType.FLOAT32, shape,
-                Optional.of(io.github.pho001.synaptik.model.layout.LayoutDescriptor.contiguous(shape)), false));
+        int count = Math.toIntExact(shape.knownElementCount().orElseThrow());
+        float[] data = new float[count];
+        for (int i = 0; i < count; i++) data[i] = ((i * 17) % 101 - 50) / 101.0f;
+        MemorySegment segment = ARENA.allocate((long) count * Float.BYTES, Float.BYTES);
+        MemorySegment.copy(MemorySegment.ofArray(data), 0, segment, 0, segment.byteSize());
+        TensorDescriptor descriptor = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        return TensorFactory.create(descriptor, Optional.empty(),
+                Optional.of(new MemorySegmentStorage(DataType.FLOAT32, count, segment)));
     }
 
     private record Workload(String name, Tensor output, List<Tensor> inputs) {}
