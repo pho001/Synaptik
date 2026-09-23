@@ -37,7 +37,7 @@ or task boundary; it does not promote Draft work to Ready.
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through 0006 | No Prepare task is Ready. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through 0010J; 0007A1D Review needed; 0010D1 and 0011 Blocked | No CPU task is Ready; vendor peers 0012–0015 and integrations 0016–0017 remain Draft. |
-| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0013 | No Engine task is Ready; next plan the separately owned tuning package Javadoc drift. |
+| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0013 | No Engine task is Ready. |
 | 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0004 | Reassess exactly one next frontier; no later Metal task is Ready. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -48,15 +48,16 @@ or task boundary; it does not promote Draft work to Ready.
 | 19 | [`extensions/training`](extensions/training/master-plan.md) | Draft | Begin only after stable NN parameters, published gradients, and Engine training execution justify 0001. |
 | 20 | [`extensions/checkpoint`](extensions/checkpoint/master-plan.md) | Draft; architecture decision required | Authorize the model-only and optional Training adapter boundaries before 0001. |
 | 21 | [`tools/benchmarks`](tools/benchmarks/master-plan.md) | Draft | Define 0001 only for stable operational paths and workload contracts. |
-| 22 | [`tools/tuning`](tools/tuning/master-plan.md) | Complete through 0003; 0004 Ready | Execute only the package Javadoc status reconciliation. |
+| 22 | [`tools/tuning`](tools/tuning/master-plan.md) | Complete through 0004 | No Tuning task is Ready. |
 | 23 | [`tools/cli`](tools/cli/master-plan.md) | Draft | Define commands only after their Engine and diagnostic contracts are stable. |
 
 ## Current frontier
 
-The user-authorized sequential explanatory/status drift-remediation sequence has advanced to
-[tuning 0004](tools/tuning/tasks/0004-package-javadoc-status-reconciliation.md), the sole `Ready`
-frontier. It changes only stale package Javadoc status. Model 0026, Compiler 0006C/0007, and all
-other Draft or blocked work remain unauthorized.
+The user-authorized sequential explanatory/status drift-remediation sequence has completed
+[tuning 0004](tools/tuning/tasks/0004-package-javadoc-status-reconciliation.md). No task is
+currently `Ready` or `In progress`; the next action is to plan the separately owned confirmed
+capability-provider guide drift. Model 0026, Compiler 0006C/0007, and all other Draft or blocked
+work remain unauthorized.
 
 ## Blocked, review-needed, and deferred work
 
@@ -79,8 +80,8 @@ other Draft or blocked work remain unauthorized.
 
 ## Nearest next step
 
-1. Execute and independently review tuning 0004; do not promote later drift, Model 0026, Compiler
-   0006C/0007, or other Draft or blocked work implicitly.
+1. Plan the confirmed capability-provider guide drift as a separate documentation-only task; do
+   not promote Model 0026, Compiler 0006C/0007, or other Draft or blocked work implicitly.
 
 ## History policy
 

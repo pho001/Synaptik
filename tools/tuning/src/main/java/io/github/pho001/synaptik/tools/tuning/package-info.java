@@ -20,9 +20,11 @@
  * <p>The caller still owns representative inputs, preparation, execution, publication copying,
  * correctness-reference bytes, cleanup, and later preparation of the selected decision. The
  * concrete producer owns candidate meaning, legality, compatibility, ordering, reuse scope,
- * decision construction, and codecs. Current CPU complete-plan production is session-scoped, and
- * no public Engine composition invokes the Phase-2 transaction yet. Config extension, Engine/CPU
- * adaptation, multi-partition plan search, and executable persistence remain later work.
+ * decision construction, and codecs. Current {@code Engine.prepareTuned(...)} composes both
+ * phases for one eligible CPU workload occurrence and one CPU complete-plan candidate batch with
+ * session-scoped reuse. Broader occurrence extraction, graph, ownership, or partition
+ * alternatives, mixed-backend composition, persistent CPU complete-plan reuse, and executable
+ * persistence remain outside the current public workflow.
  *
  * <p>{@link io.github.pho001.synaptik.tools.tuning.TuningInspection} supplies a separate cold,
  * read-only view of both compact schema-1 artifacts and of already-created rich evidence. It

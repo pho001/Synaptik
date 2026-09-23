@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 Frontier verification: tuning 0001–0003 and Engine 0013 are Complete, no task is `Ready` or
 `In progress`, and the user authorized the next confirmed drift repair. This task is the sole
@@ -116,4 +116,29 @@ executable behavior or final Javadoc afterward.
 
 ## Result
 
-Empty until execution.
+The package Javadoc now records the current public two-phase CPU Engine composition and its bounded
+limitations without reallocating tuning, Engine, Runtime, or backend ownership. Independent
+documentation review clarified that `SESSION` is the complete-plan reuse scope rather than a
+property of the candidate batch and found no broader contract change.
+
+Validation:
+
+- `./gradlew :tools:tuning:test --tests
+  io.github.pho001.synaptik.tools.tuning.CompletePlanTuningTest --tests
+  io.github.pho001.synaptik.tools.tuning.CompletePlanTuningValidationTest` passed;
+- `./gradlew :tools:tuning:javadoc` passed after the final Javadoc edit, and rendered package
+  inspection found the corrected Engine composition and remaining-boundary text;
+- the brief's stale-text and unexpected executable/build-file searches produced no output;
+- `python3 /tmp/validate_synaptik_markdown.py <three changed Markdown paths>` passed with
+  `validated 3 Markdown files`;
+- exact four-path/status synchronization checks and `git diff --check` passed.
+
+Independent review reused the successful focused Java-test evidence, regenerated final Javadoc
+after its wording correction, inspected the rendered package summary, and repeated the stale-text,
+Markdown/path/inventory, and whitespace checks successfully.
+
+Documentation impact: applied the General, API/Javadoc, and Planning profiles to the public
+package Javadoc and compact planning evidence. Targeted glossary review found its current
+two-phase Engine composition and limitations already accurate, so no glossary edit was needed.
+
+Status: Complete
