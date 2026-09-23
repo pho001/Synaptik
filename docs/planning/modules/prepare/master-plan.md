@@ -90,6 +90,7 @@ Engine user facade.
 | 0004 | [Opaque backend candidate-batch and selected-decision handoff](tasks/0004-opaque-backend-candidate-batch-and-selected-decision-handoff.md) | Complete | 0001–0003A; CPU 0010E | Added two method-free opaque roles and one immutable typed exact-partition handoff, then adopted them on CPU 0010E's existing batch and decision without shared interpretation, measurement, persistence, compatibility handling, or route selection. |
 | 0005 | [Producerless published-constant resource handoff and shared slot assignment](tasks/0005-producerless-published-constant-resource-handoff-and-shared-slot-assignment.md) | Complete | Compiler 0006B5; 0001–0004 | Contributed an explicit producerless published-constant resource to the complete preparation handoff and assigned its shared slot deterministically, without backend selection or physical geometry; preserved ordinary backend-analysis declarations and partition-connected projection. |
 | 0006 | [Persistent prepared-resource finalization transaction](tasks/0006-persistent-prepared-resource-finalization-transaction.md) | Complete | Runtime 0016; ADR 0013 | Returns each executable and its acquisition-ordered persistent resources atomically, rolls identity-unique resources back across every later preparation failure, and transfers successful ownership once to `PreparedExecution`; CPU remains resource-free. |
+| 0007 | [Partition preparer guide status reconciliation](tasks/0007-partition-preparer-guide-status-reconciliation.md) | Ready | 0006; current CPU/Engine/tuning lifecycle | Reconcile stale Prepare/backend/Engine and resource-lifecycle status in the focused backend guide only. |
 
 ## Milestones and current frontier
 
@@ -99,7 +100,8 @@ Engine user facade.
   transaction are Complete through 0006.
 - Runtime 0016 and Engine 0010 complete the adjacent owner and outward-handle lifecycle. Metal
   0002 and 0003 are Complete; Metal 0004 is the next Draft repository planning frontier.
-- No Prepare task is `Ready` or `In progress`, and no later Prepare task is detailed.
+- Documentation-only 0007 is `Ready` as the sole frontier to reconcile confirmed guide drift; it
+  changes no Prepare contract or executable behavior.
 
 ## Live risks and gates
 

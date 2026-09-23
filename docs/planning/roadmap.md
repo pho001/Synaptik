@@ -34,7 +34,7 @@ or task boundary; it does not promote Draft work to Ready.
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | Complete through documentation-only 0007 | Reopen only for a concrete Planning capability or separately authorized status correction. |
 | 6 | [`modules/runtime`](modules/runtime/master-plan.md) | Complete through 0016 | No Runtime task is Ready. |
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete through documentation-only 0006B9; 0006C and 0007 Draft | Reassess exactly one later Compiler frontier; no Compiler implementation task is Ready. |
-| 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through 0006 | No Prepare task is Ready. |
+| 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through 0006; 0007 Ready | Execute only the partition-preparer guide status reconciliation. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through 0010J; 0007A1D Review needed; 0010D1 and 0011 Blocked | No CPU task is Ready; vendor peers 0012–0015 and integrations 0016–0017 remain Draft. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0013 | No Engine task is Ready. |
@@ -53,13 +53,12 @@ or task boundary; it does not promote Draft work to Ready.
 
 ## Current frontier
 
-The user-authorized sequential explanatory/status drift-remediation sequence has completed
-[Planning 0007](modules/planning/tasks/0007-capability-provider-status-reconciliation.md), including
-independent review. No task is currently `Ready` or `In progress`. The next authorized planning
-action is the separately scoped partition-preparer guide reconciliation. A later focused task must
-also reconcile the stale glossary `Compile` entry and `GraphCompilationPort` Javadoc found during
-0007 review. Model 0026, Compiler 0006C/0007, and all other Draft or blocked work remain
-unauthorized.
+The user-authorized sequential explanatory/status drift-remediation sequence has advanced to
+[Prepare 0007](modules/prepare/tasks/0007-partition-preparer-guide-status-reconciliation.md), the
+sole `Ready` frontier. It corrects only the stale Prepare/backend/Engine lifecycle and resource
+status in the partition-preparer guide. A later focused task must also reconcile the stale glossary
+`Compile` entry and `GraphCompilationPort` Javadoc found during Planning 0007 review. Model 0026,
+Compiler 0006C/0007, and all other Draft or blocked work remain unauthorized.
 
 ## Blocked, review-needed, and deferred work
 
@@ -85,9 +84,8 @@ unauthorized.
 
 ## Nearest next step
 
-1. Create the compact brief for the separately authorized partition-preparer guide reconciliation;
-   do not promote later drift, Model 0026, Compiler 0006C/0007, or other Draft or blocked work
-   implicitly.
+1. Execute and independently review Prepare 0007; do not promote later drift, Model 0026,
+   Compiler 0006C/0007, or other Draft or blocked work implicitly.
 
 ## History policy
 
