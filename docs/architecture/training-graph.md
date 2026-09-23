@@ -5,9 +5,9 @@ This document explains the training graph model established by [`ARCHITECTURE.md
 The compiler currently consumes all three compile modes. Backward-capable compilation accepts a
 bounded functional-gradient request, constructs one or two reverse-mode stages, captures the
 forward and derivative expressions together, and derives gradient publication bindings. The
-ordinary and advanced Engine surfaces can consume those artifacts, but optimizer orchestration
-and a training session remain planned. This page explains the current combined compile-time graph
-boundary; it is subordinate to the Compiler-owned contract.
+public Training extension now consumes the ordinary Engine's one-stage first-gradient path for
+its reusable session; it does not own or alter the combined compile-time graph described here.
+This page is subordinate to the Compiler-owned contract.
 
 ## Compile modes
 
@@ -131,22 +131,30 @@ until BPTT is designed. See
 ## Optimizer as a backend-agnostic step
 
 `extensions/nn` owns the model-module side of a training step: modules declare their trainable
-`Parameter` values, persistent `Buffer` values, and train/eval forward behavior. `extensions/training`
-is downstream of that declaration and owns optimizer algorithms and training-step orchestration.
-This distinction lets a module be used for inference without importing an optimizer.
+`Parameter` values, persistent `Buffer` values, and train/eval forward behavior.
+`extensions/training` is downstream of that declaration and owns the implemented `Sgd`
+mathematical update and `TrainingSession` orchestration. This lets a module remain usable for
+inference without importing an optimizer.
 
-The initial training lifecycle keeps the optimizer algorithm in `extensions/training` and runs its step after gradients are produced:
+The public initial lifecycle compiles and prepares the forward/backward graph once through Engine,
+then applies the optimizer only after every objective and gradient publication is detached and
+validated:
 
 ```text
-prepared forward/backward execution
-  -> publish gradients
-  -> optimizer.step()
+one reusable prepared forward/backward execution
+  -> target-indexed detached gradients
+  -> stage SGD/accumulation candidates
+  -> validate all stable parameter bindings again
+  -> commit parameter bytes and optimizer/session state
 ```
 
-Training owns the mathematical update represented by optimizers such as SGD, Adam, and AdamW.
-It consumes parameters declared by `extensions/nn`; it does not own `Parameter`, `Buffer`, layer
-behavior, or train/eval mode. It does not select a Metal, CUDA, CPU, or other backend-specific
-execution route.
+Compiler target order and publication `targetIndex` are the mapping authorities; Training does not
+infer a parameter association from Shape, storage, or publication order alone. `Sgd` supports
+momentum, dampening, coupled weight decay, and compatible Nesterov behavior, while the session
+supports reset-and-step, accumulate-only, accumulate-and-step, zeroing, immutable state snapshots,
+strict restore, and fail-before-commit rejection of non-finite optimizer state or arithmetic.
+Training owns none of `Parameter`, `Buffer`, layer behavior, train/eval mode, backend ownership,
+or a fused update route.
 
 ## Future compiled optimizer graph
 

@@ -162,6 +162,10 @@ The Engine owns compile, prepare, and run orchestration. An inference session ow
 execution and borrows its Engine's composition lifetime; each run result is a distinct closeable
 owner. Caller input storage remains borrowed for the result lifetime. The lower-level explicit
 `prepare` and `run` methods remain available when a caller needs direct prepared-handle ownership.
+The Training extension's public `TrainingSession` deliberately depends on this public Engine
+lifecycle: it borrows an Engine, owns one inference session, and adds optimizer state and
+parameter-update orchestration without introducing another compiler, preparer, scheduler, runner,
+or backend adapter.
 
 ## Core invariants
 
@@ -339,6 +343,8 @@ Neural-network composition and training use this extension direction:
 ```text
 modules/model
   -> extensions/nn
+
+modules/model + extensions/nn + public modules/engine facade
   -> extensions/training
 ```
 
@@ -354,8 +360,11 @@ Concrete rules:
 - Concrete backends must not depend on `modules/engine`.
 - `backends/openblas-provider` must not depend on compiler, planning, runtime, prepare, engine, or Tensor API.
 - `extensions/nn` may depend on `modules/model` but must not depend on `extensions/training`, compiler, runtime, prepare, engine, or concrete backends.
-- `extensions/training` may depend on `extensions/nn` and backend-neutral contracts it requires, but must not make `extensions/nn` depend on training.
-- `extensions/training` must not depend on concrete backend modules.
+- `extensions/training` may depend on `extensions/nn`, Model, Compiler/configuration contracts,
+  and the public Engine facade required for its session lifecycle. This explicit Class C edge does
+  not permit a dependency on Runtime, Prepare, tuning, or a concrete backend, use of Engine
+  internals, or a second execution pipeline. Training must not make `extensions/nn` depend on it.
+- `extensions/training` must not depend directly on concrete backend modules.
 - `extensions/onnx` must not depend on runtime hot-path execution internals.
 
 <a id="documentation"></a>
@@ -449,7 +458,9 @@ Architecture tests should enforce:
 - runtime hot path does not use `Operation` or `CompiledNode`
 - planning scoring does not reference concrete kernel classes
 - `extensions/nn` does not depend on training or execution/backend layers
-- `extensions/training` depends on `extensions/nn` when both modules exist, never in the reverse direction
+- `extensions/training` depends on `extensions/nn` and may depend on the public Engine facade, but
+  never directly on Runtime, Prepare, tuning, or concrete backends and never in the reverse
+  direction
 
 Backend behavior changes should include or update backend conformance tests under:
 

@@ -8,17 +8,21 @@ import java.util.Objects;
 /**
  * A module-owned, named trainable binding to one exact current {@link Tensor}.
  *
- * <p>This type marks its value as an eventual optimizer target without adding gradient, optimizer,
- * or mutable training state to {@code Tensor}. A generic downstream consumer can discover the
- * exact wrapper through a {@link Module} tree and install a schema-compatible Tensor through
- * {@link #replace(Tensor)} without knowing the concrete module or layer type. The wrapper, local
- * name, declaration-time data type, and declaration-time Shape remain stable; {@link #value()}
- * returns the exact Tensor bound when it is called.</p>
+ * <p>This type marks its value as an optimizer target without adding gradient, optimizer, or
+ * mutable training state to {@code Tensor}. A generic downstream consumer can discover the exact
+ * wrapper through a {@link Module} tree and install a schema-compatible Tensor through
+ * {@link #replace(Tensor)} without knowing the concrete module or layer type. The downstream
+ * public {@code TrainingSession} instead captures the exact wrapper, Tensor, and storage
+ * association and updates supported storage in place so one compiled graph keeps its Tensor
+ * identity. The wrapper, local name, declaration-time data type, and declaration-time Shape
+ * remain stable; {@link #value()} returns the exact Tensor bound when it is called.</p>
  *
  * <p>A parameter is mutable and is not thread-safe. Callers must coordinate replacement with
  * forward-expression construction and any other operation that requires a consistent binding
- * view. Replacement is individual: this type provides no version, transaction, rollback,
- * checkpoint, multi-parameter consistency, optimizer algorithm, or execution behavior.</p>
+ * view. In particular, an open {@code TrainingSession} requires exclusive access and prohibits
+ * wrapper replacement, Tensor-storage replacement, or outside byte mutation until it closes.
+ * Replacement is individual: this type provides no version, transaction, rollback, checkpoint,
+ * multi-parameter consistency, optimizer algorithm, or execution behavior.</p>
  */
 public final class Parameter {
     private final String name;

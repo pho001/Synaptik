@@ -3110,10 +3110,11 @@ neural-network composition unit that directly declares trainable **parameters** 
 **buffers**, and can permanently own named child modules. Parameters, buffers, and children share
 one module-local
 namespace. A local name cannot contain `.` because that character is reserved exclusively for
-recursive-path separation. A parameter is module-owned state that a future optimizer may update.
-A buffer is persistent module-owned state that an optimizer does not update, such as a future
-running statistic. A **forward context** is an immutable snapshot of one module's local train/eval
-mode for a concrete layer's typed forward method.
+recursive-path separation. A parameter is module-owned state that an open
+[`TrainingSession`](#training-session--trainingsession) may update within its bounded storage
+domain. A buffer is persistent module-owned state that an optimizer does not update, such as a
+future running statistic. A **forward context** is an immutable snapshot of one module's local
+train/eval mode for a concrete layer's typed forward method.
 
 Child ownership is exclusive and permanent: a child has one parent and cannot be detached,
 renamed, reparented, or shared. Module-tree discovery returns separate immutable snapshots for
@@ -3552,11 +3553,11 @@ NN API may delegate to `RecurrentScan` only after backend adoption and the compl
 path are available. Current initialized `Embedding` remains eager.
 
 `extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
-`modules/model`. [`extensions/training`](#training-graph) consumes nn-declared parameters for
-optimizer algorithms and training orchestration, but it does not own modules, buffers, or
-train/eval behavior. None of these current contracts grants autograd, backend storage, kernel
-selection, runtime execution, or a concrete backend dependency. See [Module
-boundaries](architecture/module-boundaries.md#extensions).
+`modules/model`. [`extensions/training`](#training-session--trainingsession) consumes nn-declared
+parameters and the public Engine facade for optimizer algorithms and one reusable prepared
+training lifecycle, but it does not own modules, buffers, train/eval behavior, autograd,
+Runtime/Prepare, kernel selection, backend storage representations, or a concrete backend
+dependency. See [Module boundaries](architecture/module-boundaries.md#extensions).
 
 ### Functional Model and Model topology
 
@@ -6559,6 +6560,22 @@ which it occurs.
 ### Training graph
 
 The compile-time computation used for a training-capable mode. It contains the forward computation and backward gradient computation, and a later architecture version may also represent optimizer updates as graph operations. It remains compile-time graph state; backends only prepare and execute their assigned regions. See [Training graph](architecture/training-graph.md).
+
+### Training session / `TrainingSession`
+
+The implemented public Training owner for one scalar objective, one stable recursive NN parameter
+set, one immutable optimizer configuration, one compiled graph, and one prepared Engine inference
+session. Opening snapshots exact parameter paths/wrappers/Tensors/storages, then compiles and
+prepares once. Each run reuses that session, authenticates target-indexed gradients, stages all
+SGD/accumulation work, and commits only after complete precommit validation. Its initial update
+domain is dense offset-zero non-view `FLOAT32`/`FLOAT64` parameters in exact-capacity writable
+shareable native host storage.
+
+The session borrows Engine, Module, and caller storage; it owns the inference session, private
+cotangent seed memory, counters, momentum slots, and gradient accumulation. It admits one
+operation, waits for admitted work during close, and produces detached `TrainingStep` and
+`TrainingState` values. It is not a compiler, Runtime runner, backend adapter, device optimizer,
+or durable checkpoint.
 
 ### Typed trace DTO
 

@@ -49,7 +49,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 16 | [`extensions/nn`](extensions/nn/master-plan.md) | In progress under recorded interleaves; 0001–0020C, 0021A, and 0025–0025A Complete; 0021B–0024 Draft | 0021B needs a detailed brief and truthful concrete-backend recurrent coverage; no NN task is Ready. |
 | 17 | [`extensions/text`](extensions/text/master-plan.md) | Draft; architecture decision required | Wait for Data 0001, then define the first tokenizer task. |
 | 18 | [`extensions/vision`](extensions/vision/master-plan.md) | Draft; architecture decision required | Join the coordinated Data 0001 decision before decoder or image APIs. |
-| 19 | [`extensions/training`](extensions/training/master-plan.md) | Draft | Begin only after stable NN parameters, published gradients, and Engine training execution justify 0001. |
+| 19 | [`extensions/training`](extensions/training/master-plan.md) | Complete through 0001 | No later Training task is Ready; parameter groups and broader optimizers remain Draft. |
 | 20 | [`extensions/checkpoint`](extensions/checkpoint/master-plan.md) | Draft; architecture decision required | Authorize the model-only and optional Training adapter boundaries before 0001. |
 | 21 | [`tools/benchmarks`](tools/benchmarks/master-plan.md) | Complete through 0001; 0002–0003 Draft | Report-only smoke, baseline, and evidence profiles are current; no benchmark task is Ready. |
 | 22 | [`tools/tuning`](tools/tuning/master-plan.md) | Complete through 0004 | No Tuning task is Ready. |
@@ -65,6 +65,12 @@ two residuals; final Class C and narrow review `APPROVE`. The task records the e
 remediation, and validation evidence. No later Engine implementation frontier is authorized;
 Model 0026, Compiler 0006C/0007, and all other Draft, blocked, or review-needed work remain
 unauthorized.
+
+Training
+[0001](extensions/training/tasks/0001-public-training-session-and-sgd-lifecycle.md) is Complete
+from exact base `2e110c7688ead480faa4215ff67f9814fa81f4ad`. Mandatory external Class C review
+first returned `BLOCK` with six P1 and one P2 findings; after remediation and validation, external
+re-review returned `APPROVE` with findings `0`. No later Training task is authorized.
 
 ## Blocked, review-needed, and deferred work
 
@@ -97,7 +103,7 @@ unauthorized.
 
 ## Nearest next step
 
-1. No Engine task is Ready; select another frontier only through the normal authorization policy.
+1. No Training task is Ready; select another frontier only through the normal authorization policy.
 
 ## History policy
 

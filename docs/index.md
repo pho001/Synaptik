@@ -19,12 +19,14 @@ fixed CPU ownership, while `Engine.builder()` explicitly owns opened CPU and/or 
 and composes their partitions into one prepared schedule. Tensor expressions can be compiled,
 prepared once, run repeatedly with isolated invocation state, and materialized as detached host
 values. One-shot forward computation and a bounded scalar-objective backward convenience are also
-current. Metal executes supported static `FLOAT32` negation partitions through MPSGraph or a
-custom singleton route; mixed CPU/Metal plans use explicit bidirectional transfer for fully static
-canonical contiguous `FLOAT32` intermediates. A standard-Metal convenience, generic plugin
-registration/discovery, broader Metal and transfer coverage, CUDA, training orchestration,
-persistence, and generic graph/plan tuning remain planned. Each focused page distinguishes current
-contracts from those future capabilities.
+current. The public Training extension now adds one reusable Engine-backed scalar training
+session, persistent SGD, gradient accumulation, and detached in-memory state over its bounded
+shareable-native parameter domain. Metal executes supported static `FLOAT32` negation partitions
+through MPSGraph or a custom singleton route; mixed CPU/Metal plans use explicit bidirectional
+transfer for fully static canonical contiguous `FLOAT32` intermediates. A standard-Metal
+convenience, generic plugin registration/discovery, broader Metal and transfer coverage, CUDA,
+broader optimizers, durable persistence, and generic graph/plan tuning remain planned. Each
+focused page distinguishes current contracts from those future capabilities.
 
 ## Contributor guides
 

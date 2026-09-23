@@ -6,9 +6,9 @@ The ordinary public lifecycle is runnable through `Engine.standard()` for fixed 
 through `Engine.builder()` for explicit CPU/Metal ownership. Builder preparation composes
 single-owner or mixed-owner partitions through deterministic owner-indexed representations and
 explicit bidirectional transfer for the bounded static canonical contiguous `FLOAT32` domain.
-Both surfaces implement the compile, staged prepare, run, publication, and explicit
-host-materialization path described below. CUDA execution and training orchestration remain
-planned. The [roadmap](../planning/roadmap.md) records delivery status.
+The public Training extension now layers one optimizer/session owner over that same Engine
+compile, prepare, run, publication, and materialization path. CUDA execution remains planned.
+The [roadmap](../planning/roadmap.md) records delivery status.
 
 ## State across the lifecycle
 
@@ -186,6 +186,36 @@ prepared recipe, binding, run, result, and close semantics; it is not a separate
 then freshly compiles, prepares, runs, materializes, closes the temporary result, and closes the
 temporary preparation during every call. `Engine.backward(...)` does the same for one scalar
 objective and explicit gradient targets. Neither convenience installs gradient state on Tensor.
+
+## Public training lifecycle
+
+`TrainingSession.open(engine, module, objective, optimizer)` snapshots the Module's deterministic
+recursive parameter paths and exact wrapper/Tensor/storage identities, compiles the scalar
+objective with those parameters as ordered first-gradient targets once, and calls
+`engine.session(compiledGraph)` once. It borrows Engine and Module, owns the resulting
+`InferenceSession`, a private native cotangent seed, primitive optimizer/accumulation staging
+buffers, counters, and persistent optimizer slots.
+
+```text
+open: snapshot parameters -> Engine.compile once -> Engine.session once
+run:  bind captured parameters + caller inputs -> InferenceSession.run
+      -> validate/materialize objective and target-indexed gradients
+      -> stage and validate every update -> atomically publish parameters/state/counters
+```
+
+Every later `run` uses the same compiled graph and prepared inference session. Training neither
+calls Runtime/Prepare nor reconstructs publication mapping: `CompiledGraph.inputs()` supplies
+input identity/order and each gradient publication's `targetIndex` maps to the snapshotted
+parameter position. Only one Training operation is admitted at a time. Close rejects new work,
+waits for admitted Training work, closes the inference session and private seed arena once, and
+never closes the borrowed Engine, Module, or parameter storage. Detached `TrainingStep` and
+`TrainingState` values outlive all of those owners.
+
+The first update domain is scalar `FLOAT32`/`FLOAT64` objectives and connected, fully static,
+dense-contiguous, offset-zero non-view parameters in exact-capacity writable shareable native
+host storage. Unsupported Engine preparation/execution—including a Metal or mixed plan outside
+current backend coverage—fails before optimizer mutation. Training branches on no backend
+identity.
 
 `AdvancedEngine.takeOwnership(...)` is the lower-level CPU-only explicit-composition surface. Its
 caller supplies one supported CPU integration and transfers ownership to Engine. Ordinary builder

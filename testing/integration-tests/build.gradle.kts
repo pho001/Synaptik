@@ -8,6 +8,7 @@ dependencies {
     testImplementation(project(":modules:model"))
     testImplementation(project(":backends:cpu"))
     testImplementation(project(":extensions:nn"))
+    testImplementation(project(":extensions:training"))
 }
 
 tasks.withType<Test>().configureEach {

@@ -2,53 +2,96 @@
 
 ## Purpose and implementation status
 
-This reference records the implemented neural-network parameter boundary consumed by future
-training and the remaining planned training concepts without inventing optimizer APIs.
-`extensions/nn` now provides module-owned `Parameter` and `Buffer` declarations, recursive
-parameter discovery, one public schema-validated parameter replacement capability, and strict
-in-memory module-tree state export/load, including private parameter reservations that fail closed
-until a concrete layer publishes a complete real parameter group. It also provides the narrow
-`UnaryTensorModule` subtype
-and immutable numeric-child `Sequential` composition for modules whose complete forward signature
-is exactly `Tensor forward(Tensor)`, three explicit-state recurrent cells, and matching
-cell-specific statically packed sequence containers. The typed `Model<I,O>` root and its sealed
-functional topology now provide descriptive composition above those modules without adding a
-training or execution facade.
-`extensions/training` and optimizer behavior are not implemented. The ordinary Engine can now
-compile one explicitly seeded first-order request and return gradient publication occurrences
-after a supported CPU run. Each occurrence identifies the requested target, derivative order one,
-target-list position, and final gradient descriptor. While that result is open, the exact
-occurrence may be materialized explicitly into a detached immutable `HostTensorValue`; no storage
-or backend representation is exposed. The compiler also provides a public immutable
-functional-gradient request value and a bounded package-private one/two-stage reverse-mode
-integration path.
+`extensions/training` now provides the first public backend-neutral optimizer/session lifecycle.
+It consumes stable recursive `Parameter` paths from `extensions/nn`, Model Tensor/storage types,
+and the public Engine facade; those three dependencies are exported because all appear in public
+Training signatures. Training does not import Runtime, Prepare, tuning, or a concrete backend.
+One `TrainingSession` compiles and prepares a scalar forward/backward graph once, reuses it for
+every run, maps gradients by Compiler `targetIndex`, and commits optimizer changes only after
+complete validation.
 
-Training will own backend-independent optimizer algorithms and session concepts. The compiler will own global automatic differentiation (autograd), while concrete backends will own any backend-specific lowering or fused optimizer route.
+The public surface is:
 
-The accepted compiler design builds one or two reverse-mode stages with existing public Tensor
-operations before one combined forward/backward capture. Model task 0025 and Compiler tasks 0004
-and 0006 are Complete.
-Public Tensors gain no gradient/backward lifecycle state. The current internal `TRAINING_STEP`
-mode uses the same `FunctionalGradientRequest` contract as `FORWARD_AND_BACKWARD`; it adds no
-optimizer update. General training coordination, numerical-gradient mapping into an optimizer,
-parameter updates, and training sessions remain planned.
+| Type | Contract |
+|---|---|
+| `Optimizer` | Sealed marker for immutable built-in optimizer configuration. |
+| `Sgd` | Learning rate plus optional momentum, dampening, coupled weight decay, and Nesterov. |
+| `GradientMode` | `RESET_AND_STEP`, `ACCUMULATE`, or `ACCUMULATE_AND_STEP`. |
+| `TrainingSession` | Closeable owner of one prepared Engine session, parameter bindings, counters, accumulation, and optimizer slots. |
+| `TrainingStep` | Detached objective and successful execution/update numbering for one run. |
+| `TrainingState` | Detached immutable parameter/optimizer/accumulation snapshot for strict in-memory restore. |
 
-Package-private `GraphCompiler` currently returns mode-neutral `GraphCompilation`. A
-`TRAINING_STEP` result may carry the same combined forward/backward graph as
-`FORWARD_AND_BACKWARD`; a `FORWARD_ONLY` result has no BACKWARD nodes and empty gradient results.
-This internal graph-stage result is not the later `CompileArtifacts` aggregate or a training
-session/result type.
+## Session construction and input mapping
 
-The current compiler request supports one or two bounded stages, exact forward or first-stage-
-gradient output references, aligned explicit seeds or scalar default seeds, ordered identity-
-unique targets, and ERROR/ZERO disconnected behavior. The compiler preflights each complete
-selected slice before creating formulas, captures forward and all derivative roots once, and
-retains per-node derivative order beside unchanged graph phase. These facts do not expose a
-public training workflow, materialize a numerical gradient, choose a parameter update, select a
-backend, prepare a schedule, or execute training. The ordinary Engine's reusable first-order
-compile overload fixes one explicit stage and reports publication metadata; its narrower one-shot
-`backward(...)` call additionally returns detached objective and gradient bytes. Neither is an
-optimizer or training API, and neither provides implicit targets or no-argument backward.
+`TrainingSession.open(engine, module, objective, optimizer)` borrows the Engine and Module. The
+objective must be one gradient-eligible scalar `FLOAT32` or `FLOAT64` expression. The Module must
+have at least one recursively discoverable parameter, and every discovered parameter is an
+identity-unique connected gradient target. Construction snapshots each recursive path, wrapper,
+Tensor, and host-storage identity before calling `Engine.compile(...)` exactly once and
+`Engine.session(...)` exactly once.
+
+`session.inputs()` contains only the compiled inputs not supplied internally as captured
+parameters or the private cotangent seed. Every `run(inputs, mode)` must provide each listed Tensor
+identity exactly once; list order is irrelevant. Missing, duplicate, foreign, descriptor-
+incompatible, absent, dead, inaccessible, overlapping, or parameter-aliasing storage is rejected.
+Gradient publications must contain the scalar objective followed by one derivative-order-one
+occurrence for each parameter, with the exact matching `targetIndex`.
+
+## Initial parameter domain
+
+The first update path supports non-empty `FLOAT32` and `FLOAT64` parameters whose Shapes are fully
+static and whose layouts are dense-contiguous, offset zero, non-view, and exact-span. Storage must
+be writable, exact-capacity, element-aligned native host memory shareable across operation
+threads. Initial parameter values must be finite. Empty or non-finite parameters fail during
+capture before private seed allocation, compile, or prepare. The session updates accepted storage
+in place, preserving the Tensor identity captured by the compiled graph. JVM-heap, read-only,
+thread-confined, strided/view, BFLOAT16, and device-only parameter storage are outside this first
+domain. The caller grants the session exclusive use of the captured Module bindings and parameter
+bytes until close.
+
+## SGD and gradient modes
+
+For parameter `p`, published gradient `g`, coupled weight decay `wd`, momentum `m`, dampening `damp`,
+and learning rate `lr`, SGD first computes `d = g + wd * p`. Without momentum, the update is
+`p = p - lr * d`. With momentum, the first successful optimizer step stores `d` without applying
+dampening; later steps store `m * previous + (1 - damp) * d`. Ordinary momentum selects that new
+slot, while Nesterov selects `d + m * newSlot`. Dampening is in `[0, 1]`; Nesterov requires
+positive momentum and exactly zero dampening. FLOAT32 parameters validate narrowed coefficients
+and use represented binary32 arithmetic, including rejecting Nesterov momentum that narrows to
+zero. FLOAT64 parameters use binary64.
+
+`RESET_AND_STEP` updates from only the current gradients and clears older pending accumulation.
+`ACCUMULATE` adds the current gradients to the pending sum without changing parameters, momentum,
+or optimizer-step count. `ACCUMULATE_AND_STEP` updates from the pending sum plus the current
+gradients and then clears the sum. `zeroGrad()` clears only pending gradients. Execution numbers
+count every successful forward/backward run from one; optimizer-step numbers count successful
+updates from one.
+
+## Atomicity, state, concurrency, and close
+
+Engine execution, publication validation, detached materialization, gradient decoding, candidate
+arithmetic, and a second complete binding/storage validation all precede mutation. Current
+parameters, decoded gradients, accumulation, momentum, every optimizer intermediate, and
+parameter candidates must be finite; NaN, infinity, and represented overflow fail before commit,
+while both signed zeros are finite. A supported ordinary failure changes no parameter bytes,
+momentum, accumulation, or counters. A non-finite detached objective alone is permitted when its
+required gradients and all optimizer arithmetic are finite. The optimizer loop uses primitive
+arrays allocated when the session opens and creates no object per element.
+
+`state()` returns canonical big-endian parameter, momentum, and pending-gradient bytes associated
+with stable paths and exact schemas. `restore(state)` validates the complete optimizer (including
+dampening), counters, paths, schemas, finite payloads, and lengths before installing anything.
+This is an in-memory handoff, not a durable checkpoint format.
+
+Every `run` or state operation performs lifecycle admission before argument validation. Engine
+closure wins first, then session closing/closure, then busy admission; only an admitted operation
+inspects its arguments. A racing operation fails. Close first rejects later admission, waits for
+an already-admitted Training operation to finish, then attempts all owned cleanup once. Repeated
+and concurrent close calls replay the same retained cleanup result. The borrowed Engine, Module,
+and parameter storage are never closed. Detached `TrainingStep` and `TrainingState` values remain
+readable after session and Engine close. CPU and configured real Metal/mixed execution use the
+same Engine route; a capability-classified unsupported route fails before optimizer mutation.
+Training contains no backend-specific branch.
 
 ## Current NN typed Model composition contract
 
@@ -637,9 +680,9 @@ the new bindings.
 The dictionary is an in-memory module-state boundary, not a persistent checkpoint. It contains no
 bytes, files, codec, format version, migration rules, evaluated Tensor values, optimizer state,
 `TrainingSession` state, graph random-number-generator state, compiler artifact, prepared
-execution, runtime state, or backend state. A future training workflow may coordinate module state
-with separately owned optimizer or session state, and a future persistence adapter may encode
-materialized values, but neither API exists now.
+execution, runtime state, or backend state. The current Training workflow can coordinate this
+module-owned state with its separately owned `TrainingState`; a future persistence adapter may
+encode both, but no durable checkpoint codec or atomic file-publication API exists now.
 
 For example, a root module with parameter `weight`, buffer `step`, and child `encoder` containing
 parameter `scale` and buffer `runningMean` exports this order:
@@ -656,44 +699,26 @@ omitting `encoder.runningMean` fails before `weight` or any other target changes
 demonstrates ordering, path identity, and atomic validation only—it does not serialize or execute
 Tensor values.
 
-## Planned concepts
+## Current Engine coordination
 
-- `extensions/nn` currently owns `Parameter` and `Buffer` declarations plus strict in-memory
-  module-tree state export/load. Training will consume discovered `Parameter` wrappers through
-  their bounded replacement capability, while `ParameterGroup` will describe optimizer-group
-  settings.
-- `Optimizer` implementations such as SGD, Adam, and AdamW will define mathematical updates without importing CPU, Metal, or CUDA modules.
-- `TrainingSession` and `TrainingStep` will coordinate forward/backward execution, gradient publication, and optimizer updates through shared lifecycle contracts.
-
-Current Engine materialization still does not satisfy this planned coordination boundary. The
-ordinary one-shot `Engine.backward(objective, targets, maximumTotalBytes)` call returns a detached
-scalar objective and explicit target-aligned first gradients, but it is not a training session,
-optimizer step, gradient-accumulation facility, `Parameter` mutation, or checkpoint state. It
-does not map gradients to parameters, retain an execution for another step, update optimizer or
-module state, or define an optimizer handoff. Training orchestration remains planned here even
-though the narrow Engine convenience is current.
-
-No optimizer signatures, default hyperparameters, update sequencing, gradient-to-parameter
-mapping, persistent checkpoint format, or optimizer exception types are stable yet. They will be
-defined by focused extension tasks after model, compiler, runtime, and publication contracts
-exist. The current NN-owned replacement and state-dictionary rules do not imply those future
-training or persistence contracts.
-
-## Planned public initial flow
+The one-shot `Engine.backward(objective, targets, maximumTotalBytes)` remains useful when a caller
+wants detached gradients without mutation or reuse. `TrainingSession` instead supplies the
+parameter mapping, one reusable prepared execution, accumulation, optimizer state, parameter
+mutation, counters, snapshot/restore, and close behavior defined above. Both use the same ordinary
+Engine compile/prepare/run/materialization authority.
 
 ```text
-compile forward + backward graph
-  -> prepare owned partitions
-  -> run forward/backward
-  -> publish gradients
-  -> optimizer.step()
+TrainingSession.open
+  -> compile forward + first gradients once
+  -> prepare one InferenceSession once
+  -> repeated run/materialize/stage/commit
 ```
 
-The initial optimizer step is backend-agnostic. A later architecture version may compile optimizer updates into the graph, but that direction requires the architecture update described by the contract.
-
-## Boundary example
-
-Adam computes moment estimates and a parameter update from gradients. That mathematical algorithm belongs to training. Choosing a fused Metal kernel for the update belongs to Metal prepare. A `MetalOptimizerBridge` inside training would reverse the required dependency direction and is not a supported design.
+Parameter groups, Adam/AdamW, schedulers, mixed precision, durable checkpoint persistence, and
+compiled/fused optimizer updates remain planned. A later compiled optimizer graph requires a
+separate architecture decision. Choosing a fused Metal kernel for any future optimizer update
+belongs to Metal prepare; a `MetalOptimizerBridge` inside Training would reverse the required
+dependency direction.
 
 ## Related contracts
 

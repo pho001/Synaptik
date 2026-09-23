@@ -238,14 +238,17 @@ Model, Compiler, Engine, and concrete-backend path is executable.
 
 ### `extensions/training`
 
-Owns training concepts and optimizer algorithms such as `Optimizer`, `Sgd`, `Adam`, `AdamW`,
-parameter groups, sessions, and training steps. It consumes the trainable parameters declared by
-`extensions/nn` modules and describes their mathematical updates; it does not own `Parameter`,
-`Buffer`, layer behavior, or train/eval mode.
+Owns public backend-neutral optimizer algorithms, reusable training sessions, training steps, and
+detached in-memory optimizer/session state. The implemented first lifecycle provides `Optimizer`,
+`Sgd`, `GradientMode`, `TrainingSession`, `TrainingStep`, and `TrainingState` over parameters
+declared by `extensions/nn`; it does not own `Parameter`, `Buffer`, layer behavior, or train/eval
+mode. Parameter groups, Adam, and AdamW remain future Training work.
 
-The dependency direction is `modules/model -> extensions/nn -> extensions/training`. Training
-must not depend on concrete backend modules. A fused Adam route on Metal, for example, is a Metal
-backend prepare/kernel concern rather than a `MetalOptimizerBridge` in training. See [Training
+The dependency direction is Model and NN into Training, plus Training's intentional dependency on
+the public Engine facade. Training uses one Engine compile and one Engine inference session; it
+must not depend on Runtime, Prepare, tuning, or concrete backend modules or implement another
+execution path. A fused optimizer route on Metal, for example, remains a Metal backend
+prepare/kernel concern rather than a `MetalOptimizerBridge` in training. See [Training
 Graph](training-graph.md).
 
 Training does not own fixed recurrent execution, valid-length handling, or backpropagation through

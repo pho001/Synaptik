@@ -71,13 +71,16 @@ architecture decision.
 Neural-network composition and training have a separate extension direction:
 
 ```text
-modules/model
-  -> extensions/nn
-  -> extensions/training
+modules/model -> extensions/nn
+modules/model + extensions/nn + public modules/engine facade -> extensions/training
 ```
 
 `extensions/nn` owns modules, parameters, buffers, and train/eval forward behavior. Training
-consumes that module-owned parameter contract for optimizer algorithms and training orchestration.
+consumes that module-owned parameter contract and deliberately uses Model Tensor/schema contracts
+and the public Engine lifecycle for one compiled/prepared forward/backward session. Because all
+three appear in Training's public signatures, the NN, Model, and Engine Gradle edges are `api`
+dependencies; a consumer declaring only Training still compiles against that complete public
+surface. This is not permission to import lower execution internals.
 
 ## Concrete forbidden dependencies
 
@@ -91,8 +94,9 @@ consumes that module-owned parameter contract for optimizer algorithms and train
 - Concrete backends must not depend on `modules/engine`.
 - `backends/openblas-provider` must not depend on compiler, planning, runtime, prepare, engine, or the Tensor API.
 - `extensions/nn` may depend on `modules/model` but must not depend on `extensions/training`, compiler, runtime, prepare, engine, or concrete backends.
-- `extensions/training` may depend on `extensions/nn` and backend-neutral contracts it requires, but must not reverse that dependency.
-- `extensions/training` must not depend on concrete backend modules.
+- `extensions/training` may depend on Model, `extensions/nn`, and the public Engine facade. It must
+  not reverse the NN dependency or depend directly on Runtime, Prepare, tuning, Engine internals,
+  or concrete backend modules.
 - `extensions/onnx` must not depend on runtime hot-path execution internals.
 
 ## Why the boundaries matter
@@ -176,6 +180,6 @@ Tests under `testing/architecture-tests/` should fail when forbidden module or p
 - absence of backend support APIs on `Operation`;
 - absence of compile-time graph types in the runtime hot path; and
 - absence of concrete implementation references in partition scoring.
-- the `modules/model -> extensions/nn -> extensions/training` direction when those extensions are introduced.
+- the Model/NN and public-Engine-to-Training direction.
 
 Architecture tests enforce the contract; they do not redefine it. When a dependency rule changes, update [`ARCHITECTURE.md`](../../ARCHITECTURE.md), the relevant explanatory document, an ADR when significant, and the architecture tests in the same change.

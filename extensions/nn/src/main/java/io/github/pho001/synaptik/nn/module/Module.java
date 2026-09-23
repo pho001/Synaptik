@@ -35,11 +35,13 @@ import java.util.function.Consumer;
  * Reserved direct-parameter publication uses one release/acquire completion gate, so a racing
  * accessor or discovery call observes an unbound failure or the complete direct published set,
  * never a partial direct set. This narrow guarantee does not make tree operations generally
- * thread-safe. This type provides no
- * version counter, persistent checkpoint format, optimizer behavior, or execution lifecycle.
- * {@link #loadStateDictionary(StateDictionary)} provides validate-before-install atomicity for
- * ordinary caller-coordinated schema failures, not a lock or a simultaneous snapshot for racing
- * readers.</p>
+ * thread-safe. This type provides no version counter, persistent checkpoint format, optimizer
+ * behavior, or execution lifecycle. The downstream public {@code TrainingSession} adds those
+ * training concerns without changing this ownership: while one is open, its caller grants
+ * exclusive access to the captured Module parameter structure, wrappers, Tensor bindings,
+ * storage associations, and bytes. {@link #loadStateDictionary(StateDictionary)} provides
+ * validate-before-install atomicity for ordinary caller-coordinated schema failures, not a lock
+ * or a simultaneous snapshot for racing readers.</p>
  */
 public abstract class Module {
     private final Map<String, ParameterSlot> parameterDeclarations = new LinkedHashMap<>();
@@ -445,6 +447,11 @@ public abstract class Module {
      * {@link Parameter#value()} is later called. Traversal uses an explicit stack rather than the
      * Java call stack and has no arbitrary depth limit. Defensive identity tracking rejects a
      * malformed cycle or shared child before any snapshot is returned.</p>
+     *
+     * <p>The downstream public {@code TrainingSession} uses one complete snapshot's path and
+     * wrapper order as its parameter-to-gradient and optimizer-state namespace. The snapshot
+     * itself grants no locking or stable-binding lifetime; the Training owner separately requires
+     * exclusive access until close.</p>
      *
      * @return an unmodifiable insertion-ordered snapshot from relative parameter path to exact
      *     parameter; never {@code null}

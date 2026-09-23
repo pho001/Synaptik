@@ -10,11 +10,10 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
-/** Verifies the one-way dependency between the NN and training extensions. */
+/** Verifies NN-to-Training direction and Training's exact public API dependency surface. */
 final class NnTrainingDependencyContractTest {
     /**
-     * Checks the exact model-to-NN-to-training extension direction.
-     *
+     * Checks the exact Model/NN/Engine-to-Training extension direction.
      * @throws IOException if a required build file cannot be read
      */
     @Test
@@ -53,8 +52,45 @@ final class NnTrainingDependencyContractTest {
                 "extensions/nn must not depend on modules/engine");
         assertFalse(nnBuildScript.contains(":backends:"),
                 "extensions/nn must not depend on concrete backends");
-        assertTrue(trainingBuildScript.contains("implementation(project(\":extensions:nn\"))"),
-                "extensions/training must depend on extensions/nn once both projects exist");
+        assertTrue(trainingBuildScript.contains("api(project(\":extensions:nn\"))"),
+                "extensions/training must expose Module and Parameter from extensions/nn");
+        assertTrue(trainingBuildScript.contains("api(project(\":modules:model\"))"),
+                "extensions/training must expose Tensor, DataType, and Shape from modules/model");
+        assertTrue(trainingBuildScript.contains("api(project(\":modules:engine\"))"),
+                "extensions/training must expose its intentional public Engine dependency");
+        assertTrue(
+                Pattern.compile("api\\(project\\(\\\"([^\\\"]+)\\\"\\)\\)")
+                        .matcher(trainingBuildScript)
+                        .results()
+                        .map(match -> match.group(1))
+                        .collect(java.util.stream.Collectors.toUnmodifiableSet())
+                        .equals(Set.of(
+                                ":extensions:nn",
+                                ":modules:model",
+                                ":modules:engine")),
+                "Training API dependencies must be exactly NN, Model, and Engine");
+        assertFalse(Pattern.compile("implementation\\(project\\(")
+                        .matcher(trainingBuildScript).find(),
+                "Training must not hide project types used by its public API");
+        assertTrue(
+                Pattern.compile("project\\(\\\"([^\\\"]+)\\\"\\)")
+                        .matcher(trainingBuildScript)
+                        .results()
+                        .map(match -> match.group(1))
+                        .collect(java.util.stream.Collectors.toUnmodifiableSet())
+                        .equals(Set.of(
+                                ":extensions:nn",
+                                ":modules:model",
+                                ":modules:engine")),
+                "extensions/training may depend only on NN, Model, and the public Engine facade");
+        assertFalse(trainingBuildScript.contains(":modules:runtime"),
+                "extensions/training must not depend on Runtime");
+        assertFalse(trainingBuildScript.contains(":modules:prepare"),
+                "extensions/training must not depend on Prepare");
+        assertFalse(trainingBuildScript.contains(":tools:tuning"),
+                "extensions/training must not depend on tuning");
+        assertFalse(trainingBuildScript.contains(":backends:"),
+                "extensions/training must not depend on concrete backends");
     }
 
     /**
