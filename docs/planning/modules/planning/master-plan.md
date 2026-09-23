@@ -80,7 +80,7 @@ assembly.
 | 0004 | [Maximal same-owner partitioning](tasks/0004-maximal-same-owner-partitioning.md) | Complete | 0003 | Groups maximal consecutive runs in validated topological node order by equal selected `BackendId`, producing owner-plus-node-ID recipes without compiler orchestration, graph-boundary duplication, lowering, or executable construction. |
 | 0005 | [Logical materialization and memory requirements](tasks/0005-logical-materialization-and-memory-requirements.md) | Complete | 0004 | Added immutable per-value producer/consumer/output requirements and an architecture-named logical memory plan derived internally from the closed graph and ordered partitions, without physical sizing, allocation, transfers, publication binding, or runtime residency. |
 | 0006 | [Planning contract closure audit](tasks/0006-planning-contract-closure-audit.md) | Complete | 0001–0005 | Audited capability, ownership, partition, logical-memory, public/internal surfaces, documentation, dependencies, and the compiler/prepare handoff; the durable audit records a `CLOSED` verdict without executable changes. |
-| 0007 | [Capability provider status reconciliation](tasks/0007-capability-provider-status-reconciliation.md) | Ready | 0006; current CPU provider, Compiler SPI, and Engine composition | Reconcile the public guide/API status for the shipped CPU provider and current Engine compile consumer without changing capability or architecture. |
+| 0007 | [Capability provider status reconciliation](tasks/0007-capability-provider-status-reconciliation.md) | Complete | 0006; current CPU provider, Compiler SPI, and Engine composition | Corrected and independently reviewed the public guide/API status for the shipped CPU provider and current Engine compile consumer without changing capability or architecture. |
 
 ## Milestones
 
@@ -130,8 +130,9 @@ package-cohesive operations it needs; eligibility and its selector remain intern
 semantic and dependency verdict remains unchanged.
 
 Config task 0004 remains Draft pending a concrete cost-bearing consumer. Documentation-only
-Planning 0007 is `Ready` as the sole frontier to reconcile confirmed provider/compile status drift;
-it creates no new Planning or backend capability.
+Planning 0007 is Complete after independent review of the provider/compile status correction; it
+creates no new Planning or backend capability. A separate focused follow-up must reconcile the
+stale glossary `Compile` entry and `GraphCompilationPort` Javadoc without reopening this task.
 
 ## Open questions
 

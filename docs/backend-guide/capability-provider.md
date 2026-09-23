@@ -6,12 +6,14 @@ This guide explains the current backend-neutral contract through which a concret
 report whether it can semantically own one operation occurrence. `OperationCapabilityQuery` and
 `BackendCapabilityProvider` are current public planning contracts. The shared backend identities,
 supplied availability snapshot, hard-requirement vocabulary, and `BackendIntent` optionality are
-also current. The repository does not yet ship a provider implementation or public compile
-consumer. Package-private Compiler is the current consumer: for every final graph node it creates
-one query and calls public `BackendOwnerPlanning.selectOwner(...)`. That collaboration composes
-internal per-query hard eligibility and baseline owner comparison without exposing their
+also current. The CPU backend ships the public `CpuCapabilityProvider`. Current ordinary and
+advanced Engine compile workflows explicitly supply that provider through the fixed CPU
+composition to the public cross-module `GraphCompilationPort` service-provider interface (SPI).
+The port delegates to package-private `GraphCompiler`, which creates one query for every final
+graph node and calls public `BackendOwnerPlanning.selectOwner(...)`. That Planning collaboration
+composes internal per-query hard eligibility and baseline owner comparison without exposing their
 intermediate. Reusable/public capability matrices, a public graph-wide Planning workflow, numeric
-cost scoring, concrete backend preparation, registration, and execution remain planned.
+cost scoring, generic provider registration, and multi-backend Engine composition remain planned.
 
 A capability is a declarative answer to “can this backend own this work?” It is not a live
 executable, a kernel registry, or a route selection.
@@ -118,10 +120,13 @@ complete per-occurrence owners + closed graph
   -> current public stateless maximal same-owner partitioning
   -> current immutable partition and logical-memory recipes
   -> current immutable CompileArtifacts
-  -> planned public compiler facade and cost-bearing scoring
+  -> current owner-bound ordinary or advanced Engine compile handle
 ```
 
-A concrete backend may implement the current provider interface. Current internal planning first
+The ordinary and advanced Engine compile workflows enter that complete Compiler pipeline through
+the public cross-module `GraphCompilationPort` integration SPI; the port is an entry boundary,
+not a stage after artifact construction. The CPU backend implements the current provider
+interface. Current internal planning first
 validates that every supplied provider has exactly one equal-`BackendId` snapshot and vice versa.
 It then skips empty snapshots and exact hard-target mismatches before calling each remaining
 provider once in provider order. A true answer retains that provider's exact `BackendId`
@@ -142,17 +147,23 @@ re-evaluates capability or hard eligibility and selects no device, route, or ker
 
 Public `BackendOwnerPlanning.selectOwner(...)` validates the query, intent, providers, snapshots,
 and scoring config in declaration order, then calls eligibility and selection once each. Its
-result is the exact selected eligibility identity. Package-private Compiler invokes it once per
-final graph node, stops at the first failure, and retains only `BackendId` ownership in compile
-artifacts. The terminal no-hard-eligible failure receives node context from Compiler; other
-composition failures and provider-thrown runtime exceptions propagate unchanged. Neither
-providers nor snapshots are retained in the artifacts.
+result is the exact selected eligibility identity. Package-private `GraphCompiler` invokes it once
+per final graph node, stops at the first failure, and retains only `BackendId` ownership in compile
+artifacts. Public `GraphCompilationPort` exposes that complete Compiler pipeline only as a
+cross-module SPI, while the ordinary `Engine.compile(...)` overloads and
+`AdvancedEngine.compile(...)` are the current public lifecycle facades that consume it. There is
+no standalone ordinary compiler facade or generic provider-registration workflow. The terminal
+no-hard-eligible failure receives node context from Compiler; other composition failures and
+provider-thrown runtime exceptions propagate unchanged. Neither providers nor snapshots are
+retained in the artifacts.
 
-## Illustrative current provider
+## Illustrative provider
 
-The repository does not ship this class; it is an illustrative implementation of the current
-interfaces. It reports support for one FLOAT32 binary-ADD occurrence without selecting a CPU
-route:
+The repository ships the substantially broader `CpuCapabilityProvider`, whose current operation
+coverage is documented in the [CPU backend guide](cpu-backend.md). The smaller class below is
+deliberately illustrative rather than a copy of that production provider. It demonstrates the
+shared interfaces by reporting support for one FLOAT32 binary-ADD occurrence without selecting a
+CPU route:
 
 ```java
 import io.github.pho001.synaptik.backend.contract.BackendId;
@@ -220,11 +231,12 @@ provide typed evidence only after its consumers and diagnostic vocabulary are de
 ## Validation expectations
 
 Provider implementations require unit tests for supported and rejected combinations and
-architecture tests for dependency direction once concrete implementations exist. Backend-
-conformance tests comparing declared support with actual preparation remain necessary once
-concrete preparation exists. The current callable Planning seam and Compiler orchestration change
-no concrete backend implementation or preparation behavior and therefore add no
-backend-conformance or integration test requirement.
+architecture tests for dependency direction. The production CPU provider has focused public-
+shape and support-matrix tests, while Engine lifecycle tests cover explicit compile-time
+composition. Backend-conformance tests must compare declared support with actual preparation for
+the concrete routes they exercise. This documentation correction changes no provider,
+preparation, or execution behavior and therefore adds no new backend-conformance or integration
+test requirement.
 
 See [Partition scoring](../architecture/partition-scoring.md), [backend
 selection](../user-guide/backend-selection.md), and the [backend guide

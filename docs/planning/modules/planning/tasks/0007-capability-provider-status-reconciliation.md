@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 Frontier verification: Planning 0001–0006 and tuning 0004 are Complete, no task is `Ready` or
 `In progress`, and the user authorized the next confirmed drift repair. This task is the sole
@@ -125,6 +125,10 @@ reuses successful focused-test evidence.
   composition, and tuning 0004 are Complete.
 - After completion, separately plan the partition-preparer guide drift; this task does not combine
   that Prepare/backend lifecycle work.
+- Targeted review found two additional compile-status defects outside this task's five-path
+  allowlist: the glossary's `Compile` entry still says the ordinary Engine lifecycle is planned,
+  and `GraphCompilationPort` Javadoc still describes the Engine facade as future. Reconcile them
+  together in a separate focused task rather than widening this review.
 
 ## Documentation and review impact
 
@@ -135,4 +139,15 @@ reuses successful focused-test evidence.
 
 ## Result
 
-Empty until execution.
+Implementation and independent targeted documentation review corrected the shipped CPU provider
+and current Engine compile-consumer status in the backend guide and Compile API while preserving
+the public-SPI/package-private-compiler and no-generic-registration boundaries. Review also fixed
+the lifecycle diagram so `GraphCompilationPort` is an entry to compilation rather than a stage
+after artifact construction. The focused CPU provider command passed 28 tests and the focused
+Engine command passed 36 tests, both with zero failures, errors, or skips; review reused that
+evidence without rerunning Java tests. Stale-text, Java/Gradle-diff, exact five-path,
+Markdown-link/anchor/fence/newline/whitespace, and `git diff --check` validation passed. Targeted
+glossary review found the separately scoped stale `Compile` entry and `GraphCompilationPort`
+Javadoc described above; neither changes this task's documentation-only verdict.
+
+Status: Complete

@@ -1822,10 +1822,14 @@ described occurrence; `false` carries no reason.
 
 The provider is supplied explicitly to compile-time planning. The public contract performs no
 registry, discovery, classpath scan, `ServiceLoader` lookup, availability or hard-requirement
-evaluation, scoring, route or kernel selection, preparation, or execution. The repository
-supplies no production provider implementation. The current package-private compiler artifact
-entry is the concrete consumer: it supplies providers once per final graph node and retains only a
-selected `BackendId`, not a provider object.
+evaluation, scoring, route or kernel selection, preparation, or execution. The CPU backend
+supplies the production `CpuCapabilityProvider`. Current ordinary `Engine.compile(...)` and
+`AdvancedEngine.compile(...)` workflows explicitly pass that provider from their fixed CPU
+composition to public cross-module `GraphCompilationPort`. The port delegates the complete
+pipeline to package-private `GraphCompiler`, which supplies providers once per final graph node
+and retains only a selected `BackendId`, not a provider object. The port is an integration SPI,
+not a standalone ordinary compiler facade, and the current Engine exposes no generic provider-
+registration workflow.
 
 Current package-private planning implementation validates a complete association between ordered
 providers and caller-supplied availability snapshots by equal `BackendId`, then applies non-empty
