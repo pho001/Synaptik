@@ -195,12 +195,17 @@ import java.util.Arrays;
  * uses a distinct injective layout; its semantic effect is to copy base values and replace only
  * selected positions, without mutating either input.</p>
  *
- * <p>Complete-partition lowering remains stricter: it validates either one supported movement,
- * indexing, functional-scatter, overlap-fold, ordering, random, cumulative-scan, aggregate,
- * softmax, trailing-normalization, or MATMUL occurrence, a connected one-to-eight pointwise
- * chain, or a connected one-to-eight affine chain, then applies exact layout, alias, fan-out,
- * publication, and partition-boundary checks before resource declaration. Occurrence support
- * therefore does not promise that an arbitrary mixed or branched partition can be prepared.</p>
+ * <p>Complete-partition lowering remains stricter. Its closed unit inventory comprises one
+ * supported movement, indexing, functional-scatter, overlap-fold, ordering, explicit-state
+ * random, cumulative-scan, ordinary-reduction, arg-extrema, masked-reduction,
+ * advanced-reduction, softmax, Layer/RMS-normalization, BatchNorm-inference,
+ * BatchNorm-training, Conv2d, Conv3d, MATMUL, Pool2d, Pool3d,
+ * scaled-dot-product-attention, or loss occurrence; one recognized four-node Conv1d or
+ * three-node Pool1d composition; or a connected one-through-eight-node affine or pointwise unit
+ * admitted by the current lowering and decomposition. Exact layout, alias, fan-out, publication,
+ * topology, and partition-boundary checks apply before resource declaration. Occurrence-local
+ * support therefore does not promise that an arbitrary mixed or branched partition can be
+ * prepared.</p>
  */
 public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     /** Stable Planning ownership identity for the CPU backend. */

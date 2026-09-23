@@ -197,9 +197,12 @@ following package-private boundaries revalidate, canonicalize, and optionally op
 captured graph. The original graph-stage entry stops there; the complete entry derives
 publication, invokes Planning, and constructs `CompileArtifacts` only after final graph
 validation. Neither entry prepares backends, allocates physical memory, or executes values.
-`GraphCompiler` and both implementation entries remain package-private. The only public compile
-call is the narrow constant-free `GraphCompilationPort`; no Engine `CompiledGraph`, configuration
-aggregate, capture method, validation method, or optimizer method exists.
+`GraphCompiler` and both implementation entries remain package-private. The public compile
+surfaces are ordinary `Engine.compile(...)`, which returns an owner-bound `CompiledGraph`, and
+`AdvancedEngine.compile(...)`, which returns an owner-bound `AdvancedCompiledGraph`.
+`GraphCompilationPort` remains the narrow constant-free integration SPI rather than the sole
+public lifecycle facade. No public capture, validation, optimizer, or general compile-
+configuration aggregate method exists.
 
 ### Current package-private verification inference
 
@@ -1098,8 +1101,11 @@ eligibility, has unresolved layout, and records exact one-input/output-index-zer
 Current package-private capture preserves this model metadata structurally, and current
 package-private verification represents and proves or retains the Shape obligation. Adjoint
 construction is current only for the locally provable floating subset described in the autograd
-matrix above; binding-dependent inversion, lowering, backend selection, and execution remain
-unimplemented.
+matrix above. The current fail-closed CPU path advertises, lowers, prepares, and executes only
+fully static, resolved-layout SUM_TO_SHAPE occurrences over FLOAT64, FLOAT32, BFLOAT16, INT32, or
+INT64 with exact source/result type, right-aligned target Shape, leading- and target-one-axis
+reduction, preserved equal axes, non-negative layouts, and an injective output. Binding-dependent
+inversion, dynamic binding, and other-backend execution remain planned.
 `Tensor.matmul` currently constructs one fresh two-input MATMUL expression with a locally derived
 vector, matrix, or broadcast-batch Shape and same-category promoted numeric type. Unequal static
 contraction dimensions fail locally; unresolved contraction equality and the accepted
@@ -1107,8 +1113,11 @@ unresolved-versus-static batch singleton-or-equal cases remain obligations for l
 validation or concrete binding. Package-private structural capture plus graph-wide verification
 and conservative constraint proof are current. Current package-private autograd constructs
 role-aware floating MATMUL cotangents for all four vector/matrix rank pairings when the selected
-operand has the output type; integral and cross-floating selected roles remain unsupported.
-Lowering, backend support, concrete binding, and execution remain planned.
+operand has the output type; integral and cross-floating selected roles remain unsupported. The
+current fail-closed CPU path advertises, lowers, prepares, and executes only the fully static,
+resolved-layout MATMUL subset with exact contraction and batch geometry, supported same-category
+promotion, non-negative layouts, and an injective output. Dynamic binding and other-backend
+execution remain planned.
 `Tensor.linear(weight)` and `Tensor.linear(weight, bias)` are also current model construction, but
 they add no LINEAR operation. Conventional `[outFeatures, inFeatures]` weight is explicitly
 transposed through PERMUTE `[1, 0]`, followed by MATMUL and optional exact rank-one
@@ -1133,8 +1142,12 @@ count identifies the requested occurrence form without adding another kind. Unre
 positivity/equality, key/value sequence equality, batch singleton-or-equal, and mask
 singleton-or-equal facts remain obligations for later compiler validation or concrete binding.
 Package-private structural capture preserves this compiler-visible metadata, and package-private
-verification revalidates it and proves or retains its typed Shape constraints. Legal
-decomposition, saved-value lifetime, backend lowering, and execution remain planned. Current
+verification revalidates it and proves or retains its typed Shape constraints. Legal decomposition
+and saved-value lifetime remain planned. The current fail-closed CPU path advertises, lowers,
+prepares, and executes only fully static, resolved-layout one- or two-output
+BFLOAT16/FLOAT32/FLOAT64 attention occurrences with exact broadcast, mask, output-role, positive-
+embedding, type-promotion, scratch, and injective-output constraints. Dynamic binding and other-
+backend execution remain planned. Current
 package-private first-order autograd supports both public outputs only for the explicit
 two-output occurrence: values slot zero may select query, key, and value, while canonical weights
 slot one may select query and key. It reuses the exact same-occurrence weights wrapper, constructs
@@ -1147,13 +1160,15 @@ descriptor, and static or canonical-symbolic output Shape. Input and weight have
 `[N, C_in, H, W]` and `[C_out, C_in/groups, K_h, K_w]`; optional bias has `[C_out]`.
 Unresolved channel divisibility, grouped weight/input equality, bias/output equality, and dynamic
 spatial non-negativity remain obligations for future compiler validation or concrete binding.
-This metadata can be structurally captured and package-private verification now represents and
-proves or retains its descriptor-only constraints, but the repository still cannot compile or run
-convolution. Current package-private first-order autograd constructs every selected input, weight,
-and optional bias cotangent for grouped convolution through exact-group `unfold2d`, matrix
-contraction, reduction, and overlap-accumulating `fold2d`. Legal decomposition, saved values,
-concrete binding, backend lowering, algorithm selection, and execution remain planned in their
-owning layers.
+This metadata can be structurally captured, and package-private verification now represents and
+proves or retains its descriptor-only constraints. The current fail-closed CPU path advertises,
+lowers, prepares, and executes only the fully static, resolved-layout BFLOAT16/FLOAT32/FLOAT64
+grouped NCHW forward subset with exact group, channel, optional-bias, spatial, promoted-type, and
+injective-output relationships. Current package-private first-order autograd constructs every
+selected input, weight, and optional bias cotangent for grouped convolution through exact-group
+`unfold2d`, matrix contraction, reduction, and overlap-accumulating `fold2d`. Legal decomposition,
+saved values, dynamic binding, other-backend execution, and other algorithms remain planned in
+their owning layers.
 `Tensor.conv3d(weight, attrs)` and `Tensor.conv3d(weight, bias, attrs)` are current Model
 construction for one first-class grouped NCDHW `CONV3D` occurrence. Input, weight, optional bias,
 and result Shapes are `[N, C_in, D, H, W]`,
@@ -1163,10 +1178,12 @@ stride, symmetric padding, dilation, and groups. Model validates statically deci
 and retains unresolved relations in exact descriptors and attributes. Complete Compiler 0006B
 includes this kind in the closed forward inventory. Independent inference and final validation
 prove or retain its ordered channel and spatial obligations, and ordinary CSE, publication,
-diagnostics, and Planning handoff preserve the exact operation and ordered descriptors. Draft
-0006C remains separate: backward-capable requests containing `CONV3D` fail before derivative
-allocation. No current provider advertisement, lowering, prepared executable, backend route, or
-execution follows from forward adoption.
+diagnostics, and Planning handoff preserve the exact operation and ordered descriptors. The
+current fail-closed CPU path advertises, lowers, prepares, and executes only the fully static,
+resolved-layout BFLOAT16/FLOAT32/FLOAT64 grouped NCDHW forward subset with exact group, channel,
+optional-bias, spatial, promoted-type, and injective-output relationships. Draft 0006C remains
+separate: backward-capable requests containing `CONV3D` fail before derivative allocation.
+Dynamic binding, Conv3d gradients and adjoints, and other-backend execution remain planned.
 `Tensor.maxPool2d(attrs)` is current first-class NCHW maximum-pooling model construction. One
 `MAX_POOL2D` occurrence records exact ordered input `[input]`, `MaxPool2dAttrs`, one output at
 index zero, the unchanged floating type and gradient request, exact batch/channel Dimensions, and
@@ -1228,11 +1245,14 @@ distinct stable, one-input, one-output ordering expressions. Both normalize the 
 exact input Shape reference, leave layout unresolved, and use fixed NaN-last ordering in both
 directions with stable logical-index ties. Sort preserves input type and gradient eligibility;
 argsort uses non-differentiable INT64. These model-expression and provenance facts are structurally
-capturable and package-private operand/descriptor revalidation is current. Floating SORT gradient
+capturable, and package-private operand/descriptor revalidation is current. Floating SORT gradient
 construction is also current: the compiler constructs one separate stable `ARGSORT` occurrence
 with the exact original input, normalized axis, and direction, then routes the cotangent through
-that permutation. Algorithm selection, lowering, backend support, runtime behavior, and execution
-remain planned.
+that permutation. The current fail-closed CPU path advertises, lowers, prepares, and executes only
+fully static, resolved-layout SORT/ARGSORT occurrences over all six represented input types with
+an exact normalized axis, input-shaped same-type values or INT64 indices, stable NaN-last and
+signed-zero order, and an injective output. Gradient support remains limited to the floating SORT
+role above. Dynamic binding and other-backend execution remain planned.
 
 Preflight requires the exact SORT input/output descriptors, `SortAttrs`, normalized axis,
 direction, and matching one-input/one-output ARGSORT constructibility before any derivative Tensor
@@ -1248,25 +1268,34 @@ extent is dynamic or expression-based, the obligation `bound extent >= k` is del
 deferred: future compiler or binding validation must reject an insufficient bound rather than
 clamp, pad, wrap, or reduce the output count. Package-private capture preserves the shared TOP_K
 producer and both output positions. The following package-private pass revalidates both descriptors
-and proves or retains the selected-extent obligation. It does not construct gradients, select an
-algorithm, lower the operation, report backend support, bind an extent, or execute it. Current
-floating TOP_K values-slot autograd uses the exact canonical indices wrapper at producer slot one
-and never recomputes selection. Indices remain non-differentiable; stable cutoff membership,
-NaN membership, direction, and sorted-output order are routed without selected-set averaging.
+and proves or retains the selected-extent obligation without binding an extent or executing work.
+The current fail-closed CPU path advertises, lowers, prepares, and executes only fully static,
+resolved-layout TOP_K occurrences over all six represented input types with exact normalized
+axis, `0 <= k <= selected extent`, largest/smallest and sorted/unsorted attributes, same-type
+values plus non-differentiable INT64 indices, equal output Shapes, and two injective outputs.
+Dynamic selected-extent binding and other-backend execution remain planned. Current floating TOP_K
+values-slot autograd uses the exact canonical indices wrapper at producer slot one and never
+recomputes selection. Indices remain non-differentiable; stable cutoff membership, NaN membership,
+direction, and sorted-output order are routed without selected-set averaging.
 `Tensor.embedding(indices)` currently validates a rank-two floating weight receiver and exact
 INT32/INT64 indices, then constructs the existing ordinary axis-zero GATHER occurrence directly.
 The result Shape is the complete indices Shape plus the exact weight axis-one Dimension; result
-type and gradient eligibility come only from weights. This is public model-expression construction,
-and is structurally capturable. Constant-index analysis, repeated-index autograd construction,
-dynamic binding, safe bounds enforcement, lowering, backend support, and execution remain owned by
-later lifecycle layers. No `EMBEDDING` kind or padding/sparse/max-norm/frequency option exists.
+type and gradient eligibility come only from weights. This is public model-expression construction
+and is structurally capturable; current Compiler autograd treats it as the ordinary GATHER
+occurrence, including repeated-index accumulation. The current fail-closed CPU path advertises,
+lowers, prepares, and executes only the resulting fully static, resolved-layout axis-zero GATHER
+subset with INT32/INT64 indices, exact Shape, and injective output. Constant-index analysis,
+dynamic binding, and other-backend execution remain planned; run-bound index checks remain at the
+CPU execution boundary. No `EMBEDDING` kind or padding/sparse/max-norm/frequency option exists.
 `Tensor.oneHot(depth)` currently validates exact INT32/INT64 receiver metadata before positive
 static depth, preserves every input Dimension reference, and appends one fresh
 `StaticDimension(depth)`. It constructs one storage-free, non-differentiable BOOL result with one
 `ONE_HOT` producer and exact sole-input provenance. This is a current model-expression inventory
-entry and is structurally capturable. Construction reads no index values; valid eventual execution
-requires `0 <= i < depth`, while constant analysis, dynamic bounds enforcement,
-gradients, lowering, backend support, and execution remain planned in their owning layers.
+entry and is structurally capturable. Construction reads no index values; valid execution requires
+`0 <= i < depth`. The current fail-closed CPU path advertises, lowers, prepares, and executes only
+the fully static, resolved-layout INT32/INT64-index subset with exact positive depth, BOOL result
+Shape, and injective output. Constant analysis, dynamic bounds enforcement, and other-backend
+execution remain planned; the index input and BOOL result remain non-differentiable.
 `Tensor.rsqrt`, `log1p`, `expm1`, `gelu`, `geluTanhApproximation`, and `silu` accept floating input,
 retain its exact type, Shape, and gradient eligibility, leave layout unresolved, and record
 one-input parameterless provenance.
@@ -1274,8 +1303,12 @@ Their selected special-value semantics distinguish signed zero, infinities, and 
 construction neither reads values nor promises correct rounding or a fixed numerical tolerance.
 `Tensor.isFinite`, `isNaN`, and `isInf` accept floating input and construct fixed BOOL results with
 the exact input Shape, unresolved layout, false gradient eligibility, and one-input parameterless
-provenance. They record graph-visible value classifications; they do not eagerly classify host
-storage or define compiler validation, gradients, lowering, backend support, or execution.
+provenance. They record graph-visible value classifications without eagerly inspecting host
+storage; package-private capture and descriptor verification are current. The current fail-closed
+CPU path advertises, lowers, prepares, and executes only fully static, resolved-layout
+BFLOAT16/FLOAT32/FLOAT64 classification occurrences with exact Shape preservation,
+non-differentiable BOOL output, non-negative layouts, and membership in a bounded
+one-through-eight-node pointwise unit. Dynamic binding and other-backend execution remain planned.
 `Tensor.sum`, `prod`, reduction `min`, and reduction `max` accept floating or signed-integral
 inputs; `mean` remains floating-only. They construct full, axis-removing, or retained-axis
 expressions. Full forms have canonical rank-zero Shape and use the canonical no-attributes
@@ -1284,9 +1317,14 @@ preserves exact input type and gradient eligibility, leaves layout unresolved, a
 one-input provenance. Integral sum/product use exact-type modular arithmetic modulo `2^32` or
 `2^64` with reassociation permitted; integral min/max use signed order. Their empty identities are
 zero, one, the input type's maximum, and the input type's minimum, respectively, for full domains
-and empty selected-axis slices. Construction records these semantics without aggregating or
-comparing values, implementing a gradient or numerical algorithm, or providing compiler,
-lowering, backend, or executable behavior. Aggregate `MIN`/`MAX` remain typed separately from the
+and empty selected-axis slices. Model construction records these semantics without aggregating or
+comparing values. Current compiler capture, verification, and the closed floating first-order
+autograd matrix remain separate from execution. The current fail-closed CPU path advertises,
+lowers, prepares, and executes only the fully static, resolved-layout ordinary SUM/MEAN/PROD/
+MIN/MAX/ALL/ANY subset with its exact family-specific type, attribute, Shape, selected-domain,
+carrier, and injective-output constraints. Gradient support remains limited to the closed matrix
+above. Dynamic binding and other-backend execution remain planned. Aggregate `MIN`/`MAX` remain
+typed separately from the
 equally named two-input binary elementwise kinds.
 The masked `Tensor.sum(axis, mask)` and `Tensor.mean(axis, mask)` forms require floating input and
 an exact BOOL mask. They require ordinary right-aligned broadcasting of the mask to produce
@@ -1294,26 +1332,35 @@ exactly the input Shape; callers make other axis intent visible with an explicit
 dimension insertion, or expansion. Each form removes the normalized axis and records one
 first-class two-input `SUM` or `MEAN` occurrence with `MaskedReductionAttrs(axis)` and ordered
 `[input, mask]` provenance. False positions exclude their inputs, including NaN and infinity;
-an all-false sum is zero and an all-false mean is NaN without a payload guarantee. Construction
-does not align storage, inspect values, select elements, count true positions, compute a result,
-capture or decompose the occurrence, define gradients, lower it, or execute work.
+an all-false sum is zero and an all-false mean is NaN without a payload guarantee. Model
+construction does not align storage, inspect values, select elements, count true positions, or
+compute a result. Current compiler capture and floating autograd are described above. The current
+fail-closed CPU path advertises, lowers, prepares, and executes only fully static, resolved-layout
+floating masked SUM/MEAN occurrences with an exact non-gradient BOOL mask, right-aligned broadcast,
+axis-removing result Shape, and injective output. Dynamic binding and other-backend execution
+remain planned.
 `Tensor.all` and `Tensor.any` require exact BOOL input and construct full, axis-removing, or retained-axis
 expressions with exact BOOL result type, false gradient eligibility, unresolved layout, and
 one-input provenance. Aggregate `ALL`/`ANY` remain typed separately from elementwise `AND`/`OR`.
-Construction does not inspect truth values or define empty-domain identities, compiler behavior,
-backend support, or execution.
+Model construction does not inspect truth values. The current fail-closed CPU path advertises,
+lowers, prepares, and executes only fully static, resolved-layout ordinary ALL/ANY occurrences
+with exact BOOL input/output, ordinary reduction attributes, Model-derived Shape, canonical
+represented truth values, and an injective output. Dynamic binding and other-backend execution
+remain planned.
 `Tensor.argMin` and `Tensor.argMax` accept floating or integral input and one positive or negative
 axis. Their convenience forms explicitly use `FIRST_INDEX`, while complete forms retain an
 explicit first- or last-index policy in shared `ArgExtremaAttrs`. Axis removal or retention follows
 the ordinary structural Shape rules, but every result is fixed unresolved-layout INT64 with false
 gradient eligibility, one-input provenance, and output index zero. Integral candidates use signed
 order. Floating candidates prefer NaN for both extrema directions, treat multiple NaNs as ties,
-order negative zero below positive zero, and order infinities normally. Construction rejects a
-statically empty selected axis, accepts an unselected zero axis and unbound selected extent, and
-does not compare values, select an index, define gradients, capture or validate a compiled graph,
-lower, report backend support, or execute. A future compiler must prove or validate that a dynamic
-selected extent is positive before index selection, but its callable API and failure type remain
-unspecified.
+order negative zero below positive zero, and order infinities normally. Model construction rejects
+a statically empty selected axis, accepts an unselected zero axis and unbound selected extent, and
+does not compare values or select an index. Current compiler capture and verification remain
+separate. The current fail-closed CPU path advertises, lowers, prepares, and executes only the
+fully static, resolved-layout five-numeric-type ARG_MIN/ARG_MAX subset with a positive selected
+extent, exact keep/remove-Dimension Shape, fixed non-gradient INT64 result, tie policy, and
+injective output. A future binding boundary must prove or validate that a dynamic selected extent
+is positive before index selection; dynamic binding and other-backend execution remain planned.
 The 26 multi-axis/statistical methods accept ordered distinct positive or negative axes. Caller
 order is retained in immutable `MultiAxisReductionAttrs` or `StatisticalReductionAttrs`; Shape
 derivation uses membership to remove selected axes or retain them with extent one. An empty axis
@@ -1329,8 +1376,13 @@ infinity, signed zero, positive-zero/one or infinite identities, ALL/ANY identit
 log-sum-exp targets, corrected statistical formulas, and non-negative norm targets. These are
 compiler-visible requested meanings that current package-private capture preserves structurally.
 Current package-private verification revalidates operands and proves, rejects, or retains dynamic
-corrected-domain constraints. Numerical algorithms, gradients, lowering, backend support,
-concrete binding, and execution remain planned.
+corrected-domain constraints; the closed floating first-order autograd matrix remains current.
+The current fail-closed CPU path advertises, lowers, prepares, and executes only fully static,
+resolved-layout BFLOAT16/FLOAT32/FLOAT64 LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, L1_NORM, and
+L2_NORM occurrences with exact ordered axes, retained/removed Shape, gradient eligibility,
+positive corrected statistical domain, and injective output. Gradient support remains limited to
+the closed matrix above. Dynamic corrected-domain binding and other-backend execution remain
+planned.
 `Tensor.cumSum` and `Tensor.cumProd` are current model expressibility for shape-preserving
 cumulative addition and multiplication. Each family accepts floating or integral input and one
 positive or negative axis. Each short form explicitly selects inclusive forward traversal; each
@@ -1341,11 +1393,14 @@ width modular meaning; floating product has the selected NaN, zero-times-infinit
 and positive-one identity semantics documented by the Tensor API. Construction does not read or
 accumulate values.
 
-Those model expressions are compiler-visible inputs to current package-private structural capture.
-Dynamic validation, canonicalization, product-adjoint construction from prefix and suffix scans,
-gradient boundary policy, saved-value lifetime, numerical lowering, backend support, and execution
-remain planned. In particular, the current compiler API exposes no callable compilation path that
-turns either scan kind into executable work.
+Those model expressions are compiler-visible inputs to current package-private structural capture,
+verification, and the closed floating first-order autograd matrix, including the current product
+adjoint built from public prefix and suffix scans. The current fail-closed CPU path advertises,
+lowers, prepares, and executes only fully static, resolved-layout CUM_SUM/CUM_PROD occurrences over
+FLOAT64, FLOAT32, BFLOAT16, INT32, or INT64 with a non-scalar Shape, exact input/output type and
+Shape, normalized axis, inclusive/exclusive and forward/reverse mode, and injective output.
+Gradient support remains limited to the closed matrix above. Dynamic binding, saved-value policy,
+and other-backend execution remain planned.
 The current Model also exposes fixed `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM` recurrent-scan
 expressions through the advanced low-level static `RecurrentScan.rnn`, `gru`, and `lstm`
 namespace. Each occurrence has one `FORWARD` or `REVERSE` attribute, fully static time-major
@@ -1371,40 +1426,51 @@ implementation supports the family.
 `Tensor.softmax` and `Tensor.logSoftmax` accept floating input and one positive or negative axis.
 Every result retains the exact input Shape, data type, and gradient eligibility, leaves layout
 unresolved, and records the requested first-class SOFTMAX or LOG_SOFTMAX kind with exact one-input
-provenance. Construction does not read values, calculate probabilities or logarithms, select a
-numerical algorithm, define a gradient rule, decompose a graph operation, lower a backend
-operation, or execute work; package-private structural capture can preserve the occurrence.
+provenance. Model construction does not read values, calculate probabilities or logarithms,
+select a numerical algorithm, or own a gradient rule or backend lowering. Package-private
+capture, verification, and the closed floating first-order autograd matrix are current. The
+current fail-closed CPU path advertises, lowers, prepares, and executes only fully static,
+resolved-layout BFLOAT16/FLOAT32/FLOAT64 SOFTMAX/LOG_SOFTMAX occurrences with positive rank and
+selected-axis extent, exact Shape/type/gradient-eligibility preservation, non-negative layouts,
+and an injective output; CPU execution rejects non-finite represented inputs before output
+mutation. Dynamic binding, decomposition, and other-backend execution remain planned.
 `Tensor.layerNorm` is current model metadata construction for exact trailing-Shape population
 normalization. The no-affine form records `LayerNormAttrs` and ordered input `[input]`; the affine
 form records `AffineLayerNormAttrs` and ordered inputs `[input, scale, bias]`. Both retain exact
 normalized Shape and typed epsilon parameters, exact input result Shape, one output at index zero,
 and no saved-statistic output. Local construction rejects known static mismatches and defers an
-unresolved trailing-dimension equality when output Shape is still exact. Package-private capture
-preserves this metadata structurally, and package-private compiler verification revalidates the
-operands and proves or retains deferred constraints. Saved-statistic lifetime, gradients or
-adjoints, legal decomposition, lowering, concrete binding, and execution remain planned in their
-owning layers.
+unresolved trailing-dimension equality when output Shape is still exact. Package-private capture,
+verification, and the closed floating first-order autograd matrix are current. The current fail-
+closed CPU path advertises, lowers, prepares, and executes only fully static, resolved-layout
+BFLOAT16/FLOAT32/FLOAT64 input-only or exact `[input, scale, bias]` LayerNorm occurrences with a
+positive-rank static trailing Shape, ordered promotion, exact-result-typed epsilon, and injective
+output. Gradient support remains limited to the closed matrix above. Dynamic binding, saved-
+statistic lifetime, decomposition, and other-backend execution remain planned.
 `Tensor.rmsNorm` is current model metadata construction for exact trailing-Shape uncentered
 root-mean-square normalization. One `RmsNormAttrs(normalizedShape, epsilon)` value supports the
 safe ordered inputs `[input]` and `[input, scale]`, each with exactly one output at index zero. The
 result retains the exact input Shape; the scaled form requires scale Shape exactly equal to the
 normalized Shape. Local construction rejects known static trailing mismatches and defers
-unresolved equality. Package-private capture preserves this metadata structurally, and current
-package-private verification revalidates operands and proves or retains deferred constraints.
-Compiler-generated saved values, gradients or adjoints, legal decomposition, lowering, backend
-preparation, tolerance enforcement, concrete binding, and runtime execution remain planned in
-their owning layers.
+unresolved equality. Package-private capture, verification, and the closed floating first-order
+autograd matrix are current. The current fail-closed CPU path advertises, lowers, prepares, and
+executes only fully static, resolved-layout BFLOAT16/FLOAT32/FLOAT64 input-only or exact
+`[input, scale]` RMSNorm occurrences with a positive-rank static trailing Shape, ordered
+promotion, exact-result-typed epsilon, and injective output. Gradient support remains limited to
+the closed matrix above. Dynamic binding, saved-value policy, decomposition, tolerance policy,
+and other-backend execution remain planned.
 `Tensor.batchNormInference` is current stateless model metadata construction with exact ordered
 inputs `[input, scale, bias, runningMean, runningVariance]` and exactly one output at index zero.
 It retains `BatchNormInferenceAttrs(normalizedChannelAxis, epsilon)`, preserves the exact input
 Shape, requires rank-one `[C]` affine/statistic vectors, defers unresolved channel-extent equality,
 and uses ordered floating promotion with exact-result-typed positive epsilon. The channel axis is
 layout-neutral, and running variance is interpreted directly by the formula with epsilon inside
-the denominator square root. Package-private capture preserves this compiler-visible metadata;
-current verification revalidates the operands and proves or retains channel constraints.
-Saved-value and gradient construction, legal decomposition, lowering, backend preparation,
-tolerance enforcement, concrete binding, runtime execution, and numerical evaluation remain
-planned in their owning layers.
+the denominator square root. Package-private capture and verification are current, as is the
+closed floating first-order autograd matrix for all five input roles. The current fail-closed CPU
+path advertises, lowers, prepares, and executes only fully static, resolved-layout
+BFLOAT16/FLOAT32/FLOAT64 five-input BatchNorm-inference occurrences with rank at least two, exact
+channel-axis and `[C]` operand relationships, ordered promotion, exact-result-typed epsilon, and
+an injective output. Gradient support remains limited to the closed matrix above. Dynamic binding,
+saved-value policy, decomposition, tolerance policy, and other-backend execution remain planned.
 `Tensor.batchNormTraining` is current five-output model metadata with exact ordered inputs
 `[input, scale, bias, runningMean, runningVariance]`. Its producer describes normalized output,
 next running mean, next running variance, saved batch mean, and saved inverse standard deviation
@@ -1413,10 +1479,14 @@ four remain real producer descriptors that package-private capture preserves. Th
 channel axis, exact typed new-batch-weight momentum and epsilon, the all-non-channel reduction
 domain, biased forward variance, correction-one running variance, output Shapes, types, gradient
 eligibility, and indexed provenance. Structural capture of every position and package-private
-proof or retention of the `C == 0 || N >= 2` constraint are current. Saved-value materialization
-or lifetime, autograd/backward construction, publication, liveness, graph optimization, concrete
-binding, lowering, preparation, execution, and cross-step statistic ownership remain planned in
-the compiler, training extension, runtime, and backend layers that own them.
+proof or retention of the `C == 0 || N >= 2` constraint are current; the closed first-order
+autograd matrix covers the supported public output roles. The current fail-closed CPU path
+advertises, lowers, prepares, and executes only fully static, resolved-layout
+BFLOAT16/FLOAT32/FLOAT64 five-input/five-output BatchNorm-training occurrences with exact channel,
+promotion, momentum, epsilon, reduction-domain, output-role, and injective-output relationships.
+Gradient roots and stages outside that current matrix remain unsupported. Dynamic binding, saved-
+value/publication policy, cross-step statistic ownership, the Training extension, and other-
+backend execution remain planned.
 `Tensor.meanSquaredError(target, reduction)` is current one-output model metadata with exact
 ordered inputs `[prediction, target]`. It records `LossKind.MEAN_SQUARED_ERROR` and one
 `MeanSquaredErrorAttrs` carrying explicit `NONE`, `SUM`, or `MEAN` reduction. Local construction
@@ -1428,9 +1498,11 @@ This compiler-visible requested meaning is structurally capturable, and package-
 verification now revalidates it and proves or retains deferred equality. Current package-private
 first-order autograd supports both prediction and target roles, restores `NONE`, `SUM`, and
 `MEAN` cotangents through logical Tensor counts, and uses exact typed scalar-operation
-coefficients `2` and `-2`. Legal decomposition, optimization, concrete binding, lowering,
-backend support, runtime execution, and training coordination remain planned in their owning
-layers.
+coefficients `2` and `-2`. The current fail-closed CPU path advertises, lowers, prepares, and
+executes only fully static, resolved-layout BFLOAT16/FLOAT32/FLOAT64 MSE occurrences with exact
+equal prediction/target Shape, ordered promotion, reduction/result Shape, gradient eligibility,
+and injective output. Gradient support remains limited to the closed matrix above. Dynamic
+binding, training coordination, and other-backend execution remain planned.
 `Tensor.categoricalCrossEntropyWithLogits(target, classAxis, reduction)` is current one-output
 model metadata with ordered inputs `[logits, target]`. Exact floating target type dispatches to the
 unchanged dense target-weighted stable-log-softmax meaning, including floating promotion,
@@ -1450,25 +1522,35 @@ remain valid when every target is ignored. This compiler-visible requested meani
 capturable. Current package-private first-order autograd supports both dense floating logits and
 target roles. It supports only the logits role for index targets, requires a positive static class
 depth, clamps ignored targets before one-hot construction, and excludes ignored rows through a
-final `where`; dynamic or zero class depth fails closed. Revalidation, constant analysis, proof,
-bounds checks, decomposition, optimization, lowering, preparation, execution, publication, and
-training coordination remain planned in their owning lifecycle layers.
+final `where`; dynamic or zero class depth fails closed. The current fail-closed CPU path
+advertises, lowers, prepares, and executes only fully static, resolved-layout
+BFLOAT16/FLOAT32/FLOAT64 categorical-loss occurrences with exact normalized class geometry,
+dense-floating or INT32/INT64 index target roles, optional exact-typed ignore index,
+reduction/result Shape, gradient eligibility, and injective output. Gradient support remains
+limited to the exact dense- and index-target roles above. Dynamic binding, publication/training
+coordination, and other-backend execution remain planned.
 `Tensor.contiguous()` accepts every current data type and preserves the exact Shape, data type, and
 gradient eligibility. It creates new canonical dense row-major, zero-offset layout geometry for a
 fully static Shape and leaves a dynamic Shape unresolved. Every call is fresh, unlabeled, and
 storage-free, records `CONTIGUOUS` with the canonical no-attributes singleton and exact one-input
 provenance, and does not inspect input layout, storage, or values. Resolved result geometry does
-not allocate or copy storage. Package-private structural capture is current; redundant-request
-canonicalization, materialization policy, lowering, and execution remain planned.
+not allocate or copy storage. Package-private structural capture is current. The current fail-
+closed CPU path advertises, lowers, prepares, and executes only fully static, resolved-layout
+`CONTIGUOUS` occurrences with exact type/Shape preservation and canonical dense output, within a
+bounded one-through-eight-node affine unit. Dynamic binding, redundant-request canonicalization,
+and other-backend execution remain planned.
 `Tensor.reshape(long...)` accepts all current data types, normalizes an empty request or one
 inferable `-1`, and rejects locally provable invalid counts. `Tensor.reshape(Shape)` retains an
 exact normalized target and defers count equality when either Shape is dynamic. Both overloads
 retain type and gradient eligibility, record exact RESHAPE/target-shape semantics with one-input
 provenance, and stay unlabeled and storage-free. Only resolved contiguous input plus a static
 target produces same-offset canonical view metadata; all other result layout remains unresolved.
-Package-private structural capture can preserve this current model expression. Graph-wide dynamic
-constraint solving, reshape-chain canonicalization, materialization planning, backend alias/copy
-lowering, and execution remain planned.
+Package-private structural capture can preserve this current model expression. The current fail-
+closed CPU path advertises, lowers, prepares, and executes only fully static, resolved-layout
+`RESHAPE` occurrences with contiguous input, equal checked element count, exact same-offset
+canonical view metadata, and membership in a bounded one-through-eight-node affine unit. Dynamic
+constraint solving, reshape-chain canonicalization, non-view materialization, and other-backend
+execution remain planned.
 `Tensor.expand(long...)` treats every requested extent as a literal non-negative dimension, while
 `Tensor.expand(Shape)` retains the exact target reference. Both overloads require target rank at
 least input rank and allow new leading target axes. Structural equality and a static source
@@ -1490,25 +1572,34 @@ leaves layout unresolved. Floating EXPAND autograd constructs
 inverse uses the same forward predicate relationship. Binding-dependent `SUM_TO_SHAPE` similarly
 inverts through `gradient.expand(input.descriptor().shape())` under the matching
 target-one-or-target-equal-source obligation. Existing Model reduction semantics are unchanged.
-This compiler contract binds no dimension and claims no value repetition, storage aliasing,
-materialization, backend lowering, or execution.
+This compiler contract binds no dimension and claims no value repetition, storage aliasing, or
+materialization. The current fail-closed CPU path advertises, lowers, prepares, and executes only
+fully static, resolved-layout `EXPAND` occurrences with the exact singleton-expansion Shape and
+zero-stride view relationship, within a bounded one-through-eight-node affine unit. Dynamic
+binding, materialization, and other-backend execution remain planned.
 `Tensor.permute(int...)` accepts every current data type, requires a complete output-to-input axis
 mapping, normalizes each negative axis once, and reorders exact Dimension references. Any resolved
 input layout produces a new same-offset view descriptor with exact reordered strides; unresolved
 input layout remains unresolved. `Tensor.transpose()` requires rank two and uses the same PERMUTE
 construction with normalized axes `[1, 0]`. Every result preserves type and gradient eligibility,
 records exact normalized attributes and one-input provenance, and remains fresh, unlabeled, and
-storage-free. Package-private structural capture can preserve the occurrence; permutation
-canonicalization, physical aliasing, materialization, lowering, and execution remain planned.
+storage-free. Package-private structural capture can preserve the occurrence. The current fail-
+closed CPU path advertises, lowers, prepares, and executes only fully static, resolved-layout
+`PERMUTE`/rank-two transpose occurrences with the exact same-offset reordered Shape/stride
+relationship, within a bounded one-through-eight-node affine unit. Permutation canonicalization,
+dynamic binding, materialization, and other-backend execution remain planned.
 `Tensor.expandDims(int)` inserts one static singleton at a caller position normalized against the
 result rank. `Tensor.squeeze(int)` instead normalizes an existing input axis and removes it only
 when its dimension is statically known as one. Both preserve exact type and gradient eligibility,
 retain exact unaffected Dimension references, record matching `AxisTransformAttrs` and one-input
 provenance, and leave unresolved input geometry unresolved. Resolved input geometry produces one
 new same-offset logical view descriptor with a deterministic checked stride inserted or the
-selected stride removed. Package-private structural capture can preserve the occurrence; dynamic
-singleton constraint solving, inverse-pair canonicalization, physical aliasing, materialization,
-gradient behavior, lowering, and execution remain planned.
+selected stride removed. Package-private structural capture can preserve the occurrence. The
+current fail-closed CPU path advertises, lowers, prepares, and executes only fully static,
+resolved-layout `EXPAND_DIMS`/`SQUEEZE` occurrences with the exact inserted/removed singleton
+Shape and same-offset stride relationship, within a bounded one-through-eight-node affine unit.
+Gradient support remains the exact current Compiler matrix above. Dynamic singleton solving,
+inverse-pair canonicalization, materialization, and other-backend execution remain planned.
 `Tensor.slice(long[], long[], int[], long[])` clones four parallel request arrays, normalizes raw
 axes and bounds against selected static dimensions, clamps bounds by step direction, derives a
 same-rank Shape, and records normalized start/length/axis/signed-step sequences in `SliceAttrs`.
@@ -1519,11 +1610,14 @@ step-one entry, its four-argument overload supplies an explicit signed step, and
 creates one negative-step SLICE occurrence for explicit axes. Empty flip axes mean identity.
 Every success preserves exact type and gradient eligibility, records one identity-distinct
 producer with exact `[input]`, one output descriptor, and provenance index zero, and remains fresh,
-unlabeled, and storage-free. Package-private structural capture can preserve the occurrence;
-slice-chain or flip canonicalization, physical aliasing or copying, materialization,
-backend/ONNX lowering, and execution remain planned. Closed first-order autograd currently
-constructs the normalized floating SLICE cotangent described above; unsupported types and
-non-normalized metadata fail during preflight.
+unlabeled, and storage-free. Package-private structural capture can preserve the occurrence.
+Closed first-order autograd currently constructs the normalized floating SLICE cotangent described
+above; unsupported types and non-normalized metadata fail during preflight. The current fail-
+closed CPU path advertises, lowers, prepares, and executes only fully static, resolved-layout
+positive-step `SLICE` occurrences with exact Shape, offset/stride, and finite-coordinate
+relationships, within a bounded one-through-eight-node affine unit. Negative-step extraction,
+dynamic binding, slice/flip canonicalization, materialization, and other-backend execution remain
+planned.
 `Tensor.sliceByLength(starts, lengths, axes, steps)` is current Model expression construction. It
 records the same exact `SLICE`/`SliceAttrs` occurrence after proving non-negative first/final
 coordinates and every statically decidable selected-extent upper bound. Selected result
@@ -1534,6 +1628,9 @@ only for a non-empty all-positive request. Current compiler inference derives th
 lengths and proves or retains each non-empty signed region's upper-bound obligation. Fail-closed
 preflight validates the exact occurrence before current floating autograd uses that same
 length-defined form to invert SLICE_UPDATE without requiring a static selected base extent.
+The current fail-closed CPU path also advertises, lowers, prepares, and executes only the fully
+static, resolved-layout positive-step length-defined `SLICE` subset with exact finite bounds and
+affine view geometry. Dynamic selected-extent binding and other-backend execution remain planned.
 `Tensor.sliceUpdate(update, starts, axes, steps)` is now current model construction for functional
 signed multi-axis replacement. It derives normalized finite `SliceAttrs` lengths from selected
 static update Dimensions, requires exact base/update type and same-rank Shape compatibility,
@@ -1545,13 +1642,16 @@ obligation for later binding or execution; no start is clamped or shifted to fit
 `SLICE` occurrence with exact `CropToShapeAttrs`, retains the supplied target Shape as the result,
 and interprets the prefix Shape as per-axis logical extents preceding the region. Fully static
 `prefix + target <= input` bounds are checked locally; inequalities involving any unresolved
-Dimension remain deferred. Both primitives are structurally capturable, but neither mutates
-values, chooses materialization, lowers, or executes work. Closed first-order autograd currently
-constructs guarded floating cotangents for normalized SLICE and for both normalized SLICE_UPDATE
-data roles. The update role uses exact recorded lengths, so unresolved selected base extents are
-supported when their bounds can be proved or retained. Compiler inference also distinguishes
-target-relative extraction from placement, preserves exact Shapes, and retains unresolved bounds.
-Concrete binding, saved-value policy, and canonicalization remain planned.
+Dimension remain deferred. Both primitives are structurally capturable and neither mutates values.
+Closed first-order autograd currently constructs guarded floating cotangents for normalized SLICE
+and for both normalized SLICE_UPDATE data roles. The update role uses exact recorded lengths, so
+unresolved selected base extents are supported by the Compiler when their bounds can be proved or
+retained. Compiler inference also distinguishes target-relative extraction from placement,
+preserves exact Shapes, and retains unresolved bounds. The current fail-closed CPU path
+advertises, lowers, prepares, and executes only fully static, resolved-layout target-relative
+`SLICE` and one-node signed-step `SLICE_UPDATE` occurrences with exact finite placement, matching
+types and ranks, base-shaped distinct injective output, and no input mutation. Dynamic binding,
+saved-value policy, canonicalization, and other-backend execution remain planned.
 `Tensor.sliceUpdate(update, prefixShape)` is also current Model expression construction. It
 records exact `SLICE_UPDATE`/`CropToShapeAttrs` with ordered inputs `[base, update]`, retains the
 exact update Shape as the target region and the exact caller prefix Shape, and returns the exact
@@ -1561,8 +1661,11 @@ whole axis fit without partial arithmetic or a constraint object. Structural cap
 the occurrence. Current compiler inference distinguishes both slice kinds and both exact
 attributes variants, retains `prefix + target <= base` obligations, and validates update Shape
 against the exact target. Floating autograd uses target-relative placement for the source/base
-cotangent and exact target-relative crop for the update cotangent. This adds no execution,
-binding, or materialization behavior.
+cotangent and exact target-relative crop for the update cotangent. The current fail-closed CPU
+path advertises, lowers, prepares, and executes only the fully static, resolved-layout one-node
+target-relative `SLICE_UPDATE` subset with exact prefix/target fit, matching types and ranks, and
+a base-shaped distinct injective output. Dynamic binding, materialization, and other-backend
+execution remain planned.
 `Tensor.select(int, long)` normalizes one source axis and one scalar coordinate, removes the
 selected Dimension, preserves every unaffected exact Dimension reference, and records normalized
 `SelectAttrs` with exact one-input provenance. A static selected extent supplies immediate
@@ -1571,18 +1674,23 @@ extent remains representable with its upper bound deferred, while a negative coo
 rejected. Resolved input geometry with a non-empty result produces checked selected-stride removal
 and offset advancement in one new logical view descriptor; unresolved input and empty results stay
 unresolved. The fresh result preserves exact type and eligibility and has no label or storage.
-Package-private structural capture can preserve this expression. Value selection, physical
-aliasing, canonicalization, materialization, backend lowering, and execution remain planned.
-Closed first-order autograd currently constructs the guarded floating SELECT cotangent described
-above; dynamic-coordinate binding remains outside this binding-free phase.
+Package-private structural capture can preserve this expression. Closed first-order autograd
+currently constructs the guarded floating SELECT cotangent described above. The current fail-
+closed CPU path advertises, lowers, prepares, and executes only fully static, resolved-layout
+`SELECT` occurrences with an exact in-bounds coordinate, selected-axis removal, same-offset
+stride relationship, and membership in a bounded one-through-eight-node affine unit. Dynamic-
+coordinate binding, materialization, and other-backend execution remain planned.
 `Tensor.gather` and `gatherElements` consume exact ordered `[data, indices]` inputs with `INT32` or
 `INT64` indices. They normalize one data axis and apply canonical axis-replacement or same-rank
 aligned-Shape rules. Every fresh result retains data type and gradient eligibility, leaves layout
 unresolved, and records exact two-input provenance. Package-private structural capture can
-preserve the occurrence. Construction interprets no index values, checks no index-value bounds,
-and adds no Model-owned gradient rule, canonicalization, materialization, lowering, or execution
-behavior. Current compiler autograd routes a floating data cotangent through matching
-`scatterAdd` or additive `scatterElements`; indices remain non-differentiable.
+preserve the occurrence. Construction interprets no index values and adds no Model-owned gradient
+rule. Current compiler autograd routes a floating data cotangent through matching `scatterAdd` or
+additive `scatterElements`; indices remain non-differentiable. The current fail-closed CPU path
+advertises, lowers, prepares, and executes only fully static, resolved-layout GATHER/
+GATHER_ELEMENTS occurrences with INT32/INT64 indices, exact family Shape alignment, preserved
+data type, and injective output. Dynamic binding and other-backend execution remain planned;
+run-bound index checks remain at the CPU execution boundary.
 `Tensor.gatherNd` consumes exact ordered `[data, indices]` inputs with `INT32` or `INT64` indices.
 Its short form uses zero shared batch Dimensions; its complete form retains one normalized
 non-negative batch count. Construction validates both ranks, structurally equal leading batch
@@ -1591,10 +1699,13 @@ derives the result as the indices prefix without tuple depth followed by the unt
 suffix, including canonical scalar and exact retained Dimension references. Every result is fresh,
 unlabeled, storage-free, and unresolved-layout, preserves data type and gradient eligibility, and
 records `GATHER_ND` with exact `[data, indices]` provenance. Package-private structural capture can
-preserve the occurrence. Construction reads no index value, checks no index-value bound, and adds
-no Model-owned gradient, materialization, lowering, or execution behavior. Current compiler
-autograd routes a floating data cotangent through matching additive Scatter-ND; coordinate tuples
-remain non-differentiable.
+preserve the occurrence. Construction reads no index value and adds no Model-owned gradient.
+Current compiler autograd routes a floating data cotangent through matching additive Scatter-ND;
+coordinate tuples remain non-differentiable. The current fail-closed CPU path advertises, lowers,
+prepares, and executes only fully static, resolved-layout GATHER_ND occurrences with INT32/INT64
+indices, static positive tuple depth, exact batch/prefix/suffix Shape geometry, preserved data
+type, and injective output. Dynamic binding and other-backend execution remain planned; run-bound
+tuple checks remain at the CPU execution boundary.
 Both `Tensor.scatterElements` overloads consume exact ordered `[data, indices, updates]` inputs.
 They require `INT32` or `INT64` indices and exact matching data/update types. `NONE` is permitted
 for every current type and arithmetic reductions for floating or integral values. Each method
@@ -1605,8 +1716,12 @@ checks no index bound or duplicate target, mutates no input, and performs no wri
 Package-private structural capture can preserve the occurrence. Current compiler autograd
 supports both floating data roles for every current reduction: NONE masks addressed base
 positions, ADD preserves the base, MUL uses the zero-count/safe-product policy, and MIN/MAX share
-among exact numeric-equality winners. Canonicalization, materialization, lowering, backend
-behavior, and execution remain planned.
+among exact numeric-equality winners. The current fail-closed CPU path advertises, lowers,
+prepares, and executes only fully static, resolved-layout SCATTER_ELEMENTS occurrences with
+INT32/INT64 indices, exact data/update type and same-rank Shape relationships, permitted
+represented reduction, data-shaped distinct injective output, and execution-time index/duplicate
+validation. Gradient support remains limited to the exact floating roles above. Dynamic binding
+and other-backend execution remain planned.
 For `MUL`, `MIN`, and `MAX`, the current Model contract combines the base exactly once with every
 addressed update exactly once, counts duplicate targets as distinct contributions, and preserves
 the exact representation of an unaddressed base coordinate. Its floating and integral result is
@@ -1620,8 +1735,11 @@ axis)` would produce, while the functional result retains the exact data Shape a
 duplicate targets. Construction validates metadata only and leaves layout unresolved.
 Package-private structural capture can preserve the occurrence. Current compiler autograd uses
 this primitive for floating GATHER data cotangents and preserves its Shape, duplicate
-accumulation, and eventual index-bounds obligations. It does not inspect or bounds-check indices,
-lower the operation, or execute addition.
+accumulation, and eventual index-bounds obligations. The current fail-closed CPU path advertises,
+lowers, prepares, and executes only fully static, resolved-layout SCATTER_ADD occurrences with
+INT32/INT64 indices, exact Gather-compatible update Shape, fixed represented addition,
+data-shaped distinct injective output, and execution-time index validation. Dynamic binding and
+other-backend execution remain planned.
 The three `Tensor.scatterNd` overloads consume exact ordered `[data, indices, updates]` inputs with
 `INT32` or `INT64` indices and exact matching data/update types. Their defaults select
 `ScatterReduction.NONE` and zero shared batch Dimensions; complete construction retains the exact
@@ -1631,11 +1749,15 @@ from the final indices Dimension, and the exact indices-prefix-plus-data-suffix 
 Every result is fresh, unlabeled, storage-free, and unresolved-layout, retains the exact data
 Shape/type, combines data/update gradient eligibility, and records `SCATTER_ND` with exact
 three-input provenance. Package-private structural capture can preserve the occurrence. Model
-construction reads no index or update value, checks no index bound or duplicate target, mutates no
-input, performs no write or reduction, and adds no Model-owned gradient, materialization,
-lowering, backend behavior, or execution behavior. Current compiler autograd supports both
-floating data roles for NONE, ADD, MUL, MIN, and MAX through exact matching Gather-ND/Scatter-ND
-geometry; tuple indices remain non-differentiable.
+construction reads no index or update value, mutates no input, and adds no Model-owned gradient.
+Current compiler autograd supports both floating data roles for NONE, ADD, MUL, MIN, and MAX
+through exact matching Gather-ND/Scatter-ND geometry; tuple indices remain non-differentiable. The
+current fail-closed CPU path advertises, lowers, prepares, and executes only fully static,
+resolved-layout SCATTER_ND occurrences with INT32/INT64 indices, static positive tuple depth,
+exact batch/prefix/suffix Shape and data/update type relationships, permitted represented
+reduction, data-shaped distinct injective output, and execution-time index/duplicate validation.
+Gradient support remains limited to the exact floating roles above. Dynamic binding and other-
+backend execution remain planned.
 For arithmetic reduction, every tuple contributes its complete update suffix slice scalar by
 scalar. Current Model `MUL`, `MIN`, and `MAX` semantics include each target's base and every
 addressed scalar exactly once, count duplicate tuples as distinct contributions, preserve the
@@ -1650,10 +1772,14 @@ Instance `Tensor.unstack(int)` requires a static `int`-sized selected extent and
 immutable ordered List of scalar `SELECT` expressions after upfront count validation. Each fresh
 result removes that axis, has an independent one-output producer, and uses provenance index zero
 over the same input; its `SelectAttrs` stores the coordinate. A zero extent returns no result or
-ID. Package-private structural capture preserves each independent occurrence; decomposition,
-grouping, materialization, backend lowering, ONNX mapping, and execution remain planned. Closed
-first-order autograd currently constructs guarded floating CONCAT and STACK cotangents, including
-STACK occurrences produced by repeated SELECT operations during `unstack`.
+ID. Package-private structural capture preserves each independent occurrence. Closed first-order
+autograd currently constructs guarded floating CONCAT and STACK cotangents, including STACK
+occurrences produced by repeated SELECT operations during `unstack`. The current fail-closed CPU
+path advertises, lowers, prepares, and executes only one fully static, resolved-layout CONCAT or
+STACK occurrence with one through sixteen same-typed semantic input occurrences, exact axis and
+Shape relationships, preserved semantic order, and a distinct injective output. Dynamic binding,
+grouping/decomposition, ONNX mapping, arbitrary larger composition, and other-backend execution
+remain planned.
 `Tensor.unfold`, `Tensor.foldAxis`, both `Tensor.unfold2d` forms, and `Tensor.fold2d` construct the
 current public storage-free window-transform expressions. General-axis fold restores an explicit
 target extent under overlap summation. The 2D forms preserve canonical rank-three im2col/col2im,
@@ -1663,8 +1789,14 @@ matches rather than recording equality between unrelated unresolved symbols. Eve
 preserves input data type and gradient eligibility, leaves layout unresolved, and records exact
 one-input provenance. Package-private structural capture can preserve these occurrences. Current
 compiler inference retains unresolved two-dimensional height/width domain constraints, and
-current floating autograd uses each exact public inverse or overlap-add transformation. The Model
-still owns no gradient rule, canonicalization, lowering, or execution.
+current floating autograd uses each exact public inverse or overlap-add transformation. The
+current fail-closed CPU path advertises, lowers, prepares, and executes only fully static,
+resolved-layout one-node UNFOLD_AXIS occurrences over all six represented types, FOLD_AXIS over
+FLOAT64/FLOAT32/BFLOAT16/INT32/INT64, and UNFOLD2D/FOLD2D over
+BFLOAT16/FLOAT32/FLOAT64, with exact window, direct-zero or typed-padding, overlap-add, Shape, and
+distinct injective-output relationships. Gradient support remains the exact current Compiler
+matrix above. Dynamic binding, three-dimensional window execution, canonicalization, and other-
+backend execution remain planned.
 That origin metadata is now traversed by the package-private structural capture described above.
 The internal step observes that two result Tensors belong to the same expression occurrence only
 when their provenance carries the same exact `TensorProducer` reference. Different output indices
@@ -1688,9 +1820,10 @@ or hidden output. `ScaledDotProductAttentionResult.output()` and `weights()` exp
 wrappers for producer slots zero and one. If either wrapper is requested, current internal capture
 emits their shared producer once and creates both ordered graph values. Attention operand
 revalidation and adjoints are current Compiler responsibilities; backward preservation and
-saved-value lifetime remain planned. CPU 0008H separately provides only a fully-static
-resolved-layout forward execution subset. It does not alter Compiler capture, inference, gradient
-formulas, or this API's backend-neutral contract.
+saved-value lifetime remain planned. The current fail-closed CPU path separately advertises,
+lowers, prepares, and executes only the fully static, resolved-layout forward attention subset
+described above. It does not alter Compiler capture, inference, gradient formulas, or this API's
+backend-neutral contract, and it does not imply dynamic or other-backend execution.
 
 ## Current compile-configuration inputs
 

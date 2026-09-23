@@ -2,7 +2,10 @@
 
 ## Outcome
 
-This guide explains the intended first training lifecycle. No training session, optimizer, compiler autograd, or executable runtime API is implemented yet.
+This guide explains the intended first training lifecycle. Bounded Compiler autograd and the
+public CPU-only Engine compile, prepare, run, and one-shot backward lifecycle are current. The
+Training extension, training sessions, optimizer API and updates, and complete training workflow
+remain planned, so the example below is conceptual rather than runnable Synaptik code.
 
 ## Planned initial workflow
 

@@ -40,7 +40,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete through documentation-only 0006B10; 0006C and 0007 Draft | No Compiler task is Ready. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through documentation-only 0008 | Reopen only for a concrete Prepare capability or separately authorized status correction. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
-| 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through documentation-only 0010K; 0007A1D Review needed; 0010D1 and 0011 Blocked | No CPU task is Ready. |
+| 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through documentation-only 0010L; 0007A1D Review needed; 0010D1 and 0011 Blocked | No CPU task is Ready; blocked, review-needed, and Draft rows remain unchanged. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0013 | No Engine task is Ready. |
 | 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0004 | Reassess its next authorized frontier; no later Metal task is Ready. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
@@ -57,10 +57,10 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 
 ## Authorized frontiers
 
-The user-authorized sequential explanatory/status drift-remediation sequence is Complete through
-Model [0025N](modules/model/tasks/0025n-recurrent-engine-status-reconciliation.md), including the
-remaining normative `future Engine facade` status correction.
-Model 0026, Compiler 0006C/0007, and all other Draft or blocked work remain unauthorized.
+The user-authorized serial CPU
+[0010L](backends/cpu/tasks/0010l-cpu-execution-and-public-lifecycle-status-reconciliation.md)
+is Complete. No task is `Ready`; Model 0026, Compiler 0006C/0007, and all other Draft, blocked, or
+review-needed work remain unauthorized.
 
 ## Blocked, review-needed, and deferred work
 
@@ -91,7 +91,7 @@ Model 0026, Compiler 0006C/0007, and all other Draft or blocked work remain unau
 
 1. Select and authorize the next frontier or independent frontiers explicitly after recording the
    required DAG and integration metadata; do not promote Model 0026, Compiler 0006C/0007, or other
-   Draft or blocked work implicitly.
+   Draft, blocked, or review-needed work implicitly.
 
 ## History policy
 
