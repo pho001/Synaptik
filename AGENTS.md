@@ -179,15 +179,27 @@ Planning documents are not authoritative architecture contracts. If a planning d
 with the root or an incorporated scoped contract, the architecture contract wins and
 implementation must stop until the conflict is resolved.
 
-Represent non-trivial implementation work as a cohesive compact task brief under the relevant
+Represent non-trivial implementation work as cohesive compact task briefs under the relevant
 `tasks/` directory. A task should normally deliver one complete capability inside one module
 rather than split its semantic type, public facade, tests, and documentation into separate
 mechanical tasks. Follow the compact format and size guardrails in the planning guide. Existing
-completed task specifications remain valid and need no retrospective rewrite.
+completed task specifications remain historical records, need no retrospective rewrite, and are
+not current authority.
 
-Execute tasks in the order listed by the relevant master plan. Create a detailed task brief for the
-next unfinished task only. Parallel or out-of-order execution is an explicit exception that must
-be justified and recorded in the master plan.
+Master plans are explicit dependency directed acyclic graphs (DAGs). Each independent workstream
+may expose one authorized frontier, so planners may prepare and run multiple `Ready` tasks when
+their dependencies are satisfied. Every such task records `Depends on`, `Conflicts with`,
+`Parallel group`, `Common base revision`, `Integration order`, `Integration validation`, and
+`Shared-document integration owner` metadata. Parallel work requires a stable common contract and
+base revision plus both disjoint write scope and disjoint semantic ownership. Resolve shared
+contracts first; serialize changes to the same API,
+architecture or lifecycle contract, generated format, or shared authoritative document.
+
+Concurrent write tasks use isolated Git worktrees; read-only audits do not require one. A parallel
+group has one integration owner for shared documentation. Workers run focused and affected-module
+validation; after ordered integration, the integration owner runs the recorded cross-module or
+full validation once. The change-class rules above still determine clean context and independent
+review requirements, and each executor keeps the scoped reading packet described above.
 
 ## Legacy implementation reference
 

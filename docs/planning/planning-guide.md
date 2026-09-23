@@ -25,9 +25,9 @@ focused tests, and the exact authoritative contract headings named by the brief.
 
 A planner or coordinator that creates, reorders, or materially updates work also reads this guide,
 the [roadmap](roadmap.md), and the relevant active master-plan section. Before launching an
-executor, the planner verifies that the brief is `Ready`, the task is at an authorized frontier,
-and dependencies are satisfied. Put that verification in the brief so the executor does not need
-to reconstruct global history.
+executor, the planner verifies that the brief is `Ready`, the task is at one authorized frontier,
+its dependencies are satisfied, and its concurrency and integration metadata are current. Put
+that verification in the brief so the executor does not need to reconstruct global history.
 
 An executor starts with the root scope index, then uses the brief's exact root and incorporated
 scoped-contract headings for each affected module or boundary. Executors do not read
@@ -118,20 +118,39 @@ scope expansion, stop and report the exact issue. Do not invent architecture or 
 
 ## Progressive planning and ordering
 
-Create master plans early enough to make ownership and sequencing visible. Create a detailed task
-brief only for the current frontier or immediately following frontier.
+Create master plans early enough to make ownership and sequencing visible. Model unfinished work
+as an explicit dependency directed acyclic graph (DAG). Prepare detailed briefs for authorized
+frontiers and, when their contracts and dependencies are stable, immediate successors. Do not
+speculate farther ahead.
 
-Master-plan task tables are ordered queues. Unless an explicit exception records non-overlapping
-dependencies and files plus an integration plan, execute tasks in ascending ID and table order.
-The roadmap applies the same rule across project areas.
+Each independent workstream may expose one authorized frontier. Task IDs and table order aid
+navigation but do not create dependencies or authorize execution. The planner controls status,
+the frontier set, and DAG edges; verifies each task before launch; and records these fields in
+every `Ready` brief:
 
-The planner controls status and ordering. Only the planner creates or materially replans `Ready`
-work, verifies frontier and dependencies before launch, and records any parallel or out-of-order
-exception. Executors receive that verification in the brief and do not re-audit completed global
-history.
+- **Depends on** — predecessor task IDs, or `None`;
+- **Conflicts with** — task IDs or shared semantic/write scopes that require serialization, or
+  `None`;
+- **Parallel group** — the group identifier, or `None` for serial work;
+- **Common base revision** — the stable revision or branch shared by the group, or `N/A`;
+- **Integration order** — the required merge order or `Any`;
+- **Integration validation** — the post-integration command or named checkpoint; and
+- **Shared-document integration owner** — the owner, or `N/A`.
+
+Parallel tasks must share a stable contract set and base revision and have both disjoint write
+scopes and disjoint semantic ownership. Disjoint files alone are insufficient. Change a shared
+contract first, integrate it, and rebase dependent work before parallel implementation.
+Serialize tasks that change the same API, architecture contract, lifecycle contract, generated
+format, or shared authoritative document contract.
+
+Concurrent write tasks run in isolated Git worktrees. A read-only audit needs no worktree. Assign
+one integration owner for shared planning and explanatory documentation; worker tasks do not edit
+those shared documents unless the integration plan gives one worker exclusive ownership. The
+integration owner applies the recorded order and resolves integration scope without silently
+changing task contracts.
 
 Do not skip work silently. Record `Blocked`, `Superseded`, or `Cancelled` with a concise reason and
-identify the next valid frontier.
+identify the next valid frontier or frontiers.
 
 ## Task granularity
 
@@ -143,10 +162,10 @@ and focused explanatory documentation form one decision. Split work when it cros
 boundaries, combines unrelated responsibilities, depends on an unresolved decision, or becomes too
 large to review safely. File count is a guardrail, not a reason to separate tightly coupled work.
 
-Package placement is explicit only where it matters. A master plan maintains the current and next
-frontier's package map. A task names every added or moved production type and its owning package,
-but does not repeat boilerplate for unchanged packages or files. Never change planned package
-structure silently.
+Package placement is explicit only where it matters. A master plan maintains the authorized and
+immediately following frontiers' package map. A task names every added or moved production type
+and its owning package, but does not repeat boilerplate for unchanged packages or files. Never
+change planned package structure silently.
 
 ## Validation tiers
 
@@ -156,23 +175,24 @@ an independent rerun.
 
 ### Task validation
 
-Run focused tests during development and one final affected-module run after executable code
-stabilizes. Validate documentation after final edits. `git diff --check` passes on the combined
-change. Add reflection, bytecode, ABI, import, manual API-shape, or performance checks only for a
-named risk not covered by ordinary compilation and tests.
+Each worker runs focused tests during development and one final affected-module run after
+executable code stabilizes. It validates its owned documentation after final edits. Add reflection,
+bytecode, ABI, import, manual API-shape, or performance checks only for a named risk not covered by
+ordinary compilation and tests.
 
-### Capability checkpoint
+### Integration checkpoint
 
-At a master-plan checkpoint, run the identified cross-task tests, affected architecture or
-conformance suites, and final documentation checks. Use checkpoints for a completed capability
-family, shared foundation, release, or merge where CI is not the only final gate.
+After a parallel group is integrated in the recorded order, its integration owner runs the named
+cross-task, cross-module, architecture, or conformance checks once and validates shared
+documentation. `git diff --check` passes on the combined change. Do not repeat successful worker
+commands unless integration changed the tested code or a concrete risk requires a rerun.
 
 ### Repository and CI validation
 
-Run repository-wide validation for changes to dependencies, architecture boundaries, shared build
-configuration, multiple modules, or another repository-wide contract. CI is the final independent
-repository-wide gate. A small task does not run the full repository suite merely to duplicate
-focused coverage.
+The integration owner runs repository-wide validation once when the integrated change affects
+dependencies, architecture boundaries, shared build configuration, multiple modules, or another
+repository-wide contract. Otherwise the recorded checkpoint or CI may be the final independent
+gate. A small task does not run the full repository suite merely to duplicate focused coverage.
 
 Preserve focused architecture tests for dependency changes, backend-conformance tests for backend
 behavior, integration tests for end-to-end behavior, and precise lifecycle/ABI/concurrency
@@ -191,29 +211,48 @@ acceptance where applicable.
 
 ## Master plan format
 
-A master plan is a concise map, not a duplicate task archive. Keep current ownership, package
-direction, ordered work, dependencies, milestones, risks, and frontier visible. Completed rows
-carry a one-line result summary and link to the task; evidence stays in the task brief.
+A master plan is a concise dependency map, not a duplicate task archive. Keep current ownership,
+package direction, DAG edges, authorized frontiers, integration metadata, milestones, and risks
+visible. Completed rows carry a one-line result summary and link to the task; evidence stays in the
+task brief.
 
 ~~~markdown
 # <Area> Master Plan
 
 ## Goal
-## Contracts
+## Contracts and common base
+
+- Contract set: `<stable authoritative headings>`
+- Common base revision: `<revision/branch>`
+
 ## Scope and non-goals
 ## Module invariants and dependencies
 ## Package map
+## Dependency DAG and authorized frontiers
+
+<T1 --> T3; T2 --> T3>
+
+Authorized frontiers: <T1, T2>
+
 ## Task list
 
-| ID | Task | Status | Depends on | One-line result or intent |
-|---|---|---|---|---|
+| ID | Task | Status | Depends on | Conflicts with | Parallel group | Integration order | Integration validation | Intent/result |
+|---|---|---|---|---|---|---|---|---|
 
-## Milestones and current frontier
+## Integration ownership and shared documents
+
+- Integration owner: `<owner>`
+- Shared documents: `<paths and exclusive owner>`
+
+## Milestones
 ## Open decisions and risks
 ~~~
 
-Existing completed master plans and tasks remain valid and need no retrospective rewrite.
-Historical/completed plans, evidence, and tasks are not default executor inputs.
+Existing completed master plans and tasks remain valid, need no retrospective rewrite, and are not
+current authority or default executor inputs. For an existing active master plan, preserve
+completed rows and add DAG, frontier, and integration metadata only to unfinished work before it
+becomes `Ready` or runs concurrently. Until that transition is recorded, its single currently
+listed frontier remains authorized and parallel writes are not authorized.
 
 ## Task brief size guardrails
 
@@ -227,8 +266,9 @@ completion logs.
 
 ## Task brief format
 
-Omit `Dependencies and follow-up` when there are none. Keep the completed `Result` to about 20
-lines.
+Every `Ready` brief fills the dependency and integration metadata; use `None`, `Any`, or `N/A`
+explicitly where applicable. Omit `Follow-up` when there is none. Keep the completed `Result` to
+about 20 lines.
 
 ~~~markdown
 # Task <ID>: <Title>
@@ -254,6 +294,16 @@ Class <A, B, or C> — <impact-based rationale>.
 
 If an applicable contract is missing or ambiguous, stop and report it.
 
+## Dependencies and integration
+
+- Depends on: `<task IDs or None>`
+- Conflicts with: `<task IDs or shared scopes, or None>`
+- Parallel group: `<group ID or None>`
+- Common base revision: `<revision/branch for the group, or N/A>`
+- Integration order: `<ordering constraint or Any>`
+- Integration validation: `<exact command or named checkpoint>`
+- Shared-document integration owner: `<owner or N/A>`
+
 ## Files and symbols
 
 - `<path>` — <symbols or responsibility>
@@ -264,13 +314,16 @@ If an applicable contract is missing or ambiguous, stop and report it.
 
 ## Validation
 
+Worker validation:
+
 ```bash
-<exact focused commands>
+<exact focused and affected-module commands>
 ```
 
-Repository-wide validation: <required, named checkpoint/CI, or reasoned deferral>.
+Integration/repository validation: <integration-owner command/checkpoint/CI, or reasoned
+deferral>.
 
-## Dependencies and follow-up
+## Follow-up
 
 - ...
 
@@ -318,20 +371,26 @@ task narratives, context IDs, command transcripts, or completion evidence.
 ## Follow-up and architecture impact
 
 Do not expand a task silently. Add a follow-up only when the work is real and outside current
-acceptance; create its detailed brief only when it reaches the current or next frontier. A
-follow-up must not hide incomplete acceptance.
+acceptance; create its detailed brief only when it reaches an authorized frontier or its immediate
+successor. A follow-up must not hide incomplete acceptance.
 
 The default architecture impact is none. If implementation requires an architecture change, stop
 and follow the coordinated architecture process in `AGENTS.md`. Preserve architecture authority,
 resource ownership, compile/prepare/run separation, dependency direction, fail-closed capability,
 performance and hot-path rules, and required conformance validation.
 
-## Advancing the frontier
+## Advancing frontiers
 
-Before launching the next task, the planner confirms:
+Before launching a task, the planner confirms:
 
-1. the current task has a final result and correct status;
-2. required validation and documentation/review are complete;
+1. every declared predecessor has a final result and correct status;
+2. required predecessor validation and documentation/review are complete;
 3. master-plan and roadmap status/link updates are concise and synchronized;
-4. the next task is the authorized frontier with satisfied dependencies; and
-5. its compact brief is `Ready`.
+4. the task is at an authorized frontier, declared conflicts are inactive, and the recorded common
+   base and contracts are still stable; and
+5. its compact brief is `Ready` with complete dependency and integration metadata.
+
+Before launching concurrent writes, also confirm isolated worktrees and the parallel group's
+integration owner. Multiple ready frontiers do not broaden worker reading: executors still receive
+only their scoped packet, and change-class rules still determine clean-context and independent
+review requirements.

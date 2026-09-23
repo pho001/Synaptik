@@ -8,10 +8,10 @@ The authoritative planning format and workflow are in the [Planning Guide](../..
 
 ## Required content
 
-Master plans are concise maps. They keep ownership, package direction, ordered tasks, real
-dependencies, status, risks, and the current frontier visible. Completed rows use a one-line
-summary and link rather than duplicating task evidence. Historical plans and completed tasks are
-not default executor reading.
+Master plans are concise dependency maps. They keep ownership, package direction, an explicit DAG,
+authorized frontiers by independent workstream, integration metadata, status, and risks visible.
+Completed rows use a one-line summary and link rather than duplicating task evidence; completed
+plans and tasks are historical records, not current authority or default executor reading.
 
 Compact task briefs follow the planning guide and include only:
 
@@ -19,16 +19,20 @@ Compact task briefs follow the planning guide and include only:
 - exact goal and bounded scope;
 - explicit exclusions;
 - exact contract links or headings;
+- `Depends on`, `Conflicts with`, `Parallel group`, `Common base revision`, `Integration order`,
+  `Integration validation`, and `Shared-document integration owner` metadata;
 - affected files and symbols;
 - falsifiable acceptance criteria;
-- proportional validation commands;
-- dependencies and follow-up only when real;
-- documentation and review impact; and
+- proportional worker and integration validation commands;
+- follow-up only when real;
+- documentation, shared-document integration ownership, and review impact; and
 - a concise result after completion.
 
 Use concrete names, paths, commands, and outcomes. Target at most 200 lines and 15 KB. If a brief
 exceeds 15 KB, justify it; above 25 KB, split it or record why atomic scope is safer. The brief plus
-a standard short launcher is the execution packet. Do not embed a per-task implementation prompt.
+a standard short launcher is the execution packet. Do not embed a per-task implementation prompt
+or broaden scoped reading. Change-class risk still determines clean-context and independent-review
+isolation.
 
 ## Avoid
 
@@ -40,17 +44,25 @@ a standard short launcher is the execution packet. Do not embed a per-task imple
 - package/file boilerplate when irrelevant;
 - pre-implementation chronicles, context IDs, duplicated predecessor evidence, or verbose logs;
 - embedded per-task implementation prompts;
-- repeated full-repository suites for a small single-module change without a recorded risk;
+- repeated full-repository suites for a worker task when the integration owner will run the
+  recorded gate;
 - duplicate Java-test execution by implementation and review contexts without executable changes;
 - manual reflection, bytecode, or import checks that should be stable automated tests;
-- out-of-order work without recorded justification; and
+- parallel work based only on disjoint files, without disjoint semantic ownership, a stable common
+  contract/base, isolated worktrees for concurrent writes, and recorded integration ownership;
+- parallel edits to the same API, architecture or lifecycle contract, generated format, or shared
+  authoritative document contract; and
 - marking work complete without evidence and synchronized status.
 
 ## Validation
 
 - Validate the task against the current [Planning Guide](../../planning/planning-guide.md).
 - Confirm every architecture constraint traces to the contract rather than the plan itself.
-- Check package impact, file limits, dependencies, commands, and status synchronization.
+- Check the explicit DAG, authorized frontiers, conflict/write scopes, semantic ownership, common
+  base, integration order, commands, and status synchronization.
+- For parallel groups, confirm contract-first sequencing, isolated write worktrees, one integration
+  owner for shared documents, worker-focused/module validation, and one post-integration
+  cross-module or full validation.
 - Verify that acceptance criteria can be observed or tested.
 - Confirm validation evidence records exact commands and outcomes, key counts or skips when
   meaningful, reused evidence, limitations, and documentation/review impact.
@@ -68,13 +80,23 @@ Use the complete canonical template in the [Planning Guide](../../planning/plann
 ## Scope
 ## Non-goals
 ## Contracts
+## Dependencies and integration
+
+- Depends on: `<task IDs or None>`
+- Conflicts with: `<task IDs or shared scopes, or None>`
+- Parallel group: `<group ID or None>`
+- Common base revision: `<revision/branch or N/A>`
+- Integration order: `<constraint or Any>`
+- Integration validation: `<command/checkpoint>`
+- Shared-document integration owner: `<owner or N/A>`
+
 ## Files and symbols
 ## Acceptance criteria
 ## Validation
-## Dependencies and follow-up
+## Follow-up
 ## Documentation and review impact
 ## Result
 ```
 
-Omit the dependencies/follow-up section when there are none. Use the canonical planning template
-and replace every placeholder before setting `Ready`.
+Keep dependency and integration metadata even when its values are `None`, `Any`, or `N/A`; omit
+only `Follow-up` when empty. Replace every placeholder before setting `Ready`.
