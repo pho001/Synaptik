@@ -478,7 +478,9 @@ calls, but each call is synchronous and uses one orchestrating thread.
 The initial model adds no automatic pooling, reuse, aliasing, hidden coherence/write-back,
 distributed sharding, or multi-device scheduling. Transfer/materialization recipes and their
 success-only validity transition, prepared publication, result lease, executable-output
-invalidation, and schedule traversal are current; public output access remains later work.
+invalidation, and schedule traversal are current. Ordinary public Engine output access is current
+through explicit bounded materialization into detached host values and exposes neither Runtime
+representations nor backend storage.
 
 The selected persistent-resource extension keeps the recipe data immutable while making
 `PreparedExecution` an explicit lifecycle owner. Runtime exposes only a nominal close contract;

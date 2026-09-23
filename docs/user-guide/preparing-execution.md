@@ -17,9 +17,10 @@ caller inputs or create per-run mutable state.
 
 ```java
 CompiledGraph graph = engine.compile(List.of(output));
-PreparedExecution prepared = engine.prepare(graph);
-
-assert prepared.compiledGraph() == graph;
+try (PreparedExecution prepared = engine.prepare(graph)) {
+    assert prepared.compiledGraph() == graph;
+    // Reuse prepared with engine.run(...) while the handle remains open.
+}
 ```
 
 The returned handle is bound to the exact Engine and graph. It is immutable and may be reused or
@@ -32,20 +33,25 @@ decisions.
 
 ## Optional bounded CPU-local autotuning
 
-`engine.prepareTuned(graph, request)` is a separate current path. It consults the current CPU-local
-workload handoff, reuses a compatible cache entry or measures bounded candidates, and then returns
-a fresh production preparation. The result says explicitly whether it is `TUNED` or an allowed
+`engine.prepareTuned(graph, request)` is a separate current bounded two-phase CPU-only path. Phase
+1 reuses a compatible cache entry or measures candidates for the current single eligible
+representative workload. Phase 2 holds that authenticated decision fixed, checks a bounded set of
+complete-plan candidates against exact canonical publication bytes, and then returns one fresh
+production preparation. The result says explicitly whether it is `TUNED` or an allowed
 `SAFE_HEURISTIC_FALLBACK`.
 
 Representative Tensors and their storage remain caller-owned. A strict request fails if tuning
 cannot complete; an allowed fallback uses a fresh safe ordinary preparation. This is not generic
-multi-occurrence, graph, partition, or complete-plan tuning, and Runtime performs no tuning.
+multiple-occurrence extraction, Compiler graph-alternative search, Planning owner or partition
+search, or mixed-backend tuning. Runtime performs no tuning.
 
 ## Expected result
 
 `PreparedExecution` contains reusable recipes and no caller input binding. It is not a serialized
-artifact or persistence format. Closing its Engine prevents new runs; the handle itself has no
-independent close operation.
+artifact or persistence format. The handle is explicitly and idempotently closeable, preferably
+with try-with-resources. Closing it terminally rejects later runs through that handle but does not
+close an already-returned `RunResult`, which retains its own lifecycle. Closing the Engine also
+prevents new runs and is the final cleanup boundary for a handle the caller leaves open.
 
 ## Common errors
 
