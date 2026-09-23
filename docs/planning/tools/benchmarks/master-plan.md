@@ -44,7 +44,7 @@ commits, models, and environments.
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
-| 0001 | Benchmark report and reproducible harness | Draft | Operational lifecycle and stable workload contracts | Define fixed workload identity, environment/sample evidence, lifecycle isolation, and reporting without model-autotuning or setting mutation. |
+| 0001 | Benchmark report and reproducible harness | Ready | Operational lifecycle and stable workload contracts | Fixed CPU Engine lifecycle baseline with deterministic operation-family workloads and report-only timing. |
 | 0002 | Operation and operation-family suites | Draft | 0001, stable workload classification | Add fixed representative workloads without inventing a production `OperationFamily` contract. |
 | 0003 | Model and end-to-end suites | Draft | 0001, operational engine paths | Compare complete model and lifecycle behavior with the same report-only boundary. |
 

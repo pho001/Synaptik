@@ -2,11 +2,10 @@
 
 ## What you will learn
 
-This guide defines the evidence expected from future Synaptik benchmarks and separates
-benchmarking from the two implemented generic tuning transactions, their current bounded Engine
-composition, planning cost, and runtime profiling. The
-`tools/benchmarks` project exists structurally, but no harness, `BenchmarkReport`, or workload is
-implemented.
+This guide defines evidence expected from Synaptik benchmarks and separates benchmarking from
+generic tuning transactions, bounded Engine composition, planning cost, and runtime profiling.
+The `tools/benchmarks` project now contains a report-only CPU Engine lifecycle harness and no
+benchmark result changes production settings.
 
 ## Prerequisites and terms
 
@@ -259,11 +258,15 @@ a generic parameter map.
 
 ```bash
 ./gradlew :tools:benchmarks:build
+./gradlew :tools:benchmarks:benchmark -Pprofile=smoke
+./gradlew :tools:benchmarks:benchmark -Pprofile=baseline
 ```
 
-Today this validates only the empty project structure. The [benchmarks master plan](../planning/tools/benchmarks/master-plan.md)
-governs later harness and reporting work.
-
+`CpuLifecycleBenchmark` reports JSON containing environment, profile, fixed workload shapes,
+compile and prepare timings, raw repeated prepared-run samples, one-shot compute totals, and
+FNV-1a checksums of explicitly materialized bytes. `smoke` uses one warmup and two measurements;
+`baseline` uses three warmups and ten measurements. It passes `--add-modules=jdk.incubator.vector`
+and `--enable-native-access=ALL-UNNAMED` to the benchmark JVM.
 ## Typical mistakes
 
 | Symptom | Cause | Correction |
@@ -275,18 +278,12 @@ governs later harness and reporting work.
 | Faster code changes numerical behavior | Performance was accepted without correctness evidence. | Run reference and conformance tests before interpreting speed. |
 | Complete plans are timed before comparison | Correctness and timing were mixed. | Complete every Phase-2 correctness action before the first warmup or timed sample. |
 | A session-only CPU plan appears reusable after inspection | Stored-key equality was mistaken for backend authentication. | Treat `SESSION` as ineligible and a persistent exact-key match as decoder-required. |
-
-## Limitations and boundaries
-
-The benchmark harness and report, planning-cost model, and concrete runtime-profile payloads
-remain planned. The generic caller-supplied Phase-1 and
-Phase-2 transactions, bounded persistent cache formats, immutable two-phase Config request, and
-bounded CPU/Engine two-phase composition, and read-only tuning inspection are current. Model
-extraction, multiple-occurrence aggregation, broader graph/plan generation, persistent CPU
-complete-plan reuse, concurrent cache writers, and cache migration remain deferred. Config owns
-policy inputs only; it does
-not own the runner, search algorithm, cache behavior, live discovery, or mutable evidence. No
-benchmark or tuning action runs in the Runtime hot path.
+The harness uses `System.nanoTime()` around synchronous Engine lifecycle calls; it is a
+microbenchmark observation subject to JVM warmup, scheduler, thermal, and OS noise. It is not a
+release gate. The benchmark does not select routes, tune settings, write caches, or substitute
+for correctness/conformance tests. If a CPU capability or native prerequisite is unavailable,
+the JSON report records an explicit `status: unavailable` row and the backend exception rather
+than fabricating timings.
 
 ## Related documentation
 
