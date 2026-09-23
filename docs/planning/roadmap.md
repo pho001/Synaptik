@@ -48,16 +48,15 @@ or task boundary; it does not promote Draft work to Ready.
 | 19 | [`extensions/training`](extensions/training/master-plan.md) | Draft | Begin only after stable NN parameters, published gradients, and Engine training execution justify 0001. |
 | 20 | [`extensions/checkpoint`](extensions/checkpoint/master-plan.md) | Draft; architecture decision required | Authorize the model-only and optional Training adapter boundaries before 0001. |
 | 21 | [`tools/benchmarks`](tools/benchmarks/master-plan.md) | Draft | Define 0001 only for stable operational paths and workload contracts. |
-| 22 | [`tools/tuning`](tools/tuning/master-plan.md) | Complete through 0003 | Reopen only for a concrete producer or public-composition need. |
+| 22 | [`tools/tuning`](tools/tuning/master-plan.md) | Complete through 0003; 0004 Ready | Execute only the package Javadoc status reconciliation. |
 | 23 | [`tools/cli`](tools/cli/master-plan.md) | Draft | Define commands only after their Engine and diagnostic contracts are stable. |
 
 ## Current frontier
 
-The user-authorized sequential explanatory/status drift-remediation sequence is Complete through
-[Engine 0013](modules/engine/tasks/0013-prepared-execution-guide-status-reconciliation.md). No
-task is currently `Ready` or `In progress`; the next bounded planning step is the separately owned
-tuning package Javadoc drift. Model 0026, Compiler 0006C/0007, and all other Draft or blocked work
-remain unauthorized.
+The user-authorized sequential explanatory/status drift-remediation sequence has advanced to
+[tuning 0004](tools/tuning/tasks/0004-package-javadoc-status-reconciliation.md), the sole `Ready`
+frontier. It changes only stale package Javadoc status. Model 0026, Compiler 0006C/0007, and all
+other Draft or blocked work remain unauthorized.
 
 ## Blocked, review-needed, and deferred work
 
@@ -80,9 +79,8 @@ remain unauthorized.
 
 ## Nearest next step
 
-1. Detail only the confirmed tuning package Javadoc drift as the next task in the user-authorized
-   sequence; do not promote Model 0026, Compiler 0006C/0007, or other Draft or blocked work
-   implicitly.
+1. Execute and independently review tuning 0004; do not promote later drift, Model 0026, Compiler
+   0006C/0007, or other Draft or blocked work implicitly.
 
 ## History policy
 

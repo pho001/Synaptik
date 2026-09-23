@@ -65,14 +65,15 @@ cache-utility, registry, or private-internals subpackage.
 | 0001 | [Exact/default model-guided workload tuning and reusable cache](tasks/0001-exact-default-model-guided-workload-tuning-and-reusable-cache.md) | Complete | CPU 0010E; Prepare 0004; caller-supplied stable identity, typed opaque collaboration, and operational cold measurement | Added cache-first deduplication, bounded miss-only measurement, deterministic selection, compact persistence, and separate evidence. |
 | 0002 | [Bounded complete-plan tuning and model-plan cache](tasks/0002-bounded-complete-plan-tuning-and-model-plan-cache.md) | Complete | 0001; Complete CPU 0010J and Engine 0008A evidence | Added checked complete-plan correctness/timing, SESSION/PERSISTENT reuse, authenticated compact records, and rich evidence. |
 | 0003 | [Read-only cache, plan, and evidence inspection](tasks/0003-read-only-cache-plan-and-evidence-inspection.md) | Complete | 0001–0002, stable artifact schemas | Added bounded redacted inspection with structural/key mismatch reasons and no decoding, execution, or mutation. |
+| 0004 | [Tuning package Javadoc status reconciliation](tasks/0004-package-javadoc-status-reconciliation.md) | Ready | 0001–0003; Engine 0009/0013 | Reconcile current public two-phase CPU Engine composition and remaining limitations in package Javadoc only. |
 
 ## Milestones and current frontier
 
 Canonical workload reuse, bounded complete-plan selection, and artifact/evidence inspection are
-`Complete` through 0003. Config 0006A–0006B and Engine 0009 now provide the declarative request and
+`Complete` through 0003. Config 0006A–0006B and Engine 0009 provide the declarative request and
 current CPU public composition around the generic tool; CPU 0010J remains the first complete-plan
-producer. These completions do not create another tuning task. No tuning task is `Ready` or
-`In progress`; reopen the area only for a concrete producer or public-composition need.
+producer. Documentation-only 0004 is `Ready` as the sole active frontier to reconcile stale
+package status; it creates no new tuning capability.
 
 ## Artifact, measurement, and lifecycle ownership
 
