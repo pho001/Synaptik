@@ -20,16 +20,19 @@ typed backend finalization input/collaboration, the minimal prepared-partition a
 compile projection, one immutable partition-local directed acyclic graph (DAG) per backend
 analysis context, explicit schedule assembly, complete schedule validation, and construction of
 the reusable prepared-execution root.
-The CPU backend now supplies the physical allocation and access implementation that Engine
-composes into its public CPU-only prepare/run/materialization lifecycle. Metal also supplies the
-current bounded MPSGraph and custom-kernel FLOAT32 `NEG` prepared routes, but current Engine
-composition does not expose them. CUDA and mixed-owner composition remain planned.
-The lifecycle flow therefore mixes current foundations with later stages; each focused section
-states its implementation status.
+The CPU backend supplies the physical allocation and access implementation that current Engine
+composes into its public CPU-only prepare/run/materialization lifecycle. Metal supplies bounded
+MPSGraph and custom-kernel `FLOAT32 NEG` prepared routes, but current Engine composition does not
+expose them. Explicit CPU/Metal registration and single-owner routing are architecture-selected
+and not yet implemented; CUDA and mixed-owner composition remain later work. The lifecycle flow
+therefore mixes current foundations with selected later stages, and each focused section states
+its implementation status.
 [ADR 0011](../design/decisions/0011-per-run-runtime-resource-ownership.md) defines the
 resource-ownership and cold-binding architecture.
 [ADR 0013](../design/decisions/0013-prepared-execution-persistent-resource-lifecycle.md) defines
 the persistent prepared-resource ownership and close lifecycle.
+[ADR 0015](../design/decisions/0015-explicit-engine-backend-composition.md) selects explicit
+Engine registration, construction ownership, and the fail-closed single-owner first slice.
 
 ## Boundary in one flow
 
@@ -262,6 +265,38 @@ Any dynamic or unresolved Shape currently fails `PrepareContext` construction be
 analysis. A future fact may remain run-dynamic only when an explicit prepared contract represents
 it without changing the selected route, declared resources, or slot assignment. The current
 repository has no such run-dynamic fact contract.
+
+## Planned Engine composition and cold routing
+
+The selected public composition is an Engine-owned `AutoCloseable` builder. Concrete
+`takeOwnership(...)` overloads accept already-opened CPU and Metal integrations, transfer
+ownership at method entry, and adapt them into a private registration-ordered map keyed by
+`BackendId`. Each registration captures one stable capability provider and one immutable
+point-in-time availability snapshot. An equal duplicate ID is rejected and the newly transferred
+integration is rolled back; no existing entry is replaced.
+
+That map has only two cold responsibilities. Compile receives the frozen provider/snapshot lists
+in registration order so Planning selects owner identities. Prepare validates the complete owner
+set and resolves each planned partition to its registered contribution. The first implementation
+admits only a non-empty complete plan with one distinct registered owner. It supplies that owner's
+partition preparations and complete schedule contribution to `GraphPreparation`; shared Prepare
+retains projection, slot assignment, finalization, transactionality, and schedule validation.
+
+A missing owner, no planned partition, or more than one owner fails before the first backend
+analysis call. CPU and Metal registration alone cannot define a transfer. Mixed ownership remains
+blocked until a separate contract defines cross-owner representation creation, transfer
+capability and direction, declarations, schedule ordering, and rollback.
+
+Once `GraphPreparation` returns, the registry map has no execution role. The outward prepared
+handle captures a direct non-owning reference to the selected Engine adapter. Engine run uses it
+for backend-owned caller-storage ingress, and the outward result uses the same adapter for
+authenticated host materialization; both occur outside Runtime and before integration closure.
+The prepared schedule carries direct executable, representation-creation, transfer, and
+publication recipes. Runtime cold binding turns them into typed direct-reference actions; neither
+binding nor traversal consults Engine, the adapter, a backend ID, capability provider,
+availability snapshot, integration, `ServiceLoader`, reflection, or a global registry.
+`prepareTuned(...)` may use only a selected CPU adapter; Metal, missing, empty, and mixed ownership
+fail before trials, and a safe-heuristic fallback never changes the selected CPU owner.
 
 ## Planned fixed recurrent scan handoff
 
@@ -500,9 +535,9 @@ closes that execution once but does not independently close an already-returned 
 closes temporary, trial, and rollback preparations instead of publishing another owner, while
 Runtime remains the sole prepared-resource and run-lease authority. Engine shutdown closes
 retained results before retained preparations and then closes the backend composition.
-Completed Metal 0002 and 0003 consume this ownership chain for persistent MPSGraph executable
-and custom-kernel pipeline resources. Metal 0004 remains Draft, without a task brief, for typed
-route candidate generation and cache compatibility; it does not change this lifecycle.
+Completed Metal 0002 and 0003 consume this ownership chain for persistent MPSGraph executable and
+custom-kernel pipeline resources. Metal 0004 adds typed route-candidate generation and cache
+compatibility without changing this lifecycle.
 
 Preparation is transactional across this handoff. A finalizer cleans resources acquired before a
 failed return. After a successful return, shared Prepare tracks the unique resources in acquisition

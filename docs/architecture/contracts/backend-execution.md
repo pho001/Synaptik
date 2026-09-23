@@ -172,6 +172,10 @@ unless this document is updated first.
 
 Metal backend owns:
 
+- the immutable public `MetalBackendConfiguration`, including the required caller-selected
+  absolute native library path; any later Metal-private option remains owned here
+- `MetalBackendIntegration.open(MetalBackendConfiguration)`, configuration validation and
+  snapshotting, native loading, context creation, and partial-construction rollback
 - MPSGraph lowering
 - MPSGraph executable creation
 - custom Metal kernel routes
@@ -179,6 +183,10 @@ Metal backend owns:
 - native bridge integration
 - Metal-specific materialization
 - Metal trace contributions
+
+Engine may take ownership of a successfully opened Metal integration, but it must not duplicate
+or interpret Metal configuration, discover a library, select a Metal device, or construct native
+Metal state itself. Metal must not depend on Engine.
 
 Metal-specific optimizer execution belongs to Metal backend prepare/kernels, not to training.
 

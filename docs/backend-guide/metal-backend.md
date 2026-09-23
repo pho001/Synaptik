@@ -45,15 +45,19 @@ Apple-silicon macOS host, Xcode Command Line Tools, and Foundation, Metal, and
 MetalPerformanceShadersGraph. Build and ABI instructions are in the
 [native Metal guide](../../native/metal-macos-arm64/README.md).
 
-The caller supplies the dylib's absolute path. The backend does not discover, extract, package,
-sign, notarize, or cache the library. Planning separately receives a Metal availability snapshot;
-the capability provider performs no native loading or device discovery.
+Current backend-local native tests supply the dylib's absolute path directly. The backend does not
+discover, extract, package, sign, notarize, or cache the library. For the selected public Engine
+composition, Metal will own an immutable `MetalBackendConfiguration` containing that caller-
+selected path and will validate and snapshot it in
+`MetalBackendIntegration.open(configuration)`. Planning separately receives a Metal availability
+snapshot; the capability provider performs no native loading or device discovery.
 
 ## Contracts and ownership
 
 | Stage or resource | Owner and current behavior |
 |---|---|
 | Capability truth | Public `MetalCapabilityProvider` reports only the exact `FLOAT32` NEG domain above. Task 0003 does not change it. |
+| Native configuration and integration | The planned public `MetalBackendConfiguration` and `MetalBackendIntegration` belong to Metal. Metal validates configuration, opens native ownership, and rolls partial construction back before Engine can take the completed integration. |
 | Backend ownership | Planning chooses `owner = metal` and groups consecutive equal owners; it never selects MPSGraph or a custom kernel. |
 | Analysis | Package-private Metal code validates the complete partition, assigns stable structural value order, regenerates typed route candidates and session compatibility, authenticates any supplied decision, fixes one route, and declares that route's exact resources. |
 | Opaque tuning handoff | Metal can construct the Prepare-owned marker-role handoff with no decision or one Metal decision. Shared Prepare does not inspect private candidates; the Metal preparer treats a present decision as untrusted. |
@@ -64,7 +68,7 @@ the capability provider performs no native loading or device discovery.
 | Hot invocation | A cold-bound route-specific invocation retains direct references and makes one synchronous typed native call into assigned output destinations. |
 | Publication | Runtime leases the already-resident output representation; host observation is an explicit later download. |
 
-The public Java surface remains only `MetalCapabilityProvider`. Contexts, physical storage,
+The current public Java surface remains only `MetalCapabilityProvider`. Contexts, physical storage,
 preparers, finalizers, schedules, executable recipes, native handles, Objective-C objects,
 MPSGraph types, and the custom route remain package-private.
 
@@ -294,16 +298,40 @@ conformance test retain the existing native seam, execution, lifecycle, and part
 
 ## Registration and composition
 
-The provider is supplied explicitly to Planning; there is no `ServiceLoader`, registry, or
-runtime service locator. Current standard Engine composition remains CPU-only, and its supported
-CPU adapter rejects mixed or multiple partitions. Metal therefore composes the public shared
-Compiler, Prepare, and Runtime contracts inside backend tests without publishing a Metal Engine
-adapter. It makes no standard Engine, mixed-owner, cross-region transfer, or fallback claim.
+The provider is supplied explicitly to Planning; there is no `ServiceLoader`, global registry, or
+runtime service locator. Current standard and advanced Engine composition remains CPU-only, and
+its supported CPU adapter rejects mixed or multiple partitions. Metal therefore composes the
+public shared Compiler, Prepare, and Runtime contracts inside backend tests without a current
+public Metal Engine adapter.
+
+The selected next public boundary is a Metal-owned
+`MetalBackendIntegration.open(MetalBackendConfiguration)` plus the Engine-owned
+`Engine.Builder.takeOwnership(MetalBackendIntegration)` overload. Metal owns configuration
+parsing, native library loading, context construction, availability production, host ingress and
+materialization, its complete single-owner preparation contribution, and partial-open rollback.
+Engine owns registration, duplicate-ID validation, compile-time inventory, cold owner routing,
+direct adapter capture in its outward prepared/result handles, and outer closure. That adapter
+performs Metal host ingress and materialization outside Runtime without re-querying the registry.
+The dependency remains one-way: Engine may depend on Metal; Metal production never depends on
+Engine.
+
+The first Engine slice remains single-owner. A complete non-empty plan may use Metal only when all
+planned partitions have the equal registered Metal owner. Registering CPU beside Metal does not
+authorize a CPU/Metal schedule: mixed ownership fails before backend analysis until a separate
+cross-owner representation and transfer contract exists. Runtime executes only direct prepared
+references and never looks up the integration or configuration.
+
+The builder does not make Metal's current backend-local candidates available to public
+`prepareTuned(...)`. A Metal-owned plan rejects that CPU-only workflow before representative
+input borrowing, candidate generation, or trial work; an allowed CPU safe-heuristic fallback
+cannot select or prepare Metal.
 
 The module has a test-only Compiler dependency so its typed integration test can create public
-`CompileArtifacts`; Metal production has no Compiler or Engine dependency. No backend-conformance,
-integration, architecture-test, or Gradle change is required because capability, public
-composition, dependencies, and module boundaries are unchanged.
+`CompileArtifacts`; Metal production has no Compiler or Engine dependency. The existing
+architecture test already locks the forbidden Metal-to-Engine dependency. The future composition
+implementation must add API-shape, ownership, single-owner routing, mixed-owner rejection, and
+native rollback coverage described by
+[ADR 0015](../design/decisions/0015-explicit-engine-backend-composition.md).
 
 ## Limitations and related documentation
 

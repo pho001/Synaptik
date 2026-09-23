@@ -1029,6 +1029,20 @@ architecture discussions use “backend” for this role; a [concrete backend](#
 the module that implements it. The current [`BackendId`](#backend-identity--backendid) value names
 this ownership domain but does not implement the backend role.
 
+### Backend composition
+
+The Engine-owned construction-time association between explicitly supplied backend integrations,
+their equal [`BackendId`](#backend-identity--backendid) values, stable capability providers, and
+point-in-time availability snapshots. The selected public design uses an ordered private
+`Engine.Builder` registry: ownership transfers through concrete CPU and Metal overloads,
+duplicate identities fail, and compile-time Planning receives the frozen provider/snapshot order.
+The builder and Metal integration are architecture-selected but not yet implemented.
+
+Composition is not backend discovery, a public or global registry, a Runtime service locator, or
+a fallback chain. Its first planned preparation slice admits only one distinct registered owner
+for a non-empty complete plan; mixed ownership remains blocked until cross-owner representation
+and transfer semantics are defined.
+
 ### Backend availability snapshot / `BackendAvailabilitySnapshot`
 
 The implemented immutable point-in-time fact for one backend's currently reported available

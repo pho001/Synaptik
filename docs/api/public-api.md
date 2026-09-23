@@ -1141,6 +1141,79 @@ gradient request to `compile(...)` invokes the existing compiler mode/request co
 not add those later conveniences or guarantee that the current CPU-only prepare step can lower
 the resulting artifact.
 
+## Planned explicit backend composition
+
+The following API shape is architecture-selected but not implemented:
+
+```java
+try (Engine.Builder builder = Engine.builder()) {
+    builder.takeOwnership(CpuBackendIntegration.open());
+    builder.takeOwnership(MetalBackendIntegration.open(metalConfiguration));
+    try (Engine engine = builder.build()) {
+        CompiledGraph graph = engine.compile(List.of(output));
+        try (PreparedExecution prepared = engine.prepare(graph);
+                RunResult result = engine.run(prepared, List.of(input))) {
+            HostTensorValue value =
+                    result.materialize(result.publications().getFirst(), maximumBytes);
+        }
+    }
+}
+```
+
+`Engine.Builder` will be a public single-use `AutoCloseable` construction owner. Its concrete
+`takeOwnership(CpuBackendIntegration)` and
+`takeOwnership(MetalBackendIntegration)` overloads transfer a non-null integration at method
+entry, including when later registration validation fails. Callers must not close or reuse an
+integration after invoking the overload. A successful `build()` atomically transfers the ordered
+backend set to the returned Engine; before success, closing the builder releases accepted
+integrations in reverse registration order.
+
+Because the overload parameters are backend-owned public types, the implemented Engine module will
+publish CPU and Metal as API-visible dependencies. Backend types remain confined to explicit
+construction and do not appear in compile, prepare, run, handle, or result signatures.
+
+Registration will capture one `BackendId`, stable capability provider, and immutable point-in-time
+availability snapshot. Their backend IDs must be equal, and an equal duplicate ID is rejected
+without replacing the first entry. The snapshot remains fixed for that Engine's lifetime.
+Registration order supplies deterministic compile-time Planning input; it is not a runtime
+fallback order.
+
+Compilation will choose owner identities from that fixed inventory. Cold preparation will accept
+its first vertical slice only for a non-empty plan whose partitions all name one equal registered
+owner and will route those partitions to that integration. A missing owner, zero-partition plan,
+or mixed CPU/Metal plan will fail before backend analysis. There will be no implicit CPU fallback,
+retry, owner substitution, or cross-owner data movement. A separate architecture decision must
+define cross-owner representations, transfers, declarations, schedule order, and rollback before
+mixed-owner preparation can succeed.
+
+The returned Engine prepared handle will retain a direct non-owning reference to the selected
+adapter beside its inward Runtime execution. `run(...)` will use that adapter to wrap caller host
+storage, and the returned result will use it for backend-owned host materialization. These outer
+calls do not re-query the registry, and Engine closure keeps the integration open until every
+result and prepared handle closes.
+
+The planned `MetalBackendConfiguration` and `MetalBackendIntegration` will be public Metal-owned
+types. Metal will validate and snapshot its configuration and acquire its native context before
+the integration is transferred. Engine will neither parse the native-library path nor own a
+duplicate Metal configuration. Merely adding `MetalCapabilityProvider` remains insufficient for
+public execution: the Metal integration must also supply the complete Prepare, host-ingress,
+materialization, and close contribution.
+
+`prepareTuned(...)` will remain the bounded CPU-only workflow. It may tune a CPU-owned plan when
+Metal is also registered, but a Metal-owned plan will fail with `IllegalStateException` before
+representative input borrowing, candidate generation, or trial work. The allowed safe-heuristic
+fallback remains within the already-selected CPU integration and never changes owner or prepares
+Metal.
+
+The current `Engine.standard()` method remains the CPU-only convenience and will use the same
+ownership path internally. The current `AdvancedEngine.takeOwnership(CpuBackendIntegration)`
+surface remains CPU-only; this decision does not silently make it generic. No builder or Metal
+integration call is available until its implementation task completes.
+
+See the
+[authoritative Engine composition contract](../architecture/contracts/runtime-prepare-engine.md#public-explicit-composition)
+and [ADR 0015](../design/decisions/0015-explicit-engine-backend-composition.md).
+
 ## Current CPU limitations and planned conveniences
 
 The current CPU composition prepares exactly one non-empty maximal CPU partition. Zero-node

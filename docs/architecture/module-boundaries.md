@@ -140,18 +140,34 @@ finalization through the existing staged lifecycle.
 
 ### `modules/engine`
 
-Owns the public lifecycle facade and composition root. Current `Engine.standard()` constructs and
-owns one fresh fixed CPU composition. It exposes owner-bound compile and prepare handles, typed
-logical input binding, leased publication metadata, explicit detached host materialization,
-fresh one-shot compute/backward conveniences, and bounded optional CPU-local autotuning.
-`AdvancedEngine.takeOwnership(...)` instead takes explicit cleanup ownership of one supported CPU
-integration and exposes the lower-level representation lifecycle.
+Owns the public lifecycle facade and explicit composition root. Current `Engine.standard()`
+constructs and owns one fresh fixed CPU composition. It exposes owner-bound compile and prepare
+handles, typed logical input binding, leased publication metadata, explicit detached host
+materialization, fresh one-shot compute/backward conveniences, and bounded optional CPU-local
+autotuning. `AdvancedEngine.takeOwnership(...)` instead takes explicit cleanup ownership of one
+supported CPU integration and exposes the lower-level representation lifecycle.
 
-Engine does not own kernels, backend internals, graph optimization passes, a runtime service locator, or reflective plugin discovery as the core backend mechanism. Concrete backends never depend on engine.
+The selected public multi-backend construction boundary is a planned `Engine.Builder` with
+concrete CPU and Metal `takeOwnership(...)` overloads. Engine owns the builder, ordered private
+registry, backend adapters, compile-time provider/availability inventory, cold Prepare routing,
+direct selected-adapter references in outward prepared/result handles, construction rollback, and
+outer close order. It rejects duplicate backend IDs and mixed-owner preparation before backend
+analysis. The registry is neither visible to inward modules nor consulted by Runtime; Engine uses
+the captured adapter for caller-storage ingress and host materialization outside Runtime.
+
+Engine does not own kernels, backend internals, native backend configuration, graph optimization
+passes, a runtime service locator, reflective plugin discovery, or a process-global registry.
+Concrete backends never depend on Engine.
 
 The current fixed standard factory is explicit composition, not generic registration or
-discovery. Neither Engine surface currently combines multiple backend owners. Generic backend
-registration, Metal/CUDA execution, and mixed-owner schedule assembly remain future work.
+discovery. The builder and Metal integration named above are architecture-selected but not yet
+implemented; neither current Engine surface combines multiple backend owners. The first planned
+vertical slice can prepare a non-empty complete plan only when all partitions share one registered
+owner. Mixed-owner schedule assembly remains blocked on a separate cross-owner transfer contract.
+
+The builder does not generalize current CPU model autotuning. `prepareTuned(...)` accepts only a
+single CPU-owned plan, and its allowed fallback stays with that CPU owner. A Metal-owned plan
+fails before tuning work.
 
 For a future runnable recurrent scan, Engine owns the checked typed mapping from the logical input
 Tensors, including `INT64[batch]` valid lengths, to ordered Runtime caller-input representations
@@ -174,6 +190,10 @@ Concrete backend logic belongs in the backend that implements it:
   those kernels.
 - MPSGraph and custom Metal kernels, Metal storage, and native bridges belong to `backends/metal`.
 - CUDA lowering, kernels, storage, and native integration belong to `backends/cuda`.
+
+Metal also owns its immutable public configuration, native-library path validation, native context
+construction, and partial-open rollback. Engine may own an already-opened Metal integration, but
+it neither duplicates that configuration nor interprets Metal options.
 
 A backend that implements fixed recurrent scan advertises only the exact variant, floating type,
 fully static Shape, and direction combinations it executes. Analysis lowers one ordinary node to

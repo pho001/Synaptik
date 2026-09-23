@@ -177,6 +177,63 @@ composition. A prepared-handle close does not independently close an already ret
 supplies one supported CPU integration and transfers ownership to Engine. Neither ordinary nor
 advanced composition currently assembles mixed-owner schedules or discovers backends.
 
+## Explicit backend composition
+
+The architecture-selected, not-yet-implemented public composition surface is an
+`AutoCloseable Engine.Builder`. Its concrete `takeOwnership(...)` overloads accept opened CPU and
+Metal integrations. Ownership transfers at each non-null method entry, so the builder—not the
+caller—owns rollback even when registration fails. Successful `build()` moves the complete
+ordered registry into one Engine; unsuccessful construction and builder close release accepted
+integrations in reverse registration order.
+
+```text
+backend-owned configuration -> backend opens integration and native state
+                            -> Engine.Builder takes ownership
+                            -> capture BackendId + capability provider + availability snapshot
+                            -> Engine.compile selects owner identities
+                            -> Engine.prepare routes by owner and captures its direct adapter
+                            -> Engine run/materialize use that adapter at the outer boundary
+                            -> Runtime executes direct prepared references
+```
+
+The capability provider reference and point-in-time availability snapshot are captured once for
+each registration and reused for every compile by that Engine. Equal backend IDs are rejected.
+Compile-time Planning receives the immutable registration-ordered inputs and records only
+`BackendId` ownership; it receives no Engine registry or live integration.
+
+The first implementation boundary is deliberately single-owner. A plan may reach backend
+analysis only when it is non-empty and every planned partition names one equal registered owner.
+Registering CPU and Metal therefore permits either complete owner to be selected, but does not
+make a graph split between them executable. Until a later transfer contract defines
+cross-owner representations, transfer ownership, resource declarations, schedule ordering, and
+rollback, a missing, empty, or mixed owner set fails before backend analysis without retry or CPU
+fallback.
+
+The prepared Engine handle keeps a direct non-owning reference to the selected adapter while
+Engine owns the integration. Run uses it to wrap caller host storage before Runtime admission, and
+the result uses it for backend-owned host materialization. Neither operation re-queries the
+registry. Engine closes results and prepared handles before integrations, so the reference cannot
+outlive its owner.
+
+The existing `prepareTuned(...)` workflow stays CPU-only. It can tune a single CPU-owned plan even
+when Metal is also registered. A Metal-owned plan fails before representative input borrowing or
+trial work, and the allowed safe-heuristic fallback remains within the already-selected CPU owner;
+it never changes ownership or prepares Metal.
+
+Engine shutdown preserves the existing outward lifecycle: it rejects new work, waits for admitted
+Engine operations, closes results and prepared handles in reverse publication order, then closes
+backend integrations in reverse registration order. Prepared-execution resources and run leases
+remain Runtime-owned. The registry map has no post-prepare execution role, and no capability
+query, availability check, reflection, or `ServiceLoader` lookup enters cold-bound Runtime
+execution. The Engine-handle adapter calls described above occur outside Runtime.
+
+`Engine.standard()` remains the current CPU-only convenience and will construct its fresh CPU
+integration through the same ownership path. Metal owns its configuration and native open
+operation; Engine accepts the opened integration and does not parse a native library path or
+select a Metal device. See
+[ADR 0015](../design/decisions/0015-explicit-engine-backend-composition.md) for the alternatives and
+consequences.
+
 ## Planned fixed recurrent scan through the lifecycle
 
 The fixed recurrent scan is a current ordinary Model expression whose `INT64[batch]`

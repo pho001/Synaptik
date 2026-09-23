@@ -6,7 +6,9 @@ This index separates accepted architecture decisions from pre-implementation str
 Neither category overrides the authoritative root or the scoped contracts it incorporates through
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
-Decision records are retrospective summaries of rules present in the architecture contract. The repository does not preserve the original dates or full deliberation history, and the records say so rather than inventing it.
+Decision records summarize rules present in the architecture contract. Retrospective records state
+when their original date or deliberation history is unavailable; current decisions record their
+acceptance date and considered alternatives.
 
 ## Architecture decision records
 
@@ -24,6 +26,7 @@ Decision records are retrospective summaries of rules present in the architectur
 - [ADR 0012: Fixed recurrent scan without graph regions](decisions/0012-fixed-recurrent-scan-without-regions.md)
 - [ADR 0013: Prepared-execution persistent-resource lifecycle](decisions/0013-prepared-execution-persistent-resource-lifecycle.md)
 - [ADR 0014: Scope-indexed normative architecture contracts](decisions/0014-scope-indexed-normative-architecture-contracts.md)
+- [ADR 0015: Explicit Engine backend composition](decisions/0015-explicit-engine-backend-composition.md)
 
 ## Design notes
 

@@ -36,3 +36,4 @@ Applications or engine builders must register components deliberately. Tests can
 - [Runtime/prepare/backend boundary](../../architecture/runtime-prepare-backend-boundary.md)
 - [Writing a backend](../../backend-guide/writing-a-backend.md)
 - [Dependency rules](../../architecture/dependency-rules.md)
+- [ADR 0015: Explicit Engine backend composition](0015-explicit-engine-backend-composition.md)
