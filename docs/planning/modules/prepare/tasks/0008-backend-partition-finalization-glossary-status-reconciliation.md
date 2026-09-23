@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Change class
 
@@ -13,13 +13,15 @@ and independent documentation review because the entry spans Prepare, CPU, and E
 ## Goal
 
 Reconcile only the stale CPU-status paragraph under `Backend partition finalization` with the
-current package-private CPU finalizer and its public Engine-mediated composition, without changing
-the general finalization or prepared-resource transaction contract.
+current public but unsupported CPU-private finalizer under `.internal` and its public
+Engine-mediated composition, without changing the general finalization or prepared-resource
+transaction contract.
 
 ## Scope
 
-- State that the CPU finalizer is supplied through `CpuBackendIntegration` to current fixed
-  ordinary and explicit advanced CPU-only Engine composition, while remaining package-private.
+- State that the public finalizer remains an unsupported CPU-private implementation under
+  `.internal` and is supplied through `CpuBackendIntegration` to current fixed ordinary and
+  explicit advanced CPU-only Engine composition.
 - Replace the obsolete exact-fused-FLOAT64 limitation with the current role: realize an already-
   selected CPU preparation plan across supported routes/families without route reselection or
   topology widening.
@@ -71,8 +73,9 @@ No path outside the four-file implementation allowlist may change.
 
 ## Acceptance criteria
 
-- The final paragraph accurately distinguishes the package-private CPU finalizer from the public
-  Engine lifecycle that indirectly composes it through the supported CPU integration.
+- The final paragraph accurately distinguishes the public but unsupported CPU-private finalizer
+  under `.internal` from the package-private Engine composition and public Engine lifecycle that
+  indirectly reach it through the supported CPU integration.
 - It says the finalizer realizes only an already-selected plan and cannot reselect routes or widen
   topology; it does not reduce current CPU support to one fused FLOAT64 topology.
 - It keeps CPU's empty persistent-resource result and does not imply executable/resource
@@ -128,6 +131,22 @@ planning state, with no executable, build, dependency, or architecture-boundary 
 
 ## Result
 
-Pending.
+Corrected only the final current-CPU paragraph under `Backend partition finalization` and
+synchronized this task, the Prepare master plan, and the roadmap. Independent Class B review
+corrected the brief's stale visibility wording and confirmed that the public
+`CpuPartitionFinalizer` remains unsupported under `.internal`, while package-private
+`CpuEngineBackendComposition` reaches it through `CpuBackendIntegration.partitionPreparation()`
+for fixed ordinary and explicit advanced CPU-only composition. The finalizer realizes the
+already-selected plan across current supported routes and operation families without reselection
+or topology widening, and returns no persistent prepared resources. The focused implementation
+tests passed with 17 finalizer and three integration tests plus six Engine tests, all without
+failure or skip; review reused them because no executable code changed. A focused `javap` check
+confirmed the finalizer is public and the Engine composition is package-private. General and
+Planning profiles were applied; architecture, ADRs, guides, other glossary terms, Javadoc, tests,
+Gradle, and executable behavior require no change because the edit reconciles documentation with
+existing source and contracts. The Markdown validator accepted all four files; the brief measured
+152 lines and 8,593 bytes, the Java/Gradle scan was empty, the
+path audit contained exactly the four allowed files, and `git diff --check` passed. No unresolved
+issue or follow-up remains.
 
-Status: Ready
+Status: Complete

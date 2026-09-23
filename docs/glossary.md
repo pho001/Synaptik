@@ -4901,10 +4901,13 @@ per-run physical allocation, run-state construction, binding, execution, schedul
 publication, measurement, or workload tuning-cache mutation.
 An owning backend may perform an already-selected compatible executable-artifact load or
 publication where its established cold-finalization contract permits it. The batch handoff is
-package-private behind current public graph preparation. The current CPU module has one
-package-private portable finalizer that resolves assigned resources and loads or generates an
-already-selected artifact; it is not publicly composed and does not select or widen the current
-exact fused FLOAT64 operation topology.
+package-private behind current public graph preparation. The current CPU finalizer remains an
+unsupported CPU-private implementation under `.internal`; the package-private Engine composition
+reaches it through `CpuBackendIntegration.partitionPreparation()` for fixed ordinary
+`Engine.standard()` and explicit advanced `AdvancedEngine.takeOwnership(...)` CPU-only
+composition. It resolves assigned resources and realizes the already-selected CPU preparation
+plan across its supported routes and operation families without reselecting a route or widening
+the analyzed topology. Its finalization result contains no persistent prepared resources.
 
 ### Prepared partition / `PreparedPartition`
 
