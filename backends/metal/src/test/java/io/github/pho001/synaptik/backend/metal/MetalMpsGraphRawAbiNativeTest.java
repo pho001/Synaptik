@@ -265,7 +265,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void rawNegNoneAttributesAndWithdrawnBinaryOperationsRejectEveryMalformedField() {
+    void rawNegAndMalformedUnaryEncodingsOfCurrentBinaryOperationsRejectEveryField() {
         try (RawAbi abi = RawAbi.open()) {
             int[] unaryRanks = {1, 1};
             long[] unaryDimensions = dimensions(new long[][] {{2}, {2}});
@@ -291,15 +291,16 @@ class MetalMpsGraphRawAbiNativeTest {
                     record -> record.set(JAVA_INT, 12L, 0));
 
             for (int operation = 2; operation <= 5; operation++) {
-                int withdrawn = operation;
+                int binaryOperation = operation;
                 abi.assertRejected(
-                        "withdrawn binary operation wire " + withdrawn,
+                        "current binary operation encoded with unary topology "
+                                + binaryOperation,
                         unaryRanks,
                         unaryDimensions,
                         neg,
                         new int[] {0},
                         new int[] {1},
-                        record -> record.set(JAVA_INT, 0L, withdrawn));
+                        record -> record.set(JAVA_INT, 0L, binaryOperation));
             }
         }
     }

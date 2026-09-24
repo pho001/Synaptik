@@ -338,8 +338,8 @@ audit showed that MPSGraph arithmetic does not preserve strict `FLOAT32` subnorm
 the operations remained excluded from `STRICT_IEEE`. Task 0015 performed a new mandatory
 disposable M3 Max probe at optimization levels 0 and 1, with reduced-precision fast math disabled,
 independently compiled executables, repeated fresh contexts, separate operation gates,
-equal/row/column/scalar-tensor broadcasting, chains, fan-out, repeated operands, direct guarded
-targets, permuted bindings, and exact input/canary controls. All control and bounded-profile
+equal/row/column/scalar-tensor broadcasting, fan-out, repeated operands, direct guarded targets,
+permuted bindings, and exact input/canary controls. All control and bounded-profile
 oracle comparisons passed for `ADD`, `SUB`, `MUL`, and `DIV`, enabling only the explicit
 `ACCELERATOR` route.
 
