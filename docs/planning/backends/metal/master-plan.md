@@ -74,14 +74,15 @@ visibility.
 | 0002 | [MPSGraph prepared execution route](tasks/0002-mpsgraph-prepared-execution-route.md) | Complete | 0001; Runtime 0016; Prepare 0006; Engine 0010; Compiler 0006B7 | None | None | Any | Focused Metal and conformance suites | Added maximal-partition positive-shape contiguous FLOAT32 NEG through reusable MPSGraph preparation/execution. |
 | 0003 | [Single-NEG custom Metal kernel route](tasks/0003-single-neg-custom-metal-kernel-route.md) | Complete | 0001–0002 | None | None | Any | Focused Metal/native suites | Added a private custom route for one NEG/feed/target within `1..UINT32_MAX`; all other supported partitions retain MPSGraph. |
 | 0004 | [Typed Metal route candidate generators and cache compatibility](tasks/0004-typed-metal-route-candidate-generators-and-cache-compatibility.md) | Complete | 0002–0003, opaque prepare/tuning boundary and artifact versioning | None | None | Any | Focused candidate, Metal, and conformance suites | Added typed NEG candidates and a session-compatible authenticated codec foundation without outer tuning integration. |
-| 0005 | [MPSGraph mixed NEG/binary FLOAT32 whole-partition route](tasks/0005-mpsgraph-mixed-binary-whole-partition.md) | Ready | 0001–0004; Engine 0017; Compiler 0006B7; Prepare 0008; Runtime 0016 | Metal capability/preparation/native ABI/Engine Metal scopes | None | ABI/schema → capability/analysis → Prepare → public Engine tests → docs/review | Native export audit; focused Metal/conformance; real public Engine integration; architecture checks; `git diff --check` | Authorized frontier for static canonical-dense FLOAT32 whole-partition NEG + ADD/SUB/MUL/DIV with exact right-aligned broadcasting; custom singleton NEG remains. |
+| 0005 | [MPSGraph mixed NEG/binary FLOAT32 whole-partition route](tasks/0005-mpsgraph-mixed-binary-whole-partition.md) | Review needed | 0001–0004; Engine 0017; Compiler 0006B7; Prepare 0008; Runtime 0016 | Metal capability/preparation/native ABI/Engine Metal scopes | None | ABI/schema → capability/analysis → Prepare → public Engine tests → docs/review | Native export audit; focused Metal/conformance; real public Engine integration; architecture checks; `git diff --check` | Implemented ABI-v4 typed whole-partition NEG + ADD/SUB/MUL/DIV and remediated the initial Class C block; independent re-review remains required. |
 
 ## Dependency DAG and authorized frontiers
 
 `0001 → 0002 → 0003 → 0004 → 0005`
 
-Authorized frontier: `0005` only. No other Metal task is Ready; all later Metal work remains
-unauthorized until 0005 is complete or explicitly blocked/superseded.
+Authorized frontier: `0005` only, currently `Review needed`. No other Metal task is Ready; all
+later Metal work remains unauthorized until 0005 receives independent approval or is explicitly
+blocked/superseded.
 
 ## Integration ownership and shared documents
 
@@ -92,13 +93,21 @@ unauthorized until 0005 is complete or explicitly blocked/superseded.
 ## Milestones and current frontier
 
 The native/storage foundation, two NEG routes, and Metal-local candidate/session compatibility
-foundation are Complete through 0004. Task 0005 is the sole authorized Ready frontier from exact
-base `8c83d01e74f9a0bc57fce84d68ba82f26007a75d` on `main`. It is a serial Class C boundary task;
-implementation, public Engine real-device evidence, rollback/lifecycle proof, and independent
-targeted review are all required before promotion.
+foundation are Complete through 0004. Task 0005 is the sole authorized frontier. Its implementation
+and first remediation are complete, but status remains `Review needed` until independent Class C
+re-review approves the native lifetime, CPU-free public Engine, and synchronized evidence changes.
+
+The initial Class C review returned `BLOCK` with two P1 and two P2 findings: missing local
+autorelease pools in MPSGraph create/run; no CPU-free Metal-only public Engine lifecycle proof;
+unsynchronized task/master/roadmap state and incomplete ABI-v4 inventory; and inaccurate
+session-reuse, workload-signature-version, and splat evidence. Remediation adds the local pools,
+5,000-run real stress coverage, a separate caller-input CPU-free Engine scenario, backend-local
+real typed-splat execution, corrected Javadocs/docs, and synchronized `Review needed` state.
+`GraphCompilationPort` remains unchanged with empty explicit positive-rank forward-constant
+ingress; task 0005 adds no public constant API.
 
 The 0004 readiness audit remains historical evidence for its completed boundary. Its candidate
-codec is still package-private and unconsumed by outer tuning or Engine; task 0005 must not widen
+codec is still package-private and unconsumed by outer tuning or Engine; task 0005 does not widen
 that boundary while generalizing the MPSGraph execution schema.
 
 ## Delivered lifecycle and ABI boundary
@@ -110,7 +119,27 @@ that boundary while generalizing the MPSGraph execution schema.
   Foreign Function and Memory (FFM). It is not packaged or discovered by the backend. ABI version
   1 established seven foundation functions and statuses `0..7`; version 2 retained them, added
   three typed MPSGraph functions and statuses `8..11`; version 3 retained all ten, added three
-  custom-NEG functions and status `12`. Opaque resource kinds are never reinterpreted.
+  custom-NEG functions and status `12`; version 4 replaces only the NEG-specific MPSGraph create
+  operation with the version-one typed whole-partition create schema. Opaque resource kinds are
+  never reinterpreted. ABI v4 exports exactly:
+
+  ```text
+  synaptik_metal_foundation_abi_version
+  synaptik_metal_context_create
+  synaptik_metal_context_release
+  synaptik_metal_buffer_create
+  synaptik_metal_buffer_release
+  synaptik_metal_buffer_upload
+  synaptik_metal_buffer_download
+  synaptik_metal_mpsgraph_executable_create
+  synaptik_metal_mpsgraph_executable_release
+  synaptik_metal_mpsgraph_executable_run
+  synaptik_metal_neg_kernel_pipeline_create
+  synaptik_metal_neg_kernel_pipeline_release
+  synaptik_metal_neg_kernel_pipeline_run
+  ```
+
+  The old `synaptik_metal_mpsgraph_neg_executable_create` symbol is absent.
 - Analysis validates the complete maximal Metal partition, selects the route, and declares exact
   buffers/workspaces. Finalization cannot change that route or add undeclared shared requirements;
   it creates route-specific persistent resources only after slot assignment.

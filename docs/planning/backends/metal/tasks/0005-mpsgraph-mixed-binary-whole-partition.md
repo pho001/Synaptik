@@ -2,7 +2,30 @@
 
 ## Status
 
-Complete
+Review needed
+
+## Review state
+
+Class C review of implementation commit `8f117dcfa764483c997767acd6eb202608763ef3`
+returned `BLOCK` with two P1 and two P2 findings:
+
+- P1: MPSGraph create and run lacked local Objective-C autorelease pools around transient
+  framework objects.
+- P1: the public Engine evidence registered CPU beside Metal and therefore did not prove a
+  CPU-free Metal-only builder, independent prepared sessions, or closed-session rejection
+  priority.
+- P2: task, master-plan, and roadmap state was not synchronized for the blocked review, and the
+  master plan did not record the ABI-v4 cutover and exact export inventory.
+- P2: the backend guide misstated executable reuse across sessions, the version-two workload
+  signature Javadoc still said version one, and result text overstated public splat evidence.
+
+Remediation adds local create/run pools inside the native exception boundaries, retains the
+executable box across the pool, runs a 5,000-invocation real MPSGraph stress regression, separates
+a CPU-free caller-input Engine test from mixed CPU/Metal composition, deepens the backend-local
+real typed-splat proof, and corrects planning/Javadoc/guide evidence. Public
+`GraphCompilationPort` still has empty positive-rank forward-constant ingress, so no public splat
+API or fake public splat claim is added. This task remains `Review needed` pending independent
+Class C re-review.
 
 ## Change class
 
@@ -19,7 +42,7 @@ Deliver the next bounded Metal vertical slice: a static canonical-dense `FLOAT32
 - Retain `CUSTOM_SINGLE_NEG` exactly for the existing one-NEG/one-feed/one-target/index-domain singleton. All other supported partitions, including mixed partitions and multi-node NEG-only partitions, use the generalized MPSGraph route. No custom binary route is introduced.
 - Evolve the native dylib to the next exact ABI version (the implementation must choose and document the concrete version number), replacing the NEG-only graph-create symbol/schema with one typed graph-create operation. Preserve foundation, custom-pipeline, and graph release/run ownership semantics; no generic parameter map, string dispatch, source text, or untyped operation payload may cross the ABI. Typed enums/records and bounded fixed-width arrays are required.
 - Preserve transactional Prepare finalization, context child leases, reverse/attempt-all cleanup, close/run leases, isolated per-run buffers/workspaces, direct assigned output publication, and one synchronous native invocation per prepared partition. Graph execution may retain one run-owned address workspace; the custom singleton retains none.
-- Add real public `Engine` tests using explicit `MetalBackendIntegration` and the freshly built dylib. Cover caller inputs, compile-time splat where already supported, exact broadcast shapes, mixed operations, repeated prepared sessions/runs, direct output publication, and closure/rollback. Do not add packaging, discovery, tuning, or performance claims.
+- Add real public `Engine` tests using explicit `MetalBackendIntegration` and the freshly built dylib. Cover a CPU-free Metal-only builder with caller inputs, exact broadcast shapes, mixed operations, repeated runs and independently prepared sessions, direct output publication, and close/rejection behavior; keep mixed CPU/Metal composition separate. Prove compile-time `FLOAT32` splats only through the supported backend-local `PrepareContext.constants()` path because public `GraphCompilationPort` has no positive-rank forward-constant ingress. Do not add packaging, discovery, tuning, or performance claims.
 
 ## Non-goals
 
@@ -98,7 +121,7 @@ Update backend guide, native README, public API scope text, targeted glossary en
 
 ## Result
 
-Completed as one clean ABI cutover. Metal capability now admits exactly parameterless `NEG`,
+Implemented and remediated, pending independent Class C re-review. Metal capability now admits exactly parameterless `NEG`,
 `ADD`, `SUB`, `MUL`, and `DIV` over positive static rank-`1..16` canonical contiguous `FLOAT32`
 descriptors with equal per-occurrence gradient flags and exact right-aligned binary broadcasting.
 Analysis lowers the entire maximal partition to immutable version-one typed node records while
@@ -133,22 +156,26 @@ exact binary broadcast output, unique feeds/targets/outputs, and checked `FLOAT3
 There is no compatibility symbol, generic attributes bag, string dispatch, source payload, or ABI
 fallback.
 
-Validation completed on Apple arm64:
+Remediation validation completed on Apple arm64:
 
 - `./native/metal-macos-arm64/build.sh` passed.
 - `file` reported a Mach-O 64-bit arm64 dylib; `nm -gU` reported exactly the thirteen exports
-  above; `otool -L` reported Foundation, Metal, and MetalPerformanceShadersGraph linkage.
-- Real-device `:backends:metal:test --tests '*Metal*' --rerun-tasks` passed 54 tests with zero
-  failures, errors, or skips. This includes custom caller/splat regressions, mixed typed MPSGraph
-  reuse, stable ordering, rollback, close/rejection, and concurrency.
+  above with the old NEG-only create symbol absent; `otool -L` reported Foundation, Metal, and
+  MetalPerformanceShadersGraph linkage.
+- Real-device `:backends:metal:test --tests '*Metal*' --rerun-tasks` passed 55 tests with zero
+  failures, errors, or skips. It includes backend-local typed logical-splat execution and 5,000
+  consecutive MPSGraph runs through one retained executable, plus custom/codec, ordering,
+  rollback, close/rejection, and concurrency regressions.
 - `:testing:backend-conformance:test --tests '*Metal*'` passed both focused conformance tests with
   no skips.
-- Real-device `EngineExplicitCompositionMetalIntegrationTest` passed with no skip. It exercises
-  all five operations in one Metal-only broadcast partition, asymmetric ordered `SUB`/`DIV`,
-  multiple feeds/targets, fan-out, direct internal publications, repeated session runs, and
-  CPU-to-Metal/Metal-to-CPU schedules.
-- Metal Javadoc, architecture tests, and Engine public-shape tests passed. Targeted documentation
-  audit and `git diff --check` passed.
+- Real-device `EngineExplicitCompositionMetalIntegrationTest` passed two tests with no skip. The
+  CPU-free test registers only Metal and exercises all five operations in one caller-input
+  broadcast partition, asymmetric ordered `SUB`/`DIV`, multiple feeds/targets, fan-out, direct
+  internal publications, repeated runs, two independently prepared sessions, explicit close, and
+  closed-session rejection priority. The mixed-owner test remains separate and covers both
+  transfer directions.
+- Metal Javadoc, architecture tests, Engine public-shape tests, targeted documentation/state
+  audit, final allowlist audit, and `git diff --check` passed.
 
 Final task-owned allowlist:
 
@@ -179,8 +206,11 @@ Final task-owned allowlist:
 - `docs/backend-guide/metal-backend.md`
 - `docs/api/public-api.md`
 - `docs/glossary.md`
+- `docs/planning/backends/metal/master-plan.md`
+- `docs/planning/roadmap.md`
 - this task brief.
 
 No public Java type or method changed. The package-private `MetalNeg*` class names remain historical
-implementation names to avoid a weightless file-renaming cutover; their contracts and Javadocs now
-describe the generalized typed elementwise route. No master plan or roadmap was modified.
+implementation names to avoid a weightless file-renaming cutover; their contracts and Javadocs
+describe the generalized typed elementwise route. Master plan and roadmap remain synchronized at
+`Review needed` until independent re-review returns an approval.

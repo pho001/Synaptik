@@ -120,6 +120,9 @@ negation or ordered binary arithmetic operation, and compiles one shape-speciali
 The executable owner retains ordered feed and target shapes, byte extents, stable-to-framework
 permutations, and the originating context.
 
+Each create and run call opens a local Objective-C `@autoreleasepool` inside its exception
+boundary. The executable box crosses the pool only through `__bridge_retained`; every success and
+early-failure return drains temporary framework objects before returning through the C ABI.
 Each run binds ordered input and supplied output `MTLBuffer` objects through
 `MPSGraphTensorData`. It sets `waitUntilCompleted = YES`, submits the executable once on the
 context command queue, checks the completion error and returned-result list, and returns only
@@ -194,10 +197,11 @@ SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_met
 
 The environment variable is required; ordinary sandboxed runs skip native-device cases. The
 foundation coverage proves context/buffer ownership and bounded shared-memory copies. Prepared
-coverage proves custom caller and splat execution, typed mixed-operation MPSGraph execution,
-stable multi-feed/multi-target ordering, route reuse, and direct supplied outputs. The public
-Engine case proves exact broadcasts, asymmetric ordered `SUB`/`DIV`, fan-out, repeated sessions,
-direct internal publications, and both CPU/Metal transfer directions.
+coverage proves custom caller and splat execution, backend-local typed logical splats, stable
+multi-feed/multi-target ordering, direct supplied outputs, and 5,000 consecutive MPSGraph runs
+through one retained executable. One public test registers only Metal and proves the full caller-
+input mixed graph, repeated runs, independently prepared sessions, and closed-session rejection;
+a separate public test proves both CPU/Metal transfer directions.
 
 ## Boundaries
 

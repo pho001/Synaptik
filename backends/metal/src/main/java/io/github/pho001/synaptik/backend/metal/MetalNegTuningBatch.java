@@ -66,7 +66,7 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
         private final byte[] bytes;
 
         /**
-         * Snapshots canonical version-one workload-fingerprint bytes.
+         * Snapshots canonical version-two workload-fingerprint bytes.
          *
          * @param bytes non-null non-empty canonical bytes within the generator bound
          * @throws NullPointerException if {@code bytes} is {@code null}

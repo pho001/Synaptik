@@ -77,6 +77,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 class MetalNegPreparedExecutionTest {
+    private static final int MPSGRAPH_AUTORELEASE_STRESS_RUNS = 5_000;
+
     @Test
     void singletonRouteBoundaryIsChosenBeforeExactDeclarationsWithoutPhysicalAllocation() {
         RecordingNativeApi api = new RecordingNativeApi();
@@ -1239,7 +1241,44 @@ class MetalNegPreparedExecutionTest {
     }
 
     @Test
-    void realDeviceReusesOneMixedExecutableAndWritesSuppliedDestinations() {
+    void realDeviceTypedMpsGraphInitializesLogicalSplatsPerRun() {
+        String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
+        assumeTrue(configured != null && !configured.isBlank(),
+                "SYNAPTIK_METAL_TEST_LIBRARY is not set");
+        SplatRoute route = prepareSplatRoute(MetalDeviceContext.open(
+                Path.of(configured).toAbsolutePath().normalize()));
+        MetalBufferRepresentation caller = route.context().createBuffer(8);
+        try (Arena arena = Arena.ofConfined()) {
+            uploadBits(caller, 0x3F800000, 0xC0000000);
+            assertEquals(MetalNegPreparationPlan.Route.MPSGRAPH, route.plan().route());
+            assertTrue(route.plan().feedSplats().getFirst().isEmpty());
+            assertTrue(route.plan().feedSplats().subList(
+                    1, route.plan().feedSplats().size()).stream().allMatch(Optional::isPresent));
+
+            var runner = new PreparedExecutionRunner();
+            var first = runner.run(route.execution(), List.of(caller));
+            Object firstOutput = first.publicationRepresentation(0);
+            try {
+                assertLogicalSplatOutputs(first, arena);
+            } finally {
+                first.close();
+            }
+            var second = runner.run(route.execution(), List.of(caller));
+            try {
+                assertNotSame(firstOutput, second.publicationRepresentation(0));
+                assertLogicalSplatOutputs(second, arena);
+            } finally {
+                second.close();
+            }
+        } finally {
+            caller.close();
+            close(route.execution());
+            route.context().close();
+        }
+    }
+
+    @Test
+    void realDeviceMpsGraphStressReusesOneExecutableAndWritesSuppliedDestinations() {
         String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
         assumeTrue(configured != null && !configured.isBlank(),
                 "SYNAPTIK_METAL_TEST_LIBRARY is not set");
@@ -1280,8 +1319,10 @@ class MetalNegPreparedExecutionTest {
                 assertNegated(output2, new float[] {
                         -1.0f, -1.0f, Float.NaN, Float.NaN, Float.NaN, Float.NaN
                 }, arena);
-                resource.run(2, workspace.segment().asSlice(0, 16),
-                        3, workspace.segment().asSlice(16, 24));
+                for (int run = 0; run < MPSGRAPH_AUTORELEASE_STRESS_RUNS; run++) {
+                    resource.run(2, workspace.segment().asSlice(0, 16),
+                            3, workspace.segment().asSlice(16, 24));
+                }
                 assertNegated(output0, new float[] {
                         0.0f, 0.0f, 0.0f, 0.0f, Float.NaN, Float.NaN
                 }, arena);
@@ -1423,8 +1464,29 @@ class MetalNegPreparedExecutionTest {
         }
     }
 
+    private static void assertLogicalSplatOutputs(
+            io.github.pho001.synaptik.runtime.run.RunResult result, Arena arena) {
+        List<MetalBufferRepresentation> outputs = publishedBuffers(result);
+        assertEquals(8, outputs.size());
+        assertNegated(outputs.get(0), new float[] {-1.0f, 2.0f}, arena);
+        assertNegated(outputs.get(1), new float[] {-0.0f, -0.0f}, arena);
+        assertNegated(outputs.get(2), new float[] {0.0f, 0.0f}, arena);
+        assertNegated(outputs.get(3), new float[] {
+                Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY
+        }, arena);
+        assertNegated(outputs.get(4), new float[] {
+                Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY
+        }, arena);
+        assertNegated(outputs.get(5), new float[] {Float.NaN, Float.NaN}, arena);
+        assertNegated(outputs.get(6), new float[] {Float.NaN, Float.NaN}, arena);
+        assertNegated(outputs.get(7), new float[] {Float.NaN, Float.NaN}, arena);
+    }
+
     private static SplatRoute prepareSplatRoute(RecordingNativeApi api) {
-        MetalDeviceContext context = MetalDeviceContext.open(api);
+        return prepareSplatRoute(MetalDeviceContext.open(api));
+    }
+
+    private static SplatRoute prepareSplatRoute(MetalDeviceContext context) {
         try {
             TensorDescriptor descriptor = descriptor(Shape.of(2));
             ValueId caller = new ValueId(100);

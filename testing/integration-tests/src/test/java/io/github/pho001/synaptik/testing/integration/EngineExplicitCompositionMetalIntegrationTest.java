@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.testing.integration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
 import io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration;
@@ -9,6 +10,7 @@ import io.github.pho001.synaptik.backend.metal.MetalBackendIntegration;
 import io.github.pho001.synaptik.config.tuning.ModelAutotuningConfig;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.EngineMixedOwnerTestAccess;
+import io.github.pho001.synaptik.engine.InferenceSession;
 import io.github.pho001.synaptik.engine.ModelAutotuningPreparation;
 import io.github.pho001.synaptik.engine.ModelAutotuningRequest;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -29,13 +31,74 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** Exercises real CPU/Metal composition, both transfer directions, reuse, and CPU-only tuning. */
+/** Exercises real CPU-free Metal and mixed CPU/Metal public Engine composition. */
 final class EngineExplicitCompositionMetalIntegrationTest {
+    @Test
+    void cpuFreeMetalEngineRunsCallerBroadcastGraphAcrossIsolatedSessions() {
+        Path library = configuredMetalLibrary();
+        try (Arena arena = Arena.ofShared();
+                Engine.Builder builder = Engine.builder()) {
+            builder.takeOwnership(MetalBackendIntegration.open(
+                    new MetalBackendConfiguration(library)));
+            try (Engine engine = builder.build()) {
+                Shape matrixShape = Shape.of(2, 3);
+                TensorDescriptor matrixDescriptor = new TensorDescriptor(
+                        DataType.FLOAT32,
+                        matrixShape,
+                        Optional.of(LayoutDescriptor.contiguous(matrixShape)),
+                        false);
+                Tensor matrix = nativeTensor(
+                        matrixDescriptor, arena, 3.0f, 4.0f, 6.0f, 3.0f, 4.0f, 6.0f);
+                Shape rowShape = Shape.of(3);
+                TensorDescriptor rowDescriptor = new TensorDescriptor(
+                        DataType.FLOAT32,
+                        rowShape,
+                        Optional.of(LayoutDescriptor.contiguous(rowShape)),
+                        false);
+                Tensor row = nativeTensor(rowDescriptor, arena, 2.0f, 2.0f, 2.0f);
+                Tensor negated = matrix.neg();
+                Tensor zero = negated.add(matrix);
+                Tensor broadcast = zero.add(row);
+                Tensor subtracted = matrix.sub(broadcast);
+                Tensor multiplied = subtracted.mul(row);
+                Tensor divided = multiplied.div(row);
+                Tensor reverseDivided = row.div(divided);
+                var compiled = engine.compile(
+                        List.of(zero, subtracted, divided, reverseDivided));
+                assertEquals(2, compiled.inputs().size());
+
+                InferenceSession first = engine.session(compiled);
+                InferenceSession second = engine.session(compiled);
+                try {
+                    assertCpuFreeMetalBroadcastResult(first, matrix, row);
+                    assertCpuFreeMetalBroadcastResult(first, matrix, row);
+                    assertCpuFreeMetalBroadcastResult(second, matrix, row);
+
+                    first.close();
+                    assertTrue(first.isClosed());
+                    assertEquals("prepared execution is closed",
+                            assertThrows(IllegalStateException.class,
+                                    () -> first.run(null)).getMessage());
+                    assertCpuFreeMetalBroadcastResult(second, matrix, row);
+
+                    second.close();
+                    assertTrue(second.isClosed());
+                    assertEquals("prepared execution is closed",
+                            assertThrows(IllegalStateException.class,
+                                    () -> second.run(null)).getMessage());
+                } finally {
+                    second.close();
+                    first.close();
+                }
+            }
+        }
+    }
+
     @Test
     void realMetalLifecycleMixedOwnerTransfersAndCpuTuning(@TempDir Path directory) {
         Path library = configuredMetalLibrary();
-        try (Arena arena = Arena.ofShared()) {
-        try (Engine.Builder builder = Engine.builder()) {
+        try (Arena arena = Arena.ofShared();
+                Engine.Builder builder = Engine.builder()) {
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library)));
             builder.takeOwnership(CpuBackendIntegration.open());
@@ -62,33 +125,6 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         }
                     }
                 }
-
-                Shape matrixShape = Shape.of(2, 3);
-                TensorDescriptor matrixDescriptor = new TensorDescriptor(
-                        DataType.FLOAT32,
-                        matrixShape,
-                        Optional.of(LayoutDescriptor.contiguous(matrixShape)),
-                        false);
-                Shape rowShape = Shape.of(3);
-                TensorDescriptor rowDescriptor = new TensorDescriptor(
-                        DataType.FLOAT32,
-                        rowShape,
-                        Optional.of(LayoutDescriptor.contiguous(rowShape)),
-                        false);
-                Tensor matrix = nativeTensor(
-                        matrixDescriptor, arena, 2.0f, 4.0f, 8.0f, 2.0f, 4.0f, 8.0f);
-                Tensor row = nativeTensor(rowDescriptor, arena, 1.0f, 2.0f, 4.0f);
-                Tensor negated = matrix.neg();
-                Tensor zero = negated.add(matrix);
-                Tensor addedRow = zero.add(row);
-                Tensor subtracted = matrix.sub(addedRow);
-                Tensor multiplied = subtracted.mul(row);
-                Tensor divided = multiplied.div(row);
-                Tensor reverseDivided = row.div(divided);
-                assertMetalOnlyBroadcastResult(
-                        engine,
-                        engine.compile(List.of(zero, subtracted, divided, reverseDivided)),
-                        List.of(matrix, row));
 
                 assertMixedResult(
                         engine,
@@ -145,31 +181,24 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         List.of(input));
             }
         }
-        }
     }
 
-    private static void assertMetalOnlyBroadcastResult(
-            Engine engine,
-            io.github.pho001.synaptik.engine.CompiledGraph compiled,
-            List<Tensor> inputs) {
-        try (var session = engine.session(compiled)) {
-            for (int run = 0; run < 2; run++) {
-                try (var result = session.run(inputs)) {
-                    assertEquals(4, result.resultCount());
-                    assertCanonical(
-                            result.materialize(result.publications().get(0), 24L).bytes(),
-                            0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
-                    assertCanonical(
-                            result.materialize(result.publications().get(1), 24L).bytes(),
-                            1.0f, 2.0f, 4.0f, 1.0f, 2.0f, 4.0f);
-                    assertCanonical(
-                            result.materialize(result.publications().get(2), 24L).bytes(),
-                            1.0f, 2.0f, 4.0f, 1.0f, 2.0f, 4.0f);
-                    assertCanonical(
-                            result.materialize(result.publications().get(3), 24L).bytes(),
-                            1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
-                }
-            }
+    private static void assertCpuFreeMetalBroadcastResult(
+            InferenceSession session, Tensor matrix, Tensor row) {
+        try (var result = session.run(List.of(matrix, row))) {
+            assertEquals(4, result.resultCount());
+            assertCanonical(
+                    result.materialize(result.publications().get(0), 24L).bytes(),
+                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+            assertCanonical(
+                    result.materialize(result.publications().get(1), 24L).bytes(),
+                    1.0f, 2.0f, 4.0f, 1.0f, 2.0f, 4.0f);
+            assertCanonical(
+                    result.materialize(result.publications().get(2), 24L).bytes(),
+                    1.0f, 2.0f, 4.0f, 1.0f, 2.0f, 4.0f);
+            assertCanonical(
+                    result.materialize(result.publications().get(3), 24L).bytes(),
+                    2.0f, 1.0f, 0.5f, 2.0f, 1.0f, 0.5f);
         }
     }
 

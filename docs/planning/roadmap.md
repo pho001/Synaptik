@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through evidence-backed no-change 0010M; 0007A1D Review needed; 0010D1 and 0011 Blocked | No CPU task is Ready; any future default comparison requires a separately reviewed sealed matrix. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0017 | No Engine task is Ready; reopen only for a separately authorized capability. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0004; 0005 Ready | [0005](backends/metal/tasks/0005-mpsgraph-mixed-binary-whole-partition.md) is the sole authorized Metal frontier from exact main base `8c83d01e74f9a0bc57fce84d68ba82f26007a75d`; no parallel Metal task. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0004; 0005 Review needed | [0005](backends/metal/tasks/0005-mpsgraph-mixed-binary-whole-partition.md) has remediated its initial Class C `BLOCK` and awaits independent re-review; no parallel Metal task. |
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
 | 15 | [`extensions/data`](extensions/data/master-plan.md) | Draft; architecture decision required | 0001 must authorize the Data/Text/Vision modules, build edges, decision record, and architecture tests first. |
@@ -73,15 +73,18 @@ first returned `BLOCK` with six P1 and one P2 findings; after remediation and va
 re-review returned `APPROVE` with findings `0`. No later Training task is authorized.
 
 Metal
-[0005](backends/metal/tasks/0005-mpsgraph-mixed-binary-whole-partition.md) is `Ready` from
-exact `main` base `8c83d01e74f9a0bc57fce84d68ba82f26007a75d`. It is the only authorized Metal
-frontier: a serial Class C slice for static canonical-dense `FLOAT32` whole-partition NEG plus
-`ADD`/`SUB`/`MUL`/`DIV` MPSGraph execution with exact right-aligned broadcasting, versioned typed
-native ABI, retained custom singleton NEG, and real public Engine tests. No parallel Metal task
-or later Metal work is authorized.
+[0005](backends/metal/tasks/0005-mpsgraph-mixed-binary-whole-partition.md) is `Review needed`
+after its initial Class C review returned `BLOCK` with two P1 and two P2 findings. Remediation adds
+local Objective-C autorelease pools to MPSGraph create/run, retained-box and long repeated-run
+native proof, a separate CPU-free caller-input Engine lifecycle scenario, backend-local typed
+logical-splat evidence, the ABI-v4 exact thirteen-symbol inventory, and corrected synchronized
+documentation/Javadocs. Independent re-review remains mandatory. It is the only authorized Metal
+frontier; no parallel or later Metal task is authorized.
 
 ## Blocked, review-needed, and deferred work
 
+- Metal 0005 remains `Review needed` after remediation of its initial two-P1/two-P2 Class C
+  `BLOCK`; independent re-review must approve it before status can become `Complete`.
 - [OpenBLAS provider 0004](backends/openblas-provider/tasks/0004-optional-direct-bfloat16-output-gemm-capability.md)
   and dependent CPU 0010D1 remain an optional blocked branch. Pinned evidence proves neither the
   required exported direct BFLOAT16-output ABI nor full-contraction FLOAT32 accumulation followed

@@ -213,7 +213,7 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
     if ((uint64_t)value_count > SIZE_MAX / SYNAPTIK_MAX_RANK)
         return SYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE;
-    @try {
+    @try { @autoreleasepool {
         NSMutableArray<MPSShape *> *shapes = [NSMutableArray arrayWithCapacity:value_count];
         NSMutableArray<NSNumber *> *bytes = [NSMutableArray arrayWithCapacity:value_count];
         for (uint32_t value = 0; value < value_count; value++) {
@@ -389,7 +389,7 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
         box.targetPermutation = target_permutation;
         *out_executable = (__bridge_retained void *)box;
         return SYNAPTIK_METAL_STATUS_OK;
-    } @catch (__unused NSException *exception) {
+    } } @catch (__unused NSException *exception) {
         return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
     }
 }
@@ -407,7 +407,7 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_run(
     if (executable == NULL || input_count == 0U || output_count == 0U
             || input_buffers == NULL || output_buffers == NULL)
         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-    @try {
+    @try { @autoreleasepool {
         SynaptikMetalExecutableBox *box = (__bridge SynaptikMetalExecutableBox *)executable;
         if (input_count != box.feedShapes.count || output_count != box.targetShapes.count)
             return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
@@ -458,7 +458,7 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_run(
         for (id result in results) if (result == nil || result == NSNull.null)
             return SYNAPTIK_METAL_STATUS_EXECUTION_FAILED;
         return SYNAPTIK_METAL_STATUS_OK;
-    } @catch (__unused NSException *exception) { return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR; }
+    } } @catch (__unused NSException *exception) { return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR; }
 }
 
 SYNAPTIK_EXPORT int32_t synaptik_metal_neg_kernel_pipeline_create(

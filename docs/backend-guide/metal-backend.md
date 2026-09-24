@@ -202,11 +202,13 @@ executable. Its hot method makes one native call and performs no Java allocation
 marshalling, slot or map lookup, representation cast, graph traversal, operation dispatch, route
 choice, reflection, string dispatch, host copy, retry, or fallback.
 
-Native execution creates the bounded framework binding objects required by MPSGraph, binds the
-ordered input and supplied output `MTLBuffer` values, and invokes the executable once with
-`waitUntilCompleted = YES`. Success requires no completion error and the exact ordered usable
-result count. Synaptik performs no explicit output copy and does not request hidden result
-materialization; this is not a claim that MPSGraph uses no internal temporary storage.
+Native execution enters a local `@autoreleasepool` inside the Objective-C exception boundary,
+creates the bounded framework binding objects required by MPSGraph, binds the ordered input and
+supplied output `MTLBuffer` values, and invokes the executable once with
+`waitUntilCompleted = YES`. Every success and early-failure return drains transient framework
+objects before crossing the C ABI. Success additionally requires no completion error and the exact
+ordered usable result count. Synaptik performs no explicit output copy and does not request hidden
+result materialization; this is not a claim that MPSGraph uses no internal temporary storage.
 
 ## Examples
 
@@ -242,8 +244,9 @@ publish z, s, d, q
 forms one maximal typed MPSGraph partition. The fixed ABI retains ordered operands, so asymmetric
 `SUB` and `DIV` semantics survive lowering. `r` broadcasts by exact right alignment; `s` is both
 an internal value and a boundary target. A run creates fresh supplied destinations for all four
-targets, executes the graph once, and publishes them directly. Repeated sessions reuse the
-persistent executable while owning different outputs and address workspaces.
+targets, executes the graph once, and publishes them directly. Repeated runs of one prepared
+session reuse its persistent executable while owning different outputs and address workspaces.
+Opening another session performs preparation again and compiles a separate executable.
 
 The public Engine path for a supported NEG uses the same contracts:
 
@@ -295,15 +298,19 @@ Task 0005 validation composes:
 - backend-conformance coverage for exact public truth and one maximal heterogeneous partition;
 - a rebuilt arm64 dylib inspected for exactly thirteen exports, ABI `4`, required framework
   linkage, and absence of the old NEG-only create symbol;
-- real-device backend execution for custom and typed mixed-operation MPSGraph reuse;
-- a public Engine scenario covering all five operations, exact broadcast in both ordered
-  arithmetic directions, multiple feeds and targets, fan-out, internal publications, repeated
-  session runs, and CPU/Metal transfer directions; and
+- real-device backend execution for custom execution, backend-local typed logical splats, and
+  mixed-operation MPSGraph reuse, including 5,000 consecutive runs through one executable;
+- a CPU-free public Engine scenario covering all five operations, exact broadcast in both ordered
+  arithmetic directions, multiple caller feeds and targets, fan-out, direct internal
+  publications, repeated runs of one session, independently prepared sessions, and closed-session
+  rejection, kept separate from the CPU/Metal transfer scenario; and
 - Javadoc, architecture tests, public-shape tests, and whitespace validation.
 
-The public compilation port intentionally supplies no explicit positive-rank forward-constant
-ingress. Backend-local typed splat execution and shared constant propagation contracts therefore
-remain the truthful coverage for initialized Metal feeds.
+The public `GraphCompilationPort` intentionally supplies no explicit positive-rank forward
+constant ingress, so the CPU-free Engine scenario uses caller inputs rather than claiming a public
+compile-time splat. Backend-local real-device coverage passes an exact `FLOAT32` logical splat
+through `PrepareContext.constants()` and verifies fresh initialized Metal feed buffers on repeated
+runs.
 
 ## Registration and composition
 
@@ -336,10 +343,11 @@ cannot select or prepare Metal.
 Metal production has no Compiler or Engine dependency. Architecture tests lock that direction and
 the API-visible Engine dependency on Metal. Builder lifecycle tests cover entry-time transfer,
 snapshot and order freezing, duplicate-ID rejection, terminal failed build, reverse cleanup, and
-pre-analysis transfer-domain rejection. The real public integration test covers custom singleton
-execution, one Metal-only heterogeneous broadcast partition, asymmetric `SUB`/`DIV`,
-multi-feed/multi-target fan-out and direct internal publications, repeated sessions, CPU-to-Metal
-and Metal-to-CPU transfer, adapter use after registry lookup is poisoned, CPU tuning with Metal
+pre-analysis transfer-domain rejection. One real public integration test registers only Metal and
+covers one heterogeneous broadcast partition, asymmetric `SUB`/`DIV`, multi-feed/multi-target
+fan-out, direct internal publications, repeated runs, two independently prepared sessions, and
+closed-session rejection priority. A separate CPU/Metal test covers custom singleton execution,
+both transfer directions, adapter use after registry lookup is poisoned, CPU tuning with Metal
 registered, and early Metal tuning rejection. These implement the construction boundary in
 [ADR 0015](../design/decisions/0015-explicit-engine-backend-composition.md) and the current
 owner-indexed mixed schedule in
