@@ -82,7 +82,9 @@ the real probe passed `ABS` ULP0, `EXP` ULP1, and `SIGMOID` ULP1, but failed exa
 `RECIPROCAL`, `LOG`, `SQRT`, `RSQRT`, `RELU`, and `TANH` semantics. No production code or probe
 changes remain. [0007](backends/metal/tasks/0007-mpsgraph-float32-reductions.md) is the sole
 `Ready` frontier, bounded to typed FLOAT32 SUM/MEAN reductions and Metal-only scalar
-materialization; it does not widen rank-0 CPU↔Metal transfer.
+materialization; it does not widen rank-0 CPU↔Metal transfer. Compiler-generated gradient graph
+shape/compile is a gate only; executable Metal-only backward is deferred to Metal 0008/0009 after
+affine EXPAND support.
 
 
 ## Blocked, review-needed, and deferred work
@@ -92,8 +94,9 @@ materialization; it does not widen rank-0 CPU↔Metal transfer.
   repository remains clean fail-closed with no production change.
 - Metal 0007 is the sole `Ready` frontier. It depends on 0005, not blocked 0006, and must prove
   full/single/multi-axis SUM/MEAN, keep-dims, SUM_TO_SHAPE, rank-0 Metal-only materialization,
-  typed versioned attrs, ABI-v4 compatibility, numerical gates, and CPU-free Engine/backward
-  evidence without widening cross-owner rank-1..16 transfer.
+  typed versioned attrs, ABI-v4 compatibility, numerical gates, and compiler gradient
+  graph-shape/compile evidence. Executable Metal-only backward is deferred to Metal 0008/0009
+  after affine EXPAND support; no cross-owner rank-1..16 transfer widening is permitted.
 - [OpenBLAS provider 0004](backends/openblas-provider/tasks/0004-optional-direct-bfloat16-output-gemm-capability.md)
   and dependent CPU 0010D1 remain an optional blocked branch. Pinned evidence proves neither the
   required exported direct BFLOAT16-output ABI nor full-contraction FLOAT32 accumulation followed

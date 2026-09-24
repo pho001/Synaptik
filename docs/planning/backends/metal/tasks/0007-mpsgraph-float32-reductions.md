@@ -35,8 +35,13 @@ backend-local typed route fields and physical materialization. `0005` is the dep
   target; leading source axes reduce, target extent one reduces an aligned source axis, and equal
   extents preserve it. Other pairs fail at binding. The output descriptor is exactly targetShape.
 - Compiler inference computes rank changes and rank-0 Shape precisely. `ReductionGradientRules`
-  restores SUM/MEAN with `keepDimensions` and implements SUM_TO_SHAPE backward as `expand` to the
-  source Shape. Metal must execute the forward semantics, not inspect or construct autograd.
+  restores ordinary SUM/MEAN gradients with `expandDims` when axes are removed and then `expand`
+  to the source Shape; `SUM_TO_SHAPE` backward directly calls `gradient.expand(sourceShape)`.
+  With Metal 0008 affine transforms not yet supported, every nontrivial admitted reduction
+  backward requires an unsupported EXPAND path. Metal 0007 therefore owns forward reduction only.
+- Compiler-generated gradient graphs must still be built and inspected/compiled as a shape and
+  contract gate, but executable Metal-only backward evidence is deferred to the Metal 0008/0009
+  affine/materialization checkpoint. This is a truthful deferral, not a weakened forward scope.
 - No generic attribute bag is permitted. The backend schema must distinguish the four typed forms
   and carry only validated axes, keep-dims, and right-aligned target geometry.
 
@@ -122,9 +127,10 @@ lookup is allowed. Candidate generation and authenticated compatibility follow 0
   SUM_TO_SHAPE, rank-0 materialization, repeated runs, two independent prepared sessions, direct
   publication, close/rejection, and no CPU integration. A separate negative test proves rank-0
   CPU↔Metal transfer is rejected and rank-1..16 transfer behavior is unchanged.
-- Backward evidence uses Compiler-generated SUM/MEAN graphs and proves gradients for ordinary and
-  SUM_TO_SHAPE cases without a CPU execution route; Engine/backward must run through Metal-only
-  forward and backward partitions where the graph permits it.
+- Compiler-generated SUM/MEAN forward and autograd graphs are built, and their inferred gradient
+  Shape/operation contracts are inspected or compiled as a non-execution gate. Executable
+  Metal-only backward evidence is explicitly deferred to Metal 0008/0009 after affine EXPAND
+  support; 0007 must not claim CPU-free backward execution.
 - Documentation, Javadocs, native schema audit, lifecycle review, architecture checks, and an
   independent Class C review pass; no production claim is made before all gates pass.
 
@@ -132,9 +138,10 @@ lookup is allowed. Candidate generation and authenticated compatibility follow 0
 
 Depends on Metal 0005, current Model reduction contracts, Compiler autograd/inference, Engine
 0017, Compiler 0006B7, Prepare 0008, and Runtime 0016. It does not depend on Metal 0006; 0006
-remains Blocked. Review must specifically inspect MPSGraph selector semantics, typed attrs schema,
-rank-0 publication, no-widening transfer behavior, numerical/special gates, candidate bump,
-transactional cleanup, and real CPU-free Engine/backward evidence.
+remains Blocked. Metal 0008/0009 own the later affine EXPAND path and executable Metal-only
+backward checkpoint. Review must specifically inspect MPSGraph selector semantics, typed attrs
+schema, rank-0 publication, no-widening transfer behavior, numerical/special gates, candidate
+bump, transactional cleanup, and truthful gradient graph-shape deferral.
 
 ## Validation
 
