@@ -2,11 +2,35 @@
 
 ## Status
 
-Ready
+Blocked
 
-This is the sole authorized Metal frontier. Metal 0008 is Complete; 0006, 0007, 0009, and 0010
-are independently Blocked. This forward-only scalar family depends on none of their failing
-selectors or numerical paths.
+The mandatory real-device probe and independent blocker review completed fail closed. No
+production, test, native, or probe changes remain. Metal 0008 stays Complete, and 0006, 0007,
+0009, and 0010 remain separate blockers.
+
+## Blocking evidence
+
+On an Apple M3 Max, real MPSGraph scalar executables ran at optimization levels `0` and `1` with
+reduced-precision fast math disabled. Three independently compiled executables per level ran every
+case eight times using exact raw embedded constants, caller-supplied direct targets, canaries,
+feed/target permutations, and raw input identity controls.
+
+The bounded matrix performed 77,824 scalar checks and found 17,328 mismatches. Reproducible
+counterexamples include:
+
+- embedded scalar `ADD +0` mapped input `-0` to `-0` in all 48 executions, while both the strict
+  FLOAT32 oracle and the completed tensor-tensor `ADD` route produce `+0`;
+- positive minimum-subnormal `ADD +0` flushed to zero;
+- positive minimum-subnormal `DIV +0` produced NaN instead of positive infinity;
+- maximum-finite `DIV` maximum-finite produced zero instead of one; and
+- positive infinity `DIV` maximum-finite produced NaN instead of positive infinity.
+
+The constant-bit, direct-target, canary, permutation, repetition, and identity controls exclude
+constant construction, upload/download, binding, overwrite, and executable-instability errors.
+The independent review confirmed these are Model-visible arithmetic failures. Model permits no
+relaxation here beyond NaN payload and signaling state, neither of which explains any
+counterexample. Unblocking requires an exact replacement route or an explicit Model numerical
+contract change. This task authorizes neither a custom kernel, fallback, nor relaxation.
 
 ## Change class
 
@@ -197,4 +221,8 @@ compatibility invalidation, lifecycle/resource non-expansion, Engine evidence, a
 
 ## Result
 
-Empty until execution.
+Blocked. The required optimization-level `0`/`1`, three-executable-per-level, eight-run matrix
+found 17,328 mismatches in 77,824 scalar checks, including signed-zero, subnormal, finite division,
+and infinity division failures. Exact constants, direct targets, canaries, permutations, repeated
+runs, and identity controls passed. Independent blocker review confirmed no existing Model
+relaxation admits the results. No production, native, test, or probe changes remain.

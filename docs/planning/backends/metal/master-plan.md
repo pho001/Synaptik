@@ -45,9 +45,9 @@ Training-to-Metal optimizer bridge.
   tested, and colocated with their routes. Shared orchestration treats them opaquely.
 - Safe heuristics remain correct without tuning. Model 0026 must define IEEE FLOAT16 and affected
   numerical contracts before Metal advertises FLOAT16; two-byte storage does not imply BFLOAT16
-  or FLOAT16 capability. Blocked 0010 added no BOOL capability; Ready 0011 is FLOAT32-only scalar
-  arithmetic. Later Metal 0028 and 0029 remain reserved for separately authorized FLOAT16 and
-  BFLOAT16 scopes.
+  or FLOAT16 capability. Blocked 0010 added no BOOL capability; blocked 0011 added no scalar
+  arithmetic capability. Ready 0012 is FLOAT32-only ordinary extrema reduction. Later Metal 0028
+  and 0029 remain reserved for separately authorized FLOAT16 and BFLOAT16 scopes.
 - Production dependencies may point to Model, Config, Planning, Runtime, Prepare,
   Backend Contract, and Trace, never Engine or Training. Task 0002's Compiler edge is test-only.
 
@@ -82,17 +82,19 @@ visibility.
 | 0008 | [MPSGraph FLOAT32 affine transforms](tasks/0008-mpsgraph-float32-affine-transforms.md) | Complete | 0005; current Model/Compiler affine Shape and layout contracts; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007 | Metal capability/preparation/native ABI/Engine Metal materialization; shared aliasing or transfer work | None | Real selector/bit probe → typed schema → capability/analysis → Prepare/Runtime/materialization → Engine proof → docs/review | ABI-v4 export/schema audit; exact Shape/layout/raw-bit gates; direct affine publication; transfer non-widening; focused Metal/conformance/Engine/architecture checks | Approved after implementation `7e39f705`, remediation `9713e528`/`aa42ed711`, and independent Class C APPROVE with zero findings; five bounded affine transforms, ABI v4 exact. |
 | 0009 | [MPSGraph FLOAT32 rank-two MATMUL training checkpoint](tasks/0009-mpsgraph-float32-rank2-matmul-training-checkpoint.md) | Blocked | 0008; Model/Compiler rank-two MATMUL and first-order rules; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007 | 0006/0007; Metal capability/preparation/native schema/candidate/materialization/Engine scopes | None | Exact replacement route → precision gates → Class C review | Reproducible real direct-target probe and fail-closed evidence; no production change | `K=1` multiplication by one flushed positive/negative minimum and ordinary subnormals to zero; no permitted FLOAT32 association/FMA yields zero. Independent `APPROVE-BLOCKER`; signed zero is not a blocker. |
 | 0010 | [MPSGraph FLOAT32/BOOL predicates and selection](tasks/0010-mpsgraph-float32-bool-predicates-and-selection.md) | Blocked | 0008; current Model predicate/BOOL/WHERE semantics; Compiler forward capture; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007/0009 or Model 0026 | 0006/0007/0009; Metal capability/preparation/native schema/candidate/storage/materialization/Engine scopes | None | Exact replacement route → numerical gates → Class C review | Reproducible real direct-target comparison probe and fail-closed evidence; no production change | Apple M3 Max MPSGraph comparisons treated positive and negative minimum subnormal as equal to `±0` at optimization levels 0/1; raw identity, ordinary/special controls, canonical BOOL targets, canaries, and permutations passed. |
-| 0011 | [MPSGraph FLOAT32 scalar pointwise arithmetic](tasks/0011-mpsgraph-float32-scalar-pointwise-arithmetic.md) | Ready | 0005/0008; current Model scalar semantics and Compiler forward capture; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007/0009/0010 or Model 0026 | Every concurrent Metal capability/preparation/native schema/candidate/materialization/Engine scope | None | Probe → schema/scalar carrier → capability/topology → candidates/lifecycle → Engine proof → docs/review | Scalar-bit/direct-target probe; ABI-v4 exact exports; focused Metal/conformance/Engine/Compiler/architecture/Javadoc/docs checks | Sole Ready frontier: bounded forward FLOAT32 scalar `ADD/SUB/MUL/DIV` through exact embedded constants and existing arithmetic selectors; no blocked or excluded family. |
+| 0011 | [MPSGraph FLOAT32 scalar pointwise arithmetic](tasks/0011-mpsgraph-float32-scalar-pointwise-arithmetic.md) | Blocked | 0005/0008; current Model scalar semantics and Compiler forward capture; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007/0009/0010 or Model 0026 | Every concurrent Metal capability/preparation/native schema/candidate/materialization/Engine scope | None | Exact replacement route → numerical gates → Class C review | Reproducible real scalar-bit/direct-target probe and independent blocker; no production change | The optimization-level 0/1 matrix found 17,328 mismatches in 77,824 checks, including signed-zero, subnormal, finite-division, and infinity-division failures; controls passed. |
+| 0012 | [MPSGraph FLOAT32 extrema reductions](tasks/0012-mpsgraph-float32-extrema-reductions.md) | Ready | 0005/0008; current Model ordinary-extrema semantics and Compiler forward capture; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007/0009/0010/0011 or Model 0026 | Every concurrent Metal capability/preparation/native schema/candidate/materialization/Engine scope | None | Probe → schema/geometry → capability/topology → candidates/lifecycle/scalar publication → Engine proof → docs/review | Exhaustive extrema/direct-target probe; ABI-v4 exact exports; focused Metal/conformance/Engine/Compiler/architecture/Javadoc/docs checks | Sole Ready frontier: bounded forward FLOAT32 ordinary MIN/MAX through installed NaN-propagating selectors, independent of exact SUM/MEAN. |
 
 ## Dependency DAG and authorized frontiers
 
-`0001 → 0002 → 0003 → 0004 → 0005 → 0008 → {0009, 0010, 0011}`
+`0001 → 0002 → 0003 → 0004 → 0005 → 0008 → {0009, 0010, 0011, 0012}`
 
-0006 and 0007 are independent `Blocked` branches from 0005. 0009 and 0010 are independently
-`Blocked` from 0008 by exact MATMUL subnormal flushing and comparison subnormal collapse,
-respectively. 0011 is the sole authorized frontier and depends only on completed 0005/0008 plus
-current Model/Compiler forward scalar contracts; it does not depend on 0006, 0007, 0009, 0010,
-Model 0026, or reserved future Metal 0028/0029 type work.
+0006 and 0007 are independent `Blocked` branches from 0005. 0009, 0010, and 0011 are
+independently `Blocked` from 0008 by exact MATMUL subnormal flushing, comparison subnormal
+collapse, and scalar arithmetic failures, respectively. 0012 is the sole authorized frontier and
+depends only on completed 0005/0008 plus current Model/Compiler forward ordinary-extrema
+contracts; it does not depend on 0006, 0007, 0009, 0010, 0011, Model 0026, or reserved future
+Metal 0028/0029 type work.
 
 ## Integration ownership and shared documents
 
@@ -122,11 +124,22 @@ subnormal compared equal to `±0` instead of remaining distinct. Raw identity pr
 bits; ordinary, infinity, NaN, canonical BOOL target, canary, and permutation controls passed.
 No production, test, or probe changes remain.
 
-Metal 0011 is the sole `Ready` frontier. It adds only forward FLOAT32 scalar
-`ADD/SUB/MUL/DIV`, using exact-bit embedded constants and the four arithmetic selectors already
-used by completed 0005. Its mandatory real-device probe precedes production changes. It excludes
-extrema, POW, every failed unary/predicate family, BOOL, CAST, reductions, MATMUL, custom kernels,
-backward/training, transfer widening, FLOAT16, and BFLOAT16.
+Metal 0011 is independently `Blocked`: at optimization levels `0` and `1`, three independent
+executables per level and eight runs per case, its exact embedded-scalar matrix found 17,328
+mismatches in 77,824 checks. Reproducible failures include scalar `ADD +0` retaining input `-0`,
+minimum-subnormal flushing, minimum-subnormal `DIV +0` producing NaN, maximum-finite self-division
+producing zero, and infinity/maximum-finite division producing NaN. Exact constants, direct
+targets, canaries, permutations, repetition, and identity controls passed. Independent review
+confirmed no Model relaxation admits the results. No production, test, native, or probe changes
+remain.
+
+Metal 0012 is the sole `Ready` frontier. It adds only forward FLOAT32 ordinary reduction `MIN`
+and `MAX`, using the installed NaN-propagating extrema selectors. It is independent of blocked
+exact SUM/MEAN and scalar arithmetic, begins with an exhaustive raw-bit real-device probe, and
+fails closed on any NaN, signed-zero, subnormal-ordering, infinity, Shape, direct-target, canary,
+permutation, repetition, or executable-independence failure. Product, SUM/MEAN/SUM_TO_SHAPE,
+advanced/statistical/Boolean/arg reductions, custom kernels, backward/training, transfer widening,
+FLOAT16, and BFLOAT16 are excluded.
 
 
 ## Delivered lifecycle and ABI boundary
