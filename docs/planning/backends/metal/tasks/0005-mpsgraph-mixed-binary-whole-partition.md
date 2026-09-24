@@ -1,31 +1,39 @@
 # Task 0005: MPSGraph Mixed NEG/Binary FLOAT32 Whole-Partition Route
 
-## Status
-
-Review needed
+Complete
 
 ## Review state
 
-Class C review of implementation commit `8f117dcfa764483c997767acd6eb202608763ef3`
+Initial independent Class C review of implementation commit `8f117dcfa764483c997767acd6eb202608763ef3`
 returned `BLOCK` with two P1 and two P2 findings:
 
 - P1: MPSGraph create and run lacked local Objective-C autorelease pools around transient
   framework objects.
-- P1: the public Engine evidence registered CPU beside Metal and therefore did not prove a
-  CPU-free Metal-only builder, independent prepared sessions, or closed-session rejection
-  priority.
+- P1: public Engine evidence registered CPU beside Metal and therefore did not prove a CPU-free
+  Metal-only builder, independent prepared sessions, or closed-session rejection priority.
 - P2: task, master-plan, and roadmap state was not synchronized for the blocked review, and the
   master plan did not record the ABI-v4 cutover and exact export inventory.
 - P2: the backend guide misstated executable reuse across sessions, the version-two workload
   signature Javadoc still said version one, and result text overstated public splat evidence.
 
-Remediation adds local create/run pools inside the native exception boundaries, retains the
-executable box across the pool, runs a 5,000-invocation real MPSGraph stress regression, separates
-a CPU-free caller-input Engine test from mixed CPU/Metal composition, deepens the backend-local
-real typed-splat proof, and corrects planning/Javadoc/guide evidence. Public
-`GraphCompilationPort` still has empty positive-rank forward-constant ingress, so no public splat
-API or fake public splat claim is added. This task remains `Review needed` pending independent
-Class C re-review.
+Remediation commit `9f3a264` added local create/run pools inside native exception boundaries,
+retained the executable box across the pool, ran the 5,000-invocation real MPSGraph stress
+regression, separated the CPU-free caller-input Engine test from mixed CPU/Metal composition,
+deepened backend-local typed-splat proof, and corrected planning/Javadoc/guide evidence.
+
+Independent Class C re-review of `9f3a264` returned `APPROVE` with zero residual findings.
+Evidence: native build/export audit passed; ABI version `4` retained the exact thirteen exports and
+the old NEG-only create symbol was absent; real Metal tests passed 55/55 with zero failures,
+errors, or skips including the 5,000-run retained-executable stress; focused conformance passed
+2/2; real CPU-free Engine integration passed 2/2 with mixed unary/binary partition, broadcast,
+ordered SUB/DIV, fan-out, repeated runs, independent sessions, direct publication, close and
+rejection, while mixed-owner composition remained separate; Javadoc, architecture, public-shape,
+documentation, allowlist, and `git diff --check` audits passed.
+
+ABI v4 remains exact: typed node schema `1` is the fixed 16-byte four-`uint32_t` record
+(`NEG=1`, `ADD=2`, `SUB=3`, `MUL=4`, `DIV=5`, `UINT32_MAX` unary sentinel), with no generic
+attributes, compatibility symbol, string dispatch, source payload, or fallback. The exact
+thirteen-symbol inventory is recorded in the Result below and in the master plan.
 
 ## Change class
 
@@ -213,4 +221,5 @@ Final task-owned allowlist:
 No public Java type or method changed. The package-private `MetalNeg*` class names remain historical
 implementation names to avoid a weightless file-renaming cutover; their contracts and Javadocs
 describe the generalized typed elementwise route. Master plan and roadmap remain synchronized at
-`Review needed` until independent re-review returns an approval.
+`Complete` after the initial `BLOCK` → remediation → independent `APPROVE` trail above. ABI v4
+remains exact and Metal 0006 is now the sole Ready successor.

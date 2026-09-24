@@ -74,15 +74,15 @@ visibility.
 | 0002 | [MPSGraph prepared execution route](tasks/0002-mpsgraph-prepared-execution-route.md) | Complete | 0001; Runtime 0016; Prepare 0006; Engine 0010; Compiler 0006B7 | None | None | Any | Focused Metal and conformance suites | Added maximal-partition positive-shape contiguous FLOAT32 NEG through reusable MPSGraph preparation/execution. |
 | 0003 | [Single-NEG custom Metal kernel route](tasks/0003-single-neg-custom-metal-kernel-route.md) | Complete | 0001–0002 | None | None | Any | Focused Metal/native suites | Added a private custom route for one NEG/feed/target within `1..UINT32_MAX`; all other supported partitions retain MPSGraph. |
 | 0004 | [Typed Metal route candidate generators and cache compatibility](tasks/0004-typed-metal-route-candidate-generators-and-cache-compatibility.md) | Complete | 0002–0003, opaque prepare/tuning boundary and artifact versioning | None | None | Any | Focused candidate, Metal, and conformance suites | Added typed NEG candidates and a session-compatible authenticated codec foundation without outer tuning integration. |
-| 0005 | [MPSGraph mixed NEG/binary FLOAT32 whole-partition route](tasks/0005-mpsgraph-mixed-binary-whole-partition.md) | Review needed | 0001–0004; Engine 0017; Compiler 0006B7; Prepare 0008; Runtime 0016 | Metal capability/preparation/native ABI/Engine Metal scopes | None | ABI/schema → capability/analysis → Prepare → public Engine tests → docs/review | Native export audit; focused Metal/conformance; real public Engine integration; architecture checks; `git diff --check` | Implemented ABI-v4 typed whole-partition NEG + ADD/SUB/MUL/DIV and remediated the initial Class C block; independent re-review remains required. |
+| 0005 | [MPSGraph mixed NEG/binary FLOAT32 whole-partition route](tasks/0005-mpsgraph-mixed-binary-whole-partition.md) | Complete | 0001–0004; Engine 0017; Compiler 0006B7; Prepare 0008; Runtime 0016 | Metal capability/preparation/native ABI/Engine Metal scopes | None | ABI/schema → capability/analysis → Prepare → public Engine tests → docs/review | Native export audit; focused Metal/conformance; real public Engine integration; architecture checks; `git diff --check` | Approved after initial Class C BLOCK, remediation `9f3a264`, and independent APPROVE with zero residual findings; ABI v4 exact. |
+| 0006 | [MPSGraph FLOAT32 unary algebra route](tasks/0006-mpsgraph-float32-unary-algebra.md) | Ready | 0005; current Model unary semantics; Engine 0017; Compiler 0006B7; Prepare 0008; Runtime 0016 | Metal capability/preparation/native ABI/Engine Metal scopes; scalar schema work | None | Native typed unary schema → capability/analysis → Prepare → fake/native tests → CPU-free Engine → docs/review | Native export/schema audit; focused Metal/conformance; real CPU-free Engine; architecture/docs checks; `git diff --check` | Bounded parameterless ABS/RECIPROCAL/EXP/LOG/SQRT/RSQRT/RELU/SIGMOID/TANH; scalar ADD/SUB/MUL/DIV explicitly deferred. |
 
 ## Dependency DAG and authorized frontiers
 
-`0001 → 0002 → 0003 → 0004 → 0005`
+`0001 → 0002 → 0003 → 0004 → 0005 → 0006`
 
-Authorized frontier: `0005` only, currently `Review needed`. No other Metal task is Ready; all
-later Metal work remains unauthorized until 0005 receives independent approval or is explicitly
-blocked/superseded.
+Authorized frontier: `0006` only, `Ready`. No other Metal task is Ready; later work remains
+unauthorized until 0006 completes or is explicitly blocked/superseded.
 
 ## Integration ownership and shared documents
 
@@ -92,23 +92,12 @@ blocked/superseded.
 
 ## Milestones and current frontier
 
-The native/storage foundation, two NEG routes, and Metal-local candidate/session compatibility
-foundation are Complete through 0004. Task 0005 is the sole authorized frontier. Its implementation
-and first remediation are complete, but status remains `Review needed` until independent Class C
-re-review approves the native lifetime, CPU-free public Engine, and synchronized evidence changes.
+Metal 0001–0005 are Complete. 0005's initial Class C `BLOCK` (two P1/two P2) was remediated by
+`9f3a264` and independently re-reviewed `APPROVE` with zero residual findings. Evidence includes
+the exact ABI-v4 thirteen-export audit, 5,000-run/native CPU-free proof, focused 55-test Metal
+pass, 2/2 conformance pass, and 2/2 real CPU-free Engine integration pass. Metal 0006 is the sole
+Ready frontier and preserves ABI v4 exactly; its scalar family is deferred pending a typed carrier.
 
-The initial Class C review returned `BLOCK` with two P1 and two P2 findings: missing local
-autorelease pools in MPSGraph create/run; no CPU-free Metal-only public Engine lifecycle proof;
-unsynchronized task/master/roadmap state and incomplete ABI-v4 inventory; and inaccurate
-session-reuse, workload-signature-version, and splat evidence. Remediation adds the local pools,
-5,000-run real stress coverage, a separate caller-input CPU-free Engine scenario, backend-local
-real typed-splat execution, corrected Javadocs/docs, and synchronized `Review needed` state.
-`GraphCompilationPort` remains unchanged with empty explicit positive-rank forward-constant
-ingress; task 0005 adds no public constant API.
-
-The 0004 readiness audit remains historical evidence for its completed boundary. Its candidate
-codec is still package-private and unconsumed by outer tuning or Engine; task 0005 does not widen
-that boundary while generalizing the MPSGraph execution schema.
 
 ## Delivered lifecycle and ABI boundary
 
