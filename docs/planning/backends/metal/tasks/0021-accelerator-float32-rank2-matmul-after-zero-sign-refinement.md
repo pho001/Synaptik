@@ -204,6 +204,31 @@ reassociation/FMA, exact-zero publication, all-term, and reduced-precision contr
 `K=1` witness retained product `-0` and passed only through Model 0029's final-publication
 either-zero-sign freedom. The source and binary were removed before production edits.
 
+Original implementation checkpoint evidence (recorded for this remediation; no review approval
+is implied and status remains `Ready`):
+
+```text
+Metal focused tests: 98/98 passed, 0 skipped
+GradientRules pattern: 41/41 passed, 0 skipped
+Metal conformance: 5/5 passed, 0 skipped
+Environment-enabled real Metal integration: 10/10 passed, 0 skipped
+Architecture checks: 9/9 passed, 0 skipped
+Full ./gradlew build: 3,496 total; 3,455 passed, 41 skipped, 0 failed/errors
+  ordinary full-build skips: CPU 28 + integration 13
+Aggregate executable checkpoint: 3,659 cases; 3,618 passed, 41 skipped, 0 failures/errors
+Native build: passed
+nm: exactly ABI v4 with 13 exports
+Javadocs and full ./gradlew build: passed
+```
+
+The 10/10 real Metal integration result above is the task-scoped,
+environment-enabled checkpoint. It is distinct from the optional suites skipped by the
+ordinary full build, whose 41 skips were CPU 28 plus integration 13. The 14 changed Markdown
+files passed the validator; `tensor-api` reported exactly its identical 172 pre-existing
+duplicate headings and zero new or nonduplicate diagnostics. `git diff --check` and whitespace
+checks passed. Exactly 38 task-owned paths changed; the disposable probe source and binary were
+removed. After the evidence-remediation commit, the worktree was clean.
+
 The implementation adds the exact accelerator-only capability, local transpose authentication,
 schema-eight wire `15`, Java/native fail-closed geometry and topology validation, direct MPSGraph
 matrix multiplication with reduced-precision-none readback, version-nine identities, reusable
