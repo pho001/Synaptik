@@ -11,21 +11,22 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Immutable typed operation table for the version-nine Metal MPSGraph node schema.
+ * Immutable typed operation table for the version-ten Metal MPSGraph node schema.
  *
  * <p>ABI version four points at fixed 160-byte discriminated records. Each record contains a
  * closed operation identity, exact ordered value indices, one typed attribute discriminator, and
  * bounded target-shape, permutation, normalized-axis, reduction, or one-hot depth state. Reduction
  * records use a typed full/single/multi/sum-to-Shape form, ordered axes (including an empty
  * multi-axis list), exact keep-dimensions state, or the exact scalar-or-positive-rank
- * sum-to-Shape target. GATHER appends wire 16 with an axis; ONE_HOT appends wire 17 with positive
- * depth attribute 5. Every unused scalar is a required zero or {@code UINT32_MAX} sentinel and
- * every unused attribute cell is zero. No operation name, generic integer payload, object graph,
- * map, or executable state crosses the ABI.</p>
+ * sum-to-Shape target. GATHER retains wire 16, ONE_HOT retains wire 17, and SCATTER_ELEMENTS
+ * appends wire 18 with its third input in the typed auxiliary cell. Every unused scalar is a
+ * required zero or {@code UINT32_MAX} sentinel and every unused attribute cell is zero. No
+ * operation name, generic integer payload, object graph, map, or executable state crosses the
+ * ABI.</p>
  */
 final class MetalMpsGraphProgram {
     /** Exact node schema carried across native ABI version four. */
-    static final int SCHEMA_VERSION = 9;
+    static final int SCHEMA_VERSION = 10;
     /** Maximum target rank or permutation length. */
     static final int MAX_RANK = 16;
     /** Exact fixed native record size. */
@@ -106,7 +107,8 @@ final class MetalMpsGraphProgram {
         MEAN(14, 1, AttributeKind.REDUCTION, ValueState.CANONICAL, false),
         MATMUL(15, 2, AttributeKind.NONE, ValueState.CANONICAL, true),
         GATHER(16, 2, AttributeKind.AXIS, ValueState.CANONICAL, false),
-        ONE_HOT(17, 1, AttributeKind.DEPTH, ValueState.CANONICAL, false);
+        ONE_HOT(17, 1, AttributeKind.DEPTH, ValueState.CANONICAL, false),
+        SCATTER_ELEMENTS(18, 3, AttributeKind.AXIS, ValueState.CANONICAL, false);
 
         private final int wireIdentity;
         private final int inputCount;
@@ -153,7 +155,7 @@ final class MetalMpsGraphProgram {
         }
     }
 
-    /** One immutable typed version-nine node record. */
+    /** One immutable typed version-ten node record. */
     static final class Node {
         private final NodeKind kind;
         private final int firstInputIndex;
@@ -161,7 +163,7 @@ final class MetalMpsGraphProgram {
         private final int outputIndex;
         private final int attributeCount;
         private final int axis;
-        private final int reserved;
+        private final int auxiliary;
         private final long[] attributeValues;
 
         private Node(
@@ -171,7 +173,7 @@ final class MetalMpsGraphProgram {
                 int outputIndex,
                 int attributeCount,
                 int axis,
-                int reserved,
+                int auxiliary,
                 long[] attributeValues) {
             this.kind = Objects.requireNonNull(kind, "kind");
             if (firstInputIndex < 0) {
@@ -180,52 +182,60 @@ final class MetalMpsGraphProgram {
             if (outputIndex < 0) {
                 throw new IllegalArgumentException("outputIndex must be non-negative");
             }
-            if ((kind.inputCount() == 1 && secondInputIndex != NO_SECOND_INPUT)
-                    || (kind.inputCount() == 2 && secondInputIndex < 0)) {
+            boolean secondInputPresent = kind.inputCount() >= 2;
+            if ((!secondInputPresent && secondInputIndex != NO_SECOND_INPUT)
+                    || (secondInputPresent && secondInputIndex < 0)) {
                 throw new IllegalArgumentException(
                         "secondInputIndex disagrees with the typed node kind");
             }
+            if (kind.inputCount() == 3 && auxiliary < 0) {
+                throw new IllegalArgumentException(
+                        "auxiliary third input disagrees with the typed node kind");
+            }
             Objects.requireNonNull(attributeValues, "attributeValues");
             if (kind.attributeKind() == AttributeKind.NONE) {
-                if (attributeCount != 0 || axis != NO_AXIS || reserved != 0
+                if (attributeCount != 0 || axis != NO_AXIS || auxiliary != 0
                         || attributeValues.length != 0) {
                     throw new IllegalArgumentException("no-attribute node contains attribute state");
                 }
             } else if (kind.attributeKind() == AttributeKind.TARGET_SHAPE) {
                 if (attributeCount < 1 || attributeCount > MAX_RANK
-                        || axis != NO_AXIS || reserved != 0
+                        || axis != NO_AXIS || auxiliary != 0
                         || attributeValues.length != attributeCount) {
                     throw new IllegalArgumentException("target-shape node attributes are malformed");
                 }
                 requirePositiveDimensions(attributeValues, "target-shape");
             } else if (kind.attributeKind() == AttributeKind.PERMUTATION) {
                 if (attributeCount < 1 || attributeCount > MAX_RANK
-                        || axis != NO_AXIS || reserved != 0
+                        || axis != NO_AXIS || auxiliary != 0
                         || attributeValues.length != attributeCount) {
                     throw new IllegalArgumentException("permutation node attributes are malformed");
                 }
                 validateOrderedAxes(attributeValues, attributeCount, true);
             } else if (kind.attributeKind() == AttributeKind.AXIS) {
+                boolean auxiliaryValid = kind == NodeKind.SCATTER_ELEMENTS
+                        ? auxiliary >= 0
+                        : auxiliary == 0;
                 if (attributeCount != 1 || axis < 0 || axis >= MAX_RANK
-                        || reserved != 0 || attributeValues.length != 0) {
+                        || !auxiliaryValid || attributeValues.length != 0) {
                     throw new IllegalArgumentException("axis node attributes are malformed");
                 }
             } else if (kind.attributeKind() == AttributeKind.DEPTH) {
                 if (kind != NodeKind.ONE_HOT || attributeCount != 1 || axis != NO_AXIS
-                        || reserved != 0 || attributeValues.length != 1
+                        || auxiliary != 0 || attributeValues.length != 1
                         || attributeValues[0] <= 0L) {
                     throw new IllegalArgumentException("depth node attributes are malformed");
                 }
             } else {
                 ReductionForm form = ReductionForm.fromWireIdentity(axis);
-                if (reserved < 0 || reserved > 1 || attributeCount < 0
+                if (auxiliary < 0 || auxiliary > 1 || attributeCount < 0
                         || attributeCount > MAX_RANK
                         || attributeValues.length != attributeCount) {
                     throw new IllegalArgumentException("reduction node attributes are malformed");
                 }
                 switch (form) {
                     case FULL -> {
-                        if (attributeCount != 0 || reserved != 0) {
+                        if (attributeCount != 0 || auxiliary != 0) {
                             throw new IllegalArgumentException("full reduction attributes are malformed");
                         }
                     }
@@ -239,7 +249,7 @@ final class MetalMpsGraphProgram {
                     case MULTI_AXIS ->
                         validateOrderedAxes(attributeValues, MAX_RANK, false);
                     case SUM_TO_SHAPE -> {
-                        if (kind != NodeKind.SUM || reserved != 0) {
+                        if (kind != NodeKind.SUM || auxiliary != 0) {
                             throw new IllegalArgumentException(
                                     "sum-to-Shape is valid only for SUM without keepDimensions");
                         }
@@ -252,7 +262,7 @@ final class MetalMpsGraphProgram {
             this.outputIndex = outputIndex;
             this.attributeCount = attributeCount;
             this.axis = axis;
-            this.reserved = reserved;
+            this.auxiliary = auxiliary;
             this.attributeValues = attributeValues.clone();
         }
 
@@ -329,8 +339,9 @@ final class MetalMpsGraphProgram {
 
         static Node axis(NodeKind kind, int inputIndex, int outputIndex, int axis) {
             Objects.requireNonNull(kind, "kind");
-            if (kind.attributeKind() != AttributeKind.AXIS) {
-                throw new IllegalArgumentException("node kind does not use axis attributes");
+            if (kind.attributeKind() != AttributeKind.AXIS || kind.inputCount() != 1) {
+                throw new IllegalArgumentException(
+                        "node kind does not use unary axis attributes");
             }
             return new Node(kind, inputIndex, NO_SECOND_INPUT, outputIndex,
                     1, axis, 0, new long[0]);
@@ -369,6 +380,23 @@ final class MetalMpsGraphProgram {
                 int dataInputIndex, int indicesInputIndex, int outputIndex, int axis) {
             return new Node(NodeKind.GATHER, dataInputIndex, indicesInputIndex, outputIndex,
                     1, axis, 0, new long[0]);
+        }
+
+        static Node scatterElements(
+                int dataInputIndex,
+                int indicesInputIndex,
+                int updatesInputIndex,
+                int outputIndex,
+                int axis) {
+            return new Node(
+                    NodeKind.SCATTER_ELEMENTS,
+                    dataInputIndex,
+                    indicesInputIndex,
+                    outputIndex,
+                    1,
+                    axis,
+                    updatesInputIndex,
+                    new long[0]);
         }
 
         static Node oneHot(int indicesInputIndex, int outputIndex, long depth) {
@@ -415,8 +443,8 @@ final class MetalMpsGraphProgram {
             return axis;
         }
 
-        int reserved() {
-            return reserved;
+        int auxiliary() {
+            return auxiliary;
         }
 
         long[] attributeValues() {
@@ -447,7 +475,7 @@ final class MetalMpsGraphProgram {
         return encoded.array();
     }
 
-    /** Allocates and writes exact native-endian version-nine records for one downcall. */
+    /** Allocates and writes exact native-endian version-ten records for one downcall. */
     MemorySegment encodeNative(Arena arena) {
         Objects.requireNonNull(arena, "arena");
         long bytes = Math.multiplyExact((long) nodes.size(), NODE_RECORD_BYTES);
@@ -467,7 +495,7 @@ final class MetalMpsGraphProgram {
         encoded.putInt(node.outputIndex());
         encoded.putInt(node.attributeCount());
         encoded.putInt(node.axis());
-        encoded.putInt(node.reserved());
+        encoded.putInt(node.auxiliary());
         long[] values = node.attributeValues();
         for (int index = 0; index < MAX_RANK; index++) {
             encoded.putLong(index < values.length ? values[index] : 0L);
@@ -482,7 +510,7 @@ final class MetalMpsGraphProgram {
         target.set(JAVA_INT, offset + 16L, node.outputIndex());
         target.set(JAVA_INT, offset + 20L, node.attributeCount());
         target.set(JAVA_INT, offset + 24L, node.axis());
-        target.set(JAVA_INT, offset + 28L, node.reserved());
+        target.set(JAVA_INT, offset + 28L, node.auxiliary());
         long[] values = node.attributeValues();
         for (int index = 0; index < MAX_RANK; index++) {
             target.set(JAVA_LONG, offset + ATTRIBUTE_VALUES_OFFSET + (long) index * Long.BYTES,

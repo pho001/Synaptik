@@ -534,10 +534,11 @@ unsupported profile/operation combination before route analysis, preserve the st
 capability invariant, and retain the profile in every plan and compatibility identity that could
 otherwise be reused. CPU admits both profiles with identical exact routes and distinct identities.
 Metal admits exact canonical NEG/ABS/affine/`CONTIGUOUS`, canonical positive-rank `FLOAT32` data
-GATHER with canonical `INT32` indices, and positive-rank `INT32`-to-`BOOL` ONE_HOT under both
-profiles. It additionally admits accelerator tensor-binary, canonical
-`SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two MATMUL partitions. The Metal preparer
-authenticates an affine MATMUL operand to an exact local rank-two transpose of a canonical source
-on that consuming edge; the view may otherwise be published or have another valid affine consumer.
-It preserves exact typed ingress and target byte geometry, prevalidated indexing obligations, and
-the profile in schema-nine/version-ten route identity without widening CPU/Metal transfer.
+GATHER with canonical `INT32` indices, positive-rank `INT32`-to-`BOOL` ONE_HOT, and canonical
+positive-rank `FLOAT32`/`INT32`/`FLOAT32` `SCATTER_ELEMENTS/NONE` under both profiles. It
+additionally admits accelerator tensor-binary, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive
+static rank-two MATMUL partitions. The Metal preparer authenticates an affine MATMUL operand to an
+exact local rank-two transpose of a canonical source on that consuming edge; the view may otherwise
+be published or have another valid affine consumer. It preserves exact typed ingress and target
+byte geometry, bounds-before-uniqueness indexing obligations, and the profile in
+schema-ten/version-eleven route identity without widening CPU/Metal transfer.

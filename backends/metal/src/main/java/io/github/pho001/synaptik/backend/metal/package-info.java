@@ -5,8 +5,12 @@
  * domain under both profiles: parameterless {@code NEG} and {@code ABS}, {@code RESHAPE},
  * {@code EXPAND}, {@code PERMUTE}, {@code EXPAND_DIMS}, {@code SQUEEZE}, the explicit
  * {@code CONTIGUOUS} canonicalization barrier, canonical positive-rank {@code FLOAT32} data
- * {@code GATHER} with canonical {@code INT32} indices, and canonical positive-rank
- * {@code INT32}-to-{@code BOOL} {@code ONE_HOT}. {@code ACCELERATOR} additionally admits tensor
+ * {@code GATHER} with canonical {@code INT32} indices, canonical positive-rank
+ * {@code INT32}-to-{@code BOOL} {@code ONE_HOT}, and canonical positive-rank
+ * {@code SCATTER_ELEMENTS} replacement with ordered {@code FLOAT32}/{@code INT32}/{@code FLOAT32}
+ * data, indices, and updates. Scatter accepts only {@code ScatterReduction.NONE}, returns a
+ * canonical data-shaped value, preserves exact represented bits, and validates complete bounds
+ * then target uniqueness before dispatch. {@code ACCELERATOR} additionally admits tensor
  * {@code ADD}, {@code SUB}, {@code MUL}, and {@code DIV}, canonical {@code FLOAT32} {@code SUM},
  * {@code MEAN}, and binding-resolved {@code SUM_TO_SHAPE}, and positive static rank-two
  * {@code FLOAT32} {@code MATMUL}. Reductions support full, normalized single-axis, ordered
@@ -38,8 +42,9 @@
  *
  * <p>The selected numerical profile participates in partition-plan, route, tuning,
  * decision-codec, and workload identity. Java rejects profile/schema mismatches before native
- * entry. ABI version four remains stable; node schema version nine retains wires {@code 1..15}
- * and appends {@code GATHER=16} and {@code ONE_HOT=17}. Backend-local workload, exact-policy,
- * candidate, compatibility, route-policy, and codec identities are version ten.</p>
+ * entry. ABI version four remains stable; node schema version ten retains wires {@code 1..17}
+ * and appends {@code SCATTER_ELEMENTS=18} with its third input in the typed auxiliary cell.
+ * Backend-local workload, exact-policy, candidate, compatibility, route-policy, and codec
+ * identities are version eleven.</p>
  */
 package io.github.pho001.synaptik.backend.metal;

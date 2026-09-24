@@ -9,9 +9,12 @@ import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
+import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
 import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
+import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
+import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
@@ -37,23 +40,26 @@ import java.util.Objects;
  * registration, or caching. Under either numerical profile, support includes unary {@code NEG}
  * and {@code ABS}, five FLOAT32 affine transforms, the explicit {@code CONTIGUOUS}
  * canonicalization barrier, canonical positive-rank INT32 {@code GATHER} indices selecting
- * FLOAT32 data, and canonical positive-rank INT32 {@code ONE_HOT} indices producing terminal BOOL
- * values. {@link NumericalProfile#ACCELERATOR} additionally supports tensor {@code ADD}/{@code
- * SUB}/{@code MUL}/{@code DIV}, canonical FLOAT32 {@code SUM}/{@code MEAN}/{@code SUM_TO_SHAPE},
- * and positive static rank-two FLOAT32 {@code MATMUL}. MATMUL accepts each operand only as
- * canonical or as the exact rank-two transpose layout that complete-partition analysis must
- * authenticate to a local {@code PERMUTE [1,0]} producer from a canonical source. Its output is
- * canonical and carries the logical OR of the operand gradient flags. Strict MATMUL remains
- * unsupported. Accelerator reductions admit only full, normalized single-axis, ordered normalized
- * multi-axis (including empty identity), and binding-resolved sum-to-Shape forms. Their input is
- * canonical positive-rank {@code 1..16}; canonical outputs may be rank zero only as locally
- * produced reduction results. Strict reductions remain unsupported. Binary inputs and outputs are
- * canonical dense non-views with exact right-aligned broadcasting. {@code ABS} and {@code NEG}
- * descriptors remain canonical. An affine or contiguous input may be canonical or an exact
- * resolved zero-offset logical view; complete-partition analysis authenticates every admitted
- * view as a prior local affine result. Every admitted occurrence uses checked positive extents.
- * GATHER requires its exact replacement-axis output formula and matched data/output gradient flag;
- * ONE_HOT appends its positive depth and is entirely non-differentiable.</p>
+ * FLOAT32 data, canonical positive-rank INT32 {@code ONE_HOT} indices producing terminal BOOL
+ * values, and canonical FLOAT32/INT32/FLOAT32 {@code SCATTER_ELEMENTS} replacement with unique
+ * valid targets. {@link NumericalProfile#ACCELERATOR} additionally supports tensor {@code ADD}/
+ * {@code SUB}/{@code MUL}/{@code DIV}, canonical FLOAT32 {@code SUM}/{@code MEAN}/
+ * {@code SUM_TO_SHAPE}, and positive static rank-two FLOAT32 {@code MATMUL}. MATMUL accepts each
+ * operand only as canonical or as the exact rank-two transpose layout that complete-partition
+ * analysis must authenticate to a local {@code PERMUTE [1,0]} producer from a canonical source.
+ * Its output is canonical and carries the logical OR of the operand gradient flags. Strict MATMUL
+ * remains unsupported. Accelerator reductions admit only full, normalized single-axis, ordered
+ * normalized multi-axis (including empty identity), and binding-resolved sum-to-Shape forms. Their
+ * input is canonical positive-rank {@code 1..16}; canonical outputs may be rank zero only as
+ * locally produced reduction results. Strict reductions remain unsupported. Binary inputs and
+ * outputs are canonical dense non-views with exact right-aligned broadcasting. {@code ABS} and
+ * {@code NEG} descriptors remain canonical. An affine or contiguous input may be canonical or an
+ * exact resolved zero-offset logical view; complete-partition analysis authenticates every
+ * admitted view as a prior local affine result. Every admitted occurrence uses checked positive
+ * extents. GATHER requires its exact replacement-axis output formula and matched data/output
+ * gradient flag; ONE_HOT appends its positive depth and is entirely non-differentiable.
+ * SCATTER_ELEMENTS requires reduction NONE, equal indices/update Shapes, matching non-axis data
+ * extents, exact data-shaped output, non-differentiable indices, and data/update gradient OR.</p>
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
     /**
@@ -125,6 +131,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             if (operation.kind() == AxisGatherKind.GATHER) {
                 return supportsGather(operation, inputs, output);
             }
+            if (operation.kind() == AxisScatterKind.SCATTER_ELEMENTS) {
+                return supportsScatterElements(operation, inputs, output);
+            }
             if (operation.kind() == OneHotKind.ONE_HOT) {
                 return supportsOneHot(operation, inputs, output);
             }
@@ -182,6 +191,40 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         System.arraycopy(dataShape, axis + 1, expected, axis + indexShape.length,
                 dataShape.length - axis - 1);
         return java.util.Arrays.equals(expected, output.shape().toLongArray());
+    }
+
+    private static boolean supportsScatterElements(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        if (!(operation.attrs() instanceof ScatterElementsAttrs attrs)
+                || attrs.reduction() != ScatterReduction.NONE
+                || inputs.size() != 3) {
+            return false;
+        }
+        TensorDescriptor data = inputs.get(0);
+        TensorDescriptor indices = inputs.get(1);
+        TensorDescriptor updates = inputs.get(2);
+        if (!canonical(data)
+                || !canonicalTyped(indices, DataType.INT32)
+                || !canonical(updates)
+                || !canonical(output)
+                || indices.requiresGrad()
+                || output.requiresGrad() != (data.requiresGrad() || updates.requiresGrad())
+                || !indices.shape().equals(updates.shape())
+                || !data.shape().equals(output.shape())) {
+            return false;
+        }
+        long[] dataShape = data.shape().toLongArray();
+        long[] indexShape = indices.shape().toLongArray();
+        int axis = attrs.axis();
+        if (dataShape.length != indexShape.length || axis >= dataShape.length) {
+            return false;
+        }
+        for (int dimension = 0; dimension < dataShape.length; dimension++) {
+            if (dimension != axis && dataShape[dimension] != indexShape[dimension]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean supportsOneHot(

@@ -18,9 +18,12 @@ import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElemen
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
+import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
 import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
+import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
+import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
@@ -195,7 +198,7 @@ class MetalCapabilityProviderTest {
     }
 
     @Test
-    void admitsOnlyExactInt32GatherAndOneHotOccurrencesInBothProfiles() {
+    void admitsOnlyExactInt32GatherOneHotAndReplacementScatterInBothProfiles() {
         TensorDescriptor data = typed(DataType.FLOAT32, Shape.of(2, 3, 4), true);
         TensorDescriptor indices = typed(DataType.INT32, Shape.of(5, 6), false);
         TensorDescriptor gathered = typed(DataType.FLOAT32, Shape.of(2, 5, 6, 4), true);
@@ -204,11 +207,23 @@ class MetalCapabilityProviderTest {
         TensorDescriptor oneHot = typed(DataType.BOOL, Shape.of(2, 3, 4), false);
         Operation encode = new Operation(OneHotKind.ONE_HOT, new OneHotAttrs(4));
 
+        TensorDescriptor scatterData = typed(DataType.FLOAT32, Shape.of(2, 3), true);
+        TensorDescriptor scatterIndices = typed(DataType.INT32, Shape.of(2, 2), false);
+        TensorDescriptor scatterUpdates = typed(DataType.FLOAT32, Shape.of(2, 2), false);
+        TensorDescriptor scattered = typed(DataType.FLOAT32, Shape.of(2, 3), true);
+        Operation scatter = new Operation(
+                AxisScatterKind.SCATTER_ELEMENTS,
+                new ScatterElementsAttrs(1, ScatterReduction.NONE));
         for (NumericalProfile profile : NumericalProfile.values()) {
             assertTrue(provider.supports(new OperationCapabilityQuery(
                     profile, gather, List.of(data, indices), List.of(gathered))));
             assertTrue(provider.supports(new OperationCapabilityQuery(
                     profile, encode, List.of(oneHotIndices), List.of(oneHot))));
+            assertTrue(provider.supports(new OperationCapabilityQuery(
+                    profile,
+                    scatter,
+                    List.of(scatterData, scatterIndices, scatterUpdates),
+                    List.of(scattered))));
         }
 
         assertFalse(provider.supports(new OperationCapabilityQuery(
@@ -241,6 +256,33 @@ class MetalCapabilityProviderTest {
                 encode,
                 List.of(oneHotIndices),
                 List.of(typed(DataType.BOOL, Shape.of(2, 3, 5), false)))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(1, ScatterReduction.ADD)),
+                List.of(scatterData, scatterIndices, scatterUpdates),
+                List.of(scattered))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                scatter,
+                List.of(
+                        scatterData,
+                        typed(DataType.INT64, scatterIndices.shape(), false),
+                        scatterUpdates),
+                List.of(scattered))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                scatter,
+                List.of(
+                        scatterData,
+                        scatterIndices,
+                        typed(DataType.FLOAT32, Shape.of(1, 2), false)),
+                List.of(scattered))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                scatter,
+                List.of(scatterData, scatterIndices, scatterUpdates),
+                List.of(typed(DataType.FLOAT32, scattered.shape(), false)))));
     }
 
     @Test

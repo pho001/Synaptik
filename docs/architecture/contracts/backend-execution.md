@@ -210,13 +210,18 @@ materialize through the owning Metal integration as exact one-byte elements. The
 not widen the cross-owner transfer capability, which remains canonical positive-rank `FLOAT32`.
 
 The current common-profile Metal indexing domain is exact positive-rank axis `GATHER` from
-canonical `FLOAT32` data with canonical `INT32` indices, and positive-rank
-`INT32`-to-`BOOL` `ONE_HOT`. Metal must validate every logical index in stable node then row-major
-ordinal order before MPSGraph selector dispatch or any target write. A failure publishes the
-Model's exact `IndexOutOfBoundsException` text and leaves every target unchanged; selector
-out-of-bounds behavior is never part of the contract. This is a forward-only backend route and
-does not add Compiler production, a backward path, INT64 indices, general BOOL consumers, CPU
-fallback, or widened transfer.
+canonical `FLOAT32` data with canonical `INT32` indices, positive-rank `INT32`-to-`BOOL`
+`ONE_HOT`, and canonical positive-rank `FLOAT32`/`INT32`/`FLOAT32`
+`SCATTER_ELEMENTS/NONE` replacement. Scatter has ordered `[data, indices, updates]` inputs, a
+data-shaped canonical output, equal index/update Shape, and exact non-axis agreement with data.
+Metal validates every logical index in stable node then row-major ordinal order; each scatter
+completes bounds before complete-coordinate uniqueness. All checks precede MPSGraph tensor-data
+construction, selector dispatch, and target writes. Bounds publish the Model's exact
+`IndexOutOfBoundsException`; duplicates publish its exact `IllegalArgumentException`; every target
+and input remains unchanged on failure. Selector skip and overlap-winner behavior are never part of
+the contract. This is a forward backend route and does not add Compiler production, a complete
+backward path, arithmetic scatter, Scatter-ND, INT64 indices, general BOOL consumers, CPU fallback,
+or widened transfer.
 
 Metal-specific optimizer execution belongs to Metal backend prepare/kernels, not to training.
 

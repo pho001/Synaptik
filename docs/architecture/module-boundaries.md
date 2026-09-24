@@ -53,12 +53,14 @@ classification, and finite nonzero results otherwise retain their contracts. The
 contract, Config identity, cold propagation spine, and first backend realizations are current.
 For any backend and occurrence domain, strict capability and behavior are an accelerator subset.
 CPU supports both profiles identically with exact current behavior. Metal supports exact canonical
-NEG/ABS/affine/`CONTIGUOUS` under both profiles, and additionally supports tensor FLOAT32
-`ADD`/`SUB`/`MUL`/`DIV`, canonical FLOAT32 `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static
-rank-two FLOAT32 MATMUL with authenticated local transposes under `ACCELERATOR`; unsupported pairs
-fail closed. Rank-zero Metal support is local to produced reduction targets and does not
-widen caller ingress or transfer. The narrow explicitly seeded rank-two MATMUL gradient path
-remains backend execution of the Compiler graph, not training ownership.
+NEG/ABS/affine/`CONTIGUOUS`, FLOAT32+INT32 GATHER, INT32-to-BOOL ONE_HOT, and canonical
+FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE` under both profiles, and additionally supports tensor
+FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`, canonical FLOAT32 `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive
+static rank-two FLOAT32 MATMUL with authenticated local transposes under `ACCELERATOR`; unsupported
+pairs fail closed. Rank-zero Metal support is local to produced reduction targets and does not
+widen caller ingress or transfer. The narrow explicitly seeded rank-two MATMUL gradient path and
+the ordinary Compiler-generated scatter occurrence remain backend execution of Compiler graphs,
+not training ownership or a complete Metal backward claim.
 
 The current Model fixed recurrent scan follows this same flat boundary. Model owns the fixed
 `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM` meanings, one `FORWARD` or `REVERSE` attribute, ordered

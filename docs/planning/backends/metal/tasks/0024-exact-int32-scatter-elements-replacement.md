@@ -4,10 +4,11 @@
 
 Ready
 
-Metal 0023 is Complete at implementation `9a7911c9447eeb5125ceb8a4d78e55349ec18b97`
-plus evidence `80e6cedda96df2a03f284d551e6e34046eaaa2f3`; final independent lean Class C
-review returned `APPROVE` with zero findings. The dependencies below are Complete, no declared
-conflict is active, and this is the sole Ready Metal frontier.
+The scoped implementation and worker validation are complete from exact clean base
+`ad07e7e5d029f0472f1d05e82f2e869899d7dbf7`; independent lean Class C review remains. Metal 0023
+is Complete at implementation `9a7911c9447eeb5125ceb8a4d78e55349ec18b97` plus evidence
+`80e6cedda96df2a03f284d551e6e34046eaaa2f3`; its final review returned `APPROVE` with zero
+findings. No declared conflict is active, and this task remains the sole Ready Metal frontier.
 
 ## Change class
 
@@ -25,7 +26,7 @@ prohibited.
   ingress/publication, materialization, or public Engine scope; any blocked Metal 0016–0018 restart;
   arithmetic scatter, Scatter-ND, Model 0026, or shared-layer mutation.
 - Parallel group: None.
-- Common base revision: N/A; this work is serial after the planning checkpoint.
+- Common base revision: `ad07e7e5d029f0472f1d05e82f2e869899d7dbf7`.
 - Integration order: schema/identity, capability/analysis, native validation/lowering, prepared
   diagnostics, public proof, documentation, independent review.
 - Integration validation: focused Metal/conformance/real-Engine checkpoint, native export audit,
@@ -261,6 +262,69 @@ Independent review inspects selector/Set use, third-edge schema, pre-dispatch bo
 diagnostic ordering, scratch lifetime/complexity, unchanged targets/inputs, no alias path, profile
 monotonicity, identity cutover, typed boundaries, lean device evidence, backward boundary, and diff.
 It reuses successful evidence and reruns executable work only for a concrete identified risk.
+
+## Implementation checkpoint for independent review
+
+Implementation began from exact clean revision
+`ad07e7e5d029f0472f1d05e82f2e869899d7dbf7`. Before any production edit, one disposable
+Objective-C program compiled against the production frameworks and ran exactly once on the M3 Max.
+Its one Set-mode data-taking Scatter Elements execution reported
+`task0024 Set smoke passed: exact addressed/unaddressed raw bits and unchanged inputs`. The corpus
+covered signed zero, one subnormal, infinities, and signaling-NaN payloads in addressed updates and
+unaddressed base cells. The source and executable were removed immediately; no bounds, duplicate,
+Shape/type/profile/context/optimization, or repetition probe ran.
+
+The implementation adds only canonical positive-rank FLOAT32/INT32/FLOAT32
+`SCATTER_ELEMENTS/NONE` to both profile matrices. Schema 10 appends wire 18 and carries updates in
+the renamed typed auxiliary cell without changing the 160-byte record. Native creation authenticates
+types, state, rank, Shape, axis, topology, and stable index feeds. Each synchronized executable run
+validates every resource, completes row-major bounds, rebuilds complete target coordinates in
+bounded executable-owned primitive scratch, sorts them for nonquadratic uniqueness, and performs
+no tensor-data construction, dispatch, or target write until every descriptor passes. Java's
+exceptional rescan reproduces the exact bounds and smallest-later/smallest-earlier duplicate
+messages and preserves an unmatched native failure. Version-eleven workload, exact-policy,
+candidate, compatibility, route-policy, and codec identities reject older bytes. ABI 4, thirteen
+exports, FLOAT32-only transfer, shared production, and the incomplete backward boundary are
+unchanged.
+
+Worker evidence passed:
+
+- the native bridge build, an exact thirteen-symbol `nm -gU` export audit, and Foundation,
+  Metal, and MetalPerformanceShadersGraph linkage audit;
+- focused capability, schema/native preflight, real native raw-bit/failure-sentinel, prepared
+  diagnostic, route-identity, backend-conformance, and CPU-free public Engine methods;
+- architecture tests and Metal Javadoc; and
+- the single final `./gradlew build` invocation: `BUILD SUCCESSFUL`, 87 actionable tasks, eight
+  executed and 79 up-to-date.
+
+The exact 34-path checkpoint is:
+
+- production under
+  `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/`:
+  `MetalCapabilityProvider.java`, `MetalMpsGraphProgram.java`, `MetalNativeApi.java`,
+  `MetalNegPartitionPreparer.java`, `MetalNegPreparedExecutable.java`,
+  `MetalNegRouteCandidateGenerator.java`, `MetalNegTuningBatch.java`, `MetalNegTuningCodec.java`,
+  and `package-info.java`; plus
+  `native/metal-macos-arm64/src/synaptik_metal_foundation.m`;
+- tests under `backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/`:
+  `MetalCapabilityProviderTest.java`, `MetalMpsGraphAbsNativeTest.java`,
+  `MetalMpsGraphAffineSchemaTest.java`, `MetalMpsGraphBinaryNativeTest.java`,
+  `MetalMpsGraphIndexingNativeTest.java`, `MetalMpsGraphRawAbiNativeTest.java`,
+  `MetalMpsGraphReductionNativeTest.java`, `MetalNegPreparedExecutionTest.java`, and
+  `MetalNegRouteCandidateGeneratorTest.java`; plus
+  `testing/backend-conformance/src/test/java/io/github/pho001/synaptik/testing/conformance/MetalNegCapabilityPartitionConformanceTest.java`
+  and
+  `testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineExplicitCompositionMetalIntegrationTest.java`;
+- documentation: `ARCHITECTURE.md`, `docs/api/compile-api.md`, `docs/api/public-api.md`,
+  `docs/api/tensor-api.md`, `docs/architecture/contracts/backend-execution.md`,
+  `docs/architecture/module-boundaries.md`, `docs/backend-guide/metal-backend.md`,
+  `docs/backend-guide/partition-preparer.md`, `docs/glossary.md`,
+  `docs/planning/backends/metal/master-plan.md`,
+  `docs/planning/backends/metal/tasks/0024-exact-int32-scatter-elements-replacement.md`,
+  `docs/planning/roadmap.md`, and `native/metal-macos-arm64/README.md`.
+
+The task deliberately remains **Ready**. Independent lean Class C review is the only remaining
+closure gate.
 
 ## Architecture impact
 

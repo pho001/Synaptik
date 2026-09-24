@@ -24,7 +24,7 @@ class MetalMpsGraphRawAbiNativeTest {
     private static final Consumer<MemorySegment> UNCHANGED = ignored -> { };
 
     @Test
-    void rawVersionNineRecordRejectsEveryMalformedHeaderAndUnusedField() {
+    void rawVersionTenRecordRejectsEveryMalformedHeaderAndUnusedField() {
         try (RawAbi abi = RawAbi.open()) {
             MetalMpsGraphProgram reshape = new MetalMpsGraphProgram(List.of(
                     MetalMpsGraphProgram.Node.targetShape(
@@ -43,7 +43,7 @@ class MetalMpsGraphRawAbiNativeTest {
                     new int[] {0}, new int[] {1}, record -> record.set(JAVA_INT, 12L, 0));
             abi.assertRejected("target-shape axis sentinel", ranks, dimensions, reshape,
                     new int[] {0}, new int[] {1}, record -> record.set(JAVA_INT, 24L, 0));
-            abi.assertRejected("reserved scalar", ranks, dimensions, reshape,
+            abi.assertRejected("unused auxiliary scalar", ranks, dimensions, reshape,
                     new int[] {0}, new int[] {1}, record -> record.set(JAVA_INT, 28L, 1));
             abi.assertRejected("unused target-shape payload", ranks, dimensions, reshape,
                     new int[] {0}, new int[] {1}, record -> record.set(JAVA_LONG, 48L, 1L));
@@ -74,8 +74,87 @@ class MetalMpsGraphRawAbiNativeTest {
                     ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
             abi.assertRejected("stale schema version eight", INVALID_ARGUMENT, 8,
                     ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
-            abi.assertRejected("unknown schema version ten", INVALID_ARGUMENT, 10,
+            abi.assertRejected("stale schema version nine", INVALID_ARGUMENT, 9,
                     ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
+        }
+    }
+
+    @Test
+    void rawVersionTenScatterUsesWireEighteenAndTypedAuxiliaryInput() {
+        MetalMpsGraphProgram.Node scatter =
+                MetalMpsGraphProgram.Node.scatterElements(0, 1, 2, 3, 1);
+        assertEquals(10, MetalMpsGraphProgram.SCHEMA_VERSION);
+        assertEquals(18, scatter.kind().wireIdentity());
+        assertEquals(3, scatter.kind().inputCount());
+        assertEquals(0, scatter.firstInputIndex());
+        assertEquals(1, scatter.secondInputIndex());
+        assertEquals(2, scatter.auxiliary());
+        assertEquals(3, scatter.outputIndex());
+        assertEquals(1, scatter.axis());
+
+        try (RawAbi abi = RawAbi.open()) {
+            int[] ranks = {2, 2, 2, 2};
+            long[] dimensions = dimensions(new long[][] {
+                    {2, 3}, {2, 2}, {2, 2}, {2, 3}
+            });
+            MetalMpsGraphProgram program = new MetalMpsGraphProgram(List.of(scatter));
+            abi.assertAccepted(
+                    "canonical replacement scatter",
+                    ranks,
+                    dimensions,
+                    program,
+                    new int[] {0, 1, 2},
+                    new int[] {3});
+            abi.assertRejected(
+                    "scatter auxiliary sentinel",
+                    ranks,
+                    dimensions,
+                    program,
+                    new int[] {0, 1, 2},
+                    new int[] {3},
+                    record -> record.set(JAVA_INT, 28L, -1));
+            abi.assertRejected(
+                    "scatter auxiliary out of range",
+                    ranks,
+                    dimensions,
+                    program,
+                    new int[] {0, 1, 2},
+                    new int[] {3},
+                    record -> record.set(JAVA_INT, 28L, 4));
+            abi.assertRejected(
+                    "scatter axis out of range",
+                    ranks,
+                    dimensions,
+                    program,
+                    new int[] {0, 1, 2},
+                    new int[] {3},
+                    record -> record.set(JAVA_INT, 24L, 2));
+            abi.assertRejected(
+                    "scatter indices and updates shape mismatch",
+                    ranks,
+                    dimensions(new long[][] {{2, 3}, {2, 2}, {2, 1}, {2, 3}}),
+                    program,
+                    new int[] {0, 1, 2},
+                    new int[] {3},
+                    UNCHANGED);
+            abi.assertRejected(
+                    "scatter output and data shape mismatch",
+                    ranks,
+                    dimensions(new long[][] {{2, 3}, {2, 2}, {2, 2}, {2, 2}}),
+                    program,
+                    new int[] {0, 1, 2},
+                    new int[] {3},
+                    UNCHANGED);
+            abi.assertRejected(
+                    "stale schema nine cannot reinterpret scatter",
+                    INVALID_ARGUMENT,
+                    9,
+                    ranks,
+                    dimensions,
+                    program,
+                    new int[] {0, 1, 2},
+                    new int[] {3},
+                    UNCHANGED);
         }
     }
 
@@ -102,7 +181,7 @@ class MetalMpsGraphRawAbiNativeTest {
             abi.assertRejected("binary axis sentinel", ranks, dimensions, binary,
                     new int[] {0, 1}, new int[] {2},
                     record -> record.set(JAVA_INT, 24L, 0));
-            abi.assertRejected("binary reserved cell", ranks, dimensions, binary,
+            abi.assertRejected("binary unused auxiliary cell", ranks, dimensions, binary,
                     new int[] {0, 1}, new int[] {2},
                     record -> record.set(JAVA_INT, 28L, 1));
             abi.assertRejected("binary payload", ranks, dimensions, binary,
@@ -359,7 +438,7 @@ class MetalMpsGraphRawAbiNativeTest {
             abi.assertRejected("MATMUL axis sentinel", ranks, dimensions, direct,
                     new int[] {0, 1}, new int[] {2},
                     record -> record.set(JAVA_INT, 24L, 0));
-            abi.assertRejected("MATMUL reserved cell", ranks, dimensions, direct,
+            abi.assertRejected("MATMUL unused auxiliary cell", ranks, dimensions, direct,
                     new int[] {0, 1}, new int[] {2},
                     record -> record.set(JAVA_INT, 28L, 1));
             abi.assertRejected("MATMUL unused payload", ranks, dimensions, direct,
@@ -497,7 +576,7 @@ class MetalMpsGraphRawAbiNativeTest {
             abi.assertRejected("NEG axis sentinel", unaryRanks, unaryDimensions,
                     neg, new int[] {0}, new int[] {1},
                     record -> record.set(JAVA_INT, 24L, 0));
-            abi.assertRejected("NEG reserved scalar", unaryRanks, unaryDimensions,
+            abi.assertRejected("NEG unused auxiliary scalar", unaryRanks, unaryDimensions,
                     neg, new int[] {0}, new int[] {1},
                     record -> record.set(JAVA_INT, 28L, 1));
             abi.assertRejected("NEG unused payload", unaryRanks, unaryDimensions,

@@ -759,7 +759,13 @@ attributes](api/tensor-api.md#axis-scatter-semantic-kinds-reduction-and-attribut
 The current CPU portable route separately executes one fully static resolved-layout occurrence.
 It validates all bounds before the `NONE` target-uniqueness pass and before writing. Numeric
 reductions preserve the target-group contract; only floating `MUL` receives declared per-range
-exact-product scratch. Scalar and parallel-scalar ranges own disjoint output coordinates.
+exact-product scratch. Scalar and parallel-scalar ranges own disjoint output coordinates. The
+current Metal route separately admits only canonical positive-rank
+`FLOAT32`/`INT32`/`FLOAT32` `NONE`, identically under both profiles. It validates all resources,
+then every bound, then complete-coordinate uniqueness before tensor-data construction, dispatch, or
+target writes. Valid addressed updates and unaddressed data preserve exact bits and every input is
+unchanged. Bounds and duplicate failures publish exact CPU-parity messages and leave targets
+unchanged; arithmetic scatter, Scatter-ND, INT64, and a complete backward route remain unsupported.
 
 ### Gather-ND
 
@@ -2448,15 +2454,16 @@ compatibility projection, and Engine's representative execution are implemented.
 Engine path produces the sole occurrence-0/partition-0/weight-1 mapping. Model extraction and
 multiple-occurrence aggregation remain planned.
 
-The profile-qualified Metal instance is also implemented internally. Its version-nine fingerprint
-covers the exact `NumericalProfile`, node schema 8, typed exact ABS in either profile, strict
-NEG/affine/`CONTIGUOUS` or accelerator tensor-binary/reduction/MATMUL nodes, reduction form,
-ordered axes, keep-dimensions state and sum-to-Shape target, authenticated local-transpose
-provenance, ordered structural operand/output positions, descriptors, value states, exact splat
-bits, logical-boundary facts, candidate/route schemas, and native ABI. Target compatibility
-separately includes the exact live `MetalDeviceContext` session nonce; ABI version `4` is not a
-stable cross-session device fingerprint. It currently supports only backend-local construction
-and authentication, not the tools-owned workload cache.
+The profile-qualified Metal instance is also implemented internally. Its version-eleven
+fingerprint covers the exact `NumericalProfile`, node schema 10, typed exact common-profile
+NEG/ABS/affine/`CONTIGUOUS`/GATHER/ONE_HOT/`SCATTER_ELEMENTS` or accelerator
+tensor-binary/reduction/MATMUL nodes, ordered first/second/auxiliary input edges, reduction form,
+ordered axes, keep-dimensions state and sum-to-Shape target, gather/scatter axes, one-hot depth,
+authenticated local-transpose provenance, ordered structural output positions, descriptors, value
+states, exact splat bits, logical-boundary facts, candidate/route schemas, and native ABI. Target
+compatibility separately includes the exact live `MetalDeviceContext` session nonce; ABI version
+`4` is not a stable cross-session device fingerprint. It currently supports only backend-local
+construction and authentication, not the tools-owned workload cache.
 
 ### Candidate generator
 
@@ -2495,8 +2502,8 @@ batch as a plan batch would incorrectly repeat local route search.
 
 The profile-qualified Metal batch is session-scoped. It contains only `CUSTOM_SINGLE_NEG` and
 `MPSGRAPH` configurations complete for the validated partition and profile. Compatibility,
-candidate, and route-policy schemas are version nine, and no private field crosses the marker-role
-boundary.
+candidate, and route-policy schemas are version eleven, and no private field crosses the
+marker-role boundary.
 
 ### Complete-plan candidate
 
@@ -2535,9 +2542,9 @@ decision contains no measurement, cache representation, executable, provider, na
 physical resource, or Runtime state.
 
 The profile-qualified Metal decision follows the same owner-defined pattern with a bounded
-checksummed version-nine session codec. Fresh Metal analysis regenerates current profile/topology
+checksummed version-eleven session codec. Fresh Metal analysis regenerates current profile/topology
 facts and accepts a selection only when schema, workload, exact context session, and candidate
-identity match. Decode rejects malformed, corrupt, trailing, stale, foreign-session, version-eight
+identity match. Decode rejects malformed, corrupt, trailing, stale, foreign-session, version-ten
 and earlier, cross-profile, and unknown-candidate bytes. These bytes are not a persistent
 workload-cache artifact and have no current `tools/tuning` adapter.
 

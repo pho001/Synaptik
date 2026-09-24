@@ -122,7 +122,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * @param numericalProfile non-null cold plan profile used by Java fail-closed preflight
      * @param valueRanks non-null value-aligned ranks
      * @param valueDimensions non-null row-major value-count by sixteen dimension table
-     * @param graphProgram non-null version-nine typed node table
+     * @param graphProgram non-null version-ten typed node table
      * @param feedValueIndices non-null stable feed value indices
      * @param targetValueIndices non-null stable target value indices
      * @return a fresh non-null opaque executable handle owned by the caller
@@ -155,7 +155,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * @param context non-null live context whose ownership remains with the caller
      * @param valueRanks validated value-aligned ranks
      * @param valueDimensions validated padded dimension table
-     * @param graphProgram validated version-nine typed topological node table
+     * @param graphProgram validated version-ten typed topological node table
      * @param feedValueIndices validated unique feeds
      * @param targetValueIndices validated unique produced targets
      * @return non-null raw status/output-cell result for checked interpretation
@@ -482,7 +482,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
     }
 
-    /** Exact Java preflight for the version-nine typed MPSGraph executable-create schema. */
+    /** Exact Java preflight for the version-ten typed MPSGraph executable-create schema. */
     static final class MpsGraphExecutableAbi {
         private static final int MAX_RANK = 16;
 
@@ -584,6 +584,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                 int left = node.firstInputIndex();
                 int right = node.secondInputIndex();
                 int output = node.outputIndex();
+                int auxiliary = node.auxiliary();
                 requireIndex(left, valueCount, "first node input");
                 requireIndex(output, valueCount, "node output");
                 if (valueRanks[left] == 0) {
@@ -689,6 +690,24 @@ abstract class MetalNativeApi implements AutoCloseable {
                                 "GATHER axis and output shape disagree");
                         used[right] = true;
                     }
+                    case SCATTER_ELEMENTS -> {
+                        requireIndex(right, valueCount, "scatter indices input");
+                        requireIndex(auxiliary, valueCount, "scatter updates input");
+                        if (valueRanks[right] == 0
+                                || valueRanks[auxiliary] == 0
+                                || !node.kind().accepts(states[right])
+                                || !node.kind().accepts(states[auxiliary])) {
+                            throw new IllegalArgumentException(
+                                    "Metal SCATTER_ELEMENTS inputs must be positive-rank canonical");
+                        }
+                        requireShape(
+                                scatterElementsMatches(
+                                        node, left, right, auxiliary, output,
+                                        valueRanks, valueDimensions),
+                                "SCATTER_ELEMENTS axis and shapes disagree");
+                        used[right] = true;
+                        used[auxiliary] = true;
+                    }
                     case ONE_HOT -> requireShape(
                             oneHotMatches(node, left, output, valueRanks, valueDimensions),
                             "ONE_HOT depth and output shape disagree");
@@ -707,6 +726,12 @@ abstract class MetalNativeApi implements AutoCloseable {
                     case GATHER -> {
                         requireType(types, left, ValueType.FLOAT32);
                         requireType(types, right, ValueType.INT32);
+                        requireType(types, output, ValueType.FLOAT32);
+                    }
+                    case SCATTER_ELEMENTS -> {
+                        requireType(types, left, ValueType.FLOAT32);
+                        requireType(types, right, ValueType.INT32);
+                        requireType(types, auxiliary, ValueType.FLOAT32);
                         requireType(types, output, ValueType.FLOAT32);
                     }
                     case ONE_HOT -> {
@@ -823,7 +848,7 @@ abstract class MetalNativeApi implements AutoCloseable {
             return switch (numericalProfile) {
                 case STRICT_IEEE -> switch (kind) {
                     case NEG, ABS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE,
-                            CONTIGUOUS, GATHER, ONE_HOT -> true;
+                            CONTIGUOUS, GATHER, ONE_HOT, SCATTER_ELEMENTS -> true;
                     case ADD, SUB, MUL, DIV, SUM, MEAN, MATMUL -> false;
                 };
                 case ACCELERATOR -> true;
@@ -879,6 +904,41 @@ abstract class MetalNativeApi implements AutoCloseable {
             return true;
         }
 
+        private static boolean scatterElementsMatches(
+                MetalMpsGraphProgram.Node node,
+                int data,
+                int indices,
+                int updates,
+                int output,
+                int[] ranks,
+                long[] dimensions) {
+            int rank = ranks[data];
+            int axis = node.axis();
+            if (rank < 1
+                    || ranks[indices] != rank
+                    || ranks[updates] != rank
+                    || ranks[output] != rank
+                    || axis < 0
+                    || axis >= rank) {
+                return false;
+            }
+            int dataRow = data * MAX_RANK;
+            int indexRow = indices * MAX_RANK;
+            int updateRow = updates * MAX_RANK;
+            int outputRow = output * MAX_RANK;
+            for (int dimension = 0; dimension < rank; dimension++) {
+                if (dimensions[indexRow + dimension] != dimensions[updateRow + dimension]
+                        || dimensions[outputRow + dimension]
+                                != dimensions[dataRow + dimension]
+                        || (dimension != axis
+                                && dimensions[indexRow + dimension]
+                                        != dimensions[dataRow + dimension])) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         private static boolean oneHotMatches(
                 MetalMpsGraphProgram.Node node,
                 int indices,
@@ -914,7 +974,7 @@ abstract class MetalNativeApi implements AutoCloseable {
             }
             if (form == MetalMpsGraphProgram.ReductionForm.SUM_TO_SHAPE) {
                 if (node.kind() != MetalMpsGraphProgram.NodeKind.SUM
-                        || node.reserved() != 0
+                        || node.auxiliary() != 0
                         || node.attributeCount() != outputRank
                         || values.length != outputRank
                         || outputRank > inputRank) {
@@ -948,7 +1008,7 @@ abstract class MetalNativeApi implements AutoCloseable {
 
             if (form == MetalMpsGraphProgram.ReductionForm.FULL) {
                 if (node.attributeCount() != 0 || values.length != 0
-                        || node.reserved() != 0 || outputRank != 0) {
+                        || node.auxiliary() != 0 || outputRank != 0) {
                     return false;
                 }
                 try {
@@ -966,8 +1026,8 @@ abstract class MetalNativeApi implements AutoCloseable {
                     && form != MetalMpsGraphProgram.ReductionForm.MULTI_AXIS) {
                 return false;
             }
-            boolean keep = node.reserved() == 1;
-            if (node.reserved() < 0 || node.reserved() > 1
+            boolean keep = node.auxiliary() == 1;
+            if (node.auxiliary() < 0 || node.auxiliary() > 1
                     || node.attributeCount() != values.length) {
                 return false;
             }

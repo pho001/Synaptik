@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through reviewed 0023; 0006–0007, 0009–0013, and 0016–0018 Blocked; 0024 Ready | [Metal 0023](backends/metal/tasks/0023-exact-int32-gather-and-one-hot.md) completed at implementation `9a7911c9` plus evidence `80e6cedd`; final independent lean Class C review returned `APPROVE` with zero findings after one concrete-risk production-ABI SNaN probe. [Metal 0024](backends/metal/tasks/0024-exact-int32-scatter-elements-replacement.md) is the sole Ready frontier for exact common-profile functional Scatter Elements replacement. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through reviewed 0023; 0006–0007, 0009–0013, and 0016–0018 Blocked; implemented 0024 Ready for review | [Metal 0023](backends/metal/tasks/0023-exact-int32-gather-and-one-hot.md) completed at implementation `9a7911c9` plus evidence `80e6cedd` and final independent approval. [Metal 0024](backends/metal/tasks/0024-exact-int32-scatter-elements-replacement.md) implemented exact common-profile functional Scatter Elements replacement from clean base `ad07e7e5d029f0472f1d05e82f2e869899d7dbf7`; it remains the sole Ready frontier pending independent Class C review. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -78,8 +78,10 @@ affine/`CONTIGUOUS` are common to both profiles, while tensor binary/reduction/M
 accelerator-only and strict-false. Implementation `41517594`, documentation remediation
 `90cd5fd9`, and final independent Class C `APPROVE` with zero findings close it. Complete Metal 0023
 landed at `9a7911c9` plus evidence `80e6cedd`; final independent lean Class C review approved with
-zero findings after one concrete-risk production-ABI SNaN probe. Ready Metal 0024 is the sole
-frontier. Every unproved family remains fail-closed.
+zero findings after one concrete-risk production-ABI SNaN probe. Ready Metal 0024 has completed its
+one-run Set smoke, implementation, and validation from clean base
+`ad07e7e5d029f0472f1d05e82f2e869899d7dbf7`; independent review remains. Every unproved family
+remains fail-closed.
 
 Task 0019 landed at implementation `a6d1796d` plus mixed-owner test remediation `bcb717a6`. Its
 native ABI/export, Metal, conformance, real Engine, architecture, full-build, documentation, and
@@ -132,7 +134,9 @@ Class C `APPROVE` with zero findings. Metal 0021 passed its fresh full oracle an
 implementation `ef2c6a1a` plus evidence corrections `be5543f9`/`5631d51f`; final independent
 Class C review returned `APPROVE` with zero findings. Metal 0022 completed at `41517594` plus
 `90cd5fd9` and final independent approval; Metal 0023 completed at `9a7911c9` plus evidence
-`80e6cedd` and final independent approval. Metal 0024 is the sole Ready successor.
+`80e6cedd` and final independent approval. Metal 0024 implemented its exact replacement-scatter
+scope from clean base `ad07e7e5d029f0472f1d05e82f2e869899d7dbf7` and remains the sole Ready
+successor pending independent Class C review.
 
 Engine
 [0017](modules/engine/tasks/0017-reusable-inference-session-api.md) is Complete from exact base
@@ -233,9 +237,12 @@ whole-partition composition, and retained its ABI/schema/identity versions. Impl
 `41517594`, documentation remediation `90cd5fd9`, and final independent Class C `APPROVE` with zero
 findings close it. No numerical probe ran because no selector, wire, lowering, or result freedom
 changed. Complete Metal 0023 passed its documented-selector/minimal-smoke evidence and final
-independent review at implementation `9a7911c9` plus evidence `80e6cedd`. Ready Metal 0024 is the
-sole successor under the same docs-first, single-concrete-risk-smoke policy. No task may infer
-generic fast math, relax unary/layout/scatter semantics, or authorize gross special-value errors.
+independent review at implementation `9a7911c9` plus evidence `80e6cedd`. Ready Metal 0024 passed
+its one-run documented-selector Set smoke, focused production proof, native/export,
+architecture/Javadoc/full-build, and documentation checks from clean base
+`ad07e7e5d029f0472f1d05e82f2e869899d7dbf7`; independent Class C review is its remaining gate.
+No task may infer generic fast math, relax unary/layout/scatter semantics, or authorize gross
+special-value errors.
 
 ## Blocked, review-needed, and deferred work
 
@@ -292,8 +299,8 @@ generic fast math, relax unary/layout/scatter semantics, or authorize gross spec
   comparison still requires a separately reviewed, fully sealed matrix before measurement.
 - Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
   0017, and Metal 0015/0019/0020/0021/0022/0023 are Complete. Metal 0016–0018 remain Blocked under
-  their unchanged historical contracts. Metal 0024 is the sole Ready implementation frontier;
-  every other unfinished or blocked family remains unauthorized.
+  their unchanged historical contracts. Metal 0024 is implemented and remains the sole Ready
+  review frontier; every other unfinished or blocked family remains unauthorized.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -307,19 +314,17 @@ generic fast math, relax unary/layout/scatter semantics, or authorize gross spec
 
 ## Nearest next step
 
-Implement [Metal 0024](backends/metal/tasks/0024-exact-int32-scatter-elements-replacement.md) from
-the clean planning checkpoint after Complete Metal 0023 (`9a7911c9` plus `80e6cedd`). Add only
-canonical positive-rank `FLOAT32` data/update/result with `INT32` indices,
-`SCATTER_ELEMENTS/NONE`, identically under both profiles. Use the documented data-taking
-`scatterAlongAxis` selector with Set mode; validate complete bounds and unique targets before every
-dispatch/write; preserve exact CPU messages, raw replacement bits, inputs, and failure targets.
-Advance only the backend-local node schema to 10 with wire 18/typed third edge and route identities
-to 11 while retaining ABI v4/thirteen exports and FLOAT32-only transfer. The planning turn ran no
-device probe: documented type/Shape/valid mapping is authoritative. Before production edits, run
-only the brief's one disposable raw-bit Set smoke for the undocumented movement risk, remove its
-artifacts, and stop Blocked if it fails. Reuse generic tests, add only focused scatter evidence, make
-no arithmetic-scatter/Scatter-ND/full-backward/shared-layer claim, then obtain independent Class C
-approval. Keep Metal 0024 as the sole Ready frontier.
+Perform the lean independent Class C review of
+[Metal 0024](backends/metal/tasks/0024-exact-int32-scatter-elements-replacement.md). Inspect the
+documented data-taking `scatterAlongAxis` selector with Set mode, exact
+FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE` capability under both profiles, typed auxiliary third
+edge, schema 10/wire 18 and version-eleven identity cutover, resource/bounds/complete-coordinate
+uniqueness ordering before tensor-data construction and writes, bounded executable-owned
+nonquadratic scratch, exact exceptional Java diagnostics, unchanged inputs/failure targets,
+ABI-v4/thirteen exports, FLOAT32-only transfer, and the absence of arithmetic-scatter,
+Scatter-ND, shared production, or complete backward scope. Reuse the successful one-run smoke and
+focused/final validation evidence unless review identifies one concrete unresolved risk. Keep
+Metal 0024 Ready until independent Class C `APPROVE` with zero findings closes it.
 
 ## History policy
 

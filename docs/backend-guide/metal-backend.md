@@ -5,12 +5,13 @@
 The Metal backend executes one whole maximal profile-homogeneous Metal partition. Under both
 profiles the common exact domain contains parameterless `NEG` and `ABS`, `RESHAPE`, `EXPAND`,
 `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, the explicit `CONTIGUOUS` canonicalization barrier,
-canonical positive-rank `FLOAT32` data `GATHER` with canonical `INT32` indices, and canonical
-positive-rank `INT32`-to-`BOOL` `ONE_HOT`. Graph feeds and direct `NEG` or `ABS` operands are
-canonical dense, zero-offset non-views. An affine or `CONTIGUOUS` input may also be an exact
-resolved zero-offset view produced by an earlier admitted affine node in the same partition.
-Affine outputs retain exact Model/Compiler logical view geometry. `CONTIGUOUS` has unchanged Shape
-and canonical output geometry; it must separate an affine view from `NEG` or `ABS`.
+canonical positive-rank `FLOAT32` data `GATHER` with canonical `INT32` indices, canonical
+positive-rank `INT32`-to-`BOOL` `ONE_HOT`, and canonical positive-rank
+`FLOAT32`/`INT32`/`FLOAT32` `SCATTER_ELEMENTS/NONE` replacement. Graph feeds and direct `NEG` or
+`ABS` operands are canonical dense, zero-offset non-views. An affine or `CONTIGUOUS` input may
+also be an exact resolved zero-offset view produced by an earlier admitted affine node in the same
+partition. Affine outputs retain exact Model/Compiler logical view geometry. `CONTIGUOUS` has
+unchanged Shape and canonical output geometry; it must separate an affine view from `NEG` or `ABS`.
 
 `ACCELERATOR` additionally admits tensor `ADD`, `SUB`, `MUL`, or `DIV`, canonical `FLOAT32`
 reductions, and positive static rank-two `FLOAT32` `MATMUL`. The reduction set is full, normalized
@@ -46,8 +47,9 @@ canonical source, but its other valid affine consumers and boundary publication 
 Scalar pointwise operation families; masked, extrema, and product reductions; every unary
 operation other than listed `NEG` and `ABS`, including `EXP`, `SIGMOID`, `RELU`, and `TANH`;
 comparison/logical operations and general BOOL consumers; strict MATMUL; vector or batched MATMUL;
-indexing other than exact INT32 GATHER/ONE_HOT; profile-crossing operations; attributes outside the
-listed forms; unsupported types, zero extent, dynamic or unresolved layout, noncanonical graph
+indexing other than exact INT32 GATHER/ONE_HOT/replacement Scatter Elements; arithmetic scatter,
+Scatter-ND, GATHER_ELEMENTS, INT64 indexing, profile-crossing operations, attributes outside the
+listed forms, unsupported types, zero extent, dynamic or unresolved layout, noncanonical graph
 feed, foreign view, affine-to-NEG/ABS edge without `CONTIGUOUS`, mismatched descriptor, and
 multi-output form remain fail-closed.
 
@@ -82,7 +84,7 @@ device discovery.
 
 | Stage or resource | Owner and current behavior |
 |---|---|
-| Capability truth | Public `MetalCapabilityProvider` reports the exact canonical FLOAT32 NEG/ABS/affine/`CONTIGUOUS`, FLOAT32+INT32 GATHER, and INT32-to-BOOL ONE_HOT domains under both profiles and the accelerator-only tensor-binary, reduction, and positive static rank-two MATMUL domains above. |
+| Capability truth | Public `MetalCapabilityProvider` reports the exact canonical FLOAT32 NEG/ABS/affine/`CONTIGUOUS`, FLOAT32+INT32 GATHER, INT32-to-BOOL ONE_HOT, and FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE` domains under both profiles and the accelerator-only tensor-binary, reduction, and positive static rank-two MATMUL domains above. |
 | Native configuration and integration | Public `MetalBackendConfiguration` and `MetalBackendIntegration` belong to Metal. Metal validates configuration, opens native ownership, and rolls partial construction back before Engine can take the completed integration. |
 | Backend ownership | Planning chooses `owner = metal` and groups consecutive equal owners; it never selects MPSGraph or a custom kernel. |
 | Analysis | Package-private Metal code validates the complete partition, assigns stable structural value order, regenerates typed route candidates and session compatibility, authenticates any supplied decision, fixes one route, and declares that route's exact resources. |
@@ -90,8 +92,8 @@ device discovery.
 | Shared preparation | `GraphPreparation` projects facts, assigns slots, validates the result, and transfers persistent resources transactionally. It does not inspect the Metal plan or route. |
 | Finalization | Metal validates exact assignments and compiles either one typed custom pipeline or one shape-specialized MPSGraph executable after slots exist. It never reselects the route. |
 | Persistent resource | One typed `PreparedResource` owns the selected native handle and context child lease; `PreparedExecution` becomes its sole owner. Custom-pipeline and MPSGraph handles are never interchangeable. |
-| Per-run state | Runtime borrows exact canonical FLOAT32/INT32 caller buffers and owns fresh initialized-constant buffers and typed output buffers. Only MPSGraph runs also own one native-address workspace. Affine targets receive full logical-byte buffers; a scalar reduction target receives four bytes and a BOOL target one byte per element. |
-| Hot invocation | A cold-bound route-specific invocation retains direct references, prevalidates every indexing element in stable node/ordinal order, and makes one synchronous typed native call into assigned output destinations only on success. |
+| Per-run state | Runtime borrows exact canonical FLOAT32/INT32 caller buffers and owns fresh initialized-constant buffers and typed output buffers. Only MPSGraph runs also own one native-address workspace. The scatter executable owns bounded primitive coordinate/uniqueness scratch rebuilt under its synchronized run. Affine targets receive full logical-byte buffers; a scalar reduction target receives four bytes and a BOOL target one byte per element. |
+| Hot invocation | A cold-bound route-specific invocation retains direct references, validates every resource and then every indexing element in stable node/ordinal order, completes each scatter's bounds before complete-coordinate uniqueness, and makes one synchronous typed native call into assigned output destinations only on success. |
 | Publication | Runtime leases the already-resident output representation. Canonical FLOAT32 outputs, local rank-zero reduction outputs, local canonical BOOL outputs, and exact authenticated dense affine targets may be downloaded as detached canonical host bytes; ordinary CPU/Metal transfer remains positive-rank canonical FLOAT32 and rejects logical views. |
 
 The public Java surface contains `MetalCapabilityProvider`, `MetalBackendConfiguration`, and
@@ -109,7 +111,11 @@ canonical input and an equal canonical output. Exact `GATHER` requires canonical
 `FLOAT32` data, canonical positive-rank `INT32` indices, one normalized data axis, the exact
 axis-replacement output Shape, and matching forward gradient eligibility. Exact `ONE_HOT` requires
 canonical positive-rank `INT32` input, a positive depth, exact appended-axis canonical `BOOL`
-output, and no gradient request. In accelerator mode each binary requires two canonical inputs and
+output, and no gradient request. Exact `SCATTER_ELEMENTS` requires ordered canonical
+`FLOAT32`/`INT32`/`FLOAT32` data, indices, and updates, `ScatterReduction.NONE`, equal positive
+rank and exact indices/update Shape, non-axis agreement with data, normalized axis, a canonical
+data-shaped output, and output gradient eligibility equal to the data/update OR. In accelerator
+mode each binary requires two canonical inputs and
 the exact broadcast output. A reduction requires one positive-rank canonical input and its exact
 full, normalized-axis, keep-dimensions, empty-axis identity, or binding-resolved sum-to-Shape
 output; only a reduction output may be rank zero. Accelerator MATMUL requires two positive static
@@ -122,8 +128,10 @@ explicit unavailable, canonical, and affine-view states. Every view input must r
 earlier admitted affine producer in that exact partition; every graph feed is canonical;
 `CONTIGUOUS` produces canonical state; and `NEG` and `ABS` reject affine-view state. `GATHER`
 consumes canonical FLOAT32 data and canonical INT32 indices and produces canonical FLOAT32;
-`ONE_HOT` consumes canonical INT32 and produces canonical BOOL. Accelerator binary and reduction
-nodes consume only canonical FLOAT32 values and produce canonical FLOAT32; binary nodes preserve
+`ONE_HOT` consumes canonical INT32 and produces canonical BOOL. `SCATTER_ELEMENTS` consumes
+ordered canonical FLOAT32 data, canonical INT32 indices, and canonical FLOAT32 updates and
+produces canonical FLOAT32. Accelerator binary and reduction nodes consume only canonical
+FLOAT32 values and produce canonical FLOAT32; binary nodes preserve
 the exact broadcast Shape, while reduction lowering preserves its typed form, ordered axes,
 keep-dimensions state, sum-to-Shape target, and checked term geometry. MATMUL produces canonical
 state and may consume affine state only when analysis authenticates that exact operand as a local
@@ -141,23 +149,24 @@ constant must be an exact type-matching `FLOAT32` or `INT32` splat. The run uses
 `CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
 Once stable values, states, feeds, targets, checked typed byte geometry, and typed node records are
-known, analysis creates a version-ten candidate batch and workload fingerprint. MPSGraph is valid
+known, analysis creates a version-eleven candidate batch and workload fingerprint. MPSGraph is valid
 for every supported partition. The custom candidate exists only for one `NEG` node under either
 profile, one feed, one target, and an element count in `1..UINT32_MAX`; ABS, affine, `CONTIGUOUS`,
 indexing, binary, reduction, and MATMUL nodes never select it. Candidate order is the current safe
 heuristic first and then the other valid route, so a positive budget returns a stable prefix and
 budget one cannot change ordinary preparation.
 
-The version-ten canonical workload fingerprint covers the explicit numerical-profile wire value,
-schema-nine typed node kinds and attributes, ordered first/second input edges, reduction form,
-ordered axes, keep-dimensions state and sum-to-Shape target, GATHER axis, ONE_HOT depth,
-authenticated local-transpose provenance, explicit value states, complete tensor descriptors,
-data types and logical layouts, dense represented-order geometry, target set, exact type-matching
-splat bits, logical-boundary roles, exact/default policy, candidate and route-policy schemas,
-native node schema, and ABI version. It encodes structural positions rather than `NodeId`,
-`ValueId`, or partition object identity, so equal occurrences under the same profile and live
-context compare equally. Target compatibility also contains a fresh private nonce from the exact
-`MetalDeviceContext`; version-nine and earlier decisions fail closed.
+The version-eleven canonical workload fingerprint covers the explicit numerical-profile wire
+value, schema-ten typed node kinds and attributes, ordered first/second/auxiliary input edges,
+reduction form, ordered axes, keep-dimensions state and sum-to-Shape target, GATHER axis, ONE_HOT
+depth, SCATTER_ELEMENTS replacement kind and axis, authenticated local-transpose provenance,
+explicit value states, complete tensor descriptors, data types and logical layouts, dense
+represented-order geometry, target set, exact type-matching splat bits, logical-boundary roles,
+exact/default policy, candidate and route-policy schemas, native node schema, and ABI version. It
+encodes structural positions rather than `NodeId`, `ValueId`, or partition object identity, so
+equal occurrences under the same profile and live context compare equally. Target compatibility
+also contains a fresh private nonce from the exact `MetalDeviceContext`; version-ten and earlier
+decisions fail closed.
 
 Metal can construct an absent- or present-decision `BackendPartitionTuningHandoff`. Fresh analysis
 always regenerates the current batch. A present decision is accepted only when the exact partition,
@@ -171,10 +180,10 @@ supported singleton has only the MPSGraph candidate; analysis does not reject or
 
 ### Session decision codec and limitations
 
-The package-private version-ten Metal codec produces bounded canonical compatibility, candidate,
+The package-private version-eleven Metal codec produces bounded canonical compatibility, candidate,
 and checksummed decision bytes. Decode rejects wrong magic, schema, session scope, numerical
 profile, malformed or truncated content, trailing or corrupt bytes, changed workload or context,
-and unknown or pruned candidates. The bytes contain no native handle or executable. Version-nine
+and unknown or pruned candidates. The bytes contain no native handle or executable. Version-ten
 and earlier codec bytes and cross-profile decisions fail closed even when their trailing checksum
 is otherwise valid.
 
@@ -338,7 +347,7 @@ publish c, t
 ```
 
 Preparation lowers the normalized axis and binding-resolved sum-to-Shape target into typed
-schema-nine records. `m`, `a`, `s`, and `c` remain positive-rank canonical values, so they may
+schema-ten records. `m`, `a`, `s`, and `c` remain positive-rank canonical values, so they may
 compose inside the partition. The scalar `t` is a direct target and cannot feed another node. One
 run publishes `c = [[71, 78, 85, 92], [83, 90, 97, 104]]` plus `t = 300`; local materialization of
 `t` copies exactly four bytes. Strict ownership rejects the same reduction graph before native
@@ -381,6 +390,29 @@ to the exact Model `IndexOutOfBoundsException` text. There is no negative-index 
 selector-out-of-bounds reliance, INT64 route, CPU fallback, transfer widening, backward claim, or
 general BOOL consumer.
 
+### Exact replacement Scatter Elements
+
+For canonical `FLOAT32 data:[2,3]`, canonical `INT32 indices:[2,2]`, and canonical
+`FLOAT32 updates:[2,2]`, either profile may execute:
+
+```text
+s = SCATTER_ELEMENTS(data, indices, updates, axis=1, reduction=NONE) // [2,3] FLOAT32
+n = NEG(s)
+publish s, n
+```
+
+`SCATTER_ELEMENTS=18` uses only the data-taking
+`scatterAlongAxis:withDataTensor:updatesTensor:indicesTensor:mode:name:` selector with
+`MPSGraphScatterModeSet`. Each update replaces the selected coordinate with its non-negative
+index; unique addressed cells copy exact update bits and unaddressed cells preserve exact data
+bits. Data, indices, and updates remain unchanged. Native execution first validates every resource,
+then completes the scatter's row-major bounds pass, then derives complete target coordinates and
+sorts bounded executable-owned primitive scratch to reject collisions before creating tensor data,
+dispatching, or touching a target. Java's exceptional rescan publishes the exact Model bounds or
+smallest-later/smallest-earlier duplicate message. Equal indices at different non-axis coordinates
+are not duplicates. There is no skip, overlap winner, arithmetic scatter, Scatter-ND, INT64, alias,
+fallback, transfer widening, or complete backward claim.
+
 The public Engine path for a supported Metal graph uses the same contracts:
 
 ```java
@@ -411,22 +443,24 @@ singleton-NEG pipeline operations. The old
 `synaptik_metal_mpsgraph_neg_executable_create` symbol is absent. Statuses `0..12` retain their
 documented meanings; unknown integers fail closed with the raw value retained.
 
-The create ABI requires node schema `9` and one 160-byte discriminated record per node. Accepted
+The create ABI requires node schema `10` and one 160-byte discriminated record per node. Accepted
 operations are `NEG=1`, `ADD=2`, `SUB=3`, `MUL=4`, `DIV=5`, `RESHAPE=6`, `EXPAND=7`,
 `PERMUTE=8`, `EXPAND_DIMS=9`, `SQUEEZE=10`, `CONTIGUOUS=11`, `ABS=12`, `SUM=13`,
-`MEAN=14`, `MATMUL=15`, `GATHER=16`, and `ONE_HOT=17`. Attribute kinds are none, target Shape,
-permutation, normalized axis, reduction, and positive depth. Reduction records use typed full,
-single-axis, multi-axis, and sum-to-Shape forms; their bounded payload holds ordered axes or target
-dimensions, and the reserved cell holds the exact keep-dimensions bit. Java and native code
-require exact operation/attribute pairing, inferred FLOAT32/INT32/BOOL value types, ordered
-binary/MATMUL/GATHER inputs, exact broadcast/contraction/indexing output Shapes, exact unary Shape
-equality, exact derived reduction output and positive term count, explicit
-unavailable/canonical/affine-view state transitions, authenticated local transpose provenance,
-`UINT32_MAX` absent-input/axis sentinels, zero unused fields, positive input ranks and dimensions,
-rank-zero reduction direct targets only, complete permutations, valid axes/depth, topological
-availability, fresh outputs, unique produced targets, exact declared Shapes, and checked typed
-logical byte geometry. Java also rejects profile-incompatible programs before native entry and
-owns typed handle liveness and pointer-region preconditions that a raw C boundary cannot prove.
+`MEAN=14`, `MATMUL=15`, `GATHER=16`, `ONE_HOT=17`, and `SCATTER_ELEMENTS=18`. Attribute kinds
+are none, target Shape, permutation, normalized axis, reduction, and positive depth. Reduction
+records use typed full, single-axis, multi-axis, and sum-to-Shape forms; their bounded payload holds
+ordered axes or target dimensions. The typed `auxiliary` cell holds a reduction's exact
+keep-dimensions bit, the scatter updates value index, or zero. Java and native code require exact
+operation/attribute pairing, inferred FLOAT32/INT32/BOOL value types, ordered
+binary/MATMUL/GATHER inputs and ordered scatter data/index/update inputs, exact
+broadcast/contraction/indexing output Shapes, exact unary Shape equality, exact derived reduction
+output and positive term count, explicit unavailable/canonical/affine-view state transitions,
+authenticated local transpose provenance, `UINT32_MAX` absent-input/axis sentinels, zero unused
+fields, positive input ranks and dimensions, rank-zero reduction direct targets only, complete
+permutations, valid axes/depth, topological availability, fresh outputs, unique produced targets,
+exact declared Shapes, and checked typed logical byte geometry. Java also rejects
+profile-incompatible programs before native entry and owns typed handle liveness and pointer-region
+preconditions that a raw C boundary cannot prove.
 Index-domain and buffer-copy bounds map to status `5`; input/output aliasing and wrong device or
 insufficient extent map to status `10`; grid representability maps to status `8`; unusable
 threadgroup geometry and custom command failures map to status `11`; Objective-C exceptions map to
@@ -490,19 +524,29 @@ FLOAT32 signed-zero, subnormal, infinity, and NaN-payload bits, and ONE_HOT prod
 binary were removed before production edits; no optimization, context, or repetition matrix was
 run.
 
+Task 0024 ran exactly one fresh disposable M3 Max Objective-C smoke before production edits using
+the documented data-taking scatter selector with Set mode. One context, graph, executable,
+optimization choice, and execution proved addressed updates and unaddressed base cells preserved
+raw signed-zero, subnormal, infinity, and signaling-NaN payload bits, and that all three inputs were
+unchanged. The disposable source and binary were removed immediately; no bounds, duplicate,
+Shape/type/profile/context/optimization, or repetition matrix was run.
+
 Current validation composes:
 
-- focused backend capability, schema-nine, prepared-byte-geometry, route-identity, and indexing
-  tests proving the closed two-profile GATHER/ONE_HOT domain, retained wires `1..15`, new
-  `GATHER=16`/`ONE_HOT=17`, depth attribute `5`, type inference, exact INT32 splats, BOOL
-  publication, fail-closed profile/type/Shape/topology handling, deterministic first bounds
-  failure, unchanged targets, and stable whole-partition lowering;
-- one backend-conformance test proving exact public truth and maximal profile-qualified closure;
+- focused backend capability, schema-ten, prepared-byte-geometry, route-identity, and indexing
+  tests proving the closed two-profile GATHER/ONE_HOT/replacement-scatter domain, retained wires
+  `1..17`, new `SCATTER_ELEMENTS=18`, typed auxiliary third edge, exact inferred types, schema
+  rejection, deterministic bounds/duplicate diagnostics, input preservation, unchanged failure
+  targets, and stable whole-partition lowering;
+- one backend-conformance test proving exact public truth and maximal profile-qualified
+  `SCATTER_ELEMENTS -> NEG` closure;
 - a rebuilt arm64 dylib inspected for exactly thirteen exports, ABI `4`, required framework
   linkage, and absence of the old NEG-only create symbol;
-- one focused real-device native indexing test proving raw-bit GATHER movement, exact BOOL
-  ONE_HOT output/Shapes, input preservation, and unchanged targets for equal-bound GATHER and
-  negative later-ordinal ONE_HOT failures;
+- focused real-device native indexing proof for raw-bit replacement, exact unaddressed base bits,
+  input preservation, and unchanged targets for both bounds and duplicate failures;
+- one CPU-free Metal-only public Engine scatter proof that publishes exact replacement bits, proves
+  sole Metal ownership, mutates retained indices for both exact failure classes, and preserves all
+  inputs;
 - real-device ABS execution under both profiles across signed zeros, subnormal and normal
   boundaries, ordinary finite values, maximum finite values, infinities, and multiple signed
   quiet/signaling NaNs, plus strict and accelerator compositions, published intermediates, direct
@@ -515,9 +559,9 @@ Current validation composes:
   positive-rank ABS/binary composition, direct targets, repetitions, and input preservation;
 - real-device MATMUL execution for direct, left-transposed, right-transposed, and both-transposed
   operands across executable reuse, exact outputs, direct targets, and input preservation;
-- one CPU-free Metal-only public Engine indexing smoke that publishes exact GATHER bits and BOOL
-  bytes, proves sole Metal ownership, mutates retained index buffers for deterministic GATHER and
-  ONE_HOT exceptions, and uses no CPU owner;
+- the retained CPU-free Metal-only public Engine indexing smoke that publishes exact GATHER bits and
+  BOOL bytes, proves sole Metal ownership, mutates retained index buffers for deterministic GATHER
+  and ONE_HOT exceptions, and uses no CPU owner;
 - a CPU-free Metal-only public Engine reduction run that compiles, prepares, reuses and
   concurrently opens sessions, publishes and materializes exact scalar/vector raw bits, rejects
   strict ownership and post-close work, and has no CPU owner; and
@@ -586,10 +630,12 @@ listed forms; strict, masked, extrema, product, and other reductions remain unsu
 Accelerator MATMUL is limited to positive static same-type rank two, exact contraction/output
 geometry, and canonical or authenticated local rank-two-transpose operands; strict, vector,
 batched, broadcast, promoted, and arbitrary-view MATMUL remain unsupported. Exact canonical `ABS`
-is the only accelerator unary operation and receives no numerical relaxation. Indexing is limited
-under both profiles to positive-rank canonical FLOAT32+INT32 GATHER and INT32-to-BOOL ONE_HOT;
-GATHER_ELEMENTS, GATHER_ND, INT64 indices, indexing gradients, alternate ONE_HOT values/types, and
-general BOOL consumers remain unsupported. Metal also has no FLOAT16, BFLOAT16, FLOAT64, other
+is the only accelerator unary operation and receives no numerical relaxation. Indexing under both
+profiles is limited to positive-rank canonical FLOAT32+INT32 GATHER, INT32-to-BOOL ONE_HOT, and
+canonical FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`; GATHER_ELEMENTS, GATHER_ND, Scatter-ND,
+arithmetic scatter, INT64 indices, complete indexing backward execution, alternate ONE_HOT
+values/types, and general BOOL consumers remain unsupported. Metal also has no FLOAT16, BFLOAT16,
+FLOAT64, other
 integer computation, scalar graph ingress, integer/BOOL transfer, zero-extent, dynamic-shape,
 unresolved-layout, noncanonical graph-ingress, foreign-view, variadic, or multi-output support. A
 scalar rank is admitted only for a locally produced direct reduction target and four-byte local
@@ -617,18 +663,20 @@ Related documentation:
 - [Metal task 0020](../planning/backends/metal/tasks/0020-accelerator-float32-reductions-after-zero-sign-refinement.md)
 - [Metal task 0021](../planning/backends/metal/tasks/0021-accelerator-float32-rank2-matmul-after-zero-sign-refinement.md)
 - [Metal task 0023](../planning/backends/metal/tasks/0023-exact-int32-gather-and-one-hot.md)
+- [Metal task 0024](../planning/backends/metal/tasks/0024-exact-int32-scatter-elements-replacement.md)
 - [Native ABI and build guide](../../native/metal-macos-arm64/README.md)
 
 ## Numerical profiles
 
 Metal capability and preparation make exact canonical FLOAT32 NEG/ABS/affine/`CONTIGUOUS`,
-FLOAT32+INT32 GATHER, and INT32-to-BOOL ONE_HOT common to both profile matrices. `ACCELERATOR`
-additionally admits tensor `FLOAT32` `ADD`/`SUB`/`MUL`/`DIV` with exact broadcasting, canonical
-`FLOAT32` `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two `FLOAT32` MATMUL with
-authenticated local transposes. Accelerator arithmetic uses only its operation-specific
-Model-owned bounded DAZ/FTZ, reassociation/FMA, NaN, and final-result exact-zero sign contracts.
-The profile is retained in partition plans and participates in route-candidate,
+FLOAT32+INT32 GATHER, INT32-to-BOOL ONE_HOT, and FLOAT32/INT32/FLOAT32
+`SCATTER_ELEMENTS/NONE` common to both profile matrices. `ACCELERATOR` additionally admits tensor
+`FLOAT32` `ADD`/`SUB`/`MUL`/`DIV` with exact broadcasting, canonical `FLOAT32`
+`SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two `FLOAT32` MATMUL with authenticated
+local transposes. Accelerator arithmetic uses only its operation-specific Model-owned bounded
+DAZ/FTZ, reassociation/FMA, NaN, and final-result exact-zero sign contracts. Scatter receives no
+profile relaxation. The profile is retained in partition plans and participates in route-candidate,
 tuning-compatibility, decision-codec, and workload identity. Java enforces the profile boundary
-before native entry. Native ABI version `4` remains unchanged; MPSGraph node schema `9` retains
-wires `1..15` and appends `GATHER=16` and `ONE_HOT=17`. Route, candidate, compatibility, workload,
-exact-policy, and codec identities are version `10`.
+before native entry. Native ABI version `4` remains unchanged; MPSGraph node schema `10` retains
+wires `1..17` and appends `SCATTER_ELEMENTS=18`. Route, candidate, compatibility, workload,
+exact-policy, and codec identities are version `11`.

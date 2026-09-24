@@ -20,9 +20,12 @@ import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
+import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
 import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
+import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
+import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
@@ -422,7 +425,7 @@ class MetalNegRouteCandidateGeneratorTest {
     }
 
     @Test
-    void indexingFingerprintsCoverKindAxisDepthAndValueType() {
+    void indexingFingerprintsCoverKindAxisDepthValueTypeAndReplacementScatterTopology() {
         TestNativeApi api = new TestNativeApi();
         try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
             Workload gather = gatherWorkload(device, 70_000);
@@ -477,6 +480,47 @@ class MetalNegRouteCandidateGeneratorTest {
                     gatherIdentity,
                     oneHotGenerated.batch().compatibility().workload(),
                     "GATHER and ONE_HOT are distinct route identities");
+
+            Workload scatter = scatterWorkload(device, 90_000);
+            Generated scatterGenerated = generated(scatter, 2);
+            MetalNegPreparationPlan scatterPlan = scatterGenerated.analysis().plan();
+            MetalNegTuningBatch.WorkloadSignature scatterIdentity =
+                    scatterGenerated.batch().compatibility().workload();
+            assertEquals(
+                    List.of(MetalNegTuningBatch.Candidate.MPSGRAPH),
+                    scatterGenerated.batch().candidates());
+            assertNotEquals(
+                    scatterIdentity,
+                    generate(scatter, copyPlan(
+                            scatterPlan,
+                            scatterPlan.descriptors(),
+                            new MetalMpsGraphProgram(List.of(
+                                    MetalMpsGraphProgram.Node.scatterElements(
+                                            0, 2, 1, 3, 1))),
+                            scatterPlan.targetRequiredBytes()))
+                            .compatibility().workload(),
+                    "SCATTER_ELEMENTS typed third edge participates independently");
+            assertNotEquals(
+                    scatterIdentity,
+                    generate(scatter, copyPlan(
+                            scatterPlan,
+                            scatterPlan.descriptors(),
+                            new MetalMpsGraphProgram(List.of(
+                                    MetalMpsGraphProgram.Node.scatterElements(
+                                            0, 1, 2, 3, 0))),
+                            scatterPlan.targetRequiredBytes()))
+                            .compatibility().workload(),
+                    "SCATTER_ELEMENTS axis participates independently");
+            assertNotEquals(
+                    scatterIdentity,
+                    generate(scatter, copyPlan(
+                            scatterPlan,
+                            scatterPlan.descriptors(),
+                            new MetalMpsGraphProgram(List.of(
+                                    MetalMpsGraphProgram.Node.gather(0, 1, 3, 1))),
+                            scatterPlan.targetRequiredBytes()))
+                            .compatibility().workload(),
+                    "dedicated SCATTER_ELEMENTS wire identifies replacement reduction");
             assertEquals(0, api.nativeAllocations.get());
         }
     }
@@ -493,14 +537,14 @@ class MetalNegRouteCandidateGeneratorTest {
                     MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
                     current.batch().compatibility(), MetalNegTuningBatch.Candidate.MPSGRAPH);
             var codec = new MetalNegTuningCodec();
-            assertEquals(10, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
-            assertEquals(10, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
-            assertEquals(10, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
+            assertEquals(11, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
+            assertEquals(11, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
+            assertEquals(11, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
             byte[] first = codec.encodeDecision(decision);
-            assertEquals(10, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
-            assertEquals(10, current.batch().compatibility().schemaVersion());
-            assertEquals(10, current.batch().compatibility().candidateSchemaVersion());
-            assertEquals(10, current.batch().compatibility().routePolicyVersion());
+            assertEquals(11, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
+            assertEquals(11, current.batch().compatibility().schemaVersion());
+            assertEquals(11, current.batch().compatibility().candidateSchemaVersion());
+            assertEquals(11, current.batch().compatibility().routePolicyVersion());
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());
@@ -546,7 +590,10 @@ class MetalNegRouteCandidateGeneratorTest {
                     "checksummed version-six decisions must fail closed");
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, 4, 7), current.batch()).isEmpty(),
-                    "checksummed version-nine decisions must fail closed");
+                    "checksummed version-seven decisions must fail closed");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, 4, 10), current.batch()).isEmpty(),
+                    "checksummed version-ten decisions must fail closed");
             assertTrue(codec.decodeDecision(rewriteInt(first, 8, 99), current.batch()).isEmpty());
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, first.length - 8, 99), current.batch()).isEmpty());
@@ -753,6 +800,52 @@ class MetalNegRouteCandidateGeneratorTest {
                 Map.of(),
                 new MetalNegAnalysisInputs(device));
         return new Workload(context);
+    }
+
+    private static Workload scatterWorkload(
+            MetalDeviceContext device, long identityBase) {
+        TensorDescriptor dataDescriptor =
+                canonical(DataType.FLOAT32, Shape.of(2, 3));
+        TensorDescriptor indexDescriptor =
+                canonical(DataType.INT32, Shape.of(2, 2));
+        TensorDescriptor updateDescriptor =
+                canonical(DataType.FLOAT32, Shape.of(2, 2));
+        ValueId data = new ValueId(identityBase);
+        ValueId indices = new ValueId(identityBase + 1);
+        ValueId updates = new ValueId(identityBase + 2);
+        ValueId output = new ValueId(identityBase + 3);
+        CompiledNode node = new CompiledNode(
+                new NodeId(identityBase),
+                new Operation(
+                        AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(1, ScatterReduction.NONE)),
+                List.of(data, indices, updates),
+                List.of(output));
+        PlannedPartition partition = new PlannedPartition(
+                MetalCapabilityProvider.METAL_BACKEND_ID, List.of(node.id()));
+        return new Workload(new PrepareContext<>(
+                NumericalProfile.STRICT_IEEE,
+                new PartitionDag(partition, List.of(node)),
+                List.of(
+                        new GraphValue(data, dataDescriptor),
+                        new GraphValue(indices, indexDescriptor),
+                        new GraphValue(updates, updateDescriptor),
+                        new GraphValue(output, dataDescriptor)),
+                List.of(
+                        new LogicalMemoryRequirement(
+                                data, dataDescriptor, Optional.empty(),
+                                List.of(partition), false),
+                        new LogicalMemoryRequirement(
+                                indices, indexDescriptor, Optional.empty(),
+                                List.of(partition), false),
+                        new LogicalMemoryRequirement(
+                                updates, updateDescriptor, Optional.empty(),
+                                List.of(partition), false),
+                        new LogicalMemoryRequirement(
+                                output, dataDescriptor, Optional.of(partition),
+                                List.of(), true)),
+                Map.of(),
+                new MetalNegAnalysisInputs(device)));
     }
 
     private static Workload binaryWorkload(

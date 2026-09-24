@@ -34,9 +34,12 @@ import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
+import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
 import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
+import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
+import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
@@ -635,6 +638,70 @@ class MetalNegPreparedExecutionTest {
                             + " value=-1, extent=3",
                     gather.getMessage());
             assertEquals(2, api.runCalls.get());
+        } finally {
+            if (state != null) state.close();
+            buffers.forEach(MetalBufferRepresentation::close);
+            finalized.resources().forEach(resource -> resource.close());
+            context.close();
+        }
+    }
+
+    @Test
+    void replacementScatterRescanReproducesExactBoundsAndDuplicateDiagnostics() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        ScatterRoute route = scatterRoute(context);
+        FinalizationFixture finalization = finalization(route.analysis());
+        BackendPartitionFinalizationResult finalized =
+                new MetalNegPartitionFinalizer(context)
+                        .finalizePartition(finalization.finalization());
+        var executable = (MetalNegPreparedExecutable) finalized.executable();
+        var buffers = new ArrayList<MetalBufferRepresentation>();
+        RunState state = null;
+        try {
+            assertEquals(
+                    List.of(MetalMpsGraphProgram.NodeKind.SCATTER_ELEMENTS),
+                    route.analysis().plan().graphProgram().nodes().stream()
+                            .map(MetalMpsGraphProgram.Node::kind)
+                            .toList());
+            assertArrayEquals(new long[] {24, 16, 16},
+                    route.analysis().plan().feedRequiredBytes());
+            assertArrayEquals(new long[] {24},
+                    route.analysis().plan().targetRequiredBytes());
+            for (var entry : finalization.memoryPlan().buffers()) {
+                buffers.add(context.createBuffer(entry.byteSize()));
+            }
+            var bindings = buffers.stream()
+                    .map(buffer -> List.of(new BufferRepresentationBinding(
+                            buffer, RunResourceOwnership.BORROWED)))
+                    .toList();
+            var workspace = new MetalNegPreparedExecutable.AddressWorkspace(
+                    context, buffers.size());
+            state = new RunState(finalization.memoryPlan(), bindings, List.of(workspace));
+            var invocation = executable.bind(state);
+            api.runStatus = 5;
+
+            uploadBits(buffers.get(1), 2, 3, 1, 2);
+            IndexOutOfBoundsException bounds = assertThrows(
+                    IndexOutOfBoundsException.class, invocation::execute);
+            assertEquals(
+                    "SCATTER_ELEMENTS index at logical position 1 for data axis 1"
+                            + " is out of bounds: value=3, extent=3",
+                    bounds.getMessage());
+
+            uploadBits(buffers.get(1), 1, 1, 1, 2);
+            IllegalArgumentException duplicate = assertThrows(
+                    IllegalArgumentException.class, invocation::execute);
+            assertEquals(
+                    "SCATTER_ELEMENTS duplicate target at logical update position 1;"
+                            + " first addressed at logical update position 0",
+                    duplicate.getMessage());
+
+            uploadBits(buffers.get(1), 2, 0, 1, 2);
+            MetalNativeApi.NativeFailure unmatched = assertThrows(
+                    MetalNativeApi.NativeFailure.class, invocation::execute);
+            assertEquals(MetalNativeApi.Status.RANGE_OUT_OF_BOUNDS, unmatched.status());
+            assertEquals(3, api.runCalls.get());
         } finally {
             if (state != null) state.close();
             buffers.forEach(MetalBufferRepresentation::close);
@@ -2801,6 +2868,50 @@ class MetalNegPreparedExecutionTest {
         return new IndexingRoute(partition, oneHotIndices, analysis);
     }
 
+    private static ScatterRoute scatterRoute(MetalDeviceContext context) {
+        ValueId data = new ValueId(41_000);
+        ValueId indices = new ValueId(41_001);
+        ValueId updates = new ValueId(41_002);
+        ValueId output = new ValueId(41_003);
+        TensorDescriptor dataDescriptor =
+                typedDescriptor(DataType.FLOAT32, Shape.of(2, 3));
+        TensorDescriptor indexDescriptor =
+                typedDescriptor(DataType.INT32, Shape.of(2, 2));
+        TensorDescriptor updateDescriptor =
+                typedDescriptor(DataType.FLOAT32, Shape.of(2, 2));
+        CompiledNode node = new CompiledNode(
+                new NodeId(41_000),
+                new Operation(
+                        AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(1, ScatterReduction.NONE)),
+                List.of(data, indices, updates),
+                List.of(output));
+        PlannedPartition partition = new PlannedPartition(
+                MetalCapabilityProvider.METAL_BACKEND_ID, List.of(node.id()));
+        List<GraphValue> values = List.of(
+                new GraphValue(data, dataDescriptor),
+                new GraphValue(indices, indexDescriptor),
+                new GraphValue(updates, updateDescriptor),
+                new GraphValue(output, dataDescriptor));
+        List<LogicalMemoryRequirement> requirements = List.of(
+                requirement(data, dataDescriptor, Optional.empty(), List.of(partition), false),
+                requirement(indices, indexDescriptor,
+                        Optional.empty(), List.of(partition), false),
+                requirement(updates, updateDescriptor,
+                        Optional.empty(), List.of(partition), false),
+                requirement(output, dataDescriptor,
+                        Optional.of(partition), List.of(), true));
+        BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
+                new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
+                        NumericalProfile.STRICT_IEEE,
+                        new PartitionDag(partition, List.of(node)),
+                        values,
+                        requirements,
+                        Map.of(),
+                        new MetalNegAnalysisInputs(context)));
+        return new ScatterRoute(partition, indices, analysis);
+    }
+
     private static TensorDescriptor typedDescriptor(DataType dataType, Shape shape) {
         return new TensorDescriptor(
                 dataType, shape, Optional.of(LayoutDescriptor.contiguous(shape)), false);
@@ -3053,6 +3164,11 @@ class MetalNegPreparedExecutionTest {
     private record IndexingRoute(
             PlannedPartition partition,
             ValueId oneHotIndices,
+            BackendPartitionAnalysis<MetalNegPreparationPlan> analysis) { }
+
+    private record ScatterRoute(
+            PlannedPartition partition,
+            ValueId indices,
             BackendPartitionAnalysis<MetalNegPreparationPlan> analysis) { }
 
     private record SingleNegRoute(

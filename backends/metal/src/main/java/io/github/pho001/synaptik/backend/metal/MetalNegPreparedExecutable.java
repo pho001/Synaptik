@@ -249,35 +249,38 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                 if (failure.status() != MetalNativeApi.Status.RANGE_OUT_OF_BOUNDS) {
                     throw failure;
                 }
+                RuntimeException reproduced;
                 try {
-                    IndexOutOfBoundsException reproduced = reproduceIndexFailure();
-                    if (reproduced != null) throw reproduced;
-                } catch (IndexOutOfBoundsException reproduced) {
-                    throw reproduced;
+                    reproduced = reproduceIndexFailure();
                 } catch (RuntimeException rescanFailure) {
                     failure.addSuppressed(rescanFailure);
+                    throw failure;
                 }
+                if (reproduced != null) throw reproduced;
                 throw failure;
             }
         }
 
-        private IndexOutOfBoundsException reproduceIndexFailure() {
+        private RuntimeException reproduceIndexFailure() {
             int[] feedIndices = preparationPlan.feedValueIndices();
             List<MetalMpsGraphProgram.Node> nodes = preparationPlan.graphProgram().nodes();
             for (MetalMpsGraphProgram.Node node : nodes) {
                 int indexValue;
                 long bound;
-                boolean gather;
+                String family;
                 if (node.kind() == MetalMpsGraphProgram.NodeKind.GATHER) {
-                    gather = true;
+                    family = "GATHER";
                     indexValue = node.secondInputIndex();
-                    long[] dataShape = preparationPlan.descriptors()
-                            .get(node.firstInputIndex()).shape().toLongArray();
-                    bound = dataShape[node.axis()];
+                    bound = dataAxisExtent(node);
                 } else if (node.kind() == MetalMpsGraphProgram.NodeKind.ONE_HOT) {
-                    gather = false;
+                    family = "ONE_HOT";
                     indexValue = node.firstInputIndex();
                     bound = node.attributeValues()[0];
+                } else if (node.kind()
+                        == MetalMpsGraphProgram.NodeKind.SCATTER_ELEMENTS) {
+                    family = "SCATTER_ELEMENTS";
+                    indexValue = node.secondInputIndex();
+                    bound = dataAxisExtent(node);
                 } else {
                     continue;
                 }
@@ -286,6 +289,8 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                     throw new IllegalStateException(
                             "Metal index value is not a stable executable feed");
                 }
+                long[] indexShape = preparationPlan.descriptors().get(indexValue)
+                        .shape().toLongArray();
                 long elements = preparationPlan.descriptors().get(indexValue)
                         .shape().knownElementCount().orElseThrow();
                 long bytes = Math.multiplyExact(elements, Integer.BYTES);
@@ -295,20 +300,77 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                     for (long ordinal = 0L; ordinal < elements; ordinal++) {
                         int value = indices.getAtIndex(NATIVE_INT, ordinal);
                         if (value < 0 || (long) value >= bound) {
-                            String message = gather
-                                    ? "GATHER index at logical position " + ordinal
+                            String message = switch (family) {
+                                case "GATHER" ->
+                                    "GATHER index at logical position " + ordinal
                                             + " for data axis " + node.axis()
                                             + " is out of bounds: value=" + value
-                                            + ", extent=" + bound
-                                    : "ONE_HOT index at logical position " + ordinal
+                                            + ", extent=" + bound;
+                                case "ONE_HOT" ->
+                                    "ONE_HOT index at logical position " + ordinal
                                             + " is out of bounds: value=" + value
                                             + ", depth=" + bound;
+                                default ->
+                                    "SCATTER_ELEMENTS index at logical position " + ordinal
+                                            + " for data axis " + node.axis()
+                                            + " is out of bounds: value=" + value
+                                            + ", extent=" + bound;
+                            };
                             return new IndexOutOfBoundsException(message);
+                        }
+                    }
+                    if (node.kind()
+                            == MetalMpsGraphProgram.NodeKind.SCATTER_ELEMENTS) {
+                        for (long later = 1L; later < elements; later++) {
+                            for (long first = 0L; first < later; first++) {
+                                if (sameScatterTarget(
+                                        indices, later, first, indexShape, node.axis())) {
+                                    return new IllegalArgumentException(
+                                            "SCATTER_ELEMENTS duplicate target at logical"
+                                                    + " update position " + later
+                                                    + "; first addressed at logical update"
+                                                    + " position " + first);
+                                }
+                            }
                         }
                     }
                 }
             }
             return null;
+        }
+
+        private long dataAxisExtent(MetalMpsGraphProgram.Node node) {
+            long[] dataShape = preparationPlan.descriptors()
+                    .get(node.firstInputIndex()).shape().toLongArray();
+            return dataShape[node.axis()];
+        }
+
+        private static boolean sameScatterTarget(
+                MemorySegment indices,
+                long left,
+                long right,
+                long[] shape,
+                int selectedAxis) {
+            for (int axis = 0; axis < shape.length; axis++) {
+                if (axis == selectedAxis) {
+                    if (indices.getAtIndex(NATIVE_INT, left)
+                            != indices.getAtIndex(NATIVE_INT, right)) {
+                        return false;
+                    }
+                } else if (coordinate(left, shape, axis)
+                        != coordinate(right, shape, axis)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private static long coordinate(long ordinal, long[] shape, int axis) {
+            long stride = 1L;
+            for (int dimension = shape.length; dimension-- > axis + 1;) {
+                stride = Math.multiplyExact(stride, shape[dimension]);
+            }
+            return ordinal / stride % shape[axis];
         }
 
         private static int feedPosition(int[] feedIndices, int valueIndex) {

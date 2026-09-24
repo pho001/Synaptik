@@ -477,6 +477,87 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
+    void cpuFreeMetalEngineRunsExactReplacementScatterWithBothFailureClasses() {
+        Path library = configuredMetalLibrary();
+        int[] dataBits = {
+            0x00000000, 0x80000000, 0x00000001,
+            0x7fa12345, 0xffa54321, 0x3f800000
+        };
+        int[] updateBits = {0x7fa22222, 0xffa33333, 0x80000001, 0x7f800000};
+        try (Arena arena = Arena.ofShared();
+                Engine.Builder builder = Engine.builder()) {
+            builder.takeOwnership(MetalBackendIntegration.open(
+                    new MetalBackendConfiguration(library)));
+            try (Engine engine = builder.build()) {
+                Tensor data = nativeTensorBits(
+                        descriptor(Shape.of(2, 3)), arena, dataBits);
+                Tensor indices = nativeIntTensor(
+                        Shape.of(2, 2), arena, 2, 0, 1, 2);
+                Tensor updates = nativeTensorBits(
+                        descriptor(Shape.of(2, 2)), arena, updateBits);
+                MemorySegment dataBytes = ((MemorySegmentStorage)
+                        data.hostStorage().orElseThrow()).segment();
+                MemorySegment indexBytes = ((MemorySegmentStorage)
+                        indices.hostStorage().orElseThrow()).segment();
+                MemorySegment updateBytes = ((MemorySegmentStorage)
+                        updates.hostStorage().orElseThrow()).segment();
+                Tensor scattered = data.scatterElements(indices, updates, 1);
+                var compiled = engine.compile(List.of(scattered));
+                assertEquals(
+                        List.of("metal"),
+                        EngineMixedOwnerTestAccess.partitionOwners(compiled));
+
+                try (InferenceSession session = engine.session(compiled);
+                        var result = session.run(List.of(data, indices, updates))) {
+                    assertRawBits(
+                            result.materialize(
+                                    result.publications().getFirst(),
+                                    6L * Integer.BYTES).bytes(),
+                            new int[] {
+                                updateBits[1], dataBits[1], updateBits[0],
+                                dataBits[3], updateBits[2], updateBits[3]
+                            });
+                }
+                assertArrayEquals(dataBits, dataBytes.toArray(ValueLayout.JAVA_INT));
+                assertArrayEquals(
+                        new int[] {2, 0, 1, 2},
+                        indexBytes.toArray(ValueLayout.JAVA_INT));
+                assertArrayEquals(updateBits, updateBytes.toArray(ValueLayout.JAVA_INT));
+
+                indexBytes.setAtIndex(ValueLayout.JAVA_INT, 1, 3);
+                try (InferenceSession session = engine.session(compiled)) {
+                    IndexOutOfBoundsException failure = assertThrows(
+                            IndexOutOfBoundsException.class,
+                            () -> session.run(List.of(data, indices, updates)));
+                    assertEquals(
+                            "SCATTER_ELEMENTS index at logical position 1 for data axis 1"
+                                    + " is out of bounds: value=3, extent=3",
+                            failure.getMessage());
+                }
+                assertArrayEquals(dataBits, dataBytes.toArray(ValueLayout.JAVA_INT));
+                assertArrayEquals(updateBits, updateBytes.toArray(ValueLayout.JAVA_INT));
+
+                indexBytes.setAtIndex(ValueLayout.JAVA_INT, 0, 1);
+                indexBytes.setAtIndex(ValueLayout.JAVA_INT, 1, 1);
+                try (InferenceSession session = engine.session(compiled)) {
+                    IllegalArgumentException failure = assertThrows(
+                            IllegalArgumentException.class,
+                            () -> session.run(List.of(data, indices, updates)));
+                    assertEquals(
+                            "SCATTER_ELEMENTS duplicate target at logical update position 1;"
+                                    + " first addressed at logical update position 0",
+                            failure.getMessage());
+                }
+                assertArrayEquals(dataBits, dataBytes.toArray(ValueLayout.JAVA_INT));
+                assertArrayEquals(
+                        new int[] {1, 1, 1, 2},
+                        indexBytes.toArray(ValueLayout.JAVA_INT));
+                assertArrayEquals(updateBits, updateBytes.toArray(ValueLayout.JAVA_INT));
+            }
+        }
+    }
+
+    @Test
     void cpuFreeMetalEngineRunsConcurrentAffineCallsWithIsolatedRunOwnership()
             throws Exception {
         Path library = configuredMetalLibrary();

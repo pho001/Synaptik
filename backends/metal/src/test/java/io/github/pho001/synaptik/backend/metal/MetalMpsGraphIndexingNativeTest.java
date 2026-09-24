@@ -107,6 +107,100 @@ class MetalMpsGraphIndexingNativeTest {
         }
     }
 
+    @Test
+    void realReplacementScatterMovesRawBitsAndRejectsBoundsAndDuplicatesBeforeWrites() {
+        Path library = configuredLibrary();
+        MetalNativeApi api = MetalNativeApi.open(library);
+        MetalNativeApi.Handle context = null;
+        MetalNativeApi.Handle executable = null;
+        var inputs = new ArrayList<MetalNativeApi.Handle>();
+        var outputs = new ArrayList<MetalNativeApi.Handle>();
+        int[] dataBits = {
+            0x00000000, 0x80000000, 0x00000001,
+            0x7fa12345, 0xffa54321, 0x3f800000
+        };
+        int[] updateBits = {0x7fa22222, 0xffa33333, 0x80000001, 0x7f800000};
+        try {
+            context = api.createContext();
+            MetalMpsGraphProgram program = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.scatterElements(0, 1, 2, 3, 1)));
+            long[][] shapes = {{2, 3}, {2, 2}, {2, 2}, {2, 3}};
+            executable = api.createMpsGraphExecutable(
+                    context,
+                    NumericalProfile.STRICT_IEEE,
+                    ranks(shapes),
+                    dimensions(shapes),
+                    program,
+                    new int[] {0, 1, 2},
+                    new int[] {3});
+
+            MetalNativeApi.Handle data = api.createBuffer(context, 6L * Integer.BYTES);
+            MetalNativeApi.Handle indices = api.createBuffer(context, 4L * Integer.BYTES);
+            MetalNativeApi.Handle updates = api.createBuffer(context, 4L * Integer.BYTES);
+            MetalNativeApi.Handle output = api.createBuffer(context, 6L * Integer.BYTES);
+            inputs.add(data);
+            inputs.add(indices);
+            inputs.add(updates);
+            outputs.add(output);
+            uploadInts(api, data, dataBits);
+            uploadInts(api, indices, new int[] {2, 0, 1, 2});
+            uploadInts(api, updates, updateBits);
+
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment inputAddresses = arena.allocate(ADDRESS, inputs.size());
+                MemorySegment outputAddresses = arena.allocate(ADDRESS, outputs.size());
+                for (int index = 0; index < inputs.size(); index++) {
+                    inputAddresses.setAtIndex(ADDRESS, index, inputs.get(index).carrier());
+                }
+                outputAddresses.setAtIndex(ADDRESS, 0, output.carrier());
+
+                api.runExecutable(executable, 3, inputAddresses, 1, outputAddresses);
+                assertArrayEquals(new int[] {
+                    updateBits[1], dataBits[1], updateBits[0],
+                    dataBits[3], updateBits[2], updateBits[3]
+                }, downloadInts(api, output, 6));
+                assertArrayEquals(dataBits, downloadInts(api, data, 6));
+                assertArrayEquals(new int[] {2, 0, 1, 2}, downloadInts(api, indices, 4));
+                assertArrayEquals(updateBits, downloadInts(api, updates, 4));
+
+                uploadInts(api, indices, new int[] {2, 3, 1, 2});
+                fill(api, output, 6L * Integer.BYTES, SENTINEL);
+                assertRangeFailure(api, executable, 3, inputAddresses, 1, outputAddresses);
+                assertFilled(downloadBytes(api, output, 6 * Integer.BYTES), SENTINEL);
+                assertArrayEquals(dataBits, downloadInts(api, data, 6));
+                assertArrayEquals(new int[] {2, 3, 1, 2}, downloadInts(api, indices, 4));
+                assertArrayEquals(updateBits, downloadInts(api, updates, 4));
+
+                uploadInts(api, indices, new int[] {1, 1, 1, 2});
+                assertRangeFailure(api, executable, 3, inputAddresses, 1, outputAddresses);
+                assertFilled(downloadBytes(api, output, 6 * Integer.BYTES), SENTINEL);
+                assertArrayEquals(dataBits, downloadInts(api, data, 6));
+                assertArrayEquals(new int[] {1, 1, 1, 2}, downloadInts(api, indices, 4));
+                assertArrayEquals(updateBits, downloadInts(api, updates, 4));
+            }
+        } finally {
+            for (int index = outputs.size(); index-- > 0;) api.releaseBuffer(outputs.get(index));
+            for (int index = inputs.size(); index-- > 0;) api.releaseBuffer(inputs.get(index));
+            if (executable != null) api.releaseExecutable(executable);
+            if (context != null) api.releaseContext(context);
+            api.close();
+        }
+    }
+
+    private static void assertRangeFailure(
+            MetalNativeApi api,
+            MetalNativeApi.Handle executable,
+            int inputCount,
+            MemorySegment inputs,
+            int outputCount,
+            MemorySegment outputs) {
+        MetalNativeApi.NativeFailure failure = assertThrows(
+                MetalNativeApi.NativeFailure.class,
+                () -> api.runExecutable(
+                        executable, inputCount, inputs, outputCount, outputs));
+        assertEquals(MetalNativeApi.Status.RANGE_OUT_OF_BOUNDS, failure.status());
+    }
+
     private static void assertBoundsFailure(
             MetalNativeApi api,
             MetalNativeApi.Handle executable,

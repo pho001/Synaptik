@@ -22,11 +22,15 @@ cross-module integration service-provider interface (SPI). The CPU backend expos
 identical exact execution under both numerical profiles. The Metal backend exposes
 `MetalBackendConfiguration`, `MetalBackendIntegration`, and a common exact `FLOAT32` domain under
 both profiles. That domain contains canonical `NEG` and `ABS`, `RESHAPE`, `EXPAND`, `PERMUTE`,
-`EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`. Accelerator Metal additionally supports canonical
-tensor `ADD`, `SUB`, `MUL`, and `DIV`; canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`; and positive static
-rank-two `MATMUL` with canonical or authenticated local-transpose operands, under the bounded Model
-profile. Strict binary/reduction/MATMUL fails ownership selection before native preparation. Every
-graph feed and direct `NEG` or `ABS` operand/output is a canonical contiguous non-view. Affine
+`EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`; canonical positive-rank FLOAT32+INT32 `GATHER`;
+INT32-to-BOOL `ONE_HOT`; and canonical positive-rank FLOAT32/INT32/FLOAT32
+`SCATTER_ELEMENTS/NONE`. Scatter validates complete bounds then target uniqueness before dispatch
+and writes, preserves exact addressed-update and unaddressed-base bits, and leaves inputs
+unchanged. Accelerator Metal additionally supports canonical tensor `ADD`, `SUB`, `MUL`, and
+`DIV`; canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`; and positive static rank-two `MATMUL` with canonical
+or authenticated local-transpose operands, under the bounded Model profile. Strict
+binary/reduction/MATMUL fails ownership selection before native preparation.
+Every graph feed and direct `NEG` or `ABS` operand/output is a canonical contiguous non-view. Affine
 operations under either profile may consume exact zero-offset views produced earlier in the same
 maximal Metal partition, retain their exact logical view descriptors, and privately write dense
 represented-order targets. Accelerator MATMUL may consume only an exact local rank-two

@@ -20,9 +20,12 @@ import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
+import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
 import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
+import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
+import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
@@ -399,18 +402,24 @@ final class MetalNegCapabilityPartitionConformanceTest {
                 partitions.getFirst().nodeIds());
     }
 
-    /** Proves GATHER composes with FLOAT32 consumers while ONE_HOT remains a terminal region. */
+    /** Proves exact indexing operations, including replacement scatter, compose maximally. */
     @Test
-    void exactInt32IndexingOccurrencesProduceTheExpectedMaximalMetalRegions() {
+    void exactInt32IndexingOccurrencesProduceOneMaximalMetalRegion() {
         TensorDescriptor dataDescriptor = descriptor(Shape.of(2, 3));
         TensorDescriptor indexDescriptor = typed(DataType.INT32, Shape.of(2));
         TensorDescriptor gatheredDescriptor = descriptor(Shape.of(2, 2));
         TensorDescriptor oneHotDescriptor = typed(DataType.BOOL, Shape.of(2, 4));
+        TensorDescriptor scatterIndexDescriptor = typed(DataType.INT32, Shape.of(2, 2));
+        TensorDescriptor updateDescriptor = descriptor(Shape.of(2, 2));
         ValueId data = new ValueId(60);
         ValueId indices = new ValueId(61);
         ValueId gathered = new ValueId(62);
         ValueId negated = new ValueId(63);
         ValueId oneHot = new ValueId(64);
+        ValueId scatterIndices = new ValueId(65);
+        ValueId updates = new ValueId(66);
+        ValueId scattered = new ValueId(67);
+        ValueId scatterNegated = new ValueId(68);
         CompiledNode gather = new CompiledNode(
                 new NodeId(60),
                 new Operation(AxisGatherKind.GATHER, new IndexAxisAttrs(1)),
@@ -426,7 +435,19 @@ final class MetalNegCapabilityPartitionConformanceTest {
                 new Operation(OneHotKind.ONE_HOT, new OneHotAttrs(4)),
                 List.of(indices),
                 List.of(oneHot));
-        List<CompiledNode> nodes = List.of(gather, neg, encode);
+        CompiledNode scatter = new CompiledNode(
+                new NodeId(63),
+                new Operation(
+                        AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(1, ScatterReduction.NONE)),
+                List.of(data, scatterIndices, updates),
+                List.of(scattered));
+        CompiledNode scatterNeg = new CompiledNode(
+                new NodeId(64),
+                operation(UnaryElementwiseKind.NEG),
+                List.of(scattered),
+                List.of(scatterNegated));
+        List<CompiledNode> nodes = List.of(gather, neg, encode, scatter, scatterNeg);
         var provider = new MetalCapabilityProvider();
         for (NumericalProfile profile : NumericalProfile.values()) {
             assertTrue(provider.supports(query(
@@ -437,6 +458,11 @@ final class MetalNegCapabilityPartitionConformanceTest {
                     profile, encode.operation(),
                     List.of(indexDescriptor),
                     List.of(oneHotDescriptor))));
+            assertTrue(provider.supports(query(
+                    profile,
+                    scatter.operation(),
+                    List.of(dataDescriptor, scatterIndexDescriptor, updateDescriptor),
+                    List.of(dataDescriptor))));
         }
         var graph = new CompiledGraphModel(
                 List.of(
@@ -444,23 +470,31 @@ final class MetalNegCapabilityPartitionConformanceTest {
                         new GraphValue(indices, indexDescriptor),
                         new GraphValue(gathered, gatheredDescriptor),
                         new GraphValue(negated, gatheredDescriptor),
-                        new GraphValue(oneHot, oneHotDescriptor)),
+                        new GraphValue(oneHot, oneHotDescriptor),
+                        new GraphValue(scatterIndices, scatterIndexDescriptor),
+                        new GraphValue(updates, updateDescriptor),
+                        new GraphValue(scattered, dataDescriptor),
+                        new GraphValue(scatterNegated, dataDescriptor)),
                 nodes,
-                List.of(data, indices),
-                List.of(negated, oneHot),
+                List.of(data, indices, scatterIndices, updates),
+                List.of(negated, oneHot, scatterNegated),
                 Map.of(
                         gather.id(), GraphPhase.FORWARD,
                         neg.id(), GraphPhase.FORWARD,
-                        encode.id(), GraphPhase.FORWARD));
+                        encode.id(), GraphPhase.FORWARD,
+                        scatter.id(), GraphPhase.FORWARD,
+                        scatterNeg.id(), GraphPhase.FORWARD));
         var partitions = MaximalSameOwnerPartitioning.partition(
                 graph,
                 Map.of(
                         gather.id(), MetalCapabilityProvider.METAL_BACKEND_ID,
                         neg.id(), MetalCapabilityProvider.METAL_BACKEND_ID,
-                        encode.id(), MetalCapabilityProvider.METAL_BACKEND_ID));
+                        encode.id(), MetalCapabilityProvider.METAL_BACKEND_ID,
+                        scatter.id(), MetalCapabilityProvider.METAL_BACKEND_ID,
+                        scatterNeg.id(), MetalCapabilityProvider.METAL_BACKEND_ID));
         assertEquals(1, partitions.size());
         assertEquals(
-                List.of(gather.id(), neg.id(), encode.id()),
+                List.of(gather.id(), neg.id(), encode.id(), scatter.id(), scatterNeg.id()),
                 partitions.getFirst().nodeIds());
         assertSame(
                 MetalCapabilityProvider.METAL_BACKEND_ID,

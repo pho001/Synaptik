@@ -176,18 +176,20 @@ graph-local ID canonicalization and whole-graph DCE plus phase-local CSE are cur
 behavior. CPU physical execution is current for its documented bounded affine units. Metal forward
 execution has a common exact baseline under both profiles: canonical `FLOAT32` `NEG`, `ABS`,
 `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`, plus canonical
-positive-rank `FLOAT32` data `GATHER` with canonical `INT32` indices and positive-rank
-`INT32`-to-`BOOL` `ONE_HOT`. Metal validates every index before selector dispatch or target writes,
-publishes exact Model `IndexOutOfBoundsException` text in stable node and row-major ordinal order,
-and leaves targets unchanged on failure. Canonical caller ingress accepts exact `FLOAT32` and
-`INT32`; locally produced canonical `BOOL` may publish as exact zero/one bytes, while CPU/Metal
-transfer remains canonical `FLOAT32` only. Accelerator Metal additionally executes tensor
-binary/reduction and positive static rank-two MATMUL partitions; strict Metal rejects those
-additions. Metal indexing and reduction execution are forward-only; a positive-rank result may
-compose locally, while a scalar reduction result is a direct target with four-byte local
-materialization. Accelerator MATMUL also executes the Compiler-generated explicitly seeded
-first-order formulas for both canonical rank-two operands through exact local transposes beneath
-the existing shape-restoration boundaries. This narrow path introduces no indexing backward,
+positive-rank `FLOAT32` data `GATHER` with canonical `INT32` indices, positive-rank
+`INT32`-to-`BOOL` `ONE_HOT`, and canonical positive-rank `FLOAT32`/`INT32`/`FLOAT32`
+`SCATTER_ELEMENTS/NONE`. Metal validates every index before selector dispatch or target writes;
+scatter completes its bounds pass before complete-target uniqueness. Bounds and duplicates publish
+the exact Model exception text in stable node and row-major ordinal order, and targets and inputs
+remain unchanged on failure. Canonical caller ingress accepts exact `FLOAT32` and `INT32`; locally
+produced canonical `BOOL` may publish as exact zero/one bytes, while CPU/Metal transfer remains
+canonical `FLOAT32` only. Accelerator Metal additionally executes tensor binary/reduction and
+positive static rank-two MATMUL partitions; strict Metal rejects those additions. Metal indexing
+and reduction execution are forward backend routes; a positive-rank result may compose locally,
+while a scalar reduction result is a direct target with four-byte local materialization.
+Accelerator MATMUL also executes the Compiler-generated explicitly seeded first-order formulas for
+both canonical rank-two operands through exact local transposes beneath the existing
+shape-restoration boundaries. This narrow path introduces no complete indexing backward,
 scalar-loss, implicit-seed, batched-MATMUL, or general Metal training claim.
 
 `AxisTransformKind.PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` are current semantic identities.
@@ -6993,6 +6995,13 @@ Tensor maximum = data.scatterElements(indices, updates, 1, ScatterReduction.MAX)
 Both results have Shape `[2, 3, 4]`. The negative axis normalizes to `1`; replacement records
 `ScatterElementsAttrs[axis=1, reduction=NONE]`, while maximum records `MAX`. This proves
 structural expression construction and reduction retention, not indexed writes or execution.
+
+The current Metal backend executes only the canonical positive-rank `FLOAT32`/`INT32`/`FLOAT32`
+replacement form above under both profiles. It requires unique complete targets, validates every
+bound before uniqueness and any selector dispatch or output write, copies addressed update and
+unaddressed base bits exactly, and leaves all inputs unchanged. `MAX` and every other arithmetic
+scatter, INT64, views, dynamic Shapes, Scatter-ND, output aliasing, and complete Metal backward
+execution remain unsupported.
 
 ##### Failures and useful variations
 

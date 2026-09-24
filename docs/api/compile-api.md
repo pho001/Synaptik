@@ -1741,8 +1741,13 @@ among exact numeric-equality winners. The current fail-closed CPU path advertise
 prepares, and executes only fully static, resolved-layout SCATTER_ELEMENTS occurrences with
 INT32/INT64 indices, exact data/update type and same-rank Shape relationships, permitted
 represented reduction, data-shaped distinct injective output, and execution-time index/duplicate
-validation. Gradient support remains limited to the exact floating roles above. Dynamic binding
-and other-backend execution remain planned.
+validation. Gradient support remains limited to the exact floating roles above. The current Metal
+path additionally admits only canonical positive-rank FLOAT32 data/updates/results with INT32
+indices and `NONE`, identically under both profiles. It validates the complete bounds domain before
+complete-coordinate uniqueness and before dispatch or writes, preserves exact addressed-update and
+unaddressed-base bits, and leaves every input unchanged. This does not add Compiler production or a
+complete Metal backward route: the existing update cotangent needs unsupported GATHER_ELEMENTS.
+Dynamic binding and every other Metal scatter type/reduction remain planned.
 For `MUL`, `MIN`, and `MAX`, the current Model contract combines the base exactly once with every
 addressed update exactly once, counts duplicate targets as distinct contributions, and preserves
 the exact representation of an unaddressed base coordinate. Its floating and integral result is

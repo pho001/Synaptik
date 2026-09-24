@@ -11,9 +11,11 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
+import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
 import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
+import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
@@ -44,16 +46,17 @@ import java.util.Optional;
  * <p>The deterministic analysis assigns stable native value indices, retains every node kind and
  * ordered operand, and derives unique feeds and targets before selecting a closed private route.
  * For both profiles, it walks explicit unavailable/canonical/affine-view states in node order for
- * the retained NEG/ABS, affine, CONTIGUOUS, GATHER, and ONE_HOT domain. Under {@code ACCELERATOR},
- * it additionally accepts binary arithmetic, the exact SUM/MEAN/SUM_TO_SHAPE reduction forms, and
- * positive static rank-two FLOAT32 MATMUL. An affine MATMUL operand is authenticated to the exact
- * earlier local rank-two {@code PERMUTE [1,0]} of a canonical source on that consuming edge;
- * affine values otherwise retain the same valid local consumers and boundary publication as strict
- * execution. MATMUL lowering retains both ordered operands in a schema-nine wire-15 record;
- * GATHER and ONE_HOT retain wires 16 and 17 with normalized axis and positive depth attributes.
- * Reduction lowering retains the typed form, ordered normalized axes (including empty), exact
- * keep-dimensions flag, sum-to-Shape target, and shape-derived term geometry. Every graph feed is
- * canonical positive-rank and exactly FLOAT32 or INT32 as required by its typed uses. Analysis
+ * the retained NEG/ABS, affine, CONTIGUOUS, GATHER, ONE_HOT, and replacement SCATTER_ELEMENTS
+ * domain. Under {@code ACCELERATOR}, it additionally accepts binary arithmetic, the exact
+ * SUM/MEAN/SUM_TO_SHAPE reduction forms, and positive static rank-two FLOAT32 MATMUL. An affine
+ * MATMUL operand is authenticated to the exact earlier local rank-two {@code PERMUTE [1,0]} of a
+ * canonical source on that consuming edge; affine values otherwise retain the same valid local
+ * consumers and boundary publication as strict execution. MATMUL lowering retains both ordered
+ * operands in a schema-ten wire-15 record; GATHER and ONE_HOT retain wires 16 and 17, and
+ * SCATTER_ELEMENTS appends wire 18 with updates in the typed auxiliary cell. Reduction lowering
+ * retains the typed form, ordered normalized axes (including empty), exact keep-dimensions flag,
+ * sum-to-Shape target, and shape-derived term geometry. Every graph feed is canonical
+ * positive-rank and exactly FLOAT32 or INT32 as required by its typed uses. Analysis
  * freshly regenerates the complete candidate batch; an absent decision preserves the singleton-NEG
  * heuristic, while a present decision must authenticate against current schema, workload, profile,
  * session target, and candidate identity. The selected route is fixed before exact declarations.
@@ -413,6 +416,11 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             IndexAxisAttrs attrs = (IndexAxisAttrs) operation.attrs();
             return MetalMpsGraphProgram.Node.gather(
                     inputs[0], inputs[1], output, attrs.axis());
+        }
+        if (kind == AxisScatterKind.SCATTER_ELEMENTS) {
+            ScatterElementsAttrs attrs = (ScatterElementsAttrs) operation.attrs();
+            return MetalMpsGraphProgram.Node.scatterElements(
+                    inputs[0], inputs[1], inputs[2], output, attrs.axis());
         }
         if (kind == OneHotKind.ONE_HOT) {
             OneHotAttrs attrs = (OneHotAttrs) operation.attrs();
