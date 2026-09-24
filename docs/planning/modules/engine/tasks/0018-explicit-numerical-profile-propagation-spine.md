@@ -2,14 +2,13 @@
 
 ## Status
 
-Ready
+Complete
 
-Frontier verification: Config 0006 is Complete at implementation `314e049` plus remediation
-`37e9e9db`. Its fresh Config test/Javadoc run passed 33 tests with zero failures, errors, or skips;
-the generated enum and package pages were inspected; baseline-aware Markdown evidence and
-`git diff --check` passed; and independent Class B review returned final `APPROVE` with zero
-findings. Engine 0018 is the sole Ready repository frontier. Model 0026, CPU 0017, and Metal 0015
-remain Draft.
+Implementation `ce7a7dfa67c0dce5cd7b41b2a5bc90ae305393c3` plus documentation/Javadoc
+remediation `07a01b9c13c2ceea0922b9af82da3e6e08375306` passed the required module
+test/Javadoc checkpoint, backend conformance, architecture tests, the actual
+`EngineNumericalProfileIntegrationTest`, full build, documentation validation, and diff checks.
+Independent Class C review returned final `APPROVE` with zero findings.
 
 ## Change class
 
@@ -88,7 +87,7 @@ There are no old-arity overloads, one-argument advanced factory, aliases, or hid
   cross-profile decisions fail closed.
 - These changes transport and isolate identity only. Do not enable an `ACCELERATOR` CPU or Metal
   occurrence, alter generated/native arithmetic, choose fast math, or reinterpret Model semantics.
-  CPU 0017 and Metal 0015 remain the sole Draft semantic-realization owners.
+  CPU 0017 and Metal 0015 were the sole Draft semantic-realization owners during this task.
 
 ## Dependencies and integration
 
@@ -174,7 +173,8 @@ historical evidence, not callers.
    partition-scoring}.md`; `docs/api/{compile-api,public-api,tensor-api,runtime-api}.md`;
    `docs/backend-guide/{capability-provider,cpu-backend,metal-backend,partition-preparer}.md`;
    `docs/user-guide/{backend-selection,compiling-graphs}.md`; `docs/glossary.md`; affected package Javadocs; and accepted `docs/design/decisions/0019-explicit-numerical-profiles.md`.
-10. Model 0026, CPU 0017, and Metal 0015 remain Draft. No other task becomes Ready.
+10. At 0018 completion, Model 0026, CPU 0017, and Metal 0015 remained Draft and no other task
+    became Ready. Their later planning promotion is outside this completed implementation.
 
 ## Validation and review
 
@@ -197,4 +197,19 @@ and documentation. Reuse validation only when review changes no executable code.
 
 ## Result
 
-Empty until execution.
+Implemented the atomic profile-propagation spine and independently approved it with zero findings.
+
+- Planning queries, Compiler artifacts, Prepare projection, Engine/AdvancedEngine capture, and
+  every executable caller now retain one exact graph-wide profile. `STRICT_IEEE` remains the
+  builder and `Engine.standard()` default; Runtime, sessions, run state/results, and Trace remain
+  profile-free.
+- CPU and Metal capability/preparation remained fail-closed for `ACCELERATOR`, while their plans,
+  specializations, workload/candidate decisions, codecs, and local/complete cache compatibility
+  became profile-separated with the required version advances.
+- Required module tests/Javadocs, backend conformance, architecture tests, the actual Engine
+  numerical-profile integration smoke, full build, Markdown validation, and diff checks passed.
+- The performance gate found identical normalized hashes for the base/current generated executable
+  body. The base showed the same ambient rejects, the current focused gate passed twice, and no
+  performance test or threshold was modified.
+- Documentation/Javadoc remediation landed at `07a01b9c`; final independent Class C review returned
+  `APPROVE` with zero findings.

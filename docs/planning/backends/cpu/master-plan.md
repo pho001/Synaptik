@@ -245,7 +245,7 @@ The table owns order and status; linked tasks own detailed evidence.
 | 0014 | AMD AOCL-BLAS and AOCL-LibM peer routes | Draft | 0005A; 0009; concrete AMD CPU use case and supported AOCL ABI evidence | Planned only after a concrete AMD CPU use case and supported AOCL ABI evidence. |
 | 0015 | Optional AMD ZenDNN partition peer routes | Draft | 0014; 0005A; 0009; stable common CPU lowering; concrete ZenDNN use case and integration evidence | Optional ZenDNN route waits for 0014 plus a concrete use case and integration evidence. |
 | 0016 | Cross-route CPU tuning-cache integration | Draft | 0010E; Prepare 0004; tools/tuning 0001; 0011–0015 as implemented | Generalize the proved tuning contract only across vendor peers that are actually implemented. |
-| 0017 | Explicit ACCELERATOR numerical-profile realization | Draft | Model 0027; Config 0006; Engine 0018; current exact portable/OpenBLAS routes and profile-keyed plans/caches | After Engine 0018 transports and isolates profile identity, admit `ACCELERATOR` only where current exact CPU results satisfy that profile, with fresh bounded conformance and no Runtime policy lookup. |
+| 0017 | [Explicit ACCELERATOR numerical-profile realization](tasks/0017-explicit-accelerator-numerical-profile-realization.md) | Ready | Model 0027; Config 0006; Engine 0018; current exact portable/OpenBLAS routes and profile-keyed plans/caches | Admit `ACCELERATOR` with exactly current CPU semantics and routes, prove observable forward/backward execution under both profiles, and preserve every profile-separated identity without relaxed math. |
 
 ## Milestones and current frontier
 
@@ -254,10 +254,26 @@ The table owns order and status; linked tasks own detailed evidence.
 - Evidence-backed production-default task 0010M is `Complete`: ordinary production remains
   scalar with configured/available parallelism `1`/`1` and minimum elements per worker `1`; the
   invalid broad vector candidate was reverted and its reports removed.
-- 0007A1D is Review needed; 0010D1 and 0011 are Blocked; 0012–0017 are Draft.
-- Documentation-only 0010K and 0010L are Complete. No CPU task is `Ready` or `In progress`.
-  Numerical-profile task 0017 remains Draft behind completed Model 0027/Config 0006 and sole Ready
-  Engine 0018.
+- 0007A1D is Review needed; 0010D1 and 0011 are Blocked; 0012–0016 are Draft.
+- Documentation-only 0010K and 0010L are Complete. [0017](tasks/0017-explicit-accelerator-numerical-profile-realization.md)
+  is Ready from completed Engine 0018 and exact common base
+  `07a01b9c13c2ceea0922b9af82da3e6e08375306`; it is the CPU member of
+  parallel group `numerical-profile-backends`.
+
+## Parallel frontier integration
+
+- Depends on: Model 0027, Config 0006, Engine 0018, and current exact portable/OpenBLAS routes.
+- Conflicts with: CPU capability/preparation/generated/OpenBLAS/tuning/Engine-test scopes.
+- Parallel group: `numerical-profile-backends`.
+- Common base revision: `07a01b9c13c2ceea0922b9af82da3e6e08375306`.
+- Integration order: Any relative to Metal 0015; executable commits precede shared documents.
+- Integration validation: numerical-profile backend integration checkpoint.
+- Shared-document integration owner: Main planner.
+
+CPU 0017 and Metal 0015 are semantically independent after the completed spine: they change
+different backend capability/realization owners, native/cache formats only inside their backend,
+and disjoint integration tests. Workers use isolated worktrees and do not edit shared planning,
+architecture, API, user-guide, or glossary files.
 
 ## Live gates and decisions
 
@@ -282,10 +298,10 @@ The table owns order and status; linked tasks own detailed evidence.
   family-specific direct-Java evidence. Generic movement/indexing/pooling SIMD, FLOAT16 before
   Model 0026, and automatic decomposed loss/softmax recognition are not authorized.
 - CPU 0016 extends tuning only across implemented vendor peers and adds no CPU measurement or
-  generated-class persistence. Ready Engine 0018 owns profile transport through CPU plans,
-  specializations, generated-artifact identity, and local/complete tuning compatibility while
-  leaving `ACCELERATOR` fail-closed. CPU 0017 alone may later prove and admit current exact CPU
-  results for that profile without a Runtime hot-path policy lookup.
+  generated-class persistence. Complete Engine 0018 already transports profile identity through
+  CPU plans, specializations, generated-artifact identity, and local/complete tuning
+  compatibility. Ready CPU 0017 may admit `ACCELERATOR` only with unchanged exact CPU arithmetic,
+  route policy, and Runtime hot paths.
 
 - CPU 0010M retains five machine-local scalar reports and a minimum future-comparison acceptance
   framework under `backends/cpu/evidence/cpu-0010m-defaults/`. The reports validate the hardened

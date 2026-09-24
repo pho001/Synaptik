@@ -53,9 +53,10 @@ Training-to-Metal optimizer bridge.
   capability. Complete 0014 composes only existing FLOAT32 affine layouts plus `CONTIGUOUS`.
   Later Metal 0028 and 0029 remain reserved for separately authorized FLOAT16 and BFLOAT16 scopes.
 - Evidence across 0006/0007 and 0009–0013 shows a systemic mismatch between current exact Model
-  FLOAT32 contracts and MPSGraph behavior. The accepted numerical-profile program begins with
-  Model 0027's semantic-authority decision; it does not retroactively authorize a Metal route.
-  Metal 0015 remains Draft until Model 0027, Config 0006, and Engine 0018 are Complete.
+  FLOAT32 contracts and MPSGraph behavior. Model 0027, Config 0006, and Engine 0018 are Complete.
+  Ready Metal 0015 is limited to `ADD`/`SUB`/`MUL`/`DIV` under the Model-authorized tensor-binary
+  DAZ/FTZ envelope. Existing strict NEG/affine/`CONTIGUOUS` support does not become accelerator
+  capability, and the independently blocked families gain no permission.
 - Production dependencies may point to Model, Config, Planning, Runtime, Prepare,
   Backend Contract, and Trace, never Engine or Training. Task 0002's Compiler edge is test-only.
 
@@ -94,7 +95,7 @@ visibility.
 | 0012 | [MPSGraph FLOAT32 extrema reductions](tasks/0012-mpsgraph-float32-extrema-reductions.md) | Blocked | 0005/0008; current Model ordinary-extrema semantics and Compiler forward capture; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007/0009/0010/0011 or Model 0026 | Every concurrent Metal capability/preparation/native schema/candidate/materialization/Engine scope | None | Probe → schema/geometry → capability/topology → candidates/lifecycle/scalar publication → Engine proof → docs/review | Reproducible exhaustive direct-target probe and independent blocker; no production change | Propagating MIN/MAX selectors were order-dependent for opposite signed zeros and zero/minimum-subnormal pairs: 2,016 MIN plus 2,016 MAX mismatches and 2,976 subnormal failures in 43,824 executions. |
 | 0013 | [MPSGraph FLOAT32 cumulative scans](tasks/0013-mpsgraph-float32-cumulative-scans.md) | Blocked | 0005/0008; current Model cumulative-scan semantics and Compiler forward capture; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007/0009–0012 or Model 0026 | Every concurrent Metal capability/preparation/native schema/candidate/materialization/Engine scope | None | Exact replacement route -> numerical gates -> Class C review | Reproducible exact cumulative-selector/direct-target probe and independent blocker; no production change | Inclusive length-one SUM/PRODUCT flushed all six subnormal corpus values at optimization levels 0/1; strict host controls preserved them. Axis 5 of rank 6 passed and axis 6 correctly rejected. Independent `APPROVE-BLOCKER`. |
 | 0014 | [MPSGraph FLOAT32 affine layout composition](tasks/0014-mpsgraph-float32-affine-layout-composition.md) | Complete | 0005/0008; current Model layout semantics and Compiler inference; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006–0007/0009–0013 or Model 0026 | Every concurrent Metal capability/preparation/native schema/candidate/materialization/Engine Metal scope | None | Probe -> capability/topology -> schema/state validation -> candidates/lifecycle/authentication -> Engine proof -> docs/review | Raw-bit selector-chain/direct-target probe; ABI-v4 exact exports; focused Metal/conformance/Compiler/Engine/architecture/Javadoc/docs checks | Commit `01e81be2` delivered exact local affine/`CONTIGUOUS` composition, schema/candidate version 4, and real Engine proof; independent Class C review returned `APPROVE` with zero findings. |
-| 0015 | ACCELERATOR FLOAT32 tensor binary arithmetic realization | Draft | 0014; Model 0027; Config 0006; Engine 0018 | Every Metal capability/preparation/native schema/candidate/materialization scope | Numerical-profile backends | After Engine 0018; parallel with CPU 0017 only after a stable common base | Disposable real-device bounded-result probe; focused Metal/conformance/public Engine/architecture checkpoint | Use the profile-keyed plans/caches delivered by Engine 0018 and restore `ADD`/`SUB`/`MUL`/`DIV` only for `ACCELERATOR`; keep every unproved row fail-closed and evolve native semantics only with fresh evidence. |
+| 0015 | [ACCELERATOR FLOAT32 tensor binary arithmetic](tasks/0015-accelerator-float32-tensor-binary-arithmetic.md) | Ready | 0014; Model 0027; Config 0006; Engine 0018 | Every Metal capability/preparation/native schema/candidate/materialization scope | `numerical-profile-backends` | Any relative to CPU 0017 from exact base `07a01b9c13c2ceea0922b9af82da3e6e08375306`; shared documents last | Disposable operation-by-operation real-device probe; focused Metal/conformance/public Engine checkpoint; combined integration checkpoint | Restore tensor `ADD`/`SUB`/`MUL`/`DIV` only for `ACCELERATOR` under the bounded DAZ/FTZ oracle; keep strict binary and every unproved family fail-closed; advance node schema 4→5 and version-five cache identities to 6. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -105,16 +106,21 @@ Cross-area profile branch:
 `0014 + Model 0027 -> Config 0006 -> Engine 0018 -> Metal 0015`
 
 0006–0007 and 0009–0013 remain independently `Blocked` under the current exact contracts. 0014 is
-Complete and supplies the profile-invariant affine baseline. Model 0027 and Config 0006 are
-Complete; Engine 0018 is the sole Ready repository frontier and owns identity transport plus
-fail-closed Metal plan/cache isolation. Metal 0015 remains Draft and gains no capability
-authorization before Engine 0018 is Complete and a fresh bounded real-device probe passes.
+Complete and supplies the profile-invariant affine baseline. Model 0027, Config 0006, and Engine
+0018 are Complete. [0015](tasks/0015-accelerator-float32-tensor-binary-arithmetic.md) is Ready from
+exact common base `07a01b9c13c2ceea0922b9af82da3e6e08375306` in parallel group
+`numerical-profile-backends`; its mandatory fresh
+operation-by-operation real-device probe must pass before any production capability change.
 
 ## Integration ownership and shared documents
 
 - Integration owner: Main planner
-- Shared documents: this master plan and `docs/planning/roadmap.md`; planner owns synchronized
-  status/frontier edits.
+- Shared documents: this master plan, `docs/planning/roadmap.md`, root/scoped architecture, shared
+  API/user documents, shared capability/preparer guides, and glossary; planner owns synchronized
+  post-merge edits. The Metal worker owns its task-specific Metal guide and native README.
+- CPU 0017 and Metal 0015 have disjoint backend semantics, sources, task-owned documents, and
+  integration tests after Engine 0018. They may execute in isolated worktrees from the same base
+  and integrate in either order; shared documents integrate once after both executable commits.
 
 ## Milestones and current frontier
 
@@ -172,11 +178,12 @@ and bindings passed. Corrected review evidence proves rank-six axis `5` valid fo
 axis `6` correctly rejected, so axis is not a blocker. Independent review returned
 `APPROVE-BLOCKER`; no production, native, test, or probe changes remain.
 
-Metal 0014 is Complete and no Metal task is Ready. Draft 0015 is the first planned backend
-semantic realization of the accepted numerical-profile program, but it remains behind completed
-Model 0027/Config 0006 and sole Ready Engine 0018. Engine 0018 may transport profile identity
-through Metal plans/caches only; current strict capability remains unchanged and the historical
-numerical blockers stay Blocked.
+Metal 0014 is Complete. [0015](tasks/0015-accelerator-float32-tensor-binary-arithmetic.md) is the
+sole Ready Metal frontier and the Metal member of parallel group `numerical-profile-backends` from
+exact base `07a01b9c13c2ceea0922b9af82da3e6e08375306`. It may restore only tensor
+`ADD`/`SUB`/`MUL`/`DIV` under `ACCELERATOR` after
+its fresh bounded real-device probe. Strict binary capability, scalar arithmetic, unary/reduction/
+MATMUL/comparison/extrema/scan successors, backward/training, and Model 0026 remain unauthorized.
 
 ## Delivered lifecycle and ABI boundary
 
