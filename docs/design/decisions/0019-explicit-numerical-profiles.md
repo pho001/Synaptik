@@ -46,11 +46,24 @@ Tolerance-based acceptance does not define special-value, signed-zero, NaN, term
 selected-bit behavior. It would also incorrectly give transcendental and other unlisted families a
 blanket approximation allowance. Rejected.
 
+### Per-step reduction exact-zero sign choice
+
+Allowing either sign after every exact-zero reduction addition is broader than the observed
+difference requires. Intermediate zero sign does not create a new final nonzero value or
+classification for the permitted reduction trees, while exposing the choice at every node makes
+the allowed-result set harder to audit. Rejected.
+
 ### Per-backend numerical modes
 
 Backend-specific semantics would make the same graph request mean different things depending on
 availability or owner selection. Hardware and route capability must answer a Model-owned semantic
 question, not define it. Rejected.
+
+### Metal-specific reduction exception
+
+A Metal-only rule would let a backend redefine Model semantics and make one graph request depend
+on owner selection. The operation family must own any justified result freedom, and every backend
+must separately qualify support before advertising it. Rejected.
 
 ### Per-operation or per-node caller selection
 
@@ -76,11 +89,16 @@ operation family and `FLOAT32`.
 The bounded additions are DAZ/FTZ and zero-sign freedom for listed arithmetic, all-and-only-term
 binary-tree reassociation for `SUM`, `MEAN`, and `SUM_TO_SHAPE`, existing contraction-scoped
 reassociation/FMA plus DAZ/FTZ for `MATMUL` and convolution, DAZ-normalized floating comparisons,
-bounded extrema ties, and arithmetic-step-only DAZ/FTZ for cumulative scans. FMA can contract only
-a corresponding multiply/add in a declared contraction. It cannot fuse arbitrary graph nodes or
-erase an observable intermediate. Movement, selection, classification, Boolean logic, casts,
-indexing, ordering, arg-extrema, unlisted operations, and every type other than `FLOAT32` receive no
-relaxation.
+bounded extrema ties, and arithmetic-step-only DAZ/FTZ for cumulative scans. For an accelerator
+`FLOAT32` `SUM` or arithmetic `SUM_TO_SHAPE` cell with at least two terms, either zero sign is
+permitted only when the selected tree's root addition is exact zero. For `MEAN`, the declared
+positive count remains a mandatory `FLOAT32` divisor and either sign is permitted only when that
+quotient is exact zero. Intermediate exact-zero additions receive no new sign freedom. One-term,
+point-domain, and equal-Shape copy forms remain bit-preserving; empty SUM remains positive zero and
+zero-count MEAN remains NaN. FMA can contract only a corresponding multiply/add in a declared
+contraction. It cannot fuse arbitrary graph nodes or erase an observable intermediate. Movement,
+selection, classification, Boolean logic, casts, indexing, ordering, arg-extrema, unlisted
+operations, and every type other than `FLOAT32` receive no relaxation.
 
 Neither profile permits term dropping, reciprocal substitution, algebraic identity rewriting,
 arbitrary reduced precision, cross-node contraction, tolerance-based acceptance, or a generic
@@ -106,6 +124,20 @@ may infer permission merely from the identity.
 Trace payload changes remain deferred. The current propagation spine adds no trace field because
 the profile is cold prepared identity rather than per-run state; later observability requires a
 separately coordinated Trace architecture update if operational evidence shows it is needed.
+
+## Rationale
+
+A disposable bounded raw-bit comparison covered signed zeros, cancellation, subnormals,
+infinities, and NaNs across 2,427 one- through four-term multisets and 147,471 permitted ordered
+binary trees. The final-result rule and a hypothetical rule allowing either sign after every
+exact-zero addition produced identical raw-bit output sets for both SUM and the mandatory
+positive-count MEAN quotient. Result-level freedom is therefore sufficient; per-step freedom adds
+no required result.
+
+The rule is tied to exact zero rather than a tolerance, so it does not admit a nearby nonzero
+value. It changes neither term membership nor NaN/infinity classification, and it cannot turn a
+copy into arithmetic by adding an identity. Keeping the rule in the Model-owned operation row
+rather than naming Metal also preserves one semantic question for every backend capability check.
 
 ## Consequences
 

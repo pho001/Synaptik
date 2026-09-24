@@ -101,7 +101,11 @@ result sets. `STRICT_IEEE` preserves each operation's existing family-specific p
 freedoms; it is not a universal bitwise or fixed-instruction guarantee. `ACCELERATOR` is an opt-in
 bounded superset only for the named `FLOAT32` operation families and transformations in the
 [sole normative table](../architecture/contracts/foundational-modules.md#numerical-profiles).
-Tensor construction still performs no numerical evaluation and stores no profile choice.
+For SUM and arithmetic SUM-to-Shape, exact-zero sign freedom applies only to the final addition of
+a cell with at least two declared terms. For MEAN it applies only to the mandatory quotient by the
+positive selected count. It does not apply per step or alter terms, mapping, copies, empty results,
+finite nonzero values, or classification. Tensor construction still performs no numerical
+evaluation and stores no profile choice.
 
 `NumericalProfile` remains outside Tensor: Tensor has no profile method or stored selection. The
 ordinary Engine captures one profile for its lifetime and transports it through profile-qualified
@@ -109,7 +113,8 @@ capability, compile artifacts, Prepare, and backend identity. CPU executes both 
 same exact current semantics. Metal admits exact canonical `ABS` under both profiles, keeps
 NEG/affine/`CONTIGUOUS` under `STRICT_IEEE`, and admits tensor FLOAT32
 `ADD`/`SUB`/`MUL`/`DIV` only under `ACCELERATOR`; unsupported combinations fail closed rather than
-selecting a fallback. Model remains the sole semantic owner of profile meaning.
+selecting a fallback. No backend currently advertises the wider reduction result set. Model
+remains the sole semantic owner of profile meaning.
 
 The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
@@ -3496,6 +3501,16 @@ or `MAX` aggregate operation and exactly the receiver reference. The eligibility
 request in model metadata; preserving it for product or an extrema reduction does not install or
 promise a gradient rule or a policy for distributing gradients across tied extrema.
 
+Floating result rules are profile-indexed. Under `STRICT_IEEE`, SUM and MEAN retain their
+family-specific signed-zero rules below. Under `ACCELERATOR`, a FLOAT32 SUM cell with at least two
+declared terms may publish either zero sign only when its selected binary tree's root addition is
+exact zero. A FLOAT32 MEAN still divides a permitted sum by the declared positive selected count
+and gains that choice only when the quotient is exact zero. The rule grants no intermediate
+exact-zero choice, tolerance, term change, reciprocal multiply, reduced precision, or
+classification change. Empty-axis point SUM copies preserve input bits, empty SUM remains positive
+zero, and zero-count MEAN remains NaN. Expression construction neither selects a profile nor
+evaluates these results.
+
 Current package-private compiler autograd supports ordinary floating full and single-axis
 `SUM`, including retained dimensions. It restores removed axes and expands the cotangent to the
 exact input Shape. `MEAN`, `PROD`, extrema, masked SUM, and binding-aware `sumToShape` when it
@@ -3669,8 +3684,12 @@ The fresh result preserves exact input type and gradient eligibility, retains th
 label or storage. Provenance records one `AggregateReductionKind.SUM` occurrence, ordered inputs
 `[input]`, and output index zero. Even an equal-Shape request creates a fresh Tensor identity.
 Scalar targets reduce all input axes; a scalar input accepts only a scalar target. Zero extents
-follow ordinary SUM semantics: an actually reduced empty domain yields numeric positive zero,
-while a coordinate with no reduced axis is the corresponding input value.
+follow ordinary SUM semantics: an actually reduced empty domain yields numeric positive zero.
+Equal-Shape and other coordinates with no reduced axis preserve the corresponding input bits and
+perform no addition; an implementation may not insert a positive-zero identity. Under
+`ACCELERATOR`, only a FLOAT32 cell with at least two mapped terms whose selected tree has an
+exact-zero root addition may publish either zero sign. Intermediate additions, every mapped term,
+finite nonzero results, and NaN/infinity classification retain their contracts.
 
 This operation is not arbitrary reshape: reshape changes coordinate interpretation while
 preserving element count. It is not ordinary fixed-axis `sum`, whose axes are known when the
@@ -3788,11 +3807,11 @@ It restores removed axes in ascending axis order before expanding to the input S
 axis list passes the cotangent through. Statistical, norm, log-sum-exp, product, extrema, mean, and
 BOOL families remain excluded from the closed first matrix.
 
-The portable floating target is exact real arithmetic plus the rules below, rounded once to result
-format with round-to-nearest, ties-to-even. Equal-or-wider intermediates and reassociation are
-permitted only within future conformance tolerance and exact special rules; narrower accumulation,
-model-visible promotion, saturation, and bitwise guarantees are not selected. Finite overflow is
-signed infinity. NaN payload/sign and signaling preservation are unspecified.
+Under `STRICT_IEEE`, the portable floating target is exact real arithmetic plus the rules below,
+rounded once to result format with round-to-nearest, ties-to-even. Equal-or-wider intermediates and
+family-permitted reassociation do not change the stated represented result; narrower accumulation,
+model-visible promotion, saturation, and tolerance acceptance are not selected. Finite overflow
+is signed infinity. NaN payload/sign and signaling preservation are unspecified.
 
 - SUM propagates NaN; opposite infinities produce NaN; empty is positive zero. Exact non-empty
   zero is negative only when every selected value is negative zero.
@@ -3811,6 +3830,15 @@ signed infinity. NaN payload/sign and signaling preservation are unspecified.
   finite domain produces positive zero.
 - L1 norm is `sum(abs(x_i))`; L2 norm is `sqrt(sum(x_i*x_i))`. Empty is positive zero, point is
   absolute value, NaN produces NaN, and infinity produces positive infinity unless NaN exists.
+
+Under `ACCELERATOR`, only FLOAT32 SUM and MEAN in this section gain the bounded reduction row.
+Every selected axis still determines all and only the declared terms, and any permitted binary
+tree rounds each addition to FLOAT32 with row-scoped DAZ/FTZ. A SUM with at least two terms may
+publish either zero sign only for an exact-zero root addition; an empty-axis point SUM remains a
+bit-preserving copy. MEAN must perform the final FLOAT32 divide by the declared positive count and
+may publish either zero sign only when that quotient is exact zero. There is no per-step
+exact-zero choice, added identity, reciprocal substitution, tolerance, term loss, or classification
+change. Empty SUM and zero-count MEAN retain the strict outcomes above.
 
 Integral ordinary reductions retain task 0018U1's exact-width modular sum/product, signed extrema,
 and bounded empty identities. No algorithm, pass count, compensation scheme, traversal, vector
@@ -3907,6 +3935,13 @@ produces zero for every masked-sum slice and NaN for every masked-mean slice. A 
 or all-false dynamic slice follows the same semantic rule. Expression construction records these
 rules but does not align storage, materialize a mask, inspect values, count positions, aggregate,
 divide, create a gradient rule, capture a graph, or execute work.
+
+For `ACCELERATOR` FLOAT32, masking determines all and only the declared terms and the true-count.
+A nonempty masked SUM gains either-zero-sign freedom only when a selected permitted tree's root
+addition is exact zero; masked MEAN still performs the final FLOAT32 division by the positive
+true-count and gains the choice only when that quotient is exact zero. Intermediate exact-zero
+additions gain no choice. All-false and zero-sized slices remain positive-zero SUM and NaN MEAN
+results, and no tolerance, term change, identity insertion, or classification change is allowed.
 
 #### Complete masked-reduction example
 

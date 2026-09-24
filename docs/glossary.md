@@ -447,6 +447,14 @@ broadcasting of the BOOL mask to produce exactly the input Shape and record prov
 `[input, mask]`. False mask positions exclude their inputs, including NaN and infinity. No selected
 values produces zero for masked sum and NaN for masked mean. Masked forms remain floating-only.
 
+For `ACCELERATOR` FLOAT32 SUM and MEAN, axes and masking still determine all and only the selected
+terms and the exact count. A SUM cell with at least two terms may publish either zero sign only
+when a permitted tree's root addition is exact zero; MEAN must divide by the positive count in
+FLOAT32 and gains the choice only when that quotient is exact zero. Intermediate exact-zero
+additions gain no choice. Point-domain SUM remains a bit-preserving copy, empty SUM remains
+positive zero, and zero-count MEAN remains NaN. `STRICT_IEEE`, other types, finite nonzero results,
+and NaN/infinity classification are unchanged; no tolerance or added identity is implied.
+
 Public `argMin` and `argMax` accept floating or integral input, normalize one selected axis, and
 produce exact INT64 with false gradient eligibility. They use shared `ArgExtremaAttrs` because the
 explicit first/last tie policy is intrinsic to both semantics; neither has a full form. A
@@ -478,7 +486,11 @@ The operation uses the existing `AggregateReductionKind.SUM` with
 `SumToShapeAttrs(targetShape)`; it is not a new operation kind. The fresh result retains exact
 input type and gradient eligibility, the exact target Shape, unresolved layout, and ordered
 one-input/output-index-zero provenance. Model construction does not bind dimensions, resolve axes,
-read values, capture a graph, build a gradient, lower, or execute. The current CPU portable route
+read values, capture a graph, build a gradient, lower, or execute. An equal-Shape or otherwise
+unreduced coordinate copies the selected input bits without addition. For `ACCELERATOR` FLOAT32,
+an arithmetic cell with at least two mapped terms may publish either zero sign only when the
+selected tree's root addition is exact zero; the mapping, every term, intermediate sign rule,
+finite nonzero values, and classification remain unchanged. The current CPU portable route
 separately executes exactly the fully bound, fully static, resolved-layout form over the five
 numeric types: it proves the same right-aligned obligation, uses exact floating or modular integral
 SUM for reduced axes, and copies represented bits when no axis reduces. CPU schema 43 adds no
@@ -2856,9 +2868,13 @@ architecture contract defines two meanings: `STRICT_IEEE` preserves every operat
 current family-specific promise and freedom, while `ACCELERATOR` is an opt-in superset containing
 only the operation-specific `FLOAT32` alternatives in the
 [sole normative table](architecture/contracts/foundational-modules.md#numerical-profiles).
-`STRICT_IEEE` does not imply universal bitwise identity, correct rounding, Java `strictfp`, or a
-fixed instruction. `ACCELERATOR` is not generic fast math, tolerance, reduced precision, or
-permission for an unlisted operation or data type.
+For SUM and arithmetic SUM-to-Shape, either zero sign is permitted only for an exact-zero final
+addition with at least two declared terms. For MEAN, it is permitted only for the exact-zero
+mandatory quotient by the positive declared count. This is result-level freedom, not per-step
+freedom or tolerance; one-term copies, empty results, terms, mapping, classification, and nonzero
+results retain their contracts. `STRICT_IEEE` does not imply universal bitwise identity, correct
+rounding, Java `strictfp`, or a fixed instruction. `ACCELERATOR` is not generic fast math, reduced
+precision, or permission for an unlisted operation or data type.
 
 The semantic result sets remain Model-owned. The immutable Config identity `NumericalProfile` is
 selected once while constructing an Engine, defaults to `STRICT_IEEE`, and is transported
@@ -2867,7 +2883,8 @@ plan/cache identity. Selection is explicit, graph-wide, and cold rather than inf
 hardware, provider availability, workload size, tuning, or benchmark evidence. CPU currently
 realizes both profiles with identical exact behavior and routes. Metal retains strict
 NEG/affine/`CONTIGUOUS` and realizes only tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV` under
-`ACCELERATOR`; every unsupported pair fails closed.
+`ACCELERATOR`; every unsupported pair fails closed. No backend currently advertises the wider
+reduction result set.
 
 ### Scalar-power realization
 

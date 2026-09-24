@@ -40,11 +40,15 @@ Model is also the sole owner of the two graph numerical-profile result sets. `ST
 each operation's current family-specific contract rather than universal bitwise strictness.
 `ACCELERATOR` is an opt-in, operation-specific `FLOAT32` superset bounded by the
 [sole normative table](contracts/foundational-modules.md#numerical-profiles); it is not generic
-fast math or tolerance. The semantic contract, Config identity, cold propagation spine, and first
-backend realizations are current. CPU supports both profiles identically with exact current
-behavior. Metal supports exact canonical `ABS` under both profiles, keeps
-NEG/affine/`CONTIGUOUS` strict-only, and supports tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV` only under
-`ACCELERATOR`; unsupported pairs fail closed.
+fast math or tolerance. For SUM and arithmetic SUM-to-Shape, the only added exact-zero sign choice
+is at the root of a cell with at least two terms; for MEAN it is at the mandatory positive-count
+quotient. Intermediate additions, copy and identity forms, declared terms, mapping, count,
+classification, and finite nonzero results retain their contracts. The semantic contract, Config
+identity, cold propagation spine, and first backend realizations are current. CPU supports both
+profiles identically with exact current behavior. Metal supports exact canonical `ABS` under both
+profiles, keeps NEG/affine/`CONTIGUOUS` strict-only, and supports tensor FLOAT32
+`ADD`/`SUB`/`MUL`/`DIV` only under `ACCELERATOR`; unsupported pairs fail closed. No backend
+currently advertises the wider reduction result set.
 
 The current Model fixed recurrent scan follows this same flat boundary. Model owns the fixed
 `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM` meanings, one `FORWARD` or `REVERSE` attribute, ordered

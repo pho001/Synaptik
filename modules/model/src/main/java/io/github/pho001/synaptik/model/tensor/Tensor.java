@@ -134,7 +134,17 @@ import java.util.Optional;
  * aggregation; an empty selected set means zero for sum and NaN for mean. Floating-only
  * log-sum-exp, corrected variance/standard deviation, and L1/L2 norm methods use ordered distinct
  * axes, preserve exact input metadata, and record their first-class numerical targets without
- * decomposition or evaluation. Statistical construction rejects a statically known domain count
+ * decomposition or evaluation. The graph numerical profile changes no construction behavior and
+ * is not stored on a Tensor. For {@code FLOAT32} SUM, MEAN, and sum-to-Shape under
+ * {@code ACCELERATOR}, all and only the terms declared by axes, masking, mapping, and count remain
+ * mandatory with per-step FLOAT32 rounding and row-scoped DAZ/FTZ. Only an exact-zero final
+ * addition of a SUM cell with at least two terms, or the mandatory exact-zero positive-count MEAN
+ * quotient, may publish either zero sign. Intermediate exact-zero additions gain no such freedom.
+ * One-term, empty-axis point, and equal-Shape SUM copies preserve input bits; empty SUM remains
+ * positive zero and zero-count MEAN remains NaN. {@code STRICT_IEEE}, non-FLOAT32 types, finite
+ * nonzero results, and NaN/infinity classifications retain their existing contracts. These
+ * profile rules describe allowed results, not Model evaluation or backend support.
+ * Statistical construction rejects a statically known domain count
  * at most correction and defers dynamic proof. Arg-min and arg-max
  * accept one non-empty selected axis of a floating or integral input, use an explicit first- or
  * last-logical-index tie policy, and produce a non-differentiable {@code INT64} result. Integral
@@ -2875,11 +2885,12 @@ public final class Tensor {
      *
      * <p>For INT32 and INT64 input, addition occurs in the exact result type modulo
      * {@code 2^32} or {@code 2^64}; reassociation is permitted, and an empty domain produces zero.
-     * Scalar, static, zero-extent, and dynamic Shapes are accepted structurally. Floating sum
-     * follows the documented NaN, infinity, signed-zero, and positive-zero empty-domain policy.
-     * This method records semantics only:
-     * it does not read storage, sum values, implement an algorithm, create a gradient rule,
-     * capture a graph, lower an operation, or execute work.</p>
+     * Under {@code STRICT_IEEE}, floating sum follows the documented NaN, infinity, signed-zero,
+     * and positive-zero empty-domain policy. The type-level contract above describes the bounded
+     * {@code ACCELERATOR} result set. Scalar, static, zero-extent, and dynamic Shapes are accepted
+     * structurally. This method records semantics only: it does not read storage, sum values,
+     * implement an algorithm, create a gradient rule, capture a graph, lower an operation, or
+     * execute work.</p>
      *
      * @return a non-null fresh storage-free scalar tensor with unchanged numeric data type and
      *     gradient eligibility, unresolved layout, and exact one-input provenance
@@ -3022,10 +3033,11 @@ public final class Tensor {
      * {@link AggregateReductionKind#MEAN}, {@code NoOperationAttrs.INSTANCE}, and exactly this
      * tensor. Scalar, static, zero-extent, and dynamic shapes are accepted structurally.</p>
      *
-     * <p>Mean is exact sum divided by count: NaN and opposite infinities produce NaN, a sole
-     * infinity sign is preserved, an empty domain produces NaN, and zero sign follows SUM. This
-     * method reads no values and selects no execution algorithm, gradient, compiler, or backend
-     * behavior.</p>
+     * <p>Under {@code STRICT_IEEE}, mean is exact sum divided by count: NaN and opposite
+     * infinities produce NaN, a sole infinity sign is preserved, an empty domain produces NaN, and
+     * zero sign follows SUM. The type-level contract above describes the mandatory quotient and
+     * bounded {@code ACCELERATOR} result set. This method reads no values and selects no execution
+     * algorithm, gradient, compiler, or backend behavior.</p>
      *
      * @return a non-null fresh storage-free scalar tensor with unchanged floating data type and
      *     gradient eligibility, unresolved layout, and exact one-input provenance
@@ -3609,9 +3621,11 @@ public final class Tensor {
      * Builds a sum over caller-ordered distinct axes and removes those axes.
      *
      * <p>Axes are normalized once in caller order; normalized duplicates are rejected. An empty
-     * array selects a point domain and returns the point value, unlike {@link #sum()} full
-     * reduction. Floating sum uses the documented NaN, infinity, signed-zero, positive-zero empty,
-     * and result-format rounding policy; integral sum retains exact type and modular semantics.</p>
+     * array selects a point domain and returns the exact point bits, unlike {@link #sum()} full
+     * reduction. Under {@code STRICT_IEEE}, floating sum uses the documented NaN, infinity,
+     * signed-zero, positive-zero empty, and result-format rounding policy; the type-level contract
+     * above describes the bounded {@code ACCELERATOR} result set. Integral sum retains exact type
+     * and modular semantics.</p>
      *
      * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
      * @return a non-null fresh unlabeled, storage-free result with selected axes removed, exact
@@ -3666,11 +3680,14 @@ public final class Tensor {
      * scalar target.</p>
      *
      * <p>The operation inherits ordinary SUM semantics. INT32 and INT64 use fixed-width modular
-     * addition. Floating NaN, infinity, signed-zero, reassociation, and rounding behavior is
-     * unchanged. An actually reduced empty domain yields numeric positive zero; a coordinate with
-     * no reduced axis is its corresponding input value. This method reads no value, storage, or
-     * element count and does not bind dimensions, resolve an axis set, define a gradient rule,
-     * capture a graph, lower an operation, choose a backend, or execute work.</p>
+     * addition. Under {@code STRICT_IEEE}, floating NaN, infinity, signed-zero, reassociation, and
+     * rounding follow ordinary SUM. Under {@code ACCELERATOR}, a FLOAT32 cell with at least two
+     * mapped terms may use either zero sign only when the selected tree's root addition is exact
+     * zero. An actually reduced empty domain remains numeric positive zero; an equal-Shape or
+     * otherwise unreduced coordinate preserves the corresponding input bits without adding an
+     * identity. This method reads no value, storage, or element count and does not bind dimensions,
+     * resolve an axis set, define a gradient rule, capture a graph, lower an operation, choose a
+     * backend, or execute work.</p>
      *
      * @param targetShape non-null exact result Shape; its rank must not exceed this Tensor's rank,
      *     and every fully static aligned extent must be one or equal the input extent
@@ -3692,9 +3709,12 @@ public final class Tensor {
     /**
      * Builds a floating arithmetic mean over ordered distinct axes and removes them.
      *
-     * <p>The result preserves exact floating type/eligibility. Mean is exact sum divided by count:
-     * NaN and opposite infinities produce NaN, a sole infinity sign is preserved, empty domains
-     * produce NaN, and zero sign follows SUM. Empty axes select one point and return it.</p>
+     * <p>The result preserves exact floating type/eligibility. Under {@code STRICT_IEEE}, mean is
+     * exact sum divided by count: NaN and opposite infinities produce NaN, a sole infinity sign is
+     * preserved, empty domains produce NaN, and zero sign follows SUM. Under
+     * {@code ACCELERATOR}, the positive-count FLOAT32 quotient remains mandatory and may publish
+     * either zero sign only when it is exact zero. Empty axes select one point, still perform the
+     * mandatory divide by one, and return its value except for the permitted exact-zero sign.</p>
      *
      * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
      * @return a non-null fresh storage-free reduced-Shape mean with unresolved layout and exact

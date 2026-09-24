@@ -29,15 +29,21 @@ import java.util.List;
  * <p>The graph numerical profile indexes this family's allowed {@code FLOAT32} results as defined
  * by the <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">sole normative numerical-profile table</a>.
  * {@code STRICT_IEEE} retains every per-kind rule below. Under {@code ACCELERATOR}, {@link #SUM},
- * {@link #MEAN}, and the SUM-to-Shape form use all and only the declared terms for each output
- * coordinate in a reassociable binary tree with FLOAT32 per-step rounding and row-scoped DAZ/FTZ;
- * MEAN divides by the declared positive selected count. For {@link #MIN} and {@link #MAX}, NaN
- * still propagates, opposite-zero ties may use either sign, values equal after DAZ normalization
- * may return either original candidate bit pattern, and unequal normalized values retain numeric
- * ordering. Empty identities, masking, target-Shape mapping, every other reduction kind, and every
+ * {@link #MEAN}, and the SUM-to-Shape form use all and only the terms declared by axes, masking,
+ * target-Shape mapping, and selected count in a reassociable binary tree with FLOAT32 per-step
+ * rounding and row-scoped DAZ/FTZ. A SUM or arithmetic SUM-to-Shape cell with at least two terms
+ * may publish either zero sign only when the tree's root addition is exact zero; intermediate
+ * exact-zero additions gain no such freedom. MEAN still divides by the declared positive count in
+ * FLOAT32 and may publish either sign only when that quotient is exact zero. Point-domain,
+ * equal-Shape, and other one-term SUM copies preserve the selected input bits, empty SUM remains
+ * positive zero, and zero-count MEAN remains NaN; no identity may be added to create arithmetic.
+ * For {@link #MIN} and {@link #MAX}, NaN still propagates, opposite-zero ties may use either sign,
+ * values equal after DAZ normalization may return either original candidate bit pattern, and
+ * unequal normalized values retain numeric ordering. Every other reduction kind and every
  * non-FLOAT32 type receive no relaxation. No profile permits dropping, duplicating, or inventing
- * a term. This vocabulary describes result sets; it does not evaluate a reduction or choose a
- * backend.</p>
+ * a term, changing a finite nonzero result or classification outside a permitted evaluation,
+ * tolerance acceptance, or reciprocal substitution. This vocabulary describes result sets; it
+ * does not evaluate a reduction or choose a backend.</p>
  *
  * <p>Each constant identifies requested mathematics only. The ordinary Tensor-construction
  * contract accepts floating input for all five numeric kinds and signed-integral input for
@@ -64,12 +70,13 @@ public enum AggregateReductionKind implements OperationKind {
      * transformations. Input and output types are selected by Tensor construction. For INT32 and
      * INT64 ordinary and target-Shape forms,
      * the result retains the input type, addition is modulo {@code 2^32} or {@code 2^64},
-     * reassociation is permitted, and an empty reduction domain has result zero. Floating
-     * semantics use exact real addition followed by result-format rounding: NaN
-     * propagates, opposite infinities produce NaN, a sole infinity sign is preserved, an empty
-     * domain is positive zero, and exact non-empty zero is negative only when every selected value
-     * is negative zero. Gradients, execution algorithms, and backend support remain outside this
-     * semantic kind.</p>
+     * reassociation is permitted, and an empty reduction domain has result zero. Under
+     * {@code STRICT_IEEE}, floating semantics use exact real addition followed by result-format
+     * rounding: NaN propagates, opposite infinities produce NaN, a sole infinity sign is
+     * preserved, an empty domain is positive zero, and exact non-empty zero is negative only when
+     * every selected value is negative zero. The type-level profile contract above describes the
+     * bounded {@code ACCELERATOR} addition. Gradients, execution algorithms, and backend support
+     * remain outside this semantic kind.</p>
      */
     SUM,
 
@@ -82,10 +89,12 @@ public enum AggregateReductionKind implements OperationKind {
      * aggregation, including positions whose input is NaN or infinity; the denominator is the
      * selected true-count for each output, and a zero selected-count produces NaN in the result
      * floating type. Callers express non-right-aligned intent through visible Shape
-     * transformations. Ordinary floating mean is exact sum divided by positive count: NaN and
-     * opposite infinities produce NaN, a sole infinity sign is preserved, empty is NaN, and zero
-     * sign follows SUM. NaN payload, execution algorithm, gradients, and backend support remain
-     * deliberately unspecified or separately owned.</p>
+     * transformations. Under {@code STRICT_IEEE}, ordinary floating mean is exact sum divided by
+     * positive count: NaN and opposite infinities produce NaN, a sole infinity sign is preserved,
+     * empty is NaN, and zero sign follows SUM. The type-level profile contract above describes the
+     * mandatory quotient and bounded {@code ACCELERATOR} exact-zero sign freedom. NaN payload,
+     * execution algorithm, gradients, and backend support remain deliberately unspecified or
+     * separately owned.</p>
      */
     MEAN,
 
