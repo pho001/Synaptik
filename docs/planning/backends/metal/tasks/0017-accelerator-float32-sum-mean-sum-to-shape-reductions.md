@@ -2,13 +2,17 @@
 
 ## Status
 
-Ready
+Blocked
 
-Readiness verification: Metal 0019 is Complete at implementation `a6d1796d` plus mixed-owner
-remediation `bcb717a6`; all validation and independent Class C gates passed. Model 0027, Config
-0006, and Engine 0018 are Complete. Metal 0016 remains Blocked without production changes, no
-conflicting Metal write is active, and 0018 remains Draft. Clean base `bcb717a6` has ABI v4 with
-exactly thirteen exports, node schema 6, and version-seven route/cache identities.
+The corrected mandatory pre-edit Apple M3 probe completed 300 independently created executables
+and 2,400 runs after fixing probe-only ownership: graph label/Shape strings remain live for native
+use, and every compile/run cell has its own autorelease pool. A minimal valid rank-16 middle-axis
+cell (`axis=8`, `keepDimensions=false`) passed before the full matrix. The full oracle then found
+one existing-contract blocker: accelerator SUM of declared terms `[-0,-0]` returned positive zero,
+while the current binary-tree/per-step-`FLOAT32`-rounding plus DAZ/FTZ set permits only negative
+zero because zero is not subnormal. No production, test, schema, capability, or documentation
+implementation change was made; disposable probe artifacts were removed. Model 0028 owns the
+separate proposed semantic decision, and Metal 0020 is its Draft reduction successor.
 
 ## Change class
 
@@ -184,4 +188,10 @@ Update affected Javadocs, Metal/native guides, scoped capability, API/user and c
 
 ## Result
 
-Empty until execution.
+The corrected pre-edit gate completed 300 executables and 2,400 runs. Probe-only dangling
+autorelease-string ownership and per-cell pool lifetime were fixed, and the minimal rank-16
+`axis=8`, `keepDimensions=false` control passed. The full valid matrix then reproduced an
+old-contract mismatch: SUM of `[-0,-0]` produced positive zero outside the permitted set, whose
+only result is negative zero. Because zero is not subnormal, existing DAZ/FTZ does not admit that
+sign change. Task 0017 is Blocked under its unchanged contract. No production, test, schema,
+capability, native, documentation-implementation, or retained probe artifact remains.
