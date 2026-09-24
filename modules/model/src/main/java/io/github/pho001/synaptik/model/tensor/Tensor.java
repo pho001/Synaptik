@@ -141,9 +141,14 @@ import java.util.Optional;
  * addition of a SUM cell with at least two terms, or the mandatory exact-zero positive-count MEAN
  * quotient, may publish either zero sign. Intermediate exact-zero additions gain no such freedom.
  * One-term, empty-axis point, and equal-Shape SUM copies preserve input bits; empty SUM remains
- * positive zero and zero-count MEAN remains NaN. {@code STRICT_IEEE}, non-FLOAT32 types, finite
- * nonzero results, and NaN/infinity classifications retain their existing contracts. These
- * profile rules describe allowed results, not Model evaluation or backend support.
+ * positive zero and zero-count MEAN remains NaN. For a nonempty {@code FLOAT32} MATMUL under
+ * {@code ACCELERATOR}, only an otherwise-permitted exact-zero result after the complete contraction
+ * gains the publication choice; every pairwise term, product/intermediate sign, reassociation/FMA
+ * constraint, and DAZ/FTZ rule remains unchanged. Empty MATMUL remains positive zero. Convolution
+ * retains only its existing reassociation/FMA plus DAZ/FTZ rule and gains no MATMUL publication
+ * choice. {@code STRICT_IEEE}, non-FLOAT32 types, finite nonzero results, and NaN/infinity
+ * classifications retain their existing contracts. These profile rules describe allowed results,
+ * not Model evaluation or backend support.
  * Statistical construction rejects a statically known domain count
  * at most correction and defers dynamic proof. Arg-min and arg-max
  * accept one non-empty selected axis of a floating or integral input, use an explicit first- or
@@ -640,7 +645,9 @@ public final class Tensor {
      * in ordinary IEEE-754 multiplication, including with infinity. NaN, infinity, and signed zero
      * otherwise follow ordinary multiplication and addition. An empty channel contraction starts
      * at positive zero. Reassociation and fused multiply-add are permitted without a fixed-order
-     * or bitwise cross-backend guarantee.</p>
+     * or bitwise cross-backend guarantee. Under {@code ACCELERATOR}, FLOAT32 CONV2D gains only the
+     * convolution row's DAZ/FTZ and no MATMUL final-publication exact-zero sign choice; product,
+     * intermediate, and published exact-zero signs retain the current convolution rules.</p>
      *
      * <p>The fresh result has promoted type, exact derived Shape, unresolved layout, gradient
      * request equal to the input/weight logical OR, no label or storage, and exact ordered
@@ -727,7 +734,9 @@ public final class Tensor {
      * multiplication, including with infinity. NaN, infinity, and signed zero otherwise follow
      * ordinary multiplication and addition. An empty channel contraction starts at positive
      * zero. Reassociation and fused multiply-add are permitted without a fixed-order or bitwise
-     * cross-backend guarantee.</p>
+     * cross-backend guarantee. Under {@code ACCELERATOR}, FLOAT32 CONV3D gains only the
+     * convolution row's DAZ/FTZ and no MATMUL final-publication exact-zero sign choice; product,
+     * intermediate, and published exact-zero signs retain the current convolution rules.</p>
      *
      * <p>The fresh canonical result has promoted type, exact derived Shape, unresolved layout,
      * gradient request equal to the input/weight logical OR, no label or storage, and ordered
@@ -1071,11 +1080,16 @@ public final class Tensor {
      * provenance containing {@link MatmulKind#MATMUL}, {@code NoOperationAttrs.INSTANCE}, ordered
      * exact inputs {@code [this, right]}, and output index zero. FLOAT64 results accumulate in
      * FLOAT64; FLOAT32 and BFLOAT16 results accumulate in FLOAT32, with BFLOAT16 conversion at
-     * output. Floating reassociation and fused multiply-add are permitted without a bitwise-order
-     * guarantee. Signed-integral accumulation is modular in the promoted width. Empty contraction
-     * produces positive floating zero or integral zero. This method does not evaluate values,
-     * guarantee gradient support, capture or compile a graph, choose a backend, allocate result
-     * storage, or execute.</p>
+     * output. Floating reassociation and corresponding multiply-add FMA are permitted without a
+     * bitwise-order guarantee. Under {@code ACCELERATOR}, a nonempty FLOAT32 MATMUL may publish
+     * either zero sign only when one complete otherwise-permitted contraction result is exact zero.
+     * Every pairwise product still participates exactly once, and every standalone product and
+     * pre-publication addition/FMA sign retains its existing rule. This includes a one-term
+     * contraction without an added positive-zero accumulator or new FMA. Signed-integral
+     * accumulation remains modular in the promoted width, and an empty contraction remains
+     * positive floating zero or integral zero. Finite nonzero values and NaN/infinity
+     * classification do not widen. This method does not evaluate values, guarantee gradient
+     * support, capture or compile a graph, choose a backend, allocate result storage, or execute.</p>
      *
      * @param right non-null ordered right operand retained by exact reference in result provenance
      *     and not mutated
@@ -1267,6 +1281,10 @@ public final class Tensor {
      * no label or storage, and MATMUL provenance at output index zero. The transposed weight may
      * retain a resolved logical view layout when the original weight layout is resolved.</p>
      *
+     * <p>The produced MATMUL inherits the profile-indexed numerical result set documented by
+     * {@link #matmul(Tensor)}, including the narrow nonempty FLOAT32 ACCELERATOR
+     * final-publication exact-zero sign choice. This convenience adds no numerical freedom.</p>
+     *
      * <p>Null, promotion, rank, and locally provable contraction validation completes before the
      * first intermediate is created, so those failures consume no Tensor identifier. Identifier
      * exhaustion after a successful intermediate does not roll back an already consumed ID. This
@@ -1310,8 +1328,10 @@ public final class Tensor {
      * object references from that product, but ordinary ADD may create a distinct outer Shape
      * object. Its type is product/bias promotion, layout is unresolved, gradient eligibility is
      * the logical OR of input, weight, and bias requests, and label and storage are absent.
-     * Floating and signed-integral composition inherits current MATMUL and ADD numerical policy;
-     * this convenience defines no additional numeric or execution semantics.</p>
+     * Floating and signed-integral composition inherits current MATMUL and ADD numerical policy.
+     * For ACCELERATOR FLOAT32, any MATMUL final-publication exact-zero sign choice applies only to
+     * the inner product; the following ADD has its separate operation-row semantics. This
+     * convenience defines no additional numeric or execution semantics.</p>
      *
      * <p>Null, promotion, rank, contraction, and exact bias validation completes before PERMUTE,
      * so every caller-controlled local failure consumes no identifier and leaves no partial chain.

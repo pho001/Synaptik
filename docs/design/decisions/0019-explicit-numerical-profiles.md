@@ -9,9 +9,11 @@ Accepted — 2026-09-24
 Synaptik's Model operations already define family-specific numerical contracts. Some require exact
 represented behavior; some deliberately leave NaN payloads or intermediate precision unspecified;
 and contraction families already permit reassociation and fused multiply-add. Several accelerator
-routes cannot satisfy particular current `FLOAT32` subnormal or reduction results, but treating all
-such differences as generic fast math would also admit term loss, unrelated graph rewrites, gross
-special-value errors, and behavior that no operation contract authorizes.
+routes cannot satisfy particular current `FLOAT32` subnormal or reduction results. A fresh Metal
+MATMUL probe also published positive zero for the one-term product `+0.0f * -1.0f`, whose
+otherwise-permitted result is negative zero. Treating these differences as generic fast math would
+also admit term loss, unrelated graph rewrites, gross special-value errors, and behavior that no
+operation contract authorizes.
 
 The [foundational numerical-profile contract](../../architecture/contracts/foundational-modules.md#numerical-profiles)
 is the sole normative definition of the profiles and operation-family allowed-result sets. This
@@ -53,6 +55,19 @@ difference requires. Intermediate zero sign does not create a new final nonzero 
 classification for the permitted reduction trees, while exposing the choice at every node makes
 the allowed-result set harder to audit. Rejected.
 
+### Per-product or per-intermediate contraction exact-zero sign choice
+
+Allowing either sign for every exact-zero product, addition, or FMA result is broader than the
+observed MATMUL publication difference requires. It would expose choices inside a contraction even
+though final-publication freedom already admits the required result. Rejected.
+
+### Shared MATMUL and convolution publication choice
+
+The old profile table grouped MATMUL with CONV2D and CONV3D because all three shared existing
+reassociation/FMA plus DAZ/FTZ permissions. Extending that shared row would relax convolution
+without evidence and would obscure that the observed mismatch is specific to a completed MATMUL
+cell. Rejected.
+
 ### Per-backend numerical modes
 
 Backend-specific semantics would make the same graph request mean different things depending on
@@ -88,17 +103,30 @@ operation family and `FLOAT32`.
 
 The bounded additions are DAZ/FTZ and zero-sign freedom for listed arithmetic, all-and-only-term
 binary-tree reassociation for `SUM`, `MEAN`, and `SUM_TO_SHAPE`, existing contraction-scoped
-reassociation/FMA plus DAZ/FTZ for `MATMUL` and convolution, DAZ-normalized floating comparisons,
-bounded extrema ties, and arithmetic-step-only DAZ/FTZ for cumulative scans. For an accelerator
-`FLOAT32` `SUM` or arithmetic `SUM_TO_SHAPE` cell with at least two terms, either zero sign is
-permitted only when the selected tree's root addition is exact zero. For `MEAN`, the declared
-positive count remains a mandatory `FLOAT32` divisor and either sign is permitted only when that
-quotient is exact zero. Intermediate exact-zero additions receive no new sign freedom. One-term,
-point-domain, and equal-Shape copy forms remain bit-preserving; empty SUM remains positive zero and
-zero-count MEAN remains NaN. FMA can contract only a corresponding multiply/add in a declared
-contraction. It cannot fuse arbitrary graph nodes or erase an observable intermediate. Movement,
-selection, classification, Boolean logic, casts, indexing, ordering, arg-extrema, unlisted
-operations, and every type other than `FLOAT32` receive no relaxation.
+reassociation/FMA plus DAZ/FTZ for MATMUL and convolution, a MATMUL-only final-publication
+exact-zero sign choice, DAZ-normalized floating comparisons, bounded extrema ties, and
+arithmetic-step-only DAZ/FTZ for cumulative scans.
+
+For an accelerator `FLOAT32` MATMUL cell, the declared contraction dimension still supplies every
+pairwise multiplication term exactly once. One complete otherwise-permitted evaluation may use
+the family's existing reassociation, corresponding multiply-add FMA placements, `FLOAT32`
+rounding, and row-scoped DAZ/FTZ. Only when that complete nonempty result is exact zero may
+publication choose either zero sign. Every standalone product and every addition or FMA result
+before publication keeps its existing sign rule. The rule includes a one-term contraction without
+adding a positive-zero accumulator or turning its multiplication into an FMA. Empty contraction
+remains positive zero; finite nonzero results and NaN/infinity classification do not widen.
+CONV2D and CONV3D retain only their previous reassociation/FMA plus DAZ/FTZ profile rule.
+
+For an accelerator `FLOAT32` `SUM` or arithmetic `SUM_TO_SHAPE` cell with at least two terms,
+either zero sign is permitted only when the selected tree's root addition is exact zero. For
+`MEAN`, the declared positive count remains a mandatory `FLOAT32` divisor and either sign is
+permitted only when that quotient is exact zero. Intermediate exact-zero additions receive no new
+sign freedom. One-term, point-domain, and equal-Shape copy forms remain bit-preserving; empty SUM
+remains positive zero and zero-count MEAN remains NaN. FMA can contract only a corresponding
+multiply/add in a declared contraction. It cannot fuse arbitrary graph nodes or erase an
+observable intermediate. Movement, selection, classification, Boolean logic, casts, indexing,
+ordering, arg-extrema, unlisted operations, and every type other than `FLOAT32` receive no
+relaxation.
 
 Neither profile permits term dropping, reciprocal substitution, algebraic identity rewriting,
 arbitrary reduced precision, cross-node contraction, tolerance-based acceptance, or a generic
@@ -128,17 +156,21 @@ separately coordinated Trace architecture update if operational evidence shows i
 
 ## Rationale
 
-A disposable bounded raw-bit comparison covered signed zeros, cancellation, subnormals,
-infinities, and NaNs across 2,427 one- through four-term multisets and 147,471 permitted ordered
-binary trees. The final-result rule and a hypothetical rule allowing either sign after every
-exact-zero addition produced identical raw-bit output sets for both SUM and the mandatory
-positive-count MEAN quotient. Result-level freedom is therefore sufficient; per-step freedom adds
-no required result.
+A disposable bounded raw-bit comparison covered 1,823 one- through four-term MATMUL cases,
+168,461 ordered reassociation trees, 1,895,389 legal unfused/FMA evaluation plans, and 3,232
+baseline root states. The operands covered both zero signs, cancellation, subnormal and normal
+boundaries, gradual underflow, infinities, and NaNs under row-scoped DAZ/FTZ. For every case,
+final-publication-only freedom produced the same allowed publication set as hypothetical
+per-product and per-intermediate exact-zero sign freedom followed by that publication rule. The
+one-term `+0.0f * -1.0f` witness retained raw multiplication bits `0x80000000` while publication
+admitted both `0x80000000` and `0x00000000`. A rounded-underflow zero remained distinguishable
+from exact zero, and FTZ retained its existing either-sign rule.
 
-The rule is tied to exact zero rather than a tolerance, so it does not admit a nearby nonzero
-value. It changes neither term membership nor NaN/infinity classification, and it cannot turn a
-copy into arithmetic by adding an identity. Keeping the rule in the Model-owned operation row
-rather than naming Metal also preserves one semantic question for every backend capability check.
+The MATMUL rule is tied to exact zero rather than a tolerance, so it does not admit a nearby
+nonzero value. It changes neither term membership nor NaN/infinity classification and cannot add
+an accumulator identity or a new FMA. Keeping the rule in the Model-owned MATMUL row rather than
+naming Metal also preserves one semantic question for every backend capability check. Keeping
+convolution separate avoids an unsupported relaxation of a neighboring contraction family.
 
 ## Consequences
 
@@ -150,6 +182,8 @@ rather than naming Metal also preserves one semantic question for every backend 
 - A backend may incrementally support either profile and may use strict results under both.
 - Gross errors and semantic leakage into movement, selection, casting, classification, or other
   data types remain excluded.
+- Strict MATMUL, both convolution families, empty contractions, and all product/intermediate sign
+  rules remain unchanged.
 - Graph-wide cold selection keeps Runtime free of numerical-policy branching.
 
 ### Negative and limits
@@ -173,3 +207,4 @@ normative table, operation-specific evidence, and fail-closed capability.
 - [Architecture authority index](../../../ARCHITECTURE.md#scope-indexed-normative-contracts)
 - [Task 0027](../../planning/modules/model/tasks/0027-explicit-numerical-profile-semantic-authority.md)
 - [Engine task 0018](../../planning/modules/engine/tasks/0018-explicit-numerical-profile-propagation-spine.md)
+- [Task 0029](../../planning/modules/model/tasks/0029-accelerator-matmul-exact-zero-sign-freedom.md)

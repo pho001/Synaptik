@@ -2818,6 +2818,11 @@ output-cell ranges, and the bounded fusion/materialized-suffix forms documented 
 guide. Other backend algorithms and execution forms remain planned. See
 [Tensor API](api/tensor-api.md#grouped-nchw-conv2d-expressions).
 
+Under `ACCELERATOR`, FLOAT32 CONV2D and CONV3D retain their existing reassociation/FMA permission
+and gain only row-scoped denormals-are-zero and flush-to-zero. They do not gain MATMUL's
+final-publication exact-zero sign choice; product, intermediate, and published exact-zero signs
+keep the current convolution rules.
+
 The current NN **channels-first convolution layers** are the separate final `Conv1d`, `Conv2d`,
 and `Conv3d` unary modules for NCW, NCHW, and NCDHW input. Each infers only the positive static
 axis-1 input-channel extent on its first compatible forward call or complete strict state load.
@@ -2876,11 +2881,16 @@ only the operation-specific `FLOAT32` alternatives in the
 [sole normative table](architecture/contracts/foundational-modules.md#numerical-profiles).
 For SUM and arithmetic SUM-to-Shape, either zero sign is permitted only for an exact-zero final
 addition with at least two declared terms. For MEAN, it is permitted only for the exact-zero
-mandatory quotient by the positive declared count. This is result-level freedom, not per-step
-freedom or tolerance; one-term copies, empty results, terms, mapping, classification, and nonzero
-results retain their contracts. `STRICT_IEEE` does not imply universal bitwise identity, correct
-rounding, Java `strictfp`, or a fixed instruction. `ACCELERATOR` is not generic fast math, reduced
-precision, or permission for an unlisted operation or data type.
+mandatory quotient by the positive declared count. For nonempty MATMUL, either sign is permitted
+only at publication after one complete otherwise-permitted contraction result is exact zero.
+Every pairwise term, standalone product, and pre-publication addition/FMA sign keeps its existing
+rule; a one-term product gains no accumulator or FMA, and empty MATMUL remains positive zero.
+Convolution retains only its prior reassociation/FMA plus DAZ/FTZ profile rule. These are
+result-level freedoms, not per-step freedom, tolerance, identity insertion, reduced precision, or
+term loss; copies, empty reduction results, mapping, classification, and nonzero results otherwise
+retain their contracts. `STRICT_IEEE` does not imply universal bitwise identity, correct rounding,
+Java `strictfp`, or a fixed instruction. `ACCELERATOR` is not generic fast math or permission for
+an unlisted operation or data type.
 
 The semantic result sets remain Model-owned. The immutable Config identity `NumericalProfile` is
 selected once while constructing an Engine, defaults to `STRICT_IEEE`, and is transported
@@ -4172,6 +4182,15 @@ execute. Current package-private compiler autograd constructs cotangents for eve
 vector/matrix rank pairing, unbroadcasts batch axes with ordinary `sumToShape`, and then uses one
 ordinary cast when a promoted contribution differs from the selected operand type. Integral
 MATMUL remains rejected by autograd.
+
+For `ACCELERATOR` FLOAT32, every declared pairwise term still participates exactly once under the
+existing reassociation, corresponding multiply-add FMA, rounding, and row-scoped DAZ/FTZ rules.
+Only after a complete nonempty otherwise-permitted contraction result is exact zero may the
+published MATMUL cell choose either zero sign. Thus one term `+0.0f * -1.0f` retains a negative-zero
+multiply result while publication may expose positive or negative zero; no positive-zero
+accumulator or FMA is inserted. Product and intermediate signs, finite nonzero results,
+NaN/infinity classification, non-FLOAT32 types, and empty-contraction positive zero remain
+unchanged. This Model-owned allowed-result set grants no backend capability by itself.
 
 The current CPU portable route executes every fully static, resolved-layout non-BOOL numeric
 promotion: all nine ordered BFLOAT16/FLOAT32/FLOAT64 pairs and all four ordered INT32/INT64 pairs.

@@ -103,9 +103,13 @@ bounded superset only for the named `FLOAT32` operation families and transformat
 [sole normative table](../architecture/contracts/foundational-modules.md#numerical-profiles).
 For SUM and arithmetic SUM-to-Shape, exact-zero sign freedom applies only to the final addition of
 a cell with at least two declared terms. For MEAN it applies only to the mandatory quotient by the
-positive selected count. It does not apply per step or alter terms, mapping, copies, empty results,
-finite nonzero values, or classification. Tensor construction still performs no numerical
-evaluation and stores no profile choice.
+positive selected count. For nonempty MATMUL, it applies only at publication after one complete
+otherwise-permitted contraction produces exact zero, including a one-term product without an
+inserted accumulator or FMA. Every MATMUL term, standalone product, and pre-publication
+addition/FMA sign remains governed by its existing rule; empty MATMUL remains positive zero.
+CONV2D and CONV3D keep only their existing reassociation/FMA plus DAZ/FTZ profile rule. These
+choices do not alter mapping, copies, identities, finite nonzero values, or classification. Tensor
+construction still performs no numerical evaluation and stores no profile choice.
 
 `NumericalProfile` remains outside Tensor: Tensor has no profile method or stored selection. The
 ordinary Engine captures one profile for its lifetime and transports it through profile-qualified
@@ -7717,10 +7721,15 @@ inserts no cast.
 
 For a `FLOAT64` result, pairwise products accumulate in FLOAT64. `FLOAT32` and `BFLOAT16` results
 accumulate in FLOAT32, with the latter converted to BFLOAT16 output. Floating implementations may
-reassociate terms and use fused multiply-add, so no traversal order, bitwise result, or identical
-cross-backend rounding is promised. IEEE-754 special values follow the selected multiply and add
-operations; an empty contraction produces positive floating zero. Integral products and sums use
-the promoted signed width modulo `2^32` or `2^64`; an empty integral contraction produces zero.
+reassociate terms and use a fused multiply-add only for a corresponding multiplication and
+addition in the declared contraction. Under `ACCELERATOR`, a nonempty FLOAT32 MATMUL cell may
+publish either zero sign only after one complete otherwise-permitted contraction result is exact
+zero. Every declared pairwise product still participates exactly once; standalone product signs
+and addition/FMA result signs before publication retain their existing rules. The publication
+choice includes a one-term contraction without a positive-zero accumulator or conversion to FMA.
+It adds no tolerance, term loss, identity, reduced precision, or classification change. An empty
+contraction remains positive floating zero. Integral products and sums use the promoted signed
+width modulo `2^32` or `2^64`; an empty integral contraction produces zero.
 
 Every valid call returns a fresh, unlabeled Tensor with the promoted type, exact derived Shape,
 unresolved layout, no storage, and gradient eligibility equal to the logical OR of the operands.
@@ -7759,9 +7768,12 @@ out-features. A null bias is invalid; omit bias by selecting the one-argument ov
 | `[B, K]` | `[N, K]` | absent or `[N]` | `[B, N]` |
 | `[B, T, K]` | `[N, K]` | absent or `[N]` | `[B, T, N]` |
 
-Floating pairs and signed-integral pairs inherit current MATMUL promotion. In the biased form,
-the product and bias are promoted again by ordinary ADD, so a wider bias may widen only the final
-result. No cast is inserted. Static unequal contraction Dimensions fail locally; equality
+Floating pairs and signed-integral pairs inherit current MATMUL promotion. The inner MATMUL also
+inherits its profile-indexed result set, including only the nonempty FLOAT32 ACCELERATOR
+final-publication exact-zero sign choice described above. In the biased form, the product and bias
+are promoted again by ordinary ADD, whose separate operation-row semantics govern that final
+addition, so a wider bias may widen only the final result. The linear conveniences add no
+numerical freedom and insert no cast. Static unequal contraction Dimensions fail locally; equality
 involving an unresolved contraction extent may remain for later compiler validation or binding.
 Bias equality never defers: named and expression Dimensions must be structurally equal, and
 identity-based unknowns must be the same unknown.
@@ -8252,6 +8264,10 @@ batch and output-channel axes remain valid. Implementations may reassociate term
 multiply-add, so traversal order, bitwise equality, and identical cross-backend rounding are not
 promised.
 
+For `ACCELERATOR`, FLOAT32 CONV2D gains only the convolution row's DAZ/FTZ permission. It does not
+gain MATMUL's final-publication exact-zero sign choice; product, intermediate, and published
+exact-zero signs retain the current convolution rules.
+
 Every successful call returns one fresh, unlabeled, storage-free Tensor with unresolved layout,
 the exact derived Shape, and gradient eligibility equal to the logical OR of the actual inputs.
 Its one-output provenance has index zero, retains the exact `Conv2dAttrs` reference, and records
@@ -8381,6 +8397,10 @@ in FLOAT32, with final conversion for BFLOAT16. NaN, infinity, and signed zero o
 ordinary multiplication and addition. An empty input-channel contraction starts at positive
 zero before optional bias; empty batch and output-channel axes are valid. Reassociation and fused
 multiply-add are permitted, so no fixed summation order or bitwise-identical rounding is promised.
+
+For `ACCELERATOR`, FLOAT32 CONV3D gains only the convolution row's DAZ/FTZ permission. It does not
+gain MATMUL's final-publication exact-zero sign choice; product, intermediate, and published
+exact-zero signs retain the current convolution rules.
 
 Each successful call creates one fresh canonical output at producer index zero. The result is
 unlabeled and storage-free, has unresolved layout, retains the exact derived Shape and promoted

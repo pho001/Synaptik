@@ -22,11 +22,15 @@ import java.util.List;
  * <p>The graph numerical profile indexes this family's allowed {@code FLOAT32} results as defined
  * by the <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">sole normative numerical-profile table</a>.
  * {@code STRICT_IEEE} retains the reassociation and FMA permissions below. {@code ACCELERATOR}
- * additionally permits row-scoped DAZ/FTZ. An FMA may contract only a corresponding multiply and
- * add in this declared contraction; it may not fuse arbitrary graph nodes or erase an observable
- * intermediate. FLOAT64, BFLOAT16, integral, and future FLOAT16 results receive no relaxation.
- * This vocabulary describes result sets; it does not evaluate a contraction or choose a
- * backend.</p>
+ * additionally permits row-scoped DAZ/FTZ and, only after one complete nonempty contraction has
+ * an otherwise-permitted exact-zero result, either sign for the published MATMUL cell. Every
+ * pairwise multiplication term still participates exactly once. Standalone product signs and
+ * addition/FMA result signs before publication retain their existing rules. A one-term
+ * contraction gains the publication choice without an added positive-zero accumulator or FMA;
+ * an empty contraction remains positive zero. Finite nonzero results and NaN/infinity
+ * classification do not widen. FLOAT64, BFLOAT16, integral, and future FLOAT16 results receive no
+ * relaxation. This vocabulary describes result sets; it does not evaluate a contraction or
+ * choose a backend.</p>
  */
 public enum MatmulKind implements OperationKind {
     /**

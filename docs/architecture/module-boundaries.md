@@ -42,9 +42,15 @@ each operation's current family-specific contract rather than universal bitwise 
 [sole normative table](contracts/foundational-modules.md#numerical-profiles); it is not generic
 fast math or tolerance. For SUM and arithmetic SUM-to-Shape, the only added exact-zero sign choice
 is at the root of a cell with at least two terms; for MEAN it is at the mandatory positive-count
-quotient. Intermediate additions, copy and identity forms, declared terms, mapping, count,
-classification, and finite nonzero results retain their contracts. The semantic contract, Config
-identity, cold propagation spine, and first backend realizations are current. CPU supports both
+quotient. For nonempty MATMUL, the only added choice is the published sign after one complete
+otherwise-permitted contraction produces exact zero. A one-term product needs no inserted
+positive-zero accumulator or FMA. Every declared MATMUL term, standalone product, and
+pre-publication addition/FMA sign remains governed by its existing rule; empty MATMUL remains
+positive zero. CONV2D and CONV3D retain only their existing reassociation/FMA plus DAZ/FTZ profile
+rule. Intermediate values, reduction copies and identities, declared terms, mapping, count,
+classification, and finite nonzero results otherwise retain their contracts. The semantic
+contract, Config identity, cold propagation spine, and first backend realizations are current.
+CPU supports both
 profiles identically with exact current behavior. Metal supports exact canonical `ABS` under both
 profiles, keeps NEG/affine/`CONTIGUOUS` strict-only, and supports tensor FLOAT32
 `ADD`/`SUB`/`MUL`/`DIV` plus canonical FLOAT32 `SUM`/`MEAN`/`SUM_TO_SHAPE` only under
