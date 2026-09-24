@@ -59,8 +59,9 @@ Training-to-Metal optimizer bridge.
   `SUM`/`MEAN`/`SUM_TO_SHAPE`; Complete 0021 adds accelerator positive static rank-two MATMUL after
   its fresh oracle, worker evidence, and independent Class C approval passed. Complete 0022
   delivered profile monotonicity at `41517594` plus documentation remediation `90cd5fd9` and final
-  independent Class C approval. INT32 GATHER and ONE_HOT Task 0023 is implemented from clean base
-  `854c2e8e` and remains the sole Ready serial frontier for one lean independent Class C review.
+  independent Class C approval. INT32 GATHER and ONE_HOT Task 0023 is implemented at `9a7911c9`
+  from clean base `854c2e8e` and remains the sole Ready serial frontier for one lean independent
+  Class C review.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
   requirements. Metal 0017 remains Blocked under its old accelerator-reduction contract.
@@ -75,8 +76,8 @@ Training-to-Metal optimizer bridge.
   review with zero findings.
 - Complete Metal 0022 landed at implementation `41517594` plus documentation remediation
   `90cd5fd9`; final independent Class C review returned `APPROVE` with zero findings.
-- Ready Metal 0023 is the sole Metal review scope after implementation from exact base `854c2e8e`,
-  under its documentation-first, minimal-device-smoke, no-combinatorial-probe policy.
+- Ready Metal 0023 is the sole Metal review scope after implementation `9a7911c9` from exact base
+  `854c2e8e`, under its documentation-first, minimal-device-smoke, no-combinatorial-probe policy.
 - Later Metal 0028 and 0029 remain reserved for separately authorized FLOAT16 and BFLOAT16 scopes.
 - Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
   0017, and Metal 0015/0019/0020/0021/0022 are Complete.
@@ -198,10 +199,10 @@ exact-zero sign rule. Metal 0018 remains Blocked without production changes. Com
 makes the exact NEG/ABS/affine/`CONTIGUOUS` domain common to both profiles with identical semantics
 and valid accelerator composition. Its implementation `41517594`, documentation remediation
 `90cd5fd9`, and final independent Class C `APPROVE` with zero findings were the reviewed base.
-Implemented Ready Metal 0023 adds exact common-profile FLOAT32+INT32 GATHER and INT32-to-BOOL
-ONE_HOT at schema 9/wires `16..17`/DEPTH `5`, retains ABI v4/thirteen exports, and advances all
-route identities to version ten. It remains the sole frontier for one lean independent Class C
-review.
+Implemented Ready Metal 0023 at `9a7911c9` adds exact common-profile FLOAT32+INT32 GATHER and
+INT32-to-BOOL ONE_HOT at schema 9/wires `16..17`/DEPTH `5`, retains ABI v4/thirteen exports, and
+advances all route identities to version ten. It remains the sole frontier for one lean independent
+Class C review.
 
 Metal 0006 remains `Blocked` after exact RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures.
 Metal 0007 remains independently `Blocked` after eight direct-output executions returned positive

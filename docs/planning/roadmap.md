@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through reviewed 0022; 0006–0007, 0009–0013, and 0016–0018 Blocked; implemented 0023 Ready for review | [Metal 0022](backends/metal/tasks/0022-accelerator-profile-capability-monotonicity.md) completed at implementation `41517594` plus documentation remediation `90cd5fd9`; final independent Class C review returned `APPROVE` with zero findings. [Metal 0023](backends/metal/tasks/0023-exact-int32-gather-and-one-hot.md) is implemented from clean base `854c2e8e` and is the sole Ready frontier for one lean independent Class C review. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through reviewed 0022; 0006–0007, 0009–0013, and 0016–0018 Blocked; implemented 0023 Ready for review | [Metal 0022](backends/metal/tasks/0022-accelerator-profile-capability-monotonicity.md) completed at implementation `41517594` plus documentation remediation `90cd5fd9`; final independent Class C review returned `APPROVE` with zero findings. [Metal 0023](backends/metal/tasks/0023-exact-int32-gather-and-one-hot.md) is implemented at `9a7911c9` from clean base `854c2e8e` and is the sole Ready frontier for one lean independent Class C review. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -304,8 +304,9 @@ semantics, or authorize gross special-value errors.
 
 ## Nearest next step
 
-Submit [Metal 0023](backends/metal/tasks/0023-exact-int32-gather-and-one-hot.md), implemented from
-clean base `854c2e8e4b1c3b4d81fd3c1f0e99656e9ae40b3e`, for one lean independent Class C review.
+Submit [Metal 0023](backends/metal/tasks/0023-exact-int32-gather-and-one-hot.md), implemented at
+`9a7911c9447eeb5125ceb8a4d78e55349ec18b97` from clean base
+`854c2e8e4b1c3b4d81fd3c1f0e99656e9ae40b3e`, for one lean independent Class C review.
 Review the documented-selector use, one disposable one-run device smoke and artifact removal,
 mandatory pre-dispatch index validation, deterministic Java exception reconstruction, unchanged
 targets, typed INT32 ingress and local BOOL publication, unchanged FLOAT32-only transfer, schema

@@ -4,7 +4,8 @@
 
 Ready
 
-Implemented from clean base `854c2e8e4b1c3b4d81fd3c1f0e99656e9ae40b3e`. Metal 0022 remains
+Implemented at `9a7911c9447eeb5125ceb8a4d78e55349ec18b97` from clean base
+`854c2e8e4b1c3b4d81fd3c1f0e99656e9ae40b3e`. Metal 0022 remains
 Complete at implementation `415175947efc5151b71e764ad941f91445342cd7` plus documentation
 remediation `90cd5fd925a149d055d434fac2e5bb2ee38b130f`; final independent Class C review returned
 `APPROVE` with zero findings. Model 0018C–0018D and 0019A2, Compiler 0005C, CPU 0006A2, Config
@@ -362,8 +363,9 @@ validation/documentation evidence.
 
 ## Implementation evidence
 
-Implementation began from clean `854c2e8e4b1c3b4d81fd3c1f0e99656e9ae40b3e` and remains
-`Ready` only for the mandatory independent Class C review.
+Implementation `9a7911c9447eeb5125ceb8a4d78e55349ec18b97` began from clean
+`854c2e8e4b1c3b4d81fd3c1f0e99656e9ae40b3e` and remains `Ready` only for the mandatory independent
+Class C review.
 
 Before any production edit, one disposable Objective-C program at
 `/tmp/synaptik_task0023_selector_smoke.m` compiled with `xcrun --sdk macosx clang -arch arm64`
