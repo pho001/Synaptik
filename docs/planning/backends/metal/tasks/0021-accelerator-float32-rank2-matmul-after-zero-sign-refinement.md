@@ -223,11 +223,13 @@ Javadocs and full ./gradlew build: passed
 
 The 10/10 real Metal integration result above is the task-scoped,
 environment-enabled checkpoint. It is distinct from the optional suites skipped by the
-ordinary full build, whose 41 skips were CPU 28 plus integration 13. The 14 changed Markdown
-files passed the validator; `tensor-api` reported exactly its identical 172 pre-existing
-duplicate headings and zero new or nonduplicate diagnostics. `git diff --check` and whitespace
-checks passed. Exactly 38 task-owned paths changed; the disposable probe source and binary were
-removed. After the evidence-remediation commit, the worktree was clean.
+ordinary full build, whose 41 skips were CPU 28 plus integration 13. Fourteen of the 15 changed
+Markdown files passed the ordinary validator. The 15th, `docs/api/tensor-api.md`, passed a
+baseline-aware comparison with exactly its identical 172 pre-existing duplicate-heading
+diagnostics and zero new or nonduplicate diagnostics; this accounts for all 15 changed Markdown
+files. `git diff --check` and whitespace checks passed. Exactly 38 task-owned paths changed; the
+disposable probe source and binary were removed. After the evidence-remediation commit, the
+worktree was clean.
 
 The implementation adds the exact accelerator-only capability, local transpose authentication,
 schema-eight wire `15`, Java/native fail-closed geometry and topology validation, direct MPSGraph
