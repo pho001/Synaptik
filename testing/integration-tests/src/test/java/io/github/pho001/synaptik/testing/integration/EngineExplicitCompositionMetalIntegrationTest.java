@@ -513,20 +513,23 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     Tensor input = nativeTensor(
                             descriptor(shape), arena, -1.25f, 2.5f);
                     var compiled = engine.compile(List.of(
-                            input.neg().abs(),
-                            input.abs().neg()));
+                            input.neg().exp(),
+                            input.exp().neg()));
+                    assertEquals(
+                            List.of("metal", "cpu", "metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(compiled));
                     try (var session = engine.session(compiled);
                             var result = session.run(List.of(input))) {
                         assertCanonical(
                                 result.materialize(
                                         result.publications().get(0), 8L).bytes(),
-                                1.25f,
-                                2.5f);
+                                strictExp(1.25f),
+                                strictExp(-2.5f));
                         assertCanonical(
                                 result.materialize(
                                         result.publications().get(1), 8L).bytes(),
-                                -1.25f,
-                                -2.5f);
+                                -strictExp(-1.25f),
+                                -strictExp(2.5f));
                     }
                 }
             }
@@ -567,22 +570,25 @@ final class EngineExplicitCompositionMetalIntegrationTest {
 
                 assertMixedResult(
                         engine,
-                        engine.compile(List.of(input.abs().neg())),
+                        engine.compile(List.of(input.exp().neg())),
+                        List.of("cpu", "metal"),
                         List.of(input),
-                        -1.25f,
-                        -2.5f);
+                        -strictExp(1.25f),
+                        -strictExp(-2.5f));
                 assertMixedResult(
                         engine,
-                        engine.compile(List.of(input.neg().abs())),
+                        engine.compile(List.of(input.neg().exp())),
+                        List.of("metal", "cpu"),
                         List.of(input),
-                        1.25f,
-                        2.5f);
+                        strictExp(-1.25f),
+                        strictExp(2.5f));
                 assertMixedResult(
                         engine,
-                        engine.compile(List.of(input.neg().abs().neg())),
+                        engine.compile(List.of(input.neg().exp().neg())),
+                        List.of("metal", "cpu", "metal"),
                         List.of(input),
-                        -1.25f,
-                        -2.5f);
+                        -strictExp(-1.25f),
+                        -strictExp(2.5f));
 
                 Tensor cpuInput = TensorFactory.create(
                         descriptor,
@@ -611,12 +617,13 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 assertEquals("model autotuning requires a CPU-owned partition plan",
                         assertThrows(IllegalStateException.class,
                                 () -> engine.prepareTuned(metalForTuning, metalRequest)).getMessage());
-                Tensor capturedBase = input.abs();
+                Tensor capturedBase = input.exp();
                 Tensor metalPublication = capturedBase.neg();
-                Tensor cpuPublication = metalPublication.abs();
+                Tensor cpuPublication = metalPublication.exp();
                 assertCapturedAdaptersSurviveRegistryPoison(
                         engine,
                         engine.compile(List.of(metalPublication, cpuPublication)),
+                        List.of("cpu", "metal", "cpu"),
                         List.of(input));
             }
         }
@@ -790,9 +797,13 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     private static void assertMixedResult(
             Engine engine,
             io.github.pho001.synaptik.engine.CompiledGraph compiled,
+            List<String> expectedOwners,
             List<Tensor> inputs,
             float first,
             float second) {
+        assertEquals(
+                expectedOwners,
+                EngineMixedOwnerTestAccess.partitionOwners(compiled));
         try (var session = engine.session(compiled)) {
             for (int run = 0; run < 2; run++) {
                 try (var result = session.run(inputs)) {
@@ -808,7 +819,11 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     private static void assertCapturedAdaptersSurviveRegistryPoison(
             Engine engine,
             io.github.pho001.synaptik.engine.CompiledGraph compiled,
+            List<String> expectedOwners,
             List<Tensor> inputs) {
+        assertEquals(
+                expectedOwners,
+                EngineMixedOwnerTestAccess.partitionOwners(compiled));
         try (var session = engine.session(compiled)) {
             EngineMixedOwnerTestAccess.poisonBackendLookup(engine);
             for (int run = 0; run < 2; run++) {
@@ -816,15 +831,19 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertEquals(2, result.resultCount());
                     assertCanonical(
                             result.materialize(result.publications().get(0), 8L).bytes(),
-                            -1.25f,
-                            -2.5f);
+                            -strictExp(1.25f),
+                            -strictExp(-2.5f));
                     assertCanonical(
                             result.materialize(result.publications().get(1), 8L).bytes(),
-                            1.25f,
-                            2.5f);
+                            strictExp(-strictExp(1.25f)),
+                            strictExp(-strictExp(-2.5f)));
                 }
             }
         }
+    }
+
+    private static float strictExp(float value) {
+        return (float) StrictMath.exp(value);
     }
 
 
