@@ -2,17 +2,20 @@
 
 ## Status
 
-Ready
+Blocked
 
-Readiness verification: Metal 0020 is Complete at implementation `9ddb75f6` plus documentation
-remediation `5b77c742`; its fresh 301-executable/2,401-run Apple M3 gate, ABI-v4 exact-thirteen-
-export audit, 93 Metal tests, four conformance tests, nine real-Engine tests, nine architecture
-tests, full build, and independent Class C `APPROVE` with zero findings passed. Model 0027,
-Config 0006, and Engine 0018 are Complete. Historical Metal 0009 and Metal 0017 remain Blocked
-records, not dependencies. Metal 0016 has no active restart, and Model 0026 remains an independent Draft.
-The clean common base is `5b77c74239f379e424f8ac0c0c22d65e9a21bab0`; ABI v4 currently has
-exactly thirteen exports, node schema is seven, and workload/candidate/compatibility/route/codec
-identities are version eight. This is the sole authorized Metal frontier.
+Metal 0020 is Complete at implementation `9ddb75f6` plus documentation remediation `5b77c742`.
+Model 0027, Config 0006, and Engine 0018 are Complete. Historical Metal 0009 and Metal 0017 remain
+Blocked records, not dependencies; Metal 0016 has no active restart, and Model 0026 remains an
+independent Draft. The mandatory fresh real-M3 probe ran from clean base
+`0625a18727ac2cf59220cfa7db5de93e1cac2651` and stopped before any production edit. The smoke
+passed, but the first full direct context-zero/optimization-zero `K=1` cell evaluated
+`+0.0f * -1.0f` as positive zero, while this task's unchanged Model set permits only negative zero.
+`MPSGraphReducedPrecisionFastMathNone` set/read and the selector, direct targets, and controls were
+valid. Zero is not subnormal, and a one-term contraction has no reassociation or multiply-add
+choice that changes the required sign. The probe was removed and the tree returned clean. ABI v4
+still has exactly thirteen exports, node schema is seven, and private identities are version eight.
+No production/schema/capability change from this task exists.
 
 ## Change class
 
@@ -223,4 +226,16 @@ Engine proof, Runtime/Trace absence, changed scope, and probe removal.
 
 ## Result
 
-Not started.
+Blocked by the mandatory fresh Apple M3 oracle before production edits. The non-square direct
+smoke passed. In the first full direct context-zero/optimization-zero `K=1` cell,
+`+0.0f * -1.0f` published positive zero, outside this task's unchanged permitted set containing
+only negative zero. The reduced-precision-fast-math-none set/read, selector, direct target,
+bindings, and controls were valid; the failure is neither subnormal handling nor a K=1
+reassociation/FMA choice. The disposable probe was removed, the tree is clean, and no production,
+test, native, schema, capability, identity, or documentation implementation change remains.
+Model 0029 owns the separate semantic decision; Draft Metal 0021 requires a full fresh oracle after
+that decision completes. This historical task remains Blocked and is not reopened.
+
+Status: Incomplete
+Follow-up required: complete Model 0029, then independently authorize Draft Metal 0021 under the
+refined contract and rerun the full fresh oracle from the beginning.

@@ -92,8 +92,8 @@ loss own no mode, session, or hidden mutable statistics.
 
 ## Task list
 
-The table is the ordered queue and status source. Evidence stays in linked briefs. Draft 0026 has
-no detailed brief. Task 0028 is Complete; no Model task is Ready, and dependent Metal 0020 is Ready.
+The table is the ordered queue and status source. Evidence stays in linked briefs. Task 0029 is the
+sole Ready frontier; task 0026 remains an independent Draft.
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
@@ -237,6 +237,7 @@ no detailed brief. Task 0028 is Complete; no Model task is Ready, and dependent 
 | 0026 | IEEE FLOAT16 and mixed-precision semantic contracts | Draft | 0001, 0018N, completed operation-family semantics; required before any backend advertises FLOAT16 | Preserve BFLOAT16, add distinct true IEEE-754 binary16 `FLOAT16`, and audit affected families for explicit input, accumulation/intermediate, and output types without adding backend support. |
 | 0027 | [Explicit numerical-profile semantic authority](tasks/0027-explicit-numerical-profile-semantic-authority.md) | Complete | Completed operation-family semantics through 0025L; Metal 0014 and retained numerical blocker evidence; accepted Variant B | Established root/foundational authority, ADR 0019, bounded Model-owned result sets, affected Javadocs, and gross-error exclusions; implementation `ff86a302`, independent validation, and Class C review passed with zero failures, skips, or findings. |
 | 0028 | [ACCELERATOR reduction exact-zero sign freedom](tasks/0028-accelerator-reduction-exact-zero-sign-freedom.md) | Complete | 0027; corrected Metal 0017 blocker evidence | Established final-result-only exact-zero sign freedom for arithmetic FLOAT32 SUM/MEAN/SUM_TO_SHAPE while preserving strict, terms, identities, copies, and count division; implementation `fc003ab8`, proof and 23-task validation passed, and Class C review approved with zero findings. |
+| 0029 | [ACCELERATOR MATMUL exact-zero sign freedom](tasks/0029-accelerator-matmul-exact-zero-sign-freedom.md) | Ready | 0027; 0028; retained Metal 0018 blocker evidence | Split the shared contraction row and add only final-publication either-zero-sign freedom for a nonempty exact-zero FLOAT32 ACCELERATOR MATMUL result; strict, convolution, products, intermediates, empty contractions, nonzero values, and classifications remain unchanged. |
 
 ## Milestones and current frontier
 
@@ -253,29 +254,34 @@ no detailed brief. Task 0028 is Complete; no Model task is Ready, and dependent 
   and 0025N are `Complete`.
 - Task 0027 is `Complete` at implementation commit `ff86a302` after independent validation passed
   1,114 Model tests and nine architecture tests with zero failures or skips and Class C review
-  returned `APPROVE` with zero findings. Config 0006, Engine 0018, CPU 0017, Metal 0015, and
-  exact both-profile Metal 0019 are also Complete.
-- Corrected Metal 0017 probing exposed one narrow old-contract mismatch before production edits:
-  SUM of `[-0,-0]` returned positive zero where the old accelerator reduction set allowed only
-  negative zero. Task 0028 is `Complete` at implementation `fc003ab8` after its bounded proof,
+  returned `APPROVE` with zero findings. Config 0006, Engine 0018, CPU 0017, Metal 0015, exact
+  both-profile Metal 0019, and Metal 0020 are also Complete.
+- Task 0028 is `Complete` at implementation `fc003ab8` after its bounded reduction proof,
   23-task validation, and independent Class C approval passed. Metal 0017 remains Blocked under its
-  historical contract; dependent Metal 0020 is the sole Ready frontier.
+  historical reduction contract.
+- The mandatory fresh Metal 0018 probe stopped before production edits after its smoke passed:
+  the first full direct `K=1` cell returned positive zero for `+0.0f * -1.0f`, outside the current
+  allowed set containing only negative zero. Controls passed, the probe was removed, and Metal
+  0018 remains Blocked under its unchanged contract.
+- Detailed task 0029 is the sole Ready frontier from clean base `0625a187`; it owns the narrow
+  backend-neutral MATMUL final-publication semantic decision. Draft Metal 0021 must wait for 0029
+  completion and then rerun a full fresh oracle from the beginning.
 - Task 0026 remains an independent `Draft` with no detailed brief and no dependency relationship
-  to 0027 or 0028. It is selected only when IEEE-754 binary16 `FLOAT16` and mixed-precision
-  semantics become current.
+  to 0027–0029. It is selected only when IEEE-754 binary16 `FLOAT16` and mixed-precision semantics
+  become current.
 
 ## Live gates, decisions, and risks
 
 - **Explicit numerical profiles:** 0027 established the Model-owned, operation-specific semantic
   contract and is Complete after independent validation and Class C approval. `STRICT_IEEE` means
   each current per-operation contract rather than universal bitwise `strictfp`; `ACCELERATOR` is
-  only a bounded permission. Config 0006 identity, Engine 0018 propagation/cache isolation, CPU
-  0017, Metal 0015, and exact both-profile Metal 0019 are Complete. Metal 0016 remains Blocked.
-  Complete 0028 permits either zero sign only for a final exact-zero arithmetic
-  SUM/SUM_TO_SHAPE root or mandatory positive-count MEAN quotient, while preserving all-and-only
-  terms, bit-preserving identity/equal-Shape forms, and every no-tolerance/no-term-loss/
-  no-added-identity exclusion. Metal 0017 remains Blocked historically; Ready Metal 0020 must pass
-  a full fresh corrected probe before production and may not reinterpret the Model result set.
+  only a bounded permission. Complete 0028 owns reduction final-result exact-zero sign freedom.
+  Metal 0018's fresh M3 probe exposed a distinct MATMUL final-zero-sign mismatch and remains
+  Blocked without production changes. Ready 0029 must decide only whether a complete nonempty
+  FLOAT32 ACCELERATOR MATMUL result that is exact zero may publish either sign. Its planned split
+  leaves convolution, strict, products, intermediates, empty contractions, nonzero values,
+  classifications, all terms, FMA/reassociation, and DAZ/FTZ otherwise unchanged. Draft Metal 0021
+  may not be promoted until 0029 completes and its full fresh oracle contract is reverified.
 - **FLOAT16 and mixed precision:** BFLOAT16 remains a distinct current type. Only 0026 may add true
   IEEE binary16 FLOAT16 and must audit each affected family’s input, accumulation/intermediate,
   and output types. A shared two-byte carrier does not imply arithmetic, Java Vector support, or a
