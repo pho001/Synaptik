@@ -85,18 +85,87 @@ import jdk.incubator.vector.ByteVector;
 
 public class CpuPartitionPreparerTest {
     @Test
-    void acceleratorProfileFailsBeforeCpuRouteConstruction() {
-        PrepareContext<CpuPartitionAnalysisInputs> strict = context(Shape.of(2));
-        var accelerator = new PrepareContext<>(
-                NumericalProfile.ACCELERATOR,
-                strict.partitionDag(),
-                strict.values(),
-                strict.memoryRequirements(),
-                strict.constants(),
-                strict.backendInputs());
-        assertEquals("CPU backend supports only STRICT_IEEE numerical profile",
-                assertThrows(IllegalArgumentException.class,
-                        () -> new CpuPartitionPreparer().analyze(accelerator)).getMessage());
+    void bothProfilesPrepareIdenticalPointwiseAndReductionPlansWithSeparatedIdentity() {
+        assertProfileParity(context(Shape.of(2)));
+        assertProfileParity(CpuAggregateLoweringTest.context(
+                AggregateReductionKind.SUM,
+                DataType.FLOAT32,
+                Shape.of(2, 3),
+                new AxisReductionAttrs(1, false),
+                Shape.of(2)));
+    }
+
+    private static void assertProfileParity(PrepareContext<CpuPartitionAnalysisInputs> strictContext) {
+        var preparer = new CpuPartitionPreparer();
+        CpuPartitionPreparationPlan strict = preparer.analyze(
+                withProfile(strictContext, NumericalProfile.STRICT_IEEE)).plan();
+        CpuPartitionPreparationPlan accelerator = preparer.analyze(
+                withProfile(strictContext, NumericalProfile.ACCELERATOR)).plan();
+        assertAll(
+                () -> assertSame(NumericalProfile.STRICT_IEEE, strict.numericalProfile()),
+                () -> assertSame(NumericalProfile.ACCELERATOR, accelerator.numericalProfile()),
+                () -> assertEquals(strict.route(), accelerator.route()),
+                () -> assertEquals(strict.executionStrategy(), accelerator.executionStrategy()),
+                () -> assertEquals(strict.bufferDeclarations(), accelerator.bufferDeclarations()),
+                () -> assertEquals(strict.boundaryValues(), accelerator.boundaryValues()),
+                () -> assertEquals(strict.accessBindings(), accelerator.accessBindings()),
+                () -> assertEquals(strict.carrierPattern(), accelerator.carrierPattern()),
+                () -> assertEquals(strict.generatedCarrierPattern(),
+                        accelerator.generatedCarrierPattern()),
+                () -> assertArrayEquals(strict.extents(), accelerator.extents()),
+                () -> assertEquals(strict.elementCount(), accelerator.elementCount()),
+                () -> assertArrayEquals(strict.affineAddressPairs(),
+                        accelerator.affineAddressPairs()),
+                () -> assertEquals(strict.selectedRangeCount(),
+                        accelerator.selectedRangeCount()),
+                () -> assertEquals(strict.minimumElementsPerWorker(),
+                        accelerator.minimumElementsPerWorker()),
+                () -> assertEquals(strict.vectorSpeciesBitSize(),
+                        accelerator.vectorSpeciesBitSize()),
+                () -> assertEquals(strict.units().size(), accelerator.units().size()));
+        for (int index = 0; index < strict.units().size(); index++) {
+            var strictUnit = strict.units().get(index);
+            var acceleratorUnit = accelerator.units().get(index);
+            var strictRoute = strictUnit.portablePlan();
+            var acceleratorRoute = acceleratorUnit.portablePlan();
+            assertAll(
+                    () -> assertEquals(strictRoute.kernelIr().structuralKey(),
+                            acceleratorRoute.kernelIr().structuralKey()),
+                    () -> assertEquals(strictRoute.kernelIr().instructions(),
+                            acceleratorRoute.kernelIr().instructions()),
+                    () -> assertEquals(strictUnit.executionStrategy(),
+                            acceleratorUnit.executionStrategy()),
+                    () -> assertEquals(strictUnit.selectedRangeCount(),
+                            acceleratorUnit.selectedRangeCount()),
+                    () -> assertEquals(strictUnit.minimumElementsPerWorker(),
+                            acceleratorUnit.minimumElementsPerWorker()),
+                    () -> assertEquals(strictUnit.vectorSpeciesBitSize(),
+                            acceleratorUnit.vectorSpeciesBitSize()),
+                    () -> assertArrayEquals(strictUnit.runtimeFacts().affineAddressPairs(),
+                            acceleratorUnit.runtimeFacts().affineAddressPairs()),
+                    () -> assertEquals(strictUnit.runtimeFacts().workspaceDeclaration(),
+                            acceleratorUnit.runtimeFacts().workspaceDeclaration()),
+                    () -> assertEquals(strictUnit.runtimeFacts().workspaceUse(),
+                            acceleratorUnit.runtimeFacts().workspaceUse()),
+                    () -> assertSame(NumericalProfile.STRICT_IEEE,
+                            strictRoute.specialization().numericalProfile()),
+                    () -> assertSame(NumericalProfile.ACCELERATOR,
+                            acceleratorRoute.specialization().numericalProfile()),
+                    () -> assertNotEquals(strictRoute.specialization().structuralKey(),
+                            acceleratorRoute.specialization().structuralKey()));
+            if (strictUnit.runtimeFacts().aggregateGeometry().isPresent()) {
+                assertArrayEquals(strictUnit.runtimeFacts().aggregateGeometry().orElseThrow()
+                                .pack(new long[] {0, 0}),
+                        acceleratorUnit.runtimeFacts().aggregateGeometry().orElseThrow()
+                                .pack(new long[] {0, 0}));
+            }
+        }
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> withProfile(
+            PrepareContext<CpuPartitionAnalysisInputs> source, NumericalProfile profile) {
+        return new PrepareContext<>(profile, source.partitionDag(), source.values(),
+                source.memoryRequirements(), source.constants(), source.backendInputs());
     }
 
     @Test void partialReductionAdmissionKeepsWholeCellRouteWithoutTrustedEvidenceReader() {

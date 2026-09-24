@@ -18,7 +18,6 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRepresentationDecisi
 import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasRoutePlan;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasRouteSelector;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis;
@@ -87,6 +86,9 @@ import jdk.incubator.vector.ByteVector;
  * strictly cheaper bare rank-two FLOAT32/FLOAT64 MATMUL may select the narrow OpenBLAS route.
  * That post-lowering decision uses only immutable storage, thread-configuration, and cost facts;
  * it retains the complete portable realization and performs no provider query or allocation.
+ * Both supported numerical profiles traverse this identical analysis and route policy. The
+ * requested profile is retained only in existing cold plan, generated-artifact, OpenBLAS, and
+ * tuning identities; it does not alter arithmetic or hot execution.
  */
 public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         CpuPartitionAnalysisInputs, CpuPartitionPreparationPlan> {
@@ -205,10 +207,6 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     private SelectionAnalysis selectPlan(PrepareContext<CpuPartitionAnalysisInputs> context,
             Optional<SelectedCompletePlan> explicitSelection) {
         Objects.requireNonNull(context, "context");
-        if (context.numericalProfile() != NumericalProfile.STRICT_IEEE) {
-            throw new IllegalArgumentException(
-                    "CPU backend supports only STRICT_IEEE numerical profile");
-        }
         List<CpuPartitionDagDecomposer.Unit> baseline = decomposer.decompose(context, lowering);
         BackendPartitionAnalysis<CpuPartitionPreparationPlan> baselineAnalysis =
                 analyzeTopology(context, baseline, null);

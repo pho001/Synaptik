@@ -72,10 +72,11 @@
  * that exact Phase-1 state. It authenticates opaque decisions and freshly prepares the selected
  * recipe without execution, measurement, ranking, cache access, or fallback.
  *
- * <p>Capability and preparation currently support only {@code STRICT_IEEE} and fail closed for
- * {@code ACCELERATOR}. The selected numerical profile participates in partition-plan,
- * generated-artifact, OpenBLAS workload, and both tuning-phase compatibility identity so cached
- * or selected work cannot cross profiles.</p>
+ * <p>Capability and preparation realize both {@code STRICT_IEEE} and {@code ACCELERATOR} through
+ * the same exact current arithmetic and route policy. The selected numerical profile participates
+ * unchanged in partition-plan, generated-artifact, OpenBLAS workload, and both tuning-phase
+ * compatibility identities, so work cannot cross profiles. Accelerator selection grants no fast
+ * math, reassociation, reduced precision, approximate instruction, DAZ, or FTZ behavior.</p>
  *
  * <p>The {@code internal} namespace contains unsupported implementation contracts for complete-
  * partition lowering, code generation, storage, and execution. No type in that namespace is a

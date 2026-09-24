@@ -167,4 +167,29 @@ forward/backward evidence, Runtime/Trace absence, and scope exclusions.
 
 ## Result
 
-Empty until execution.
+Worker implementation and independent Class C review are complete; status remains `Ready` for the
+integration owner’s combined CPU/Metal checkpoint and shared-document reconciliation.
+
+- CPU capability now uses one exact predicate for `STRICT_IEEE` and `ACCELERATOR`; the retained
+  admitted/rejected matrix executes under both profiles.
+- Preparation, OpenBLAS qualification, and OpenBLAS plan validation admit both profiles while
+  retaining the request in plans, unit specializations, generated-artifact identity, workload
+  identity, and local/complete tuning compatibility. Generator schema 67, OpenBLAS candidate and
+  route-policy schema 2, and both tuning value schemas 2 remain unchanged.
+- Focused plan tests cover pointwise, exact floating reduction, and qualified MATMUL parity.
+  Generated classes retain distinct profile-bearing identities while normalization of only the
+  generated binary name produces the same SHA-256 class-body result.
+- The bounded conformance checkpoint executes exact portable NEG results under both profiles; the
+  native-free qualified OpenBLAS fixture executes exact MATMUL results under `ACCELERATOR`.
+  Engine integration executes two reusable-session forward runs per profile and materializes
+  `[0.3125, 8.75, 12.0]`, then executes Compiler-generated scalar backward graphs and materializes
+  objective `6.0` and gradient `[5.0]` under both profiles.
+- `./gradlew :backends:cpu:test :backends:cpu:javadoc` passed: 1,025 tests, zero failures/errors,
+  28 existing conditional skips, and generated CPU Javadocs containing the final dual-profile
+  contracts. The required focused conformance and Engine integration commands passed.
+- The CPU guide/task Markdown audit found 21 local links with no missing targets, balanced fences,
+  final newlines, and no trailing whitespace. `git diff --check` passed before the result update
+  and is repeated before commit.
+- Independent Class C review found no remaining issue across capability/route parity, cold
+  identity and unchanged versions, normalized generated bodies, OpenBLAS/tuning/cache separation,
+  forward/backward/session evidence, Runtime/Trace/hot-path exclusions, documentation, and scope.

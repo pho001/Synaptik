@@ -110,6 +110,23 @@ final class CpuLocalWorkloadTuningPublicTest {
             assertTrue(candidates.size() >= 2);
             assertSame(artifacts.partitions().getFirst(), handoff.partition());
             assertTrue(handoff.selectedDecision().isEmpty());
+            CompileArtifacts acceleratorArtifacts = withProfile(
+                    artifacts,
+                    io.github.pho001.synaptik.config.compile.NumericalProfile.ACCELERATOR);
+            var acceleratorBatch = tuning.candidateHandoff(
+                    context(integration, acceleratorArtifacts)).orElseThrow().candidateBatch();
+            assertAll(
+                    () -> assertEquals(2, java.nio.ByteBuffer.wrap(
+                            tuning.compatibility(batch).bytes()).getInt()),
+                    () -> assertEquals(2, java.nio.ByteBuffer.wrap(
+                            tuning.compatibility(acceleratorBatch).bytes()).getInt()),
+                    () -> assertNotEquals(tuning.compatibility(batch),
+                            tuning.compatibility(acceleratorBatch)),
+                    () -> assertEquals(tuning.compatibility(acceleratorBatch),
+                            tuning.compatibility(tuning.candidateHandoff(
+                                    context(integration, acceleratorArtifacts)).orElseThrow()
+                                    .candidateBatch())));
+
 
             var compatibility = tuning.compatibility(batch);
             byte[] compatibilityBytes = compatibility.bytes();
@@ -143,6 +160,14 @@ final class CpuLocalWorkloadTuningPublicTest {
             var firstDecision = tuning.selectedDecision(batch, candidates.getFirst());
             assertThrows(IllegalArgumentException.class,
                     () -> tuning.selectedPreparation(secondBatch, firstDecision));
+            byte[] strictEncoded = tuning.encodeDecision(firstDecision);
+            assertTrue(tuning.decodeCompatibleDecision(
+                    acceleratorBatch, strictEncoded).isEmpty());
+            var acceleratorDecision = tuning.selectedDecision(
+                    acceleratorBatch, tuning.candidates(acceleratorBatch).getFirst());
+            assertTrue(tuning.decodeCompatibleDecision(
+                    batch, tuning.encodeDecision(acceleratorDecision)).isEmpty());
+
         }
     }
 
@@ -194,6 +219,13 @@ final class CpuLocalWorkloadTuningPublicTest {
                                 id, ScalarValue.float32(1.0f))).toList());
         return new CompileArtifacts(base.mode(), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, graph, base.partitions(), LogicalMemoryPlanning.plan(graph, base.partitions()), publication, constants, base.diagnostics(), new DerivativeGraphMetadata(
                 graph, base.derivatives().derivativeOrderByNode()));
+    }
+
+    private static CompileArtifacts withProfile(CompileArtifacts source,
+            io.github.pho001.synaptik.config.compile.NumericalProfile profile) {
+        return new CompileArtifacts(source.mode(), profile, source.graph(), source.partitions(),
+                source.memory(), source.publication(), source.constants(), source.diagnostics(),
+                source.derivatives());
     }
 
     private static <T> T construct(

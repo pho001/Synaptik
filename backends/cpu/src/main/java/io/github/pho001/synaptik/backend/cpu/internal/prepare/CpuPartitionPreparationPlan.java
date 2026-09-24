@@ -1584,8 +1584,6 @@ public record CpuPartitionPreparationPlan(NumericalProfile numericalProfile,
                     || !matmul.orElseThrow().epilogue().equals(
                             io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr
                                     .Epilogue.none())
-                    || unit.portablePlan().specialization().numericalProfile()
-                            != NumericalProfile.STRICT_IEEE
                     || !nativePlan.representation().copiesOutput()
                         && !openBlasCanonical(unit.accessBindings().get(2), nativePlan.m(),
                             nativePlan.n(), CpuAccessPlan.AccessKind.WRITE)

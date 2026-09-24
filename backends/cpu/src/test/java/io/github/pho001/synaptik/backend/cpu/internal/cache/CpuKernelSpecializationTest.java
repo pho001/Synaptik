@@ -60,21 +60,26 @@ class CpuKernelSpecializationTest {
     }
 
     @Test
-    void numericalProfileSeparatesSpecializationAndClassIdentity() {
-        CpuKernelSpecialization strict = CpuPartitionPreparerTest.analyze(Shape.of(8))
+    void numericalProfileSeparatesIdentityButKeepsNormalizedGeneratedBody() throws Exception {
+        var base = CpuPartitionPreparerTest.context(Shape.of(8));
+        CpuKernelSpecialization strict = new CpuPartitionPreparer().analyze(
+                new PrepareContext<>(NumericalProfile.STRICT_IEEE, base.partitionDag(),
+                        base.values(), base.memoryRequirements(), base.constants(),
+                        base.backendInputs()))
                 .plan().units().getFirst().portablePlan().specialization();
-        var accelerator = new CpuKernelSpecialization(
-                strict.loweringFingerprint(),
-                NumericalProfile.ACCELERATOR,
-                strict.executionStrategy(),
-                strict.boundaryDataTypes(),
-                strict.carrierPattern(),
-                strict.vectorSpeciesBitSize(),
-                strict.materializedSourcePosition(),
-                strict.scalarPowerRealizations(),
-                strict.scratchParameter(),
-                strict.classIdentitySchema(),
-                strict.matmulIr());
+        CpuKernelSpecialization accelerator = new CpuPartitionPreparer().analyze(
+                new PrepareContext<>(NumericalProfile.ACCELERATOR, base.partitionDag(),
+                        base.values(), base.memoryRequirements(), base.constants(),
+                        base.backendInputs()))
+                .plan().units().getFirst().portablePlan().specialization();
+        var strictRoute = new CpuPartitionPreparer().analyze(
+                new PrepareContext<>(NumericalProfile.STRICT_IEEE, base.partitionDag(),
+                        base.values(), base.memoryRequirements(), base.constants(),
+                        base.backendInputs())).plan().units().getFirst().portablePlan();
+        var acceleratorRoute = new CpuPartitionPreparer().analyze(
+                new PrepareContext<>(NumericalProfile.ACCELERATOR, base.partitionDag(),
+                        base.values(), base.memoryRequirements(), base.constants(),
+                        base.backendInputs())).plan().units().getFirst().portablePlan();
 
         assertAll(
                 () -> assertNotEquals(strict, accelerator),
@@ -82,7 +87,38 @@ class CpuKernelSpecializationTest {
                 () -> assertFalse(java.util.Arrays.equals(
                         strict.compatibilityBytes(), accelerator.compatibilityBytes())),
                 () -> assertFalse(java.util.Arrays.equals(
-                        strict.classIdentityBytes(), accelerator.classIdentityBytes())));
+                        strict.classIdentityBytes(), accelerator.classIdentityBytes())),
+                () -> assertEquals(normalizedGeneratedHash(strictRoute),
+                        normalizedGeneratedHash(acceleratorRoute)));
+    }
+
+    private static String normalizedGeneratedHash(
+            io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan route)
+            throws Exception {
+        byte[] normalized = new CpuClassFileKernelGenerator().generateClassBytes(
+                route.specialization(), route.kernelIr());
+        byte[] identity = CpuGeneratorSchema.generatedBinaryName(route.specialization())
+                .replace('.', '/').getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        byte[] replacement = new byte[identity.length];
+        java.util.Arrays.fill(replacement, (byte) '#');
+        int replacements = 0;
+        for (int offset = 0; offset <= normalized.length - identity.length; offset++) {
+            boolean match = true;
+            for (int index = 0; index < identity.length; index++) {
+                if (normalized[offset + index] != identity[index]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                System.arraycopy(replacement, 0, normalized, offset, replacement.length);
+                replacements++;
+                offset += identity.length - 1;
+            }
+        }
+        assertTrue(replacements > 0, "generated class identity must be normalized");
+        return java.util.HexFormat.of().formatHex(
+                java.security.MessageDigest.getInstance("SHA-256").digest(normalized));
     }
 
     @Test void foldIdentityExcludesColdGeometryAndSeparatesFamilyTypeCarrierAndRank() {

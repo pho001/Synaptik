@@ -59,6 +59,56 @@ final class CpuOpenBlasTuningBatchTest {
                 () -> assertSame(decision, selected.selectedDecision().orElseThrow()));
     }
 
+    @Test void qualifiedMatmulRetainsProfileInCurrentSeparatedOpenBlasIdentity() {
+        var inputs = CpuOpenBlasRouteSelectorTest.maskInputs(DataType.FLOAT32, false, false,
+                false, 1, CpuOpenBlasRouteSelectorTest.defaultConfig());
+        var strictContext = CpuOpenBlasRouteSelectorTest.context(
+                DataType.FLOAT32, dense(Shape.of(2, 3)), dense(Shape.of(3, 4)),
+                dense(Shape.of(2, 4)), inputs);
+        var acceleratorContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                io.github.pho001.synaptik.config.compile.NumericalProfile.ACCELERATOR,
+                strictContext.partitionDag(), strictContext.values(),
+                strictContext.memoryRequirements(), strictContext.constants(),
+                strictContext.backendInputs());
+        var preparer = new CpuPartitionPreparer();
+        CpuPartitionPreparationPlan strict = preparer.analyze(strictContext).plan();
+        CpuPartitionPreparationPlan accelerator = preparer.analyze(acceleratorContext).plan();
+        CpuOpenBlasTuningBatch strictBatch = strict.openBlasTuningBatch().orElseThrow();
+        CpuOpenBlasTuningBatch acceleratorBatch =
+                accelerator.openBlasTuningBatch().orElseThrow();
+        var projected = with(strictBatch.workload(), "numericalProfile",
+                io.github.pho001.synaptik.config.compile.NumericalProfile.ACCELERATOR);
+        assertAll(
+                () -> assertEquals(2, CpuOpenBlasTuningBatch.SCHEMA_VERSION),
+                () -> assertEquals(2, CpuOpenBlasTuningBatch.ROUTE_POLICY_VERSION),
+                () -> assertSame(
+                        io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE,
+                        strict.numericalProfile()),
+                () -> assertSame(
+                        io.github.pho001.synaptik.config.compile.NumericalProfile.ACCELERATOR,
+                        accelerator.numericalProfile()),
+                () -> assertSame(
+                        io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE,
+                        strictBatch.workload().numericalProfile()),
+                () -> assertSame(
+                        io.github.pho001.synaptik.config.compile.NumericalProfile.ACCELERATOR,
+                        acceleratorBatch.workload().numericalProfile()),
+                () -> assertEquals(projected, acceleratorBatch.workload()),
+                () -> assertEquals(strictBatch.candidates().stream()
+                                .map(CpuOpenBlasTuningBatch.Candidate::route).toList(),
+                        acceleratorBatch.candidates().stream()
+                                .map(CpuOpenBlasTuningBatch.Candidate::route).toList()),
+                () -> assertNotEquals(strictBatch.candidates(), acceleratorBatch.candidates()),
+                () -> assertEquals(strict.route(), accelerator.route()),
+                () -> assertEquals(strict.openBlasPlan().orElseThrow().representation(),
+                        accelerator.openBlasPlan().orElseThrow().representation()),
+                () -> assertEquals(strict.openBlasPlan().orElseThrow().threadCount(),
+                        accelerator.openBlasPlan().orElseThrow().threadCount()),
+                () -> assertEquals(strict.openBlasPlan().orElseThrow().openBlasCost(),
+                        accelerator.openBlasPlan().orElseThrow().openBlasCost()),
+                () -> assertNotEquals(strictBatch.workload(), acceleratorBatch.workload()));
+    }
+
     @Test void emitsPortableThenEveryRepresentationAndFittingThreadInStableOrder() {
         var config = config(CpuOpenBlasRouteSelectorTest.qualification(), List.of(
                 CpuOpenBlasRouteSelectorTest.candidate(2, 2),

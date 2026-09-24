@@ -156,6 +156,45 @@ final class CpuOpenBlasRouteConformanceTest {
         }
     }
 
+    @Test void acceleratorProfileExecutesTheSameQualifiedOpenBlasRouteAndResult() {
+        var strictContext = context(DataType.FLOAT32);
+        var acceleratorContext = new PrepareContext<>(
+                io.github.pho001.synaptik.config.compile.NumericalProfile.ACCELERATOR,
+                strictContext.partitionDag(), strictContext.values(),
+                strictContext.memoryRequirements(), strictContext.constants(),
+                strictContext.backendInputs());
+        BackendPartitionAnalysis<CpuPartitionPreparationPlan> strict =
+                new CpuPartitionPreparer().analyze(strictContext);
+        BackendPartitionAnalysis<CpuPartitionPreparationPlan> accelerator =
+                new CpuPartitionPreparer().analyze(acceleratorContext);
+        assertAll(
+                () -> assertEquals(CpuPartitionPreparationPlan.Route.OPENBLAS,
+                        accelerator.plan().route()),
+                () -> assertEquals(strict.plan().openBlasPlan(),
+                        accelerator.plan().openBlasPlan()),
+                () -> assertEquals(strict.plan().executionStrategy(),
+                        accelerator.plan().executionStrategy()),
+                () -> assertNotEquals(
+                        strict.plan().openBlasTuningBatch().orElseThrow().workload(),
+                        accelerator.plan().openBlasTuningBatch().orElseThrow().workload()));
+        var fake = new ComputingInvocation(DataType.FLOAT32);
+        PreparedExecutable executable = finalize(accelerator, fake);
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment left = arena.allocate(6L * Float.BYTES, Float.BYTES);
+            MemorySegment right = arena.allocate(6L * Float.BYTES, Float.BYTES);
+            MemorySegment output = arena.allocate(4L * Float.BYTES, Float.BYTES);
+            put(DataType.FLOAT32, left, new double[] {1, 2, 3, 4, 5, 6});
+            put(DataType.FLOAT32, right, new double[] {7, 8, 9, 10, 11, 12});
+            try (RunState state = state(executable.memoryPlan(), DataType.FLOAT32,
+                    left, right, output)) {
+                executable.bind(state).execute();
+            }
+            assertArrayEquals(new double[] {58, 64, 139, 154},
+                    get(DataType.FLOAT32, output));
+        }
+        assertEquals(1, fake.calls);
+    }
+
     @Test void executesOneCopyBeforeTheSameTypedNativeCallForBothFloatTypes() {
         for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
             BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis =

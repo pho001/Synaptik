@@ -106,6 +106,24 @@ final class CpuCompletePlanTuningPublicTest {
                     () -> assertTrue(candidates.size() >= 2),
                     () -> assertEquals(CpuCompletePlanTuning.ReuseScope.SESSION,
                             tuning.compatibility(batch).reuseScope()));
+            CompileArtifacts acceleratorArtifacts = withProfile(
+                    artifacts,
+                    io.github.pho001.synaptik.config.compile.NumericalProfile.ACCELERATOR);
+            var acceleratorBatch = tuning.candidateHandoff(
+                    context(integration, acceleratorArtifacts), Optional.empty())
+                    .orElseThrow().candidateBatch();
+            assertAll(
+                    () -> assertEquals(2, java.nio.ByteBuffer.wrap(
+                            tuning.compatibility(batch).bytes()).getInt()),
+                    () -> assertEquals(2, java.nio.ByteBuffer.wrap(
+                            tuning.compatibility(acceleratorBatch).bytes()).getInt()),
+                    () -> assertNotEquals(tuning.compatibility(batch),
+                            tuning.compatibility(acceleratorBatch)),
+                    () -> assertEquals(tuning.compatibility(acceleratorBatch),
+                            tuning.compatibility(tuning.candidateHandoff(
+                                    context(integration, acceleratorArtifacts), Optional.empty())
+                                    .orElseThrow().candidateBatch())));
+
 
             byte[] compatibility = tuning.compatibility(batch).bytes();
             compatibility[0] ^= 1;
@@ -143,6 +161,13 @@ final class CpuCompletePlanTuningPublicTest {
                     () -> tuning.selectedDecision(otherBatch, candidates.getFirst()));
             assertThrows(IllegalArgumentException.class,
                     () -> tuning.selectedPreparation(otherBatch, decision));
+            assertTrue(tuning.decodeCompatibleDecision(
+                    acceleratorBatch, encoded).isEmpty());
+            var acceleratorDecision = tuning.selectedDecision(
+                    acceleratorBatch, tuning.candidates(acceleratorBatch).getFirst());
+            assertTrue(tuning.decodeCompatibleDecision(
+                    batch, tuning.encodeDecision(acceleratorDecision)).isEmpty());
+
         }
     }
 
@@ -235,6 +260,13 @@ final class CpuCompletePlanTuningPublicTest {
         var derivativeOrders = new LinkedHashMap<NodeId, Integer>();
         nodes.forEach(node -> derivativeOrders.put(node.id(), 0));
         return new CompileArtifacts(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, graph, partitions, LogicalMemoryPlanning.plan(graph, partitions), publication, constants, diagnostics, new DerivativeGraphMetadata(graph, derivativeOrders));
+    }
+
+    private static CompileArtifacts withProfile(CompileArtifacts source,
+            io.github.pho001.synaptik.config.compile.NumericalProfile profile) {
+        return new CompileArtifacts(source.mode(), profile, source.graph(), source.partitions(),
+                source.memory(), source.publication(), source.constants(), source.diagnostics(),
+                source.derivatives());
     }
 
     private static <T> T construct(Class<T> type, Class<?>[] parameterTypes,

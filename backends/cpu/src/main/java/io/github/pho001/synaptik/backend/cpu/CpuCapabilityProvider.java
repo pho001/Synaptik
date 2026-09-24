@@ -86,8 +86,9 @@ import java.util.Objects;
 import java.util.Arrays;
 
 /**
- * <p>Only {@link NumericalProfile#STRICT_IEEE} queries are currently supported. Accelerator
- * queries fail closed before occurrence validation and authorize no relaxed route.</p>
+ * <p>{@link NumericalProfile#STRICT_IEEE} and {@link NumericalProfile#ACCELERATOR} share one
+ * exact occurrence predicate. Accelerator selection grants no relaxed operation, type, shape,
+ * layout, attribute, gradient, or route support.</p>
  * Reports the executable semantic coverage currently delivered by the CPU backend.
  *
  * <p>The provider has a stable CPU ownership identity and advertises the bounded, fully static
@@ -282,9 +283,6 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     @Override
     public boolean supports(OperationCapabilityQuery query) {
         Objects.requireNonNull(query, "query");
-        if (query.numericalProfile() == NumericalProfile.ACCELERATOR) {
-            return false;
-        }
         Object requestedKind = query.operation().kind();
         int expectedOutputs = requestedKind == TopKKind.TOP_K ? 2
                 : requestedKind == DropoutKind.DROPOUT ? 3

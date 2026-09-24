@@ -3947,7 +3947,13 @@ See the [CPU master plan](../planning/backends/cpu/master-plan.md), [kernel rout
 
 ## Numerical profiles
 
-CPU preparation requires `STRICT_IEEE` and rejects `ACCELERATOR` before route analysis. The profile
-is included in partition plans, generated-kernel specialization and artifact identity, OpenBLAS
-workload identity, and local and complete-plan tuning compatibility. This prevents reuse across
-profiles without claiming a relaxed CPU realization.
+CPU capability and preparation admit both `STRICT_IEEE` and `ACCELERATOR` through the identical
+current operation matrix, portable/generated routes, exact arithmetic, OpenBLAS qualification,
+fusion, decomposition, materialization, thresholds, worker policy, vector species, constants, and
+fallbacks. `ACCELERATOR` grants no CPU fast math, reassociation, reduced precision, approximate
+instruction, denormals-are-zero (DAZ), or flush-to-zero (FTZ) behavior.
+
+The requested profile is retained unchanged in partition plans, generated-kernel specialization
+and artifact identity, OpenBLAS workload identity, and local and complete-plan tuning
+compatibility. This cold identity separation prevents cross-profile reuse; Runtime, session state,
+Trace, generated entry signatures, and hot loops remain profile-free.

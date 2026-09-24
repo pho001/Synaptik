@@ -1,7 +1,6 @@
 package io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas;
 
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
-import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan;
@@ -125,8 +124,6 @@ public final class CpuOpenBlasRouteSelector {
         if (!ir.epilogue().equals(CpuMatmulIr.Epilogue.none()) || ir.leftType() != type
                 || ir.rightType() != type
                 || type != DataType.FLOAT32 && type != DataType.FLOAT64
-                || unit.portablePlan().specialization().numericalProfile()
-                    != NumericalProfile.STRICT_IEEE
                 || geometry.batchExtents().length != 0 || geometry.batchCount() != 1
                 || geometry.removedM() || geometry.removedN() || geometry.m() <= 0
                 || geometry.n() <= 0 || geometry.k() <= 0 || geometry.m() > Integer.MAX_VALUE
