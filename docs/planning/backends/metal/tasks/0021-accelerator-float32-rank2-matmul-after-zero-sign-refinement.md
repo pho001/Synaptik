@@ -2,13 +2,18 @@
 
 ## Status
 
-Draft
+Ready
 
-This task cannot become Ready until Model 0029 is Complete with its proof, validation, synchronized
-documentation, and independent Class C approval. Historical Metal 0018 remains Blocked under its
-unchanged contract after the mandatory probe stopped before production edits. Promotion must set a
-clean post-Model-0029 base and reverify every dependency, conflict, owner path, and oracle control.
-No part of the Metal 0018 probe or its partial result may satisfy this task's full fresh oracle.
+Readiness verification: Model 0029 is Complete at
+`308267837a17c2fdbeb8b90ad381d1f899980786`; its 1,823-case/168,461-tree/
+1,895,389-plan/3,232-root proof, 23-task validation, synchronized documentation, and independent
+Class C `APPROVE` with zero findings passed. Metal 0020, Model 0027, Config 0006, and Engine 0018
+remain Complete. Current Metal is ABI v4 with exactly thirteen exports, fixed node schema 7, and
+version-eight workload/exact-policy/candidate/compatibility/route/codec identities. Historical
+Metal 0018 remains Blocked without active write scope; Metal 0016 has no restart. Conflicts and the
+named owner paths remain current. This is the sole Ready frontier from clean base
+`308267837a17c2fdbeb8b90ad381d1f899980786` plus this planning-only authorization. No Metal 0018
+probe artifact, partial cell, or result may satisfy this task's completely fresh full oracle.
 
 ## Change class
 
@@ -18,12 +23,12 @@ native boundary. A full fresh real-device oracle and independent final review ar
 
 ## Goal
 
-After Model 0029 completes, add only positive, static, same-type `FLOAT32` rank-two `MATMUL` under
+Add only positive, static, same-type `FLOAT32` rank-two `MATMUL` under
 `NumericalProfile.ACCELERATOR`, including exact local rank-two transpose composition and
 Compiler-generated explicitly seeded first-order gradients for both operands. Admit only the
 refined Model set: existing DAZ/FTZ, reassociation, and corresponding FMA choices plus final-
-publication either-zero-sign freedom for an exact-zero nonempty MATMUL result. Strict Metal MATMUL
-stays false.
+publication either-zero-sign freedom for an exact-zero complete nonempty MATMUL result. Strict
+Metal MATMUL stays false.
 
 ## Scope
 
@@ -34,13 +39,17 @@ stays false.
   malformed, or hidden-materialization view forms.
 - Support direct, left-, right-, and both-transposed forms, including visible no-bias
   `PERMUTE -> MATMUL` linear composition. Add no `LINEAR` operation or cross-node contraction.
-- Preserve ABI v4 and exactly thirteen exports. Evolve fixed node schema `7 -> 8`, append only
-  `MATMUL=15`, and advance workload/candidate/compatibility/route/codec identities `8 -> 9`.
+- Preserve ABI v4 and exactly thirteen exports. Evolve the fixed 160-byte node schema `7 -> 8`,
+  retain wires `1..14`, append only `MATMUL=15`, and advance workload-signature, exact-policy,
+  candidate, compatibility, route-policy, and codec identities `8 -> 9`.
 - Use the whole-partition MPSGraph route, exact shared-resource declaration, transactional reusable
   preparation, cold authenticated binding, and one synchronous hot submission with no fallback,
   retry, copy, packing, host GEMM, or late route choice.
-- Prove direct and linear forward plus explicitly seeded gradients `seed @ transpose(right)` and
-  `transpose(left) @ seed` through the real CPU-free Engine and real dylib.
+- Through the real CPU-free Engine and real dylib, prove direct non-square forward, no-bias
+  `linear` with its visible right transpose, and
+  `engine.compile(List.of(output), List.of(seed), List.of(left, right))` with a caller-supplied
+  canonical `[M,N]` cotangent seed. Inspect and execute exactly `seed @ transpose(right)` and
+  `transpose(left) @ seed`, with only local rank-two `PERMUTE [1,0]` and MATMUL nodes.
 
 ## Numerical contract and full fresh oracle
 
@@ -60,19 +69,23 @@ executables and 3,072 runs after the smoke and report exact totals. Start from t
 resume after Metal 0018's first failed full cell.
 
 The independent oracle must enumerate each declared `k` product exactly once, every permitted
-binary tree, FLOAT32 rounding, every corresponding legal fused placement, row-scoped DAZ, optional
-FTZ of finite subnormal arithmetic results, and Model 0029's final-publication rule. Product and
-intermediate exact-zero signs remain fixed by the selected evaluation. Only a complete nonempty
-MATMUL result that is exact zero may publish either sign. No implicit accumulator identity exists,
-including for `K=1`. Cover the prior `+0.0f * -1.0f` case explicitly and prove its underlying
-product is negative zero even though either final sign is accepted.
+binary reassociation tree, FLOAT32 rounding, every corresponding legal unfused/FMA placement,
+row-scoped DAZ, optional FTZ of finite subnormal arithmetic results, and the completed Model
+final-publication rule. Product and intermediate exact-zero signs remain fixed by the selected
+evaluation; DAZ/FTZ and each legal FMA/reassociation choice must be modeled explicitly, never
+inferred through a tolerance. Only after the complete nonempty otherwise-permitted arithmetic
+result is exact zero may publication choose either sign. No implicit accumulator identity exists,
+including for `K=1`. Cover the prior `+0.0f * -1.0f` witness explicitly: the oracle must retain its
+negative-zero product and admit positive zero only at publication, never as a product or
+intermediate result.
 
 Cover signed zeros, minimum/ordinary/maximum subnormals, minimum normals and neighbors, ordinary
 and maximum finite values, overflow, infinities, signed quiet/signaling NaNs, multiplication by
 one, cancellation, and tree-sensitive permutations. Mantissa and per-term sentinels must reject
 reduced precision or any omitted/duplicated term. Require raw-bit membership for finite exact sets
-and only current Model classification freedom for NaN. Any control, binding, Shape, transpose,
-full-term, precision, nonzero/classification, or oracle failure blocks without production edits.
+and only current Model representation freedom within an unchanged NaN classification. Any
+reduced-precision-none, DAZ/FTZ, FMA/reassociation, control, binding, Shape, transpose, full-term,
+precision, nonzero/classification, or oracle failure blocks without production edits.
 
 ## Non-goals
 
@@ -102,7 +115,8 @@ stop and report the conflict.
 - Conflicts with: any Metal 0016 restart and every Metal capability/preparation/native schema/
   candidate/codec/materialization/public Engine scope
 - Parallel group: None
-- Common base revision: N/A; set to the clean integrated Model 0029 revision before promotion
+- Common base revision: `308267837a17c2fdbeb8b90ad381d1f899980786` plus this planning-only
+  authorization
 - Integration order: Serial after Model 0029; full fresh oracle before production edits; then
   schema/identity, capability/topology, lifecycle, Engine proof, documentation, independent review
 - Integration validation: refined accelerator full-contraction rank-two MATMUL Class C checkpoint
@@ -123,8 +137,9 @@ stop and report the conflict.
 
 ## Acceptance criteria
 
-1. The full fresh oracle passes every numerical/control/topology cell before edits, reports totals,
-   proves the prior K=1 case only through Model 0029 final-publication freedom, and is removed.
+1. A completely fresh full real-M3 oracle starts from the beginning, passes every numerical/
+   control/topology cell before edits, reports exact totals, proves the prior K=1 witness only
+   through final-publication freedom, and is removed.
 2. Strict stays false; accelerator admits exactly positive static same-type FLOAT32 rank-two MATMUL
    with authenticated local transpose inputs; all excluded forms fail closed.
 3. Every output uses every term exactly once and belongs to the refined Model set; products and

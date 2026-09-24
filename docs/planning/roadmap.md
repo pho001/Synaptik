@@ -31,7 +31,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 
 | Order | Project area | Current status | Entry or next gate |
 |---:|---|---|---|
-| 1 | [`modules/model`](modules/model/master-plan.md) | Complete through reviewed 0028; 0029 Ready; 0026 Draft | [Model 0029](modules/model/tasks/0029-accelerator-matmul-exact-zero-sign-freedom.md) is the sole Ready frontier for the narrow MATMUL final-publication exact-zero sign decision; 0026 remains an independent FLOAT16 Draft. |
+| 1 | [`modules/model`](modules/model/master-plan.md) | Complete through reviewed 0029; 0026 Draft | Model 0029 completed at `30826783` after proof, validation, synchronized documentation, and independent Class C approval; no Model task is Ready. |
 | 2 | [`modules/trace`](modules/trace/master-plan.md) | In progress, deliberately interleaved; 0001–0002 Complete, 0003–0008 Draft | Resume 0003 only after its producer vocabulary is stable; no Trace task is Ready. |
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete through 0004 | Reopen only for a concrete shared-contract need. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress, interleaved; 0001–0003, 0006, and 0006A–0006B Complete; 0004–0005 and 0007–0008 Draft | 0006 completed at `314e049` plus `37e9e9db`; no Config task is Ready. |
@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0020; 0006–0007, 0009–0013, and 0016–0018 Blocked; 0021 Draft | [Metal 0018](backends/metal/tasks/0018-accelerator-float32-rank2-matmul-seeded-gradient-checkpoint.md) stopped at its mandatory fresh oracle before production edits and remains Blocked under its unchanged contract. [Metal 0021](backends/metal/tasks/0021-accelerator-float32-rank2-matmul-after-zero-sign-refinement.md) is Draft behind Model 0029; no Metal task is Ready. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0020; 0006–0007, 0009–0013, and 0016–0018 Blocked; 0021 Ready | [Metal 0018](backends/metal/tasks/0018-accelerator-float32-rank2-matmul-seeded-gradient-checkpoint.md) remains Blocked under its unchanged historical contract. Reverified [Metal 0021](backends/metal/tasks/0021-accelerator-float32-rank2-matmul-after-zero-sign-refinement.md) is the sole Ready frontier and must start a completely fresh full real-M3 oracle from clean base `30826783`. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -89,7 +89,7 @@ The active semantic and Metal serial DAG is:
 
 `Model 0028 (Complete) -> Metal 0020 (Complete) -> Metal 0018 (Blocked)`
 
-`Metal 0018 blocker evidence -> Model 0029 (Ready) -> Metal 0021 (Draft)`
+`Metal 0018 blocker evidence -> Model 0029 (Complete) -> Metal 0021 (Ready)`
 
 [Metal 0016](backends/metal/tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) is Blocked
 without production changes. Its Apple M3 Max gate proved exact `ABS`, but `EXP` and `SIGMOID`
@@ -115,12 +115,14 @@ remediation `5b77c742` after its full fresh corrected gate, validation, and inde
 `APPROVE` with zero findings.
 
 [Metal 0018](backends/metal/tasks/0018-accelerator-float32-rank2-matmul-seeded-gradient-checkpoint.md)
-is Blocked under its unchanged contract. Its fresh real-M3 smoke passed, then the first full direct
-context-zero/optimization-zero `K=1` cell returned positive zero for `+0.0f * -1.0f`, outside the
-current set containing only negative zero. Reduced-precision-fast-math-none set/read, selector,
-direct target, and controls were valid; the probe was removed and no production change exists.
-[Model 0029](modules/model/tasks/0029-accelerator-matmul-exact-zero-sign-freedom.md) is the sole
-Ready frontier. Model 0026 and Metal 0021 remain Draft.
+is Blocked under its unchanged historical contract. Its fresh real-M3 smoke passed, then the first
+full direct context-zero/optimization-zero `K=1` cell returned positive zero for
+`+0.0f * -1.0f`, outside that task's set containing only negative zero. Reduced-precision-none,
+selector, direct-target, binding, and probe controls were valid; the probe was removed and no
+production change exists.
+[Model 0029](modules/model/tasks/0029-accelerator-matmul-exact-zero-sign-freedom.md) is Complete at
+`30826783` after its proof, 23-task validation, documentation/diff scope check, and independent
+Class C `APPROVE` with zero findings. Reverified Metal 0021 is the sole Ready frontier.
 
 Engine
 [0017](modules/engine/tasks/0017-reusable-inference-session-api.md) is Complete from exact base
@@ -204,14 +206,15 @@ materialization remains local-only, and Runtime/Trace remain profile-free.
 
 Strategic gate: historical blocker evidence is preserved, and no backend task may define Model
 semantics. Complete Model 0028 owns bounded reduction exact-zero sign freedom; Complete Metal 0020
-implements that rule under accelerator only. Blocked Metal 0018 retains its unchanged MATMUL
-contract and no production changes. Ready Model 0029 owns the separate narrow decision: split the
-shared contraction row and permit either sign only when a complete nonempty FLOAT32 ACCELERATOR
-MATMUL result is exact zero, while strict, convolution, products/intermediates, empty contraction,
-all terms, nonzero values, classifications, DAZ/FTZ, FMA/reassociation, reduced-precision, and
-tolerance rules stay unchanged. Draft Metal 0021 must run a complete fresh oracle from the
-beginning after 0029 completes. No task may infer generic fast math, relax unary semantics, or
-authorize gross special-value errors.
+implements that rule under accelerator only. Blocked Metal 0018 retains its unchanged historical
+MATMUL contract and no production changes. Complete Model 0029 split the shared contraction row
+and permits either sign only at publication when a complete nonempty FLOAT32 ACCELERATOR MATMUL
+result is exact zero after an otherwise-permitted evaluation. Strict, convolution, products/
+intermediates, empty contraction, all terms, nonzero values, classifications, DAZ/FTZ,
+FMA/reassociation, reduced precision, identity, and tolerance rules stay unchanged. Ready Metal
+0021 must run a completely fresh full real-M3 oracle from the beginning before production edits.
+No task may infer generic fast math, relax unary semantics, or authorize gross special-value
+errors.
 
 ## Blocked, review-needed, and deferred work
 
@@ -231,12 +234,13 @@ authorize gross special-value errors.
 - Metal 0009 is independently `Blocked` by exact subnormal flushing in `K=1` MATMUL. Unblocking
   requires an exact replacement route or an explicit Model numerical-contract change; signed-zero
   behavior does not block it.
-- Metal 0018 is `Blocked` under its unchanged full-contraction contract. Its mandatory fresh M3
-  smoke passed, but the first full direct `K=1` cell produced `+0` for `+0.0f * -1.0f`, where only
-  `-0` is currently permitted. The exact reduced-precision-none control and probe controls passed;
-  the probe was removed and no production edit exists. Model 0029 owns the semantic decision.
-  Draft Metal 0021, not 0018, is the possible implementation successor and requires a full fresh
-  oracle after Model 0029 completes.
+- Metal 0018 is `Blocked` under its unchanged historical full-contraction contract. Its mandatory
+  fresh M3 smoke passed, but the first full direct `K=1` cell produced `+0` for
+  `+0.0f * -1.0f`, where that task permitted only `-0`. The exact reduced-precision-none and probe
+  controls passed; the probe was removed and no production edit exists. Model 0029 completed the
+  separate final-publication semantic decision at `30826783`; the product remains `-0`, and only
+  publication may choose `+0`. Ready Metal 0021, not 0018, is the implementation successor and
+  requires a completely fresh full oracle from the beginning.
 - Metal 0010 is independently `Blocked` by exact subnormal comparison collapse. Unblocking requires
   an exact replacement route or an explicit Model numerical-contract change; canonical BOOL and
   ordinary/special-value controls do not remove the blocker.
@@ -265,9 +269,10 @@ authorize gross special-value errors.
   compute, configured/available parallelism `1`/`1`, minimum elements per worker `1`, no worker
   group, and all existing fallbacks/thresholds. The report-only protocol is hardened; a future
   comparison still requires a separately reviewed, fully sealed matrix before measurement.
-- Model 0026 remains an independent FLOAT16 Draft. Model 0027/0028, Config 0006, Engine 0018, CPU
-  0017, and Metal 0015/0019/0020 are Complete. Metal 0016–0018 are Blocked. Detailed Model 0029 is
-  the sole Ready frontier; Metal 0021 is Draft and every other blocked family remains unauthorized.
+- Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
+  0017, and Metal 0015/0019/0020 are Complete. Metal 0016–0018 remain Blocked under their unchanged
+  historical contracts. Detailed Metal 0021 is the sole Ready frontier; every other unfinished or
+  blocked family remains unauthorized.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -282,15 +287,17 @@ authorize gross special-value errors.
 ## Nearest next step
 
 Execute
-[Model 0029](modules/model/tasks/0029-accelerator-matmul-exact-zero-sign-freedom.md), the sole
-Ready frontier, from clean base `0625a187`. Prove and specify only final-publication either-zero-
-sign freedom for a complete nonempty exact-zero FLOAT32 ACCELERATOR MATMUL result. Split MATMUL
-from the shared convolution row; keep strict, CONV2D/CONV3D, every product and intermediate,
-empty-contraction positive zero, all terms, nonzero results, classifications, DAZ/FTZ,
-reassociation/FMA placement, reduced-precision, identity, and tolerance rules unchanged. Complete
-the authoritative contract, ADR, Javadocs, focused explanatory documentation, disposable proof,
-validation, and independent Class C review. Do not launch Draft Metal 0021, independent Draft
-Model 0026, or any blocked task.
+[Metal 0021](backends/metal/tasks/0021-accelerator-float32-rank2-matmul-after-zero-sign-refinement.md),
+the sole Ready frontier, from clean base `30826783`. Before any production, schema, or capability
+edit, run a completely fresh full real-M3 oracle from the beginning; no Metal 0018 partial result
+counts. Prove direct, left-, right-, and both-transposed forms and explicitly seeded gradients for
+both operands. Enumerate all terms exactly once, every permitted reassociation and corresponding
+FMA placement, FLOAT32 rounding, row-scoped DAZ, optional FTZ, and reduced-precision-none controls.
+The prior K=1 witness is admissible only at final publication: its product remains negative zero,
+with positive zero allowed only for the complete nonempty exact-zero MATMUL result. Preserve strict
+false, ABI v4/thirteen exports, current schema-7/version-eight base, all nonzero/classification
+rules, and fail closed on any oracle or control failure. Do not reopen Metal 0018, launch Model
+0026, or change any unrelated status.
 
 ## History policy
 

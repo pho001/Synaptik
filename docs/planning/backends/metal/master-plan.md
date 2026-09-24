@@ -58,15 +58,15 @@ Training-to-Metal optimizer bridge.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
   requirements. Metal 0017 remains Blocked under its old accelerator-reduction contract.
-- Metal 0018 is Blocked under its unchanged MATMUL contract. Its mandatory fresh real-M3 smoke
-  passed, but the first full direct `K=1` cell produced positive zero for `+0.0f * -1.0f`, while
-  only negative zero is currently permitted. Controls passed, the probe was removed, and no
-  production change exists.
-- Model 0029 is the sole Ready frontier for the narrow backend-neutral MATMUL final-publication
-  semantic decision. Metal 0021 is its Draft successor and requires a full fresh oracle from the
-  beginning after Model 0029 completes; no Metal task is Ready.
+- Metal 0018 is Blocked under its unchanged historical MATMUL contract. Its mandatory fresh
+  real-M3 smoke passed, but the first full direct `K=1` cell produced positive zero for
+  `+0.0f * -1.0f`, while that task's permitted set contained only negative zero. Controls passed,
+  the probe was removed, and no production change exists.
+- Model 0029 is Complete at `30826783` after its proof, 23-task validation, documentation/diff
+  scope check, and independent Class C approval passed. Reverified Metal 0021 is the sole Ready
+  frontier and requires a completely fresh full real-M3 oracle from the beginning.
 - Later Metal 0028 and 0029 remain reserved for separately authorized FLOAT16 and BFLOAT16 scopes.
-- Model 0027/0028, Config 0006, Engine 0018, CPU 0017, and Metal 0015/0019/0020 are Complete.
+- Model 0027–0029, Config 0006, Engine 0018, CPU 0017, and Metal 0015/0019/0020 are Complete.
   Model 0026 remains an independent FLOAT16 Draft.
 - Production dependencies may point to Model, Config, Planning, Runtime, Prepare,
   Backend Contract, and Trace, never Engine or Training. Task 0002's Compiler edge is test-only.
@@ -112,7 +112,7 @@ visibility.
 | 0018 | [ACCELERATOR FLOAT32 rank-two MATMUL seeded-gradient checkpoint](tasks/0018-accelerator-float32-rank2-matmul-seeded-gradient-checkpoint.md) | Blocked | 0020; Model 0027; Config 0006; Engine 0018; not 0009/0016/0017 | Any 0016 restart; every Metal capability/preparation/native schema/candidate/materialization/Engine Metal scope | None | Model decision or exact replacement gate only | Fresh real-M3 oracle; no production change | Smoke passed, then the first full direct context-zero/optimization-zero `K=1` cell returned `+0` for `+0.0f * -1.0f`, outside the unchanged set containing only `-0`; reduced-precision-none set/read and controls passed, probe removed, clean tree. |
 | 0019 | [Exact profile-qualified FLOAT32 ABS](tasks/0019-exact-profile-qualified-float32-abs.md) | Complete | 0015; Model 0027; Config 0006; Engine 0018; not 0016 | Any 0016 restart; 0017–0018/0020; every Metal capability/preparation/native schema/candidate/materialization/Engine Metal scope | None | Serial after 0015, before reduction/MATMUL successors | Exact both-profile Metal ABS checkpoint | Implementation `a6d1796d` plus remediation `bcb717a6`; ABI/export, Metal/conformance/Engine/architecture/full-build/docs passed and independent Class C final review approved with zero findings. |
 | 0020 | [ACCELERATOR FLOAT32 reductions after exact-zero sign refinement](tasks/0020-accelerator-float32-reductions-after-zero-sign-refinement.md) | Complete | Model 0028; 0019; Model 0027; Config 0006; Engine 0018 | 0018 and any 0016 restart; every Metal capability/preparation/native schema/candidate/materialization/Engine Metal scope | None | Serial after Model 0028, before 0018 | Full fresh corrected 301-executable/2,401-run oracle, native/export, Metal/conformance/Engine/architecture/full-build/docs and independent Class C review | Implementation `9ddb75f6` plus documentation remediation `5b77c742`; bounded accelerator reductions, schema 7, version-eight identities, local scalar materialization, validation, and independent `APPROVE` with zero findings are complete. |
-| 0021 | [ACCELERATOR FLOAT32 rank-two MATMUL after exact-zero sign refinement](tasks/0021-accelerator-float32-rank2-matmul-after-zero-sign-refinement.md) | Draft | Model 0029 after Complete; 0020; Model 0027; Config 0006; Engine 0018; not 0009/0016/0017/0018 | Any 0016 restart; every Metal capability/preparation/native schema/candidate/materialization/Engine Metal scope | None | Serial after Model 0029; full fresh oracle first | Refined full-contraction real-M3 oracle, then native/export, Metal/conformance/Compiler/real Engine/architecture/full-build/docs and independent Class C review | Re-run the complete fresh oracle from the beginning, then add only accelerator positive rank-two MATMUL and seeded gradients if every term, precision, classification, topology, and lifecycle gate passes under Model 0029. |
+| 0021 | [ACCELERATOR FLOAT32 rank-two MATMUL after exact-zero sign refinement](tasks/0021-accelerator-float32-rank2-matmul-after-zero-sign-refinement.md) | Ready | Model 0029 after Complete; 0020; Model 0027; Config 0006; Engine 0018; not 0009/0016/0017/0018 | Any 0016 restart; every Metal capability/preparation/native schema/candidate/materialization/Engine Metal scope | None | Serial after Model 0029; completely fresh full oracle first | Refined full-contraction real-M3 oracle, then native/export, Metal/conformance/Compiler/real Engine/architecture/full-build/docs and independent Class C review | From clean base `30826783`, rerun the complete fresh oracle from the beginning, then add only accelerator positive rank-two MATMUL and seeded gradients if every term, precision, classification, topology, and final-publication gate passes. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -130,7 +130,7 @@ Completed profile spine and serial successors:
 
 `Model 0028 (Complete) -> 0020 (Complete) -> 0018 (Blocked)`
 
-`0018 blocker evidence -> Model 0029 (Ready) -> 0021 (Draft)`
+`0018 blocker evidence -> Model 0029 (Complete) -> 0021 (Ready)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -140,11 +140,12 @@ successor. [0017](tasks/0017-accelerator-float32-sum-mean-sum-to-shape-reduction
 Blocked under its old exact-zero sign contract; Model 0028 and Metal 0020 are Complete.
 [0018](tasks/0018-accelerator-float32-rank2-matmul-seeded-gradient-checkpoint.md) remains Blocked
 under its unchanged contract after its fresh probe found the one-term zero-sign mismatch before
-production edits. Model 0029 is the sole Ready frontier. Detailed
-[0021](tasks/0021-accelerator-float32-rank2-matmul-after-zero-sign-refinement.md) is Draft and may
-be promoted only after Model 0029 completes and its clean base, dependencies, conflicts, owner
-paths, and full fresh oracle are reverified. These edges serialize shared semantic and Metal
-mutation; they do not claim that reductions are semantically required for MATMUL.
+production edits. Model 0029 is Complete at `30826783` after its bounded proof, validation, and
+independent Class C approval. Reverified
+[0021](tasks/0021-accelerator-float32-rank2-matmul-after-zero-sign-refinement.md) is the sole Ready
+frontier from that clean base plus this planning authorization. It must start its complete fresh
+real-M3 oracle from the beginning before production edits. These edges serialize shared semantic
+and Metal mutation; they do not claim that reductions are semantically required for MATMUL.
 
 ## Integration ownership and shared documents
 
@@ -152,9 +153,9 @@ mutation; they do not claim that reductions are semantically required for MATMUL
 - Shared documents: the active task owns synchronized planning, architecture-status, API/user
   status, capability/preparer guides, and glossary updates after executable behavior stabilizes.
 - No Metal 0016–0021 write scopes may overlap. Blocked 0016–0018 have no active write scope.
-  Complete Model 0028 owns the reduction semantic contract. Model 0029 exclusively owns the active
-  MATMUL semantic decision and shared profile documentation. Draft Metal 0021 owns no active write
-  scope and may not edit shared documents before promotion after Model 0029.
+  Complete Model 0028 owns the reduction semantic contract, and Complete Model 0029 owns the
+  MATMUL final-publication semantic contract. Ready Metal 0021 exclusively owns the active Metal
+  implementation and synchronized-document scope.
 
 ## Milestones and current frontier
 
@@ -168,10 +169,11 @@ and its ABI/export, 93 Metal, four conformance, nine real-dylib Engine, nine arc
 zero findings passed.
 
 Current ABI v4 retains exactly thirteen exports, points to node schema 7, and uses version-eight
-workload/candidate/compatibility/route/codec identities. Complete Model 0028 owns the root-only
-exact-zero reduction rule. Metal 0018 is Blocked without production changes. Model 0029 is the sole
-Ready frontier; Metal 0021 remains Draft and requires a full fresh real-M3 accelerator rank-two
-MATMUL oracle after the semantic task completes.
+workload/exact-policy/candidate/compatibility/route/codec identities. Complete Model 0028 owns the
+root-only exact-zero reduction rule. Complete Model 0029 owns the MATMUL-only final-publication
+exact-zero sign rule. Metal 0018 remains Blocked without production changes. Metal 0021 is the sole
+Ready frontier from clean base `30826783` and requires a completely fresh full real-M3 accelerator
+rank-two MATMUL oracle from the beginning before production edits.
 
 Metal 0006 remains `Blocked` after exact RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures.
 Metal 0007 remains independently `Blocked` after eight direct-output executions returned positive
@@ -240,15 +242,16 @@ full fresh corrected gate successfully, removed the disposable probe, implemente
 accelerator reduction domain at `9ddb75f6`, completed documentation remediation at `5b77c742`, and
 passed independent Class C review with zero findings.
 
-[0018](tasks/0018-accelerator-float32-rank2-matmul-seeded-gradient-checkpoint.md) is Blocked under
-its unchanged contract. Its fresh real-M3 non-square direct smoke passed, then its first full direct
-context-zero/optimization-zero `K=1` cell published `+0` for `+0.0f * -1.0f`, where only `-0` is
-permitted. Reduced-precision-fast-math-none set/read, selector, direct-target, and controls were
-valid; zero is not subnormal and K=1 has no reassociation/FMA alternative. The probe was removed
-and no production change remains. Ready Model 0029 owns the separate MATMUL-only final-publication
-decision. Draft Metal 0021 must rerun the complete fresh oracle from the beginning after 0029
-completes. Comparison, scalar, extrema, scan, every other unary operation, broader backward/
-training, and Model 0026 remain unauthorized.
+[0018](tasks/0018-accelerator-float32-rank2-matmul-seeded-gradient-checkpoint.md) remains Blocked
+under its unchanged contract. Its fresh real-M3 non-square direct smoke passed, then its first full
+direct context-zero/optimization-zero `K=1` cell published `+0` for `+0.0f * -1.0f`, where only
+`-0` was then permitted. Reduced-precision-fast-math-none set/read, selector, direct-target, and
+controls were valid; zero is not subnormal and K=1 has no reassociation/FMA alternative. The probe
+was removed and no production change remains. Model 0029 completed the separate MATMUL-only
+final-publication decision at `30826783`: the underlying product remains `-0`, and only publication
+may choose `+0`. Ready Metal 0021 must rerun the complete fresh oracle from the beginning.
+Comparison, scalar, extrema, scan, every other unary operation, broader backward/training, and
+Model 0026 remain unauthorized.
 
 ## Delivered lifecycle and ABI boundary
 

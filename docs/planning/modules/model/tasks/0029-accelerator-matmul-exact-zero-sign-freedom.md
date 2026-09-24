@@ -2,17 +2,15 @@
 
 ## Status
 
-Ready
+Complete
 
-Readiness verification: Model 0027 and 0028 are Complete with their required validation and
-independent Class C approvals. Metal 0018 stopped its mandatory fresh Apple M3 oracle before any
-production edit: the smoke passed, but the first full direct `K=1` cell produced positive zero for
-`+0.0f * -1.0f`, while the current permitted set contains only negative zero. The selector, direct
-target, controls, and `MPSGraphReducedPrecisionFastMathNone` set/read were valid; the disposable
-probe was removed and the tree is clean. Metal 0018 remains Blocked under its unchanged contract,
-so no backend implementation scope is active. Model 0026 remains an independent FLOAT16 Draft.
-This is the sole Ready frontier from clean base `0625a18727ac2cf59220cfa7db5de93e1cac2651`
-plus this planning-only authorization.
+Completion verification: task 0029 completed at `308267837a17c2fdbeb8b90ad381d1f899980786`
+from clean base `0625a18727ac2cf59220cfa7db5de93e1cac2651`. Its disposable proof covered
+1,823 cases, 168,461 ordered reassociation trees, 1,895,389 legal unfused/FMA plans, and
+3,232 baseline root states. The 23-task Model/Javadoc/architecture validation, Markdown and diff
+checks, and intended documentation/Javadoc-only scope passed. Independent Class C review
+reconstructed the proof and returned `APPROVE` with zero findings. Metal 0018 remains Blocked
+under its unchanged historical contract; Metal 0021 is the independently authorized successor.
 
 ## Change class
 
@@ -69,9 +67,9 @@ No Model evaluator or profile Java enum; no Config, Planning, Compiler, Prepare,
 Engine, CPU, Metal, native, schema, codec, capability, route, or cache implementation change. No
 per-product or intermediate zero-sign freedom, term loss/duplication/invention, implicit identity,
 tolerance, reduced precision, reciprocal substitution, algebraic rewrite, new FMA, or cross-node
-contraction. Do not change convolution, reduction, scan, extrema, comparison, unary, non-FLOAT32,
-or empty-contraction semantics. Do not reopen Metal 0018, promote Draft Metal 0021, or change Model
-0026.
+contraction. The implementation did not change convolution, reduction, scan, extrema, comparison,
+unary, non-FLOAT32, or empty-contraction semantics. It did not reopen Metal 0018, promote the
+then-Draft Metal 0021 successor, or change Model 0026.
 
 ## Contracts
 
@@ -156,9 +154,10 @@ Java changed or evidence became stale.
 
 ## Follow-up
 
-- After this task is Complete and independently approved, reverify Draft Metal 0021's clean base,
-  dependencies, conflicts, exact refined oracle, and full fresh real-M3 requirement before any
-  promotion. Historical Metal 0018 remains Blocked.
+- Metal 0021 has been reverified against the completed contract and promoted separately to the
+  sole Ready frontier from the clean integrated task-0029 revision. It must run a completely fresh
+  full real-M3 oracle from the beginning before any production edit. Historical Metal 0018 remains
+  Blocked.
 
 ## Documentation and review impact
 
@@ -170,4 +169,16 @@ terminology, links, glossary impact, and absence of backend implementation or ca
 
 ## Result
 
-Not started.
+Complete at `308267837a17c2fdbeb8b90ad381d1f899980786`. The normative profile table now separates
+MATMUL from convolution and permits either sign only at publication of a complete nonempty
+otherwise-permitted exact-zero FLOAT32 ACCELERATOR MATMUL result. Products, additions, FMA
+results, empty contraction, nonzero values, classifications, strict behavior, and convolution
+remain unchanged.
+
+The removed disposable proof reported 1,823 cases, 168,461 ordered reassociation trees,
+1,895,389 legal unfused/FMA evaluation plans, and 3,232 baseline root states. The 23-task
+Model/Javadoc/architecture validation and Markdown/diff scope checks passed. Independent Class C
+review reconstructed the proof and returned `APPROVE` with zero findings. No executable Java
+statement, test source, backend, native, schema, identity, configuration, or build file changed.
+
+Status: Complete

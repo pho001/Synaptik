@@ -233,9 +233,10 @@ only negative zero. The reduced-precision-fast-math-none set/read, selector, dir
 bindings, and controls were valid; the failure is neither subnormal handling nor a K=1
 reassociation/FMA choice. The disposable probe was removed, the tree is clean, and no production,
 test, native, schema, capability, identity, or documentation implementation change remains.
-Model 0029 owns the separate semantic decision; Draft Metal 0021 requires a full fresh oracle after
-that decision completes. This historical task remains Blocked and is not reopened.
+Model 0029 later completed the separate semantic decision at `30826783`. Reverified Metal 0021,
+not this task, is now the Ready implementation successor and requires a completely fresh full
+oracle from the beginning. This historical task remains Blocked and is not reopened.
 
 Status: Incomplete
-Follow-up required: complete Model 0029, then independently authorize Draft Metal 0021 under the
-refined contract and rerun the full fresh oracle from the beginning.
+Follow-up required: execute Ready Metal 0021 under the refined final-publication contract and its
+completely fresh full-oracle gate; do not reopen this historical task.
