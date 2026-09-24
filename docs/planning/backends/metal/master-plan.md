@@ -105,10 +105,10 @@ Cross-area profile branch:
 `0014 + Model 0027 -> Config 0006 -> Engine 0018 -> Metal 0015`
 
 0006–0007 and 0009–0013 remain independently `Blocked` under the current exact contracts. 0014 is
-Complete and supplies the profile-invariant affine baseline. Model 0027 is implemented and worker-
-validated but remains the sole Ready repository frontier pending independent Class C review.
-Metal 0015 remains Draft and gains no capability authorization before every named predecessor is
-Complete and a fresh bounded real-device probe passes.
+Complete and supplies the profile-invariant affine baseline. Model 0027 is Complete after
+independent validation and Class C approval; Config 0006 is the sole Ready repository frontier.
+Metal 0015 remains Draft and gains no capability authorization before Config 0006 and Engine 0018
+are Complete and a fresh bounded real-device probe passes.
 
 ## Integration ownership and shared documents
 
@@ -173,10 +173,10 @@ axis `6` correctly rejected, so axis is not a blocker. Independent review return
 `APPROVE-BLOCKER`; no production, native, test, or probe changes remain.
 
 Metal 0014 is Complete and no Metal task is Ready. Draft 0015 is the first planned backend
-realization of the accepted numerical-profile program, but it depends on Model 0027 becoming
-Complete after its pending independent Class C review, then dependent Config 0006 identity and
-dependent Engine 0018 propagation spine. Until those contracts are Complete, current strict
-capability remains unchanged and the historical numerical blockers stay Blocked.
+realization of the accepted numerical-profile program, but it remains behind completed Model
+0027, sole Ready Config 0006 identity, and Draft Engine 0018 propagation. Until Config and Engine
+complete their contracts, current strict capability remains unchanged and the historical numerical
+blockers stay Blocked.
 
 ## Delivered lifecycle and ABI boundary
 

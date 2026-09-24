@@ -31,18 +31,18 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 
 | Order | Project area | Current status | Entry or next gate |
 |---:|---|---|---|
-| 1 | [`modules/model`](modules/model/master-plan.md) | Implementation Complete through 0025L; 0025M–0025N Complete; 0026 Draft; 0027 Ready with implementation validated | [0027](modules/model/tasks/0027-explicit-numerical-profile-semantic-authority.md) remains the sole Ready frontier pending independent Class C review; 0026 remains an independent FLOAT16 Draft. |
+| 1 | [`modules/model`](modules/model/master-plan.md) | Complete through reviewed 0027; 0026 Draft | Model 0027 is Complete at implementation `ff86a302` after independent validation and Class C approval; 0026 remains an independent FLOAT16 Draft. |
 | 2 | [`modules/trace`](modules/trace/master-plan.md) | In progress, deliberately interleaved; 0001–0002 Complete, 0003–0008 Draft | Resume 0003 only after its producer vocabulary is stable; no Trace task is Ready. |
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete through 0004 | Reopen only for a concrete shared-contract need. |
-| 4 | [`modules/config`](modules/config/master-plan.md) | In progress, interleaved; 0001–0003 and 0006A–0006B Complete; 0004–0006 and 0007–0008 Draft | Numerical-profile identity 0006 remains Draft until reviewed Model 0027 is Complete; no Config task is Ready. |
+| 4 | [`modules/config`](modules/config/master-plan.md) | In progress, interleaved; 0001–0003 and 0006A–0006B Complete; 0006 Ready; 0004–0005 and 0007–0008 Draft | [0006](modules/config/tasks/0006-explicit-graph-numerical-profile-identity.md) is the sole Ready repository frontier and adds identity only. |
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | Complete through documentation-only 0007 | Reopen only for a concrete Planning capability or separately authorized status correction. |
 | 6 | [`modules/runtime`](modules/runtime/master-plan.md) | Complete through 0016 | No Runtime task is Ready. |
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Complete through documentation-only 0006B10; 0006C and 0007 Draft | No Compiler task is Ready. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Complete through documentation-only 0008 | Reopen only for a concrete Prepare capability or separately authorized status correction. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
-| 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through evidence-backed no-change 0010M; 0007A1D Review needed; 0010D1 and 0011 Blocked; 0017 profile realization Draft | No CPU task is Ready; 0017 remains Draft behind Model 0027 review, Config 0006, and Engine 0018. |
-| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0017; numerical-profile spine 0018 Draft | No Engine task is Ready; 0018 remains Draft behind reviewed Model 0027 and Config 0006. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0014; 0005 binary capability withdrawn; 0006–0007 and 0009–0013 Blocked; 0015 profile realization Draft | No Metal task is Ready; 0015 remains Draft behind Model 0027 review, Config 0006, and Engine 0018. |
+| 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through evidence-backed no-change 0010M; 0007A1D Review needed; 0010D1 and 0011 Blocked; 0017 profile realization Draft | No CPU task is Ready; 0017 remains Draft behind Config 0006 and Engine 0018. |
+| 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0017; numerical-profile spine 0018 Draft | No Engine task is Ready; 0018 remains Draft behind Config 0006. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0014; 0005 binary capability withdrawn; 0006–0007 and 0009–0013 Blocked; 0015 profile realization Draft | No Metal task is Ready; 0015 remains Draft behind Config 0006 and Engine 0018. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -59,21 +59,26 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 ## Authorized frontiers
 
 Numerical profiles
-[Model 0027](modules/model/tasks/0027-explicit-numerical-profile-semantic-authority.md) remains the
-sole Ready repository frontier from clean HEAD `987bbd709f1c95aa4b2444bde861f12136da231a`.
-Implementation and worker validation established root/foundational authority, ADR 0019, Model-
-owned bounded `STRICT_IEEE` and `ACCELERATOR` result sets, affected operation-family Javadocs, and
-gross-error exclusions. Independent Class C review is the remaining gate.
+[Config 0006](modules/config/tasks/0006-explicit-graph-numerical-profile-identity.md) is the sole
+Ready repository frontier. Its dependency, Model 0027, is Complete at implementation commit
+`ff86a302`: independent validation passed 1,114 Model tests and nine architecture tests with zero
+failures and zero skips, and mandatory independent Class C review returned `APPROVE` with zero
+findings.
 
-The coordinated Draft DAG is:
+Config 0006 adds exactly the public `io.github.pho001.synaptik.config.compile.NumericalProfile`
+enum with `STRICT_IEEE` and `ACCELERATOR` in that order, package/public documentation, and exact
+API-shape and identity-semantics tests. Config owns selector identity only: the task adds no
+default, numerical algorithm, semantic interpretation, backend awareness, capability query,
+compatibility schema, or Engine/Planning propagation.
 
-`Model 0027 -> Config 0006 -> Engine 0018 -> {CPU 0017, Metal 0015}`
+The remaining Draft DAG is:
 
-Metal 0015 also depends on completed Metal 0014. Config 0006 adds identity only; Engine 0018 owns
-the atomic Planning/Compiler/Prepare/Engine propagation spine; CPU 0017 and Metal 0015 own
-independent realization and cache/route identity. These Draft rows authorize no API or capability,
-have no detailed briefs, and may not start before their named predecessors complete. Model 0026
-remains an independent FLOAT16 Draft.
+`Config 0006 -> Engine 0018 -> {CPU 0017, Metal 0015}`
+
+Metal 0015 also depends on completed Metal 0014. Engine 0018 owns the atomic Planning/Compiler/
+Prepare/Engine propagation spine; CPU 0017 and Metal 0015 own independent realization and cache/
+route identity. These Draft rows authorize no API or capability and may not start before their
+named predecessors complete. Model 0026 remains an independent FLOAT16 Draft.
 
 Engine
 [0017](modules/engine/tasks/0017-reusable-inference-session-api.md) is Complete from exact base
@@ -157,11 +162,10 @@ transfer, blocked numerics, backward/training, FLOAT16, and BFLOAT16 excluded.
 
 Strategic gate: evidence across the withdrawn 0005 binary route, Metal 0006/0007, and 0009–0013
 shows a systemic mismatch between current exact Model FLOAT32 contracts and MPSGraph numerical
-behavior. The accepted Variant B program does not retroactively admit those results. Its sole
-Ready task, Model 0027, is implemented and worker-validated but pending independent Class C
-review; Config, propagation, CPU, and Metal work remain Draft. Existing strict capability stays
-fail-closed until the complete dependency chain and each new backend-specific conformance gate
-pass.
+behavior. The accepted Variant B semantic contract is Complete after Model 0027's independent
+validation and Class C approval. Config 0006 is the sole Ready task and adds identity only;
+propagation, CPU, and Metal work remain Draft. Existing strict capability stays fail-closed until
+the complete dependency chain and each new backend-specific conformance gate pass.
 
 ## Blocked, review-needed, and deferred work
 
@@ -200,9 +204,9 @@ pass.
   compute, configured/available parallelism `1`/`1`, minimum elements per worker `1`, no worker
   group, and all existing fallbacks/thresholds. The report-only protocol is hardened; a future
   comparison still requires a separately reviewed, fully sealed matrix before measurement.
-- Model 0026 remains an independent FLOAT16 Draft. Model 0027 is implemented and worker-validated
-  but remains the sole Ready frontier pending independent Class C review; dependent Config 0006,
-  Engine 0018, CPU 0017, and Metal 0015 remain Draft.
+- Model 0026 remains an independent FLOAT16 Draft. Model 0027 is Complete at implementation
+  `ff86a302` after independent validation and Class C approval. Config 0006 is the sole Ready
+  frontier; Engine 0018, CPU 0017, and Metal 0015 remain Draft.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -216,8 +220,10 @@ pass.
 
 ## Nearest next step
 
-1. Obtain the required independent Class C review of the validated Model 0027 implementation.
-   Promote no dependent numerical-profile task before Model 0027 is Complete.
+1. Implement and independently review
+   [Config 0006](modules/config/tasks/0006-explicit-graph-numerical-profile-identity.md) as the
+   exact two-constant identity-only public enum. Do not begin Engine/Planning propagation or
+   backend realization.
 
 ## History policy
 

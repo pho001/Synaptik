@@ -256,9 +256,8 @@ The table owns order and status; linked tasks own detailed evidence.
   invalid broad vector candidate was reverted and its reports removed.
 - 0007A1D is Review needed; 0010D1 and 0011 are Blocked; 0012–0017 are Draft.
 - Documentation-only 0010K and 0010L are Complete. No CPU task is `Ready` or `In progress`.
-  Numerical-profile task 0017 remains Draft and depends on Model 0027, whose implementation is
-  worker-validated but still Ready pending independent review, plus Draft Config 0006 and Engine
-  0018.
+  Numerical-profile task 0017 remains Draft behind completed Model 0027, Ready Config 0006, and
+  Draft Engine 0018.
 
 ## Live gates and decisions
 

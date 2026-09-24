@@ -37,8 +37,9 @@ promise persistence.
 - Numerical and determinism compatibility filter candidates before performance comparison.
   Hardware, availability, workload size, objectives, caches, and evidence never grant relaxed
   mathematics.
-- Exact/default behavior remains the only current permission. Draft 0006 follows Model 0027 and
-  will own only the two-value graph numerical-profile identity; it adds no semantic or route logic.
+- Exact/default behavior remains the only current permission. Ready 0006 follows completed Model
+  0027 and owns only the two-value graph numerical-profile identity; it adds no semantic or route
+  logic.
 - Config may depend on the JDK and explicitly justified declarative contracts. Its public backend
   identity/requirement surface uses `modules/backend-contract`; it has no concrete-backend or
   Runtime dependency.
@@ -66,7 +67,7 @@ The `tuning` package does not depend on `tools/tuning`.
 | 0003 | [Partition scoring configuration](tasks/0003-partition-scoring-configuration.md) | Complete | 0001–0002, planning 0001 | Added an optional `DeviceClass` preference for ranking already eligible owners without choosing one. |
 | 0004 | Planning cost-profile contract | Draft | 0001–0003, planning 0001–0003, stable backend-neutral cost classification | Define only immutable facts required by a concrete cost-bearing Planning consumer. |
 | 0005 | Compile configuration aggregate | Draft | 0001–0004 | Compose justified compile leaves without compiler orchestration or invented defaults. |
-| 0006 | Explicit graph numerical-profile identity | Draft | Model 0027 | Add only `STRICT_IEEE` and `ACCELERATOR` as immutable compile configuration vocabulary, with no semantic interpretation, default selection, support logic, or compatibility schema. |
+| 0006 | [Explicit graph numerical-profile identity](tasks/0006-explicit-graph-numerical-profile-identity.md) | Ready | Model 0027 | Add only public `STRICT_IEEE` and `ACCELERATOR` identity in `config.compile`, with exact API-shape tests and no semantic interpretation, default selection, support logic, or compatibility schema. |
 | 0006A | [Model-autotuning request configuration](tasks/0006a-model-autotuning-request-configuration.md) | Complete | 0001–0003; tools/tuning 0001; explicit staged ordering exception around Draft 0004–0006 | Added Phase-1 objective, budget, profile identity, fallback policy, and workload-cache path. |
 | 0006B | [Complete-plan autotuning request configuration](tasks/0006b-complete-plan-autotuning-request-configuration.md) | Complete | 0006A; tools/tuning 0002–0003; CPU 0010J; Engine 0008A; second staged ordering exception around Draft 0004–0006 | Added independent Phase-2 bounds and model-plan-cache path without changing Phase-1 meanings. |
 | 0007 | Run and publication configuration | Draft | 0005 | Define immutable invocation and publication options without execution state. |
@@ -76,15 +77,17 @@ The `tuning` package does not depend on `tools/tuning`.
 
 The ordered milestones are compile configuration, prepare/run configuration, then profiles and
 closure. The area is deliberately interleaved: 0001–0003 and the independently staged 0006A–0006B
-are `Complete`; 0004–0006 and 0007–0008 remain `Draft`. The two completed exceptions did not
-advance or reorder the Draft rows. No Config task is `Ready` or `In progress`.
+are `Complete`; 0004–0005 and 0007–0008 remain `Draft`. The two completed exceptions did not
+advance or reorder those Draft rows.
 
-Config 0004 waits for a concrete cost-bearing Planning consumer; 0005 follows 0004. Draft 0006
-depends on Model 0027, whose implementation and worker validation are complete but whose
-independent Class C review remains pending. Model 0027 is still the sole Ready frontier; Config
-0006 remains Draft, owns only selector identity when later authorized, and does not advance before
-Model 0027 becomes Complete. After 0006, Engine 0018 owns propagation. Config 0007 still follows
-0005, and 0008 closes the full ledger.
+Model 0027 is Complete at implementation commit `ff86a302` after independent validation passed
+1,114 Model tests and nine architecture tests with zero failures or skips and mandatory Class C
+review returned `APPROVE` with zero findings. Config 0006 is the sole Ready repository frontier.
+It adds only the public two-constant selector identity and package/public documentation; it adds
+no default, algorithm, backend awareness, capability query, compatibility schema, or lifecycle
+propagation. Config 0004 still waits for a concrete cost-bearing Planning consumer; 0005 follows
+0004. After 0006, Engine 0018 owns propagation. Config 0007 still follows 0005, and 0008 closes the
+full ledger.
 
 ## Live gates, risks, and open decisions
 

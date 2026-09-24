@@ -92,8 +92,8 @@ loss own no mode, session, or hidden mutable statistics.
 
 ## Task list
 
-The table is the ordered queue and status source. Evidence stays in linked briefs; Draft 0026 and
-the dependent numerical-profile tasks in other masters have no detailed brief.
+The table is the ordered queue and status source. Evidence stays in linked briefs. Draft 0026 has
+no detailed brief; dependent work remains in each owning master plan.
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
@@ -235,7 +235,7 @@ the dependent numerical-profile tasks in other masters have no detailed brief.
 | 0025M | [Tensor guide and API status reconciliation](tasks/0025m-tensor-guide-and-api-status-reconciliation.md) | Complete | Current Tensor/host-storage source and Engine/public API; user-authorized drift remediation | Reconciled the Tensor guide and Tensor API opening with current Model and bounded CPU Engine behavior. |
 | 0025N | [Recurrent Engine status reconciliation](tasks/0025n-recurrent-engine-status-reconciliation.md) | Complete | 0025E–0025F; Compiler 0006A; current Engine lifecycle | Corrected the stale Engine status wording while preserving future recurrent execution and exception translation. |
 | 0026 | IEEE FLOAT16 and mixed-precision semantic contracts | Draft | 0001, 0018N, completed operation-family semantics; required before any backend advertises FLOAT16 | Preserve BFLOAT16, add distinct true IEEE-754 binary16 `FLOAT16`, and audit affected families for explicit input, accumulation/intermediate, and output types without adding backend support. |
-| 0027 | [Explicit numerical-profile semantic authority](tasks/0027-explicit-numerical-profile-semantic-authority.md) | Ready | Completed operation-family semantics through 0025L; Metal 0014 and retained numerical blocker evidence; accepted Variant B | Implementation and worker validation complete; independent Class C review pending. Establishes root/foundational authority, ADR 0019, bounded Model-owned result sets, affected Javadocs, and gross-error exclusions without configuration or backend capability. |
+| 0027 | [Explicit numerical-profile semantic authority](tasks/0027-explicit-numerical-profile-semantic-authority.md) | Complete | Completed operation-family semantics through 0025L; Metal 0014 and retained numerical blocker evidence; accepted Variant B | Established root/foundational authority, ADR 0019, bounded Model-owned result sets, affected Javadocs, and gross-error exclusions; implementation `ff86a302`, independent validation, and Class C review passed with zero failures, skips, or findings. |
 
 ## Milestones and current frontier
 
@@ -250,19 +250,22 @@ the dependent numerical-profile tasks in other masters have no detailed brief.
   rank-specific spatial coverage; 0025L closed CAST semantics for the six current types.
 - Selected Model implementation scope is `Complete` through 0025L. Documentation-only tasks 0025M
   and 0025N are `Complete`.
-- Task 0027 is implemented and worker-validated but remains the sole Ready repository frontier
-  pending independent Class C review. No Config identity, propagation spine, or backend realization
-  may begin.
+- Task 0027 is `Complete` at implementation commit `ff86a302` after independent validation passed
+  1,114 Model tests and nine architecture tests with zero failures or skips and Class C review
+  returned `APPROVE` with zero findings. Config 0006 is the sole Ready repository frontier; no
+  propagation spine or backend realization may begin.
 - Task 0026 remains an independent `Draft` with no detailed brief and no dependency relationship
   to 0027. It is selected only when IEEE-754 binary16 `FLOAT16` and mixed-precision semantics
   become current.
 
 ## Live gates, decisions, and risks
 
-- **Explicit numerical profiles:** 0027 first establishes one Model-owned, operation-specific
-  semantic contract. `STRICT_IEEE` means each current per-operation contract rather than universal
-  bitwise `strictfp`; `ACCELERATOR` is only a bounded permission. Config 0006, Engine 0018, CPU
-  0017, and Metal 0015 remain dependent Draft work and add no current API or capability.
+- **Explicit numerical profiles:** 0027 established the Model-owned, operation-specific semantic
+  contract and is Complete after independent validation and Class C approval. `STRICT_IEEE` means
+  each current per-operation contract rather than universal bitwise `strictfp`; `ACCELERATOR` is
+  only a bounded permission. Config 0006 is the sole Ready frontier and owns identity only. Engine
+  0018, CPU 0017, and Metal 0015 remain dependent Draft work and add no current propagation or
+  backend capability.
 - **FLOAT16 and mixed precision:** BFLOAT16 remains a distinct current type. Only 0026 may add true
   IEEE binary16 FLOAT16 and must audit each affected family’s input, accumulation/intermediate,
   and output types. A shared two-byte carrier does not imply arithmetic, Java Vector support, or a

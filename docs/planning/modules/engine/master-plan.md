@@ -129,9 +129,9 @@ not a catch-all service registry.
 - The reusable inference-session facade from exact base `4fc4fd3d` is Complete as 0017 after the
   required Class C and narrow documentation review sequence.
 - Draft 0018 is the atomic propagation spine for the accepted numerical-profile program. Model
-  0027 is implemented and worker-validated but remains Ready pending independent Class C review;
-  0018 remains unauthorized until Model 0027 and Config 0006 are Complete. No partial
-  compatibility overload or hidden default may split the cross-module record migration.
+  0027 is Complete; Config 0006 is the sole Ready repository frontier and owns identity only. Task
+  0018 remains Draft and unauthorized until Config 0006 is Complete. No partial compatibility
+  overload or hidden default may split the cross-module record migration.
 
 ## Live risks and gates
 

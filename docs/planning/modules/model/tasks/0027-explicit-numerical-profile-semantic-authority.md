@@ -2,14 +2,16 @@
 
 ## Status
 
-Ready
+Complete
 
-Frontier verification: Metal 0014 is Complete at implementation commit `01e81be2` after its
-required validation and independent Class C `APPROVE` with zero findings. Model 0026 remains an
-independent Draft FLOAT16 branch. No other numerical-profile task is Ready or in progress.
+Frontier verification established Metal 0014 as Complete at implementation commit `01e81be2`
+after its required validation and independent Class C `APPROVE` with zero findings. Model 0026
+remained an independent Draft FLOAT16 branch, and no other numerical-profile task was Ready or in
+progress.
 
-Implementation and worker validation are complete at clean HEAD `987bbd70`; status remains Ready
-pending the mandatory independent Class C review.
+Implementation commit `ff86a302` passed worker validation. Independent validation then passed
+1,114 Model tests and nine architecture tests with zero failures and zero skips, and the mandatory
+independent Class C review returned `APPROVE` with zero findings.
 
 ## Change class
 
@@ -179,7 +181,11 @@ Trace, Gradle, or test file changed.
 Worker validation passed `:modules:model:test`, `:modules:model:javadoc`, and
 `:testing:architecture-tests:test`; generated pages for every affected enum contain the profile
 contract and sole-table link; changed-document links, anchors, fences, newlines, and whitespace
-passed validation; and `git diff --check` passed. The repository validator also reports the
-pre-existing duplicate generic section anchors in `docs/api/tensor-api.md`; this change adds no
-heading there and introduces no new duplicate. Independent Class C review remains outstanding, so
-this task stays Ready and every dependent task stays Draft.
+passed validation; and `git diff --check` passed. The repository validator also reported the
+pre-existing duplicate generic section anchors in `docs/api/tensor-api.md`; this change added no
+heading there and introduced no new duplicate.
+
+Independent validation passed 1,114 Model tests and nine architecture tests with zero failures and
+zero skips. Mandatory independent Class C review returned `APPROVE` with zero findings. Model 0027
+is Complete at implementation commit `ff86a302`; dependent Config 0006 is the next authorized
+frontier.
