@@ -2,11 +2,11 @@
 
 ## Status
 
-Ready
+Blocked
 
-This is the sole authorized Metal frontier. Metal 0008 is Complete; 0006, 0007, and 0009–0011
-are independently Blocked. The extrema family is independent of exact SUM/MEAN accumulation and
-of 0011's embedded-scalar arithmetic path.
+Metal 0008 is Complete; 0006, 0007, and 0009–0011 are independently Blocked. The mandatory
+real-device gate below also blocked this task before production changes. Metal 0013 is the sole
+authorized Metal frontier.
 
 ## Change class
 
@@ -184,4 +184,19 @@ compatibility invalidation, rank-zero lifecycle, Engine evidence, and all exclus
 
 ## Result
 
-Empty until execution.
+- The mandatory Apple M3 Max probe ran the exact NaN-propagating MIN/MAX selectors at optimization
+  levels 0 and 1 with reduced-precision fast math disabled, three independently compiled
+  executables per length and level, eight runs per case, and 43,824 total executions.
+- For `[+0,-0]`, both selectors returned `-0`: MIN passed and MAX failed in all 48 observations.
+  For `[-0,+0]`, both returned `+0`: MAX passed and MIN failed in all 48 observations. Three of
+  four representative zero permutations were order-dependent.
+- For `[+0,+minimum-subnormal]`, both selectors returned the subnormal, so MIN failed; reversing
+  the pair made both return `+0`, so MAX failed. The matrix recorded 2,016 MIN mismatches, 2,016
+  MAX mismatches, and 2,976 subnormal failures.
+- NaN classification, minimum normals, identity controls, direct targets, canaries, permutations,
+  repetition, and bindings passed, but they do not remove the signed-zero/subnormal blocker.
+- Independent review returned `APPROVE-BLOCKER`. The disposable probe and all production, native,
+  and test changes were removed. Unblocking requires an exact replacement route or explicit Model
+  numerical-contract change; custom kernels and relaxation remain unauthorized here.
+- Status: Incomplete
+- Follow-up required: leave 0012 Blocked until an exact replacement or approved Model change exists.

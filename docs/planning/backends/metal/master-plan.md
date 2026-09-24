@@ -44,10 +44,10 @@ Training-to-Metal optimizer bridge.
 - Candidate generators return complete valid typed route configurations, are version-controlled,
   tested, and colocated with their routes. Shared orchestration treats them opaquely.
 - Safe heuristics remain correct without tuning. Model 0026 must define IEEE FLOAT16 and affected
-  numerical contracts before Metal advertises FLOAT16; two-byte storage does not imply BFLOAT16
-  or FLOAT16 capability. Blocked 0010 added no BOOL capability; blocked 0011 added no scalar
-  arithmetic capability. Ready 0012 is FLOAT32-only ordinary extrema reduction. Later Metal 0028
-  and 0029 remain reserved for separately authorized FLOAT16 and BFLOAT16 scopes.
+  numerical contracts before Metal advertises FLOAT16; two-byte storage implies neither BFLOAT16 nor FLOAT16 capability.
+- Blocked 0010 added no BOOL capability; blocked 0011 added no scalar arithmetic capability;
+  blocked 0012 added no extrema reduction capability. Ready 0013 is FLOAT32-only cumulative scan.
+  Later Metal 0028 and 0029 remain reserved for separately authorized FLOAT16 and BFLOAT16 scopes.
 - Production dependencies may point to Model, Config, Planning, Runtime, Prepare,
   Backend Contract, and Trace, never Engine or Training. Task 0002's Compiler edge is test-only.
 
@@ -83,18 +83,19 @@ visibility.
 | 0009 | [MPSGraph FLOAT32 rank-two MATMUL training checkpoint](tasks/0009-mpsgraph-float32-rank2-matmul-training-checkpoint.md) | Blocked | 0008; Model/Compiler rank-two MATMUL and first-order rules; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007 | 0006/0007; Metal capability/preparation/native schema/candidate/materialization/Engine scopes | None | Exact replacement route → precision gates → Class C review | Reproducible real direct-target probe and fail-closed evidence; no production change | `K=1` multiplication by one flushed positive/negative minimum and ordinary subnormals to zero; no permitted FLOAT32 association/FMA yields zero. Independent `APPROVE-BLOCKER`; signed zero is not a blocker. |
 | 0010 | [MPSGraph FLOAT32/BOOL predicates and selection](tasks/0010-mpsgraph-float32-bool-predicates-and-selection.md) | Blocked | 0008; current Model predicate/BOOL/WHERE semantics; Compiler forward capture; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007/0009 or Model 0026 | 0006/0007/0009; Metal capability/preparation/native schema/candidate/storage/materialization/Engine scopes | None | Exact replacement route → numerical gates → Class C review | Reproducible real direct-target comparison probe and fail-closed evidence; no production change | Apple M3 Max MPSGraph comparisons treated positive and negative minimum subnormal as equal to `±0` at optimization levels 0/1; raw identity, ordinary/special controls, canonical BOOL targets, canaries, and permutations passed. |
 | 0011 | [MPSGraph FLOAT32 scalar pointwise arithmetic](tasks/0011-mpsgraph-float32-scalar-pointwise-arithmetic.md) | Blocked | 0005/0008; current Model scalar semantics and Compiler forward capture; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007/0009/0010 or Model 0026 | Every concurrent Metal capability/preparation/native schema/candidate/materialization/Engine scope | None | Exact replacement route → numerical gates → Class C review | Reproducible real scalar-bit/direct-target probe and independent blocker; no production change | The optimization-level 0/1 matrix found 17,328 mismatches in 77,824 checks, including signed-zero, subnormal, finite-division, and infinity-division failures; controls passed. |
-| 0012 | [MPSGraph FLOAT32 extrema reductions](tasks/0012-mpsgraph-float32-extrema-reductions.md) | Ready | 0005/0008; current Model ordinary-extrema semantics and Compiler forward capture; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007/0009/0010/0011 or Model 0026 | Every concurrent Metal capability/preparation/native schema/candidate/materialization/Engine scope | None | Probe → schema/geometry → capability/topology → candidates/lifecycle/scalar publication → Engine proof → docs/review | Exhaustive extrema/direct-target probe; ABI-v4 exact exports; focused Metal/conformance/Engine/Compiler/architecture/Javadoc/docs checks | Sole Ready frontier: bounded forward FLOAT32 ordinary MIN/MAX through installed NaN-propagating selectors, independent of exact SUM/MEAN. |
+| 0012 | [MPSGraph FLOAT32 extrema reductions](tasks/0012-mpsgraph-float32-extrema-reductions.md) | Blocked | 0005/0008; current Model ordinary-extrema semantics and Compiler forward capture; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007/0009/0010/0011 or Model 0026 | Every concurrent Metal capability/preparation/native schema/candidate/materialization/Engine scope | None | Probe → schema/geometry → capability/topology → candidates/lifecycle/scalar publication → Engine proof → docs/review | Reproducible exhaustive direct-target probe and independent blocker; no production change | Propagating MIN/MAX selectors were order-dependent for opposite signed zeros and zero/minimum-subnormal pairs: 2,016 MIN plus 2,016 MAX mismatches and 2,976 subnormal failures in 43,824 executions. |
+| 0013 | [MPSGraph FLOAT32 cumulative scans](tasks/0013-mpsgraph-float32-cumulative-scans.md) | Ready | 0005/0008; current Model cumulative-scan semantics and Compiler forward capture; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007/0009–0012 or Model 0026 | Every concurrent Metal capability/preparation/native schema/candidate/materialization/Engine scope | None | Probe → schema/geometry → capability/topology → candidates/lifecycle → Engine proof → docs/review | Exhaustive cumulative-selector/direct-target probe; ABI-v4 exact exports; focused Metal/conformance/Engine/Compiler/architecture/Javadoc/docs checks | Sole Ready frontier: bounded no-gradient FLOAT32 CUM_SUM/CUM_PROD across all four modes through installed dedicated selectors, with no new storage type. |
 
 ## Dependency DAG and authorized frontiers
 
-`0001 → 0002 → 0003 → 0004 → 0005 → 0008 → {0009, 0010, 0011, 0012}`
+`0001 → 0002 → 0003 → 0004 → 0005 → 0008 → {0009, 0010, 0011, 0012, 0013}`
 
-0006 and 0007 are independent `Blocked` branches from 0005. 0009, 0010, and 0011 are
-independently `Blocked` from 0008 by exact MATMUL subnormal flushing, comparison subnormal
-collapse, and scalar arithmetic failures, respectively. 0012 is the sole authorized frontier and
-depends only on completed 0005/0008 plus current Model/Compiler forward ordinary-extrema
-contracts; it does not depend on 0006, 0007, 0009, 0010, 0011, Model 0026, or reserved future
-Metal 0028/0029 type work.
+0006 and 0007 are independent `Blocked` branches from 0005. 0009–0012 are independently
+`Blocked` from 0008 by MATMUL subnormal flushing, comparison subnormal collapse, scalar arithmetic
+failures, and extrema signed-zero/subnormal order dependence, respectively. 0013 is the sole
+authorized frontier and depends only on completed 0005/0008 plus current Model/Compiler forward
+cumulative-scan contracts; it does not depend on any blocked Metal task, Model 0026, or reserved
+future Metal 0028/0029 type work.
 
 ## Integration ownership and shared documents
 
@@ -133,12 +134,19 @@ targets, canaries, permutations, repetition, and identity controls passed. Indep
 confirmed no Model relaxation admits the results. No production, test, native, or probe changes
 remain.
 
-Metal 0012 is the sole `Ready` frontier. It adds only forward FLOAT32 ordinary reduction `MIN`
-and `MAX`, using the installed NaN-propagating extrema selectors. It is independent of blocked
-exact SUM/MEAN and scalar arithmetic, begins with an exhaustive raw-bit real-device probe, and
-fails closed on any NaN, signed-zero, subnormal-ordering, infinity, Shape, direct-target, canary,
-permutation, repetition, or executable-independence failure. Product, SUM/MEAN/SUM_TO_SHAPE,
-advanced/statistical/Boolean/arg reductions, custom kernels, backward/training, transfer widening,
+Metal 0012 is independently `Blocked`: at optimization levels `0` and `1`, reduced-precision fast
+math disabled, three executables per length/level, and eight runs per case, the propagating MIN/MAX
+selectors were order-dependent for opposite signed zeros and zero/minimum-subnormal pairs. The
+43,824 executions recorded 2,016 MIN plus 2,016 MAX mismatches and 2,976 subnormal failures.
+NaN classification, minimum normals, identity, canaries, and bindings passed. Independent review
+returned `APPROVE-BLOCKER`; no production, native, test, or probe changes remain.
+
+Metal 0013 is the sole `Ready` frontier. It adds only no-gradient FLOAT32 `CUM_SUM`/`CUM_PROD`
+with all inclusive/exclusive and forward/reverse modes through installed dedicated cumulative
+selectors. It begins with an exhaustive raw-bit real-device probe and fails closed on any
+arithmetic, special-value, identity, axis, Shape, direct-target, canary, binding, repetition,
+concurrency, or executable/session-independence failure. Masked/ordinary/arg/advanced/Boolean/
+recurrent reductions, new storage types, custom kernels, backward/training, transfer widening,
 FLOAT16, and BFLOAT16 are excluded.
 
 
