@@ -21,6 +21,8 @@ import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
+import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
@@ -39,12 +41,13 @@ import java.util.Objects;
  * <p>This provider is immutable and performs no native loading, device discovery, allocation,
  * registration, or caching. Under either numerical profile, support includes unary {@code NEG}
  * and {@code ABS}, five FLOAT32 affine transforms, the explicit {@code CONTIGUOUS}
- * canonicalization barrier, canonical positive-rank INT32 {@code GATHER} indices selecting
- * FLOAT32 data, canonical positive-rank INT32 {@code ONE_HOT} indices producing terminal BOOL
- * values, and canonical FLOAT32/INT32/FLOAT32 {@code SCATTER_ELEMENTS} replacement with unique
- * valid targets. {@link NumericalProfile#ACCELERATOR} additionally supports tensor {@code ADD}/
- * {@code SUB}/{@code MUL}/{@code DIV}, canonical FLOAT32 {@code SUM}/{@code MEAN}/
- * {@code SUM_TO_SHAPE}, and positive static rank-two FLOAT32 {@code MATMUL}. MATMUL accepts each
+ * canonicalization barrier, bounded canonical FLOAT32 {@code UNFOLD_AXIS} materialization,
+ * canonical positive-rank INT32 {@code GATHER} indices selecting FLOAT32 data, canonical
+ * positive-rank INT32 {@code ONE_HOT} indices producing terminal BOOL values, and canonical
+ * FLOAT32/INT32/FLOAT32 {@code SCATTER_ELEMENTS} replacement with unique valid targets.
+ * {@code ACCELERATOR} additionally admits tensor {@code ADD}/{@code SUB}/{@code MUL}/{@code DIV},
+ * canonical FLOAT32 {@code SUM}/{@code MEAN}/{@code SUM_TO_SHAPE}, and positive static rank-two
+ * FLOAT32 {@code MATMUL}. MATMUL accepts each
  * operand only as canonical or as the exact rank-two transpose layout that complete-partition
  * analysis must authenticate to a local {@code PERMUTE [1,0]} producer from a canonical source.
  * Its output is canonical and carries the logical OR of the operand gradient flags. Strict MATMUL
@@ -59,7 +62,9 @@ import java.util.Objects;
  * extents. GATHER requires its exact replacement-axis output formula and matched data/output
  * gradient flag; ONE_HOT appends its positive depth and is entirely non-differentiable.
  * SCATTER_ELEMENTS requires reduction NONE, equal indices/update Shapes, matching non-axis data
- * extents, exact data-shaped output, non-differentiable indices, and data/update gradient OR.</p>
+ * extents, exact data-shaped output, non-differentiable indices, and data/update gradient OR.
+ * UNFOLD_AXIS requires a canonical rank {@code 1..15} input, size {@code 1..16}, exact floor-count
+ * Shape with the window size appended, and a fresh canonical materialization.</p>
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
     /**
@@ -136,6 +141,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             }
             if (operation.kind() == OneHotKind.ONE_HOT) {
                 return supportsOneHot(operation, inputs, output);
+            }
+            if (operation.kind() == WindowTransformKind.UNFOLD_AXIS) {
+                return supportsUnfoldAxis(operation, inputs, output);
             }
             if (operation.kind() == UnaryElementwiseKind.NEG
                     || operation.kind() == UnaryElementwiseKind.ABS) {
@@ -243,6 +251,38 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         long[] indexShape = indices.shape().toLongArray();
         long[] expected = java.util.Arrays.copyOf(indexShape, indexShape.length + 1);
         expected[indexShape.length] = attrs.depth();
+        return java.util.Arrays.equals(expected, output.shape().toLongArray());
+    }
+
+    private static boolean supportsUnfoldAxis(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        if (!(operation.attrs() instanceof UnfoldAxisAttrs attrs) || inputs.size() != 1) {
+            return false;
+        }
+        TensorDescriptor input = inputs.getFirst();
+        int rank = input.shape().rank();
+        if (!canonical(input)
+                || !canonical(output)
+                || input.requiresGrad() != output.requiresGrad()
+                || rank < 1
+                || rank > 15
+                || output.shape().rank() != rank + 1
+                || attrs.axis() >= rank
+                || attrs.size() < 1L
+                || attrs.size() > 16L
+                || attrs.step() <= 0L) {
+            return false;
+        }
+        long[] inputShape = input.shape().toLongArray();
+        long selected = inputShape[attrs.axis()];
+        if (attrs.size() > selected) {
+            return false;
+        }
+        long positions = Math.addExact(
+                Math.subtractExact(selected, attrs.size()) / attrs.step(), 1L);
+        long[] expected = java.util.Arrays.copyOf(inputShape, rank + 1);
+        expected[attrs.axis()] = positions;
+        expected[rank] = attrs.size();
         return java.util.Arrays.equals(expected, output.shape().toLongArray());
     }
 

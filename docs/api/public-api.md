@@ -22,10 +22,13 @@ cross-module integration service-provider interface (SPI). The CPU backend expos
 identical exact execution under both numerical profiles. The Metal backend exposes
 `MetalBackendConfiguration`, `MetalBackendIntegration`, and a common exact `FLOAT32` domain under
 both profiles. That domain contains canonical `NEG` and `ABS`, `RESHAPE`, `EXPAND`, `PERMUTE`,
-`EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`; canonical positive-rank FLOAT32+INT32 `GATHER`;
-INT32-to-BOOL `ONE_HOT`; and canonical positive-rank FLOAT32/INT32/FLOAT32
-`SCATTER_ELEMENTS/NONE`. Scatter validates complete bounds then target uniqueness before dispatch
-and writes, preserves exact addressed-update and unaddressed-base bits, and leaves inputs
+`EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`; canonical bounded general-axis `UNFOLD_AXIS`
+materialization; canonical positive-rank FLOAT32+INT32 `GATHER`; INT32-to-BOOL `ONE_HOT`; and
+canonical positive-rank FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. UNFOLD_AXIS accepts
+canonical input rank 1..15, size 1..16, positive step, and size no larger than the selected extent;
+it returns the exact rank-plus-one floor-count Shape, preserves addressed FLOAT32 bits, and does
+not mutate or alias its source. Scatter validates complete bounds then target uniqueness before
+dispatch and writes, preserves exact addressed-update and unaddressed-base bits, and leaves inputs
 unchanged. Accelerator Metal additionally supports canonical tensor `ADD`, `SUB`, `MUL`, and
 `DIV`; canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`; and positive static rank-two `MATMUL` with canonical
 or authenticated local-transpose operands, under the bounded Model profile. Strict

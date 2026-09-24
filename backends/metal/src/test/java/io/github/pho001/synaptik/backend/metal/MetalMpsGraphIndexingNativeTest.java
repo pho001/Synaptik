@@ -187,6 +187,57 @@ class MetalMpsGraphIndexingNativeTest {
         }
     }
 
+    @Test
+    void realUnfoldAxisMapsOverlapAndTailWithExactFloat32BitsWithoutMutatingInput() {
+        Path library = configuredLibrary();
+        MetalNativeApi api = MetalNativeApi.open(library);
+        MetalNativeApi.Handle context = null;
+        MetalNativeApi.Handle executable = null;
+        MetalNativeApi.Handle input = null;
+        MetalNativeApi.Handle output = null;
+        int[] inputBits = {
+            0x00000000, 0x80000000, 0x00000001, 0x80000001, 0x7f800000, 0xff800000,
+            0x7fc12345, 0xffc54321, 0x7f812345, 0xff854321, 0x3f800000, 0xbf800000
+        };
+        int[] expected = {
+            inputBits[0], inputBits[1], inputBits[2],
+            inputBits[2], inputBits[3], inputBits[4],
+            inputBits[6], inputBits[7], inputBits[8],
+            inputBits[8], inputBits[9], inputBits[10]
+        };
+        try {
+            context = api.createContext();
+            long[][] shapes = {{2, 6}, {2, 2, 3}};
+            executable = api.createMpsGraphExecutable(
+                    context,
+                    NumericalProfile.STRICT_IEEE,
+                    ranks(shapes),
+                    dimensions(shapes),
+                    new MetalMpsGraphProgram(List.of(
+                            MetalMpsGraphProgram.Node.unfoldAxis(0, 1, 1, 3, 2))),
+                    new int[] {0},
+                    new int[] {1});
+            input = api.createBuffer(context, (long) inputBits.length * Integer.BYTES);
+            output = api.createBuffer(context, (long) expected.length * Integer.BYTES);
+            uploadInts(api, input, inputBits);
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment inputAddress = arena.allocate(ADDRESS);
+                MemorySegment outputAddress = arena.allocate(ADDRESS);
+                inputAddress.setAtIndex(ADDRESS, 0, input.carrier());
+                outputAddress.setAtIndex(ADDRESS, 0, output.carrier());
+                api.runExecutable(executable, 1, inputAddress, 1, outputAddress);
+            }
+            assertArrayEquals(expected, downloadInts(api, output, expected.length));
+            assertArrayEquals(inputBits, downloadInts(api, input, inputBits.length));
+        } finally {
+            if (output != null) api.releaseBuffer(output);
+            if (input != null) api.releaseBuffer(input);
+            if (executable != null) api.releaseExecutable(executable);
+            if (context != null) api.releaseContext(context);
+            api.close();
+        }
+    }
+
     private static void assertRangeFailure(
             MetalNativeApi api,
             MetalNativeApi.Handle executable,

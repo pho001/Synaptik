@@ -31,6 +31,8 @@ import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
+import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
@@ -499,6 +501,53 @@ final class MetalNegCapabilityPartitionConformanceTest {
         assertSame(
                 MetalCapabilityProvider.METAL_BACKEND_ID,
                 partitions.getFirst().owner());
+    }
+
+    /** Proves materialized general-axis windows compose with exact Metal elementwise work. */
+    @Test
+    void unfoldAxisAndNegProduceOneMaximalMetalRegion() {
+        ValueId input = new ValueId(80);
+        ValueId unfolded = new ValueId(81);
+        ValueId negated = new ValueId(82);
+        CompiledNode unfold = new CompiledNode(
+                new NodeId(80),
+                new Operation(
+                        WindowTransformKind.UNFOLD_AXIS,
+                        new UnfoldAxisAttrs(1, 3, 2)),
+                List.of(input),
+                List.of(unfolded));
+        CompiledNode neg = new CompiledNode(
+                new NodeId(81),
+                operation(UnaryElementwiseKind.NEG),
+                List.of(unfolded),
+                List.of(negated));
+        TensorDescriptor inputDescriptor = descriptor(Shape.of(2, 6));
+        TensorDescriptor outputDescriptor = descriptor(Shape.of(2, 2, 3));
+        var provider = new MetalCapabilityProvider();
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            assertTrue(provider.supports(query(
+                    profile, unfold.operation(),
+                    List.of(inputDescriptor), List.of(outputDescriptor))));
+        }
+        var graph = new CompiledGraphModel(
+                List.of(
+                        new GraphValue(input, inputDescriptor),
+                        new GraphValue(unfolded, outputDescriptor),
+                        new GraphValue(negated, outputDescriptor)),
+                List.of(unfold, neg),
+                List.of(input),
+                List.of(negated),
+                Map.of(
+                        unfold.id(), GraphPhase.FORWARD,
+                        neg.id(), GraphPhase.FORWARD));
+        var partitions = MaximalSameOwnerPartitioning.partition(
+                graph,
+                Map.of(
+                        unfold.id(), MetalCapabilityProvider.METAL_BACKEND_ID,
+                        neg.id(), MetalCapabilityProvider.METAL_BACKEND_ID));
+        assertEquals(1, partitions.size());
+        assertSame(MetalCapabilityProvider.METAL_BACKEND_ID, partitions.getFirst().owner());
+        assertEquals(List.of(unfold.id(), neg.id()), partitions.getFirst().nodeIds());
     }
 
     private static OperationCapabilityQuery query(

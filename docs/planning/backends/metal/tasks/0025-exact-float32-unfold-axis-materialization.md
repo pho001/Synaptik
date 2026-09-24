@@ -4,11 +4,12 @@
 
 Ready
 
-All semantic prerequisites are complete, and the active macOS 27.0 SDK documents an exact bounded
-selector composition for the scoped occurrence. Metal 0024 is Complete at implementation
+Implementation is complete from exact clean planning revision
+`c54ccbde0dc8defd4def1e25c3fd2898a1d66f4e`; the task remains the sole Ready Metal frontier for
+independent lean Class C review. Metal 0024 is Complete at implementation
 `a947e574732273bee4469d42afe8935082d53109` plus documentation remediation
-`aa191ca469010d081150e97dcddd504ec626dd9e`; final independent lean Class C review returned
-`APPROVE` with zero findings. This task is the sole Ready Metal frontier.
+`aa191ca469010d081150e97dcddd504ec626dd9e`; its final independent review returned `APPROVE` with
+zero findings.
 
 ## Change class
 
@@ -28,7 +29,7 @@ context, and repetition matrices are prohibited.
   restart; two- or three-dimensional window, fold, pad, convolution, or pooling work; Model 0026;
   or shared-layer mutation.
 - Parallel group: None.
-- Common base revision: `aa191ca469010d081150e97dcddd504ec626dd9e`.
+- Common base revision: `c54ccbde0dc8defd4def1e25c3fd2898a1d66f4e`.
 - Integration order: one optionality-free one-run movement smoke before production, schema/identity,
   capability/analysis, documented native selector composition, focused public proof,
   documentation, independent review.
@@ -274,6 +275,72 @@ unless it identifies one new concrete risk.
 - The one bounded smoke, focused reused proof, final validation, synchronized current docs, clean
   diff, and independent Class C `APPROVE` with zero findings close the task.
 
+## Implementation checkpoint for independent review
+
+Implementation began from exact clean planning revision
+`c54ccbde0dc8defd4def1e25c3fd2898a1d66f4e`, correcting the preplanning common-base metadata
+`aa191ca469010d081150e97dcddd504ec626dd9e`. Before any production edit, one disposable
+Objective-C program compiled against the production frameworks and ran exactly once on the M3 Max
+with one context, graph, executable at optimization level zero, and execution. Its canonical
+`[2,6]`, axis-one, size-three, step-two slice/expand/concat run reported
+`task0025 UNFOLD_AXIS smoke passed: exact overlap/tail raw bits and unchanged input`. The corpus
+covered signed zeros, positive and negative subnormals, infinities, and quiet/signaling NaN
+payloads. The exact `[2,2,3]` output proved overlap and omitted-tail mapping, the input was
+unchanged, and the source and executable were removed immediately. No Shape, rank, axis, size,
+step, profile, context, optimization, repetition, invalid-geometry, padding, fold, or matrix probe
+ran.
+
+The implementation adds only bounded canonical FLOAT32 `UNFOLD_AXIS` to both profile matrices.
+Schema 11 retains the 160-byte ABI-v4 record and wires `1..18`, appends `UNFOLD_AXIS=19` and
+`WINDOW_AXIS=6`, and carries normalized axis, size, and step in the closed typed form. Java and
+native preflight independently rederive the floor count and exact Shape, require canonical
+rank-`1..15` input and output, size `1..16`, positive step, representable selector values, and
+fresh canonical FLOAT32 output. Native lowering creates half-open strided slices in ascending
+window-offset order, appends one final singleton dimension to each, and concatenates along that
+dimension. Workload, exact-policy, candidate, compatibility, route-policy, and codec identities
+are version twelve and reject version eleven. ABI 4, thirteen exports, existing
+ingress/publication, canonical FLOAT32 transfer, shared production, compiler behavior, and the
+unsupported fold/backward boundary are unchanged.
+
+Worker evidence passed:
+
+- `native/metal-macos-arm64/build.sh`, an exact thirteen-symbol `nm -gU` export audit, and
+  Foundation, Metal, and MetalPerformanceShadersGraph linkage audit;
+- named focused capability, exact 160-byte schema/native-malformed, native raw-bit mapping/input-
+  preservation, axis/size/step identity, version-eleven codec rejection, maximal-partition
+  composition, and CPU-free both-profile public Engine tests;
+- `:testing:architecture-tests:test` and `:backends:metal:javadoc`; and
+- the single final `./gradlew build` invocation: `BUILD SUCCESSFUL`, 87 actionable tasks, eight
+  executed and 79 up-to-date.
+
+The exact 32-path checkpoint is:
+
+- production under
+  `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/`:
+  `MetalCapabilityProvider.java`, `MetalMpsGraphProgram.java`, `MetalNativeApi.java`,
+  `MetalNegPartitionPreparer.java`, `MetalNegRouteCandidateGenerator.java`,
+  `MetalNegTuningBatch.java`, `MetalNegTuningCodec.java`, and `package-info.java`; plus
+  `native/metal-macos-arm64/src/synaptik_metal_foundation.m`;
+- tests under `backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/`:
+  `MetalCapabilityProviderTest.java`,
+  `MetalMpsGraphAbsNativeTest.java`, `MetalMpsGraphAffineSchemaTest.java`,
+  `MetalMpsGraphBinaryNativeTest.java`, `MetalMpsGraphIndexingNativeTest.java`,
+  `MetalMpsGraphRawAbiNativeTest.java`, `MetalMpsGraphReductionNativeTest.java`, and
+  `MetalNegRouteCandidateGeneratorTest.java`; plus
+  `testing/backend-conformance/src/test/java/io/github/pho001/synaptik/testing/conformance/MetalNegCapabilityPartitionConformanceTest.java`
+  and
+  `testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineExplicitCompositionMetalIntegrationTest.java`;
+- documentation: `ARCHITECTURE.md`, `docs/api/compile-api.md`, `docs/api/public-api.md`,
+  `docs/api/tensor-api.md`, `docs/architecture/contracts/backend-execution.md`,
+  `docs/architecture/module-boundaries.md`, `docs/backend-guide/metal-backend.md`,
+  `docs/backend-guide/partition-preparer.md`, `docs/glossary.md`,
+  `docs/planning/backends/metal/master-plan.md`,
+  `docs/planning/backends/metal/tasks/0025-exact-float32-unfold-axis-materialization.md`,
+  `docs/planning/roadmap.md`, and `native/metal-macos-arm64/README.md`.
+
+Task 0025 remains Ready for independent lean Class C review. This checkpoint makes no review
+result or approval claim.
+
 ## Contracts
 
 - [`ARCHITECTURE.md` — Core invariants](../../../../../ARCHITECTURE.md#core-invariants)
@@ -283,6 +350,6 @@ unless it identifies one new concrete risk.
 
 ## Architecture impact
 
-Expected impact: None. This extends the existing backend-private typed MPSGraph program and
-canonical materialization route. Planning changed documentation only and ran no production edit or
-device probe.
+Impact: None. The implementation extends only the existing backend-private typed MPSGraph program
+and canonical materialization route. Shared Model, Compiler, Planning, Prepare, Runtime, Config,
+Trace, Engine, Training, and transfer production remain unchanged.

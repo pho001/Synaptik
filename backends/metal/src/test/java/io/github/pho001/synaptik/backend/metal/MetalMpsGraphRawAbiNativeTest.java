@@ -14,6 +14,8 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.invoke.MethodHandle;
 import java.nio.file.Path;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.List;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
@@ -24,7 +26,7 @@ class MetalMpsGraphRawAbiNativeTest {
     private static final Consumer<MemorySegment> UNCHANGED = ignored -> { };
 
     @Test
-    void rawVersionTenRecordRejectsEveryMalformedHeaderAndUnusedField() {
+    void rawVersionElevenRecordRejectsEveryMalformedHeaderAndUnusedField() {
         try (RawAbi abi = RawAbi.open()) {
             MetalMpsGraphProgram reshape = new MetalMpsGraphProgram(List.of(
                     MetalMpsGraphProgram.Node.targetShape(
@@ -76,14 +78,16 @@ class MetalMpsGraphRawAbiNativeTest {
                     ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
             abi.assertRejected("stale schema version nine", INVALID_ARGUMENT, 9,
                     ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
+            abi.assertRejected("stale schema version ten", INVALID_ARGUMENT, 10,
+                    ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
         }
     }
 
     @Test
-    void rawVersionTenScatterUsesWireEighteenAndTypedAuxiliaryInput() {
+    void rawVersionElevenScatterUsesWireEighteenAndTypedAuxiliaryInput() {
         MetalMpsGraphProgram.Node scatter =
                 MetalMpsGraphProgram.Node.scatterElements(0, 1, 2, 3, 1);
-        assertEquals(10, MetalMpsGraphProgram.SCHEMA_VERSION);
+        assertEquals(11, MetalMpsGraphProgram.SCHEMA_VERSION);
         assertEquals(18, scatter.kind().wireIdentity());
         assertEquals(3, scatter.kind().inputCount());
         assertEquals(0, scatter.firstInputIndex());
@@ -146,15 +150,75 @@ class MetalMpsGraphRawAbiNativeTest {
                     new int[] {3},
                     UNCHANGED);
             abi.assertRejected(
-                    "stale schema nine cannot reinterpret scatter",
+                    "stale schema ten cannot reinterpret scatter",
                     INVALID_ARGUMENT,
-                    9,
+                    10,
                     ranks,
                     dimensions,
                     program,
                     new int[] {0, 1, 2},
                     new int[] {3},
                     UNCHANGED);
+        }
+    }
+
+    @Test
+    void rawVersionElevenUnfoldAxisUsesWireNineteenAndRejectsMalformedWindowState() {
+        MetalMpsGraphProgram.Node unfold =
+                MetalMpsGraphProgram.Node.unfoldAxis(0, 1, 1, 3, 2);
+        assertEquals(19, unfold.kind().wireIdentity());
+        assertEquals(6, unfold.kind().attributeKind().wireIdentity());
+        assertEquals(3, unfold.attributeCount());
+        assertEquals(1, unfold.axis());
+        assertEquals(0, unfold.auxiliary());
+        assertEquals(List.of(3L, 2L),
+                java.util.Arrays.stream(unfold.attributeValues()).boxed().toList());
+
+        ByteBuffer encodedRecord = ByteBuffer.wrap(
+                new MetalMpsGraphProgram(List.of(unfold)).encodedNodeRecords())
+                .order(ByteOrder.BIG_ENDIAN);
+        assertEquals(MetalMpsGraphProgram.NODE_RECORD_BYTES, encodedRecord.remaining());
+        assertEquals(19, encodedRecord.getInt());
+        assertEquals(6, encodedRecord.getInt());
+        assertEquals(0, encodedRecord.getInt());
+        assertEquals(-1, encodedRecord.getInt());
+        assertEquals(1, encodedRecord.getInt());
+        assertEquals(3, encodedRecord.getInt());
+        assertEquals(1, encodedRecord.getInt());
+        assertEquals(0, encodedRecord.getInt());
+        assertEquals(3L, encodedRecord.getLong());
+        assertEquals(2L, encodedRecord.getLong());
+        while (encodedRecord.hasRemaining()) assertEquals(0L, encodedRecord.getLong());
+        int[] ranks = {2, 3};
+        long[] dimensions = dimensions(new long[][] {{2, 6}, {2, 2, 3}});
+        MetalMpsGraphProgram program = new MetalMpsGraphProgram(List.of(unfold));
+        try (RawAbi abi = RawAbi.open()) {
+            abi.assertAccepted("canonical unfold axis", ranks, dimensions, program,
+                    new int[] {0}, new int[] {1});
+            abi.assertRejected("unfold attribute discriminator", ranks, dimensions, program,
+                    new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_INT, 4L, 3));
+            abi.assertRejected("unfold semantic attribute count", ranks, dimensions, program,
+                    new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_INT, 20L, 2));
+            abi.assertRejected("unfold axis out of range", ranks, dimensions, program,
+                    new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_INT, 24L, 2));
+            abi.assertRejected("unfold size exceeds native bound", ranks, dimensions, program,
+                    new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_LONG, 32L, 17L));
+            abi.assertRejected("unfold zero step", ranks, dimensions, program,
+                    new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_LONG, 40L, 0L));
+            abi.assertRejected("unfold unused payload", ranks, dimensions, program,
+                    new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_LONG, 48L, 1L));
+            abi.assertRejected("unfold wrong position extent", ranks,
+                    dimensions(new long[][] {{2, 6}, {2, 3, 3}}), program,
+                    new int[] {0}, new int[] {1}, UNCHANGED);
+            abi.assertRejected("stale schema ten cannot reinterpret unfold",
+                    INVALID_ARGUMENT, 10, ranks, dimensions, program,
+                    new int[] {0}, new int[] {1}, UNCHANGED);
         }
     }
 

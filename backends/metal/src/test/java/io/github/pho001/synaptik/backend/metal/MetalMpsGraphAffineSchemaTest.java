@@ -11,11 +11,11 @@ import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphAffineSchemaTest {
     @Test
-    void schemaVersionNineRetainsTypedDiscriminantsAndRequiredUnusedSentinels() {
+    void schemaVersionElevenRetainsTypedDiscriminantsAndRequiredUnusedSentinels() {
         var reshape = MetalMpsGraphProgram.Node.targetShape(
                 MetalMpsGraphProgram.NodeKind.RESHAPE, 0, 1, new long[] {3, 2});
         byte[] encoded = new MetalMpsGraphProgram(List.of(reshape)).encodedNodeRecords();
-        assertEquals(10, MetalMpsGraphProgram.SCHEMA_VERSION);
+        assertEquals(11, MetalMpsGraphProgram.SCHEMA_VERSION);
         assertEquals(MetalMpsGraphProgram.NODE_RECORD_BYTES, encoded.length);
 
         ByteBuffer record = ByteBuffer.wrap(encoded).order(ByteOrder.BIG_ENDIAN);
@@ -86,7 +86,7 @@ class MetalMpsGraphAffineSchemaTest {
     }
 
     @Test
-    void schemaTenRetainsMatmulWireAndAuthenticatesOnlyLocalRankTwoTransposes() {
+    void schemaElevenRetainsMatmulWireAndAuthenticatesOnlyLocalRankTwoTransposes() {
         var direct = MetalMpsGraphProgram.Node.matmul(0, 1, 2);
         ByteBuffer record = ByteBuffer.wrap(
                 new MetalMpsGraphProgram(List.of(direct)).encodedNodeRecords())
@@ -165,7 +165,7 @@ class MetalMpsGraphAffineSchemaTest {
     }
 
     @Test
-    void schemaTenRetainsGatherAndOneHotWithExactTypedAttributes() {
+    void schemaElevenRetainsGatherAndOneHotWithExactTypedAttributes() {
         var gather = MetalMpsGraphProgram.Node.gather(0, 1, 2, 1);
         var oneHot = MetalMpsGraphProgram.Node.oneHot(3, 4, 5);
         ByteBuffer records = ByteBuffer.wrap(

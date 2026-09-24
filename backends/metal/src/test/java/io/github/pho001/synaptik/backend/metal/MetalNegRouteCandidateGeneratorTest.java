@@ -31,6 +31,8 @@ import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
+import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
@@ -526,6 +528,61 @@ class MetalNegRouteCandidateGeneratorTest {
     }
 
     @Test
+    void unfoldFingerprintSeparatesAxisSizeAndStep() {
+        TestNativeApi api = new TestNativeApi();
+        try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
+            Workload workload = operationWorkload(
+                    device,
+                    95_000,
+                    NumericalProfile.STRICT_IEEE,
+                    new Operation(
+                            WindowTransformKind.UNFOLD_AXIS,
+                            new UnfoldAxisAttrs(1, 3, 2)),
+                    canonical(Shape.of(2, 6)),
+                    canonical(Shape.of(2, 2, 3)));
+            Generated generated = generated(workload, 2);
+            MetalNegPreparationPlan plan = generated.analysis().plan();
+            MetalNegTuningBatch.WorkloadSignature identity =
+                    generated.batch().compatibility().workload();
+            assertEquals(
+                    List.of(MetalNegTuningBatch.Candidate.MPSGRAPH),
+                    generated.batch().candidates());
+
+            assertNotEquals(
+                    identity,
+                    generate(workload, copyPlan(
+                            plan,
+                            plan.descriptors(),
+                            new MetalMpsGraphProgram(List.of(
+                                    MetalMpsGraphProgram.Node.unfoldAxis(0, 1, 0, 3, 2))),
+                            plan.targetRequiredBytes()))
+                            .compatibility().workload(),
+                    "UNFOLD_AXIS axis participates independently");
+            assertNotEquals(
+                    identity,
+                    generate(workload, copyPlan(
+                            plan,
+                            plan.descriptors(),
+                            new MetalMpsGraphProgram(List.of(
+                                    MetalMpsGraphProgram.Node.unfoldAxis(0, 1, 1, 4, 2))),
+                            plan.targetRequiredBytes()))
+                            .compatibility().workload(),
+                    "UNFOLD_AXIS size participates independently");
+            assertNotEquals(
+                    identity,
+                    generate(workload, copyPlan(
+                            plan,
+                            plan.descriptors(),
+                            new MetalMpsGraphProgram(List.of(
+                                    MetalMpsGraphProgram.Node.unfoldAxis(0, 1, 1, 3, 3))),
+                            plan.targetRequiredBytes()))
+                            .compatibility().workload(),
+                    "UNFOLD_AXIS step participates independently");
+            assertEquals(0, api.nativeAllocations.get());
+        }
+    }
+
+    @Test
     void codecIsCanonicalBoundedAndRejectsEveryDefensiveMismatch() {
         TestNativeApi api = new TestNativeApi();
         TestNativeApi otherApi = new TestNativeApi();
@@ -537,14 +594,14 @@ class MetalNegRouteCandidateGeneratorTest {
                     MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
                     current.batch().compatibility(), MetalNegTuningBatch.Candidate.MPSGRAPH);
             var codec = new MetalNegTuningCodec();
-            assertEquals(11, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
-            assertEquals(11, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
-            assertEquals(11, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
+            assertEquals(12, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
+            assertEquals(12, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
+            assertEquals(12, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
             byte[] first = codec.encodeDecision(decision);
-            assertEquals(11, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
-            assertEquals(11, current.batch().compatibility().schemaVersion());
-            assertEquals(11, current.batch().compatibility().candidateSchemaVersion());
-            assertEquals(11, current.batch().compatibility().routePolicyVersion());
+            assertEquals(12, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
+            assertEquals(12, current.batch().compatibility().schemaVersion());
+            assertEquals(12, current.batch().compatibility().candidateSchemaVersion());
+            assertEquals(12, current.batch().compatibility().routePolicyVersion());
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());
@@ -594,6 +651,9 @@ class MetalNegRouteCandidateGeneratorTest {
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, 4, 10), current.batch()).isEmpty(),
                     "checksummed version-ten decisions must fail closed");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, 4, 11), current.batch()).isEmpty(),
+                    "checksummed version-eleven decisions must fail closed");
             assertTrue(codec.decodeDecision(rewriteInt(first, 8, 99), current.batch()).isEmpty());
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, first.length - 8, 99), current.batch()).isEmpty());

@@ -122,7 +122,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * @param numericalProfile non-null cold plan profile used by Java fail-closed preflight
      * @param valueRanks non-null value-aligned ranks
      * @param valueDimensions non-null row-major value-count by sixteen dimension table
-     * @param graphProgram non-null version-ten typed node table
+     * @param graphProgram non-null version-eleven typed node table
      * @param feedValueIndices non-null stable feed value indices
      * @param targetValueIndices non-null stable target value indices
      * @return a fresh non-null opaque executable handle owned by the caller
@@ -155,7 +155,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * @param context non-null live context whose ownership remains with the caller
      * @param valueRanks validated value-aligned ranks
      * @param valueDimensions validated padded dimension table
-     * @param graphProgram validated version-ten typed topological node table
+     * @param graphProgram validated version-eleven typed topological node table
      * @param feedValueIndices validated unique feeds
      * @param targetValueIndices validated unique produced targets
      * @return non-null raw status/output-cell result for checked interpretation
@@ -482,7 +482,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
     }
 
-    /** Exact Java preflight for the version-ten typed MPSGraph executable-create schema. */
+    /** Exact Java preflight for the version-eleven typed MPSGraph executable-create schema. */
     static final class MpsGraphExecutableAbi {
         private static final int MAX_RANK = 16;
 
@@ -711,10 +711,14 @@ abstract class MetalNativeApi implements AutoCloseable {
                     case ONE_HOT -> requireShape(
                             oneHotMatches(node, left, output, valueRanks, valueDimensions),
                             "ONE_HOT depth and output shape disagree");
+                    case UNFOLD_AXIS -> requireShape(
+                            unfoldAxisMatches(
+                                    node, left, output, valueRanks, valueDimensions),
+                            "UNFOLD_AXIS attributes and output shape disagree");
                 }
                 switch (node.kind()) {
                     case NEG, ABS, CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS,
-                            SQUEEZE, SUM, MEAN -> {
+                            SQUEEZE, SUM, MEAN, UNFOLD_AXIS -> {
                         requireType(types, left, ValueType.FLOAT32);
                         requireType(types, output, ValueType.FLOAT32);
                     }
@@ -848,7 +852,7 @@ abstract class MetalNativeApi implements AutoCloseable {
             return switch (numericalProfile) {
                 case STRICT_IEEE -> switch (kind) {
                     case NEG, ABS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE,
-                            CONTIGUOUS, GATHER, ONE_HOT, SCATTER_ELEMENTS -> true;
+                            CONTIGUOUS, GATHER, ONE_HOT, SCATTER_ELEMENTS, UNFOLD_AXIS -> true;
                     case ADD, SUB, MUL, DIV, SUM, MEAN, MATMUL -> false;
                 };
                 case ACCELERATOR -> true;
@@ -937,6 +941,55 @@ abstract class MetalNativeApi implements AutoCloseable {
                 }
             }
             return true;
+        }
+
+        private static boolean unfoldAxisMatches(
+                MetalMpsGraphProgram.Node node,
+                int input,
+                int output,
+                int[] ranks,
+                long[] dimensions) {
+            int rank = ranks[input];
+            int axis = node.axis();
+            long[] attributes = node.attributeValues();
+            if (rank < 1
+                    || rank > 15
+                    || ranks[output] != rank + 1
+                    || axis < 0
+                    || axis >= rank
+                    || node.attributeCount() != 3
+                    || node.auxiliary() != 0
+                    || attributes.length != 2) {
+                return false;
+            }
+            long size = attributes[0];
+            long step = attributes[1];
+            if (size < 1L || size > 16L || step <= 0L) {
+                return false;
+            }
+            int inputRow = input * MAX_RANK;
+            int outputRow = output * MAX_RANK;
+            long selected = dimensions[inputRow + axis];
+            if (size > selected) {
+                return false;
+            }
+            long positions = Math.addExact(
+                    Math.subtractExact(selected, size) / step, 1L);
+            long lastEnd = Math.addExact(
+                    Math.addExact(size - 1L,
+                            Math.multiplyExact(positions - 1L, step)),
+                    1L);
+            if (lastEnd > selected) {
+                return false;
+            }
+            for (int dimension = 0; dimension < rank; dimension++) {
+                long expected = dimension == axis
+                        ? positions : dimensions[inputRow + dimension];
+                if (dimensions[outputRow + dimension] != expected) {
+                    return false;
+                }
+            }
+            return dimensions[outputRow + rank] == size;
         }
 
         private static boolean oneHotMatches(

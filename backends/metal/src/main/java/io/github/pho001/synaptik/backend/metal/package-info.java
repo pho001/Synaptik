@@ -4,11 +4,15 @@
  * <p>{@link io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider} reports a common exact
  * domain under both profiles: parameterless {@code NEG} and {@code ABS}, {@code RESHAPE},
  * {@code EXPAND}, {@code PERMUTE}, {@code EXPAND_DIMS}, {@code SQUEEZE}, the explicit
- * {@code CONTIGUOUS} canonicalization barrier, canonical positive-rank {@code FLOAT32} data
- * {@code GATHER} with canonical {@code INT32} indices, canonical positive-rank
- * {@code INT32}-to-{@code BOOL} {@code ONE_HOT}, and canonical positive-rank
- * {@code SCATTER_ELEMENTS} replacement with ordered {@code FLOAT32}/{@code INT32}/{@code FLOAT32}
- * data, indices, and updates. Scatter accepts only {@code ScatterReduction.NONE}, returns a
+ * {@code CONTIGUOUS} canonicalization barrier, canonical FLOAT32 {@code UNFOLD_AXIS} materializing
+ * one normalized axis into exact floor-count windows with a trailing size axis, canonical
+ * positive-rank {@code FLOAT32} data {@code GATHER} with canonical {@code INT32} indices,
+ * canonical positive-rank {@code INT32}-to-{@code BOOL} {@code ONE_HOT}, and canonical
+ * positive-rank {@code SCATTER_ELEMENTS} replacement with ordered
+ * {@code FLOAT32}/{@code INT32}/{@code FLOAT32} data, indices, and updates. UNFOLD_AXIS is bounded
+ * to input ranks {@code 1..15} and sizes {@code 1..16}, requires a positive step and
+ * size-at-most-axis extent, returns a fresh canonical rank-plus-one value, and preserves exact
+ * represented FLOAT32 bits. Scatter accepts only {@code ScatterReduction.NONE}, returns a
  * canonical data-shaped value, preserves exact represented bits, and validates complete bounds
  * then target uniqueness before dispatch. {@code ACCELERATOR} additionally admits tensor
  * {@code ADD}, {@code SUB}, {@code MUL}, and {@code DIV}, canonical {@code FLOAT32} {@code SUM},
@@ -42,9 +46,9 @@
  *
  * <p>The selected numerical profile participates in partition-plan, route, tuning,
  * decision-codec, and workload identity. Java rejects profile/schema mismatches before native
- * entry. ABI version four remains stable; node schema version ten retains wires {@code 1..17}
- * and appends {@code SCATTER_ELEMENTS=18} with its third input in the typed auxiliary cell.
- * Backend-local workload, exact-policy, candidate, compatibility, route-policy, and codec
- * identities are version eleven.</p>
+ * entry. ABI version four remains stable; node schema version eleven retains wires {@code 1..18}
+ * and appends {@code UNFOLD_AXIS=19} with typed {@code WINDOW_AXIS=6} normalized-axis, size, and
+ * step state. Backend-local workload, exact-policy, candidate, compatibility, route-policy, and
+ * codec identities are version twelve.</p>
  */
 package io.github.pho001.synaptik.backend.metal;

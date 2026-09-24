@@ -2454,16 +2454,17 @@ compatibility projection, and Engine's representative execution are implemented.
 Engine path produces the sole occurrence-0/partition-0/weight-1 mapping. Model extraction and
 multiple-occurrence aggregation remain planned.
 
-The profile-qualified Metal instance is also implemented internally. Its version-eleven
-fingerprint covers the exact `NumericalProfile`, node schema 10, typed exact common-profile
-NEG/ABS/affine/`CONTIGUOUS`/GATHER/ONE_HOT/`SCATTER_ELEMENTS` or accelerator
+The profile-qualified Metal instance is also implemented internally. Its version-twelve
+fingerprint covers the exact `NumericalProfile`, node schema 11, typed exact common-profile
+NEG/ABS/affine/`CONTIGUOUS`/`UNFOLD_AXIS`/GATHER/ONE_HOT/`SCATTER_ELEMENTS` or accelerator
 tensor-binary/reduction/MATMUL nodes, ordered first/second/auxiliary input edges, reduction form,
-ordered axes, keep-dimensions state and sum-to-Shape target, gather/scatter axes, one-hot depth,
-authenticated local-transpose provenance, ordered structural output positions, descriptors, value
-states, exact splat bits, logical-boundary facts, candidate/route schemas, and native ABI. Target
-compatibility separately includes the exact live `MetalDeviceContext` session nonce; ABI version
-`4` is not a stable cross-session device fingerprint. It currently supports only backend-local
-construction and authentication, not the tools-owned workload cache.
+ordered axes, keep-dimensions state and sum-to-Shape target, unfold axis/size/step and fixed
+selector-expansion bound, gather/scatter axes, one-hot depth, authenticated local-transpose
+provenance, ordered structural output positions, descriptors, value states, exact splat bits,
+logical-boundary facts, candidate/route schemas, and native ABI. Target compatibility separately
+includes the exact live `MetalDeviceContext` session nonce; ABI version `4` is not a stable
+cross-session device fingerprint. It currently supports only backend-local construction and
+authentication, not the tools-owned workload cache.
 
 ### Candidate generator
 
@@ -2502,7 +2503,7 @@ batch as a plan batch would incorrectly repeat local route search.
 
 The profile-qualified Metal batch is session-scoped. It contains only `CUSTOM_SINGLE_NEG` and
 `MPSGRAPH` configurations complete for the validated partition and profile. Compatibility,
-candidate, and route-policy schemas are version eleven, and no private field crosses the
+candidate, and route-policy schemas are version twelve, and no private field crosses the
 marker-role boundary.
 
 ### Complete-plan candidate
@@ -2542,9 +2543,9 @@ decision contains no measurement, cache representation, executable, provider, na
 physical resource, or Runtime state.
 
 The profile-qualified Metal decision follows the same owner-defined pattern with a bounded
-checksummed version-eleven session codec. Fresh Metal analysis regenerates current profile/topology
+checksummed version-twelve session codec. Fresh Metal analysis regenerates current profile/topology
 facts and accepts a selection only when schema, workload, exact context session, and candidate
-identity match. Decode rejects malformed, corrupt, trailing, stale, foreign-session, version-ten
+identity match. Decode rejects malformed, corrupt, trailing, stale, foreign-session, version-eleven
 and earlier, cross-profile, and unknown-candidate bytes. These bytes are not a persistent
 workload-cache artifact and have no current `tools/tuning` adapter.
 
@@ -4977,11 +4978,12 @@ CPU and Metal modules implement this collaboration internally for their supporte
 partitions. Each receives the exact graph-wide `NumericalProfile`; CPU retains either profile with
 identical routes. Metal admits a common exact baseline under both profiles: canonical FLOAT32
 `NEG`, `ABS`, `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`;
-canonical positive-rank FLOAT32 data `GATHER` with canonical INT32 indices; and positive-rank
-INT32-to-BOOL `ONE_HOT`. Accelerator Metal additionally admits tensor binary arithmetic, canonical
-`SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two MATMUL topology with authenticated local
-transpose operands; strict Metal rejects those additions. The exact supported matrices are
-described in the CPU and Metal backend guides.
+bounded canonical FLOAT32 `UNFOLD_AXIS`; canonical positive-rank FLOAT32 data `GATHER` with
+canonical INT32 indices; positive-rank INT32-to-BOOL `ONE_HOT`; and canonical
+FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. Accelerator Metal additionally admits tensor binary
+arithmetic, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two MATMUL topology
+with authenticated local transpose operands; strict Metal rejects those additions. The exact
+supported matrices are described in the CPU and Metal backend guides.
 
 ### Preparation resource assignment
 

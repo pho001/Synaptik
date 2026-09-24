@@ -558,6 +558,48 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
+    void cpuFreeMetalEngineRunsExactUnfoldAxisUnderBothProfiles() {
+        Path library = configuredMetalLibrary();
+        int[] inputBits = {
+            0x00000000, 0x80000000, 0x00000001, 0x80000001, 0x7f800000, 0xff800000,
+            0x7fc12345, 0xffc54321, 0x7f812345, 0xff854321, 0x3f800000, 0xbf800000
+        };
+        int[] expected = {
+            inputBits[0], inputBits[1], inputBits[2],
+            inputBits[2], inputBits[3], inputBits[4],
+            inputBits[6], inputBits[7], inputBits[8],
+            inputBits[8], inputBits[9], inputBits[10]
+        };
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            try (Arena arena = Arena.ofShared();
+                    Engine.Builder builder = Engine.builder()) {
+                builder.numericalProfile(profile);
+                builder.takeOwnership(MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library)));
+                try (Engine engine = builder.build()) {
+                    Tensor input = nativeTensorBits(
+                            descriptor(Shape.of(2, 6)), arena, inputBits);
+                    MemorySegment inputBytes = ((MemorySegmentStorage)
+                            input.hostStorage().orElseThrow()).segment();
+                    var compiled = engine.compile(List.of(input.unfold(1, 3, 2)));
+                    assertEquals(
+                            List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(compiled));
+                    try (InferenceSession session = engine.session(compiled);
+                            var result = session.run(List.of(input))) {
+                        assertRawBits(
+                                result.materialize(
+                                        result.publications().getFirst(),
+                                        (long) expected.length * Integer.BYTES).bytes(),
+                                expected);
+                    }
+                    assertArrayEquals(inputBits, inputBytes.toArray(ValueLayout.JAVA_INT));
+                }
+            }
+        }
+    }
+
+    @Test
     void cpuFreeMetalEngineRunsConcurrentAffineCallsWithIsolatedRunOwnership()
             throws Exception {
         Path library = configuredMetalLibrary();

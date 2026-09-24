@@ -209,6 +209,13 @@ Canonical caller-host ingress into an owned Metal partition accepts exact positi
 materialize through the owning Metal integration as exact one-byte elements. These local paths do
 not widen the cross-owner transfer capability, which remains canonical positive-rank `FLOAT32`.
 
+The current common-profile Metal movement domain also includes bounded canonical FLOAT32
+`UNFOLD_AXIS`. Its input rank is 1..15, size is 1..16, step is positive, size does not exceed the
+selected extent, and its canonical output has the exact rank-plus-one floor-count Shape. It
+materializes addressed input representations in row-major output order, repeats overlaps, omits
+incomplete tails, applies no padding, and never aliases or mutates its source. This is forward-only:
+Metal admits no FOLD_AXIS, two- or three-dimensional window, or backward window route.
+
 The current common-profile Metal indexing domain is exact positive-rank axis `GATHER` from
 canonical `FLOAT32` data with canonical `INT32` indices, positive-rank `INT32`-to-`BOOL`
 `ONE_HOT`, and canonical positive-rank `FLOAT32`/`INT32`/`FLOAT32`
@@ -219,7 +226,7 @@ completes bounds before complete-coordinate uniqueness. All checks precede MPSGr
 construction, selector dispatch, and target writes. Bounds publish the Model's exact
 `IndexOutOfBoundsException`; duplicates publish its exact `IllegalArgumentException`; every target
 and input remains unchanged on failure. Selector skip and overlap-winner behavior are never part of
-the contract. This is a forward backend route and does not add Compiler production, a complete
+the contract. These are forward backend routes and do not add Compiler production, a complete
 backward path, arithmetic scatter, Scatter-ND, INT64 indices, general BOOL consumers, CPU fallback,
 or widened transfer.
 

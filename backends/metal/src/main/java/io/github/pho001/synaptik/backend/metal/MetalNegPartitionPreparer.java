@@ -22,6 +22,8 @@ import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
+import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
@@ -46,14 +48,15 @@ import java.util.Optional;
  * <p>The deterministic analysis assigns stable native value indices, retains every node kind and
  * ordered operand, and derives unique feeds and targets before selecting a closed private route.
  * For both profiles, it walks explicit unavailable/canonical/affine-view states in node order for
- * the retained NEG/ABS, affine, CONTIGUOUS, GATHER, ONE_HOT, and replacement SCATTER_ELEMENTS
- * domain. Under {@code ACCELERATOR}, it additionally accepts binary arithmetic, the exact
- * SUM/MEAN/SUM_TO_SHAPE reduction forms, and positive static rank-two FLOAT32 MATMUL. An affine
- * MATMUL operand is authenticated to the exact earlier local rank-two {@code PERMUTE [1,0]} of a
- * canonical source on that consuming edge; affine values otherwise retain the same valid local
- * consumers and boundary publication as strict execution. MATMUL lowering retains both ordered
- * operands in a schema-ten wire-15 record; GATHER and ONE_HOT retain wires 16 and 17, and
- * SCATTER_ELEMENTS appends wire 18 with updates in the typed auxiliary cell. Reduction lowering
+ * the retained NEG/ABS, affine, CONTIGUOUS, UNFOLD_AXIS, GATHER, ONE_HOT, and replacement
+ * SCATTER_ELEMENTS domain. Under {@code ACCELERATOR}, it additionally accepts binary arithmetic,
+ * the exact SUM/MEAN/SUM_TO_SHAPE reduction forms, and positive static rank-two FLOAT32 MATMUL. An
+ * affine MATMUL operand is authenticated to the exact earlier local rank-two
+ * {@code PERMUTE [1,0]} of a canonical source on that consuming edge; affine values otherwise
+ * retain the same valid local consumers and boundary publication as strict execution. MATMUL
+ * lowering retains both ordered operands in a schema-eleven wire-15 record; GATHER and ONE_HOT
+ * retain wires 16 and 17, SCATTER_ELEMENTS retains wire 18 with updates in the typed auxiliary
+ * cell, and UNFOLD_AXIS appends wire 19 with normalized axis, size, and step. Reduction lowering
  * retains the typed form, ordered normalized axes (including empty), exact keep-dimensions flag,
  * sum-to-Shape target, and shape-derived term geometry. Every graph feed is canonical
  * positive-rank and exactly FLOAT32 or INT32 as required by its typed uses. Analysis
@@ -488,6 +491,12 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             PermutationAttrs attrs = (PermutationAttrs) operation.attrs();
             return MetalMpsGraphProgram.Node.permutation(
                     inputs[0], output, attrs.axes());
+        }
+        if (kind == WindowTransformKind.UNFOLD_AXIS) {
+            UnfoldAxisAttrs windowAttrs = (UnfoldAxisAttrs) operation.attrs();
+            return MetalMpsGraphProgram.Node.unfoldAxis(
+                    inputs[0], output,
+                    windowAttrs.axis(), windowAttrs.size(), windowAttrs.step());
         }
         AxisTransformAttrs attrs = (AxisTransformAttrs) operation.attrs();
         MetalMpsGraphProgram.NodeKind nodeKind = kind == AxisTransformKind.EXPAND_DIMS

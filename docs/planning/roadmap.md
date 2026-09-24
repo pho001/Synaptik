@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through reviewed 0024; 0006–0007, 0009–0013, and 0016–0018 Blocked; 0025 Ready | [Metal 0024](backends/metal/tasks/0024-exact-int32-scatter-elements-replacement.md) completed at implementation `a947e574732273bee4469d42afe8935082d53109` plus docs `aa191ca469010d081150e97dcddd504ec626dd9e` and final independent approval. [Metal 0025](backends/metal/tasks/0025-exact-float32-unfold-axis-materialization.md) is the sole Ready frontier for bounded common-profile exact FLOAT32 UNFOLD_AXIS. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through reviewed 0024; 0006–0007, 0009–0013, and 0016–0018 Blocked; 0025 Ready for review | [Metal 0024](backends/metal/tasks/0024-exact-int32-scatter-elements-replacement.md) completed at implementation `a947e574732273bee4469d42afe8935082d53109` plus docs `aa191ca469010d081150e97dcddd504ec626dd9e` and final independent approval. [Metal 0025](backends/metal/tasks/0025-exact-float32-unfold-axis-materialization.md) has an implementation checkpoint from exact clean planning base `c54ccbde0dc8defd4def1e25c3fd2898a1d66f4e` and is the sole Ready frontier for independent lean Class C review. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -81,7 +81,8 @@ landed at `9a7911c9` plus evidence `80e6cedd`; final independent lean Class C re
 zero findings after one concrete-risk production-ABI SNaN probe. Complete Metal 0024 landed at
 implementation `a947e574732273bee4469d42afe8935082d53109` plus documentation remediation
 `aa191ca469010d081150e97dcddd504ec626dd9e`; final independent lean Class C review approved with
-zero findings. Ready Metal 0025 is the exact bounded common-profile FLOAT32 UNFOLD_AXIS successor.
+zero findings. Ready Metal 0025 now has its bounded common-profile FLOAT32 UNFOLD_AXIS
+implementation checkpoint from exact clean planning base `c54ccbde`; independent review is next.
 Every unproved family remains fail-closed.
 
 Task 0019 landed at implementation `a6d1796d` plus mixed-owner test remediation `bcb717a6`. Its
@@ -137,8 +138,9 @@ Class C review returned `APPROVE` with zero findings. Metal 0022 completed at `4
 `90cd5fd9` and final independent approval; Metal 0023 completed at `9a7911c9` plus evidence
 `80e6cedd` and final independent approval. Metal 0024 completed at
 `a947e574732273bee4469d42afe8935082d53109` plus documentation remediation
-`aa191ca469010d081150e97dcddd504ec626dd9e` and final independent approval. Metal 0025 is the sole
-Ready successor.
+`aa191ca469010d081150e97dcddd504ec626dd9e` and final independent approval. Metal 0025 has its
+implementation checkpoint from exact clean planning base `c54ccbde` and is the sole Ready
+frontier for independent lean Class C review.
 
 Engine
 [0017](modules/engine/tasks/0017-reusable-inference-session-api.md) is Complete from exact base
@@ -166,8 +168,9 @@ Task 0020 adds accelerator `SUM=13` and `MEAN=14`; Complete task 0021 appends ac
 9, appends `GATHER=16`, `ONE_HOT=17`, and `DEPTH=5`, and advances route, candidate, compatibility,
 workload, exact-policy, and codec identities to version ten. Evidence `80e6cedd` and final
 independent lean Class C approval close it. Complete 0024 advances schema to 10, appends
-`SCATTER_ELEMENTS=18`, and advances those identities to version eleven. Ready 0025 proposes only
-schema 11/wire 19/typed window-axis state and version-twelve identities for exact UNFOLD_AXIS.
+`SCATTER_ELEMENTS=18`, and advances those identities to version eleven. Ready-for-review 0025
+implements only schema 11/wire 19/typed window-axis state and version-twelve identities for exact
+bounded canonical FLOAT32 UNFOLD_AXIS from clean planning base `c54ccbde`.
 
 [0006](backends/metal/tasks/0006-mpsgraph-float32-unary-algebra.md) remains `Blocked` by exact
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures. [0007](backends/metal/tasks/0007-mpsgraph-float32-reductions.md)
@@ -218,16 +221,18 @@ no production, native, test, or probe changes remain.
 is `Complete` at `42c4cfbf` plus `fb102a46` after the operation-by-operation DAZ/FTZ oracle, focused
 validation, combined serial checkpoint, and independent Class C approval all passed.
 
-Current Metal uses ABI v4 with exactly thirteen exports and node schema 10. Both profile matrices
-admit exact canonical `FLOAT32` NEG/ABS/affine/`CONTIGUOUS`, canonical positive-rank FLOAT32 data
-GATHER with canonical INT32 indices, positive-rank INT32-to-BOOL ONE_HOT, and canonical
-FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`; accelerator additionally admits tensor `FLOAT32`
+Current Metal uses ABI v4 with exactly thirteen exports and node schema 11. Both profile matrices
+admit exact canonical `FLOAT32` NEG/ABS/affine/`CONTIGUOUS`, bounded canonical FLOAT32
+`UNFOLD_AXIS`, canonical positive-rank FLOAT32 data GATHER with canonical INT32 indices,
+positive-rank INT32-to-BOOL ONE_HOT, and canonical FLOAT32/INT32/FLOAT32
+`SCATTER_ELEMENTS/NONE`; accelerator additionally admits tensor `FLOAT32`
 `ADD`/`SUB`/`MUL`/`DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two
 MATMUL with authenticated local transposes. Java/native validation authenticates an affine MATMUL
 operand only on its consuming edge; general affine publication and valid local consumers remain
-available. Version-eleven identities separate profile/type/topology compatibility, scalar
+available. Version-twelve identities separate profile/type/topology compatibility, scalar
 reduction and BOOL materialization remain local-only, FLOAT32-only transfer is unchanged, and
-Runtime/Trace remain profile-free.
+Runtime/Trace remain profile-free. Metal 0025 remains Ready pending independent lean Class C
+review.
 
 Strategic gate: historical blocker evidence is preserved, and no backend task may define Model
 semantics. Complete Model 0028 owns bounded reduction exact-zero sign freedom; Complete Metal 0020
@@ -243,10 +248,11 @@ changed. Complete Metal 0023 passed its documented-selector/minimal-smoke eviden
 independent review at implementation `9a7911c9` plus evidence `80e6cedd`. Complete Metal 0024
 passed its one-run Set smoke, implementation at `a947e574732273bee4469d42afe8935082d53109`,
 documentation remediation at `aa191ca469010d081150e97dcddd504ec626dd9e`, and final independent
-lean Class C approval with zero findings. Ready Metal 0025 owns only bounded common-profile exact
-FLOAT32 UNFOLD_AXIS through the active SDK's documented strided-slice, append-axis, and ordered-
-concat mapping. No task may infer generic fast math, relax unary/layout/scatter/window semantics,
-or authorize gross special-value errors.
+lean Class C approval with zero findings. Ready Metal 0025 implements only bounded common-profile
+exact FLOAT32 UNFOLD_AXIS through the active SDK's documented strided-slice, append-axis, and
+ordered-concat mapping from exact clean planning base `c54ccbde`; independent review is next. No
+task may infer generic fast math, relax unary/layout/scatter/window semantics, or authorize gross
+special-value errors.
 
 ## Blocked, review-needed, and deferred work
 
@@ -318,15 +324,15 @@ or authorize gross special-value errors.
 
 ## Nearest next step
 
-Implement [Metal 0025](backends/metal/tasks/0025-exact-float32-unfold-axis-materialization.md) from
-exact base `aa191ca469010d081150e97dcddd504ec626dd9e`. Preserve `STRICT_IEEE` as a subset of
-`ACCELERATOR`; admit only bounded canonical FLOAT32 `UNFOLD_AXIS` identically under both profiles.
-Use the task's exact documented strided-slice, final singleton-axis insertion, and ordered-concat
-mapping. Run no selector matrix: at most the one specified one-run raw-bit movement smoke may
-precede production. Keep fold, padding, 2D/3D windows, shared production, transfer widening, and
-complete backward claims closed. The active SDK does not document enough im-to-column output,
-padding/ceil-tail, column-to-image input/order, or represented accumulation behavior to authorize a
-later 2D unfold/fold implementation task.
+Independently review the [Metal 0025 implementation checkpoint](backends/metal/tasks/0025-exact-float32-unfold-axis-materialization.md)
+prepared from exact clean planning base `c54ccbde0dc8defd4def1e25c3fd2898a1d66f4e`. Reuse its
+successful smoke and worker evidence. Verify only bounded canonical FLOAT32 `UNFOLD_AXIS` is common
+to both profiles through the documented ascending strided-slice, final singleton-axis insertion,
+and ordered-concat mapping. Keep fold, padding, 2D/3D windows, shared production, transfer widening,
+and complete backward claims closed. Run no further device work unless review identifies one new
+concrete risk. The active SDK still does not document enough im-to-column output, padding/ceil-tail,
+column-to-image input/order, or represented accumulation behavior to authorize a later 2D
+unfold/fold implementation task.
 
 ## History policy
 

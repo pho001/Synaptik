@@ -30,6 +30,8 @@ import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
+import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
@@ -195,6 +197,39 @@ class MetalCapabilityProviderTest {
                     List.of(occurrence.input()),
                     List.of(occurrence.output()))), occurrence.name() + " accelerator");
         }
+    }
+
+    @Test
+    void admitsOnlyBoundedCanonicalFloat32UnfoldAxisInBothProfiles() {
+        TensorDescriptor input = descriptor(Shape.of(2, 6), true);
+        TensorDescriptor output = descriptor(Shape.of(2, 2, 3), true);
+        Operation unfold = new Operation(
+                WindowTransformKind.UNFOLD_AXIS, new UnfoldAxisAttrs(1, 3, 2));
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            assertTrue(provider.supports(new OperationCapabilityQuery(
+                    profile, unfold, List.of(input), List.of(output))));
+        }
+
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                new Operation(WindowTransformKind.UNFOLD_AXIS, new UnfoldAxisAttrs(1, 17, 1)),
+                List.of(input),
+                List.of(descriptor(Shape.of(2, 1, 17), true)))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                new Operation(WindowTransformKind.UNFOLD_AXIS, new UnfoldAxisAttrs(1, 7, 1)),
+                List.of(input),
+                List.of(descriptor(Shape.of(2, 1, 7), true)))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                unfold,
+                List.of(input),
+                List.of(descriptor(Shape.of(2, 3, 3), true)))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                unfold,
+                List.of(view(Shape.of(2, 6), 6, 1)),
+                List.of(descriptor(Shape.of(2, 2, 3), false)))));
     }
 
     @Test
