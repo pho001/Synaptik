@@ -1,5 +1,7 @@
 # Task 0005: MPSGraph Mixed NEG/Binary FLOAT32 Whole-Partition Route
 
+## Status
+
 Complete
 
 ## Review state
@@ -129,7 +131,8 @@ Update backend guide, native README, public API scope text, targeted glossary en
 
 ## Result
 
-Implemented and remediated, pending independent Class C re-review. Metal capability now admits exactly parameterless `NEG`,
+Approved after independent Class C re-review of remediation commit `9f3a264` returned `APPROVE`
+with zero residual findings. Metal capability now admits exactly parameterless `NEG`,
 `ADD`, `SUB`, `MUL`, and `DIV` over positive static rank-`1..16` canonical contiguous `FLOAT32`
 descriptors with equal per-occurrence gradient flags and exact right-aligned binary broadcasting.
 Analysis lowers the entire maximal partition to immutable version-one typed node records while
