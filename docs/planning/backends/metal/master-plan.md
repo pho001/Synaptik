@@ -57,10 +57,10 @@ Training-to-Metal optimizer bridge.
   accelerator graphs the four canonical tensor-binary operations. Complete 0019 adds exact
   canonical `ABS` to both profile matrices. Complete 0020 adds accelerator canonical
   `SUM`/`MEAN`/`SUM_TO_SHAPE`; Complete 0021 adds accelerator positive static rank-two MATMUL after
-  its fresh oracle, worker evidence, and independent Class C approval passed. Ready 0022 remains
-  the sole serial frontier; its monotonicity implementation and focused checkpoint are complete and
-  await independent Class C review. Researched INT32 GATHER and ONE_HOT remain Draft 0023 behind
-  Complete 0022.
+  its fresh oracle, worker evidence, and independent Class C approval passed. Complete 0022
+  delivered profile monotonicity at `41517594` plus documentation remediation `90cd5fd9` and final
+  independent Class C approval. Reverified INT32 GATHER and ONE_HOT Task 0023 is the sole Ready
+  serial frontier.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
   requirements. Metal 0017 remains Blocked under its old accelerator-reduction contract.
@@ -317,7 +317,7 @@ unary operation, broader backward/training, and Model 0026 remain unauthorized.
   ```
 
   The old `synaptik_metal_mpsgraph_neg_executable_create` symbol is absent.
-- Tasks 0008, 0014, 0015, 0019, 0020, 0021, and Ready 0022 retain the exact thirteen-symbol ABI.
+- Tasks 0008, 0014, 0015, 0019, 0020, 0021, and 0022 retain the exact thirteen-symbol ABI.
   Schema version 8 admits NEG/affine/`CONTIGUOUS` under both profiles on wires `1` and `6..11`,
   exact ABS under both profiles on wire `12`, accelerator tensor binary on wires `2..5`,
   accelerator `SUM=13`/`MEAN=14` with typed reduction forms, and accelerator `MATMUL=15`. Java
