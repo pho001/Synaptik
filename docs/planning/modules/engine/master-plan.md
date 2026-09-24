@@ -17,6 +17,7 @@ Focused explanations and decisions:
 - [ADR 0015: Explicit Engine backend composition](../../../design/decisions/0015-explicit-engine-backend-composition.md)
 - [ADR 0016: CPU/Metal mixed-owner prepared schedule](../../../design/decisions/0016-cpu-metal-mixed-owner-schedule.md)
 - [ADR 0017: Reusable inference session facade](../../../design/decisions/0017-reusable-inference-session-facade.md)
+- [ADR 0019: Explicit numerical profiles](../../../design/decisions/0019-explicit-numerical-profiles.md)
 
 ## Lifecycle position
 
@@ -113,7 +114,7 @@ not a catch-all service registry.
 | [0015](tasks/0015-cpu-metal-single-owner-composition.md) | CPU/Metal single-owner Engine composition | Complete | 0014; Metal 0004; current Compiler/Prepare/Runtime contracts | Added the concrete builder ownership lifecycle, fixed registry, single-owner cold routing, direct adapter ingress/materialization, public Metal lifecycle integration, CPU-only tuning gate, and real CPU/Metal integration coverage. |
 | [0016](tasks/0016-cpu-metal-mixed-owner-schedule.md) | CPU/Metal mixed-owner schedule and transfer | Complete | 0015; Prepare 0006; Runtime 0016; Metal 0004 | Added independently reviewed owner-indexed shared representations, Compiler-ordered caller inputs, complete-set Prepare routing, explicit bounded bidirectional F32 CPU/Metal transfer, ordered mixed scheduling, direct per-occurrence handle capture, rollback, and real public lifecycle evidence. |
 | [0017](tasks/0017-reusable-inference-session-api.md) | Reusable inference session API | Complete | 0016 | Added the independently reviewed thin public session that prepares one owner-bound graph once and delegates repeated/concurrent input binding, run, result, materialization, and close behavior to the existing lifecycle without another compiler, scheduler, runner, or result. |
-| 0018 | Explicit numerical-profile propagation spine | Draft | Model 0027; Config 0006; current Planning/Compiler/Prepare/Engine contracts; CPU and Metal fail-closed migration points | Perform one clean-cutover mutation across profile-qualified capability queries, immutable compile artifacts, Prepare projection, Engine Builder/AdvancedEngine capture, every caller, and strict defaults. Keep Runtime profile-free and require backend cache/route identity before relaxed capability. |
+| [0018](tasks/0018-explicit-numerical-profile-propagation-spine.md) | Explicit numerical-profile propagation spine | Ready | Model 0027; Config 0006; current Planning/Compiler/Prepare/Engine contracts; CPU and Metal fail-closed migration points | Perform one atomic clean cutover across profile-qualified Planning queries, nine-component Compiler artifacts, six-component Prepare projection, immutable Engine Builder/AdvancedEngine capture, every caller, and profile-keyed backend plans/caches. Keep Runtime/Trace profile-free and CPU/Metal relaxed capability disabled. |
 
 ## Milestones and current frontier
 
@@ -128,10 +129,10 @@ not a catch-all service registry.
   bounded mixed-owner implementations are Complete through 0016.
 - The reusable inference-session facade from exact base `4fc4fd3d` is Complete as 0017 after the
   required Class C and narrow documentation review sequence.
-- Draft 0018 is the atomic propagation spine for the accepted numerical-profile program. Model
-  0027 is Complete; Config 0006 is the sole Ready repository frontier and owns identity only. Task
-  0018 remains Draft and unauthorized until Config 0006 is Complete. No partial compatibility
-  overload or hidden default may split the cross-module record migration.
+- Ready 0018 is the sole repository frontier and atomic propagation spine for the accepted
+  numerical-profile program. Model 0027 and Config 0006 are Complete; Config landed at `314e049`
+  plus remediation `37e9e9db` after fresh validation and independent Class B approval. No partial
+  compatibility overload, hidden default, or split record/cache migration may divide the task.
 
 ## Live risks and gates
 
@@ -151,9 +152,10 @@ not a catch-all service registry.
   composition does not expose or interpret them.
 - Preserve 0011's repaired boundary: Engine/Prepare own Compiler aggregates and the single
   projection, while concrete CPU production remains Compiler-free.
-- Numerical-profile selection is graph-wide and cold. Draft 0018 must retain one profile through
-  compile and Prepare, while Runtime/session hot paths execute only the prepared recipe. CPU 0017
-  and Metal 0015 remain separate dependent realizations.
+- Numerical-profile selection is graph-wide and cold. Ready 0018 retains one immutable profile
+  through Planning, compile, Prepare, and backend plan/cache identity, while Runtime/session hot
+  paths execute only the prepared recipe. CPU 0017 and Metal 0015 remain separate Draft semantic
+  realizations and no relaxed capability is current.
 - Metal configuration, native open, and partial-open rollback remain Metal-owned; Engine may take
   an opened integration but must not duplicate or interpret Metal policy.
 
@@ -179,7 +181,7 @@ exact base `4fc4fd3d1e44613cdbdc44051e0bc637992d0de4`.
 
 ## Status normalization
 
-Engine is Complete through 0017. Numerical-profile spine 0018 is Draft; no Engine task is Ready.
+Engine is Complete through 0017. Numerical-profile spine 0018 is the sole Ready repository task.
 
 ## History and update policy
 

@@ -94,7 +94,7 @@ visibility.
 | 0012 | [MPSGraph FLOAT32 extrema reductions](tasks/0012-mpsgraph-float32-extrema-reductions.md) | Blocked | 0005/0008; current Model ordinary-extrema semantics and Compiler forward capture; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007/0009/0010/0011 or Model 0026 | Every concurrent Metal capability/preparation/native schema/candidate/materialization/Engine scope | None | Probe → schema/geometry → capability/topology → candidates/lifecycle/scalar publication → Engine proof → docs/review | Reproducible exhaustive direct-target probe and independent blocker; no production change | Propagating MIN/MAX selectors were order-dependent for opposite signed zeros and zero/minimum-subnormal pairs: 2,016 MIN plus 2,016 MAX mismatches and 2,976 subnormal failures in 43,824 executions. |
 | 0013 | [MPSGraph FLOAT32 cumulative scans](tasks/0013-mpsgraph-float32-cumulative-scans.md) | Blocked | 0005/0008; current Model cumulative-scan semantics and Compiler forward capture; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007/0009–0012 or Model 0026 | Every concurrent Metal capability/preparation/native schema/candidate/materialization/Engine scope | None | Exact replacement route -> numerical gates -> Class C review | Reproducible exact cumulative-selector/direct-target probe and independent blocker; no production change | Inclusive length-one SUM/PRODUCT flushed all six subnormal corpus values at optimization levels 0/1; strict host controls preserved them. Axis 5 of rank 6 passed and axis 6 correctly rejected. Independent `APPROVE-BLOCKER`. |
 | 0014 | [MPSGraph FLOAT32 affine layout composition](tasks/0014-mpsgraph-float32-affine-layout-composition.md) | Complete | 0005/0008; current Model layout semantics and Compiler inference; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006–0007/0009–0013 or Model 0026 | Every concurrent Metal capability/preparation/native schema/candidate/materialization/Engine Metal scope | None | Probe -> capability/topology -> schema/state validation -> candidates/lifecycle/authentication -> Engine proof -> docs/review | Raw-bit selector-chain/direct-target probe; ABI-v4 exact exports; focused Metal/conformance/Compiler/Engine/architecture/Javadoc/docs checks | Commit `01e81be2` delivered exact local affine/`CONTIGUOUS` composition, schema/candidate version 4, and real Engine proof; independent Class C review returned `APPROVE` with zero findings. |
-| 0015 | ACCELERATOR FLOAT32 tensor binary arithmetic realization | Draft | 0014; Model 0027; Config 0006; Engine 0018 | Every Metal capability/preparation/native schema/candidate/materialization scope | Numerical-profile backends | After Engine 0018; parallel with CPU 0017 only after a stable common base | Disposable real-device bounded-result probe; focused Metal/conformance/public Engine/architecture checkpoint | Make existing exact rows profile-aware and restore `ADD`/`SUB`/`MUL`/`DIV` only for `ACCELERATOR`, with explicit profile identity and fail-closed schema evolution. |
+| 0015 | ACCELERATOR FLOAT32 tensor binary arithmetic realization | Draft | 0014; Model 0027; Config 0006; Engine 0018 | Every Metal capability/preparation/native schema/candidate/materialization scope | Numerical-profile backends | After Engine 0018; parallel with CPU 0017 only after a stable common base | Disposable real-device bounded-result probe; focused Metal/conformance/public Engine/architecture checkpoint | Use the profile-keyed plans/caches delivered by Engine 0018 and restore `ADD`/`SUB`/`MUL`/`DIV` only for `ACCELERATOR`; keep every unproved row fail-closed and evolve native semantics only with fresh evidence. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -105,10 +105,10 @@ Cross-area profile branch:
 `0014 + Model 0027 -> Config 0006 -> Engine 0018 -> Metal 0015`
 
 0006–0007 and 0009–0013 remain independently `Blocked` under the current exact contracts. 0014 is
-Complete and supplies the profile-invariant affine baseline. Model 0027 is Complete after
-independent validation and Class C approval; Config 0006 is the sole Ready repository frontier.
-Metal 0015 remains Draft and gains no capability authorization before Config 0006 and Engine 0018
-are Complete and a fresh bounded real-device probe passes.
+Complete and supplies the profile-invariant affine baseline. Model 0027 and Config 0006 are
+Complete; Engine 0018 is the sole Ready repository frontier and owns identity transport plus
+fail-closed Metal plan/cache isolation. Metal 0015 remains Draft and gains no capability
+authorization before Engine 0018 is Complete and a fresh bounded real-device probe passes.
 
 ## Integration ownership and shared documents
 
@@ -173,10 +173,10 @@ axis `6` correctly rejected, so axis is not a blocker. Independent review return
 `APPROVE-BLOCKER`; no production, native, test, or probe changes remain.
 
 Metal 0014 is Complete and no Metal task is Ready. Draft 0015 is the first planned backend
-realization of the accepted numerical-profile program, but it remains behind completed Model
-0027, sole Ready Config 0006 identity, and Draft Engine 0018 propagation. Until Config and Engine
-complete their contracts, current strict capability remains unchanged and the historical numerical
-blockers stay Blocked.
+semantic realization of the accepted numerical-profile program, but it remains behind completed
+Model 0027/Config 0006 and sole Ready Engine 0018. Engine 0018 may transport profile identity
+through Metal plans/caches only; current strict capability remains unchanged and the historical
+numerical blockers stay Blocked.
 
 ## Delivered lifecycle and ABI boundary
 

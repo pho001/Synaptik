@@ -2,12 +2,14 @@
 
 ## Status
 
-Ready
+Complete
 
-Frontier verification: Model 0027 is Complete at implementation commit `ff86a302`; independent
-validation passed 1,114 Model tests and nine architecture tests with zero failures and zero skips,
-and mandatory independent Class C review returned `APPROVE` with zero findings. Config 0006 is the
-sole Ready repository frontier. Model 0026 and Engine 0018, CPU 0017, and Metal 0015 remain Draft.
+Implementation `314e049` plus remediation `37e9e9db` completed the identity-only scope. A fresh
+Config test/Javadoc run passed 33 tests with zero failures, errors, or skips; the generated enum and
+package pages were inspected; baseline-aware Markdown evidence and `git diff --check` passed; and
+independent Class B review returned final `APPROVE` with zero findings. Model 0026 remains Draft;
+dependent Engine 0018 is the sole Ready repository frontier, while CPU 0017 and Metal 0015 remain
+Draft.
 
 ## Change class
 
@@ -180,4 +182,9 @@ identity.
 
 ## Result
 
-Empty until execution.
+Complete at implementation `314e049fdcf399a5d7c6913a62db6b1a355e0d0e` plus remediation
+`37e9e9db0bdb0b11564e3696079b0d6a5e0c8109`. Fresh Config tests and Javadoc passed 33 tests with
+zero failures, errors, or skips; generated enum/package pages were inspected; baseline-aware
+Markdown validation and `git diff --check` passed; and independent Class B review returned final
+`APPROVE` with zero findings. The delivered enum remains identity-only. This planning-only
+completion promotes only Engine 0018; Model 0026, CPU 0017, and Metal 0015 remain Draft.
