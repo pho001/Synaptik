@@ -202,8 +202,8 @@ route and constructs one immutable `PreparedExecutable` recipe.
 
 For the custom route, native creation compiles the fixed branch-free `synaptik_neg_f32` Metal
 Shading Language source and creates one `MTLComputePipelineState`. For MPSGraph, native creation
-validates a fixed-width version-eight typed node table and compiles one fixed-shape
-`MPSGraphExecutable` for the whole partition. MATMUL compilation requires the available
+validates the fixed-width schema-ten 160-byte typed node table with operation wires `1..18` and
+compiles one fixed-shape `MPSGraphExecutable` for the whole partition. MATMUL compilation requires
 reduced-precision-fast-math control to set and read back `None`. Compilation happens during
 prepare finalization, never during invocation.
 

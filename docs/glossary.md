@@ -5154,13 +5154,14 @@ implements the transactional finalizer handoff.
 The current Metal backend's package-private, shape-specialized Runtime recipe for one complete
 maximal profile-homogeneous partition. Both profiles admit exact canonical `NEG`/`ABS`,
 `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`; canonical positive-rank
-FLOAT32+INT32 `GATHER`; and INT32-to-BOOL `ONE_HOT`. An accelerator recipe may additionally contain
+FLOAT32+INT32 `GATHER`; INT32-to-BOOL `ONE_HOT`; and canonical positive-rank
+FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. An accelerator recipe may additionally contain
 canonical tensor `ADD`, `SUB`, `MUL`, and `DIV`; canonical `SUM`, `MEAN`, and binding-resolved
 `SUM_TO_SHAPE`; and positive static rank-two `MATMUL` whose affine operands are authenticated local
 `PERMUTE [1,0]` results on their consuming edges. Metal analysis fixes stable feed, target, and
-structural value order, lowers node-schema-9 fixed-width typed records, generates a complete
-version-ten route batch, authenticates any supplied session decision, then fixes a closed private
-route before declaring shared resources.
+structural value order, lowers fixed-width node-schema-10 typed records, generates a complete
+version-eleven route batch, authenticates any supplied session decision, then fixes a closed
+private route before declaring shared resources.
 
 With no decision, an exact singleton `NEG` under either profile with one feed, one target, and
 checked element count in `1..UINT32_MAX` selects the custom route; every ABS, indexing, and other
