@@ -73,11 +73,13 @@ Training-to-Metal optimizer bridge.
   real-M3 oracle passed 384 executables and 3,072 runs before production edits; implementation
   `ef2c6a1a` plus evidence corrections `be5543f9` and `5631d51f` passed final independent Class C
   review with zero findings.
-- Ready Metal 0022 is the sole active Metal write scope. It retains ABI v4, thirteen exports,
-  schema 8, wires `1..15`, and version-nine identities while enforcing profile monotonicity.
+- Complete Metal 0022 landed at implementation `41517594` plus documentation remediation
+  `90cd5fd9`; final independent Class C review returned `APPROVE` with zero findings.
+- Ready Metal 0023 is the sole active Metal write scope from exact base `90cd5fd9`, under its
+  documentation-first, minimal-device-smoke, no-combinatorial-probe policy.
 - Later Metal 0028 and 0029 remain reserved for separately authorized FLOAT16 and BFLOAT16 scopes.
 - Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
-  0017, and Metal 0015/0019/0020/0021 are Complete.
+  0017, and Metal 0015/0019/0020/0021/0022 are Complete.
 - Production dependencies may point to Model, Config, Planning, Runtime, Prepare,
   Backend Contract, and Trace, never Engine or Training. Task 0002's Compiler edge is test-only.
 
@@ -123,8 +125,8 @@ visibility.
 | 0019 | [Exact profile-qualified FLOAT32 ABS](tasks/0019-exact-profile-qualified-float32-abs.md) | Complete | 0015; Model 0027; Config 0006; Engine 0018; not 0016 | Any 0016 restart; 0017–0018/0020; every Metal capability/preparation/native schema/candidate/materialization/Engine Metal scope | None | Serial after 0015, before reduction/MATMUL successors | Exact both-profile Metal ABS checkpoint | Implementation `a6d1796d` plus remediation `bcb717a6`; ABI/export, Metal/conformance/Engine/architecture/full-build/docs passed and independent Class C final review approved with zero findings. |
 | 0020 | [ACCELERATOR FLOAT32 reductions after exact-zero sign refinement](tasks/0020-accelerator-float32-reductions-after-zero-sign-refinement.md) | Complete | Model 0028; 0019; Model 0027; Config 0006; Engine 0018 | 0018 and any 0016 restart; every Metal capability/preparation/native schema/candidate/materialization/Engine Metal scope | None | Serial after Model 0028, before 0018 | Full fresh corrected 301-executable/2,401-run oracle, native/export, Metal/conformance/Engine/architecture/full-build/docs and independent Class C review | Implementation `9ddb75f6` plus documentation remediation `5b77c742`; bounded accelerator reductions, schema 7, version-eight identities, local scalar materialization, validation, and independent `APPROVE` with zero findings are complete. |
 | 0021 | [ACCELERATOR FLOAT32 rank-two MATMUL after exact-zero sign refinement](tasks/0021-accelerator-float32-rank2-matmul-after-zero-sign-refinement.md) | Complete | Model 0029 after Complete; 0020; Model 0027; Config 0006; Engine 0018; not 0009/0016/0017/0018 | Any 0016 restart; every Metal capability/preparation/native schema/candidate/materialization/Engine Metal scope | None | Serial after Model 0029 | Refined full-contraction real-M3 oracle, native/export, Metal/conformance/Compiler/real Engine/architecture/full-build/docs, and independent Class C review | Implementation `ef2c6a1a`, evidence remediations `be5543f9`/`5631d51f`, and final independent `APPROVE` with zero findings delivered accelerator rank-two MATMUL, exact local transposes, seeded gradients, schema 8/wire 15, and version-nine identities. |
-| 0022 | [ACCELERATOR profile capability monotonicity](tasks/0022-accelerator-profile-capability-monotonicity.md) | Ready | 0021; 0014–0015/0019–0020; Model 0027; Config 0006; Engine 0018 | Any 0016 restart; every Metal capability/preparation/native-preflight/candidate/codec/public Engine/architecture-status scope; 0023 | None | Serial after 0021 | Contract-minimal capability/Java-native preflight/identity/real Engine smoke, native build/export, architecture/full-build/docs, then independent Class C review | Implementation complete pending independent review: exact NEG/ABS/affine/CONTIGUOUS is common to both profiles; accelerator-only families and strict negatives remain; MATMUL authentication is edge-local; ABI v4/13 exports, schema 8/wires 1..15, and identities 9 remain unchanged. |
-| 0023 | [Exact INT32 GATHER and ONE_HOT](tasks/0023-exact-int32-gather-and-one-hot.md) | Draft | 0022 after Complete; 0021; Model 0018C–0018D/0019A2; Compiler 0005C; CPU 0006A2; Config 0006; Engine 0018 | Any 0016 restart and every Metal capability/preparation/native schema/candidate/codec/ingress/materialization/public Engine scope | None | Serial after 0022; reverify before promotion | When separately promoted: documented-selector implementation, one small valid-value device smoke, focused OOB prevalidation, and exact indexing Class C checkpoint | Retained researched successor for canonical positive-rank INT32 GATHER/ONE_HOT, exact invalid-index parity, typed ingress/local BOOL publication, schema 9/wires 16–17/DEPTH 5, identities 10, and unchanged FLOAT32-only transfer. No executable/run cross-product probe. |
+| 0022 | [ACCELERATOR profile capability monotonicity](tasks/0022-accelerator-profile-capability-monotonicity.md) | Complete | 0021; 0014–0015/0019–0020; Model 0027; Config 0006; Engine 0018 | Any 0016 restart; every Metal capability/preparation/native-preflight/candidate/codec/public Engine/architecture-status scope; 0023 | None | Serial after 0021 | Contract-minimal capability/Java-native preflight/identity/real Engine smoke, native build/export, architecture/full-build/docs, then independent Class C review | Implementation `41517594`, documentation remediation `90cd5fd9`, and final independent `APPROVE` with zero findings delivered exact NEG/ABS/affine/CONTIGUOUS under both profiles, retained accelerator-only families and strict negatives, edge-local MATMUL authentication, and unchanged ABI v4/schema 8/version-nine identities. |
+| 0023 | [Exact INT32 GATHER and ONE_HOT](tasks/0023-exact-int32-gather-and-one-hot.md) | Ready | 0022 Complete; 0021; Model 0018C–0018D/0019A2; Compiler 0005C; CPU 0006A2; Config 0006; Engine 0018 | Any 0016 restart and every Metal capability/preparation/native schema/candidate/codec/ingress/materialization/public Engine scope | None | Serial after 0022 from exact base `90cd5fd9` | Documented-selector implementation, one small valid-value device smoke, focused OOB prevalidation, and exact indexing Class C checkpoint | Sole Ready successor for canonical positive-rank INT32 GATHER/ONE_HOT, exact invalid-index parity, typed ingress/local BOOL publication, schema 9/wires 16–17/DEPTH 5, identities 10, and unchanged FLOAT32-only transfer. No executable/run cross-product or combinatorial probe. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -142,7 +144,7 @@ Completed profile spine and serial successors:
 
 `Model 0028 (Complete) -> 0020 (Complete) -> 0018 (Blocked)`
 
-`0018 blocker evidence -> Model 0029 (Complete) -> 0021 (Complete) -> 0022 (Ready) -> 0023 (Draft)`
+`0018 blocker evidence -> Model 0029 (Complete) -> 0021 (Complete) -> 0022 (Complete) -> 0023 (Ready)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -156,11 +158,12 @@ production edits. Model 0029 is Complete at `30826783` after its bounded proof, 
 independent Class C approval. Complete
 [0021](tasks/0021-accelerator-float32-rank2-matmul-after-zero-sign-refinement.md) delivered
 accelerator rank-two MATMUL plus seeded gradients at `ef2c6a1a`, corrected evidence at
-`be5543f9`/`5631d51f`, and passed final independent Class C review with zero findings. Ready
-[0022](tasks/0022-accelerator-profile-capability-monotonicity.md) is the sole serial successor and
-corrects the accelerator capability subset defect without schema or identity evolution. Researched
-[0023](tasks/0023-exact-int32-gather-and-one-hot.md) remains Draft until 0022 is Complete. These
-edges serialize shared semantic and Metal mutation; they do not claim that reductions are
+`be5543f9`/`5631d51f`, and passed final independent Class C review with zero findings. Complete
+[0022](tasks/0022-accelerator-profile-capability-monotonicity.md) corrected the accelerator
+capability subset defect at `41517594`, remediated documentation at `90cd5fd9`, and passed final
+independent Class C review with zero findings. Reverified
+[0023](tasks/0023-exact-int32-gather-and-one-hot.md) is the sole Ready serial successor.
+These edges serialize shared semantic and Metal mutation; they do not claim that reductions are
 semantically required for MATMUL or that MATMUL is semantically required for profile correction.
 
 ## Integration ownership and shared documents
@@ -170,8 +173,8 @@ semantically required for MATMUL or that MATMUL is semantically required for pro
   status, capability/preparer guides, and glossary updates after executable behavior stabilizes.
 - No Metal 0016–0023 write scopes may overlap. Blocked 0016–0018 have no active write scope.
   Complete Model 0028 owns the reduction semantic contract, Complete Model 0029 owns the MATMUL
-  final-publication semantic contract, Complete Metal 0021 retains its reviewed implementation,
-  Ready Metal 0022 owns the sole active Metal scope, and Draft 0023 has no active write scope.
+  final-publication semantic contract, Complete Metal 0021–0022 retain their reviewed
+  implementations, and Ready 0023 owns the sole active Metal scope.
 
 ## Milestones and current frontier
 
@@ -190,11 +193,12 @@ documentation/diff evidence, and independent Class C final `APPROVE` with zero f
 Current ABI v4 retains exactly thirteen exports, points to node schema 8, and uses version-nine
 workload/exact-policy/candidate/compatibility/route/codec identities. Complete Model 0028 owns the
 root-only exact-zero reduction rule. Complete Model 0029 owns the MATMUL-only final-publication
-exact-zero sign rule. Metal 0018 remains Blocked without production changes. Ready Metal 0022 is
-the sole frontier; implementation now makes the exact NEG/ABS/affine/`CONTIGUOUS` domain common to
-both profiles with identical semantics and valid accelerator composition, and awaits independent
-Class C review. ABI v4/thirteen exports, schema 8/wires `1..15`, and all version-nine identities
-remain unchanged. Draft Metal 0023 waits.
+exact-zero sign rule. Metal 0018 remains Blocked without production changes. Complete Metal 0022
+makes the exact NEG/ABS/affine/`CONTIGUOUS` domain common to both profiles with identical semantics
+and valid accelerator composition. Its implementation `41517594`, documentation remediation
+`90cd5fd9`, and final independent Class C `APPROVE` with zero findings leave ABI v4/thirteen
+exports, schema 8/wires `1..15`, and all version-nine identities unchanged. Ready Metal 0023 is the
+sole frontier from exact base `90cd5fd9`.
 
 Metal 0006 remains `Blocked` after exact RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures.
 Metal 0007 remains independently `Blocked` after eight direct-output executions returned positive
@@ -272,9 +276,11 @@ was removed and no production change remains. Model 0029 completed the separate 
 final-publication decision at `30826783`: the underlying product remains `-0`, and only publication
 may choose `+0`. Complete Metal 0021 then passed its complete fresh oracle, removed the disposable
 probe, delivered the scoped accelerator route through `ef2c6a1a` plus evidence corrections
-`be5543f9`/`5631d51f`, and passed independent Class C review with zero findings. Ready Metal 0022
-is the sole successor and corrects accelerator profile capability monotonicity. Draft Metal 0023
-retains the separately researched indexing frontier. Comparison, scalar, extrema, scan, every other
+`be5543f9`/`5631d51f`, and passed independent Class C review with zero findings. Complete Metal
+0022 corrected accelerator profile capability monotonicity through `41517594` plus documentation
+remediation `90cd5fd9` and final independent approval. Ready Metal 0023 is the sole successor under
+its separately researched documentation-first, minimal-smoke indexing policy. Comparison, scalar,
+extrema, scan, every other
 unary operation, broader backward/training, and Model 0026 remain unauthorized.
 
 ## Delivered lifecycle and ABI boundary

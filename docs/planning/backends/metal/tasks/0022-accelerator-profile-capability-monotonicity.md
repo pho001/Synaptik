@@ -2,15 +2,13 @@
 
 ## Status
 
-Ready
+Complete
 
-Implementation and the serial worker checkpoint are complete from planning HEAD `a56d0b8d`; the
-task remains Ready for independent Class C review. Metal 0021 is Complete at implementation
-`ef2c6a1a`, worker-evidence remediation `be5543f9`, and final evidence correction `5631d51f`;
-independent Class C review returned `APPROVE` with zero findings. Model 0027, Config 0006, Engine
-0018, and Metal 0014–0015 and 0019–0021 are Complete. The correction reuses all schema-eight
-operations/lowering, adds no numerical freedom or probe, retains ABI/schema/identity versions, and
-is the sole authorized Metal frontier pending review.
+Implementation `415175947efc5151b71e764ad941f91445342cd7` delivered the profile-monotonicity
+correction. Documentation remediation `90cd5fd925a149d055d434fac2e5bb2ee38b130f` resolved the sole
+P1 current-behavior drift found by independent Class C review; final independent review returned
+`APPROVE` with zero findings. The retained worker checkpoint below is the complete executable
+evidence. This planning-only finalization reran no production or test execution.
 
 ## Change class
 
@@ -182,7 +180,7 @@ resolve the architecture text explicitly rather than preserving the current nonm
 - Depends on: Metal 0021 Complete; Metal 0014–0015 and 0019–0020; Model 0027; Config 0006;
   Engine 0018
 - Conflicts with: any Metal 0016 restart and every Metal capability/preparation/native-preflight/
-  candidate/codec/public Engine/architecture-status scope; Draft Metal 0023
+  candidate/codec/public Engine/architecture-status scope; Task 0023 implementation scope
 - Parallel group: None
 - Common base revision: `5631d51f425bbc9f7cb579127a788dac550e0501` plus this planning-only
   authorization
@@ -375,11 +373,12 @@ Exact changed paths:
 - `testing/backend-conformance/src/test/java/io/github/pho001/synaptik/testing/conformance/MetalNegCapabilityPartitionConformanceTest.java`
 - `testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineExplicitCompositionMetalIntegrationTest.java`
 
-## Documentation and review impact
+## Final independent review
 
-Independent Class C review inspects the global monotonicity invariant, absence of widened operation
-domains or numerical freedoms, common capability implementation, topology/preflight correction,
-general affine publication and CONTIGUOUS bridging, retained MATMUL authentication, accelerator
-custom NEG, schema/ABI/identity non-change proof, the one real mixed Engine smoke, reliance on
-existing unchanged lifecycle coverage, Runtime/Trace absence, no-probe rationale, changed scope,
-and all authoritative/explanatory documentation and validation evidence.
+Independent Class C review first returned `BLOCK` for one P1 documentation-only finding: six
+current-behavior passages still described the pre-correction profile matrix. Remediation
+`90cd5fd925a149d055d434fac2e5bb2ee38b130f` synchronized those passages, preserved historical
+evidence, passed changed-Markdown, baseline-aware Tensor API, stale-wording, and diff checks, and
+changed no production or test file. Final independent Class C review returned `APPROVE` with zero
+findings. Implementation `415175947efc5151b71e764ad941f91445342cd7` plus that remediation is the
+complete Task 0022 commit chain.

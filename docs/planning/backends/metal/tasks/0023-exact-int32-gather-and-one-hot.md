@@ -2,14 +2,14 @@
 
 ## Status
 
-Draft
+Ready
 
-Metal 0021 is Complete at implementation `ef2c6a1a`, worker-evidence remediation `be5543f9`,
-and final evidence correction `5631d51f`; independent Class C review returned `APPROVE` with zero
-findings. This researched successor is intentionally Draft and inactive until Ready Metal 0022
-completes the profile-monotonicity correction. Model 0018C–0018D and 0019A2, Compiler 0005C,
-CPU 0006A2, Config 0006, and Engine 0018 are Complete. No production edit or Task 0023 runtime
-probe has run.
+Reverified against exact common base `90cd5fd925a149d055d434fac2e5bb2ee38b130f`. Metal 0022 is
+Complete at implementation `415175947efc5151b71e764ad941f91445342cd7` plus documentation
+remediation `90cd5fd925a149d055d434fac2e5bb2ee38b130f`; final independent Class C review returned
+`APPROVE` with zero findings. Model 0018C–0018D and 0019A2, Compiler 0005C, CPU 0006A2, Config
+0006, and Engine 0018 are Complete. This is the sole Ready Metal successor. No Task 0023
+production edit or runtime probe has run.
 
 ## Change class
 
@@ -230,10 +230,10 @@ profile state, or a different invalid-index diagnostic, stop and report the cont
 - Conflicts with: any Metal 0016 restart and every Metal capability/preparation/native schema/
   candidate/codec/ingress/materialization/public Engine scope
 - Parallel group: None
-- Common base revision: N/A until Metal 0022 is Complete and this Draft is reverified for promotion
-- Integration order: Serial after Metal 0022; when promoted, documented-selector implementation
-  with the minimal valid-value device smoke, then schema/type/prevalidation, capability/topology,
-  lifecycle, Engine proof, documentation, and independent Class C review
+- Common base revision: `90cd5fd925a149d055d434fac2e5bb2ee38b130f`
+- Integration order: Serial after Metal 0022; documented-selector implementation with the minimal
+  valid-value device smoke, then schema/type/prevalidation, capability/topology, lifecycle, Engine
+  proof, documentation, and independent Class C review
 - Integration validation: exact INT32 GATHER/ONE_HOT Metal Class C checkpoint
 - Shared-document integration owner: task implementer, finalized by independent Class C review
 

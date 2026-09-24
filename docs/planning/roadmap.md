@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through reviewed 0021; 0006–0007, 0009–0013, and 0016–0018 Blocked; 0022 Ready; 0023 Draft | [Metal 0021](backends/metal/tasks/0021-accelerator-float32-rank2-matmul-after-zero-sign-refinement.md) completed at `ef2c6a1a` plus evidence corrections `be5543f9`/`5631d51f` and independent Class C `APPROVE` with zero findings. [Metal 0022](backends/metal/tasks/0022-accelerator-profile-capability-monotonicity.md) is implemented and remains the sole Ready frontier pending independent Class C review; [Metal 0023](backends/metal/tasks/0023-exact-int32-gather-and-one-hot.md) remains Draft behind it. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through reviewed 0022; 0006–0007, 0009–0013, and 0016–0018 Blocked; 0023 Ready | [Metal 0022](backends/metal/tasks/0022-accelerator-profile-capability-monotonicity.md) completed at implementation `41517594` plus documentation remediation `90cd5fd9`; final independent Class C review returned `APPROVE` with zero findings. Reverified [Metal 0023](backends/metal/tasks/0023-exact-int32-gather-and-one-hot.md) is the sole Ready frontier from exact base `90cd5fd9` under its documentation-first, minimal-smoke policy. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -73,11 +73,12 @@ at implementation `42c4cfbf` plus evidence-wording remediation `fb102a46`. Compl
 [Metal 0019](backends/metal/tasks/0019-exact-profile-qualified-float32-abs.md) adds exact canonical
 `ABS` to both profile matrices. Complete Metal 0020 adds accelerator reductions, and Complete Metal
 0021 adds positive static rank-two MATMUL with authenticated local transposes and seeded gradients.
-Ready Metal 0022 now implements the required monotonic matrix: exact canonical NEG/ABS,
-affine/`CONTIGUOUS` is common to both profiles, while tensor binary/reduction/MATMUL remains
-accelerator-only and strict-false. It awaits independent Class C review as the sole frontier. Draft
-Metal 0023 retains the researched INT32 GATHER/ONE_HOT successor under a documented-selector,
-minimal-device-smoke policy. Every unproved family remains fail-closed.
+Complete Metal 0022 implements the required monotonic matrix: exact canonical NEG/ABS and
+affine/`CONTIGUOUS` are common to both profiles, while tensor binary/reduction/MATMUL remains
+accelerator-only and strict-false. Implementation `41517594`, documentation remediation
+`90cd5fd9`, and final independent Class C `APPROVE` with zero findings close it. Ready Metal 0023
+is the sole frontier under its documented-selector, minimal-device-smoke, no-combinatorial-probe
+policy. Every unproved family remains fail-closed.
 
 Task 0019 landed at implementation `a6d1796d` plus mixed-owner test remediation `bcb717a6`. Its
 native ABI/export, Metal, conformance, real Engine, architecture, full-build, documentation, and
@@ -93,7 +94,7 @@ The active semantic and Metal serial DAG is:
 
 `Model 0028 (Complete) -> Metal 0020 (Complete) -> Metal 0018 (Blocked)`
 
-`Metal 0018 blocker evidence -> Model 0029 (Complete) -> Metal 0021 (Complete) -> Metal 0022 (Ready) -> Metal 0023 (Draft)`
+`Metal 0018 blocker evidence -> Model 0029 (Complete) -> Metal 0021 (Complete) -> Metal 0022 (Complete) -> Metal 0023 (Ready)`
 
 [Metal 0016](backends/metal/tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) is Blocked
 without production changes. Its Apple M3 Max gate proved exact `ABS`, but `EXP` and `SIGMOID`
@@ -128,8 +129,8 @@ production change exists.
 `30826783` after its proof, 23-task validation, documentation/diff scope check, and independent
 Class C `APPROVE` with zero findings. Metal 0021 passed its fresh full oracle and completed at
 implementation `ef2c6a1a` plus evidence corrections `be5543f9`/`5631d51f`; final independent
-Class C review returned `APPROVE` with zero findings. Metal 0022 is the sole Ready profile-
-monotonicity successor; Metal 0023 remains Draft until 0022 is Complete.
+Class C review returned `APPROVE` with zero findings. Metal 0022 completed at `41517594` plus
+`90cd5fd9` and final independent approval; reverified Metal 0023 is the sole Ready successor.
 
 Engine
 [0017](modules/engine/tasks/0017-reusable-inference-session-api.md) is Complete from exact base
@@ -221,11 +222,12 @@ implements that rule under accelerator only. Blocked Metal 0018 retains its unch
 MATMUL contract and no production changes. Complete Model 0029 split the shared contraction row,
 and Complete Metal 0021 implemented the bounded successor at `ef2c6a1a`; evidence corrections
 `be5543f9`/`5631d51f` and final independent Class C `APPROVE` with zero findings close that task.
-Ready Metal 0022 reuses exact NEG/affine/`CONTIGUOUS` lowering under accelerator, supports valid
-whole-partition composition, and retains ABI/schema/identity versions. Its focused implementation
-checkpoint is complete and independent review remains. No numerical probe was run because no
-selector, wire, lowering, or result freedom changed. Draft Metal 0023 waits. No task may infer
-generic fast math, relax unary/layout semantics, or authorize gross special-value errors.
+Complete Metal 0022 reuses exact NEG/affine/`CONTIGUOUS` lowering under accelerator, supports valid
+whole-partition composition, and retains ABI/schema/identity versions. Implementation `41517594`,
+documentation remediation `90cd5fd9`, and final independent Class C `APPROVE` with zero findings
+close it. No numerical probe ran because no selector, wire, lowering, or result freedom changed.
+Ready Metal 0023 is the sole successor under its documented-selector/minimal-smoke policy. No task
+may infer generic fast math, relax unary/layout semantics, or authorize gross special-value errors.
 
 ## Blocked, review-needed, and deferred work
 
@@ -281,9 +283,9 @@ generic fast math, relax unary/layout semantics, or authorize gross special-valu
   group, and all existing fallbacks/thresholds. The report-only protocol is hardened; a future
   comparison still requires a separately reviewed, fully sealed matrix before measurement.
 - Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
-  0017, and Metal 0015/0019/0020/0021 are Complete. Metal 0016–0018 remain Blocked under their
-  unchanged historical contracts. Detailed Metal 0022 is the sole Ready frontier; Metal 0023 is
-  Draft behind it; every other unfinished or blocked family remains unauthorized.
+  0017, and Metal 0015/0019/0020/0021/0022 are Complete. Metal 0016–0018 remain Blocked under their
+  unchanged historical contracts. Detailed Metal 0023 is the sole Ready frontier; every other
+  unfinished or blocked family remains unauthorized.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -297,15 +299,15 @@ generic fast math, relax unary/layout semantics, or authorize gross special-valu
 
 ## Nearest next step
 
-Run independent Class C review of
-[Metal 0022](backends/metal/tasks/0022-accelerator-profile-capability-monotonicity.md). Inspect the
-shared exact capability implementation, general affine publication/consumption, edge-local MATMUL
-transpose authentication, accelerator singleton-NEG route identity, exact CPU-free mixed
-composition, ABI v4/thirteen exports, schema 8/wires `1..15`, version-nine identities, focused
-checkpoint evidence, and synchronized docs. Reuse worker evidence and rerun only for a concrete
-risk or relevant executable change. Keep Metal 0022 `Ready` until that review resolves, keep Metal
-0023 Draft under its documented-selector/minimal-smoke policy, do not reopen Metal 0018, launch
-Model 0026, or change any unrelated status.
+Implement [Metal 0023](backends/metal/tasks/0023-exact-int32-gather-and-one-hot.md) from exact base
+`90cd5fd925a149d055d434fac2e5bb2ee38b130f`. Treat the documented MPSGraph selectors as
+authoritative for valid type, Shape, and mapping behavior; run only the one small valid-value
+GATHER/ONE_HOT device smoke and remove its artifact. Prove out-of-bounds behavior through mandatory
+host/native prevalidation and deterministic Java reconstruction, not selector observation. Do not
+create a context/optimization/executable cross-product or other combinatorial probe. Preserve
+FLOAT32-only transfer, Runtime/Trace boundaries, schema/version fail-closed behavior, synchronized
+documentation, and independent Class C review. Keep Metal 0023 `Ready` as the sole frontier and do
+not reopen Metal 0018, launch Model 0026, or change any unrelated status.
 
 ## History policy
 
