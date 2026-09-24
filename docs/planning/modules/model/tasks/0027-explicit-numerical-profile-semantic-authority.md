@@ -8,6 +8,9 @@ Frontier verification: Metal 0014 is Complete at implementation commit `01e81be2
 required validation and independent Class C `APPROVE` with zero findings. Model 0026 remains an
 independent Draft FLOAT16 branch. No other numerical-profile task is Ready or in progress.
 
+Implementation and worker validation are complete at clean HEAD `987bbd70`; status remains Ready
+pending the mandatory independent Class C review.
+
 ## Change class
 
 Class C — this establishes cross-module numerical-semantic authority and the bounded result sets
@@ -167,4 +170,16 @@ because this task advertises no capability.
 
 ## Result
 
-Empty until execution.
+Implemented the coordinated root/foundational authority update, ADR 0019, focused architecture/API/
+glossary wording, and all eight affected operation-family Javadocs. The foundational contract now
+contains the sole normative profile table and mandatory gross-error exclusions; no executable
+behavior, public/config API, shared record, backend, native, Runtime, Prepare, Compiler, Engine,
+Trace, Gradle, or test file changed.
+
+Worker validation passed `:modules:model:test`, `:modules:model:javadoc`, and
+`:testing:architecture-tests:test`; generated pages for every affected enum contain the profile
+contract and sole-table link; changed-document links, anchors, fences, newlines, and whitespace
+passed validation; and `git diff --check` passed. The repository validator also reports the
+pre-existing duplicate generic section anchors in `docs/api/tensor-api.md`; this change adds no
+heading there and introduces no new duplicate. Independent Class C review remains outstanding, so
+this task stays Ready and every dependent task stays Draft.

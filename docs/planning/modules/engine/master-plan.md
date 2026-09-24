@@ -128,9 +128,10 @@ not a catch-all service registry.
   bounded mixed-owner implementations are Complete through 0016.
 - The reusable inference-session facade from exact base `4fc4fd3d` is Complete as 0017 after the
   required Class C and narrow documentation review sequence.
-- Draft 0018 is the atomic propagation spine for the accepted numerical-profile program. It
-  remains unauthorized until Model 0027 and Config 0006 are Complete; no partial compatibility
-  overload or hidden default may split the cross-module record migration.
+- Draft 0018 is the atomic propagation spine for the accepted numerical-profile program. Model
+  0027 is implemented and worker-validated but remains Ready pending independent Class C review;
+  0018 remains unauthorized until Model 0027 and Config 0006 are Complete. No partial
+  compatibility overload or hidden default may split the cross-module record migration.
 
 ## Live risks and gates
 

@@ -1,0 +1,138 @@
+# ADR 0019: Explicit Numerical Profiles
+
+## Status
+
+Accepted — 2026-09-24
+
+## Context
+
+Synaptik's Model operations already define family-specific numerical contracts. Some require exact
+represented behavior; some deliberately leave NaN payloads or intermediate precision unspecified;
+and contraction families already permit reassociation and fused multiply-add. Several accelerator
+routes cannot satisfy particular current `FLOAT32` subnormal or reduction results, but treating all
+such differences as generic fast math would also admit term loss, unrelated graph rewrites, gross
+special-value errors, and behavior that no operation contract authorizes.
+
+The [foundational numerical-profile contract](../../architecture/contracts/foundational-modules.md#numerical-profiles)
+is the sole normative definition of the profiles and operation-family allowed-result sets. This
+record explains why that bounded design was selected.
+
+## Decision drivers
+
+- Preserve every operation's current contract as the strict baseline without falsely promising
+  universal bitwise identity, correct rounding, Java `strictfp`, or fixed instructions.
+- Make any wider result set explicit, opt-in, graph-wide, and operation-specific.
+- Bound denormals-are-zero (DAZ), flush-to-zero (FTZ), reassociation, and FMA permissions tightly
+  enough to exclude term loss, arbitrary rewrites, tolerance acceptance, and gross special-value
+  errors.
+- Keep semantic authority in Model while Config declares only identity and Planning asks only
+  profile-qualified capability questions.
+- Select all execution behavior before the Runtime hot path and keep backend preparation
+  responsible for truthful realization.
+- Prevent cache, specialization, generated-artifact, or tuning decisions from crossing profile
+  boundaries.
+
+## Options considered
+
+### One fast-math boolean
+
+A boolean cannot say which operation family or transformation it permits. It would encourage each
+backend to invent a different meaning and would conflate DAZ/FTZ, reassociation, contraction,
+approximation, reduced precision, and algebraic rewriting. Rejected.
+
+### Generic tolerance or ULP budget
+
+Tolerance-based acceptance does not define special-value, signed-zero, NaN, term-membership, or
+selected-bit behavior. It would also incorrectly give transcendental and other unlisted families a
+blanket approximation allowance. Rejected.
+
+### Per-backend numerical modes
+
+Backend-specific semantics would make the same graph request mean different things depending on
+availability or owner selection. Hardware and route capability must answer a Model-owned semantic
+question, not define it. Rejected.
+
+### Per-operation or per-node caller selection
+
+Fine-grained selection would complicate compilation, ownership, fusion boundaries, cache identity,
+and user reasoning before there is evidence that such complexity is necessary. It could also let
+an implementation erase observable intermediate values through accidental cross-node contraction.
+Rejected.
+
+### Two graph-wide profiles with bounded operation rows
+
+One graph-wide identity can preserve the existing result set or opt into a precisely enumerated
+superset. Model remains the single semantic owner while later layers transport and realize the
+choice. Selected.
+
+## Decision
+
+Synaptik defines two graph numerical-profile identities. `STRICT_IEEE` denotes each operation's
+exact current allowed-result set, including all family-specific promises and freedoms.
+`ACCELERATOR` is an opt-in superset: a strict result is always valid, and an additional result is
+valid only when the sole normative table explicitly permits the transformation for that named
+operation family and `FLOAT32`.
+
+The bounded additions are DAZ/FTZ and zero-sign freedom for listed arithmetic, all-and-only-term
+binary-tree reassociation for `SUM`, `MEAN`, and `SUM_TO_SHAPE`, existing contraction-scoped
+reassociation/FMA plus DAZ/FTZ for `MATMUL` and convolution, DAZ-normalized floating comparisons,
+bounded extrema ties, and arithmetic-step-only DAZ/FTZ for cumulative scans. FMA can contract only
+a corresponding multiply/add in a declared contraction. It cannot fuse arbitrary graph nodes or
+erase an observable intermediate. Movement, selection, classification, Boolean logic, casts,
+indexing, ordering, arg-extrema, unlisted operations, and every type other than `FLOAT32` receive no
+relaxation.
+
+Neither profile permits term dropping, reciprocal substitution, algebraic identity rewriting,
+arbitrary reduced precision, cross-node contraction, tolerance-based acceptance, or a generic
+transcendental error budget. In particular, `maxFinite / maxFinite -> 0`,
+`+infinity / maxFinite -> NaN`, `RELU(NaN) -> +0`, and `TANH(NaN) -> +1` remain invalid. Movement,
+`CONTIGUOUS`, `CAST`, and selected `WHERE` values do not inherit DAZ/FTZ or NaN-payload freedom from
+neighboring arithmetic.
+
+The choice is graph-wide and cold. A later Config task will add only immutable declarative
+identity. A later atomic propagation task will carry the selection through Planning, Compiler,
+Prepare, and Engine. Planning will ask profile-qualified capability questions without interpreting
+semantics. Concrete backends will advertise and realize only allowed results during preparation.
+Runtime will execute the prepared recipe without profile policy or a hot-path lookup.
+
+The selected profile must be part of every relevant backend route, specialization,
+generated-artifact, local-tuning, complete-plan-tuning, and cache-compatibility identity before a
+backend advertises relaxed capability. Existing strict capability remains unchanged until the
+entire propagation spine and a backend's bounded conformance gate are complete.
+
+Trace payload changes are deferred. This decision adds no trace field because no selector or
+realization exists yet; later observability requires a separately coordinated Trace architecture
+update if operational evidence shows it is needed.
+
+## Consequences
+
+### Positive
+
+- Current strict behavior and existing backend evidence remain valid.
+- Accelerator permission is auditable by operation family rather than inferred from hardware or a
+  performance objective.
+- A backend may incrementally support either profile and may use strict results under both.
+- Gross errors and semantic leakage into movement, selection, casting, classification, or other
+  data types remain excluded.
+- Graph-wide cold selection keeps Runtime free of numerical-policy branching.
+
+### Negative and limits
+
+- Backends must qualify capability and cache identity per profile before exposing new routes.
+- `ACCELERATOR` does not automatically unlock unlisted unary, transcendental, normalization, loss,
+  attention, pooling, scatter/fold, random, or recurrent operations.
+- A future operation relaxation requires another coordinated architecture update with a named
+  finite-domain and special-value envelope.
+- Per-node profiles and trace reporting remain unavailable.
+
+### Follow-up
+
+Config will add the two-value declarative identity. One later Engine task will perform the atomic
+Config-to-Planning-to-Compiler-to-Prepare-to-Engine propagation. CPU and Metal will then own
+separate realization and cache-identity tasks with fresh profile-specific conformance evidence.
+
+## Related documentation
+
+- [Authoritative foundational numerical-profile contract](../../architecture/contracts/foundational-modules.md#numerical-profiles)
+- [Architecture authority index](../../../ARCHITECTURE.md#scope-indexed-normative-contracts)
+- [Task 0027](../../planning/modules/model/tasks/0027-explicit-numerical-profile-semantic-authority.md)

@@ -9,10 +9,11 @@
 ## Scope
 
 This contract owns the detailed responsibilities and prohibitions for Trace, Backend Contract,
-Model, Config, and Planning. Its Planning scope is the module boundary and ownership question;
-the detailed partition-scoring algorithm boundary belongs to the compiler/autograd contract. This
-file does not own recurrent-scan semantics, compiler behavior, execution lifecycles, concrete
-backends, or extensions.
+Model, Config, and Planning. Model's scope includes the sole normative definition of graph
+numerical profiles and profile-indexed allowed-result sets. Planning scope here is the module
+boundary and ownership question; the detailed partition-scoring algorithm boundary belongs to the
+compiler/autograd contract. This file does not own recurrent-scan semantics, compiler behavior,
+execution lifecycles, concrete backend implementation, or extensions.
 
 ## Module responsibilities
 
@@ -100,6 +101,7 @@ Allowed:
 - `GraphPhase`
 - `ForwardPublicationBinding`
 - `TensorDescriptor`
+- profile-indexed operation allowed-result sets
 
 Forbidden:
 
@@ -124,6 +126,70 @@ must return the retained wrapper for a slot rather than reconstructing an equal 
 pre-capture model relationship is not graph IR, graph membership, or graph-local identity.
 
 Device storage belongs to runtime/backend layers, not model.
+
+### Numerical profiles
+
+Model is the sole semantic owner of graph numerical profiles and the allowed-result set for every
+operation under each profile. The profile names in this contract establish semantic identities;
+they do not by themselves add a Java enum, configuration API, backend capability, runtime policy,
+native schema, cache codec, or trace field.
+
+`STRICT_IEEE` means the exact current per-operation Model contract. It preserves every existing
+family-specific rounding, approximation, NaN-payload, signed-zero, accumulation, reassociation,
+and fused-multiply-add promise or freedom. The name does not promise universal bitwise identity,
+correct rounding, Java `strictfp`, a fixed instruction sequence, or cross-backend equality beyond
+each operation's existing contract.
+
+`ACCELERATOR` is an opt-in superset of the `STRICT_IEEE` allowed-result set. A backend may always
+produce a strict result. It may produce an additional result only through the operation-specific
+`FLOAT32` transformation in the following table. All unlisted data types and operations retain
+their `STRICT_IEEE` allowed-result set.
+
+Where a row permits DAZ/FTZ, DAZ means that a declared arithmetic `FLOAT32` subnormal input may be
+interpreted as same-signed zero, and FTZ means that a finite subnormal arithmetic result may be
+flushed to zero with either sign. These permissions affect only the arithmetic evaluation named by
+that row; they do not rewrite a stored input or an observable value outside it.
+
+This is the sole normative operation-family table for numerical-profile result sets:
+
+| Operation family | Additional `ACCELERATOR` allowed results for `FLOAT32` |
+|---|---|
+| Binary/scalar `ADD`, `SUB`, `MUL`, `DIV` | A declared arithmetic subnormal input may be interpreted as same-signed zero (denormals-are-zero, DAZ); a finite subnormal arithmetic result may be flushed to zero (flush-to-zero, FTZ). An FTZ zero may use either sign. An exact-zero `ADD` or `SUB` result may use either zero sign. `MUL` and `DIV` otherwise retain the sign required by the selected operands. |
+| `SUM`, `MEAN`, `SUM_TO_SHAPE` | Use all and only the declared terms for each output coordinate in a binary tree with `FLOAT32` per-step rounding and this row's DAZ/FTZ rules. Reordering or reassociation may change the tree but may not drop, duplicate, or invent a term. Masking and target-Shape mapping still determine the declared terms. `MEAN` divides the selected sum by the declared positive count. |
+| `MATMUL`, `CONV2D`, `CONV3D` | Retain the current family-owned reassociation and FMA permission and additionally allow this row's DAZ/FTZ. An FMA may contract only a corresponding multiply and add in the declared contraction; it may not fuse arbitrary graph nodes or erase an observable intermediate value. |
+| Floating comparisons | Compare operands after this row's DAZ normalization. Preserve the current NaN and signed-zero truth tables and canonical `BOOL` result. |
+| Binary/scalar/reduction `MIN` and `MAX` | NaN still propagates. Opposite-zero ties may return either zero sign. Values equal after DAZ normalization may return either original operand bit pattern; unequal normalized values retain numeric ordering. |
+| `CUM_SUM`, `CUM_PROD` | Preserve axis, direction, traversal, inclusive/exclusive placement, and the exact exclusive positive-zero or positive-one identity. Only arithmetic steps may use this row's DAZ/FTZ, and an FTZ zero may use either sign. |
+| Affine/layout movement, `CONTIGUOUS`, `WHERE`, classification, Boolean logic, casts, indexing, ordering, and arg-extrema | No relaxation. Preserve their current bit, conversion, truth, selected-value, index, and tie contracts. |
+| Unlisted unary/transcendental, normalization, loss, attention, pooling, scatter/fold, random, and recurrent families | No relaxation. A later coordinated architecture update must give a named operation its own finite-domain and special-value envelope before any backend may use `ACCELERATOR` to widen capability. |
+
+For one fixed permitted evaluation, NaN sign, payload, and quiet/signaling representation may vary
+only where the current operation has no stronger promise. NaN may not become an ordinary value,
+and an ordinary value may not become NaN, except through a genuine IEEE exceptional path created
+by one listed DAZ, reassociation, or FMA choice. Transcendentals receive no generic epsilon or ULP
+budget.
+
+The following exclusions are mandatory under both profiles:
+
+- no term dropping, reciprocal substitution, algebraic identity rewrite, arbitrary reduced
+  precision, cross-node contraction, or tolerance-based acceptance
+- `maxFinite / maxFinite -> 0` and `+infinity / maxFinite -> NaN` are invalid; the selected operands
+  still require one and positive infinity, respectively
+- `RELU(NaN) -> +0` and `TANH(NaN) -> +1` are invalid; zero-sign freedom never changes NaN
+  classification
+- `CAST`, affine/layout movement, `CONTIGUOUS`, and selected `WHERE` values acquire no DAZ/FTZ or
+  NaN-payload freedom from surrounding arithmetic
+- `FLOAT64`, `BFLOAT16`, future `FLOAT16`, integral values, and `BOOL` acquire no relaxed arithmetic
+  meaning; future IEEE `FLOAT16` semantics remain independently owned
+
+The selected profile is graph-wide and cold. Model defines its result sets. A later Config change
+may own only the immutable declarative selector, without semantic or route logic. Planning may
+later ask profile-qualified capability questions but must not reinterpret a result set. Later
+concrete-backend preparation may realize any result allowed by the selected profile and must fail
+closed when it cannot; shared Prepare transports the selection without owning numerical meaning.
+The selection must participate in backend route, specialization, generated-artifact, and tuning-
+cache identity before relaxed capability is advertised. Runtime and Trace remain profile-free
+unless a later coordinated architecture update explicitly changes their contracts.
 
 ### `modules/config`
 

@@ -16,7 +16,7 @@ navigation, see [current architecture documentation](docs/architecture/current-a
 Only the following six files are incorporated as normative, and only within their stated,
 non-overlapping scopes:
 
-1. [Foundational module contract](docs/architecture/contracts/foundational-modules.md)
+1. [Foundational module and numerical-profile contract](docs/architecture/contracts/foundational-modules.md)
 2. [Fixed recurrent-scan contract](docs/architecture/contracts/recurrent-scan.md)
 3. [Compiler and automatic-differentiation contract](docs/architecture/contracts/compiler-autograd.md)
 4. [Runtime, Prepare, and Engine contract](docs/architecture/contracts/runtime-prepare-engine.md)
@@ -176,6 +176,10 @@ The following invariants must remain true:
 - `Tensor` has no gradient field, backward method, or gradient-lifecycle state.
 - `Operation` owns semantic behavior but never backend support.
 - `Operation` must not expose `supportedBackends()`.
+- Model owns every operation's profile-indexed allowed-result set. A selected numerical profile is
+  graph-wide and cold: later lifecycle layers may transport, retain, query capability for, and
+  realize it, but must not reinterpret Model semantics or consult profile policy on the runtime hot
+  path.
 - `CompiledGraphModel` is immutable compile-time graph state.
 - `CompileArtifacts` are immutable compile-time output.
 - `PreparedExecution`, its prepared memory/schedule/executable recipes, and immutable persistent
@@ -254,6 +258,7 @@ briefs and maintained navigation adopt the exact scoped destinations:
 | Trace | [Foundational modules — `modules/trace`](docs/architecture/contracts/foundational-modules.md#modulestrace) |
 | Backend Contract | [Foundational modules — `modules/backend-contract`](docs/architecture/contracts/foundational-modules.md#modulesbackend-contract) |
 | Model and Tensor producer ownership | [Foundational modules — `modules/model`](docs/architecture/contracts/foundational-modules.md#modulesmodel) |
+| Graph numerical profiles and allowed-result sets | [Foundational modules — numerical profiles](docs/architecture/contracts/foundational-modules.md#numerical-profiles) |
 | Config | [Foundational modules — `modules/config`](docs/architecture/contracts/foundational-modules.md#modulesconfig) |
 | Planning responsibility | [Foundational modules — `modules/planning`](docs/architecture/contracts/foundational-modules.md#modulesplanning) |
 | Fixed recurrent scan | [Recurrent scan — fixed recurrent scan without graph regions](docs/architecture/contracts/recurrent-scan.md#fixed-recurrent-scan-without-graph-regions) |
@@ -286,7 +291,7 @@ This compact routing summary does not replace the linked details:
 
 | Scope | Owner |
 |---|---|
-| Model semantics and immutable graph model | Model |
+| Model operation semantics, including profile-indexed allowed-result sets, and immutable graph model | Model |
 | Backend-neutral capability, ownership, partitioning, and logical requirements | Planning |
 | Graph transformations, autograd, publication, and compile artifacts | Compiler |
 | Shared transition contracts, slot assignment, and prepared validation | Prepare |

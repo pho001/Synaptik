@@ -2842,19 +2842,22 @@ Promotion selects expression metadata only. It does not insert a cast producer, 
 values, capture a graph, choose a backend, or execute. See
 [numeric promotion](api/tensor-api.md#numeric-promotion).
 
-### Numerical permission (planned)
+### Numerical profile
 
-The future small backend-neutral Prepare configuration that tells candidate selection whether the
-caller permits behavior outside an operation's ordinary exact/default conformance contract and
-states the required determinism. Its default grants no relaxed or fast-math behavior. It names no
-backend, provider, route, kernel, approximation algorithm, compiler pass, or operation-specific
-rewrite.
+A Model-owned graph-wide identity that indexes operation allowed-result sets. The current
+architecture contract defines two meanings: `STRICT_IEEE` preserves every operation's exact
+current family-specific promise and freedom, while `ACCELERATOR` is an opt-in superset containing
+only the operation-specific `FLOAT32` alternatives in the
+[sole normative table](architecture/contracts/foundational-modules.md#numerical-profiles).
+`STRICT_IEEE` does not imply universal bitwise identity, correct rounding, Java `strictfp`, or a
+fixed instruction. `ACCELERATOR` is not generic fast math, tolerance, reduced precision, or
+permission for an unlisted operation or data type.
 
-Permission is an input, not a fact inferred from hardware, provider availability, workload size,
-a performance objective, tuning, or a benchmark. Those mechanisms may compare only candidates
-already eligible under the caller's permission and the semantic operation contract. Forward and
-compiler-generated gradient operations share this policy; there is no gradient-specific numerical
-permission.
+The semantic result sets are current. The declarative Config selector, profile-qualified Planning
+queries, lifecycle propagation, backend realizations, and cache identities remain planned.
+Selection will be explicit, graph-wide, and cold rather than inferred from hardware, provider
+availability, workload size, tuning, or benchmark evidence. Later layers may transport and
+realize the selected identity but may not reinterpret Model semantics.
 
 ### Scalar-power realization
 

@@ -18,6 +18,17 @@ import java.util.List;
  * io.github.pho001.synaptik.model.operation.Operation Operation} construction enforces these
  * exact pairings through the family-owned signatures.</p>
  *
+ * <p>The graph numerical profile indexes this family's allowed {@code FLOAT32} results as defined
+ * by the <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">sole normative numerical-profile table</a>.
+ * {@code STRICT_IEEE} retains the per-kind rules below. {@code ACCELERATOR} additionally permits
+ * row-scoped DAZ/FTZ for {@link #ADD}, {@link #SUB}, {@link #MUL}, and {@link #DIV}, including
+ * either sign for an FTZ zero and for an exact-zero ADD/SUB result; MUL/DIV otherwise retain the
+ * selected operands' required sign. For {@link #MIN} and {@link #MAX}, NaN still propagates,
+ * opposite-zero ties may use either sign, and values equal after DAZ normalization may return
+ * either original operand bit pattern. {@link #POW}, {@link #CLAMP}, and every non-FLOAT32 type
+ * receive no relaxation. This vocabulary describes result sets; it does not evaluate an
+ * operation or choose a backend.</p>
+ *
  * <p>Enum identity supplies typed equality and hashing, so equally named constants in another
  * operation family remain different semantic values. The inherited {@link #name()} and {@link
  * #toString()} text is diagnostic vocabulary only, not a serialization token, registry key,

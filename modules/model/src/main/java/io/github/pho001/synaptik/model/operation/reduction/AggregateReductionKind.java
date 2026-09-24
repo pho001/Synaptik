@@ -26,6 +26,19 @@ import java.util.List;
  * signatures enforce one input for ordinary, target-Shape, and advanced forms or two ordered
  * inputs for masked forms.</p>
  *
+ * <p>The graph numerical profile indexes this family's allowed {@code FLOAT32} results as defined
+ * by the <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">sole normative numerical-profile table</a>.
+ * {@code STRICT_IEEE} retains every per-kind rule below. Under {@code ACCELERATOR}, {@link #SUM},
+ * {@link #MEAN}, and the SUM-to-Shape form use all and only the declared terms for each output
+ * coordinate in a reassociable binary tree with FLOAT32 per-step rounding and row-scoped DAZ/FTZ;
+ * MEAN divides by the declared positive selected count. For {@link #MIN} and {@link #MAX}, NaN
+ * still propagates, opposite-zero ties may use either sign, values equal after DAZ normalization
+ * may return either original candidate bit pattern, and unequal normalized values retain numeric
+ * ordering. Empty identities, masking, target-Shape mapping, every other reduction kind, and every
+ * non-FLOAT32 type receive no relaxation. No profile permits dropping, duplicating, or inventing
+ * a term. This vocabulary describes result sets; it does not evaluate a reduction or choose a
+ * backend.</p>
+ *
  * <p>Each constant identifies requested mathematics only. The ordinary Tensor-construction
  * contract accepts floating input for all five numeric kinds and signed-integral input for
  * {@code SUM}, {@code PROD}, {@code MIN}, and {@code MAX}. Integral results retain their input

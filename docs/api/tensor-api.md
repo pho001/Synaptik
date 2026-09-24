@@ -96,6 +96,18 @@ unsupported operation, data-type, Shape, or layout combinations. This current li
 move compiler, prepared-execution, runtime-residency, or backend state into Tensor. Tensor-owned
 device residency, generic or mixed-backend composition, and universal execution coverage remain
 absent.
+The current Model contract also defines `STRICT_IEEE` and `ACCELERATOR` graph numerical-profile
+result sets. `STRICT_IEEE` preserves each operation's existing family-specific promises and
+freedoms; it is not a universal bitwise or fixed-instruction guarantee. `ACCELERATOR` is an opt-in
+bounded superset only for the named `FLOAT32` operation families and transformations in the
+[sole normative table](../architecture/contracts/foundational-modules.md#numerical-profiles).
+Tensor construction still performs no numerical evaluation and stores no profile choice.
+
+No public Config selector, Tensor method, capability row, propagation path, or relaxed backend
+route is implemented by that semantic contract. Until the dependent Config, propagation, and
+backend tasks complete, the current execution path retains its existing strict per-operation
+behavior and fail-closed capability.
+
 The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 Completed model task 0025 supplies one narrow producer contract needed by pre-capture autograd:

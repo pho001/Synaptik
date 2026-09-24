@@ -36,6 +36,13 @@ remain distinct compile-time state.
 
 The model does not know backend support, device residency, kernel selection, backend-specific storage, prepared execution, or runtime state. `Operation` expresses semantics and never exposes `supportedBackends()`. Runtime device storage belongs outside this module.
 
+Model is also the sole owner of the two graph numerical-profile result sets. `STRICT_IEEE` means
+each operation's current family-specific contract rather than universal bitwise strictness.
+`ACCELERATOR` is an opt-in, operation-specific `FLOAT32` superset bounded by the
+[sole normative table](contracts/foundational-modules.md#numerical-profiles); it is not generic
+fast math or tolerance. This semantic contract is current. No profile selector, propagation spine,
+or relaxed backend capability is implemented yet.
+
 The current Model fixed recurrent scan follows this same flat boundary. Model owns the fixed
 `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM` meanings, one `FORWARD` or `REVERSE` attribute, ordered
 ordinary Tensor inputs, fully static descriptor rules, canonical dense output and final-state
@@ -57,6 +64,9 @@ policy, but it contains no benchmark runner, search algorithm, live discovery, m
 live service, concrete backend class, executable unit, runtime state, or kernel class reference.
 A concrete backend interprets its backend-specific prepare inputs inside that backend.
 
+A later Config task will own only the immutable graph numerical-profile selector. Config will not
+define operation result sets, interpret profile meaning, or select a backend route.
+
 ### `modules/planning`
 
 Owns backend-neutral compile-time planning: intent propagation, capability query contracts and matrices, ownership scoring, node or segment ownership, maximal same-owner partitions, and logical memory/materialization requirements.
@@ -66,6 +76,11 @@ Planning answers where work should run. It does not implement fusion or speciali
 Planning may interpret a backend-neutral cost model to choose `BackendId` ownership. It never
 interprets route names, vector species or lanes, unroll factors, thread counts, chunks, tiles, or
 other backend parameter vocabulary.
+
+When profile propagation is implemented, Planning will ask whether a backend supports an
+operation occurrence under the selected profile. It will carry that graph-wide identity without
+reinterpreting Model's result sets; concrete backend preparation, not Planning, will realize an
+allowed result.
 
 When the fixed recurrent scan becomes executable, it enters Planning through the unchanged
 ordinary operation capability query. Planning selects an owner but does not interpret cell

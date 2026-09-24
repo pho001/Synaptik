@@ -79,10 +79,12 @@ closure. The area is deliberately interleaved: 0001–0003 and the independently
 are `Complete`; 0004–0006 and 0007–0008 remain `Draft`. The two completed exceptions did not
 advance or reorder the Draft rows. No Config task is `Ready` or `In progress`.
 
-Config 0004 waits for a concrete cost-bearing Planning consumer; 0005 follows 0004. The accepted
-numerical-profile program gives 0006 a separate dependency on the sole Ready Model 0027 semantic
-contract rather than on the future aggregate. After 0006, Engine 0018 owns propagation. Config
-0007 still follows 0005, and 0008 closes the full ledger.
+Config 0004 waits for a concrete cost-bearing Planning consumer; 0005 follows 0004. Draft 0006
+depends on Model 0027, whose implementation and worker validation are complete but whose
+independent Class C review remains pending. Model 0027 is still the sole Ready frontier; Config
+0006 remains Draft, owns only selector identity when later authorized, and does not advance before
+Model 0027 becomes Complete. After 0006, Engine 0018 owns propagation. Config 0007 still follows
+0005, and 0008 closes the full ledger.
 
 ## Live gates, risks, and open decisions
 

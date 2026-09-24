@@ -16,6 +16,14 @@ import java.util.List;
  * {@link CumulativeScanAttrs}. This vocabulary describes requested mathematics only; it does not
  * define eligible input types, result descriptors, accumulation precision, gradients, value
  * execution, storage, compiler behavior, or backend availability.</p>
+ *
+ * <p>The graph numerical profile indexes this family's allowed {@code FLOAT32} results as defined
+ * by the <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">sole normative numerical-profile table</a>.
+ * {@code STRICT_IEEE} retains the per-kind rules below. {@code ACCELERATOR} preserves the axis,
+ * direction, traversal, inclusive/exclusive placement, and exact exclusive positive-zero or
+ * positive-one identity; only arithmetic steps may use row-scoped DAZ/FTZ, and an FTZ zero may use
+ * either sign. Every non-FLOAT32 type receives no relaxation. This vocabulary describes result
+ * sets; it does not evaluate a scan or choose a backend.</p>
  */
 public enum CumulativeScanKind implements OperationKind {
     /**

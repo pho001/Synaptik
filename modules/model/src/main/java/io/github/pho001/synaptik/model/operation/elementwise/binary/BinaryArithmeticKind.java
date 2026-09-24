@@ -20,6 +20,17 @@ import java.util.List;
  * NoOperationAttrs.INSTANCE}. Broadcast geometry is derived from operand shapes and is not stored
  * as an attribute or as mutable state on the kind.</p>
  *
+ * <p>The graph numerical profile indexes this family's allowed {@code FLOAT32} results as defined
+ * by the <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">sole normative numerical-profile table</a>.
+ * {@code STRICT_IEEE} retains the per-kind rules below. {@code ACCELERATOR} additionally permits
+ * row-scoped DAZ/FTZ for {@link #ADD}, {@link #SUB}, {@link #MUL}, and {@link #DIV}, including
+ * either sign for an FTZ zero and for an exact-zero ADD/SUB result; MUL/DIV otherwise retain the
+ * selected operands' required sign. For {@link #MIN} and {@link #MAX}, NaN still propagates,
+ * opposite-zero ties may use either sign, and values equal after DAZ normalization may return
+ * either original operand bit pattern. {@link #POW} and every non-FLOAT32 type receive no
+ * relaxation. This vocabulary describes result sets; it does not evaluate an operation or choose
+ * a backend.</p>
+ *
  * <p>Enum identity supplies typed equality and hashing, so an equally named constant in another
  * operation family remains a different semantic value. The inherited {@link #name()} and
  * {@link #toString()} text is stable diagnostic vocabulary only; it is not a serialization token,
