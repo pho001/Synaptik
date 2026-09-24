@@ -1,12 +1,11 @@
 # Task 0014: MPSGraph FLOAT32 Affine Layout Composition
 
 ## Status
-Ready
-This remains the sole authorized Metal frontier after integration of the urgent binary-withdrawal
-remediation based on clean parent `9fce9401614e3e3b4e9a01e6f2f663538fdb2994`. Metal 0005's
-lifecycle/ABI foundation and 0008 are Complete; 0005 binary capability is withdrawn; 0006–0007
-and 0009–0013 are independently Blocked. This task does not depend on any withdrawn or blocked
-numerical operation.
+Complete
+
+Implementation commit `01e81be217fb89bdaeedb60a939bb8a734669a24` passed the task's
+validation and an independent Class C re-review with `APPROVE` and zero findings. Metal 0005's
+binary capability remains withdrawn, and 0006–0007 plus 0009–0013 remain independently Blocked.
 
 ## Change class
 Class C — this extends Metal occurrence capability, whole-partition topology, the private native
@@ -202,8 +201,7 @@ review covers capability truth, local view authentication, exact bits/layouts, s
 lifecycle, Engine evidence, and exclusions.
 
 ## Result
-Implemented and validated on Apple M3 Max; the task deliberately remains `Ready` pending its
-independent Class C review.
+Implemented, validated, and independently approved on Apple M3 Max.
 
 - Before production edits, a disposable Objective-C/MPSGraph probe passed two independent process
   sessions. Each session covered five required topologies at optimization levels 0 and 1 with
@@ -229,3 +227,5 @@ independent Class C review.
   explicit touchpoint for any separately authorized future numerical profile. No backward,
   training, binary arithmetic, new type, transfer widening, alias promise, or custom kernel was
   added.
+- Independent Class C review of the integrated implementation returned `APPROVE` with zero
+  findings. Task 0014 is Complete.

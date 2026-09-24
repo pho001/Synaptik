@@ -245,7 +245,7 @@ The table owns order and status; linked tasks own detailed evidence.
 | 0014 | AMD AOCL-BLAS and AOCL-LibM peer routes | Draft | 0005A; 0009; concrete AMD CPU use case and supported AOCL ABI evidence | Planned only after a concrete AMD CPU use case and supported AOCL ABI evidence. |
 | 0015 | Optional AMD ZenDNN partition peer routes | Draft | 0014; 0005A; 0009; stable common CPU lowering; concrete ZenDNN use case and integration evidence | Optional ZenDNN route waits for 0014 plus a concrete use case and integration evidence. |
 | 0016 | Cross-route CPU tuning-cache integration | Draft | 0010E; Prepare 0004; tools/tuning 0001; 0011–0015 as implemented | Generalize the proved tuning contract only across vendor peers that are actually implemented. |
-| 0017 | Explicit relaxed numerical candidate consumption | Draft | Config 0006; 0005F; stable exact portable and implemented peer-route consumers | Admit relaxed candidates only with explicit Config permission and compatibility identity. |
+| 0017 | Explicit numerical-profile realization and cache identity | Draft | Model 0027; Config 0006; Engine 0018; current exact portable/OpenBLAS routes and tuning producers | Accept both profiles while preserving current CPU results, carry the selected identity through specialization/generated artifacts/local and complete-plan tuning, and reject old or cross-profile cache decisions. |
 
 ## Milestones and current frontier
 
@@ -255,8 +255,9 @@ The table owns order and status; linked tasks own detailed evidence.
   scalar with configured/available parallelism `1`/`1` and minimum elements per worker `1`; the
   invalid broad vector candidate was reverted and its reports removed.
 - 0007A1D is Review needed; 0010D1 and 0011 are Blocked; 0012–0017 are Draft.
-- Documentation-only 0010K and 0010L are Complete. No CPU task is `Ready` or `In progress`;
-  blocked, review-needed, and Draft rows remain unchanged.
+- Documentation-only 0010K and 0010L are Complete. No CPU task is `Ready` or `In progress`.
+  Numerical-profile task 0017 remains dependent on the sole Ready Model 0027 task, Config 0006,
+  and Engine 0018.
 
 ## Live gates and decisions
 
@@ -281,8 +282,9 @@ The table owns order and status; linked tasks own detailed evidence.
   family-specific direct-Java evidence. Generic movement/indexing/pooling SIMD, FLOAT16 before
   Model 0026, and automatic decomposed loss/softmax recognition are not authorized.
 - CPU 0016 extends tuning only across implemented vendor peers and adds no CPU measurement or
-  generated-class persistence. CPU 0017 requires explicit Config numerical permission and keys
-  numerical mode without hot-path policy lookup.
+  generated-class persistence. CPU 0017 is the planned `STRICT_IEEE`/`ACCELERATOR` realization:
+  current exact CPU results remain valid for both, but every specialization and cache identity
+  must include the selected profile without a Runtime hot-path policy lookup.
 
 - CPU 0010M retains five machine-local scalar reports and a minimum future-comparison acceptance
   framework under `backends/cpu/evidence/cpu-0010m-defaults/`. The reports validate the hardened

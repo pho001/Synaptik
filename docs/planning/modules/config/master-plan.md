@@ -19,9 +19,10 @@ The [module-boundary](../../../architecture/module-boundaries.md),
 
 ## Scope and non-goals
 
-Config owns compile modes, backend intent, optimization and scoring inputs; later backend-neutral
-prepare/run/publication values; planning-cost inputs only after a cost-bearing consumer and units
-stabilize; and immutable model-autotuning request policy and explicit cache locations.
+Config owns compile modes, backend intent, optimization and scoring inputs; the planned graph-wide
+numerical-profile identity; later backend-neutral prepare/run/publication values; planning-cost
+inputs only after a cost-bearing consumer and units stabilize; and immutable model-autotuning
+request policy and explicit cache locations.
 
 It does not own live services, concrete backends or kernels, Runtime state or executable units,
 candidate generation, measurement, selection, cache I/O or schemas, discovery, or mutable
@@ -36,8 +37,8 @@ promise persistence.
 - Numerical and determinism compatibility filter candidates before performance comparison.
   Hardware, availability, workload size, objectives, caches, and evidence never grant relaxed
   mathematics.
-- Exact/default behavior remains the only current permission. Draft 0006 will own the smallest
-  backend-neutral explicit permission; its default must deny relaxed or fast-math behavior.
+- Exact/default behavior remains the only current permission. Draft 0006 follows Model 0027 and
+  will own only the two-value graph numerical-profile identity; it adds no semantic or route logic.
 - Config may depend on the JDK and explicitly justified declarative contracts. Its public backend
   identity/requirement surface uses `modules/backend-contract`; it has no concrete-backend or
   Runtime dependency.
@@ -46,8 +47,8 @@ promise persistence.
 
 ```text
 io.github.pho001.synaptik.config/
-  compile/  compile mode, hard backend intent, optimization, and soft scoring inputs
-  prepare/  planned backend-neutral numerical and determinism permissions
+  compile/  compile mode, numerical profile, hard backend intent, optimization, and scoring inputs
+  prepare/  planned backend-neutral determinism and other prepare permissions
   run/      planned invocation and publication inputs
   profile/  planned planning-cost inputs after a stable cost-bearing consumer
   tuning/   implemented immutable model-autotuning request policy and cache paths
@@ -65,7 +66,7 @@ The `tuning` package does not depend on `tools/tuning`.
 | 0003 | [Partition scoring configuration](tasks/0003-partition-scoring-configuration.md) | Complete | 0001–0002, planning 0001 | Added an optional `DeviceClass` preference for ranking already eligible owners without choosing one. |
 | 0004 | Planning cost-profile contract | Draft | 0001–0003, planning 0001–0003, stable backend-neutral cost classification | Define only immutable facts required by a concrete cost-bearing Planning consumer. |
 | 0005 | Compile configuration aggregate | Draft | 0001–0004 | Compose justified compile leaves without compiler orchestration or invented defaults. |
-| 0006 | Prepare numerical and determinism permission | Draft | 0005, stable exact concrete-backend prepare eligibility boundary | Define an explicit backend-neutral permission whose default grants no relaxed behavior. |
+| 0006 | Explicit graph numerical-profile identity | Draft | Model 0027 | Add only `STRICT_IEEE` and `ACCELERATOR` as immutable compile configuration vocabulary, with no semantic interpretation, default selection, support logic, or compatibility schema. |
 | 0006A | [Model-autotuning request configuration](tasks/0006a-model-autotuning-request-configuration.md) | Complete | 0001–0003; tools/tuning 0001; explicit staged ordering exception around Draft 0004–0006 | Added Phase-1 objective, budget, profile identity, fallback policy, and workload-cache path. |
 | 0006B | [Complete-plan autotuning request configuration](tasks/0006b-complete-plan-autotuning-request-configuration.md) | Complete | 0006A; tools/tuning 0002–0003; CPU 0010J; Engine 0008A; second staged ordering exception around Draft 0004–0006 | Added independent Phase-2 bounds and model-plan-cache path without changing Phase-1 meanings. |
 | 0007 | Run and publication configuration | Draft | 0005 | Define immutable invocation and publication options without execution state. |
@@ -78,10 +79,10 @@ closure. The area is deliberately interleaved: 0001–0003 and the independently
 are `Complete`; 0004–0006 and 0007–0008 remain `Draft`. The two completed exceptions did not
 advance or reorder the Draft rows. No Config task is `Ready` or `In progress`.
 
-Config 0004 waits for a concrete cost-bearing Planning consumer to define backend-neutral facts,
-classification, and units. The completed cost-free Planning baseline, grouping, logical-memory,
-and closure work do not satisfy that gate. Config 0005 follows 0004; 0006 also requires a stable
-exact backend-prepare eligibility boundary; 0007 follows 0005; 0008 closes the full ledger.
+Config 0004 waits for a concrete cost-bearing Planning consumer; 0005 follows 0004. The accepted
+numerical-profile program gives 0006 a separate dependency on the sole Ready Model 0027 semantic
+contract rather than on the future aggregate. After 0006, Engine 0018 owns propagation. Config
+0007 still follows 0005, and 0008 closes the full ledger.
 
 ## Live gates, risks, and open decisions
 
@@ -90,8 +91,8 @@ exact backend-prepare eligibility boundary; 0007 follows 0005; 0008 closes the f
 - Config 0006A/0006B own request vocabulary only. Tuning owns measurement, deterministic
   selection, cache behavior and artifacts, and rich evidence; backend producers own candidates
   and codecs; Engine owns lifecycle composition and fallback execution.
-- Safe heuristic fallback is not relaxed numerical permission. Standard composition must choose
-  deterministic exact/default values explicitly and must not enable tuning implicitly.
+- Safe heuristic fallback is not relaxed numerical permission. `STRICT_IEEE` remains the future
+  Engine default; neither Config identity nor tuning evidence enables `ACCELERATOR` implicitly.
 - Compile, prepare, run, and publication aggregate shapes and defaults remain with their Draft
   rows. Current consumers may compose completed leaves directly without manufacturing an
   aggregate prerequisite.
