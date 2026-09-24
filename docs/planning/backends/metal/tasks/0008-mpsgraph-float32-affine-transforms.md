@@ -2,10 +2,10 @@
 
 ## Status
 
-Ready
+Complete
 
-This is the sole authorized Metal frontier. Metal 0006 and 0007 remain independently Blocked; this
-task neither depends on them nor changes their numerical contracts.
+Metal 0006 and 0007 remain independently Blocked; this task neither depended on them nor changed
+their numerical contracts. Metal 0009 is the separately authorized successor.
 
 ## Change class
 
@@ -270,12 +270,17 @@ rollback, and absence of claims for 0006, 0007, backward reduction, or MATMUL.
 
 ## Result
 
-Implemented from the required disposable real-device probe and retained for independent Class C
-review. The probe and production tests passed all five documented MPSGraph selectors with supplied
-direct targets, exact Shapes through rank sixteen, adversarial raw `FLOAT32` payloads, and repeated
-execution. Production keeps ABI version 4 and thirteen exports while using typed node schema 2,
-extends only the five bounded terminal affine occurrences, authenticates dense represented-order
-affine publication materialization, and leaves canonical-only CPU/Metal transfer unchanged.
-Compiler forward/first-order graph contracts and a Metal-only public Engine scenario are covered;
-no Metal-only backward, blocked 0006/0007, custom affine kernel, transfer widening, or MATMUL claim
-is made. Status remains `Ready`, not `Complete`, until the separately requested Class C review.
+Implemented in `7e39f705`, remediated in `9713e528` and
+`aa42ed711a0d3120f97e4241181b557130255e97`, and independently approved at Class C with zero
+findings. The mandatory disposable selector/direct-target/raw-bit probe passed
+16 cases twice and was removed. Production retains ABI v4 with exactly thirteen exports, uses typed
+node schema 2, implements only the five bounded terminal affine occurrences, authenticates dense
+represented-order publication, and leaves canonical-only CPU/Metal transfer unchanged.
+
+Final evidence: 46 focused Metal tests passed with zero failures, errors, or skips (raw ABI 6,
+prepared 34, candidate 6); five real Engine Metal integration tests, two conformance tests, and
+nine architecture tests also passed with zero failures, errors, or skips. Native build/export,
+Javadoc, and diff checks passed; the reviewed implementation tree was clean. No Metal-only
+backward, blocked 0006/0007, custom affine kernel, transfer widening, or MATMUL claim is made.
+
+Status: Complete

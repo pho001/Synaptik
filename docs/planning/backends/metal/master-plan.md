@@ -77,16 +77,16 @@ visibility.
 | 0005 | [MPSGraph mixed NEG/binary FLOAT32 whole-partition route](tasks/0005-mpsgraph-mixed-binary-whole-partition.md) | Complete | 0001–0004; Engine 0017; Compiler 0006B7; Prepare 0008; Runtime 0016 | Metal capability/preparation/native ABI/Engine Metal scopes | None | ABI/schema → capability/analysis → Prepare → public Engine tests → docs/review | Native export audit; focused Metal/conformance; real public Engine integration; architecture checks; `git diff --check` | Approved after initial Class C BLOCK, remediation `9f3a264`, and independent APPROVE with zero residual findings; ABI v4 exact. |
 | 0006 | [MPSGraph FLOAT32 unary algebra route](tasks/0006-mpsgraph-float32-unary-algebra.md) | Blocked | 0005; current Model unary semantics; Engine 0017; Compiler 0006B7; Prepare 0008; Runtime 0016 | Metal capability/preparation/native ABI/Engine Metal scopes; scalar schema work | None | Replacement route → numerical gates → Class C review | Reproducible real probe and fail-closed evidence; no production change | MPSGraph passed ABS ULP0, EXP ULP1, SIGMOID ULP1 but failed exact RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH cases; custom kernels or relaxed gates are required. |
 | 0007 | [MPSGraph FLOAT32 SUM/MEAN reduction foundation](tasks/0007-mpsgraph-float32-reductions.md) | Blocked | 0005; current Model reduction attrs and Compiler autograd; Engine 0017; Compiler 0006B7; Prepare 0008; Runtime 0016 | Metal capability/preparation/native ABI/Engine Metal scopes; 0006 is not a dependency | None | Exact replacement route → numerical gates → Class C review | Reproducible real direct-output probe and fail-closed evidence; no production change | Eight runs returned positive zero for cancellation cases requiring SUM `2.0f` and MEAN `0.5f`; selector/schema/rank-zero feasibility does not satisfy exact Model semantics. |
-| 0008 | [MPSGraph FLOAT32 affine transforms](tasks/0008-mpsgraph-float32-affine-transforms.md) | Ready | 0005; current Model/Compiler affine Shape and layout contracts; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007 | Metal capability/preparation/native ABI/Engine Metal materialization; shared aliasing or transfer work | None | Real selector/bit probe → typed schema → capability/analysis → Prepare/Runtime/materialization → Engine proof → docs/review | ABI-v4 export/schema audit; exact Shape/layout/raw-bit gates; direct affine publication; transfer non-widening; focused Metal/conformance/Engine/architecture checks | Implementation and executable evidence landed for bounded terminal RESHAPE/EXPAND/PERMUTE/EXPAND_DIMS/SQUEEZE with exact logical views and dense represented-order targets; remains Ready pending independent Class C review. |
+| 0008 | [MPSGraph FLOAT32 affine transforms](tasks/0008-mpsgraph-float32-affine-transforms.md) | Complete | 0005; current Model/Compiler affine Shape and layout contracts; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007 | Metal capability/preparation/native ABI/Engine Metal materialization; shared aliasing or transfer work | None | Real selector/bit probe → typed schema → capability/analysis → Prepare/Runtime/materialization → Engine proof → docs/review | ABI-v4 export/schema audit; exact Shape/layout/raw-bit gates; direct affine publication; transfer non-widening; focused Metal/conformance/Engine/architecture checks | Approved after implementation `7e39f705`, remediation `9713e528`/`aa42ed711`, and independent Class C APPROVE with zero findings; five bounded affine transforms, ABI v4 exact. |
+| 0009 | [MPSGraph FLOAT32 rank-two MATMUL training checkpoint](tasks/0009-mpsgraph-float32-rank2-matmul-training-checkpoint.md) | Ready | 0008; Model/Compiler rank-two MATMUL and first-order rules; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007 | 0006/0007; Metal capability/preparation/native schema/candidate/materialization/Engine scopes | None | Probe → schema/validation → capability/topology → lifecycle → Engine forward/seeded backward → docs/review | Selector/direct-target/numerical probe; ABI-v4 exact exports; focused Metal/conformance/Engine/architecture/Javadoc/docs checks | Sole Ready frontier: bounded rank-two FLOAT32 MATMUL plus same-partition transpose consumption and explicit-seed backward, without scalar-loss training or reduction claims. |
 
 ## Dependency DAG and authorized frontiers
 
-`0001 → 0002 → 0003 → 0004 → 0005`
+`0001 → 0002 → 0003 → 0004 → 0005 → 0008 → 0009`
 
-0006 and 0007 are independent `Blocked` branches from 0005. 0008 also depends on 0005, not on
-either blocked task. Its implementation is awaiting the separately requested Class C review while
-the status remains `Ready`. A later MATMUL checkpoint remains unauthorized until 0008 completes
-and receives its own detailed brief.
+0006 and 0007 are independent `Blocked` branches from 0005. 0008 is Complete and satisfies 0009's
+affine dependency. 0009 is the sole authorized frontier; it does not depend on either blocked task
+and does not authorize scalar-loss training or reduction-requiring gradients.
 
 ## Integration ownership and shared documents
 
@@ -96,15 +96,15 @@ and receives its own detailed brief.
 
 ## Milestones and current frontier
 
-Metal 0001–0005 are Complete. 0005's initial Class C `BLOCK` (two P1/two P2) was remediated by
-`9f3a264` and independently re-reviewed `APPROVE` with zero residual findings. Metal 0006 is
-`Blocked`: its real probe passed only ABS ULP0, EXP ULP1, and SIGMOID ULP1 and failed the exact
-RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH cases. Metal 0007 is independently `Blocked`: eight direct-
-output executions returned positive zero for a cancellation case whose exact Model results are
-SUM `2.0f` and MEAN `0.5f`. Neither blocked task retains production or probe changes. Metal 0008
-has implementation and executable evidence for all five bounded forward affine transforms while
-remaining `Ready` pending independent Class C review; it does not claim blocked unary/reduction
-semantics, Metal-only backward, or MATMUL.
+Metal 0001–0005 and 0008 are Complete. 0008 landed bounded forward affine transforms in
+`7e39f705`, received evidence remediation in `9713e528` and `aa42ed711`, and passed independent
+Class C review with zero findings. Metal 0006 remains `Blocked` after exact
+RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures. Metal 0007 remains independently `Blocked`
+after eight direct-output executions returned positive zero where the exact Model SUM/MEAN results
+are `2.0f`/`0.5f`; neither blocked task retains production or probe changes. Metal 0009 is the sole
+`Ready` frontier for bounded rank-two FLOAT32 MATMUL forward plus explicit-cotangent first-order
+execution. It excludes scalar-loss `TrainingSession`, batch unbroadcasting, and every blocked
+unary/reduction claim.
 
 
 ## Delivered lifecycle and ABI boundary
