@@ -204,6 +204,20 @@ A locally produced canonical rank-zero `FLOAT32` reduction target may materializ
 owning Metal integration as exactly four detached canonical bytes. It remains ineligible as a
 caller feed or cross-owner transfer value and may not widen the transfer predicate above.
 
+Canonical caller-host ingress into an owned Metal partition accepts exact positive-rank
+`FLOAT32` and `INT32` values with no conversion. A locally produced canonical `BOOL` target may
+materialize through the owning Metal integration as exact one-byte elements. These local paths do
+not widen the cross-owner transfer capability, which remains canonical positive-rank `FLOAT32`.
+
+The current common-profile Metal indexing domain is exact positive-rank axis `GATHER` from
+canonical `FLOAT32` data with canonical `INT32` indices, and positive-rank
+`INT32`-to-`BOOL` `ONE_HOT`. Metal must validate every logical index in stable node then row-major
+ordinal order before MPSGraph selector dispatch or any target write. A failure publishes the
+Model's exact `IndexOutOfBoundsException` text and leaves every target unchanged; selector
+out-of-bounds behavior is never part of the contract. This is a forward-only backend route and
+does not add Compiler production, a backward path, INT64 indices, general BOOL consumers, CPU
+fallback, or widened transfer.
+
 Metal-specific optimizer execution belongs to Metal backend prepare/kernels, not to training.
 
 Do not add `MetalOptimizerBridge` to `extensions/training`.

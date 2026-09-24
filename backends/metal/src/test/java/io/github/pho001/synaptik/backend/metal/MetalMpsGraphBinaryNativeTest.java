@@ -29,7 +29,7 @@ class MetalMpsGraphBinaryNativeTest {
     private static final int POSITIVE_INFINITY = 0x7f800000;
 
     @Test
-    void schemaEightRetainsOrderedBinaryWiresAndJavaPreflightClosesTheProfileMatrix() {
+    void schemaNineRetainsOrderedBinaryWiresAndJavaPreflightClosesTheProfileMatrix() {
         List<MetalMpsGraphProgram.NodeKind> kinds = List.of(
                 MetalMpsGraphProgram.NodeKind.ADD,
                 MetalMpsGraphProgram.NodeKind.SUB,

@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphReductionNativeTest {
     @Test
-    void schemaEightRetainsClosedReductionFormsAndPreflightKeepsStrictClosed() {
+    void schemaNineRetainsClosedReductionFormsAndPreflightKeepsStrictClosed() {
         var sum = MetalMpsGraphProgram.Node.reduction(
                 MetalMpsGraphProgram.NodeKind.SUM,
                 2,
@@ -30,7 +30,7 @@ class MetalMpsGraphReductionNativeTest {
         ByteBuffer record = ByteBuffer.wrap(
                 new MetalMpsGraphProgram(List.of(sum)).encodedNodeRecords())
                 .order(ByteOrder.BIG_ENDIAN);
-        assertEquals(8, MetalMpsGraphProgram.SCHEMA_VERSION);
+        assertEquals(9, MetalMpsGraphProgram.SCHEMA_VERSION);
         assertEquals(13, record.getInt());
         assertEquals(4, record.getInt());
         assertEquals(2, record.getInt());

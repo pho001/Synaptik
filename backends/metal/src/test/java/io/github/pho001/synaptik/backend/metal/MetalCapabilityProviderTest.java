@@ -17,6 +17,10 @@ import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryCo
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
+import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
+import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
+import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
@@ -188,6 +192,55 @@ class MetalCapabilityProviderTest {
                     List.of(occurrence.input()),
                     List.of(occurrence.output()))), occurrence.name() + " accelerator");
         }
+    }
+
+    @Test
+    void admitsOnlyExactInt32GatherAndOneHotOccurrencesInBothProfiles() {
+        TensorDescriptor data = typed(DataType.FLOAT32, Shape.of(2, 3, 4), true);
+        TensorDescriptor indices = typed(DataType.INT32, Shape.of(5, 6), false);
+        TensorDescriptor gathered = typed(DataType.FLOAT32, Shape.of(2, 5, 6, 4), true);
+        Operation gather = new Operation(AxisGatherKind.GATHER, new IndexAxisAttrs(1));
+        TensorDescriptor oneHotIndices = typed(DataType.INT32, Shape.of(2, 3), false);
+        TensorDescriptor oneHot = typed(DataType.BOOL, Shape.of(2, 3, 4), false);
+        Operation encode = new Operation(OneHotKind.ONE_HOT, new OneHotAttrs(4));
+
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            assertTrue(provider.supports(new OperationCapabilityQuery(
+                    profile, gather, List.of(data, indices), List.of(gathered))));
+            assertTrue(provider.supports(new OperationCapabilityQuery(
+                    profile, encode, List.of(oneHotIndices), List.of(oneHot))));
+        }
+
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                new Operation(AxisGatherKind.GATHER_ELEMENTS, new IndexAxisAttrs(1)),
+                List.of(data, indices),
+                List.of(gathered))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                gather,
+                List.of(data, typed(DataType.INT64, Shape.of(5, 6), false)),
+                List.of(gathered))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                gather,
+                List.of(data, indices),
+                List.of(typed(DataType.FLOAT32, Shape.of(2, 5, 4), true)))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                gather,
+                List.of(data, indices),
+                List.of(typed(DataType.FLOAT32, gathered.shape(), false)))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                encode,
+                List.of(typed(DataType.INT64, Shape.of(2, 3), false)),
+                List.of(oneHot))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                encode,
+                List.of(oneHotIndices),
+                List.of(typed(DataType.BOOL, Shape.of(2, 3, 5), false)))));
     }
 
     @Test
@@ -544,6 +597,12 @@ class MetalCapabilityProviderTest {
             Operation operation,
             TensorDescriptor input,
             TensorDescriptor output) { }
+
+    private static TensorDescriptor typed(
+            DataType type, Shape shape, boolean requiresGrad) {
+        return new TensorDescriptor(
+                type, shape, Optional.of(LayoutDescriptor.contiguous(shape)), requiresGrad);
+    }
 
     private static TensorDescriptor typed(DataType type) {
         Shape shape = Shape.of(2, 3);

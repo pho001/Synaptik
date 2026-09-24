@@ -20,16 +20,16 @@ import java.util.Optional;
  * Generates complete, stable, budget-bounded Metal supported-operation route candidates.
  *
  * <p>The workload fingerprint uses only versioned semantics and structural positions, including
- * the cold numerical profile, schema-eight ordered typed nodes and attributes, exact logical
+ * the cold numerical profile, schema-nine ordered typed nodes and attributes, exact logical
  * descriptors, ordered edges, explicit value states, target sets, dense represented-order
- * geometry, ABI identity, and splats. Graph-local identities, partition object identity, native
- * handles, measurements, and cache state are excluded. Generation is cold, thread-safe,
+ * geometry, ABI identity, and typed splats. Graph-local identities, partition object identity,
+ * native handles, measurements, and cache state are excluded. Generation is cold, thread-safe,
  * deterministic, and performs no native work.</p>
  */
 final class MetalNegRouteCandidateGenerator {
     private static final long UINT32_MAX = 0xffff_ffffL;
-    private static final int WORKLOAD_SIGNATURE_VERSION = 9;
-    private static final int EXACT_DEFAULT_POLICY = 9;
+    private static final int WORKLOAD_SIGNATURE_VERSION = 10;
+    private static final int EXACT_DEFAULT_POLICY = 10;
 
     /**
      * Generates every currently valid complete candidate up to a positive budget.
@@ -167,7 +167,7 @@ final class MetalNegRouteCandidateGenerator {
 
         updateInt(digest, plan.descriptors().size());
         for (var descriptor : plan.descriptors()) {
-            updateInt(digest, descriptor.dataType() == DataType.FLOAT32 ? 1 : 0);
+            updateInt(digest, dataTypeWireValue(descriptor.dataType()));
             updateBoolean(digest, descriptor.requiresGrad());
             long[] dimensions = descriptor.shape().toLongArray();
             updateLongs(digest, dimensions);
@@ -205,11 +205,27 @@ final class MetalNegRouteCandidateGenerator {
         for (var splat : plan.feedSplats()) {
             updateBoolean(digest, splat.isPresent());
             if (splat.isPresent()) {
-                updateInt(digest, Float.floatToRawIntBits(
-                        splat.orElseThrow().float32Value()));
+                var scalar = splat.orElseThrow();
+                updateInt(digest, dataTypeWireValue(scalar.dataType()));
+                updateInt(digest, switch (scalar.dataType()) {
+                    case FLOAT32 -> Float.floatToRawIntBits(scalar.float32Value());
+                    case INT32 -> scalar.int32Value();
+                    default -> throw new IllegalArgumentException(
+                            "Metal workload splat type is unsupported");
+                });
             }
         }
         return new MetalNegTuningBatch.WorkloadSignature(digest.digest());
+    }
+
+    private static int dataTypeWireValue(DataType dataType) {
+        return switch (dataType) {
+            case FLOAT32 -> 1;
+            case INT32 -> 2;
+            case BOOL -> 3;
+            default -> throw new IllegalArgumentException(
+                    "Metal workload data type is unsupported: " + dataType);
+        };
     }
 
     private static int numericalProfileWireValue(NumericalProfile profile) {

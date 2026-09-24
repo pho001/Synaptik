@@ -19,6 +19,10 @@ import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
+import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
+import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
+import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
@@ -395,6 +399,74 @@ final class MetalNegCapabilityPartitionConformanceTest {
                 partitions.getFirst().nodeIds());
     }
 
+    /** Proves GATHER composes with FLOAT32 consumers while ONE_HOT remains a terminal region. */
+    @Test
+    void exactInt32IndexingOccurrencesProduceTheExpectedMaximalMetalRegions() {
+        TensorDescriptor dataDescriptor = descriptor(Shape.of(2, 3));
+        TensorDescriptor indexDescriptor = typed(DataType.INT32, Shape.of(2));
+        TensorDescriptor gatheredDescriptor = descriptor(Shape.of(2, 2));
+        TensorDescriptor oneHotDescriptor = typed(DataType.BOOL, Shape.of(2, 4));
+        ValueId data = new ValueId(60);
+        ValueId indices = new ValueId(61);
+        ValueId gathered = new ValueId(62);
+        ValueId negated = new ValueId(63);
+        ValueId oneHot = new ValueId(64);
+        CompiledNode gather = new CompiledNode(
+                new NodeId(60),
+                new Operation(AxisGatherKind.GATHER, new IndexAxisAttrs(1)),
+                List.of(data, indices),
+                List.of(gathered));
+        CompiledNode neg = new CompiledNode(
+                new NodeId(61),
+                operation(UnaryElementwiseKind.NEG),
+                List.of(gathered),
+                List.of(negated));
+        CompiledNode encode = new CompiledNode(
+                new NodeId(62),
+                new Operation(OneHotKind.ONE_HOT, new OneHotAttrs(4)),
+                List.of(indices),
+                List.of(oneHot));
+        List<CompiledNode> nodes = List.of(gather, neg, encode);
+        var provider = new MetalCapabilityProvider();
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            assertTrue(provider.supports(query(
+                    profile, gather.operation(),
+                    List.of(dataDescriptor, indexDescriptor),
+                    List.of(gatheredDescriptor))));
+            assertTrue(provider.supports(query(
+                    profile, encode.operation(),
+                    List.of(indexDescriptor),
+                    List.of(oneHotDescriptor))));
+        }
+        var graph = new CompiledGraphModel(
+                List.of(
+                        new GraphValue(data, dataDescriptor),
+                        new GraphValue(indices, indexDescriptor),
+                        new GraphValue(gathered, gatheredDescriptor),
+                        new GraphValue(negated, gatheredDescriptor),
+                        new GraphValue(oneHot, oneHotDescriptor)),
+                nodes,
+                List.of(data, indices),
+                List.of(negated, oneHot),
+                Map.of(
+                        gather.id(), GraphPhase.FORWARD,
+                        neg.id(), GraphPhase.FORWARD,
+                        encode.id(), GraphPhase.FORWARD));
+        var partitions = MaximalSameOwnerPartitioning.partition(
+                graph,
+                Map.of(
+                        gather.id(), MetalCapabilityProvider.METAL_BACKEND_ID,
+                        neg.id(), MetalCapabilityProvider.METAL_BACKEND_ID,
+                        encode.id(), MetalCapabilityProvider.METAL_BACKEND_ID));
+        assertEquals(1, partitions.size());
+        assertEquals(
+                List.of(gather.id(), neg.id(), encode.id()),
+                partitions.getFirst().nodeIds());
+        assertSame(
+                MetalCapabilityProvider.METAL_BACKEND_ID,
+                partitions.getFirst().owner());
+    }
+
     private static OperationCapabilityQuery query(
             NumericalProfile profile,
             Operation operation,
@@ -405,6 +477,11 @@ final class MetalNegCapabilityPartitionConformanceTest {
 
     private static TensorDescriptor descriptor(Shape shape) {
         return new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+    }
+
+    private static TensorDescriptor typed(DataType dataType, Shape shape) {
+        return new TensorDescriptor(dataType, shape,
                 Optional.of(LayoutDescriptor.contiguous(shape)), false);
     }
 

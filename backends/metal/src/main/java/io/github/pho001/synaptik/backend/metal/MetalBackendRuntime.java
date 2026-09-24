@@ -106,21 +106,23 @@ final class MetalBackendRuntime implements AutoCloseable {
     /**
      * Creates one Metal-owned input representation from caller-owned host storage.
      *
-     * <p>The upload is complete before return. The representation retains the storage as a
-     * non-owning borrow for the result lifetime and owns only its Metal buffer.</p>
+     * <p>The upload is complete before return. FLOAT32 and INT32 bytes are transferred without
+     * conversion. The representation retains the storage as a non-owning borrow for the result
+     * lifetime and owns only its Metal buffer.</p>
      *
-     * @param storage non-null live accessible FLOAT32 host storage; never closed here
+     * @param storage non-null live accessible FLOAT32 or INT32 host storage; never closed here
      * @return a new non-null Metal buffer representation owned by the caller
      * @throws NullPointerException if {@code storage} is {@code null}
-     * @throws IllegalArgumentException if the data type is not FLOAT32
+     * @throws IllegalArgumentException if the data type is neither FLOAT32 nor INT32
      * @throws IllegalStateException if storage or the Metal context is closed or inaccessible
      * @throws RuntimeException if native allocation or upload fails
      * @throws Error if allocation, upload, or rollback reports a fatal failure
      */
     BufferRepresentation borrow(HostTensorStorage storage) {
         Objects.requireNonNull(storage, "storage");
-        if (storage.dataType() != DataType.FLOAT32) {
-            throw new IllegalArgumentException("Metal caller storage must have FLOAT32 data type");
+        if (storage.dataType() != DataType.FLOAT32 && storage.dataType() != DataType.INT32) {
+            throw new IllegalArgumentException(
+                    "Metal caller storage must have FLOAT32 or INT32 data type");
         }
         MemorySegment source = storage.segment();
         if (!storage.isAlive() || !source.isAccessibleBy(Thread.currentThread())) {
@@ -207,19 +209,22 @@ final class MetalBackendRuntime implements AutoCloseable {
     }
 
     /**
-     * Downloads one Metal FLOAT32 publication into canonical row-major big-endian bytes.
+     * Downloads one Metal FLOAT32 or BOOL publication into canonical row-major bytes.
      *
-     * <p>Canonical non-view publications retain the existing path and additionally admit one
-     * locally produced rank-zero reduction result as exactly four detached bytes. This local
-     * materialization rule does not widen caller feeds or CPU/Metal transfer, both of which remain
-     * positive-rank. A positive-rank logical affine view is accepted only when its representation
-     * carries exact finalized-route authentication for a full dense represented-order target. The
-     * logical descriptor is validated but never rewritten.</p>
+     * <p>FLOAT32 publication uses canonical big-endian element bytes. BOOL publication preserves
+     * its exact one-byte zero-or-one elements. Canonical non-view FLOAT32 publications retain the
+     * existing path and additionally admit one locally produced rank-zero reduction result as
+     * exactly four detached bytes. A positive-rank logical affine view remains FLOAT32-only and is
+     * accepted only when its representation carries exact finalized-route authentication for a
+     * full dense represented-order target. The logical descriptor is validated but never
+     * rewritten. This local BOOL publication does not add BOOL ingress or a general BOOL
+     * consumer.</p>
      *
      * @param representation non-null live representation owned by this context
-     * @param descriptor non-null exact canonical or authenticated affine publication descriptor
+     * @param descriptor non-null exact canonical FLOAT32/BOOL or authenticated affine FLOAT32
+     *     publication descriptor
      * @param maximumBytes non-negative caller byte ceiling
-     * @return fresh non-null canonical bytes; exactly four bytes for a rank-zero FLOAT32 result
+     * @return fresh non-null canonical bytes
      * @throws NullPointerException if an object argument is {@code null}
      * @throws IllegalArgumentException if type, layout, size, representation, or limit is invalid
      * @throws IllegalStateException if the representation or context is closed
@@ -242,15 +247,17 @@ final class MetalBackendRuntime implements AutoCloseable {
         }
         LayoutDescriptor layout = descriptor.layout().orElse(null);
         int rank = descriptor.shape().rank();
-        boolean canonical = descriptor.dataType() == DataType.FLOAT32
+        DataType dataType = descriptor.dataType();
+        boolean canonicalTypeAndRank = dataType == DataType.FLOAT32 && rank >= 0
+                || dataType == DataType.BOOL && rank >= 1;
+        boolean canonical = canonicalTypeAndRank
                 && descriptor.shape().isFullyStatic()
-                && rank >= 0
                 && rank <= 16
                 && layout != null
                 && layout.kind() == LayoutKind.DENSE_CONTIGUOUS
                 && !layout.isView()
                 && layout.storageOffset() == 0L;
-        boolean authenticatedAffine = descriptor.dataType() == DataType.FLOAT32
+        boolean authenticatedAffine = dataType == DataType.FLOAT32
                 && descriptor.shape().isFullyStatic()
                 && descriptor.shape().rank() >= 1
                 && descriptor.shape().rank() <= 16
@@ -260,7 +267,8 @@ final class MetalBackendRuntime implements AutoCloseable {
                 && metal.authenticatesDenseAffinePublication(descriptor);
         if (!canonical && !authenticatedAffine) {
             throw new IllegalArgumentException(
-                    "Metal materialization requires canonical or authenticated affine FLOAT32");
+                    "Metal materialization requires canonical FLOAT32/BOOL"
+                            + " or authenticated affine FLOAT32");
         }
         long elements = 1L;
         for (long dimension : descriptor.shape().toLongArray()) {
@@ -270,7 +278,7 @@ final class MetalBackendRuntime implements AutoCloseable {
             }
             elements = Math.multiplyExact(elements, dimension);
         }
-        long byteCount = Math.multiplyExact(elements, Float.BYTES);
+        long byteCount = Math.multiplyExact(elements, dataType.byteWidth());
         if (byteCount > maximumBytes) {
             throw new IllegalArgumentException("canonical payload exceeds maximumBytes");
         }
@@ -280,14 +288,18 @@ final class MetalBackendRuntime implements AutoCloseable {
         }
         byte[] result = new byte[length];
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment staging = arena.allocate(byteCount, Integer.BYTES);
+            MemorySegment staging = arena.allocate(byteCount, dataType.byteWidth());
             metal.download(0L, staging, 0L, byteCount);
-            for (int offset = 0; offset < length; offset += Integer.BYTES) {
-                int bits = staging.get(NATIVE_INT, offset);
-                result[offset] = (byte) (bits >>> 24);
-                result[offset + 1] = (byte) (bits >>> 16);
-                result[offset + 2] = (byte) (bits >>> 8);
-                result[offset + 3] = (byte) bits;
+            if (dataType == DataType.BOOL) {
+                MemorySegment.copy(staging, 0L, MemorySegment.ofArray(result), 0L, byteCount);
+            } else {
+                for (int offset = 0; offset < length; offset += Integer.BYTES) {
+                    int bits = staging.get(NATIVE_INT, offset);
+                    result[offset] = (byte) (bits >>> 24);
+                    result[offset + 1] = (byte) (bits >>> 16);
+                    result[offset + 2] = (byte) (bits >>> 8);
+                    result[offset + 3] = (byte) bits;
+                }
             }
         }
         return result;

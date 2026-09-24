@@ -1,5 +1,6 @@
 package io.github.pho001.synaptik.testing.integration;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -35,6 +36,7 @@ import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -389,6 +391,86 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     } finally {
                         reused.close();
                     }
+                }
+            }
+        }
+    }
+
+    @Test
+    void cpuFreeMetalEngineRunsExactInt32GatherAndBoolOneHotWithBoundsErrors() {
+        Path library = configuredMetalLibrary();
+        int[] dataBits = {
+            0x00000000, 0x80000000, 0x00000001, 0x7fc12345,
+            0xffc54321, 0x7f800000, 0x80000001, 0x3f800000
+        };
+        try (Arena arena = Arena.ofShared();
+                Engine.Builder builder = Engine.builder()) {
+            builder.takeOwnership(MetalBackendIntegration.open(
+                    new MetalBackendConfiguration(library)));
+            try (Engine engine = builder.build()) {
+                Tensor data = nativeTensorBits(
+                        descriptor(Shape.of(2, 4)), arena, dataBits);
+                Tensor gatherIndices = nativeIntTensor(
+                        Shape.of(3), arena, 3, 0, 2);
+                Tensor oneHotIndices = nativeIntTensor(
+                        Shape.of(3), arena, 2, 0, 3);
+                MemorySegment gatherIndexBytes = ((MemorySegmentStorage)
+                        gatherIndices.hostStorage().orElseThrow()).segment();
+                MemorySegment oneHotIndexBytes = ((MemorySegmentStorage)
+                        oneHotIndices.hostStorage().orElseThrow()).segment();
+                Tensor gathered = data.gather(gatherIndices, 1);
+                Tensor oneHot = oneHotIndices.oneHot(4);
+                var compiled = engine.compile(List.of(gathered, oneHot));
+                assertEquals(
+                        List.of("metal"),
+                        EngineMixedOwnerTestAccess.partitionOwners(compiled));
+
+                try (InferenceSession session = engine.session(compiled);
+                        var result = session.run(
+                                List.of(data, gatherIndices, oneHotIndices))) {
+                    assertEquals(2, result.resultCount());
+                    assertRawBits(
+                            result.materialize(
+                                    result.publications().get(0),
+                                    6L * Integer.BYTES).bytes(),
+                            new int[] {
+                                0x7fc12345, 0x00000000, 0x00000001,
+                                0x3f800000, 0xffc54321, 0x80000001
+                            });
+                    ByteBuffer boolBytes = result.materialize(
+                            result.publications().get(1), 12L).bytes();
+                    byte[] actual = new byte[boolBytes.remaining()];
+                    boolBytes.get(actual);
+                    assertArrayEquals(new byte[] {
+                        0, 0, 1, 0,
+                        1, 0, 0, 0,
+                        0, 0, 0, 1
+                    }, actual);
+                }
+
+                gatherIndexBytes.setAtIndex(ValueLayout.JAVA_INT, 1, 4);
+                try (InferenceSession session = engine.session(compiled)) {
+                    IndexOutOfBoundsException failure = assertThrows(
+                            IndexOutOfBoundsException.class,
+                            () -> session.run(
+                                    List.of(data, gatherIndices, oneHotIndices)));
+                    assertEquals(
+                            "GATHER index at logical position 1 for data axis 1"
+                                    + " is out of bounds: value=4, extent=4",
+                            failure.getMessage());
+                }
+
+                gatherIndexBytes.setAtIndex(ValueLayout.JAVA_INT, 1, 0);
+                oneHotIndexBytes.setAtIndex(ValueLayout.JAVA_INT, 1, -1);
+                try (InferenceSession session = engine.session(compiled)) {
+                    IndexOutOfBoundsException failure = assertThrows(
+                            IndexOutOfBoundsException.class,
+                            () -> session.run(
+                                    List.of(data, gatherIndices, oneHotIndices)));
+                    assertEquals(
+                            "ONE_HOT index at logical position 1"
+                                    + " is out of bounds: value=-1, depth=4",
+                            failure.getMessage());
                 }
             }
         }
@@ -1305,6 +1387,24 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 Optional.empty(),
                 Optional.of(new MemorySegmentStorage(
                         DataType.FLOAT32, values.length, segment)));
+    }
+
+    private static Tensor nativeIntTensor(Shape shape, Arena arena, int... values) {
+        TensorDescriptor descriptor = new TensorDescriptor(
+                DataType.INT32,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                false);
+        var segment = arena.allocate(
+                Math.multiplyExact(values.length, Integer.BYTES), Integer.BYTES);
+        for (int index = 0; index < values.length; index++) {
+            segment.setAtIndex(ValueLayout.JAVA_INT, index, values[index]);
+        }
+        return TensorFactory.create(
+                descriptor,
+                Optional.empty(),
+                Optional.of(new MemorySegmentStorage(
+                        DataType.INT32, values.length, segment)));
     }
 
     private static ModelAutotuningRequest tuningRequest(

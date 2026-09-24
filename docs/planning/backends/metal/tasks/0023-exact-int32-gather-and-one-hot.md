@@ -4,12 +4,12 @@
 
 Ready
 
-Reverified against exact common base `90cd5fd925a149d055d434fac2e5bb2ee38b130f`. Metal 0022 is
+Implemented from clean base `854c2e8e4b1c3b4d81fd3c1f0e99656e9ae40b3e`. Metal 0022 remains
 Complete at implementation `415175947efc5151b71e764ad941f91445342cd7` plus documentation
 remediation `90cd5fd925a149d055d434fac2e5bb2ee38b130f`; final independent Class C review returned
 `APPROVE` with zero findings. Model 0018C–0018D and 0019A2, Compiler 0005C, CPU 0006A2, Config
-0006, and Engine 0018 are Complete. This is the sole Ready Metal successor. No Task 0023
-production edit or runtime probe has run.
+0006, and Engine 0018 are Complete. This remains the sole Ready Metal successor while the completed
+implementation waits for one lean independent Class C review.
 
 ## Change class
 
@@ -359,3 +359,100 @@ deterministic first error, unchanged targets, schema/type inference, version-ten
 ingress/local publication versus unchanged transfer, focused lifecycle reliance, the real
 Metal-only Engine smoke, forward-only boundary, Runtime/Trace absence, changed scope, and all
 validation/documentation evidence.
+
+## Implementation evidence
+
+Implementation began from clean `854c2e8e4b1c3b4d81fd3c1f0e99656e9ae40b3e` and remains
+`Ready` only for the mandatory independent Class C review.
+
+Before any production edit, one disposable Objective-C program at
+`/tmp/synaptik_task0023_selector_smoke.m` compiled with `xcrun --sdk macosx clang -arch arm64`
+against Foundation, Metal, and MetalPerformanceShadersGraph and ran once on the M3 Max. It used
+exactly `gatherWithUpdatesTensor:indicesTensor:axis:batchDimensions:name:` with axis `1` and
+`batchDimensions=0`, plus
+`oneHotWithIndicesTensor:depth:dataType:onValue:offValue:name:` with depth `4`, `BOOL`, one, and
+zero. The single execution reported:
+
+```text
+task0023 selector smoke passed: gather raw bits, one-hot BOOL bytes, shapes [2,3]/[3,4]
+```
+
+GATHER selected raw FLOAT32 signed zero, subnormal, infinity, and NaN-payload encodings without
+conversion; ONE_HOT produced exact zero/one bytes and the declared Shape; all inputs remained
+unchanged. No optimization, context, repetition, or executable matrix ran. The source and
+`/tmp/synaptik_task0023_selector_smoke` binary were removed before production edits.
+
+Production uses the same selectors. Native executable creation retains indexing validations in
+stable node order. Each run validates every input/output resource and scans each canonical INT32
+index in row-major ordinal order before constructing `MPSGraphTensorData`, calling the executable,
+or writing a target. Equal-bound GATHER and negative later-ordinal ONE_HOT real-device failures
+return range status with every target byte still at its sentinel. Java rescans the exact retained
+Metal inputs only after that native range status and publishes:
+
+```text
+GATHER index at logical position 1 for data axis 1 is out of bounds: value=4, extent=4
+ONE_HOT index at logical position 1 is out of bounds: value=-1, depth=4
+```
+
+The schema is `9`; retained operation wires are `1..15`, new wires are `GATHER=16` and
+`ONE_HOT=17`, and `DEPTH=5`. ABI `4` and all thirteen exports are unchanged. Workload,
+exact-policy, candidate, compatibility, route-policy, and codec identities are `10`. Caller and
+type-matching splat ingress accept exact canonical FLOAT32 or INT32; local canonical BOOL
+publication uses one byte per element. CPU-to-Metal and Metal-to-CPU transfer remain positive-rank
+canonical FLOAT32 only. No Compiler production, Runtime, or Trace file changed; the route is
+forward-only and adds no INT64, CPU fallback, transfer widening, or general BOOL consumer.
+
+Validation evidence:
+
+- native `build.sh`: pass; `nm -gU` lists exactly the documented thirteen symbols and no removed
+  NEG-only create symbol;
+- focused Metal set: 7 tests, 0 skipped, 0 failures, including one capability test, one
+  schema/preflight test, one raw-ABI test, one prepared typed-ingress/diagnostic test, two
+  route/codec tests, and one real-device native test;
+- Metal Javadoc: pass;
+- backend conformance: 1 focused test, 0 skipped, 0 failures;
+- existing Compiler `IndexingScatterGradientRulesTest`: 2 tests, 0 skipped, 0 failures;
+- real CPU-free Engine smoke: 1 test, 0 skipped, 0 failures;
+- architecture checks: pass;
+- one full `./gradlew build`: pass, 87 actionable tasks;
+- Markdown/status/frontier validation passed for the other ten changed Markdown files. The changed
+  `docs/api/tensor-api.md` retains exactly the same 172 pre-existing duplicate-heading reports as
+  clean HEAD and adds no validator error; `git diff --check` passes.
+
+Changed paths:
+
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalBackendIntegration.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalBackendRuntime.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalCapabilityProvider.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalMpsGraphProgram.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNativeApi.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegPartitionPreparer.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegPreparedExecutable.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegPreparedScheduleAssembler.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegRouteCandidateGenerator.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegTuningBatch.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegTuningCodec.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/package-info.java`
+- `backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalCapabilityProviderTest.java`
+- `backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalMpsGraphAbsNativeTest.java`
+- `backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalMpsGraphAffineSchemaTest.java`
+- `backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalMpsGraphBinaryNativeTest.java`
+- `backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalMpsGraphIndexingNativeTest.java`
+- `backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalMpsGraphRawAbiNativeTest.java`
+- `backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalMpsGraphReductionNativeTest.java`
+- `backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalNegPreparedExecutionTest.java`
+- `backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalNegRouteCandidateGeneratorTest.java`
+- `native/metal-macos-arm64/src/synaptik_metal_foundation.m`
+- `native/metal-macos-arm64/README.md`
+- `testing/backend-conformance/src/test/java/io/github/pho001/synaptik/testing/conformance/MetalNegCapabilityPartitionConformanceTest.java`
+- `testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineExplicitCompositionMetalIntegrationTest.java`
+- `ARCHITECTURE.md`
+- `docs/api/compile-api.md`
+- `docs/api/tensor-api.md`
+- `docs/architecture/contracts/backend-execution.md`
+- `docs/backend-guide/metal-backend.md`
+- `docs/backend-guide/partition-preparer.md`
+- `docs/glossary.md`
+- `docs/planning/backends/metal/master-plan.md`
+- `docs/planning/backends/metal/tasks/0023-exact-int32-gather-and-one-hot.md`
+- `docs/planning/roadmap.md`

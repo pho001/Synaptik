@@ -11,21 +11,21 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Immutable typed operation table for the version-eight Metal MPSGraph node schema.
+ * Immutable typed operation table for the version-nine Metal MPSGraph node schema.
  *
  * <p>ABI version four points at fixed 160-byte discriminated records. Each record contains a
  * closed operation identity, exact ordered value indices, one typed attribute discriminator, and
- * bounded target-shape, permutation, normalized-axis, or reduction state. Reduction records use
- * a typed full/single/multi/sum-to-Shape form, ordered axes (including an empty multi-axis list),
- * exact keep-dimensions state, or the exact scalar-or-positive-rank sum-to-Shape target. MATMUL
- * appends wire identity 15 with two ordered inputs, no attributes, and canonical output state.
- * Every unused scalar is a required zero or {@code UINT32_MAX} sentinel and every unused attribute
- * cell is zero. No operation name, generic integer payload, object graph, map, or executable state
- * crosses the ABI.</p>
+ * bounded target-shape, permutation, normalized-axis, reduction, or one-hot depth state. Reduction
+ * records use a typed full/single/multi/sum-to-Shape form, ordered axes (including an empty
+ * multi-axis list), exact keep-dimensions state, or the exact scalar-or-positive-rank
+ * sum-to-Shape target. GATHER appends wire 16 with an axis; ONE_HOT appends wire 17 with positive
+ * depth attribute 5. Every unused scalar is a required zero or {@code UINT32_MAX} sentinel and
+ * every unused attribute cell is zero. No operation name, generic integer payload, object graph,
+ * map, or executable state crosses the ABI.</p>
  */
 final class MetalMpsGraphProgram {
     /** Exact node schema carried across native ABI version four. */
-    static final int SCHEMA_VERSION = 8;
+    static final int SCHEMA_VERSION = 9;
     /** Maximum target rank or permutation length. */
     static final int MAX_RANK = 16;
     /** Exact fixed native record size. */
@@ -39,8 +39,7 @@ final class MetalMpsGraphProgram {
 
     /** Closed attribute vocabulary and stable schema-local wire identities. */
     enum AttributeKind {
-        NONE(0), TARGET_SHAPE(1), PERMUTATION(2), AXIS(3), REDUCTION(4);
-
+        NONE(0), TARGET_SHAPE(1), PERMUTATION(2), AXIS(3), REDUCTION(4), DEPTH(5);
         private final int wireIdentity;
 
         AttributeKind(int wireIdentity) {
@@ -105,7 +104,9 @@ final class MetalMpsGraphProgram {
         ABS(12, 1, AttributeKind.NONE, ValueState.CANONICAL, false),
         SUM(13, 1, AttributeKind.REDUCTION, ValueState.CANONICAL, false),
         MEAN(14, 1, AttributeKind.REDUCTION, ValueState.CANONICAL, false),
-        MATMUL(15, 2, AttributeKind.NONE, ValueState.CANONICAL, true);
+        MATMUL(15, 2, AttributeKind.NONE, ValueState.CANONICAL, true),
+        GATHER(16, 2, AttributeKind.AXIS, ValueState.CANONICAL, false),
+        ONE_HOT(17, 1, AttributeKind.DEPTH, ValueState.CANONICAL, false);
 
         private final int wireIdentity;
         private final int inputCount;
@@ -152,7 +153,7 @@ final class MetalMpsGraphProgram {
         }
     }
 
-    /** One immutable typed version-eight node record. */
+    /** One immutable typed version-nine node record. */
     static final class Node {
         private final NodeKind kind;
         private final int firstInputIndex;
@@ -208,6 +209,12 @@ final class MetalMpsGraphProgram {
                 if (attributeCount != 1 || axis < 0 || axis >= MAX_RANK
                         || reserved != 0 || attributeValues.length != 0) {
                     throw new IllegalArgumentException("axis node attributes are malformed");
+                }
+            } else if (kind.attributeKind() == AttributeKind.DEPTH) {
+                if (kind != NodeKind.ONE_HOT || attributeCount != 1 || axis != NO_AXIS
+                        || reserved != 0 || attributeValues.length != 1
+                        || attributeValues[0] <= 0L) {
+                    throw new IllegalArgumentException("depth node attributes are malformed");
                 }
             } else {
                 ReductionForm form = ReductionForm.fromWireIdentity(axis);
@@ -358,6 +365,17 @@ final class MetalMpsGraphProgram {
                     targetDimensions);
         }
 
+        static Node gather(
+                int dataInputIndex, int indicesInputIndex, int outputIndex, int axis) {
+            return new Node(NodeKind.GATHER, dataInputIndex, indicesInputIndex, outputIndex,
+                    1, axis, 0, new long[0]);
+        }
+
+        static Node oneHot(int indicesInputIndex, int outputIndex, long depth) {
+            return new Node(NodeKind.ONE_HOT, indicesInputIndex, NO_SECOND_INPUT, outputIndex,
+                    1, NO_AXIS, 0, new long[] {depth});
+        }
+
         private static long[] longValues(List<Integer> values) {
             long[] result = new long[values.size()];
             for (int index = 0; index < values.size(); index++) {
@@ -429,7 +447,7 @@ final class MetalMpsGraphProgram {
         return encoded.array();
     }
 
-    /** Allocates and writes exact native-endian version-eight records for one downcall. */
+    /** Allocates and writes exact native-endian version-nine records for one downcall. */
     MemorySegment encodeNative(Arena arena) {
         Objects.requireNonNull(arena, "arena");
         long bytes = Math.multiplyExact((long) nodes.size(), NODE_RECORD_BYTES);

@@ -11,11 +11,11 @@ import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphAffineSchemaTest {
     @Test
-    void schemaVersionEightRetainsTypedDiscriminantsAndRequiredUnusedSentinels() {
+    void schemaVersionNineRetainsTypedDiscriminantsAndRequiredUnusedSentinels() {
         var reshape = MetalMpsGraphProgram.Node.targetShape(
                 MetalMpsGraphProgram.NodeKind.RESHAPE, 0, 1, new long[] {3, 2});
         byte[] encoded = new MetalMpsGraphProgram(List.of(reshape)).encodedNodeRecords();
-        assertEquals(8, MetalMpsGraphProgram.SCHEMA_VERSION);
+        assertEquals(9, MetalMpsGraphProgram.SCHEMA_VERSION);
         assertEquals(MetalMpsGraphProgram.NODE_RECORD_BYTES, encoded.length);
 
         ByteBuffer record = ByteBuffer.wrap(encoded).order(ByteOrder.BIG_ENDIAN);
@@ -86,7 +86,7 @@ class MetalMpsGraphAffineSchemaTest {
     }
 
     @Test
-    void schemaEightAppendsMatmulWireAndAuthenticatesOnlyLocalRankTwoTransposes() {
+    void schemaNineRetainsMatmulWireAndAuthenticatesOnlyLocalRankTwoTransposes() {
         var direct = MetalMpsGraphProgram.Node.matmul(0, 1, 2);
         ByteBuffer record = ByteBuffer.wrap(
                 new MetalMpsGraphProgram(List.of(direct)).encodedNodeRecords())
@@ -161,6 +161,66 @@ class MetalMpsGraphAffineSchemaTest {
                         dimensions(wrongOutputShapes),
                         directProgram,
                         new int[] {0, 1},
+                        new int[] {2}));
+    }
+
+    @Test
+    void schemaNineAppendsGatherAndOneHotWithExactTypedAttributes() {
+        var gather = MetalMpsGraphProgram.Node.gather(0, 1, 2, 1);
+        var oneHot = MetalMpsGraphProgram.Node.oneHot(3, 4, 5);
+        ByteBuffer records = ByteBuffer.wrap(
+                new MetalMpsGraphProgram(List.of(gather, oneHot)).encodedNodeRecords())
+                .order(ByteOrder.BIG_ENDIAN);
+
+        assertEquals(16, records.getInt());
+        assertEquals(3, records.getInt());
+        assertEquals(0, records.getInt());
+        assertEquals(1, records.getInt());
+        assertEquals(2, records.getInt());
+        assertEquals(1, records.getInt());
+        assertEquals(1, records.getInt());
+        assertEquals(0, records.getInt());
+        for (int cell = 0; cell < 16; cell++) assertEquals(0L, records.getLong());
+
+        assertEquals(17, records.getInt());
+        assertEquals(5, records.getInt());
+        assertEquals(3, records.getInt());
+        assertEquals(-1, records.getInt());
+        assertEquals(4, records.getInt());
+        assertEquals(1, records.getInt());
+        assertEquals(-1, records.getInt());
+        assertEquals(0, records.getInt());
+        assertEquals(5L, records.getLong());
+        for (int cell = 1; cell < 16; cell++) assertEquals(0L, records.getLong());
+
+        long[][] gatherShapes = {{2, 3, 4}, {5, 6}, {2, 5, 6, 4}};
+        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                NumericalProfile.STRICT_IEEE,
+                ranks(gatherShapes),
+                dimensions(gatherShapes),
+                new MetalMpsGraphProgram(List.of(gather)),
+                new int[] {0, 1},
+                new int[] {2});
+        long[][] oneHotShapes = {{2, 3}, {2, 3, 5}};
+        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                NumericalProfile.ACCELERATOR,
+                ranks(oneHotShapes),
+                dimensions(oneHotShapes),
+                new MetalMpsGraphProgram(List.of(
+                        MetalMpsGraphProgram.Node.oneHot(0, 1, 5))),
+                new int[] {0},
+                new int[] {1});
+
+        long[][] boolConsumerShapes = {{2, 3}, {2, 3, 5}, {2, 3, 5}};
+        assertThrows(IllegalArgumentException.class, () ->
+                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                        NumericalProfile.STRICT_IEEE,
+                        ranks(boolConsumerShapes),
+                        dimensions(boolConsumerShapes),
+                        new MetalMpsGraphProgram(List.of(
+                                MetalMpsGraphProgram.Node.oneHot(0, 1, 5),
+                                MetalMpsGraphProgram.Node.neg(1, 2))),
+                        new int[] {0},
                         new int[] {2}));
     }
 

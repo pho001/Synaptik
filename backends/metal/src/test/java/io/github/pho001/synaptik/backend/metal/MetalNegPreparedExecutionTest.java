@@ -33,6 +33,10 @@ import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
+import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
+import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
+import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
@@ -566,6 +570,77 @@ class MetalNegPreparedExecutionTest {
         assertEquals(5, plan.declarations().size());
         assertEquals(List.of(fixture.v0, fixture.v1, fixture.v3, fixture.v4, fixture.v5),
                 plan.declarations().stream().map(value -> value.valueId()).toList());
+    }
+
+    @Test
+    void indexingPlanRetainsTypedBytesInt32SplatAndDeterministicJavaBoundsErrors() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        IndexingRoute route = indexingRoute(context, Map.of());
+        IndexingRoute splatRoute =
+                indexingRoute(context, Map.of(route.oneHotIndices(), ScalarValue.int32(2)));
+        MetalNegPreparationPlan plan = route.analysis().plan();
+        assertEquals(MetalNegPreparationPlan.Route.MPSGRAPH, plan.route());
+        assertEquals(
+                List.of(MetalMpsGraphProgram.NodeKind.GATHER,
+                        MetalMpsGraphProgram.NodeKind.ONE_HOT),
+                plan.graphProgram().nodes().stream()
+                        .map(MetalMpsGraphProgram.Node::kind)
+                        .toList());
+        assertArrayEquals(new long[] {24, 8, 8}, plan.feedRequiredBytes());
+        assertArrayEquals(new long[] {16, 8}, plan.targetRequiredBytes());
+        assertEquals(List.of(4L, 4L, 4L, 4L, 1L),
+                plan.declarations().stream()
+                        .map(PreparationResourceRequirement.Buffer::byteAlignment)
+                        .toList());
+        int splatPosition = splatRoute.analysis().plan().feedValueIds()
+                .indexOf(route.oneHotIndices());
+        assertEquals(2, splatRoute.analysis().plan().feedSplats()
+                .get(splatPosition).orElseThrow().int32Value());
+
+        FinalizationFixture finalization = finalization(route.analysis());
+        BackendPartitionFinalizationResult finalized =
+                new MetalNegPartitionFinalizer(context)
+                        .finalizePartition(finalization.finalization());
+        var executable = (MetalNegPreparedExecutable) finalized.executable();
+        var buffers = new ArrayList<MetalBufferRepresentation>();
+        RunState state = null;
+        try {
+            for (var entry : finalization.memoryPlan().buffers()) {
+                buffers.add(context.createBuffer(entry.byteSize()));
+            }
+            uploadBits(buffers.get(1), 0, 2);
+            uploadBits(buffers.get(2), 1, 4);
+            var bindings = buffers.stream()
+                    .map(buffer -> List.of(new BufferRepresentationBinding(
+                            buffer, RunResourceOwnership.BORROWED)))
+                    .toList();
+            var workspace = new MetalNegPreparedExecutable.AddressWorkspace(
+                    context, buffers.size());
+            state = new RunState(finalization.memoryPlan(), bindings, List.of(workspace));
+            var invocation = executable.bind(state);
+            api.runStatus = 5;
+            IndexOutOfBoundsException oneHot = assertThrows(
+                    IndexOutOfBoundsException.class, invocation::execute);
+            assertEquals(
+                    "ONE_HOT index at logical position 1 is out of bounds: value=4, depth=4",
+                    oneHot.getMessage());
+
+            uploadBits(buffers.get(1), 0, -1);
+            uploadBits(buffers.get(2), 1, 2);
+            IndexOutOfBoundsException gather = assertThrows(
+                    IndexOutOfBoundsException.class, invocation::execute);
+            assertEquals(
+                    "GATHER index at logical position 1 for data axis 1 is out of bounds:"
+                            + " value=-1, extent=3",
+                    gather.getMessage());
+            assertEquals(2, api.runCalls.get());
+        } finally {
+            if (state != null) state.close();
+            buffers.forEach(MetalBufferRepresentation::close);
+            finalized.resources().forEach(resource -> resource.close());
+            context.close();
+        }
     }
 
     @Test
@@ -2668,6 +2743,69 @@ class MetalNegPreparedExecutionTest {
                 partition, nodes, values, requirements, v0, v1, v2, v3, v4, v5);
     }
 
+    private static IndexingRoute indexingRoute(
+            MetalDeviceContext context, Map<ValueId, ScalarValue> constants) {
+        ValueId data = new ValueId(40_000);
+        ValueId gatherIndices = new ValueId(40_001);
+        ValueId gatherOutput = new ValueId(40_002);
+        ValueId oneHotIndices = new ValueId(40_003);
+        ValueId oneHotOutput = new ValueId(40_004);
+        TensorDescriptor dataDescriptor =
+                typedDescriptor(DataType.FLOAT32, Shape.of(2, 3));
+        TensorDescriptor gatherIndicesDescriptor =
+                typedDescriptor(DataType.INT32, Shape.of(2));
+        TensorDescriptor gatherOutputDescriptor =
+                typedDescriptor(DataType.FLOAT32, Shape.of(2, 2));
+        TensorDescriptor oneHotIndicesDescriptor =
+                typedDescriptor(DataType.INT32, Shape.of(2));
+        TensorDescriptor oneHotOutputDescriptor =
+                typedDescriptor(DataType.BOOL, Shape.of(2, 4));
+        List<CompiledNode> nodes = List.of(
+                new CompiledNode(
+                        new NodeId(40_000),
+                        new Operation(AxisGatherKind.GATHER, new IndexAxisAttrs(1)),
+                        List.of(data, gatherIndices),
+                        List.of(gatherOutput)),
+                new CompiledNode(
+                        new NodeId(40_001),
+                        new Operation(OneHotKind.ONE_HOT, new OneHotAttrs(4)),
+                        List.of(oneHotIndices),
+                        List.of(oneHotOutput)));
+        PlannedPartition partition = new PlannedPartition(
+                MetalCapabilityProvider.METAL_BACKEND_ID,
+                nodes.stream().map(CompiledNode::id).toList());
+        List<GraphValue> values = List.of(
+                new GraphValue(data, dataDescriptor),
+                new GraphValue(gatherIndices, gatherIndicesDescriptor),
+                new GraphValue(gatherOutput, gatherOutputDescriptor),
+                new GraphValue(oneHotIndices, oneHotIndicesDescriptor),
+                new GraphValue(oneHotOutput, oneHotOutputDescriptor));
+        List<LogicalMemoryRequirement> requirements = List.of(
+                requirement(data, dataDescriptor, Optional.empty(), List.of(partition), false),
+                requirement(gatherIndices, gatherIndicesDescriptor,
+                        Optional.empty(), List.of(partition), false),
+                requirement(gatherOutput, gatherOutputDescriptor,
+                        Optional.of(partition), List.of(), true),
+                requirement(oneHotIndices, oneHotIndicesDescriptor,
+                        Optional.empty(), List.of(partition), false),
+                requirement(oneHotOutput, oneHotOutputDescriptor,
+                        Optional.of(partition), List.of(), true));
+        BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
+                new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
+                        NumericalProfile.STRICT_IEEE,
+                        new PartitionDag(partition, nodes),
+                        values,
+                        requirements,
+                        constants,
+                        new MetalNegAnalysisInputs(context)));
+        return new IndexingRoute(partition, oneHotIndices, analysis);
+    }
+
+    private static TensorDescriptor typedDescriptor(DataType dataType, Shape shape) {
+        return new TensorDescriptor(
+                dataType, shape, Optional.of(LayoutDescriptor.contiguous(shape)), false);
+    }
+
     private static SingleNegRoute singleNegRoute(
             MetalDeviceContext context, Shape shape, Optional<ScalarValue> splat) {
         TensorDescriptor descriptor = descriptor(shape);
@@ -2911,6 +3049,11 @@ class MetalNegPreparedExecutionTest {
             MetalNegPreparationPlan plan,
             int[] splatBits,
             int targetCount) { }
+
+    private record IndexingRoute(
+            PlannedPartition partition,
+            ValueId oneHotIndices,
+            BackendPartitionAnalysis<MetalNegPreparationPlan> analysis) { }
 
     private record SingleNegRoute(
             PlannedPartition partition,

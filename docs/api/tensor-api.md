@@ -174,17 +174,21 @@ current. The closed first-order matrix also currently reverses `CONTIGUOUS`, `RE
 `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` through public Tensor metadata operations. Mandatory
 graph-local ID canonicalization and whole-graph DCE plus phase-local CSE are current internal
 behavior. CPU physical execution is current for its documented bounded affine units. Metal forward
-execution has a common exact FLOAT32 baseline under both profiles: `NEG`, `ABS`, `RESHAPE`,
-`EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`, with graph-local affine-view
-provenance and canonical unary boundaries. Accelerator Metal additionally executes tensor
+execution has a common exact baseline under both profiles: canonical `FLOAT32` `NEG`, `ABS`,
+`RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`, plus canonical
+positive-rank `FLOAT32` data `GATHER` with canonical `INT32` indices and positive-rank
+`INT32`-to-`BOOL` `ONE_HOT`. Metal validates every index before selector dispatch or target writes,
+publishes exact Model `IndexOutOfBoundsException` text in stable node and row-major ordinal order,
+and leaves targets unchanged on failure. Canonical caller ingress accepts exact `FLOAT32` and
+`INT32`; locally produced canonical `BOOL` may publish as exact zero/one bytes, while CPU/Metal
+transfer remains canonical `FLOAT32` only. Accelerator Metal additionally executes tensor
 binary/reduction and positive static rank-two MATMUL partitions; strict Metal rejects those
-additions.
-Metal reduction execution remains forward-only; a positive-rank result may compose locally, while
-a scalar result is a direct target with four-byte local materialization. Accelerator MATMUL also
-executes the Compiler-generated explicitly seeded first-order formulas for both canonical rank-two
-operands through exact local transposes beneath the existing shape-restoration boundaries. This
-narrow path introduces no scalar-loss, implicit-seed, batched-MATMUL, or general Metal training
-claim.
+additions. Metal indexing and reduction execution are forward-only; a positive-rank result may
+compose locally, while a scalar reduction result is a direct target with four-byte local
+materialization. Accelerator MATMUL also executes the Compiler-generated explicitly seeded
+first-order formulas for both canonical rank-two operands through exact local transposes beneath
+the existing shape-restoration boundaries. This narrow path introduces no indexing backward,
+scalar-loss, implicit-seed, batched-MATMUL, or general Metal training claim.
 
 `AxisTransformKind.PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` are current semantic identities.
 `PermutationAttrs` stores a complete normalized output-to-input axis permutation, while

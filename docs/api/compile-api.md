@@ -1295,19 +1295,22 @@ The result Shape is the complete indices Shape plus the exact weight axis-one Di
 type and gradient eligibility come only from weights. This is public model-expression construction
 and is structurally capturable; current Compiler autograd treats it as the ordinary GATHER
 occurrence, including repeated-index accumulation. The current fail-closed CPU path advertises,
-lowers, prepares, and executes only the resulting fully static, resolved-layout axis-zero GATHER
-subset with INT32/INT64 indices, exact Shape, and injective output. Constant-index analysis,
-dynamic binding, and other-backend execution remain planned; run-bound index checks remain at the
-CPU execution boundary. No `EMBEDDING` kind or padding/sparse/max-norm/frequency option exists.
+lowers, prepares, and executes the fully static, resolved-layout axis-zero GATHER subset with
+INT32/INT64 indices, exact Shape, and injective output. The current Metal path additionally admits
+the exact canonical positive-rank FLOAT32+INT32 form under both profiles and validates every index
+before selector dispatch or output writes. Constant-index analysis and dynamic binding remain
+planned. No `EMBEDDING` kind or padding/sparse/max-norm/frequency option exists.
 `Tensor.oneHot(depth)` currently validates exact INT32/INT64 receiver metadata before positive
 static depth, preserves every input Dimension reference, and appends one fresh
 `StaticDimension(depth)`. It constructs one storage-free, non-differentiable BOOL result with one
 `ONE_HOT` producer and exact sole-input provenance. This is a current model-expression inventory
 entry and is structurally capturable. Construction reads no index values; valid execution requires
-`0 <= i < depth`. The current fail-closed CPU path advertises, lowers, prepares, and executes only
-the fully static, resolved-layout INT32/INT64-index subset with exact positive depth, BOOL result
-Shape, and injective output. Constant analysis, dynamic bounds enforcement, and other-backend
-execution remain planned; the index input and BOOL result remain non-differentiable.
+`0 <= i < depth`. The current fail-closed CPU path advertises, lowers, prepares, and executes the
+fully static, resolved-layout INT32/INT64-index subset with exact positive depth, BOOL result Shape,
+and injective output. The current Metal path additionally admits the exact canonical positive-rank
+INT32-to-BOOL form under both profiles, prevalidates every index, and publishes exact zero/one
+bytes without widening BOOL transfer or consumers. Constant analysis and dynamic bounds
+enforcement remain planned; the index input and BOOL result remain non-differentiable.
 `Tensor.rsqrt`, `log1p`, `expm1`, `gelu`, `geluTanhApproximation`, and `silu` accept floating input,
 retain its exact type, Shape, and gradient eligibility, leave layout unresolved, and record
 one-input parameterless provenance.
@@ -1704,10 +1707,11 @@ unresolved, and records exact two-input provenance. Package-private structural c
 preserve the occurrence. Construction interprets no index values and adds no Model-owned gradient
 rule. Current compiler autograd routes a floating data cotangent through matching `scatterAdd` or
 additive `scatterElements`; indices remain non-differentiable. The current fail-closed CPU path
-advertises, lowers, prepares, and executes only fully static, resolved-layout GATHER/
-GATHER_ELEMENTS occurrences with INT32/INT64 indices, exact family Shape alignment, preserved
-data type, and injective output. Dynamic binding and other-backend execution remain planned;
-run-bound index checks remain at the CPU execution boundary.
+advertises, lowers, prepares, and executes fully static, resolved-layout GATHER/GATHER_ELEMENTS
+occurrences with INT32/INT64 indices, exact family Shape alignment, preserved data type, and
+injective output. The current Metal path additionally admits exact canonical positive-rank
+FLOAT32+INT32 GATHER under both profiles, with no GATHER_ELEMENTS or INT64 support, and validates
+every index before selector dispatch or target writes. Dynamic binding remains planned.
 `Tensor.gatherNd` consumes exact ordered `[data, indices]` inputs with `INT32` or `INT64` indices.
 Its short form uses zero shared batch Dimensions; its complete form retains one normalized
 non-negative batch count. Construction validates both ranks, structurally equal leading batch

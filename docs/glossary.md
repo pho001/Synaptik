@@ -4968,11 +4968,13 @@ shared requirement. It performs no tuning measurement or search, cache mutation,
 allocation, executable construction, slot assignment, scheduling, or Runtime execution. Current
 CPU and Metal modules implement this collaboration internally for their supported complete
 partitions. Each receives the exact graph-wide `NumericalProfile`; CPU retains either profile with
-identical routes. Metal admits the common exact FLOAT32 baseline under both profiles: `NEG`, `ABS`,
-`RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`. Accelerator Metal
-additionally admits tensor binary arithmetic, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive
-static rank-two MATMUL topology with authenticated local transpose operands; strict Metal rejects
-those additions. The exact supported matrices are described in the CPU and Metal backend guides.
+identical routes. Metal admits a common exact baseline under both profiles: canonical FLOAT32
+`NEG`, `ABS`, `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`;
+canonical positive-rank FLOAT32 data `GATHER` with canonical INT32 indices; and positive-rank
+INT32-to-BOOL `ONE_HOT`. Accelerator Metal additionally admits tensor binary arithmetic, canonical
+`SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two MATMUL topology with authenticated local
+transpose operands; strict Metal rejects those additions. The exact supported matrices are
+described in the CPU and Metal backend guides.
 
 ### Preparation resource assignment
 
@@ -5144,43 +5146,48 @@ implements the transactional finalizer handoff.
 
 The current Metal backend's package-private, shape-specialized Runtime recipe for one complete
 maximal profile-homogeneous partition. Both profiles admit exact canonical `NEG`/`ABS`,
-`RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`; an accelerator recipe
-may additionally contain canonical tensor `ADD`, `SUB`, `MUL`, and `DIV`; canonical `SUM`, `MEAN`,
-and binding-resolved `SUM_TO_SHAPE`; and positive static rank-two `MATMUL` whose affine operands
-are authenticated local `PERMUTE [1,0]` results on their consuming edges. Metal analysis fixes
-stable feed, target, and structural value order, lowers node-schema-8 fixed-width typed records,
-generates a complete version-nine route batch, authenticates any supplied session decision, then
-fixes a closed private route before declaring shared resources.
+`RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`; canonical positive-rank
+FLOAT32+INT32 `GATHER`; and INT32-to-BOOL `ONE_HOT`. An accelerator recipe may additionally contain
+canonical tensor `ADD`, `SUB`, `MUL`, and `DIV`; canonical `SUM`, `MEAN`, and binding-resolved
+`SUM_TO_SHAPE`; and positive static rank-two `MATMUL` whose affine operands are authenticated local
+`PERMUTE [1,0]` results on their consuming edges. Metal analysis fixes stable feed, target, and
+structural value order, lowers node-schema-9 fixed-width typed records, generates a complete
+version-ten route batch, authenticates any supplied session decision, then fixes a closed private
+route before declaring shared resources.
 
 With no decision, an exact singleton `NEG` under either profile with one feed, one target, and
-checked element count in `1..UINT32_MAX` selects the custom route; every ABS partition and every
-other supported partition selects MPSGraph. An eligible singleton can instead use an authenticated
-MPSGraph decision. Java profile, reduction-geometry, contraction, and local-transpose preflight
-rejects every incompatible record before native entry. This boundary does not change capability,
-fallback, retry, or partitioning and makes no performance claim.
+checked element count in `1..UINT32_MAX` selects the custom route; every ABS, indexing, and other
+supported partition selects MPSGraph. An eligible singleton can instead use an authenticated
+MPSGraph decision. Java profile, inferred-type, indexing-Shape, reduction-geometry, contraction,
+and local-transpose preflight rejects every incompatible record before native entry. This boundary
+does not change capability, fallback, retry, or partitioning and makes no performance claim.
 
 After shared slot assignment, Metal finalization compiles either the fixed branch-free custom
 FLOAT32 NEG pipeline or one typed whole-partition `MPSGraphExecutable` and returns its owner as a
 [`PreparedResource`](#prepared-resource--preparedresource). `PreparedExecution` owns that resource
-across runs. Each run separately borrows caller Metal buffers and owns fresh initialized constant
-buffers and output buffers. MPSGraph runs additionally own a closeable native-address workspace;
-custom runs retain direct typed input and output references with no workspace.
+across runs. Each run separately borrows exact canonical FLOAT32/INT32 caller Metal buffers and
+owns fresh type-matching initialized constant buffers and typed output buffers. MPSGraph runs
+additionally own a closeable native-address workspace; custom runs retain direct typed input and
+output references with no workspace.
 
 Affine results retain exact logical view descriptors but receive distinct full-logical-size Metal
 targets in canonical logical coordinate order. Materialization accepts that dense physical
 representation only with exact finalized-route, target, descriptor, context, and byte-extent
 authentication. It also accepts a locally produced canonical scalar reduction target as exactly
-four detached bytes. Both paths produce detached raw-bit-preserving canonical host bytes and do
-not widen positive-rank canonical-non-view-only CPU/Metal transfer, establish source aliasing, or
-enable general affine chaining.
+four detached bytes and a locally produced canonical BOOL target as exact one-byte elements.
+These paths produce detached raw-bit-preserving canonical host bytes and do not widen
+positive-rank canonical FLOAT32-only CPU/Metal transfer, establish source aliasing, or enable
+general affine or BOOL chaining.
 
-Hot execution makes one route-specific synchronous native downcall. The custom route submits one
-command buffer and compute encoder, waits once, and writes the assigned `MTLBuffer` output without
-an explicit host-staging or intermediate-copy step. The MPSGraph route also executes the narrow
-Compiler-generated explicitly seeded rank-two MATMUL gradients through authenticated local
-transposes. The term does not imply a mixed-owner schedule, backend-global executable cache,
-per-run compilation, universal custom kernels, general Metal backward/training, or that MPSGraph
-uses no internal temporary storage.
+Hot execution validates every indexing input in stable node then row-major ordinal order before
+MPSGraph selector dispatch or any target write, and otherwise makes one route-specific synchronous
+native downcall. The custom route submits one command buffer and compute encoder, waits once, and
+writes the assigned `MTLBuffer` output without an explicit host-staging or intermediate-copy step.
+The MPSGraph route also executes the narrow Compiler-generated explicitly seeded rank-two MATMUL
+gradients through authenticated local transposes. The term does not imply an indexing backward
+route, a mixed-owner schedule, backend-global executable cache, per-run compilation, universal
+custom kernels, general Metal backward/training, or that MPSGraph uses no internal temporary
+storage.
 
 ### Prepared executable / `PreparedExecutable`
 

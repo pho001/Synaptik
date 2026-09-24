@@ -19,6 +19,10 @@ import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
+import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
+import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
+import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
@@ -418,6 +422,66 @@ class MetalNegRouteCandidateGeneratorTest {
     }
 
     @Test
+    void indexingFingerprintsCoverKindAxisDepthAndValueType() {
+        TestNativeApi api = new TestNativeApi();
+        try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
+            Workload gather = gatherWorkload(device, 70_000);
+            Generated generated = generated(gather, 2);
+            MetalNegPreparationPlan gatherPlan = generated.analysis().plan();
+            MetalNegTuningBatch.WorkloadSignature gatherIdentity =
+                    generated.batch().compatibility().workload();
+
+            MetalNegPreparationPlan changedAxis = copyPlan(
+                    gatherPlan,
+                    gatherPlan.descriptors(),
+                    new MetalMpsGraphProgram(List.of(
+                            MetalMpsGraphProgram.Node.gather(0, 1, 2, 0))),
+                    gatherPlan.targetRequiredBytes());
+            assertNotEquals(
+                    gatherIdentity,
+                    generate(gather, changedAxis).compatibility().workload(),
+                    "GATHER axis participates independently in route identity");
+
+            var changedTypes = new ArrayList<>(gatherPlan.descriptors());
+            changedTypes.set(1, canonical(DataType.BOOL, Shape.of(3)));
+            MetalNegPreparationPlan changedType = copyPlan(
+                    gatherPlan,
+                    changedTypes,
+                    gatherPlan.graphProgram(),
+                    gatherPlan.targetRequiredBytes());
+            assertNotEquals(
+                    gatherIdentity,
+                    generate(gather, changedType).compatibility().workload(),
+                    "value data type participates independently in route identity");
+
+            Workload oneHot = operationWorkload(
+                    device,
+                    80_000,
+                    NumericalProfile.STRICT_IEEE,
+                    new Operation(OneHotKind.ONE_HOT, new OneHotAttrs(4)),
+                    canonical(DataType.INT32, Shape.of(3)),
+                    canonical(DataType.BOOL, Shape.of(3, 4)));
+            Generated oneHotGenerated = generated(oneHot, 2);
+            MetalNegPreparationPlan oneHotPlan = oneHotGenerated.analysis().plan();
+            MetalNegPreparationPlan changedDepth = copyPlan(
+                    oneHotPlan,
+                    oneHotPlan.descriptors(),
+                    new MetalMpsGraphProgram(List.of(
+                            MetalMpsGraphProgram.Node.oneHot(0, 1, 5))),
+                    oneHotPlan.targetRequiredBytes());
+            assertNotEquals(
+                    oneHotGenerated.batch().compatibility().workload(),
+                    generate(oneHot, changedDepth).compatibility().workload(),
+                    "ONE_HOT depth participates independently in route identity");
+            assertNotEquals(
+                    gatherIdentity,
+                    oneHotGenerated.batch().compatibility().workload(),
+                    "GATHER and ONE_HOT are distinct route identities");
+            assertEquals(0, api.nativeAllocations.get());
+        }
+    }
+
+    @Test
     void codecIsCanonicalBoundedAndRejectsEveryDefensiveMismatch() {
         TestNativeApi api = new TestNativeApi();
         TestNativeApi otherApi = new TestNativeApi();
@@ -429,14 +493,14 @@ class MetalNegRouteCandidateGeneratorTest {
                     MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
                     current.batch().compatibility(), MetalNegTuningBatch.Candidate.MPSGRAPH);
             var codec = new MetalNegTuningCodec();
-            assertEquals(9, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
-            assertEquals(9, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
-            assertEquals(9, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
+            assertEquals(10, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
+            assertEquals(10, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
+            assertEquals(10, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
             byte[] first = codec.encodeDecision(decision);
-            assertEquals(9, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
-            assertEquals(9, current.batch().compatibility().schemaVersion());
-            assertEquals(9, current.batch().compatibility().candidateSchemaVersion());
-            assertEquals(9, current.batch().compatibility().routePolicyVersion());
+            assertEquals(10, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
+            assertEquals(10, current.batch().compatibility().schemaVersion());
+            assertEquals(10, current.batch().compatibility().candidateSchemaVersion());
+            assertEquals(10, current.batch().compatibility().routePolicyVersion());
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());
@@ -482,7 +546,7 @@ class MetalNegRouteCandidateGeneratorTest {
                     "checksummed version-six decisions must fail closed");
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, 4, 7), current.batch()).isEmpty(),
-                    "checksummed version-seven decisions must fail closed");
+                    "checksummed version-nine decisions must fail closed");
             assertTrue(codec.decodeDecision(rewriteInt(first, 8, 99), current.batch()).isEmpty());
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, first.length - 8, 99), current.batch()).isEmpty());
@@ -743,9 +807,55 @@ class MetalNegRouteCandidateGeneratorTest {
                 new MetalNegAnalysisInputs(device)));
     }
 
+    private static Workload gatherWorkload(MetalDeviceContext device, long identityBase) {
+        TensorDescriptor dataDescriptor = canonical(Shape.of(2, 4));
+        TensorDescriptor indicesDescriptor = canonical(DataType.INT32, Shape.of(3));
+        TensorDescriptor outputDescriptor = canonical(Shape.of(2, 3));
+        ValueId data = new ValueId(identityBase);
+        ValueId indices = new ValueId(identityBase + 1);
+        ValueId output = new ValueId(identityBase + 2);
+        CompiledNode node = new CompiledNode(
+                new NodeId(identityBase),
+                new Operation(AxisGatherKind.GATHER, new IndexAxisAttrs(1)),
+                List.of(data, indices),
+                List.of(output));
+        PlannedPartition partition = new PlannedPartition(
+                MetalCapabilityProvider.METAL_BACKEND_ID,
+                List.of(node.id()));
+        return new Workload(new PrepareContext<>(
+                NumericalProfile.STRICT_IEEE,
+                new PartitionDag(partition, List.of(node)),
+                List.of(
+                        new GraphValue(data, dataDescriptor),
+                        new GraphValue(indices, indicesDescriptor),
+                        new GraphValue(output, outputDescriptor)),
+                List.of(
+                        new LogicalMemoryRequirement(
+                                data,
+                                dataDescriptor,
+                                Optional.empty(),
+                                List.of(partition),
+                                false),
+                        new LogicalMemoryRequirement(
+                                indices,
+                                indicesDescriptor,
+                                Optional.empty(),
+                                List.of(partition),
+                                false),
+                        new LogicalMemoryRequirement(
+                                output,
+                                outputDescriptor,
+                                Optional.of(partition),
+                                List.of(),
+                                true)),
+                Map.of(),
+                new MetalNegAnalysisInputs(device)));
+    }
+
     private static Workload twoAffineLeaves(
             MetalDeviceContext device, long identityBase, boolean reverse) {
         TensorDescriptor inputDescriptor = canonical(Shape.of(2, 3));
+
         TensorDescriptor outputDescriptor = view(Shape.of(2, 3), 3, 1);
         ValueId firstFeed = new ValueId(identityBase);
         ValueId firstTarget = new ValueId(identityBase + 1);
@@ -805,6 +915,14 @@ class MetalNegRouteCandidateGeneratorTest {
     private static TensorDescriptor canonical(Shape shape) {
         return new TensorDescriptor(
                 DataType.FLOAT32,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                false);
+    }
+
+    private static TensorDescriptor canonical(DataType dataType, Shape shape) {
+        return new TensorDescriptor(
+                dataType,
                 shape,
                 Optional.of(LayoutDescriptor.contiguous(shape)),
                 false);

@@ -128,9 +128,10 @@ public final class MetalBackendIntegration implements AutoCloseable {
     }
 
     /**
-     * Uploads caller-owned host storage into one Metal-owned borrowed-input representation.
+     * Uploads caller-owned FLOAT32 or INT32 host storage into one Metal-owned borrowed-input
+     * representation without conversion.
      *
-     * @param storage non-null live accessible FLOAT32 storage retained but never closed
+     * @param storage non-null live accessible FLOAT32 or INT32 storage retained but never closed
      * @return a new non-null Metal representation whose ownership transfers to the caller
      * @throws NullPointerException if {@code storage} is {@code null}
      * @throws IllegalArgumentException if storage is not compatible with Metal ingress
@@ -194,16 +195,19 @@ public final class MetalBackendIntegration implements AutoCloseable {
     /**
      * Downloads one live Metal publication into detached canonical host bytes.
      *
-     * <p>The descriptor is an ordinary canonical non-view, including a locally produced
-     * rank-zero reduction result, or an exact positive-rank logical affine view whose
-     * representation carries finalized-route authentication for a full dense represented-order
-     * target. A rank-zero FLOAT32 result yields exactly four bytes. This local publication path
-     * does not widen the positive-rank-only CPU/Metal transfer predicate.</p>
+     * <p>The descriptor is an ordinary canonical non-view FLOAT32 or BOOL publication, including
+     * a locally produced rank-zero FLOAT32 reduction result, or an exact positive-rank logical
+     * affine FLOAT32 view whose representation carries finalized-route authentication for a full
+     * dense represented-order target. A rank-zero FLOAT32 result yields exactly four big-endian
+     * bytes; BOOL retains exact row-major one-byte zero-or-one elements. This local BOOL
+     * publication does not add BOOL ingress or a general BOOL consumer, and the path does not
+     * widen the positive-rank-only CPU/Metal FLOAT32 transfer predicate.</p>
      *
      * @param representation non-null live representation owned by this integration
-     * @param descriptor non-null exact canonical or authenticated affine publication descriptor
+     * @param descriptor non-null exact canonical FLOAT32/BOOL or authenticated affine FLOAT32
+     *     publication descriptor
      * @param maximumBytes non-negative maximum canonical payload size
-     * @return fresh non-null caller-owned row-major big-endian bytes
+     * @return fresh non-null caller-owned row-major canonical bytes
      * @throws NullPointerException if an object argument is {@code null}
      * @throws IllegalArgumentException if type, layout, authentication, representation, size, or
      *     limit is invalid

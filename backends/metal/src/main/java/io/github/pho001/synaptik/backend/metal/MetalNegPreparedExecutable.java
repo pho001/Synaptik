@@ -13,7 +13,10 @@ import java.util.Optional;
 import java.util.Objects;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+import java.nio.ByteOrder;
 import static java.lang.foreign.ValueLayout.ADDRESS;
+
 
 /**
  * Immutable Runtime recipe for one selected shape-specialized Metal supported-operation route.
@@ -29,6 +32,8 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
  * custom resource and MPSGraph resource are nominally distinct and cannot be interchanged.</p>
  */
 final class MetalNegPreparedExecutable extends PreparedExecutable {
+    private static final ValueLayout.OfInt NATIVE_INT =
+            ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
     private final MetalNegPreparationPlan preparationPlan;
     private final MetalMpsGraphExecutableResource mpsGraphResource;
     private final MetalNegKernelPipelineResource customResource;
@@ -182,9 +187,11 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             return new CustomBoundInvocation(runState, customResource, input, output);
         }
         var workspace = (AddressWorkspace) workspaceRepresentations[0];
+        var inputBuffers = new MetalBufferRepresentation[inputCount];
         for (int index = 0; index < inputCount; index++) {
-            workspace.set(index, ((MetalBufferRepresentation) bufferRepresentations[index])
-                    .executionHandle());
+            inputBuffers[index] =
+                    (MetalBufferRepresentation) bufferRepresentations[index];
+            workspace.set(index, inputBuffers[index].executionHandle());
         }
         int outputCount = bufferRepresentations.length - inputCount;
         for (int index = 0; index < outputCount; index++) {
@@ -202,11 +209,14 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         MemorySegment outputs = workspace.segment().asSlice(
                 (long) inputCount * ADDRESS.byteSize(), (long) outputCount * ADDRESS.byteSize());
         return new MpsGraphBoundInvocation(
-                runState, mpsGraphResource, inputCount, inputs, outputCount, outputs);
+                runState, preparationPlan, mpsGraphResource, inputBuffers,
+                inputCount, inputs, outputCount, outputs);
     }
 
     private static final class MpsGraphBoundInvocation extends BoundInvocation {
+        private final MetalNegPreparationPlan preparationPlan;
         private final MetalMpsGraphExecutableResource resource;
+        private final MetalBufferRepresentation[] inputBuffers;
         private final int inputCount;
         private final MemorySegment inputs;
         private final int outputCount;
@@ -214,13 +224,17 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
 
         private MpsGraphBoundInvocation(
                 RunState runState,
+                MetalNegPreparationPlan preparationPlan,
                 MetalMpsGraphExecutableResource resource,
+                MetalBufferRepresentation[] inputBuffers,
                 int inputCount,
                 MemorySegment inputs,
                 int outputCount,
                 MemorySegment outputs) {
             super(runState);
+            this.preparationPlan = preparationPlan;
             this.resource = resource;
+            this.inputBuffers = inputBuffers;
             this.inputCount = inputCount;
             this.inputs = inputs;
             this.outputCount = outputCount;
@@ -229,7 +243,79 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
 
         @Override
         protected void executeBound() {
-            resource.run(inputCount, inputs, outputCount, outputs);
+            try {
+                resource.run(inputCount, inputs, outputCount, outputs);
+            } catch (MetalNativeApi.NativeFailure failure) {
+                if (failure.status() != MetalNativeApi.Status.RANGE_OUT_OF_BOUNDS) {
+                    throw failure;
+                }
+                try {
+                    IndexOutOfBoundsException reproduced = reproduceIndexFailure();
+                    if (reproduced != null) throw reproduced;
+                } catch (IndexOutOfBoundsException reproduced) {
+                    throw reproduced;
+                } catch (RuntimeException rescanFailure) {
+                    failure.addSuppressed(rescanFailure);
+                }
+                throw failure;
+            }
+        }
+
+        private IndexOutOfBoundsException reproduceIndexFailure() {
+            int[] feedIndices = preparationPlan.feedValueIndices();
+            List<MetalMpsGraphProgram.Node> nodes = preparationPlan.graphProgram().nodes();
+            for (MetalMpsGraphProgram.Node node : nodes) {
+                int indexValue;
+                long bound;
+                boolean gather;
+                if (node.kind() == MetalMpsGraphProgram.NodeKind.GATHER) {
+                    gather = true;
+                    indexValue = node.secondInputIndex();
+                    long[] dataShape = preparationPlan.descriptors()
+                            .get(node.firstInputIndex()).shape().toLongArray();
+                    bound = dataShape[node.axis()];
+                } else if (node.kind() == MetalMpsGraphProgram.NodeKind.ONE_HOT) {
+                    gather = false;
+                    indexValue = node.firstInputIndex();
+                    bound = node.attributeValues()[0];
+                } else {
+                    continue;
+                }
+                int feedPosition = feedPosition(feedIndices, indexValue);
+                if (feedPosition < 0) {
+                    throw new IllegalStateException(
+                            "Metal index value is not a stable executable feed");
+                }
+                long elements = preparationPlan.descriptors().get(indexValue)
+                        .shape().knownElementCount().orElseThrow();
+                long bytes = Math.multiplyExact(elements, Integer.BYTES);
+                try (Arena arena = Arena.ofConfined()) {
+                    MemorySegment indices = arena.allocate(bytes, Integer.BYTES);
+                    inputBuffers[feedPosition].download(0L, indices, 0L, bytes);
+                    for (long ordinal = 0L; ordinal < elements; ordinal++) {
+                        int value = indices.getAtIndex(NATIVE_INT, ordinal);
+                        if (value < 0 || (long) value >= bound) {
+                            String message = gather
+                                    ? "GATHER index at logical position " + ordinal
+                                            + " for data axis " + node.axis()
+                                            + " is out of bounds: value=" + value
+                                            + ", extent=" + bound
+                                    : "ONE_HOT index at logical position " + ordinal
+                                            + " is out of bounds: value=" + value
+                                            + ", depth=" + bound;
+                            return new IndexOutOfBoundsException(message);
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        private static int feedPosition(int[] feedIndices, int valueIndex) {
+            for (int position = 0; position < feedIndices.length; position++) {
+                if (feedIndices[position] == valueIndex) return position;
+            }
+            return -1;
         }
     }
 

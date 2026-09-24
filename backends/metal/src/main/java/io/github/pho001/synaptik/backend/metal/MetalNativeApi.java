@@ -122,7 +122,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * @param numericalProfile non-null cold plan profile used by Java fail-closed preflight
      * @param valueRanks non-null value-aligned ranks
      * @param valueDimensions non-null row-major value-count by sixteen dimension table
-     * @param graphProgram non-null version-eight typed node table
+     * @param graphProgram non-null version-nine typed node table
      * @param feedValueIndices non-null stable feed value indices
      * @param targetValueIndices non-null stable target value indices
      * @return a fresh non-null opaque executable handle owned by the caller
@@ -155,7 +155,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * @param context non-null live context whose ownership remains with the caller
      * @param valueRanks validated value-aligned ranks
      * @param valueDimensions validated padded dimension table
-     * @param graphProgram validated version-eight typed topological node table
+     * @param graphProgram validated version-nine typed topological node table
      * @param feedValueIndices validated unique feeds
      * @param targetValueIndices validated unique produced targets
      * @return non-null raw status/output-cell result for checked interpretation
@@ -482,7 +482,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
     }
 
-    /** Exact Java preflight for the version-eight typed MPSGraph executable-create schema. */
+    /** Exact Java preflight for the version-nine typed MPSGraph executable-create schema. */
     static final class MpsGraphExecutableAbi {
         private static final int MAX_RANK = 16;
 
@@ -541,10 +541,9 @@ abstract class MetalNativeApi implements AutoCloseable {
                         }
                         elements = Math.multiplyExact(elements, dimension);
                     }
-                    Math.multiplyExact(elements, Float.BYTES);
                 } catch (ArithmeticException overflow) {
                     throw new IllegalArgumentException(
-                            "Metal MPSGraph FLOAT32 geometry overflows at value " + value,
+                            "Metal MPSGraph typed geometry overflows at value " + value,
                             overflow);
                 }
                 for (int axis = rank; axis < MAX_RANK; axis++) {
@@ -561,6 +560,7 @@ abstract class MetalNativeApi implements AutoCloseable {
             boolean[] used = new boolean[valueCount];
             boolean[] produced = new boolean[valueCount];
             boolean[] localTranspose = new boolean[valueCount];
+            ValueType[] types = new ValueType[valueCount];
             for (int feed : feeds) {
                 requireIndex(feed, valueCount, "feed");
                 if (states[feed] != MetalMpsGraphProgram.ValueState.UNAVAILABLE) {
@@ -676,6 +676,43 @@ abstract class MetalNativeApi implements AutoCloseable {
                                 "MATMUL shapes must be exact positive rank-two contraction");
                         used[right] = true;
                     }
+                    case GATHER -> {
+                        requireIndex(right, valueCount, "indices node input");
+                        if (valueRanks[right] == 0
+                                || !node.kind().accepts(states[right])) {
+                            throw new IllegalArgumentException(
+                                    "Metal GATHER indices must be positive-rank canonical");
+                        }
+                        requireShape(
+                                gatherMatches(node, left, right, output,
+                                        valueRanks, valueDimensions),
+                                "GATHER axis and output shape disagree");
+                        used[right] = true;
+                    }
+                    case ONE_HOT -> requireShape(
+                            oneHotMatches(node, left, output, valueRanks, valueDimensions),
+                            "ONE_HOT depth and output shape disagree");
+                }
+                switch (node.kind()) {
+                    case NEG, ABS, CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS,
+                            SQUEEZE, SUM, MEAN -> {
+                        requireType(types, left, ValueType.FLOAT32);
+                        requireType(types, output, ValueType.FLOAT32);
+                    }
+                    case ADD, SUB, MUL, DIV, MATMUL -> {
+                        requireType(types, left, ValueType.FLOAT32);
+                        requireType(types, right, ValueType.FLOAT32);
+                        requireType(types, output, ValueType.FLOAT32);
+                    }
+                    case GATHER -> {
+                        requireType(types, left, ValueType.FLOAT32);
+                        requireType(types, right, ValueType.INT32);
+                        requireType(types, output, ValueType.FLOAT32);
+                    }
+                    case ONE_HOT -> {
+                        requireType(types, left, ValueType.INT32);
+                        requireType(types, output, ValueType.BOOL);
+                    }
                 }
                 if (valueRanks[output] == 0
                         && node.kind() != MetalMpsGraphProgram.NodeKind.SUM
@@ -709,9 +746,21 @@ abstract class MetalNativeApi implements AutoCloseable {
                 }
             }
             for (int value = 0; value < valueCount; value++) {
-                if (!used[value]) {
+                if (!used[value] || types[value] == null) {
                     throw new IllegalArgumentException(
-                            "Metal MPSGraph value table contains an unused index: " + value);
+                            "Metal MPSGraph value table contains an unused or untyped index: "
+                                    + value);
+                }
+            }
+            for (int value = 0; value < valueCount; value++) {
+                try {
+                    Math.multiplyExact(
+                            elementCount(value, valueRanks, valueDimensions),
+                            types[value].byteWidth);
+                } catch (ArithmeticException overflow) {
+                    throw new IllegalArgumentException(
+                            "Metal MPSGraph typed byte geometry overflows at value " + value,
+                            overflow);
                 }
             }
         }
@@ -774,7 +823,7 @@ abstract class MetalNativeApi implements AutoCloseable {
             return switch (numericalProfile) {
                 case STRICT_IEEE -> switch (kind) {
                     case NEG, ABS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE,
-                            CONTIGUOUS -> true;
+                            CONTIGUOUS, GATHER, ONE_HOT -> true;
                     case ADD, SUB, MUL, DIV, SUM, MEAN, MATMUL -> false;
                 };
                 case ACCELERATOR -> true;
@@ -796,6 +845,56 @@ abstract class MetalNativeApi implements AutoCloseable {
             return dimensions[leftRow + 1] == dimensions[rightRow]
                     && dimensions[outputRow] == dimensions[leftRow]
                     && dimensions[outputRow + 1] == dimensions[rightRow + 1];
+        }
+
+        private static boolean gatherMatches(
+                MetalMpsGraphProgram.Node node,
+                int data,
+                int indices,
+                int output,
+                int[] ranks,
+                long[] dimensions) {
+            int dataRank = ranks[data];
+            int indexRank = ranks[indices];
+            int axis = node.axis();
+            int outputRank = ranks[output];
+            if (axis < 0 || axis >= dataRank
+                    || outputRank != dataRank - 1 + indexRank) {
+                return false;
+            }
+            int dataRow = data * MAX_RANK;
+            int indexRow = indices * MAX_RANK;
+            int outputRow = output * MAX_RANK;
+            for (int source = 0; source < axis; source++) {
+                if (dimensions[outputRow + source] != dimensions[dataRow + source]) return false;
+            }
+            for (int source = 0; source < indexRank; source++) {
+                if (dimensions[outputRow + axis + source]
+                        != dimensions[indexRow + source]) return false;
+            }
+            for (int source = axis + 1; source < dataRank; source++) {
+                if (dimensions[outputRow + indexRank + source - 1]
+                        != dimensions[dataRow + source]) return false;
+            }
+            return true;
+        }
+
+        private static boolean oneHotMatches(
+                MetalMpsGraphProgram.Node node,
+                int indices,
+                int output,
+                int[] ranks,
+                long[] dimensions) {
+            int inputRank = ranks[indices];
+            if (inputRank < 1 || ranks[output] != inputRank + 1) return false;
+            long[] attributes = node.attributeValues();
+            if (attributes.length != 1 || attributes[0] <= 0L) return false;
+            int inputRow = indices * MAX_RANK;
+            int outputRow = output * MAX_RANK;
+            for (int axis = 0; axis < inputRank; axis++) {
+                if (dimensions[inputRow + axis] != dimensions[outputRow + axis]) return false;
+            }
+            return dimensions[outputRow + inputRank] == attributes[0];
         }
 
         private static boolean reductionMatches(
@@ -1074,6 +1173,27 @@ abstract class MetalNativeApi implements AutoCloseable {
                 }
             }
             return true;
+        }
+
+        private static void requireType(ValueType[] types, int value, ValueType expected) {
+            ValueType existing = types[value];
+            if (existing != null && existing != expected) {
+                throw new IllegalArgumentException(
+                        "Metal MPSGraph value has incompatible typed uses");
+            }
+            types[value] = expected;
+        }
+
+        private enum ValueType {
+            FLOAT32(Float.BYTES),
+            INT32(Integer.BYTES),
+            BOOL(Byte.BYTES);
+
+            private final int byteWidth;
+
+            ValueType(int byteWidth) {
+                this.byteWidth = byteWidth;
+            }
         }
 
     }

@@ -10,6 +10,10 @@ import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
+import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
+import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
+import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
@@ -40,21 +44,22 @@ import java.util.Optional;
  * <p>The deterministic analysis assigns stable native value indices, retains every node kind and
  * ordered operand, and derives unique feeds and targets before selecting a closed private route.
  * For both profiles, it walks explicit unavailable/canonical/affine-view states in node order for
- * the retained NEG/ABS, affine, and CONTIGUOUS domain. Under {@code ACCELERATOR}, it additionally
- * accepts binary arithmetic, the exact SUM/MEAN/SUM_TO_SHAPE reduction forms, and positive static
- * rank-two FLOAT32 MATMUL. An affine MATMUL operand is authenticated to the exact earlier local
- * rank-two {@code PERMUTE [1,0]} of a canonical source on that consuming edge; affine values
- * otherwise retain the same valid local consumers and boundary publication as strict execution.
- * MATMUL lowering retains both ordered operands in a schema-eight wire-15 record. Reduction
- * lowering retains the typed form, ordered normalized axes (including empty), exact keep-dimensions
- * flag, sum-to-Shape target, and shape-derived term geometry. Every graph feed is canonical
- * positive-rank FLOAT32.
- * Analysis freshly regenerates the complete candidate batch; an absent decision preserves the
- * singleton-NEG heuristic, while a present decision must authenticate against current schema,
- * workload, profile, session target, and candidate identity. The selected route is fixed before
- * exact declarations. Published affine views retain logical descriptors while declarations use
- * full dense represented-order byte geometry. Analysis allocates no physical resource and never
- * changes partition ownership or capability.</p>
+ * the retained NEG/ABS, affine, CONTIGUOUS, GATHER, and ONE_HOT domain. Under {@code ACCELERATOR},
+ * it additionally accepts binary arithmetic, the exact SUM/MEAN/SUM_TO_SHAPE reduction forms, and
+ * positive static rank-two FLOAT32 MATMUL. An affine MATMUL operand is authenticated to the exact
+ * earlier local rank-two {@code PERMUTE [1,0]} of a canonical source on that consuming edge;
+ * affine values otherwise retain the same valid local consumers and boundary publication as strict
+ * execution. MATMUL lowering retains both ordered operands in a schema-nine wire-15 record;
+ * GATHER and ONE_HOT retain wires 16 and 17 with normalized axis and positive depth attributes.
+ * Reduction lowering retains the typed form, ordered normalized axes (including empty), exact
+ * keep-dimensions flag, sum-to-Shape target, and shape-derived term geometry. Every graph feed is
+ * canonical positive-rank and exactly FLOAT32 or INT32 as required by its typed uses. Analysis
+ * freshly regenerates the complete candidate batch; an absent decision preserves the singleton-NEG
+ * heuristic, while a present decision must authenticate against current schema, workload, profile,
+ * session target, and candidate identity. The selected route is fixed before exact declarations.
+ * Published affine views retain logical descriptors while declarations use full dense
+ * represented-order byte geometry. Analysis allocates no physical resource and never changes
+ * partition ownership or capability.</p>
  */
 final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         MetalNegAnalysisInputs, MetalNegPreparationPlan> {
@@ -221,8 +226,11 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         var feedSplats = new ArrayList<Optional<ScalarValue>>(feeds.size());
         for (ValueId feed : feeds) {
             ScalarValue scalar = context.constants().get(feed);
-            if (scalar != null && scalar.dataType() != DataType.FLOAT32) {
-                throw new IllegalArgumentException("Metal splat feed must be FLOAT32");
+            DataType dataType = graphValues.get(feed).descriptor().dataType();
+            if (scalar != null && (scalar.dataType() != dataType
+                    || (dataType != DataType.FLOAT32 && dataType != DataType.INT32))) {
+                throw new IllegalArgumentException(
+                        "Metal splat feed must exactly match FLOAT32 or INT32");
             }
             feedSplats.add(Optional.ofNullable(scalar));
         }
@@ -239,12 +247,14 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         var declarations = new ArrayList<PreparationResourceRequirement.Buffer>(
                 feeds.size() + targets.size());
         for (int index = 0; index < feeds.size(); index++) {
+            int alignment = graphValues.get(feeds.get(index)).descriptor().dataType().byteWidth();
             declarations.add(new PreparationResourceRequirement.Buffer(
-                    feeds.get(index), feedBytes[index], Float.BYTES));
+                    feeds.get(index), feedBytes[index], alignment));
         }
         for (int index = 0; index < targets.size(); index++) {
+            int alignment = graphValues.get(targets.get(index)).descriptor().dataType().byteWidth();
             declarations.add(new PreparationResourceRequirement.Buffer(
-                    targets.get(index), targetBytes[index], Float.BYTES));
+                    targets.get(index), targetBytes[index], alignment));
         }
         long singletonElements = feedBytes.length == 1 ? feedBytes[0] / Float.BYTES : 0L;
         MetalNegPreparationPlan.Route route = nodeCount == 1
@@ -371,7 +381,8 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
     }
 
     private static boolean canonicalFeed(TensorDescriptor descriptor) {
-        return descriptor.dataType() == DataType.FLOAT32
+        DataType dataType = descriptor.dataType();
+        return (dataType == DataType.FLOAT32 || dataType == DataType.INT32)
                 && descriptor.layout().isPresent()
                 && descriptor.layout().orElseThrow().equals(
                         LayoutDescriptor.contiguous(descriptor.shape()));
@@ -398,6 +409,15 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
     private static MetalMpsGraphProgram.Node lower(
             Operation operation, int[] inputs, int output) {
         OperationKind kind = operation.kind();
+        if (kind == AxisGatherKind.GATHER) {
+            IndexAxisAttrs attrs = (IndexAxisAttrs) operation.attrs();
+            return MetalMpsGraphProgram.Node.gather(
+                    inputs[0], inputs[1], output, attrs.axis());
+        }
+        if (kind == OneHotKind.ONE_HOT) {
+            OneHotAttrs attrs = (OneHotAttrs) operation.attrs();
+            return MetalMpsGraphProgram.Node.oneHot(inputs[0], output, attrs.depth());
+        }
         if (kind == UnaryElementwiseKind.NEG) {
             return MetalMpsGraphProgram.Node.neg(inputs[0], output);
         }
@@ -476,6 +496,6 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     "Metal dimensions must be positive");
             elements = Math.multiplyExact(elements, dimension);
         }
-        return Math.multiplyExact(elements, Float.BYTES);
+        return Math.multiplyExact(elements, descriptor.dataType().byteWidth());
     }
 }

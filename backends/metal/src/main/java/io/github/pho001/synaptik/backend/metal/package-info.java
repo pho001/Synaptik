@@ -3,22 +3,26 @@
  *
  * <p>{@link io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider} reports a common exact
  * domain under both profiles: parameterless {@code NEG} and {@code ABS}, {@code RESHAPE},
- * {@code EXPAND}, {@code PERMUTE}, {@code EXPAND_DIMS}, {@code SQUEEZE}, and the explicit
- * {@code CONTIGUOUS} canonicalization barrier. {@code ACCELERATOR} additionally admits tensor
+ * {@code EXPAND}, {@code PERMUTE}, {@code EXPAND_DIMS}, {@code SQUEEZE}, the explicit
+ * {@code CONTIGUOUS} canonicalization barrier, canonical positive-rank {@code FLOAT32} data
+ * {@code GATHER} with canonical {@code INT32} indices, and canonical positive-rank
+ * {@code INT32}-to-{@code BOOL} {@code ONE_HOT}. {@code ACCELERATOR} additionally admits tensor
  * {@code ADD}, {@code SUB}, {@code MUL}, and {@code DIV}, canonical {@code FLOAT32} {@code SUM},
  * {@code MEAN}, and binding-resolved {@code SUM_TO_SHAPE}, and positive static rank-two
  * {@code FLOAT32} {@code MATMUL}. Reductions support full, normalized single-axis, ordered
  * normalized multi-axis including empty, and exact keep-dimensions forms. Feeds and ordinary
  * outputs are fully static positive-rank {@code 1..16}; a locally produced reduction target may be
- * rank zero and materializes as exactly four canonical bytes without widening caller ingress or
- * CPU/Metal transfer. Accelerator binary inputs and outputs are canonical dense non-views and use
- * exact right-aligned broadcasting. Each MATMUL operand is canonical or the authenticated exact
- * local rank-two {@code PERMUTE [1,0]} of a canonical source; its output is canonical. Strict
- * MATMUL remains unsupported. Every direct {@code NEG} or {@code ABS} operand/output and graph
- * feed is canonical; affine inputs may also be exact resolved zero-offset views produced earlier
- * in the same maximal partition. Affine outputs retain their exact Model view geometry, while
- * {@code CONTIGUOUS} produces canonical geometry. Metal lowers one complete profile-homogeneous
- * partition as a typed whole-partition program during preparation.</p>
+ * rank zero and materializes as exactly four canonical bytes. Caller ingress accepts only exact
+ * canonical {@code FLOAT32} and {@code INT32}; local canonical {@code BOOL} results may publish as
+ * exact one-byte elements. CPU/Metal transfer remains canonical non-view {@code FLOAT32} only.
+ * Accelerator binary inputs and outputs are canonical dense non-views and use exact right-aligned
+ * broadcasting. Each MATMUL operand is canonical or the authenticated exact local rank-two
+ * {@code PERMUTE [1,0]} of a canonical source; its output is canonical. Strict MATMUL remains
+ * unsupported. Every direct {@code NEG} or {@code ABS} operand/output and graph feed is canonical;
+ * affine inputs may also be exact resolved zero-offset views produced earlier in the same maximal
+ * partition. Affine outputs retain their exact Model view geometry, while {@code CONTIGUOUS}
+ * produces canonical geometry. Metal lowers one complete profile-homogeneous partition as a typed
+ * whole-partition program during preparation.</p>
  *
  * <p>{@link io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration} names one explicit
  * native bridge. {@link io.github.pho001.synaptik.backend.metal.MetalBackendIntegration} opens and
@@ -34,8 +38,8 @@
  *
  * <p>The selected numerical profile participates in partition-plan, route, tuning,
  * decision-codec, and workload identity. Java rejects profile/schema mismatches before native
- * entry. ABI version four remains stable; node schema version eight retains wires {@code 1..14}
- * and appends {@code MATMUL=15}. Backend-local workload, exact-policy, candidate, compatibility,
- * route-policy, and codec identities are version nine.</p>
+ * entry. ABI version four remains stable; node schema version nine retains wires {@code 1..15}
+ * and appends {@code GATHER=16} and {@code ONE_HOT=17}. Backend-local workload, exact-policy,
+ * candidate, compatibility, route-policy, and codec identities are version ten.</p>
  */
 package io.github.pho001.synaptik.backend.metal;

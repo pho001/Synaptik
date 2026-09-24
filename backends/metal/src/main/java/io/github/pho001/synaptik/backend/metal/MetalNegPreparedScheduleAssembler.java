@@ -1,5 +1,7 @@
 package io.github.pho001.synaptik.backend.metal;
 
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.prepare.PreparedBufferAssignment;
@@ -114,17 +116,22 @@ final class MetalNegPreparedScheduleAssembler
                             assignment.valueId(),
                             descriptor,
                             bytes);
+            boolean canonical = descriptor != null
+                    && descriptor.layout().isPresent()
+                    && descriptor.layout().orElseThrow().equals(
+                            io.github.pho001.synaptik.model.layout.LayoutDescriptor.contiguous(
+                                    descriptor.shape()));
+            DataType dataType = descriptor == null ? null : descriptor.dataType();
             if (descriptor == null
-                    || descriptor.dataType()
-                            != io.github.pho001.synaptik.model.datatype.DataType.FLOAT32
                     || !descriptor.shape().isFullyStatic()
                     || descriptor.layout().isEmpty()
-                    || (!descriptor.layout().orElseThrow().equals(
-                            io.github.pho001.synaptik.model.layout.LayoutDescriptor.contiguous(
-                                    descriptor.shape()))
-                            && affinePublication.isEmpty())) {
+                    || (dataType == DataType.FLOAT32
+                            ? !canonical && affinePublication.isEmpty()
+                            : (dataType != DataType.INT32 && dataType != DataType.BOOL)
+                                    || !canonical)) {
                 throw new IllegalArgumentException(
-                        "Metal assigned buffer requires canonical or authenticated affine FLOAT32");
+                        "Metal assigned buffer requires a supported canonical typed descriptor"
+                                + " or authenticated affine FLOAT32");
             }
             PreparedRepresentationPlan.BufferPreparation preparation;
             if (affinePublication.isPresent()) {
@@ -136,12 +143,13 @@ final class MetalNegPreparedScheduleAssembler
             } else if (representationIndex == 0
                     && scheduleContext.constants().containsKey(assignment.valueId())) {
                 var scalar = scheduleContext.constants().get(assignment.valueId());
-                if (scalar.dataType()
-                        != io.github.pho001.synaptik.model.datatype.DataType.FLOAT32) {
+                if (scalar.dataType() != descriptor.dataType()
+                        || (scalar.dataType() != DataType.FLOAT32
+                                && scalar.dataType() != DataType.INT32)) {
                     throw new IllegalArgumentException(
-                            "Metal NEG initialized buffer requires FLOAT32 scalar");
+                            "Metal initialized buffer requires matching FLOAT32 or INT32 scalar");
                 }
-                int bits = Float.floatToRawIntBits(scalar.float32Value());
+                int bits = raw32Bits(scalar);
                 preparation = new PreparedRepresentationPlan.InitializedBuffer(
                         () -> createSplatBuffer(bytes, bits));
             } else {
@@ -286,7 +294,7 @@ final class MetalNegPreparedScheduleAssembler
                 var splat = plan.feedSplats().get(feedIndex);
                 if (splat.isPresent()) {
                     long bytes = plan.feedRequiredBytes()[feedIndex];
-                    int bits = Float.floatToRawIntBits(splat.orElseThrow().float32Value());
+                    int bits = raw32Bits(splat.orElseThrow());
                     preparation = List.of(new PreparedRepresentationPlan.InitializedBuffer(
                             () -> createSplatBuffer(bytes, bits)));
                 } else {
@@ -340,6 +348,15 @@ final class MetalNegPreparedScheduleAssembler
                     memoryPlan, assignment.planIndex(), 0, resultIndex)));
         }
         return new PreparedSchedule(memoryPlan, steps);
+    }
+
+    private static int raw32Bits(ScalarValue value) {
+        return switch (value.dataType()) {
+            case FLOAT32 -> Float.floatToRawIntBits(value.float32Value());
+            case INT32 -> value.int32Value();
+            default -> throw new IllegalArgumentException(
+                    "Metal splat requires FLOAT32 or INT32 scalar");
+        };
     }
 
     private MetalBufferRepresentation createSplatBuffer(long bytes, int rawBits) {

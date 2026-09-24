@@ -5,12 +5,14 @@
 This directory builds the local application binary interface (ABI) used by the Synaptik Metal
 backend on Apple-silicon macOS. ABI version 4 retains context, shared-storage buffer, executable,
 and bounded custom singleton-`NEG` ownership. Its versioned typed whole-partition MPSGraph program
-uses node schema 8. Under Java's profile-qualified preflight, both profiles support exact canonical
-`NEG`, `ABS`, `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and the explicit
-`CONTIGUOUS` canonicalization barrier. `ACCELERATOR` additionally supports tensor `ADD`, `SUB`,
-`MUL`, and `DIV`; canonical `FLOAT32` `SUM`, `MEAN`, and binding-resolved `SUM_TO_SHAPE`; and
-positive static rank-two `FLOAT32` `MATMUL` with exact authenticated local rank-two transpose
-operands. Strict `MATMUL` remains unsupported. No symbol or ABI-signature change was required.
+uses node schema 9. Under Java's profile-qualified preflight, both profiles support exact canonical
+`NEG`, `ABS`, `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, the explicit
+`CONTIGUOUS` canonicalization barrier, canonical positive-rank `FLOAT32` data `GATHER` with
+canonical `INT32` indices, and canonical positive-rank `INT32`-to-`BOOL` `ONE_HOT`.
+`ACCELERATOR` additionally supports tensor `ADD`, `SUB`, `MUL`, and `DIV`; canonical `FLOAT32`
+`SUM`, `MEAN`, and binding-resolved `SUM_TO_SHAPE`; and positive static rank-two `FLOAT32`
+`MATMUL` with exact authenticated local rank-two transpose operands. Strict `MATMUL` remains
+unsupported. No symbol or ABI-signature change was required.
 
 ```text
 Java analysis -> choose custom singleton or MPSGraph route -> declare exact resources
@@ -65,23 +67,23 @@ accepts only `1..UINT32_MAX`; it returns unsupported shape outside that domain r
 narrowing the value. Created handles use caller-supplied output cells, which remain null on
 failure.
 
-The graph creator accepts node schema `8` and a bounded fixed-width table:
+The graph creator accepts node schema `9` and a bounded fixed-width table:
 
 ```c
 typedef struct {
     uint32_t operation;       /* NEG=1, binaries=2..5, affine=6..10,
                                  CONTIGUOUS=11, ABS=12, SUM=13, MEAN=14,
-                                 MATMUL=15 */
+                                 MATMUL=15, GATHER=16, ONE_HOT=17 */
     uint32_t attribute_kind;  /* NONE=0, TARGET_SHAPE=1, PERMUTATION=2,
-                                 AXIS=3, REDUCTION=4 */
+                                 AXIS=3, REDUCTION=4, DEPTH=5 */
     uint32_t first_input;
-    uint32_t second_input;    /* ordered binary/MATMUL input or UINT32_MAX */
+    uint32_t second_input;    /* ordered binary/MATMUL/GATHER input or UINT32_MAX */
     uint32_t output;
     uint32_t attribute_count;
     uint32_t axis;            /* normalized axis, reduction form, or UINT32_MAX */
     uint32_t reserved;        /* reduction keep-dimensions flag; otherwise zero */
     uint64_t attribute_values[16];
-} SynaptikMetalMpsGraphNodeV8; /* exactly 160 bytes; payload begins at byte 32 */
+} SynaptikMetalMpsGraphNodeV9; /* exactly 160 bytes; payload begins at byte 32 */
 ```
 
 Its exact signature is:
@@ -91,13 +93,15 @@ int32_t synaptik_metal_mpsgraph_executable_create(
     void *context, uint32_t node_schema_version,
     uint32_t value_count, const uint32_t *value_ranks,
     const uint64_t *value_dimensions,
-    uint32_t node_count, const SynaptikMetalMpsGraphNodeV8 *nodes,
+    uint32_t node_count, const SynaptikMetalMpsGraphNodeV9 *nodes,
     uint32_t feed_count, const uint32_t *feed_indices,
     uint32_t target_count, const uint32_t *target_indices,
     void **out_executable);
 ```
 
 The dimension table has `value_count * 16` cells with used positive axes followed by zero padding.
+Value data types are inferred unambiguously from typed node roles: ordinary floating paths remain
+`FLOAT32`, `GATHER` indices and `ONE_HOT` input are `INT32`, and `ONE_HOT` output is `BOOL`.
 A declared value may be rank zero only when it is a locally produced reduction target. Feeds are
 unique positive-rank canonical values available before node zero; nodes are topological, take
 positive-rank inputs, and produce fresh values; targets are unique produced values. Native
@@ -110,17 +114,21 @@ including an empty identity list, or `SUM`-only sum-to-Shape dimensions, plus ex
 keep-dimensions state. Native validation derives and checks the exact output Shape and a positive
 term count; a rank-zero result must be a direct target and cannot feed another node. `MATMUL`
 accepts positive rank-two canonical operands or exact local `PERMUTE [1,0]` views of canonical
-sources, requires exact `[M,K] @ [K,N] -> [M,N]` geometry, and produces canonical state. Local
-transpose authentication constrains only an affine operand actually consumed by MATMUL; that view
-may also be a target or have another valid affine consumer. Affine nodes accept canonical or prior
-affine-view state and produce affine-view state.
+sources, requires exact `[M,K] @ [K,N] -> [M,N]` geometry, and produces canonical state. `GATHER`
+accepts canonical positive-rank `FLOAT32` data and `INT32` indices, replaces the selected data axis
+with the complete indices Shape, and produces canonical `FLOAT32`. `ONE_HOT` accepts canonical
+positive-rank `INT32`, appends its positive depth, and produces canonical `BOOL` with exact byte
+values zero and one. Local transpose authentication constrains only an affine operand actually
+consumed by MATMUL; that view may also be a target or have another valid affine consumer. Affine
+nodes accept canonical or prior affine-view state and produce affine-view state.
 `CONTIGUOUS` accepts either available state and produces canonical state. No-attribute nodes
 require zero attribute count/payload and the axis sentinel. Target Shapes and complete
 permutations use `attribute_count` payload cells; axis forms use count one, the normalized `axis`,
-and a zero payload. Every other cell is zero or its required sentinel. Native validation checks
-exact operation/attribute pairing, ranks `0..16` under those role restrictions, positive
-dimensions, target Shapes, permutations, axes, unary/binary/reduction/MATMUL/`CONTIGUOUS` Shape
-rules, and affine result geometry. Unknown operations, wrong sentinels, incompatible Shapes,
+and a zero payload; depth uses count one and its positive payload value. Every other cell is zero
+or its required sentinel. Native validation checks exact operation/attribute pairing, inferred
+value types, ranks `0..16` under those role restrictions, positive dimensions, target Shapes,
+permutations, axes, unary/binary/reduction/MATMUL/indexing/`CONTIGUOUS` Shape rules, and affine
+result geometry. Unknown operations, type conflicts, wrong sentinels, incompatible Shapes,
 unavailable or invalid value states, unused values, malformed indices or payloads, and wrong
 schema versions fail closed. Java separately authenticates the numerical profile and rejects
 every profile-incompatible program before the native create call.
@@ -134,10 +142,10 @@ every profile-incompatible program before the native create call.
 | 2 | `SYNAPTIK_METAL_STATUS_NO_DEVICE` | No default Metal device is available. |
 | 3 | `SYNAPTIK_METAL_STATUS_NO_COMMAND_QUEUE` | The device could not create a command queue. |
 | 4 | `SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED` | Native owner or buffer allocation failed. |
-| 5 | `SYNAPTIK_METAL_STATUS_RANGE_OUT_OF_BOUNDS` | A requested buffer copy is outside its logical extent. |
+| 5 | `SYNAPTIK_METAL_STATUS_RANGE_OUT_OF_BOUNDS` | A requested buffer copy is outside its logical extent, or an indexing operand fails its declared extent/depth. |
 | 6 | `SYNAPTIK_METAL_STATUS_COPY_FAILED` | Shared buffer contents were unavailable for a requested copy. |
 | 7 | `SYNAPTIK_METAL_STATUS_INTERNAL_ERROR` | An Objective-C exception crossed an internal implementation boundary. |
-| 8 | `SYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE` | Rank, dimensions, checked `FLOAT32` byte geometry, custom element count, or dispatch-grid representation is unsupported. |
+| 8 | `SYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE` | Rank, dimensions, checked typed byte geometry, custom element count, or dispatch-grid representation is unsupported. |
 | 9 | `SYNAPTIK_METAL_STATUS_GRAPH_COMPILATION_FAILED` | Graph construction or compilation produced no usable executable. |
 | 10 | `SYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE` | A buffer has the wrong device or extent, or an input aliases an output. |
 | 11 | `SYNAPTIK_METAL_STATUS_EXECUTION_FAILED` | Synchronous execution, unusable threadgroup geometry, completion reporting, or returned-result validation failed. |
@@ -150,35 +158,43 @@ exercise successful execution and do not manufacture framework failures.
 ## Prepared profile-qualified whole-partition execution
 
 Creation consumes a validated, topologically ordered whole-partition description. Native code
-creates fixed-shape `FLOAT32` placeholders and lowers typed nodes to MPSGraph negation, absolute
+creates fixed-shape typed placeholders and lowers typed nodes to MPSGraph negation, absolute
 value, ordered addition, subtraction, multiplication, division, reduction sum, reduction mean,
 `reshapeTensor:withShape:name:`, `broadcastTensor:toShape:name:`,
 `transposeTensor:permutation:name:`, `expandDimsOfTensor:axis:name:`,
-`squeezeTensor:axis:name:`, or
-`matrixMultiplicationWithPrimaryTensor:secondaryTensor:name:`. `CONTIGUOUS` and empty-axis
-reduction identities use same-Shape `reshapeTensor:withShape:name:`; keep-dimensions and
-sum-to-Shape results are reshaped to the validated declared output. Compilation explicitly sets
-and reads back `reducedPrecisionFastMath = MPSGraphReducedPrecisionFastMathNone` for MATMUL and rejects
-native creation unless that control is available. It verifies every result Shape and compiles one
-shape-specialized executable. The executable owner retains ordered feed and target Shapes, byte
-extents, stable-to-framework permutations, and the originating context.
+`squeezeTensor:axis:name:`, `gatherWithUpdatesTensor:indicesTensor:axis:batchDimensions:name:`,
+`oneHotWithIndicesTensor:depth:dataType:onValue:offValue:name:`, or
+`matrixMultiplicationWithPrimaryTensor:secondaryTensor:name:`. `GATHER` uses zero batch dimensions;
+`ONE_HOT` uses exact `BOOL` scalar constants one and zero. `CONTIGUOUS` and empty-axis reduction
+identities use same-Shape `reshapeTensor:withShape:name:`; keep-dimensions and sum-to-Shape results
+are reshaped to the validated declared output. Compilation explicitly sets and reads back
+`reducedPrecisionFastMath = MPSGraphReducedPrecisionFastMathNone` for MATMUL and rejects native
+creation unless that control is available. It verifies every result Shape and compiles one
+shape-specialized executable. The executable owner retains ordered feed and target Shapes, inferred
+data types, byte extents, stable-to-framework permutations, ordered indexing-domain checks, and the
+originating context.
 
 Each create and run call opens a local Objective-C `@autoreleasepool` inside its exception
 boundary. The executable box crosses the pool only through `__bridge_retained`; every success and
 early-failure return drains temporary framework objects before returning through the C ABI.
-Each run binds ordered input and supplied output `MTLBuffer` objects through
-`MPSGraphTensorData`. It sets `waitUntilCompleted = YES`, submits the executable once on the
-context command queue, checks the completion error and returned-result list, and returns only
-after the supplied destinations are usable. Synaptik requests no result-synchronization blit and
-performs no explicit post-execution device or host copy. MPSGraph may still use internal temporary
-storage.
+Each run validates every supplied input and output resource, then scans every `INT32` indexing
+element in stable node order and row-major logical ordinal before constructing tensor data,
+dispatching MPSGraph, or writing any target. A bound violation returns range status; Java rescans
+the same retained input buffers to publish the Model's exact `IndexOutOfBoundsException` text.
+Only after successful validation does the run bind ordered input and supplied output `MTLBuffer`
+objects through `MPSGraphTensorData`. It sets `waitUntilCompleted = YES`, submits the executable
+once on the context command queue, checks the completion error and returned-result list, and
+returns only after the supplied destinations are usable. Synaptik requests no
+result-synchronization blit and performs no explicit post-execution device or host copy. MPSGraph
+may still use internal temporary storage.
 
 Affine-view targets are supplied full positive logical byte extents and receive canonical logical
 coordinate order. That dense physical choice is backend-private: logical view strides, offsets,
 and `isView` metadata remain unchanged, and it does not imply aliasing with the source.
 `CONTIGUOUS` targets use the ordinary canonical materialization path. A rank-zero reduction target
 uses exactly one `FLOAT32` element and may be downloaded locally as exactly four canonical bytes;
-caller feeds and CPU/Metal transfer remain positive-rank.
+canonical caller ingress accepts exact `FLOAT32` and `INT32`, local canonical `BOOL` targets publish
+exact one-byte elements, and CPU/Metal transfer remains positive-rank canonical `FLOAT32` only.
 
 Java validates live typed handles and readable pointer arrays before native entry. The ABI cannot
 prove that an arbitrary non-null raw pointer is live, type-correct, or sufficiently sized;
