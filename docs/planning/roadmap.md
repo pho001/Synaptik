@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0019; 0006–0007, 0009–0013, 0016–0017 Blocked; 0020 Ready; 0018 Draft | [Metal 0020](backends/metal/tasks/0020-accelerator-float32-reductions-after-zero-sign-refinement.md) is the sole Ready frontier and requires a full fresh corrected probe before production. Metal 0017 stays Blocked historically; MATMUL 0018 remains Draft after 0020. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0019; 0006–0007, 0009–0013, 0016–0017 Blocked; 0020 Ready for review; 0018 Draft | [Metal 0020](backends/metal/tasks/0020-accelerator-float32-reductions-after-zero-sign-refinement.md) passed its fresh corrected gate and worker implementation/validation; it remains the sole Ready frontier for one independent Class C review. Metal 0017 stays Blocked historically; MATMUL 0018 remains Draft after 0020. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -111,8 +111,9 @@ subnormal. No production change or probe artifact remains.
 at `fc003ab8`. It established final-result-only exact-zero sign freedom for arithmetic FLOAT32
 `SUM`/`MEAN`/`SUM_TO_SHAPE`, with strict unchanged, all terms, bit-preserving identity/equal-Shape
 forms, mandatory positive-count MEAN division, and no tolerance, term loss, added identity, or
-per-step sign freedom. Metal 0020 is the sole Ready frontier and requires a full fresh corrected
-probe before production. Metal 0018 remains Draft after 0020; Model 0026 remains independent.
+per-step sign freedom. Metal 0020 passed its full fresh corrected probe and implementation/worker
+validation and is the sole Ready frontier pending independent Class C review. Metal 0018 remains
+Draft after 0020; Model 0026 remains independent.
 
 Engine
 [0017](modules/engine/tasks/0017-reusable-inference-session-api.md) is Complete from exact base
@@ -134,9 +135,9 @@ and unchanged canonical-only transfer.
 [0005](backends/metal/tasks/0005-mpsgraph-mixed-binary-whole-partition.md) remains a completed
 historical delivery whose strict binary claim was withdrawn after 12,096 subnormal-domain failures.
 Complete 0015 does not rewrite that history: it restored wires `2..5` only for `ACCELERATOR` after
-the fresh bounded oracle passed. Complete 0019 appends exact ABS wire `12` under both profiles. ABI
-v4 still exposes exactly thirteen symbols; node schema 6 and version-seven identities distinguish
-and reject profile-incompatible programs.
+the fresh bounded oracle passed. Complete 0019 appends exact ABS wire `12` under both profiles.
+Task 0020 adds accelerator `SUM=13` and `MEAN=14`; ABI v4 still exposes exactly thirteen symbols,
+while node schema 7 and version-eight identities reject profile-incompatible programs.
 
 [0006](backends/metal/tasks/0006-mpsgraph-float32-unary-algebra.md) remains `Blocked` by exact
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures. [0007](backends/metal/tasks/0007-mpsgraph-float32-reductions.md)
@@ -187,18 +188,20 @@ no production, native, test, or probe changes remain.
 is `Complete` at `42c4cfbf` plus `fb102a46` after the operation-by-operation DAZ/FTZ oracle, focused
 validation, combined serial checkpoint, and independent Class C approval all passed.
 
-Current Metal uses ABI v4 with exactly thirteen exports and node schema 6. Both profile matrices
+Current Metal uses ABI v4 with exactly thirteen exports and node schema 7. Both profile matrices
 admit exact canonical `FLOAT32` ABS; strict additionally admits NEG/affine/`CONTIGUOUS`, while
-accelerator additionally admits tensor `FLOAT32` `ADD`/`SUB`/`MUL`/`DIV`. Java preflight rejects
-profile-incompatible node sets before native entry, version-seven identities separate
-profile/topology compatibility, and Runtime/Trace remain profile-free.
+accelerator additionally admits tensor `FLOAT32` `ADD`/`SUB`/`MUL`/`DIV` plus canonical
+`SUM`/`MEAN`/`SUM_TO_SHAPE`. Java preflight rejects profile-incompatible node sets before native
+entry, version-eight identities separate profile/topology compatibility, scalar reduction
+materialization remains local-only, and Runtime/Trace remain profile-free.
 
 Strategic gate: historical blocker evidence is preserved, and no backend task may define Model
 semantics. Blocked 0016 changes no contract; Complete 0019 owns exact both-profile `ABS` only.
 Blocked 0017 records the old reduction-contract failure. Complete Model 0028 owns the bounded
-exact-zero sign change; Ready Metal 0020 depends on a full fresh corrected probe before production.
-Draft 0018 remains after reduction for rank-two MATMUL under only DAZ/FTZ/FMA/reassociation. No
-task may infer generic fast math, relax unary semantics, or authorize gross special-value errors.
+exact-zero sign change; Ready Metal 0020 has passed its full fresh corrected gate and worker
+implementation and awaits independent review. Draft 0018 remains after reduction for rank-two
+MATMUL under only DAZ/FTZ/FMA/reassociation. No task may infer generic fast math, relax unary
+semantics, or authorize gross special-value errors.
 
 ## Blocked, review-needed, and deferred work
 
@@ -211,7 +214,8 @@ task may infer generic fast math, relax unary semantics, or authorize gross spec
   completed 300 executables/2,400 runs and found `SUM([-0,-0]) -> +0`, while the old permitted set
   contained only `-0`; zero is not subnormal, so DAZ/FTZ did not admit the result. No production
   change or retained probe artifact remains. Complete Model 0028 owns the separate semantic
-  decision, and Metal 0020 is the dependent Ready successor rather than a continuation of 0017.
+  decision. Metal 0020 is the dependent Ready successor and has implemented the refined contract;
+  it awaits independent Class C review rather than continuing 0017.
 - Metal 0007 is independently `Blocked` by its repeated exact reduction counterexample. Unblocking
   requires an exact replacement route or an explicit Model contract change.
 - Metal 0009 is independently `Blocked` by exact subnormal flushing in `K=1` MATMUL. Unblocking
@@ -247,8 +251,8 @@ task may infer generic fast math, relax unary semantics, or authorize gross spec
   comparison still requires a separately reviewed, fully sealed matrix before measurement.
 - Model 0026 remains an independent FLOAT16 Draft. Model 0027/0028, Config 0006, Engine 0018, CPU
   0017, and Metal 0015/0019 are Complete. Metal 0016/0017 are Blocked. Metal 0020 is the sole Ready
-  frontier; following MATMUL 0018 remains Draft, and every other blocked family remains
-  unauthorized.
+  review frontier after passing its fresh gate and worker validation; following MATMUL 0018
+  remains Draft, and every other blocked family remains unauthorized.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -262,14 +266,13 @@ task may infer generic fast math, relax unary semantics, or authorize gross spec
 
 ## Nearest next step
 
-Execute
+Perform one independent Class C review of
 [Metal 0020](backends/metal/tasks/0020-accelerator-float32-reductions-after-zero-sign-refinement.md),
-the sole Ready frontier, from clean base `fc003ab8` plus this planning-only authorization. Before
-any production edit, run the full fresh corrected Apple M3 probe with retained native strings,
-per-cell autorelease pools, the all-term root-only oracle, at least 300 executables/2,400 runs, and
-artifact removal. Keep strict reductions false, rank zero local-only, ABI v4 at exactly thirteen
-exports, and Metal 0017 Blocked. Do not launch Draft Metal 0018, independent Draft Model 0026, any
-blocked task, or any other successor.
+the sole Ready frontier. Review the committed implementation and recorded worker validation; do
+not duplicate the implementation worker or run another internal review. Keep strict reductions
+false, rank zero local-only, ABI v4 at exactly thirteen exports, and Metal 0017 Blocked. Do not
+launch Draft Metal 0018, independent Draft Model 0026, any blocked task, or any other successor
+until that review is recorded.
 
 ## History policy
 

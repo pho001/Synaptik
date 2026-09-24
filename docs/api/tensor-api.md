@@ -112,8 +112,8 @@ ordinary Engine captures one profile for its lifetime and transports it through 
 capability, compile artifacts, Prepare, and backend identity. CPU executes both profiles with the
 same exact current semantics. Metal admits exact canonical `ABS` under both profiles, keeps
 NEG/affine/`CONTIGUOUS` under `STRICT_IEEE`, and admits tensor FLOAT32
-`ADD`/`SUB`/`MUL`/`DIV` only under `ACCELERATOR`; unsupported combinations fail closed rather than
-selecting a fallback. No backend currently advertises the wider reduction result set. Model
+`ADD`/`SUB`/`MUL`/`DIV` plus canonical FLOAT32 `SUM`/`MEAN`/`SUM_TO_SHAPE` only under
+`ACCELERATOR`; unsupported combinations fail closed rather than selecting a fallback. Model
 remains the sole semantic owner of profile meaning.
 
 The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
@@ -169,10 +169,12 @@ current. The closed first-order matrix also currently reverses `CONTIGUOUS`, `RE
 `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` through public Tensor metadata operations. Mandatory
 graph-local ID canonicalization and whole-graph DCE plus phase-local CSE are current internal
 behavior. CPU physical execution is current for its documented bounded affine units. Metal forward
-execution is current for exact canonical positive-rank `FLOAT32` ABS under both profiles and for
-strict chains of the five affine views plus `CONTIGUOUS`, with graph-local view provenance and
-canonical NEG/ABS boundaries. Public gradient requests/publication and Metal backward execution
-are not introduced by those routes.
+execution is current for exact canonical `FLOAT32` ABS under both profiles, strict chains of the
+five affine views plus `CONTIGUOUS` with graph-local view provenance and canonical NEG/ABS
+boundaries, and accelerator canonical tensor binary/reduction partitions. Metal reduction
+execution is forward-only; a positive-rank result may compose locally, while a scalar result is a
+direct target with four-byte local materialization. Public gradient requests/publication and
+Metal backward execution are not introduced by those routes.
 
 `AxisTransformKind.PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` are current semantic identities.
 `PermutationAttrs` stores a complete normalized output-to-input axis permutation, while

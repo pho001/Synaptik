@@ -22,6 +22,10 @@ import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementw
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
+import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
@@ -73,6 +77,61 @@ final class MetalNegCapabilityPartitionConformanceTest {
                     List.of(matrix, row),
                     List.of(matrix))));
         }
+        TensorDescriptor cube = descriptor(Shape.of(2, 3, 4));
+        TensorDescriptor scalar = descriptor(Shape.scalar());
+        for (AggregateReductionKind kind : List.of(
+                AggregateReductionKind.SUM,
+                AggregateReductionKind.MEAN,
+                AggregateReductionKind.PROD,
+                AggregateReductionKind.MIN,
+                AggregateReductionKind.MAX,
+                AggregateReductionKind.ALL,
+                AggregateReductionKind.ANY)) {
+            Operation full = new Operation(kind, NoOperationAttrs.INSTANCE);
+            assertFalse(provider.supports(query(
+                    NumericalProfile.STRICT_IEEE,
+                    full,
+                    List.of(cube),
+                    List.of(scalar))),
+                    "strict " + kind);
+            assertEquals(
+                    kind == AggregateReductionKind.SUM
+                            || kind == AggregateReductionKind.MEAN,
+                    provider.supports(query(
+                            NumericalProfile.ACCELERATOR,
+                            full,
+                            List.of(cube),
+                            List.of(scalar))),
+                    "accelerator " + kind);
+        }
+        assertTrue(provider.supports(query(
+                NumericalProfile.ACCELERATOR,
+                new Operation(
+                        AggregateReductionKind.MEAN,
+                        new AxisReductionAttrs(1, false)),
+                List.of(cube),
+                List.of(descriptor(Shape.of(2, 4))))));
+        assertTrue(provider.supports(query(
+                NumericalProfile.ACCELERATOR,
+                new Operation(
+                        AggregateReductionKind.SUM,
+                        new AxisReductionAttrs(1, true)),
+                List.of(cube),
+                List.of(descriptor(Shape.of(2, 1, 4))))));
+        assertTrue(provider.supports(query(
+                NumericalProfile.ACCELERATOR,
+                new Operation(
+                        AggregateReductionKind.SUM,
+                        new MultiAxisReductionAttrs(List.of(), false)),
+                List.of(cube),
+                List.of(cube))));
+        assertTrue(provider.supports(query(
+                NumericalProfile.ACCELERATOR,
+                new Operation(
+                        AggregateReductionKind.SUM,
+                        new SumToShapeAttrs(Shape.of(1, 4))),
+                List.of(cube),
+                List.of(descriptor(Shape.of(1, 4))))));
         Operation contiguous = new Operation(
                 ContiguousKind.CONTIGUOUS, NoOperationAttrs.INSTANCE);
         assertTrue(provider.supports(query(

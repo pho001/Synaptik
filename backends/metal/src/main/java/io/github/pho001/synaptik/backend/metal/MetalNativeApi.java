@@ -122,7 +122,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * @param numericalProfile non-null cold plan profile used by Java fail-closed preflight
      * @param valueRanks non-null value-aligned ranks
      * @param valueDimensions non-null row-major value-count by sixteen dimension table
-     * @param graphProgram non-null version-six typed node table
+     * @param graphProgram non-null version-seven typed node table
      * @param feedValueIndices non-null stable feed value indices
      * @param targetValueIndices non-null stable target value indices
      * @return a fresh non-null opaque executable handle owned by the caller
@@ -155,7 +155,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * @param context non-null live context whose ownership remains with the caller
      * @param valueRanks validated value-aligned ranks
      * @param valueDimensions validated padded dimension table
-     * @param graphProgram validated version-six typed topological node table
+     * @param graphProgram validated version-seven typed topological node table
      * @param feedValueIndices validated unique feeds
      * @param targetValueIndices validated unique produced targets
      * @return non-null raw status/output-cell result for checked interpretation
@@ -482,7 +482,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
     }
 
-    /** Exact Java preflight for the version-six typed MPSGraph executable-create schema. */
+    /** Exact Java preflight for the version-seven typed MPSGraph executable-create schema. */
     static final class MpsGraphExecutableAbi {
         private static final int MAX_RANK = 16;
 
@@ -526,9 +526,9 @@ abstract class MetalNativeApi implements AutoCloseable {
 
             for (int value = 0; value < valueCount; value++) {
                 int rank = valueRanks[value];
-                if (rank < 1 || rank > MAX_RANK) {
+                if (rank < 0 || rank > MAX_RANK) {
                     throw new IllegalArgumentException(
-                            "Metal MPSGraph value rank must be in 1..16 at index " + value);
+                            "Metal MPSGraph value rank must be in 0..16 at index " + value);
                 }
                 long elements = 1L;
                 int row = value * MAX_RANK;
@@ -566,6 +566,10 @@ abstract class MetalNativeApi implements AutoCloseable {
                     throw new IllegalArgumentException(
                             "Metal MPSGraph feed indices must be unique");
                 }
+                if (valueRanks[feed] == 0) {
+                    throw new IllegalArgumentException(
+                            "Metal MPSGraph rank-zero values cannot be feeds");
+                }
                 states[feed] = MetalMpsGraphProgram.ValueState.CANONICAL;
                 used[feed] = true;
             }
@@ -581,6 +585,10 @@ abstract class MetalNativeApi implements AutoCloseable {
                 int output = node.outputIndex();
                 requireIndex(left, valueCount, "first node input");
                 requireIndex(output, valueCount, "node output");
+                if (valueRanks[left] == 0) {
+                    throw new IllegalArgumentException(
+                            "Metal MPSGraph rank-zero results cannot be node inputs");
+                }
                 if (!node.kind().accepts(states[left])) {
                     throw new IllegalArgumentException(
                             "Metal MPSGraph node input value state is unavailable or incompatible");
@@ -595,9 +603,10 @@ abstract class MetalNativeApi implements AutoCloseable {
                             node.kind() + " input/output shapes must match exactly");
                     case ADD, SUB, MUL, DIV -> {
                         requireIndex(right, valueCount, "second node input");
-                        if (!node.kind().accepts(states[right])) {
+                        if (valueRanks[right] == 0
+                                || !node.kind().accepts(states[right])) {
                             throw new IllegalArgumentException(
-                                    "Metal MPSGraph second node input must be canonical");
+                                    "Metal MPSGraph second node input must be positive-rank canonical");
                         }
                         requireShape(
                                 broadcastsTo(left, right, output, valueRanks, valueDimensions),
@@ -629,6 +638,15 @@ abstract class MetalNativeApi implements AutoCloseable {
                     case SQUEEZE -> requireShape(
                             squeezeMatches(node, left, output, valueRanks, valueDimensions),
                             "SQUEEZE axis and output shape disagree");
+                    case SUM, MEAN -> requireShape(
+                            reductionMatches(node, left, output, valueRanks, valueDimensions),
+                            "reduction attributes, count, and output shape disagree");
+                }
+                if (valueRanks[output] == 0
+                        && node.kind() != MetalMpsGraphProgram.NodeKind.SUM
+                        && node.kind() != MetalMpsGraphProgram.NodeKind.MEAN) {
+                    throw new IllegalArgumentException(
+                            "Metal MPSGraph rank-zero values must be locally produced reductions");
                 }
                 states[output] = node.kind().outputState();
                 used[left] = true;
@@ -648,6 +666,12 @@ abstract class MetalNativeApi implements AutoCloseable {
                             "Metal MPSGraph target indices must be unique");
                 }
                 targeted[target] = true;
+            }
+            for (int value = 0; value < valueCount; value++) {
+                if (valueRanks[value] == 0 && (!produced[value] || !targeted[value])) {
+                    throw new IllegalArgumentException(
+                            "Metal MPSGraph rank-zero reduction must be a direct target");
+                }
             }
             for (int value = 0; value < valueCount; value++) {
                 if (!used[value]) {
@@ -716,14 +740,116 @@ abstract class MetalNativeApi implements AutoCloseable {
                 case STRICT_IEEE -> switch (kind) {
                     case NEG, ABS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE,
                             CONTIGUOUS -> true;
-                    case ADD, SUB, MUL, DIV -> false;
+                    case ADD, SUB, MUL, DIV, SUM, MEAN -> false;
                 };
                 case ACCELERATOR -> switch (kind) {
-                    case ABS, ADD, SUB, MUL, DIV -> true;
+                    case ABS, ADD, SUB, MUL, DIV, SUM, MEAN -> true;
                     case NEG, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE,
                             CONTIGUOUS -> false;
                 };
             };
+        }
+
+        private static boolean reductionMatches(
+                MetalMpsGraphProgram.Node node,
+                int input,
+                int output,
+                int[] ranks,
+                long[] dimensions) {
+            int inputRank = ranks[input];
+            int outputRank = ranks[output];
+            long[] values = node.attributeValues();
+            MetalMpsGraphProgram.ReductionForm form;
+            try {
+                form = MetalMpsGraphProgram.ReductionForm.fromWireIdentity(node.axis());
+            } catch (IllegalArgumentException malformed) {
+                return false;
+            }
+            if (form == MetalMpsGraphProgram.ReductionForm.SUM_TO_SHAPE) {
+                if (node.kind() != MetalMpsGraphProgram.NodeKind.SUM
+                        || node.reserved() != 0
+                        || node.attributeCount() != outputRank
+                        || values.length != outputRank
+                        || outputRank > inputRank) {
+                    return false;
+                }
+                int inputRow = input * MAX_RANK;
+                int outputRow = output * MAX_RANK;
+                int padding = inputRank - outputRank;
+                long count = 1L;
+                try {
+                    for (int axis = 0; axis < inputRank; axis++) {
+                        long source = dimensions[inputRow + axis];
+                        if (axis < padding) {
+                            count = Math.multiplyExact(count, source);
+                        } else {
+                            long target = values[axis - padding];
+                            if (target != dimensions[outputRow + axis - padding]
+                                    || (target != 1L && target != source)) {
+                                return false;
+                            }
+                            if (target == 1L && source != 1L) {
+                                count = Math.multiplyExact(count, source);
+                            }
+                        }
+                    }
+                } catch (ArithmeticException overflow) {
+                    return false;
+                }
+                return count > 0L;
+            }
+
+            if (form == MetalMpsGraphProgram.ReductionForm.FULL) {
+                if (node.attributeCount() != 0 || values.length != 0
+                        || node.reserved() != 0 || outputRank != 0) {
+                    return false;
+                }
+                try {
+                    return elementCount(input, ranks, dimensions) > 0L;
+                } catch (ArithmeticException overflow) {
+                    return false;
+                }
+            }
+
+            if (form == MetalMpsGraphProgram.ReductionForm.SINGLE_AXIS
+                    && node.attributeCount() != 1) {
+                return false;
+            }
+            if (form != MetalMpsGraphProgram.ReductionForm.SINGLE_AXIS
+                    && form != MetalMpsGraphProgram.ReductionForm.MULTI_AXIS) {
+                return false;
+            }
+            boolean keep = node.reserved() == 1;
+            if (node.reserved() < 0 || node.reserved() > 1
+                    || node.attributeCount() != values.length) {
+                return false;
+            }
+            boolean[] reduced = new boolean[inputRank];
+            long count = 1L;
+            int inputRow = input * MAX_RANK;
+            try {
+                for (long value : values) {
+                    if (value < 0L || value >= inputRank || reduced[(int) value]) {
+                        return false;
+                    }
+                    reduced[(int) value] = true;
+                    count = Math.multiplyExact(count, dimensions[inputRow + (int) value]);
+                }
+            } catch (ArithmeticException overflow) {
+                return false;
+            }
+            int expectedRank = keep ? inputRank : inputRank - values.length;
+            if (outputRank != expectedRank || count <= 0L) return false;
+            int outputRow = output * MAX_RANK;
+            for (int source = 0, target = 0; source < inputRank; source++) {
+                if (reduced[source]) {
+                    if (keep && dimensions[outputRow + target++] != 1L) return false;
+                } else if (dimensions[outputRow + target++]
+                        != dimensions[inputRow + source]) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         private static boolean sameShape(

@@ -7,10 +7,10 @@ Ready
 Readiness verification: Model 0028 is Complete at `fc003ab8` after its bounded proof, 23-task
 validation, and independent Class C `APPROVE` with zero findings. Metal 0019, Model 0027, Config
 0006, and Engine 0018 are Complete; Metal 0016/0017 remain inactive Blocked records and Metal 0018
-remains Draft. Current source is still ABI v4 with exactly thirteen exports, node schema 6, and
-version-seven workload/candidate/compatibility/route/codec identities; strict reduction capability
-is false and rank zero remains local-only. The detailed contract, owner paths, conflicts, and the
-corrected full fresh pre-edit probe gate were reverified against clean base `fc003ab8`.
+remains Draft. The implementation now retains ABI v4 with exactly thirteen exports, advances the
+fixed 160-byte node schema to version seven, and advances workload/candidate/compatibility/route/
+codec identities to version eight. Strict reduction capability remains false and rank zero remains
+local-only. The task remains Ready for its mandatory independent Class C review.
 
 ## Change class
 
@@ -213,4 +213,32 @@ real Engine proof, Runtime/Trace absence, changed scope, and artifact removal.
 
 ## Result
 
-Empty until execution.
+Implemented from clean base `89ca7961`; this task remains Ready pending one independent Class C
+review.
+
+- The corrected fresh pre-edit M3 gate passed 50 matrix cells at each of optimization levels zero
+  and one: 22 SUM, 21 MEAN, and 7 SUM-to-Shape cells across two fresh contexts, 300 executables,
+  and 2,400 runs, plus the independent rank-16/axis-8 smoke executable and run. The oracle checked
+  every declared term, permutation, full binary tree, per-step FLOAT32 rounding with DAZ/FTZ,
+  root-only final exact-zero sign freedom, mandatory positive-count MEAN quotient, and exact copy/
+  identity bits. The retained-name/Shape, autorelease-pool, buffer-guard, order, repetition,
+  canary, and target-isolation controls passed; all `/tmp` probe source and binary artifacts were
+  removed before implementation.
+- Metal now advertises only accelerator canonical FLOAT32 full, normalized single-axis, ordered
+  multi-axis (including empty identity) SUM/MEAN and binding-resolved SUM-to-Shape. Strict
+  reductions, masked reductions, unsupported kinds/types/layouts/Shapes, affine chaining, and
+  rank-zero feeds or transfers remain rejected.
+- ABI v4 and all thirteen exports are unchanged. Node schema seven retains fixed 160-byte records,
+  adds SUM/MEAN wires 13/14 and a typed reduction form, while version-eight workload, candidate,
+  compatibility, route, and codec identity prevents stale reuse. Scalar reduction publication is
+  a local four-byte canonical materialization only.
+- Native, Java preflight, prepared-resource reuse, input preservation, direct-target permutations,
+  concurrent sessions, close rejection, strict/profile negatives, one-term raw-bit copies, and a
+  CPU-free public Engine graph were exercised. Runtime and Trace sources were not changed.
+- Validation passed the native build and exact 13-export inspection; 93 Metal backend tests with
+  zero skips plus Javadocs; 4 Metal conformance tests with zero skips; all 9 explicit-composition
+  Metal integration tests with zero skips against the real dylib; 9 architecture tests with zero
+  skips; and the full 87-actionable-task repository build. The Markdown validator passed 18
+  changed files; `tensor-api.md` has the same 172 duplicate-heading diagnostics as the base and no
+  new Markdown structural diagnostic. Status/frontier, probe-removal, changed-path, and diff checks
+  passed.

@@ -209,15 +209,17 @@ final class MetalBackendRuntime implements AutoCloseable {
     /**
      * Downloads one Metal FLOAT32 publication into canonical row-major big-endian bytes.
      *
-     * <p>Canonical non-view publications retain the existing path. A logical affine view is
-     * accepted only when its representation carries exact finalized-route authentication for a
-     * full dense represented-order target. The logical descriptor is validated but never
-     * rewritten.</p>
+     * <p>Canonical non-view publications retain the existing path and additionally admit one
+     * locally produced rank-zero reduction result as exactly four detached bytes. This local
+     * materialization rule does not widen caller feeds or CPU/Metal transfer, both of which remain
+     * positive-rank. A positive-rank logical affine view is accepted only when its representation
+     * carries exact finalized-route authentication for a full dense represented-order target. The
+     * logical descriptor is validated but never rewritten.</p>
      *
      * @param representation non-null live representation owned by this context
      * @param descriptor non-null exact canonical or authenticated affine publication descriptor
      * @param maximumBytes non-negative caller byte ceiling
-     * @return fresh non-null canonical bytes
+     * @return fresh non-null canonical bytes; exactly four bytes for a rank-zero FLOAT32 result
      * @throws NullPointerException if an object argument is {@code null}
      * @throws IllegalArgumentException if type, layout, size, representation, or limit is invalid
      * @throws IllegalStateException if the representation or context is closed
@@ -239,8 +241,11 @@ final class MetalBackendRuntime implements AutoCloseable {
                     "representation must be a live buffer owned by this Metal integration");
         }
         LayoutDescriptor layout = descriptor.layout().orElse(null);
+        int rank = descriptor.shape().rank();
         boolean canonical = descriptor.dataType() == DataType.FLOAT32
                 && descriptor.shape().isFullyStatic()
+                && rank >= 0
+                && rank <= 16
                 && layout != null
                 && layout.kind() == LayoutKind.DENSE_CONTIGUOUS
                 && !layout.isView()
@@ -259,7 +264,7 @@ final class MetalBackendRuntime implements AutoCloseable {
         }
         long elements = 1L;
         for (long dimension : descriptor.shape().toLongArray()) {
-            if (dimension < 0L || (authenticatedAffine && dimension == 0L)) {
+            if (dimension <= 0L) {
                 throw new IllegalArgumentException(
                         "descriptor dimensions are outside the materialization domain");
             }

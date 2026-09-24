@@ -1100,17 +1100,19 @@ scoring policy, route selector, preparer, or execution service. The CPU backend 
 through the architecture-approved inward dependency on Planning and returns the same exact support
 answer under `STRICT_IEEE` and `ACCELERATOR`.
 
-The current Metal provider uses two profile matrices over fully static positive-rank `FLOAT32`.
-Both admit exact parameterless canonical `ABS`. Strict support additionally contains parameterless
-`NEG`, `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`; accelerator
-support additionally contains canonical tensor `ADD`, `SUB`, `MUL`, and `DIV` with exact
-right-aligned broadcasting. Strict affine outputs retain their exact resolved Model view
-descriptors, while NEG, ABS, `CONTIGUOUS`, and accelerator binary outputs are canonical. Strict
-binary and accelerator baseline operations return false. Metal's occurrence-level answer is
-independent of native availability and constant provenance; it allows Planning to form one maximal
-profile-homogeneous Metal-owned partition that Metal preparation must accept as a whole. The
-package-private hard-eligibility step is the first internal planning consumer. Compile-time plans
-retain `BackendId`, not a provider object.
+The current Metal provider uses two profile matrices over fully static `FLOAT32`. Both admit exact
+parameterless canonical `ABS`. Strict support additionally contains parameterless `NEG`,
+`RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`; accelerator support
+additionally contains canonical tensor `ADD`, `SUB`, `MUL`, and `DIV` with exact right-aligned
+broadcasting, plus canonical `SUM`, `MEAN`, and binding-resolved `SUM_TO_SHAPE`. Reduction input is
+positive-rank; full, normalized single-axis, ordered normalized multi-axis including empty, and
+keep-dimensions outputs may be rank zero. Strict affine outputs retain their exact resolved Model
+view descriptors, while NEG, ABS, `CONTIGUOUS`, accelerator binary, and reduction outputs are
+canonical. Strict binary/reduction and accelerator baseline operations return false. Metal's
+occurrence-level answer is independent of native availability and constant provenance; it allows
+Planning to form one maximal profile-homogeneous Metal-owned partition that Metal preparation must
+accept as a whole. The package-private hard-eligibility step is the first internal planning
+consumer. Compile-time plans retain `BackendId`, not a provider object.
 
 ### Backend hard eligibility
 
@@ -2422,8 +2424,10 @@ for the synchronous copy. The operation neither selects a publication nor perfor
 conversion, synchronization, Tensor construction, or cross-backend materialization. Completed
 Engine task 0004 composes that inward SPI behind
 `RunResult.materialize(publication, maximumBytes)` and wraps each fresh copy in an immutable
-`HostTensorValue`. Explicit Metal composition supplies its own canonical `FLOAT32` download; this
-is selected-adapter materialization, not a cross-backend transfer promise. See
+`HostTensorValue`. Explicit Metal composition supplies its own canonical `FLOAT32` download,
+including exactly four bytes for a locally produced scalar reduction target; this is
+selected-adapter materialization, not a cross-backend transfer promise. Metal caller ingress and
+CPU/Metal transfer remain positive-rank. See
 [canonical caller-owned host snapshots](backend-guide/cpu-backend.md#canonical-caller-owned-host-snapshots).
 
 ### Canonical workload signature
@@ -2442,14 +2446,14 @@ compatibility projection, and Engine's representative execution are implemented.
 Engine path produces the sole occurrence-0/partition-0/weight-1 mapping. Model extraction and
 multiple-occurrence aggregation remain planned.
 
-The profile-qualified Metal instance is also implemented internally. Its version-seven fingerprint
-covers the exact `NumericalProfile`, node schema 6, typed exact ABS in either profile, strict
-NEG/affine/`CONTIGUOUS` or accelerator tensor-binary nodes, ordered structural operand/output
-positions, descriptors, value states, exact splat bits, logical-boundary facts, candidate/route
-schemas, and native ABI. Target compatibility separately includes the exact live
-`MetalDeviceContext` session nonce; ABI version `4` is not a stable cross-session device
-fingerprint. It currently supports only backend-local construction and authentication, not the
-tools-owned workload cache.
+The profile-qualified Metal instance is also implemented internally. Its version-eight fingerprint
+covers the exact `NumericalProfile`, node schema 7, typed exact ABS in either profile, strict
+NEG/affine/`CONTIGUOUS` or accelerator tensor-binary/reduction nodes, reduction form, ordered
+axes, keep-dimensions state and sum-to-Shape target, ordered structural operand/output positions,
+descriptors, value states, exact splat bits, logical-boundary facts, candidate/route schemas, and
+native ABI. Target compatibility separately includes the exact live `MetalDeviceContext` session
+nonce; ABI version `4` is not a stable cross-session device fingerprint. It currently supports
+only backend-local construction and authentication, not the tools-owned workload cache.
 
 ### Candidate generator
 
@@ -2468,8 +2472,8 @@ occurrences and broader Compiler/Planning candidate orchestration remain planned
 Profile-qualified Metal preparation has a second internal generator. It emits the custom
 singleton-NEG heuristic first, followed by MPSGraph, only for an eligible strict singleton NEG.
 MPSGraph is the sole candidate for every ABS partition, every other supported strict partition,
-and every accelerator ABS/binary partition. Positive budgets return stable complete prefixes, and
-generation performs no native allocation.
+and every accelerator ABS/binary/reduction partition. Positive budgets return stable complete
+prefixes, and generation performs no native allocation.
 
 ### Candidate batch
 
@@ -2488,8 +2492,8 @@ batch as a plan batch would incorrectly repeat local route search.
 
 The profile-qualified Metal batch is session-scoped. It contains only `CUSTOM_SINGLE_NEG` and
 `MPSGRAPH` configurations complete for the validated partition and profile. Compatibility,
-candidate, and route-policy schemas are version seven, and no private field crosses the marker-role
-boundary.
+candidate, and route-policy schemas are version eight, and no private field crosses the
+marker-role boundary.
 
 ### Complete-plan candidate
 
@@ -2528,9 +2532,9 @@ decision contains no measurement, cache representation, executable, provider, na
 physical resource, or Runtime state.
 
 The profile-qualified Metal decision follows the same owner-defined pattern with a bounded
-checksummed version-seven session codec. Fresh Metal analysis regenerates current profile/topology
+checksummed version-eight session codec. Fresh Metal analysis regenerates current profile/topology
 facts and accepts a selection only when schema, workload, exact context session, and candidate
-identity match. Decode rejects malformed, corrupt, trailing, stale, foreign-session, version-six
+identity match. Decode rejects malformed, corrupt, trailing, stale, foreign-session, version-seven
 and earlier, cross-profile, and unknown-candidate bytes. These bytes are not a persistent
 workload-cache artifact and have no current `tools/tuning` adapter.
 
@@ -2882,9 +2886,9 @@ unchanged through Planning queries, Compiler artifacts, Prepare projections, and
 plan/cache identity. Selection is explicit, graph-wide, and cold rather than inferred from
 hardware, provider availability, workload size, tuning, or benchmark evidence. CPU currently
 realizes both profiles with identical exact behavior and routes. Metal retains strict
-NEG/affine/`CONTIGUOUS` and realizes only tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV` under
-`ACCELERATOR`; every unsupported pair fails closed. No backend currently advertises the wider
-reduction result set.
+NEG/affine/`CONTIGUOUS` and realizes tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV` plus canonical
+`SUM`/`MEAN`/`SUM_TO_SHAPE` reductions under `ACCELERATOR`; every unsupported pair fails closed.
+Both Metal profiles also admit exact canonical ABS.
 
 ### Scalar-power realization
 
@@ -4939,8 +4943,9 @@ allocation, executable construction, slot assignment, scheduling, or Runtime exe
 CPU and Metal modules implement this collaboration internally for their supported complete
 partitions. Each receives the exact graph-wide `NumericalProfile`; CPU retains either profile with
 identical routes, while Metal accepts exact canonical ABS under both profiles, strict
-NEG/affine/`CONTIGUOUS`, or accelerator tensor-binary topology. Their exact supported matrices are
-described in the CPU and Metal backend guides.
+NEG/affine/`CONTIGUOUS`, or accelerator tensor-binary and canonical
+`SUM`/`MEAN`/`SUM_TO_SHAPE` reduction topology. Their exact supported matrices are described in
+the CPU and Metal backend guides.
 
 ### Preparation resource assignment
 
@@ -5114,17 +5119,17 @@ The current Metal backend's package-private, shape-specialized Runtime recipe fo
 maximal profile-homogeneous partition. Both profiles admit exact canonical `ABS`. A strict recipe
 additionally contains supported `NEG`, `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`,
 and `CONTIGUOUS`; an accelerator recipe additionally contains canonical tensor `ADD`, `SUB`,
-`MUL`, and `DIV`. Metal analysis fixes stable feed, target, and structural value order, lowers
-node-schema-6 fixed-width typed records, generates a complete version-seven route batch,
-authenticates any supplied session decision, then fixes a closed private route before declaring
-shared resources.
+`MUL`, and `DIV`, plus canonical `SUM`, `MEAN`, and binding-resolved `SUM_TO_SHAPE`. Metal
+analysis fixes stable feed, target, and structural value order, lowers node-schema-7 fixed-width
+typed records, generates a complete version-eight route batch, authenticates any supplied session
+decision, then fixes a closed private route before declaring shared resources.
 
 With no decision, an exact strict singleton `NEG` with one feed, one target, and checked element
 count in `1..UINT32_MAX` selects the custom route; every ABS partition and every other supported
 partition selects MPSGraph. An eligible strict singleton can instead use an authenticated
-MPSGraph decision. Java profile preflight rejects every profile-incompatible record before native
-entry. This boundary does not change capability, fallback, retry, or partitioning and makes no
-performance claim.
+MPSGraph decision. Java profile and reduction-geometry preflight rejects every incompatible record
+before native entry. This boundary does not change capability, fallback, retry, or partitioning
+and makes no performance claim.
 
 After shared slot assignment, Metal finalization compiles either the fixed branch-free custom
 FLOAT32 NEG pipeline or one typed whole-partition `MPSGraphExecutable` and returns its owner as a
@@ -5136,8 +5141,10 @@ custom runs retain direct typed input and output references with no workspace.
 Affine results retain exact logical view descriptors but receive distinct full-logical-size Metal
 targets in canonical logical coordinate order. Materialization accepts that dense physical
 representation only with exact finalized-route, target, descriptor, context, and byte-extent
-authentication. It produces detached raw-bit-preserving canonical host bytes and does not widen
-canonical-non-view-only CPU/Metal transfer, establish source aliasing, or enable affine chaining.
+authentication. It also accepts a locally produced canonical scalar reduction target as exactly
+four detached bytes. Both paths produce detached raw-bit-preserving canonical host bytes and do
+not widen positive-rank canonical-non-view-only CPU/Metal transfer, establish source aliasing, or
+enable affine chaining.
 
 Hot execution makes one route-specific synchronous native downcall. The custom route submits one
 command buffer and compute encoder, waits once, and writes the assigned `MTLBuffer` output without

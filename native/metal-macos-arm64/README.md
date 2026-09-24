@@ -5,11 +5,12 @@
 This directory builds the local application binary interface (ABI) used by the Synaptik Metal
 backend on Apple-silicon macOS. ABI version 4 retains context, shared-storage buffer, executable,
 and bounded custom singleton-`NEG` ownership. Its versioned typed whole-partition MPSGraph program
-uses node schema 6. Under Java's profile-qualified preflight, both profiles support exact
+uses node schema 7. Under Java's profile-qualified preflight, both profiles support exact
 canonical `ABS`; `STRICT_IEEE` additionally supports `NEG`, `RESHAPE`, `EXPAND`, `PERMUTE`,
-`EXPAND_DIMS`, `SQUEEZE`, and the explicit `CONTIGUOUS` canonicalization barrier;
-`ACCELERATOR` additionally supports tensor `ADD`, `SUB`, `MUL`, and `DIV`. No symbol or
-ABI-signature change was required.
+`EXPAND_DIMS`, `SQUEEZE`, and the explicit `CONTIGUOUS` canonicalization barrier.
+`ACCELERATOR` additionally supports tensor `ADD`, `SUB`, `MUL`, and `DIV`, plus canonical
+`FLOAT32` `SUM`, `MEAN`, and binding-resolved `SUM_TO_SHAPE`. No symbol or ABI-signature change
+was required.
 
 ```text
 Java analysis -> choose custom singleton or MPSGraph route -> declare exact resources
@@ -64,21 +65,22 @@ accepts only `1..UINT32_MAX`; it returns unsupported shape outside that domain r
 narrowing the value. Created handles use caller-supplied output cells, which remain null on
 failure.
 
-The graph creator accepts node schema `6` and a bounded fixed-width table:
+The graph creator accepts node schema `7` and a bounded fixed-width table:
 
 ```c
 typedef struct {
-    uint32_t operation;       /* NEG=1, ADD=2, SUB=3, MUL=4, DIV=5,
-                                 affine=6..10, CONTIGUOUS=11, ABS=12 */
-    uint32_t attribute_kind;  /* NONE=0, TARGET_SHAPE=1, PERMUTATION=2, AXIS=3 */
+    uint32_t operation;       /* NEG=1, binaries=2..5, affine=6..10,
+                                 CONTIGUOUS=11, ABS=12, SUM=13, MEAN=14 */
+    uint32_t attribute_kind;  /* NONE=0, TARGET_SHAPE=1, PERMUTATION=2,
+                                 AXIS=3, REDUCTION=4 */
     uint32_t first_input;
     uint32_t second_input;    /* ordered binary input or UINT32_MAX */
     uint32_t output;
     uint32_t attribute_count;
-    uint32_t axis;            /* normalized axis or UINT32_MAX */
-    uint32_t reserved;        /* zero */
+    uint32_t axis;            /* normalized axis, reduction form, or UINT32_MAX */
+    uint32_t reserved;        /* reduction keep-dimensions flag; otherwise zero */
     uint64_t attribute_values[16];
-} SynaptikMetalMpsGraphNodeV6; /* exactly 160 bytes; payload begins at byte 32 */
+} SynaptikMetalMpsGraphNodeV7; /* exactly 160 bytes; payload begins at byte 32 */
 ```
 
 Its exact signature is:
@@ -88,29 +90,35 @@ int32_t synaptik_metal_mpsgraph_executable_create(
     void *context, uint32_t node_schema_version,
     uint32_t value_count, const uint32_t *value_ranks,
     const uint64_t *value_dimensions,
-    uint32_t node_count, const SynaptikMetalMpsGraphNodeV6 *nodes,
+    uint32_t node_count, const SynaptikMetalMpsGraphNodeV7 *nodes,
     uint32_t feed_count, const uint32_t *feed_indices,
     uint32_t target_count, const uint32_t *target_indices,
     void **out_executable);
 ```
 
 The dimension table has `value_count * 16` cells with used positive axes followed by zero padding.
-Feeds are unique canonical values available before node zero; nodes are topological and produce
-fresh values; targets are unique produced values. Native validation walks explicit unavailable,
-canonical, and affine-view states. `NEG` and `ABS` accept one canonical input, require equal input
-and output Shapes, and produce canonical state. Binary nodes accept two ordered canonical inputs,
-require exact right-aligned broadcasting to the declared output Shape, and produce canonical
-state. Affine nodes accept canonical or prior affine-view state and produce affine-view state.
-`CONTIGUOUS` accepts either available state and produces canonical state. No-attribute nodes
-require zero attribute count/payload and the axis sentinel. Target Shapes and complete
-permutations use `attribute_count` payload cells; axis forms use count one, the normalized `axis`,
-and a zero payload. Every other cell is zero or its required sentinel. Native validation checks
-exact operation/attribute pairing, ranks `1..16`, positive dimensions, target Shapes,
-permutations, axes, unary/binary/`CONTIGUOUS` Shape rules, and affine result geometry. Unknown
-operations, wrong sentinels, incompatible Shapes, unavailable or invalid value states, unused
-values, malformed indices or payloads, and wrong schema versions fail closed. Java separately
-authenticates the numerical profile and rejects every profile-incompatible program before the
-native create call.
+A declared value may be rank zero only when it is a locally produced reduction target. Feeds are
+unique positive-rank canonical values available before node zero; nodes are topological, take
+positive-rank inputs, and produce fresh values; targets are unique produced values. Native
+validation walks explicit unavailable, canonical, and affine-view states. `NEG` and `ABS` accept
+one canonical input, require equal input and output Shapes, and produce canonical state. Binary
+nodes accept two ordered canonical inputs, require exact right-aligned broadcasting to the declared
+output Shape, and produce canonical state. `SUM` and `MEAN` accept one canonical `FLOAT32` input.
+Their typed reduction form encodes full, one normalized axis, ordered distinct normalized axes
+including an empty identity list, or `SUM`-only sum-to-Shape dimensions, plus exact
+keep-dimensions state. Native validation derives and checks the exact output Shape and a positive
+term count; a rank-zero result must be a direct target and cannot feed another node. Affine nodes
+accept canonical or prior affine-view state and produce affine-view state. `CONTIGUOUS` accepts
+either available state and produces canonical state. No-attribute nodes require zero attribute
+count/payload and the axis sentinel. Target Shapes and complete permutations use
+`attribute_count` payload cells; axis forms use count one, the normalized `axis`, and a zero
+payload. Every other cell is zero or its required sentinel. Native validation checks exact
+operation/attribute pairing, ranks `0..16` under those role restrictions, positive dimensions,
+target Shapes, permutations, axes, unary/binary/reduction/`CONTIGUOUS` Shape rules, and affine
+result geometry. Unknown operations, wrong sentinels, incompatible Shapes, unavailable or invalid
+value states, unused values, malformed indices or payloads, and wrong schema versions fail closed.
+Java separately authenticates the numerical profile and rejects every profile-incompatible
+program before the native create call.
 
 ### Status values
 
@@ -138,12 +146,13 @@ exercise successful execution and do not manufacture framework failures.
 
 Creation consumes a validated, topologically ordered whole-partition description. Native code
 creates fixed-shape `FLOAT32` placeholders and lowers typed nodes to MPSGraph negation, absolute
-value, ordered addition, subtraction, multiplication, division,
+value, ordered addition, subtraction, multiplication, division, reduction sum, reduction mean,
 `reshapeTensor:withShape:name:`, `broadcastTensor:toShape:name:`,
 `transposeTensor:permutation:name:`, `expandDimsOfTensor:axis:name:`, or
-`squeezeTensor:axis:name:`. `CONTIGUOUS` uses same-Shape
-`reshapeTensor:withShape:name:`. Compilation explicitly requests no reduced-precision fast math
-where that descriptor control is available. It verifies every result Shape and compiles one
+`squeezeTensor:axis:name:`. `CONTIGUOUS` and empty-axis reduction identities use same-Shape
+`reshapeTensor:withShape:name:`; keep-dimensions and sum-to-Shape results are reshaped to the
+validated declared output. Compilation explicitly requests no reduced-precision fast math where
+that descriptor control is available. It verifies every result Shape and compiles one
 shape-specialized executable. The executable owner retains ordered feed and target Shapes, byte
 extents, stable-to-framework permutations, and the originating context.
 
@@ -160,7 +169,9 @@ storage.
 Affine-view targets are supplied full positive logical byte extents and receive canonical logical
 coordinate order. That dense physical choice is backend-private: logical view strides, offsets,
 and `isView` metadata remain unchanged, and it does not imply aliasing with the source.
-`CONTIGUOUS` targets use the ordinary canonical materialization path.
+`CONTIGUOUS` targets use the ordinary canonical materialization path. A rank-zero reduction target
+uses exactly one `FLOAT32` element and may be downloaded locally as exactly four canonical bytes;
+caller feeds and CPU/Metal transfer remain positive-rank.
 
 Java validates live typed handles and readable pointer arrays before native entry. The ABI cannot
 prove that an arbitrary non-null raw pointer is live, type-correct, or sufficiently sized;
@@ -181,9 +192,9 @@ at index `1`, creates one command buffer and one compute encoder, dispatches exa
 element count with `dispatchThreads`, and waits once for successful completion. The assigned
 output is written directly; the bridge performs no explicit host staging or intermediate output
 copy. Every ABS partition, every other supported strict partition including affine composition
-and `CONTIGUOUS`, and every accelerator ABS/binary partition uses the typed MPSGraph route. The
-route is selected once during analysis and is never retried, replaced, or repartitioned in
-finalization or execution. This private implementation-domain boundary is not capability
+and `CONTIGUOUS`, and every accelerator ABS/binary/reduction partition uses the typed MPSGraph
+route. The route is selected once during analysis and is never retried, replaced, or repartitioned
+in finalization or execution. This private implementation-domain boundary is not capability
 narrowing, tuning, fallback, or a performance claim.
 
 ## Ownership and concurrency
@@ -241,19 +252,25 @@ intermediate/direct targets, reuse, concurrency, independent contexts, input pre
 close rejection. Binary coverage executes each of `ADD`, `SUB`, `MUL`, and `DIV` separately with
 row, column, and scalar-tensor broadcasting, operand reversal, chains, fan-out, repeated operands,
 published intermediates, repeated runs, exact input preservation, and an independent bounded
-DAZ/FTZ/signed-zero/NaN raw-bit oracle. Public CPU-free Metal-only Engine cases repeat and
-independently prepare ABS under both profiles without a CPU owner.
+DAZ/FTZ/signed-zero/NaN raw-bit oracle. Reduction coverage executes full, single-axis,
+multi-axis, empty-axis identity, keep-dimensions, and binding-resolved sum-to-Shape forms; it
+checks scalar four-byte publication, direct targets, positive-rank ABS/binary composition,
+repeated and concurrent sessions, exact copy identities, and strict-profile rejection. Public
+CPU-free Metal-only Engine cases exercise the supported domains without a CPU owner.
 
 ## Boundaries
 
 The bridge itself implements no library discovery, packaging, Engine composition, mixed-owner
 schedule, CPU fallback, general custom-kernel framework, asynchronous API, buffer pool,
-persistent constant buffer, executable serialization, FLOAT16, BFLOAT16, reduction, unary algebra
-beyond exact profile-independent `ABS` and strict `NEG`, binary comparison/logical/scalar forms,
-MATMUL, backward execution, alias promise, or performance claim. Accelerator binary arithmetic
-does not imply strict IEEE subnormal preservation: inputs and results may be flushed to signed
-zero, exact ADD/SUB zero may use either sign, and NaN payload/sign are unspecified. ABS receives
-none of those relaxations. Affine composition adds no custom kernel.
+persistent constant buffer, executable serialization, FLOAT16, BFLOAT16, masked/extrema/product
+reductions, unary algebra beyond exact profile-independent `ABS` and strict `NEG`, binary
+comparison/logical/scalar forms, MATMUL, backward execution, alias promise, or performance claim.
+Accelerator arithmetic and reductions do not imply strict IEEE subnormal preservation: every
+input, intermediate, or result may apply Model-owned DAZ/FTZ; finite arithmetic may reassociate and
+fuse; NaN payload/sign are unspecified; and only a final exact-zero SUM/SUM_TO_SHAPE root with at
+least two terms or the mandatory final MEAN quotient may choose either zero sign. Empty-axis and
+one-term reduction identities remain exact copies. ABS receives none of those relaxations. Affine
+composition adds no custom kernel.
 The public Java Metal surface is `MetalCapabilityProvider`, `MetalBackendConfiguration`, and
 `MetalBackendIntegration`; Engine accepts an explicitly opened integration through
 `Engine.builder()`.

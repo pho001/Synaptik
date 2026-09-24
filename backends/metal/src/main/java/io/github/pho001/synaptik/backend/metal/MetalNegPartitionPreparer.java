@@ -16,6 +16,10 @@ import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
+import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis;
@@ -36,13 +40,16 @@ import java.util.Optional;
  * ordered operand, and derives unique feeds and targets before selecting a closed private route.
  * Under {@code STRICT_IEEE}, it walks explicit unavailable/canonical/affine-view states in node
  * order for the retained NEG/ABS, affine, and CONTIGUOUS domain. Under {@code ACCELERATOR}, it
- * accepts only ABS or binary nodes whose inputs and output are canonical. Every graph feed is
- * canonical. Analysis freshly regenerates the complete candidate batch; an absent decision
- * preserves the singleton-NEG heuristic, while a present decision must authenticate against
- * current schema, workload, profile, session target, and candidate identity. The selected route is
- * fixed before exact declarations. Published affine views retain logical descriptors while
- * declarations use full dense represented-order byte geometry. Analysis allocates no physical
- * resource and never changes partition ownership or capability.</p>
+ * accepts canonical ABS, binary arithmetic, and the exact SUM/MEAN/SUM_TO_SHAPE reduction forms.
+ * Reduction lowering retains the typed form, ordered normalized axes (including empty), exact
+ * keep-dimensions flag, sum-to-Shape target, and shape-derived term geometry in schema-seven
+ * records. Every graph feed is canonical positive-rank FLOAT32. Analysis freshly regenerates the
+ * complete candidate batch; an absent decision preserves the singleton-NEG heuristic, while a
+ * present decision must authenticate against current schema, workload, profile, session target,
+ * and candidate identity. The selected route is fixed before exact declarations. Published affine
+ * views retain logical descriptors while declarations use full dense represented-order byte
+ * geometry. Analysis allocates no physical resource and never changes partition ownership or
+ * capability.</p>
  */
 final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         MetalNegAnalysisInputs, MetalNegPreparationPlan> {
@@ -381,6 +388,31 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             };
             return MetalMpsGraphProgram.Node.binary(
                     nodeKind, inputs[0], inputs[1], output);
+        }
+        if (kind instanceof AggregateReductionKind reduction) {
+            MetalMpsGraphProgram.NodeKind nodeKind = reduction == AggregateReductionKind.SUM
+                    ? MetalMpsGraphProgram.NodeKind.SUM
+                    : MetalMpsGraphProgram.NodeKind.MEAN;
+            if (operation.attrs() == io.github.pho001.synaptik.model.operation.NoOperationAttrs.INSTANCE) {
+                return MetalMpsGraphProgram.Node.reduction(
+                        nodeKind, inputs[0], output,
+                        MetalMpsGraphProgram.ReductionForm.FULL, List.of(), false);
+            }
+            if (operation.attrs() instanceof AxisReductionAttrs attrs) {
+                return MetalMpsGraphProgram.Node.reduction(
+                        nodeKind, inputs[0], output,
+                        MetalMpsGraphProgram.ReductionForm.SINGLE_AXIS,
+                        List.of(attrs.axis()), attrs.keepDimensions());
+            }
+            if (operation.attrs() instanceof MultiAxisReductionAttrs attrs) {
+                return MetalMpsGraphProgram.Node.reduction(
+                        nodeKind, inputs[0], output,
+                        MetalMpsGraphProgram.ReductionForm.MULTI_AXIS,
+                        attrs.axes(), attrs.keepDimensions());
+            }
+            SumToShapeAttrs attrs = (SumToShapeAttrs) operation.attrs();
+            return MetalMpsGraphProgram.Node.sumToShape(
+                    inputs[0], output, attrs.targetShape().toLongArray());
         }
         if (kind == ContiguousKind.CONTIGUOUS) {
             return MetalMpsGraphProgram.Node.contiguous(inputs[0], output);

@@ -193,6 +193,115 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
+    void cpuFreeAcceleratorMetalRunsCanonicalReductionsAndScalarMaterialization()
+            throws Exception {
+        Path library = configuredMetalLibrary();
+        try (Arena arena = Arena.ofShared()) {
+            Tensor input = nativeTensor(
+                    descriptor(Shape.of(2, 3, 4)),
+                    arena,
+                    1.0f, 2.0f, 3.0f, 4.0f,
+                    5.0f, 6.0f, 7.0f, 8.0f,
+                    9.0f, 10.0f, 11.0f, 12.0f,
+                    13.0f, 14.0f, 15.0f, 16.0f,
+                    17.0f, 18.0f, 19.0f, 20.0f,
+                    21.0f, 22.0f, 23.0f, 24.0f);
+            Tensor fullSum = input.sum();
+            Tensor fullMean = input.mean();
+            Tensor axisMean = input.mean(1);
+            Tensor axisSumKeep = input.sum(new int[] {2}, true);
+            Tensor multiMean = input.mean(new int[] {2, 0}, false);
+            Tensor emptyIdentity = input.sum(new int[0]);
+            Tensor sumTo = input.sumToShape(Shape.of(1, 4));
+            Tensor composed = axisMean.abs().add(sumTo);
+            List<Tensor> publications = List.of(
+                    fullSum,
+                    fullMean,
+                    axisMean,
+                    axisSumKeep,
+                    multiMean,
+                    emptyIdentity,
+                    sumTo,
+                    composed);
+
+            try (Engine.Builder strictBuilder = Engine.builder()) {
+                strictBuilder.takeOwnership(MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library)));
+                try (Engine strictEngine = strictBuilder.build()) {
+                    IllegalStateException failure = assertThrows(
+                            IllegalStateException.class,
+                            () -> strictEngine.compile(publications));
+                    assertTrue(failure.getMessage().contains(
+                            "no hard-eligible backend is available for ownership selection"));
+                }
+            }
+
+            try (Engine.Builder builder = Engine.builder()) {
+                builder.numericalProfile(NumericalProfile.ACCELERATOR);
+                builder.takeOwnership(MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library)));
+                try (Engine engine = builder.build()) {
+                    var compiled = engine.compile(publications);
+                    assertEquals(
+                            List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(compiled));
+                    List<Tensor> inputs = List.of(input);
+
+                    InferenceSession first = engine.session(compiled);
+                    try (InferenceSession independent = engine.session(compiled)) {
+                        Object firstPublication;
+                        try (var initial = first.run(inputs)) {
+                            assertReductionResults(initial);
+                            firstPublication = EngineMixedOwnerTestAccess
+                                    .runOwnedIdentities(initial)
+                                    .publications()
+                                    .getFirst();
+                        }
+                        try (var reused = first.run(inputs)) {
+                            assertReductionResults(reused);
+                            assertNotSame(firstPublication, EngineMixedOwnerTestAccess
+                                    .runOwnedIdentities(reused)
+                                    .publications()
+                                    .getFirst());
+                        }
+
+                        CountDownLatch ready = new CountDownLatch(2);
+                        CountDownLatch start = new CountDownLatch(1);
+                        try (var executor = Executors.newFixedThreadPool(2)) {
+                            var left = executor.submit(() -> {
+                                ready.countDown();
+                                start.await();
+                                try (var result = first.run(inputs)) {
+                                    assertReductionResults(result);
+                                }
+                                return null;
+                            });
+                            var right = executor.submit(() -> {
+                                ready.countDown();
+                                start.await();
+                                try (var result = independent.run(inputs)) {
+                                    assertReductionResults(result);
+                                }
+                                return null;
+                            });
+                            assertTrue(ready.await(10, TimeUnit.SECONDS));
+                            start.countDown();
+                            left.get(30, TimeUnit.SECONDS);
+                            right.get(30, TimeUnit.SECONDS);
+                        }
+
+                        first.close();
+                        assertTrue(first.isClosed());
+                        assertThrows(IllegalStateException.class, () -> first.run(inputs));
+                    } finally {
+                        first.close();
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     void cpuFreeMetalEngineExecutesExactAbsLifecycleUnderBothProfiles() {
         Path library = configuredMetalLibrary();
         int[] inputBits = {
@@ -844,6 +953,43 @@ final class EngineExplicitCompositionMetalIntegrationTest {
 
     private static float strictExp(float value) {
         return (float) StrictMath.exp(value);
+    }
+
+    private static void assertReductionResults(
+            io.github.pho001.synaptik.engine.RunResult result) {
+        assertEquals(8, result.resultCount());
+        assertPublication(result, 0, 300.0f);
+        assertPublication(result, 1, 12.5f);
+        assertPublication(result, 2,
+                5.0f, 6.0f, 7.0f, 8.0f,
+                17.0f, 18.0f, 19.0f, 20.0f);
+        assertPublication(result, 3,
+                10.0f, 26.0f, 42.0f,
+                58.0f, 74.0f, 90.0f);
+        assertPublication(result, 4, 8.5f, 12.5f, 16.5f);
+        assertPublication(result, 5,
+                1.0f, 2.0f, 3.0f, 4.0f,
+                5.0f, 6.0f, 7.0f, 8.0f,
+                9.0f, 10.0f, 11.0f, 12.0f,
+                13.0f, 14.0f, 15.0f, 16.0f,
+                17.0f, 18.0f, 19.0f, 20.0f,
+                21.0f, 22.0f, 23.0f, 24.0f);
+        assertPublication(result, 6, 66.0f, 72.0f, 78.0f, 84.0f);
+        assertPublication(result, 7,
+                71.0f, 78.0f, 85.0f, 92.0f,
+                83.0f, 90.0f, 97.0f, 104.0f);
+    }
+
+    private static void assertPublication(
+            io.github.pho001.synaptik.engine.RunResult result,
+            int publicationIndex,
+            float... expected) {
+        assertCanonical(
+                result.materialize(
+                        result.publications().get(publicationIndex),
+                        Math.multiplyExact((long) expected.length, Float.BYTES))
+                        .bytes(),
+                expected);
     }
 
 

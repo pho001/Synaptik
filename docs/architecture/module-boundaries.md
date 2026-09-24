@@ -47,8 +47,9 @@ classification, and finite nonzero results retain their contracts. The semantic 
 identity, cold propagation spine, and first backend realizations are current. CPU supports both
 profiles identically with exact current behavior. Metal supports exact canonical `ABS` under both
 profiles, keeps NEG/affine/`CONTIGUOUS` strict-only, and supports tensor FLOAT32
-`ADD`/`SUB`/`MUL`/`DIV` only under `ACCELERATOR`; unsupported pairs fail closed. No backend
-currently advertises the wider reduction result set.
+`ADD`/`SUB`/`MUL`/`DIV` plus canonical FLOAT32 `SUM`/`MEAN`/`SUM_TO_SHAPE` only under
+`ACCELERATOR`; unsupported pairs fail closed. Rank-zero Metal support is local to produced
+reduction targets and does not widen caller ingress or transfer.
 
 The current Model fixed recurrent scan follows this same flat boundary. Model owns the fixed
 `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM` meanings, one `FORWARD` or `REVERSE` attribute, ordered

@@ -57,8 +57,11 @@ transfers for fully static canonical contiguous `FLOAT32` values.
 CPU realizes both numerical profiles through identical exact behavior and routes. Metal execution
 is profile-qualified: both profiles admit exact canonical `FLOAT32` `ABS`; strict additionally
 admits `NEG`, locally composed affine layouts, and explicit `CONTIGUOUS`; accelerator additionally
-admits canonical tensor `FLOAT32` `ADD`, `SUB`, `MUL`, and `DIV` under bounded DAZ/FTZ. The custom
-Metal route remains reserved for an eligible strict singleton NEG.
+admits canonical tensor `FLOAT32` `ADD`, `SUB`, `MUL`, and `DIV`, plus canonical
+`SUM`/`MEAN`/`SUM_TO_SHAPE` reductions, under the Model-owned bounded profile. Locally produced
+scalar reduction targets materialize as four bytes, while caller ingress and CPU/Metal transfer
+remain positive-rank. The custom Metal route remains reserved for an eligible strict singleton
+NEG.
 
 The Training extension now owns a public reusable
 Engine-backed scalar session with persistent SGD, accumulation, and detached in-memory state over

@@ -200,6 +200,10 @@ references and performs exactly one native copy when invoked. Other ranks, zero 
 types, layouts, directions, conversion, canonical-byte materialization, and heap staging are
 unsupported and must fail before backend analysis.
 
+A locally produced canonical rank-zero `FLOAT32` reduction target may materialize through the
+owning Metal integration as exactly four detached canonical bytes. It remains ineligible as a
+caller feed or cross-owner transfer value and may not widen the transfer predicate above.
+
 Metal-specific optimizer execution belongs to Metal backend prepare/kernels, not to training.
 
 Do not add `MetalOptimizerBridge` to `extensions/training`.
@@ -246,8 +250,11 @@ missing scope requires an explicit architecture update.
 A concrete backend must qualify capability, preparation plans, specialization, generated
 artifacts, tuning candidates and decisions, and cache compatibility by the exact selected
 `NumericalProfile`. CPU currently supports both profiles through one identical exact matrix and
-unchanged routes. Metal supports exact canonical FLOAT32 `ABS` under both profiles, strict-only
-NEG/affine/`CONTIGUOUS`, and accelerator-only tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV` under the
-Model-owned bounded DAZ/FTZ set; every other unsupported profile/operation pair rejects before
-route selection. Transporting the identity does not authorize any result outside the Model-owned
-set.
+unchanged routes. Metal supports exact canonical FLOAT32 `ABS` under both profiles and
+strict-only NEG/affine/`CONTIGUOUS`. Its accelerator-only set is tensor FLOAT32
+`ADD`/`SUB`/`MUL`/`DIV` plus canonical FLOAT32 `SUM`, `MEAN`, and binding-resolved
+`SUM_TO_SHAPE` over full, normalized single-axis, ordered normalized multi-axis including empty,
+and exact keep-dimensions forms. Those accelerator operations use only the Model-owned bounded
+DAZ/FTZ, reassociation/FMA, NaN, and reduction-root exact-zero freedoms; every other unsupported
+profile/operation pair rejects before route selection. Transporting the identity does not
+authorize any result outside the Model-owned set.

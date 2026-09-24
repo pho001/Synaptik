@@ -24,7 +24,7 @@ class MetalMpsGraphRawAbiNativeTest {
     private static final Consumer<MemorySegment> UNCHANGED = ignored -> { };
 
     @Test
-    void rawVersionSixRecordRejectsEveryMalformedHeaderAndUnusedField() {
+    void rawVersionSevenRecordRejectsEveryMalformedHeaderAndUnusedField() {
         try (RawAbi abi = RawAbi.open()) {
             MetalMpsGraphProgram reshape = new MetalMpsGraphProgram(List.of(
                     MetalMpsGraphProgram.Node.targetShape(
@@ -68,7 +68,9 @@ class MetalMpsGraphRawAbiNativeTest {
                     ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
             abi.assertRejected("stale schema version five", INVALID_ARGUMENT, 5,
                     ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
-            abi.assertRejected("unknown schema version seven", INVALID_ARGUMENT, 7,
+            abi.assertRejected("stale schema version six", INVALID_ARGUMENT, 6,
+                    ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
+            abi.assertRejected("unknown schema version eight", INVALID_ARGUMENT, 8,
                     ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
         }
     }
@@ -201,6 +203,136 @@ class MetalMpsGraphRawAbiNativeTest {
             abi.assertRejected("contiguous payload", rankTwo,
                     contiguousDimensions, contiguous, new int[] {0}, new int[] {1},
                     record -> record.set(JAVA_LONG, 32L, 1L));
+        }
+    }
+
+    @Test
+    void rawReductionRecordsRejectMalformedFormsGeometryAndScalarTopology() {
+        try (RawAbi abi = RawAbi.open()) {
+            int[] singleRanks = {3, 2};
+            long[] singleDimensions =
+                    dimensions(new long[][] {{2, 3, 4}, {2, 4}});
+            MetalMpsGraphProgram single = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.reduction(
+                            MetalMpsGraphProgram.NodeKind.SUM,
+                            0,
+                            1,
+                            MetalMpsGraphProgram.ReductionForm.SINGLE_AXIS,
+                            List.of(1),
+                            false)));
+            abi.assertRejected("reduction attribute discriminator", singleRanks,
+                    singleDimensions, single, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_INT, 4L, 0));
+            abi.assertRejected("unknown reduction form", singleRanks,
+                    singleDimensions, single, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_INT, 24L, 99));
+            abi.assertRejected("reduction keep flag exceeds boolean", singleRanks,
+                    singleDimensions, single, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_INT, 28L, 2));
+            abi.assertRejected("single-axis count is not one", singleRanks,
+                    singleDimensions, single, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_INT, 20L, 0));
+            abi.assertRejected("single-axis value is out of range", singleRanks,
+                    singleDimensions, single, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_LONG, 32L, 3L));
+            abi.assertRejected("single-axis keep shape disagrees", singleRanks,
+                    singleDimensions, single, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_INT, 28L, 1));
+
+            int[] multiRanks = {3, 1};
+            long[] multiDimensions =
+                    dimensions(new long[][] {{2, 3, 4}, {3}});
+            MetalMpsGraphProgram multi = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.reduction(
+                            MetalMpsGraphProgram.NodeKind.MEAN,
+                            0,
+                            1,
+                            MetalMpsGraphProgram.ReductionForm.MULTI_AXIS,
+                            List.of(2, 0),
+                            false)));
+            abi.assertRejected("duplicate multi-axis value", multiRanks,
+                    multiDimensions, multi, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_LONG, 40L, 2L));
+            abi.assertRejected("multi-axis value is out of range", multiRanks,
+                    multiDimensions, multi, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_LONG, 40L, 3L));
+            abi.assertRejected("unused multi-axis payload", multiRanks,
+                    multiDimensions, multi, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_LONG, 48L, 1L));
+            abi.assertRejected("multi-axis output shape disagrees",
+                    new int[] {3, 1},
+                    dimensions(new long[][] {{2, 3, 4}, {2}}),
+                    multi, new int[] {0}, new int[] {1}, UNCHANGED);
+
+            MetalMpsGraphProgram full = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.reduction(
+                            MetalMpsGraphProgram.NodeKind.SUM,
+                            0,
+                            1,
+                            MetalMpsGraphProgram.ReductionForm.FULL,
+                            List.of(),
+                            false)));
+            int[] fullRanks = {3, 0};
+            long[] fullDimensions =
+                    dimensions(new long[][] {{2, 3, 4}, {}});
+            abi.assertRejected("full reduction keep flag", fullRanks,
+                    fullDimensions, full, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_INT, 28L, 1));
+            abi.assertRejected("full reduction count", fullRanks,
+                    fullDimensions, full, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_INT, 20L, 1));
+            abi.assertRejected("full reduction unused payload", fullRanks,
+                    fullDimensions, full, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_LONG, 32L, 1L));
+            abi.assertRejected("full reduction output is not scalar",
+                    new int[] {3, 1},
+                    dimensions(new long[][] {{2, 3, 4}, {1}}),
+                    full, new int[] {0}, new int[] {1}, UNCHANGED);
+
+            MetalMpsGraphProgram sumTo = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.sumToShape(
+                            0, 1, new long[] {1, 4})));
+            int[] sumToRanks = {3, 2};
+            long[] sumToDimensions =
+                    dimensions(new long[][] {{2, 3, 4}, {1, 4}});
+            abi.assertRejected("sum-to-Shape is SUM only", sumToRanks,
+                    sumToDimensions, sumTo, new int[] {0}, new int[] {1},
+                    record -> record.set(
+                            JAVA_INT, 0L,
+                            MetalMpsGraphProgram.NodeKind.MEAN.wireIdentity()));
+            abi.assertRejected("sum-to-Shape target payload is positive and exact", sumToRanks,
+                    sumToDimensions, sumTo, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_LONG, 32L, 0L));
+            abi.assertRejected("sum-to-Shape target must right-align to source", sumToRanks,
+                    sumToDimensions, sumTo, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_LONG, 32L, 2L));
+
+            abi.assertRejected("rank-zero feed is forbidden", INVALID_ARGUMENT,
+                    new int[] {0, 0},
+                    dimensions(new long[][] {{}, {}}),
+                    new MetalMpsGraphProgram(List.of(
+                            MetalMpsGraphProgram.Node.reduction(
+                                    MetalMpsGraphProgram.NodeKind.SUM,
+                                    0,
+                                    1,
+                                    MetalMpsGraphProgram.ReductionForm.MULTI_AXIS,
+                                    List.of(),
+                                    false))),
+                    new int[] {0}, new int[] {1}, UNCHANGED);
+
+            MetalMpsGraphProgram scalarConsumer = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.reduction(
+                            MetalMpsGraphProgram.NodeKind.SUM,
+                            0,
+                            1,
+                            MetalMpsGraphProgram.ReductionForm.FULL,
+                            List.of(),
+                            false),
+                    MetalMpsGraphProgram.Node.abs(1, 2)));
+            abi.assertRejected("rank-zero reduction must be a direct target",
+                    new int[] {3, 0, 0},
+                    dimensions(new long[][] {{2, 3, 4}, {}, {}}),
+                    scalarConsumer, new int[] {0}, new int[] {2}, UNCHANGED);
         }
     }
 
@@ -354,7 +486,7 @@ class MetalMpsGraphRawAbiNativeTest {
             MetalMpsGraphProgram neg = new MetalMpsGraphProgram(List.of(
                     MetalMpsGraphProgram.Node.neg(0, 1)));
 
-            abi.assertRejected("rank zero", UNSUPPORTED_SHAPE,
+            abi.assertRejected("rank-zero feed", INVALID_ARGUMENT,
                     new int[] {0, 1},
                     dimensions(new long[][] {{}, {1}}),
                     neg, new int[] {0}, new int[] {1}, UNCHANGED);

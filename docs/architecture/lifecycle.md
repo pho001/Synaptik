@@ -400,5 +400,6 @@ Engine selection -> Planning query -> CompileArtifacts -> PrepareContext -> back
 
 The same graph-wide `NumericalProfile` crosses these cold stages unchanged. CPU realizes both
 profiles identically. Metal accepts exact canonical `ABS` in both matrices, strict
-NEG/affine/`CONTIGUOUS`, and accelerator tensor binary. Unsupported profile/operation pairs fail
-closed before Runtime, which executes the prepared result with no profile branch.
+NEG/affine/`CONTIGUOUS`, and accelerator tensor binary plus canonical
+`SUM`/`MEAN`/`SUM_TO_SHAPE` reductions. Unsupported profile/operation pairs fail closed before
+Runtime, which executes the prepared result with no profile branch.

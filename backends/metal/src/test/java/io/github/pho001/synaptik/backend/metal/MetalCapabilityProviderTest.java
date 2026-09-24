@@ -19,6 +19,11 @@ import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueA
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
+import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.MaskedReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -203,6 +208,89 @@ class MetalCapabilityProviderTest {
     }
 
     @Test
+    void acceleratorReductionMatrixIsExactAndStrictRemainsClosed() {
+        TensorDescriptor input = descriptor(Shape.of(2, 3, 4), false);
+        TensorDescriptor scalar = descriptor(Shape.scalar(), false);
+        assertTrue(provider.supports(reductionQuery(
+                NumericalProfile.ACCELERATOR,
+                AggregateReductionKind.SUM,
+                NoOperationAttrs.INSTANCE,
+                input,
+                scalar)));
+        assertFalse(provider.supports(reductionQuery(
+                NumericalProfile.STRICT_IEEE,
+                AggregateReductionKind.SUM,
+                NoOperationAttrs.INSTANCE,
+                input,
+                scalar)));
+        assertTrue(provider.supports(reductionQuery(
+                NumericalProfile.ACCELERATOR,
+                AggregateReductionKind.MEAN,
+                new AxisReductionAttrs(1, true),
+                input,
+                descriptor(Shape.of(2, 1, 4), false))));
+        assertTrue(provider.supports(reductionQuery(
+                NumericalProfile.ACCELERATOR,
+                AggregateReductionKind.SUM,
+                new MultiAxisReductionAttrs(List.of(2, 0), false),
+                input,
+                descriptor(Shape.of(3), false))));
+        assertTrue(provider.supports(reductionQuery(
+                NumericalProfile.ACCELERATOR,
+                AggregateReductionKind.MEAN,
+                new MultiAxisReductionAttrs(List.of(), true),
+                input,
+                input)));
+        assertTrue(provider.supports(reductionQuery(
+                NumericalProfile.ACCELERATOR,
+                AggregateReductionKind.SUM,
+                new SumToShapeAttrs(Shape.of(1, 4)),
+                input,
+                descriptor(Shape.of(1, 4), false))));
+
+        TensorDescriptor view = new TensorDescriptor(
+                DataType.FLOAT32,
+                input.shape(),
+                Optional.of(LayoutDescriptor.of(
+                        input.shape(), new long[] {12, 4, 1}, 0L, true)),
+                false);
+        TensorDescriptor mask = new TensorDescriptor(
+                DataType.BOOL,
+                Shape.of(3),
+                Optional.of(LayoutDescriptor.contiguous(Shape.of(3))),
+                false);
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                new Operation(AggregateReductionKind.SUM, new MaskedReductionAttrs(1)),
+                List.of(input, mask),
+                List.of(descriptor(Shape.of(2, 4), false)))));
+        assertFalse(provider.supports(reductionQuery(
+                NumericalProfile.ACCELERATOR,
+                AggregateReductionKind.SUM,
+                new AxisReductionAttrs(3, false),
+                input,
+                descriptor(Shape.of(2, 3), false))));
+        assertFalse(provider.supports(reductionQuery(
+                NumericalProfile.ACCELERATOR,
+                AggregateReductionKind.SUM,
+                new SumToShapeAttrs(Shape.of(2, 2)),
+                input,
+                descriptor(Shape.of(2, 2), false))));
+        assertFalse(provider.supports(reductionQuery(
+                NumericalProfile.ACCELERATOR,
+                AggregateReductionKind.SUM,
+                NoOperationAttrs.INSTANCE,
+                view,
+                scalar)));
+        assertFalse(provider.supports(reductionQuery(
+                NumericalProfile.ACCELERATOR,
+                AggregateReductionKind.SUM,
+                NoOperationAttrs.INSTANCE,
+                scalar,
+                scalar)));
+    }
+
+    @Test
     void rejectsNullWithTheContractMessage() {
         var failure = assertThrows(NullPointerException.class, () -> provider.supports(null));
         assertEquals("query", failure.getMessage());
@@ -235,6 +323,19 @@ class MetalCapabilityProviderTest {
                 profile,
                 new Operation(kind, NoOperationAttrs.INSTANCE),
                 List.of(left, right),
+                List.of(output));
+    }
+
+    private static OperationCapabilityQuery reductionQuery(
+            NumericalProfile profile,
+            AggregateReductionKind kind,
+            io.github.pho001.synaptik.model.operation.OperationAttrs attrs,
+            TensorDescriptor input,
+            TensorDescriptor output) {
+        return new OperationCapabilityQuery(
+                profile,
+                new Operation(kind, attrs),
+                List.of(input),
                 List.of(output));
     }
 

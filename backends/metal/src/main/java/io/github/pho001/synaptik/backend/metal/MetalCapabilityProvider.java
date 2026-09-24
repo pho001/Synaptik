@@ -14,6 +14,10 @@ import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
+import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
@@ -28,14 +32,17 @@ import java.util.Objects;
  * registration, or caching. Under {@link NumericalProfile#STRICT_IEEE}, support is exactly unary
  * {@code NEG} and {@code ABS}, five FLOAT32 affine transforms, and the explicit {@code CONTIGUOUS}
  * canonicalization barrier. Under {@link NumericalProfile#ACCELERATOR}, support is exactly unary
- * {@code ABS} plus tensor {@code ADD}, {@code SUB}, {@code MUL}, and {@code DIV}; every other
- * strict baseline operation remains closed. Binary inputs and outputs are canonical dense
- * non-views with exact right-aligned broadcasting. {@code ABS} and strict {@code NEG} descriptors
- * remain canonical. A strict affine or contiguous input may be canonical or an exact resolved
+ * {@code ABS}, tensor {@code ADD}/{@code SUB}/{@code MUL}/{@code DIV}, and canonical FLOAT32
+ * {@code SUM}/{@code MEAN}/{@code SUM_TO_SHAPE}. Accelerator reductions admit only full,
+ * normalized single-axis, ordered normalized multi-axis (including empty identity), and
+ * binding-resolved sum-to-Shape forms. Their input is canonical positive-rank {@code 1..16};
+ * canonical outputs may be rank zero only as locally produced reduction results. Strict
+ * reductions remain unsupported. Binary inputs and outputs are canonical dense non-views with
+ * exact right-aligned broadcasting. {@code ABS} and strict {@code NEG} descriptors remain
+ * canonical. A strict affine or contiguous input may be canonical or an exact resolved
  * zero-offset logical view; complete-partition analysis authenticates every admitted view as a
- * prior local affine result. Affine outputs retain the exact inferred view descriptor, while
- * {@code CONTIGUOUS} outputs are canonical. Every admitted occurrence is fully static, has
- * positive rank-1..16 checked geometry, and preserves one common gradient-eligibility flag.</p>
+ * prior local affine result. Every admitted occurrence uses checked positive extents and
+ * preserves one common gradient-eligibility flag.</p>
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
     /**
@@ -108,6 +115,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 return supportsCanonicalUnary(operation, inputs, output);
             }
             if (numericalProfile == NumericalProfile.ACCELERATOR) {
+                if (operation.kind() instanceof AggregateReductionKind reduction) {
+                    return supportsReduction(operation, inputs, output, reduction);
+                }
                 return supportsBinary(operation, inputs, output);
             }
             if (operation.kind() == UnaryElementwiseKind.NEG) {
@@ -153,6 +163,70 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 && left.requiresGrad() == right.requiresGrad()
                 && left.requiresGrad() == output.requiresGrad()
                 && ShapeBroadcast.broadcast(left.shape(), right.shape()).equals(output.shape());
+    }
+
+    private static boolean supportsReduction(
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            TensorDescriptor output,
+            AggregateReductionKind kind) {
+        if ((kind != AggregateReductionKind.SUM && kind != AggregateReductionKind.MEAN)
+                || inputs.size() != 1) {
+            return false;
+        }
+        TensorDescriptor input = inputs.getFirst();
+        if (!canonical(input) || !canonicalReductionOutput(output)
+                || input.requiresGrad() != output.requiresGrad()) {
+            return false;
+        }
+        long[] inputShape = input.shape().toLongArray();
+        long[] expected;
+        if (operation.attrs() == NoOperationAttrs.INSTANCE) {
+            expected = new long[0];
+        } else if (operation.attrs() instanceof AxisReductionAttrs attrs) {
+            if (attrs.axis() >= inputShape.length) return false;
+            expected = reducedShape(inputShape, List.of(attrs.axis()), attrs.keepDimensions());
+        } else if (operation.attrs() instanceof MultiAxisReductionAttrs attrs) {
+            for (int axis : attrs.axes()) if (axis >= inputShape.length) return false;
+            expected = reducedShape(inputShape, attrs.axes(), attrs.keepDimensions());
+        } else if (operation.attrs() instanceof SumToShapeAttrs attrs) {
+            if (kind != AggregateReductionKind.SUM
+                    || !attrs.targetShape().equals(output.shape())) {
+                return false;
+            }
+            expected = attrs.targetShape().toLongArray();
+            if (expected.length > inputShape.length) return false;
+            int padding = inputShape.length - expected.length;
+            for (int axis = 0; axis < expected.length; axis++) {
+                long target = expected[axis];
+                long source = inputShape[axis + padding];
+                if (target != 1L && target != source) return false;
+            }
+        } else {
+            return false;
+        }
+        return java.util.Arrays.equals(expected, output.shape().toLongArray());
+    }
+
+    private static long[] reducedShape(
+            long[] inputShape, List<Integer> orderedAxes, boolean keepDimensions) {
+        boolean[] reduced = new boolean[inputShape.length];
+        for (int axis : orderedAxes) {
+            if (axis < 0 || axis >= inputShape.length || reduced[axis]) {
+                throw new IllegalArgumentException("reduction axes are malformed");
+            }
+            reduced[axis] = true;
+        }
+        long[] result = new long[keepDimensions
+                ? inputShape.length : inputShape.length - orderedAxes.size()];
+        for (int source = 0, target = 0; source < inputShape.length; source++) {
+            if (reduced[source]) {
+                if (keepDimensions) result[target++] = 1L;
+            } else {
+                result[target++] = inputShape[source];
+            }
+        }
+        return result;
     }
 
     private static boolean supportsAffine(
@@ -316,10 +390,21 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                         LayoutDescriptor.contiguous(descriptor.shape()));
     }
 
+    private static boolean canonicalReductionOutput(TensorDescriptor descriptor) {
+        return geometry(descriptor, true)
+                && descriptor.layout().orElseThrow().equals(
+                        LayoutDescriptor.contiguous(descriptor.shape()));
+    }
+
     private static boolean geometry(TensorDescriptor descriptor) {
+        return geometry(descriptor, false);
+    }
+
+    private static boolean geometry(TensorDescriptor descriptor, boolean allowScalar) {
+        int rank = descriptor.shape().rank();
         if (descriptor.dataType() != DataType.FLOAT32
                 || !descriptor.shape().isFullyStatic()
-                || descriptor.shape().rank() < 1 || descriptor.shape().rank() > 16
+                || rank < (allowScalar ? 0 : 1) || rank > 16
                 || descriptor.layout().isEmpty()) {
             return false;
         }

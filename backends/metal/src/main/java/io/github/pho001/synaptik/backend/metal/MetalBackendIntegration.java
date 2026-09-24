@@ -194,9 +194,11 @@ public final class MetalBackendIntegration implements AutoCloseable {
     /**
      * Downloads one live Metal publication into detached canonical host bytes.
      *
-     * <p>The descriptor is either an ordinary canonical non-view or an exact logical affine view
-     * whose representation carries finalized-route authentication for a full dense represented-
-     * order target. This does not widen the canonical-only CPU/Metal transfer predicate.</p>
+     * <p>The descriptor is an ordinary canonical non-view, including a locally produced
+     * rank-zero reduction result, or an exact positive-rank logical affine view whose
+     * representation carries finalized-route authentication for a full dense represented-order
+     * target. A rank-zero FLOAT32 result yields exactly four bytes. This local publication path
+     * does not widen the positive-rank-only CPU/Metal transfer predicate.</p>
      *
      * @param representation non-null live representation owned by this integration
      * @param descriptor non-null exact canonical or authenticated affine publication descriptor

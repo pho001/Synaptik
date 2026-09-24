@@ -24,6 +24,10 @@ import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
+import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
@@ -277,6 +281,126 @@ class MetalNegRouteCandidateGeneratorTest {
     }
 
     @Test
+    void reductionFingerprintsCoverKindFormAxesOrderKeepAndSumToTarget() {
+        TestNativeApi api = new TestNativeApi();
+        try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
+            TensorDescriptor input = canonical(Shape.of(2, 3, 4));
+            Workload baselineWorkload = reductionWorkload(
+                    device,
+                    60_000,
+                    new Operation(
+                            AggregateReductionKind.SUM,
+                            new AxisReductionAttrs(1, false)),
+                    input,
+                    canonical(Shape.of(2, 4)));
+            Generated baseline = generated(baselineWorkload, 2);
+            MetalNegPreparationPlan plan = baseline.analysis().plan();
+            MetalNegTuningBatch.WorkloadSignature identity =
+                    baseline.batch().compatibility().workload();
+
+            List<MetalMpsGraphProgram> changedRecords = List.of(
+                    new MetalMpsGraphProgram(List.of(
+                            MetalMpsGraphProgram.Node.reduction(
+                                    MetalMpsGraphProgram.NodeKind.MEAN,
+                                    0,
+                                    1,
+                                    MetalMpsGraphProgram.ReductionForm.SINGLE_AXIS,
+                                    List.of(1),
+                                    false))),
+                    new MetalMpsGraphProgram(List.of(
+                            MetalMpsGraphProgram.Node.reduction(
+                                    MetalMpsGraphProgram.NodeKind.SUM,
+                                    0,
+                                    1,
+                                    MetalMpsGraphProgram.ReductionForm.SINGLE_AXIS,
+                                    List.of(2),
+                                    false))),
+                    new MetalMpsGraphProgram(List.of(
+                            MetalMpsGraphProgram.Node.reduction(
+                                    MetalMpsGraphProgram.NodeKind.SUM,
+                                    0,
+                                    1,
+                                    MetalMpsGraphProgram.ReductionForm.SINGLE_AXIS,
+                                    List.of(1),
+                                    true))),
+                    new MetalMpsGraphProgram(List.of(
+                            MetalMpsGraphProgram.Node.reduction(
+                                    MetalMpsGraphProgram.NodeKind.SUM,
+                                    0,
+                                    1,
+                                    MetalMpsGraphProgram.ReductionForm.MULTI_AXIS,
+                                    List.of(1),
+                                    false))));
+            for (MetalMpsGraphProgram changedRecord : changedRecords) {
+                MetalNegPreparationPlan changed = copyPlan(
+                        plan,
+                        plan.descriptors(),
+                        changedRecord,
+                        plan.targetRequiredBytes());
+                assertNotEquals(
+                        identity,
+                        generate(baselineWorkload, changed).compatibility().workload());
+            }
+
+            assertNotEquals(
+                    workloadSignature(reductionWorkload(
+                            device,
+                            61_000,
+                            new Operation(
+                                    AggregateReductionKind.MEAN,
+                                    new MultiAxisReductionAttrs(List.of(2, 0), false)),
+                            input,
+                            canonical(Shape.of(3)))),
+                    workloadSignature(reductionWorkload(
+                            device,
+                            62_000,
+                            new Operation(
+                                    AggregateReductionKind.MEAN,
+                                    new MultiAxisReductionAttrs(List.of(0, 2), false)),
+                            input,
+                            canonical(Shape.of(3)))),
+                    "ordered reduction axes are authenticated");
+            assertNotEquals(
+                    workloadSignature(reductionWorkload(
+                            device,
+                            63_000,
+                            new Operation(
+                                    AggregateReductionKind.SUM,
+                                    new MultiAxisReductionAttrs(List.of(), false)),
+                            input,
+                            input)),
+                    workloadSignature(reductionWorkload(
+                            device,
+                            64_000,
+                            new Operation(
+                                    AggregateReductionKind.SUM,
+                                    NoOperationAttrs.INSTANCE),
+                            input,
+                            canonical(Shape.scalar()))),
+                    "empty multi-axis identity and full reduction remain distinct");
+            assertNotEquals(
+                    workloadSignature(reductionWorkload(
+                            device,
+                            65_000,
+                            new Operation(
+                                    AggregateReductionKind.SUM,
+                                    new SumToShapeAttrs(Shape.of(1, 4))),
+                            input,
+                            canonical(Shape.of(1, 4)))),
+                    workloadSignature(reductionWorkload(
+                            device,
+                            66_000,
+                            new Operation(
+                                    AggregateReductionKind.SUM,
+                                    new SumToShapeAttrs(Shape.of(2, 1, 4))),
+                            input,
+                            canonical(Shape.of(2, 1, 4)))),
+                    "sum-to-Shape target dimensions are authenticated");
+            assertEquals(0, api.nativeAllocations.get());
+        }
+    }
+
+    @Test
     void codecIsCanonicalBoundedAndRejectsEveryDefensiveMismatch() {
         TestNativeApi api = new TestNativeApi();
         TestNativeApi otherApi = new TestNativeApi();
@@ -288,14 +412,14 @@ class MetalNegRouteCandidateGeneratorTest {
                     MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
                     current.batch().compatibility(), MetalNegTuningBatch.Candidate.MPSGRAPH);
             var codec = new MetalNegTuningCodec();
-            assertEquals(7, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
-            assertEquals(7, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
-            assertEquals(7, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
+            assertEquals(8, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
+            assertEquals(8, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
+            assertEquals(8, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
             byte[] first = codec.encodeDecision(decision);
-            assertEquals(7, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
-            assertEquals(7, current.batch().compatibility().schemaVersion());
-            assertEquals(7, current.batch().compatibility().candidateSchemaVersion());
-            assertEquals(7, current.batch().compatibility().routePolicyVersion());
+            assertEquals(8, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
+            assertEquals(8, current.batch().compatibility().schemaVersion());
+            assertEquals(8, current.batch().compatibility().candidateSchemaVersion());
+            assertEquals(8, current.batch().compatibility().routePolicyVersion());
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());
@@ -339,6 +463,9 @@ class MetalNegRouteCandidateGeneratorTest {
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, 4, 6), current.batch()).isEmpty(),
                     "checksummed version-six decisions must fail closed");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, 4, 7), current.batch()).isEmpty(),
+                    "checksummed version-seven decisions must fail closed");
             assertTrue(codec.decodeDecision(rewriteInt(first, 8, 99), current.batch()).isEmpty());
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, first.length - 8, 99), current.batch()).isEmpty());
@@ -494,6 +621,37 @@ class MetalNegRouteCandidateGeneratorTest {
             Operation operation,
             TensorDescriptor inputDescriptor,
             TensorDescriptor outputDescriptor) {
+        return operationWorkload(
+                device,
+                identityBase,
+                NumericalProfile.STRICT_IEEE,
+                operation,
+                inputDescriptor,
+                outputDescriptor);
+    }
+
+    private static Workload reductionWorkload(
+            MetalDeviceContext device,
+            long identityBase,
+            Operation operation,
+            TensorDescriptor inputDescriptor,
+            TensorDescriptor outputDescriptor) {
+        return operationWorkload(
+                device,
+                identityBase,
+                NumericalProfile.ACCELERATOR,
+                operation,
+                inputDescriptor,
+                outputDescriptor);
+    }
+
+    private static Workload operationWorkload(
+            MetalDeviceContext device,
+            long identityBase,
+            NumericalProfile profile,
+            Operation operation,
+            TensorDescriptor inputDescriptor,
+            TensorDescriptor outputDescriptor) {
         ValueId feed = new ValueId(identityBase);
         ValueId target = new ValueId(identityBase + 1);
         CompiledNode node = new CompiledNode(
@@ -504,21 +662,25 @@ class MetalNegRouteCandidateGeneratorTest {
         PlannedPartition partition = new PlannedPartition(
                 MetalCapabilityProvider.METAL_BACKEND_ID,
                 List.of(node.id()));
-        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new PartitionDag(partition, List.of(node)), List.of(
-                new GraphValue(feed, inputDescriptor),
-                new GraphValue(target, outputDescriptor)), List.of(
-                new LogicalMemoryRequirement(
-                        feed,
-                        inputDescriptor,
-                        Optional.empty(),
-                        List.of(partition),
-                        false),
-                new LogicalMemoryRequirement(
-                        target,
-                        outputDescriptor,
-                        Optional.of(partition),
-                        List.of(),
-                        true)), Map.of(), new MetalNegAnalysisInputs(device));
+        var context = new PrepareContext<>(profile, new PartitionDag(partition, List.of(node)),
+                List.of(
+                        new GraphValue(feed, inputDescriptor),
+                        new GraphValue(target, outputDescriptor)),
+                List.of(
+                        new LogicalMemoryRequirement(
+                                feed,
+                                inputDescriptor,
+                                Optional.empty(),
+                                List.of(partition),
+                                false),
+                        new LogicalMemoryRequirement(
+                                target,
+                                outputDescriptor,
+                                Optional.of(partition),
+                                List.of(),
+                                true)),
+                Map.of(),
+                new MetalNegAnalysisInputs(device));
         return new Workload(context);
     }
 

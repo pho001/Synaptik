@@ -106,6 +106,7 @@ backend.
 | A caller expects `Engine.standard()` to discover Metal or CUDA | Fixed standard composition was mistaken for explicit registration. | Use `Engine.builder()` for explicit Metal ownership; CUDA has no public lifecycle integration. |
 | Registration order is treated as fallback order | Deterministic Planning input was mistaken for retry priority. | Expect a missing owner or unsupported transfer to fail without owner substitution. |
 | A mixed plan fails before backend analysis | One required directed edge is outside the current static contiguous `FLOAT32` CPU/Metal transfer domain. | Use supported descriptors and native host storage for CPU transfer endpoints, or keep that value on one owner. |
+| A scalar Metal result cannot cross to CPU | Local rank-zero reduction materialization was mistaken for transfer support. | Publish and materialize the scalar from Metal, or keep cross-owner values positive-rank; transfer remains rank `1..16`. |
 | CPU scalar and OpenBLAS appear as separate owners | Backend route and backend identity were confused. | Let CPU preparation choose its internal route. |
 | Runtime changes owner after a failure | Ownership was deferred past compilation/preparation. | Runtime must execute the already prepared schedule. |
 | `unconstrained()` is treated as guaranteed fallback | Absence of a hard requirement was mistaken for a valid candidate. | Expect compilation to fail when no supplied backend is eligible. |
@@ -119,8 +120,12 @@ backend.
 profile explicitly. CPU executes either choice through the same exact capability and routes. Metal
 admits exact canonical FLOAT32 `ABS` under both profiles. Strict Metal additionally admits
 NEG/affine/`CONTIGUOUS`; accelerator Metal additionally admits tensor FLOAT32
-`ADD`/`SUB`/`MUL`/`DIV` under bounded DAZ/FTZ. There is no fallback to strict or owner substitution
-after an accelerator request; every unsupported occurrence fails closed.
+`ADD`/`SUB`/`MUL`/`DIV` plus canonical `SUM`/`MEAN`/`SUM_TO_SHAPE` reductions. Full,
+single-axis, ordered multi-axis including empty, keep-dimensions, and binding-resolved
+sum-to-Shape forms are supported; masked and other reduction families are not. A locally produced
+scalar reduction result can be published as four bytes, but caller ingress and CPU/Metal transfer
+remain positive-rank. There is no fallback to strict or owner substitution after an accelerator
+request; every unsupported occurrence fails closed.
 
 ## Limitations
 

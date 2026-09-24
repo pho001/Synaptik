@@ -118,8 +118,9 @@ local-tuning, complete-plan-tuning, and cache-compatibility identity before a ba
 relaxed capability. CPU now advertises both profiles with identical exact behavior. Metal
 advertises exact canonical FLOAT32 `ABS` under both profiles, retains its strict
 NEG/affine/`CONTIGUOUS` matrix, and separately advertises accelerator tensor-binary
-`ADD`/`SUB`/`MUL`/`DIV` after bounded conformance. Unsupported pairs still fail closed; no backend
-may infer permission merely from the identity.
+`ADD`/`SUB`/`MUL`/`DIV` plus canonical `SUM`/`MEAN`/`SUM_TO_SHAPE` reductions after bounded
+conformance. Unsupported pairs still fail closed; no backend may infer permission merely from the
+identity.
 
 Trace payload changes remain deferred. The current propagation spine adds no trace field because
 the profile is cold prepared identity rather than per-run state; later observability requires a
