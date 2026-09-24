@@ -2,7 +2,30 @@
 
 ## Status
 
-Ready
+Blocked
+
+The implementation/probe pass is complete and fail-closed. No production code, native code,
+tests, or probe artifacts remain changed.
+
+## Blocking evidence
+
+The real FLOAT32 probe compared the MPSGraph route with the CPU oracle and recorded these exact
+results (maximum ULP where finite comparison was applicable):
+
+- Passed: `ABS` max ULP `0`; `EXP` max ULP `1`; `SIGMOID` max ULP `1`.
+- Failed: `RECIPROCAL` on `±FLT_MAX` produced subnormal results that became signed zero;
+  `LOG` on the minimum positive subnormal produced finite output instead of `-infinity`;
+  `SQRT` on the minimum positive subnormal produced finite output instead of `+0`;
+  `RSQRT` on the minimum positive subnormal produced finite output instead of `+infinity`;
+  `RELU` on quiet NaN produced `+0` instead of the required NaN result;
+  `TANH` on `-0` produced `+0` instead of preserving `-0`, and on quiet NaN produced `+1`
+  instead of NaN.
+
+These failures are semantic, not tolerance noise. The exact special-value contract in this brief
+therefore cannot be satisfied by the observed MPSGraph selectors. The task has no production
+change and remains blocked rather than weakening gates or silently adding a fallback. The exact
+blocker is the absence of a bounded custom-kernel realization (or an explicitly relaxed numerical
+contract) for all nine required semantics.
 
 ## Change class
 
@@ -166,10 +189,15 @@ git diff --check
 
 ## Documentation and review impact
 
-Update the Metal guide/native README/Javadocs and targeted glossary terms, then obtain an
-independent Class C review of the exact diff, typed schema and fingerprint bump, numerical gates,
-ABI export audit, lifecycle rollback, real CPU-free Engine evidence, and explicit scalar deferral.
+Record the blocked evidence above and retain the exact numerical/special-value gates for any
+future restart. Do not claim ABI, capability, lifecycle, or Engine completion from the reverted
+probe. A future restart requires a Class C review of the exact replacement route, typed schema and
+fingerprint bump, numerical gates, ABI export audit, lifecycle rollback, and real CPU-free Engine
+evidence.
 
 ## Result
 
-Unstarted; this is the sole Ready Metal frontier after approved 0005.
+Blocked. The probe proved only `ABS` ULP0, `EXP` ULP1, and `SIGMOID` ULP1; the listed reciprocal,
+log, square-root, reciprocal-square-root, ReLU, and tanh special-value cases failed. No production
+change remains, and the repository is clean fail-closed. Unblocking requires exact semantics via
+custom kernels or an explicitly accepted relaxed contract.
