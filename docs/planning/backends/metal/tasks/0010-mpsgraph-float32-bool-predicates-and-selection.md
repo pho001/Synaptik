@@ -2,10 +2,32 @@
 
 ## Status
 
-Ready
+Blocked
 
-This is the sole authorized Metal frontier. Metal 0008 is Complete; 0006, 0007, and 0009 are
-independently Blocked. Their numerical failures are not dependencies of this forward-only task.
+The mandatory independent real-device probe completed fail closed. No production, test, or probe
+changes remain. Metal 0008 stays Complete, and 0006, 0007, and 0009 remain separate blockers.
+
+## Blocking evidence
+
+On an Apple M3 Max, real MPSGraph `FLOAT32` comparison executables ran with optimization levels
+`0` and `1` and reduced-precision fast math disabled. Three independently compiled executables per
+level ran every case eight times against caller-supplied direct `BOOL` targets.
+
+For positive minimum subnormal versus positive or negative zero, the observed
+`[GT, GE, LT, LE, EQ, NE]` results were `[0, 1, 0, 1, 1, 0]`, not the required
+`[1, 1, 0, 0, 0, 1]`. For negative minimum subnormal versus positive or negative zero, the
+observed results were again `[0, 1, 0, 1, 1, 0]`, not the required
+`[0, 0, 1, 1, 0, 1]`. MPSGraph therefore treated each minimum subnormal as numerically equal to
+zero, contrary to Model's exact represented-value relations.
+
+Raw input identity controls preserved the subnormal bits. Normal finite, ordinary finite,
+infinity, and NaN comparison controls passed. Direct `BOOL` targets were canonical, canaries
+remained intact, and target/feed permutations passed. The failure is therefore an independent
+comparison-semantic blocker rather than upload/download, target binding, BOOL representation, or
+probe corruption.
+
+Unblocking requires an exact replacement route or an explicit Model numerical-contract change.
+This task does not authorize a custom kernel, fallback, or relaxation.
 
 ## Change class
 
@@ -196,4 +218,11 @@ all exclusions.
 
 ## Result
 
-Empty until execution.
+The mandatory probe established an independent blocker before production work. Across both
+optimization levels, six independent executables and eight runs per case reproduced subnormal
+comparison collapse to zero while raw identity and all named controls passed. The probe and every
+other task-local executable change were removed; production remains unchanged.
+
+Status: Incomplete
+Follow-up required: provide an exact replacement route or explicitly change the Model numerical
+contract before reconsidering these predicates.

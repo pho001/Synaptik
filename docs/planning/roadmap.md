@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through evidence-backed no-change 0010M; 0007A1D Review needed; 0010D1 and 0011 Blocked | No CPU task is Ready; any future default comparison requires a separately reviewed sealed matrix. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0017 | No Engine task is Ready; reopen only for a separately authorized capability. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0008; 0006–0007 and 0009 Blocked; 0010 Ready | [0010](backends/metal/tasks/0010-mpsgraph-float32-bool-predicates-and-selection.md) is the sole Ready frontier for bounded forward FLOAT32 predicates, canonical BOOL logic, and FLOAT32 selection. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0008; 0006–0007 and 0009–0010 Blocked; 0011 Ready | [0011](backends/metal/tasks/0011-mpsgraph-float32-scalar-pointwise-arithmetic.md) is the sole Ready frontier for bounded forward FLOAT32 scalar `ADD/SUB/MUL/DIV`. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -92,15 +92,20 @@ one flushed positive/negative minimum and ordinary subnormals to zero. Strict ho
 Model-permitted association/FMA result. Signed zero is not a blocker. Independent review returned
 `APPROVE-BLOCKER`. Tasks 0006, 0007, and 0009 retain no production, test, or probe changes.
 
-[0010](backends/metal/tasks/0010-mpsgraph-float32-bool-predicates-and-selection.md) is the sole
-`Ready` frontier. It is a forward-only, independent whole-partition MPSGraph capability for six
-FLOAT32 comparisons, three FLOAT32 classifications, canonical BOOL `AND`/`OR`/`NOT`, and
-BOOL-conditioned FLOAT32 `WHERE`, with FLOAT32/BOOL Metal-only ingress and publication. Its
-mandatory real probe gates exact special values, subnormals, canonical BOOL bytes, selected raw
-bits, broadcasting, direct targets, and executable independence before production changes.
-Cross-owner transfer remains FLOAT32-only. CAST, backward/training, blocked numerical families,
-FLOAT16, and BFLOAT16 are excluded; later Metal 0028/0029 remain reserved for separately
-authorized FLOAT16/BFLOAT16 work.
+[0010](backends/metal/tasks/0010-mpsgraph-float32-bool-predicates-and-selection.md) is independently
+`Blocked`. On an Apple M3 Max at optimization levels `0` and `1`, three independent executables per
+level and eight runs per case treated positive and negative minimum subnormal as equal to `±0`.
+Raw identity preserved the input bits; ordinary, infinity, NaN, canonical BOOL target, canary, and
+permutation controls passed. No production, test, or probe changes remain.
+
+[0011](backends/metal/tasks/0011-mpsgraph-float32-scalar-pointwise-arithmetic.md) is the sole
+`Ready` frontier. It is a forward-only, independent whole-partition extension for exact-typed
+FLOAT32 scalar `ADD/SUB/MUL/DIV`, using embedded four-byte constants and the arithmetic selectors
+already used by completed 0005. Its mandatory real probe gates scalar bits, subnormals, signed
+zeros, special values, Shapes, direct targets, canaries, permutations, repetition, and independent
+executables before production changes. Extrema, POW, failed unary/predicate families, BOOL, CAST,
+reductions, MATMUL, custom kernels, backward/training, transfer widening, FLOAT16, and BFLOAT16 are
+excluded.
 
 
 ## Blocked, review-needed, and deferred work
@@ -112,9 +117,12 @@ authorized FLOAT16/BFLOAT16 work.
 - Metal 0009 is independently `Blocked` by exact subnormal flushing in `K=1` MATMUL. Unblocking
   requires an exact replacement route or an explicit Model numerical-contract change; signed-zero
   behavior does not block it.
-- Metal 0010 is bounded away from all three blockers and is forward-only. It does not authorize
-  scalar-loss training, reduction-requiring gradients, MATMUL, CAST, custom kernels, BOOL
-  cross-owner transfer, FLOAT16, or BFLOAT16.
+- Metal 0010 is independently `Blocked` by exact subnormal comparison collapse. Unblocking requires
+  an exact replacement route or an explicit Model numerical-contract change; canonical BOOL and
+  ordinary/special-value controls do not remove the blocker.
+- Metal 0011 is bounded away from all four blockers and is forward-only. It does not authorize
+  extrema, POW, unary/predicate repackaging, BOOL, CAST, reductions, MATMUL, custom kernels,
+  backward/training, transfer widening, FLOAT16, or BFLOAT16.
 - [OpenBLAS provider 0004](backends/openblas-provider/tasks/0004-optional-direct-bfloat16-output-gemm-capability.md)
   and dependent CPU 0010D1 remain an optional blocked branch. Pinned evidence proves neither the
   required exported direct BFLOAT16-output ABI nor full-contraction FLOAT32 accumulation followed
@@ -144,8 +152,8 @@ authorized FLOAT16/BFLOAT16 work.
 
 ## Nearest next step
 
-1. Execute Metal 0010 from exact production base `938a18cd1ab7e02e40fb6b585ec1bd6fcd5e40e2`,
-   beginning with its mandatory disposable real-device selector/type/value/direct-target probe.
+1. Execute Metal 0011 from exact production base `45225a7a6c4219ff61913319d454589a5d50e909`,
+   beginning with its mandatory disposable real-device scalar-bit/value/direct-target probe.
 
 ## History policy
 

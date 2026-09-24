@@ -45,8 +45,9 @@ Training-to-Metal optimizer bridge.
   tested, and colocated with their routes. Shared orchestration treats them opaquely.
 - Safe heuristics remain correct without tuning. Model 0026 must define IEEE FLOAT16 and affected
   numerical contracts before Metal advertises FLOAT16; two-byte storage does not imply BFLOAT16
-  or FLOAT16 capability. Metal 0010 is only FLOAT32/BOOL predicate work; later Metal 0028 and
-  0029 remain reserved for separately authorized FLOAT16 and BFLOAT16 scopes.
+  or FLOAT16 capability. Blocked 0010 added no BOOL capability; Ready 0011 is FLOAT32-only scalar
+  arithmetic. Later Metal 0028 and 0029 remain reserved for separately authorized FLOAT16 and
+  BFLOAT16 scopes.
 - Production dependencies may point to Model, Config, Planning, Runtime, Prepare,
   Backend Contract, and Trace, never Engine or Training. Task 0002's Compiler edge is test-only.
 
@@ -80,16 +81,18 @@ visibility.
 | 0007 | [MPSGraph FLOAT32 SUM/MEAN reduction foundation](tasks/0007-mpsgraph-float32-reductions.md) | Blocked | 0005; current Model reduction attrs and Compiler autograd; Engine 0017; Compiler 0006B7; Prepare 0008; Runtime 0016 | Metal capability/preparation/native ABI/Engine Metal scopes; 0006 is not a dependency | None | Exact replacement route → numerical gates → Class C review | Reproducible real direct-output probe and fail-closed evidence; no production change | Eight runs returned positive zero for cancellation cases requiring SUM `2.0f` and MEAN `0.5f`; selector/schema/rank-zero feasibility does not satisfy exact Model semantics. |
 | 0008 | [MPSGraph FLOAT32 affine transforms](tasks/0008-mpsgraph-float32-affine-transforms.md) | Complete | 0005; current Model/Compiler affine Shape and layout contracts; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007 | Metal capability/preparation/native ABI/Engine Metal materialization; shared aliasing or transfer work | None | Real selector/bit probe → typed schema → capability/analysis → Prepare/Runtime/materialization → Engine proof → docs/review | ABI-v4 export/schema audit; exact Shape/layout/raw-bit gates; direct affine publication; transfer non-widening; focused Metal/conformance/Engine/architecture checks | Approved after implementation `7e39f705`, remediation `9713e528`/`aa42ed711`, and independent Class C APPROVE with zero findings; five bounded affine transforms, ABI v4 exact. |
 | 0009 | [MPSGraph FLOAT32 rank-two MATMUL training checkpoint](tasks/0009-mpsgraph-float32-rank2-matmul-training-checkpoint.md) | Blocked | 0008; Model/Compiler rank-two MATMUL and first-order rules; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007 | 0006/0007; Metal capability/preparation/native schema/candidate/materialization/Engine scopes | None | Exact replacement route → precision gates → Class C review | Reproducible real direct-target probe and fail-closed evidence; no production change | `K=1` multiplication by one flushed positive/negative minimum and ordinary subnormals to zero; no permitted FLOAT32 association/FMA yields zero. Independent `APPROVE-BLOCKER`; signed zero is not a blocker. |
-| 0010 | [MPSGraph FLOAT32/BOOL predicates and selection](tasks/0010-mpsgraph-float32-bool-predicates-and-selection.md) | Ready | 0008; current Model predicate/BOOL/WHERE semantics; Compiler forward capture; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007/0009 or Model 0026 | 0006/0007/0009; Metal capability/preparation/native schema/candidate/storage/materialization/Engine scopes | None | Probe → schema/type validation → capability/topology → BOOL lifecycle → Engine proof → docs/review | Selector/direct-target/type/value probe; ABI-v4 exact exports; focused Metal/conformance/Engine/Compiler/architecture/Javadoc/docs checks | Sole Ready frontier: bounded FLOAT32 comparisons/classifications, canonical BOOL logic, and BOOL-conditioned FLOAT32 selection; no CAST, backward, transfer widening, FLOAT16, or BFLOAT16. |
+| 0010 | [MPSGraph FLOAT32/BOOL predicates and selection](tasks/0010-mpsgraph-float32-bool-predicates-and-selection.md) | Blocked | 0008; current Model predicate/BOOL/WHERE semantics; Compiler forward capture; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007/0009 or Model 0026 | 0006/0007/0009; Metal capability/preparation/native schema/candidate/storage/materialization/Engine scopes | None | Exact replacement route → numerical gates → Class C review | Reproducible real direct-target comparison probe and fail-closed evidence; no production change | Apple M3 Max MPSGraph comparisons treated positive and negative minimum subnormal as equal to `±0` at optimization levels 0/1; raw identity, ordinary/special controls, canonical BOOL targets, canaries, and permutations passed. |
+| 0011 | [MPSGraph FLOAT32 scalar pointwise arithmetic](tasks/0011-mpsgraph-float32-scalar-pointwise-arithmetic.md) | Ready | 0005/0008; current Model scalar semantics and Compiler forward capture; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007/0009/0010 or Model 0026 | Every concurrent Metal capability/preparation/native schema/candidate/materialization/Engine scope | None | Probe → schema/scalar carrier → capability/topology → candidates/lifecycle → Engine proof → docs/review | Scalar-bit/direct-target probe; ABI-v4 exact exports; focused Metal/conformance/Engine/Compiler/architecture/Javadoc/docs checks | Sole Ready frontier: bounded forward FLOAT32 scalar `ADD/SUB/MUL/DIV` through exact embedded constants and existing arithmetic selectors; no blocked or excluded family. |
 
 ## Dependency DAG and authorized frontiers
 
-`0001 → 0002 → 0003 → 0004 → 0005 → 0008 → {0009, 0010}`
+`0001 → 0002 → 0003 → 0004 → 0005 → 0008 → {0009, 0010, 0011}`
 
-0006 and 0007 are independent `Blocked` branches from 0005. 0009 is independently `Blocked` from
-0008 by its exact MATMUL precision counterexample. 0010 is the sole authorized frontier and depends
-only on 0008 plus current Model/Compiler forward predicate contracts; it does not depend on 0006,
-0007, 0009, Model 0026, or reserved future Metal 0028/0029 type work.
+0006 and 0007 are independent `Blocked` branches from 0005. 0009 and 0010 are independently
+`Blocked` from 0008 by exact MATMUL subnormal flushing and comparison subnormal collapse,
+respectively. 0011 is the sole authorized frontier and depends only on completed 0005/0008 plus
+current Model/Compiler forward scalar contracts; it does not depend on 0006, 0007, 0009, 0010,
+Model 0026, or reserved future Metal 0028/0029 type work.
 
 ## Integration ownership and shared documents
 
@@ -113,10 +116,17 @@ oracle preserved the minimum subnormal. Selector, direct-target, Shape, permutat
 gates passed; signed zero is not a blocker. Independent review returned `APPROVE-BLOCKER`. Tasks
 0006, 0007, and 0009 retain no production, test, or probe changes.
 
-Metal 0010 is the sole `Ready` frontier for bounded forward FLOAT32 comparisons/classifications,
-canonical BOOL logic and ingress/publication, and BOOL-conditioned FLOAT32 selection. Its mandatory
-real-device gate precedes production changes. It excludes CAST, backward/training, blocked
-numerical families, transfer widening, FLOAT16, and BFLOAT16.
+Metal 0010 is independently `Blocked`: on Apple M3 Max, optimization levels `0` and `1`, three
+independent executables per level, and eight runs per case, positive and negative minimum
+subnormal compared equal to `±0` instead of remaining distinct. Raw identity preserved the input
+bits; ordinary, infinity, NaN, canonical BOOL target, canary, and permutation controls passed.
+No production, test, or probe changes remain.
+
+Metal 0011 is the sole `Ready` frontier. It adds only forward FLOAT32 scalar
+`ADD/SUB/MUL/DIV`, using exact-bit embedded constants and the four arithmetic selectors already
+used by completed 0005. Its mandatory real-device probe precedes production changes. It excludes
+extrema, POW, every failed unary/predicate family, BOOL, CAST, reductions, MATMUL, custom kernels,
+backward/training, transfer widening, FLOAT16, and BFLOAT16.
 
 
 ## Delivered lifecycle and ABI boundary
