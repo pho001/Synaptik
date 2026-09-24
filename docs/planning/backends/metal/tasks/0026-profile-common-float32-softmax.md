@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Blocked
 
 ## Planning decision
 
@@ -157,6 +157,33 @@ axis, rank, profile, optimization level, context, repetition, NaN, or infinity.
 If any cell fails, mark Task 0026 `Blocked`, retain only exact evidence, remove the probe, and make no
 production change. Do not narrow capability to the probe width, weaken the tolerance, move SOFTMAX
 to accelerator-only, decompose it, or introduce fallback.
+
+## Blocker evidence
+
+The mandatory gate ran from exact clean planning revision
+`c5e5472600ede66673d589902e94dc3eb66f4678`. One disposable Objective-C source compiled against
+the active macOS 27.0 SDK, then its executable ran exactly once on the M3 Max. It created one Metal
+device/queue, one `[4,8]` FLOAT32 graph with one direct axis-one
+`softMaxWithTensor:axis:name:` target, one compilation at the production default optimization
+level with `MPSGraphReducedPrecisionFastMathNone` set/read and `MPSGraphOptionsNone`, and one
+synchronous execution.
+
+The run stopped at the first failing output, flattened index 18: the third slice's input `-90.0f`
+with slice maximum `0.0f`. MPSGraph returned positive zero, raw bits `0x00000000`; the frozen
+binary64 max-shift/compensated oracle narrowed to positive FLOAT32 subnormal bits `0x0008ec28`.
+Their ordered FLOAT32 distance is 584,744 ULPs, exceeding the four-ULP limit. The first 18 cells
+had passed before this failure. A host-only Java check using exact `StrictMath.exp`, the specified
+compensated order, and one FLOAT32 narrowing independently confirmed expected bits `0x0008ec28`;
+it performed no Metal compilation or execution. Because the numerical cell failed, the full
+classification/input-preservation scan did not complete and makes no success claim.
+
+The disposable Objective-C source/executable and host-only Java oracle source/class were removed
+immediately. No second device run, Shape/width/axis/profile/optimization/context/repetition matrix,
+production edit, test edit, or retained probe artifact exists. Task 0026 is therefore `Blocked`.
+Unblocking requires a separately planned exact replacement route, such as a proven custom kernel,
+or a preceding Model/architecture numerical-contract decision. This task may not be retried by
+narrowing to width eight, adding an arbitrary width cap, weakening four ULPs, admitting SOFTMAX
+only under `ACCELERATOR`, decomposing it, or adding fallback.
 
 ## Compiler-owned gradient closure
 
