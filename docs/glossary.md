@@ -2428,11 +2428,11 @@ compatibility projection, and Engine's representative execution are implemented.
 Engine path produces the sole occurrence-0/partition-0/weight-1 mapping. Model extraction and
 multiple-occurrence aggregation remain planned.
 
-The Metal elementwise instance is also implemented internally. Its version-two fingerprint covers
-typed node kinds, ordered structural operand/output positions, descriptors and layouts, exact
-splat bits, logical-boundary facts, exact/default policy, candidate/route schemas, and native ABI
-schema. Compatibility separately includes the exact live `MetalDeviceContext` session nonce; ABI
-version `4` is not a stable cross-session device fingerprint. It currently supports only
+The Metal NEG-and-affine instance is also implemented internally. Its version-three fingerprint covers
+typed NEG and terminal-affine node kinds, ordered structural operand/output positions, descriptors
+and layouts, exact splat bits, logical-boundary facts, exact/default policy, candidate/route schemas,
+and native ABI schema. Compatibility separately includes the exact live `MetalDeviceContext` session
+nonce; ABI version `4` is not a stable cross-session device fingerprint. It currently supports only
 backend-local construction and authentication, not the tools-owned workload cache.
 
 ### Candidate generator
@@ -2469,9 +2469,9 @@ representation for the same exact projected context and sole CPU partition. It a
 exact authenticated Phase-1 result. These two batches answer different questions; treating the local
 batch as a plan batch would incorrectly repeat local route search.
 
-The Metal elementwise batch is session-scoped. It contains only `CUSTOM_SINGLE_NEG` and
-`MPSGRAPH` configurations that are complete for the current validated partition. Its
-compatibility and candidate schemas are version two, and no private field crosses the marker-role
+The Metal NEG-and-affine batch is session-scoped. It contains only `CUSTOM_SINGLE_NEG` and
+`MPSGRAPH` configurations that are complete for the current validated partition. Its compatibility,
+candidate, and route-policy schemas are version three, and no private field crosses the marker-role
 boundary.
 
 ### Complete-plan candidate
@@ -2510,8 +2510,8 @@ prepare a mismatched live decision fails without heuristic substitution. A selec
 decision contains no measurement, cache representation, executable, provider, native address,
 physical resource, or Runtime state.
 
-The Metal elementwise decision follows the same owner-defined pattern with a bounded checksummed
-version-two session codec. Fresh Metal analysis regenerates current facts and accepts a selection
+The Metal NEG-and-affine decision follows the same owner-defined pattern with a bounded checksummed
+version-three session codec. Fresh Metal analysis regenerates current facts and accepts a selection
 only when schema, workload, exact context session, and candidate identity match. Decode rejects
 malformed, corrupt, trailing, stale, foreign-session, old-schema, and unknown-candidate bytes.
 These bytes are not a persistent workload-cache artifact and have no current `tools/tuning`
@@ -2536,7 +2536,7 @@ cannot enumerate candidates, interpret compatibility, select a winner, apply a d
 serialize either value through these roles. The handoff is cold point-in-time state, not part of
 the shared `PrepareContext` shape, `BackendPartitionAnalysis`, graph preparation, a tuning cache, a
 measurement result, an executable, or Runtime state. A concrete backend may carry the handoff
-inside its own opaque analysis-input value. The current CPU OpenBLAS and Metal elementwise batches
+inside its own opaque analysis-input value. The current CPU OpenBLAS and Metal NEG-and-affine batches
 and decisions implement the roles nominally; each backend alone validates and interprets them.
 
 ### Compile
