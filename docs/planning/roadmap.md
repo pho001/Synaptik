@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through reviewed 0025; 0006–0007, 0009–0013, 0016–0018, and 0026–0027 Blocked | Metal 0026 remains Blocked by subnormal SOFTMAX flushing. [Metal 0027](backends/metal/tasks/0027-profile-common-float32-batch-normalization-inference.md) is independently Blocked after its only direct normalization run flushed signed minimum-subnormal outputs to signed zero. Neither changed production; no Metal task is Ready. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through reviewed 0025; 0006–0007, 0009–0013, 0016–0018, and 0026–0027 Blocked; 0030 Ready | Metal 0026/0027 retain their independent no-production-change blockers. [Metal 0030](backends/metal/tasks/0030-profile-common-exact-canonical-float32-max-pool2d-forward.md) is the sole Ready frontier for exact profile-common no-grad canonical FLOAT32 `MAX_POOL2D` forward behind one smallest raw-winner execution. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -81,12 +81,13 @@ landed at `9a7911c9` plus evidence `80e6cedd`; final independent lean Class C re
 zero findings after one concrete-risk production-ABI SNaN probe. Complete Metal 0024 landed at
 implementation `a947e574732273bee4469d42afe8935082d53109` plus documentation remediation
 `aa191ca469010d081150e97dcddd504ec626dd9e`; final independent lean Class C review approved with
-zero findings. Complete Metal 0025 delivered bounded common-profile FLOAT32 UNFOLD_AXIS at
+zero findings. Complete Metal 0025 delivered bounded common-profile exact FLOAT32 UNFOLD_AXIS at
 implementation `44edd860`, remediation `d0a947fa`, and final reviewed remediation `f88066e3`;
 final independent lean Class C review approved with zero findings. Metal 0026 is Blocked without
 production changes by its subnormal SOFTMAX result. Metal 0027 is independently Blocked without
 production changes after direct BatchNorm returned signed zero instead of both signed minimum
-subnormals. No Metal task is Ready; every unproved family remains fail-closed.
+subnormals. Metal 0030 is the sole Ready frontier for exact profile-common no-grad canonical
+FLOAT32 `MAX_POOL2D`; every other unproved family remains fail-closed.
 
 Task 0019 landed at implementation `a6d1796d` plus mixed-owner test remediation `bcb717a6`. Its
 native ABI/export, Metal, conformance, real Engine, architecture, full-build, documentation, and
@@ -102,7 +103,7 @@ The active semantic and Metal serial DAG is:
 
 `Model 0028 (Complete) -> Metal 0020 (Complete) -> Metal 0018 (Blocked)`
 
-`Metal 0018 blocker evidence -> Model 0029 (Complete) -> Metal 0021 (Complete) -> Metal 0022 (Complete) -> Metal 0023 (Complete) -> Metal 0024 (Complete) -> Metal 0025 (Complete) -> {Metal 0026 (Blocked), Metal 0027 (Blocked)}`
+`Metal 0018 blocker evidence -> Model 0029 (Complete) -> Metal 0021 (Complete) -> Metal 0022 (Complete) -> Metal 0023 (Complete) -> Metal 0024 (Complete) -> Metal 0025 (Complete) -> {Metal 0026 (Blocked), Metal 0027 (Blocked), Metal 0030 (Ready)}`
 
 [Metal 0016](backends/metal/tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) is Blocked
 without production changes. Its Apple M3 Max gate proved exact `ABS`, but `EXP` and `SIGMOID`
@@ -145,7 +146,7 @@ Class C review returned `APPROVE` with zero findings. Metal 0022 completed at `4
 implementation `44edd86092509348e1e72cf7f0f4c3b13d141fa8`, first remediation
 `d0a947fa953bddb2714c1917c7114ac345c530b7`, and final remediation/reviewed revision
 `f88066e3ad0547987bb03b2d18ed2813f97de223`; final approval had zero findings. Metal 0026 and
-Metal 0027 are Blocked without production changes, and no Metal task is Ready.
+Metal 0027 are Blocked without production changes. Metal 0030 is the sole Ready Metal task.
 
 Engine
 [0017](modules/engine/tasks/0017-reusable-inference-session-api.md) is Complete from exact base
@@ -242,8 +243,9 @@ operand only on its consuming edge; general affine publication and valid local c
 available. Version-twelve identities separate profile/type/topology compatibility, scalar
 reduction and BOOL materialization remain local-only, FLOAT32-only transfer is unchanged, and
 Runtime/Trace remain profile-free. Metal 0025 is Complete at final reviewed revision `f88066e3`.
-Metal 0026–0027 are Blocked and changed no executable capability. Schema 12/wire 20/attribute 7
-and version-thirteen identities remain unimplemented. No Metal task is Ready.
+Metal 0026–0027 are Blocked and changed no executable capability. Ready Metal 0030 plans the still-
+unimplemented schema 12/wire 20/POOL2D 7 and version-thirteen identities; current executable
+capability remains unchanged.
 
 Strategic gate: historical blocker evidence is preserved, and no backend task may define Model
 semantics. Complete Model 0028 owns bounded reduction exact-zero sign freedom; Complete Metal 0020
@@ -323,8 +325,8 @@ unary/layout/scatter/window/normalization semantics.
   comparison still requires a separately reviewed, fully sealed matrix before measurement.
 - Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
   0017, and Metal 0015/0019/0020/0021/0022/0023/0024/0025 are Complete. Metal 0016–0018 and
-  0026–0027 remain Blocked under their recorded contracts. No Metal task is Ready; every unfinished
-  or blocked family remains unauthorized.
+  0026–0027 remain Blocked under their recorded contracts. Metal 0030 is the sole Ready frontier;
+  every other unfinished or blocked family remains unauthorized.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -338,14 +340,14 @@ unary/layout/scatter/window/normalization semantics.
 
 ## Nearest next step
 
-Metal 0027 is Blocked after its only permitted production-settings direct normalization execution.
-For channel 6, input `+1` produced positive zero `0x00000000` instead of positive minimum
-subnormal `0x00000001`, and input `-1` produced negative zero `0x80000000` instead of negative
-minimum subnormal `0x80000001`. The other 30 formula/class/sign cells, exact output Shape, and all
-five unchanged feeds passed. The disposable source and executable were removed; no retry, matrix,
-production, schema, identity, capability, gradient, or fallback work occurred. Do not narrow the
-value domain, weaken the raw-bit/class rule, retry the selector, or move normalization to
-accelerator-only. Metal 0026 remains separately finalized Blocked. No Metal task is Ready.
+Metal 0030 is the sole Ready Metal frontier. It plans exact profile-common no-grad canonical
+positive static rank-four FLOAT32 `MAX_POOL2D` forward over every documented valid checked
+kernel/stride/symmetric-padding/dilation/floor-or-ceil geometry. One disposable process, context,
+graph, executable, node, target, and execution may test only the undocumented raw winner behavior
+with nine disjoint windows in `[1,1,1,18]`; no geometry, padding, dilation, ceil, profile,
+optimization, context, or repetition matrix is authorized. A pass permits schema
+12/wire 20/POOL2D 7 and identity-13 implementation while retaining ABI 4, 160-byte records, and
+thirteen exports. Metal 0026/0027 remain separately finalized Blocked.
 
 ## History policy
 

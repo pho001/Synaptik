@@ -71,7 +71,8 @@ Training-to-Metal optimizer bridge.
   is Blocked after its mandatory single direct-selector run flushed a reference subnormal
   probability to positive zero. Profile-common canonical FLOAT32 BatchNorm inference Task 0027 is
   also Blocked after its sole direct-selector run flushed signed minimum subnormals to signed zero.
-  No Metal task is Ready.
+  Planning-only Task 0030 is the sole Ready Metal frontier for profile-common exact canonical
+  FLOAT32 `MAX_POOL2D` no-grad forward.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
   requirements. Metal 0017 remains Blocked under its old accelerator-reduction contract.
@@ -96,6 +97,9 @@ Training-to-Metal optimizer bridge.
 - Metal 0026 is Blocked without production changes: its only permitted direct-selector run returned
   `0x00000000` where the four-ULP oracle required `0x0008ec28`.
 - Later Metal 0028 and 0029 remain reserved for separately authorized FLOAT16 and BFLOAT16 scopes.
+- Metal 0030 is the sole Ready frontier. It reserves schema 12/wire 20/POOL2D 7 and
+  version-thirteen identities behind one smallest raw-winner execution; it authorizes documented
+  geometry structurally and adds no capability before that gate passes.
 - Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
   0017, and Metal 0015/0019/0020/0021/0022/0023/0024/0025 are Complete.
 - Production dependencies may point to Model, Config, Planning, Runtime, Prepare,
@@ -149,6 +153,7 @@ visibility.
 | 0025 | [Exact FLOAT32 UNFOLD_AXIS materialization](tasks/0025-exact-float32-unfold-axis-materialization.md) | Complete | 0024 Complete; Model 0017M–0017N/0018R/0023D; Compiler 0005C; CPU 0006A1; Config 0006; Engine 0018 | Any 0016–0018 restart; every concurrent Metal capability/schema/candidate/materialization scope; fold, 2D/3D window, pad, convolution, pooling, Model 0026, or shared production work | None | Implemented serially from exact clean planning base `c54ccbde0dc8defd4def1e25c3fd2898a1d66f4e`; two review remediations preceded final approval | One one-run raw-bit slice/expand/concat smoke; focused reused Metal/conformance/Engine/native/export/architecture/full-build/docs proof; independent lean Class C review | Implementation `44edd86092509348e1e72cf7f0f4c3b13d141fa8`, selector-cap/capability remediation `d0a947fa953bddb2714c1917c7114ac345c530b7`, wrong-kind remediation and final reviewed revision `f88066e3ad0547987bb03b2d18ed2813f97de223`; final `APPROVE` with zero findings. |
 | 0026 | [Profile-common canonical FLOAT32 SOFTMAX](tasks/0026-profile-common-float32-softmax.md) | Blocked | 0025 Complete; Model 0016I–0016J; Compiler 0005B/0005C; CPU 0007E precedent; Config 0006; Engine 0018 | Any 0016–0018 restart; every concurrent Metal capability/schema/candidate/materialization scope; LOG_SOFTMAX, other normalization/loss/attention/fusion, profile-semantic, or shared production work | None | Mandatory one-run direct-selector numerical gate only | One `[4,8]` production-settings execution; no production change | Flattened index 18 returned positive zero `0x00000000` for the `-90.0f` input in the zero-max slice; StrictMath reference `0x0008ec28` differs by 584,744 ULPs. Probe removed; schema/identity/capability/gradient implementation did not begin. |
 | 0027 | [Profile-common FLOAT32 batch-normalization inference](tasks/0027-profile-common-float32-batch-normalization-inference.md) | Blocked | 0025 Complete; Model 0021B; Compiler 0005B/0005C; CPU 0007F1 precedent; Config 0006; Engine 0018; 0026 is not a functional dependency | Every concurrent Metal capability/schema/native-preflight/candidate/codec/materialization/public Engine scope; training, multi-output, backward closure, and any 0016–0018 restart | None | Mandatory one-run direct-selector numerical gate only | One `[2,8,2]` production-settings execution; no production change | Channel 6 returned `0x00000000`/`0x80000000` where exact positive/negative minimum subnormals `0x00000001`/`0x80000001` were required. Other 30 cells and all five unchanged feeds passed; probe removed; implementation did not begin. |
+| 0030 | [Profile-common exact canonical FLOAT32 MAX_POOL2D forward](tasks/0030-profile-common-exact-canonical-float32-max-pool2d-forward.md) | Ready | 0025 Complete; Model 0020A; Compiler 0005D/0006B11; CPU 0008G precedent; Config 0006; Engine 0018 | Every concurrent Metal capability/schema/native-preflight/candidate/codec/materialization/public Engine scope; convolution, average/1D/3D pooling, backward, multi-output, and any 0016–0018 restart | None | Sole one-execution raw-winner gate, then serial implementation | One disjoint-window winner-bit execution; focused structural/ABI/Metal/conformance/one real-Engine proof; native/export/architecture/Javadoc/final-build/docs review | Add only exact no-grad canonical positive static rank-four FLOAT32 `MAX_POOL2D` under both profiles with documented full geometry, schema 12/wire 20/POOL2D 7, and identities 13; ABI 4/160 bytes/thirteen exports unchanged. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -166,7 +171,7 @@ Completed profile spine and serial successors:
 
 `Model 0028 (Complete) -> 0020 (Complete) -> 0018 (Blocked)`
 
-`0018 blocker evidence -> Model 0029 (Complete) -> 0021 (Complete) -> 0022 (Complete) -> 0023 (Complete) -> 0024 (Complete) -> 0025 (Complete) -> {0026 (Blocked), 0027 (Blocked)}`
+`0018 blocker evidence -> Model 0029 (Complete) -> 0021 (Complete) -> 0022 (Complete) -> 0023 (Complete) -> 0024 (Complete) -> 0025 (Complete) -> {0026 (Blocked), 0027 (Blocked), 0030 (Ready)}`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -193,8 +198,9 @@ independent Class C review with zero findings. Complete
 revision `f88066e3ad0547987bb03b2d18ed2813f97de223`.
 [0026](tasks/0026-profile-common-float32-softmax.md) and
 [0027](tasks/0027-profile-common-float32-batch-normalization-inference.md) are Blocked without
-production changes. There is no Ready Metal serial frontier. These edges serialize shared semantic
-and Metal mutation; they do not claim that one operation family requires another.
+production changes. [0030](tasks/0030-profile-common-exact-canonical-float32-max-pool2d-forward.md)
+is the sole Ready Metal serial frontier. These edges serialize shared Metal mutation; they do not
+claim that one operation family requires another.
 
 ## Integration ownership and shared documents
 
@@ -203,8 +209,8 @@ and Metal mutation; they do not claim that one operation family requires another
   status, capability/preparer guides, and glossary updates after executable behavior stabilizes.
 - Blocked Metal 0016–0018 and 0026–0027 have no active write or review scope. Complete Model 0028
   owns the reduction semantic contract, Complete Model 0029 owns the MATMUL final-publication
-  semantic contract, and Complete Metal 0021–0025 retain their reviewed implementations. No Metal
-  task is Ready.
+  semantic contract, and Complete Metal 0021–0025 retain their reviewed implementations. Metal
+  0030 exclusively owns the active Metal write and shared-document scope.
 
 ## Milestones and current frontier
 
@@ -245,8 +251,9 @@ returned `0x00000000` at flattened index 18 where the frozen four-ULP StrictMath
 `0x0008ec28`, a 584,744-ULP failure. The probe was removed and no production capability changed.
 Metal 0027 is also Blocked: its only `[2,8,2]` direct BatchNorm inference execution returned signed
 zero for both signed minimum-subnormal channel-6 outputs. Its other 30 cells and all five unchanged
-feeds passed; the probe was removed, and schema 12/wire 20/attribute 7 and version-thirteen
-identities were not implemented. No Metal task is Ready.
+feeds passed; the probe was removed. Ready Metal 0030 plans the still-unimplemented schema
+12/wire 20/POOL2D 7 and version-thirteen identities for exact no-grad canonical FLOAT32
+`MAX_POOL2D`; no new executable capability exists before its sole gate and implementation pass.
 
 Metal 0006 remains `Blocked` after exact RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures.
 Metal 0007 remains independently `Blocked` after eight direct-output executions returned positive
