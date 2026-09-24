@@ -19,9 +19,12 @@ import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
+import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
@@ -132,6 +135,33 @@ final class MetalNegCapabilityPartitionConformanceTest {
                         new SumToShapeAttrs(Shape.of(1, 4))),
                 List.of(cube),
                 List.of(descriptor(Shape.of(1, 4))))));
+        TensorDescriptor right = descriptor(Shape.of(3, 4));
+        TensorDescriptor product = descriptor(Shape.of(2, 4));
+        Operation matmul = new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE);
+        assertTrue(provider.supports(query(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                List.of(matrix, right),
+                List.of(product))));
+        assertFalse(provider.supports(query(
+                NumericalProfile.STRICT_IEEE,
+                matmul,
+                List.of(matrix, right),
+                List.of(product))));
+        TensorDescriptor transposedRight = view(Shape.of(3, 4), 1, 3);
+        assertTrue(provider.supports(query(
+                NumericalProfile.ACCELERATOR,
+                new Operation(
+                        AxisTransformKind.PERMUTE,
+                        new PermutationAttrs(List.of(1, 0))),
+                List.of(descriptor(Shape.of(4, 3))),
+                List.of(transposedRight))));
+        assertTrue(provider.supports(query(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                List.of(matrix, transposedRight),
+                List.of(product))));
+
         Operation contiguous = new Operation(
                 ContiguousKind.CONTIGUOUS, NoOperationAttrs.INSTANCE);
         assertTrue(provider.supports(query(
@@ -252,6 +282,49 @@ final class MetalNegCapabilityPartitionConformanceTest {
         var partitions = MaximalSameOwnerPartitioning.partition(graph, owners);
         assertEquals(1, partitions.size());
         assertSame(MetalCapabilityProvider.METAL_BACKEND_ID, partitions.getFirst().owner());
+        assertEquals(
+                nodes.stream().map(CompiledNode::id).toList(),
+                partitions.getFirst().nodeIds());
+    }
+
+    /** Proves the visible local transpose and MATMUL become one accelerator partition. */
+    @Test
+    void acceleratorLinearTopologyBecomesOneMaximalPartition() {
+        ValueId left = new ValueId(40);
+        ValueId weight = new ValueId(41);
+        ValueId transposed = new ValueId(42);
+        ValueId output = new ValueId(43);
+        CompiledNode transpose = new CompiledNode(
+                new NodeId(40),
+                new Operation(
+                        AxisTransformKind.PERMUTE,
+                        new PermutationAttrs(List.of(1, 0))),
+                List.of(weight),
+                List.of(transposed));
+        CompiledNode matmul = new CompiledNode(
+                new NodeId(41),
+                new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE),
+                List.of(left, transposed),
+                List.of(output));
+        List<CompiledNode> nodes = List.of(transpose, matmul);
+        var graph = new CompiledGraphModel(
+                List.of(
+                        new GraphValue(left, descriptor(Shape.of(2, 3))),
+                        new GraphValue(weight, descriptor(Shape.of(4, 3))),
+                        new GraphValue(transposed, view(Shape.of(3, 4), 1, 3)),
+                        new GraphValue(output, descriptor(Shape.of(2, 4)))),
+                nodes,
+                List.of(left, weight),
+                List.of(output),
+                Map.of(
+                        transpose.id(), GraphPhase.FORWARD,
+                        matmul.id(), GraphPhase.FORWARD));
+        var partitions = MaximalSameOwnerPartitioning.partition(
+                graph,
+                Map.of(
+                        transpose.id(), MetalCapabilityProvider.METAL_BACKEND_ID,
+                        matmul.id(), MetalCapabilityProvider.METAL_BACKEND_ID));
+        assertEquals(1, partitions.size());
         assertEquals(
                 nodes.stream().map(CompiledNode::id).toList(),
                 partitions.getFirst().nodeIds());

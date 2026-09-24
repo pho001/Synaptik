@@ -4,7 +4,8 @@ This document explains the module responsibilities established by [`ARCHITECTURE
 
 The boundaries apply to both implemented and planned modules. Model, Backend Contract, Planning,
 Compiler, Runtime, Prepare, Engine, CPU, and the profile-qualified Metal
-ABS/NEG/affine/tensor-binary routes have substantive implementations; Config and Trace are partial.
+ABS/NEG/affine/tensor-binary/reduction/rank-two-MATMUL routes have substantive implementations;
+Config and Trace are partial.
 The current public execution path supports fixed CPU ownership and explicit CPU/Metal composition,
 including mixed-owner schedules with bounded bidirectional static contiguous `FLOAT32` transfer.
 Other concrete backends, broader transfer domains, and most extensions remain planned or
@@ -50,12 +51,13 @@ positive zero. CONV2D and CONV3D retain only their existing reassociation/FMA pl
 rule. Intermediate values, reduction copies and identities, declared terms, mapping, count,
 classification, and finite nonzero results otherwise retain their contracts. The semantic
 contract, Config identity, cold propagation spine, and first backend realizations are current.
-CPU supports both
-profiles identically with exact current behavior. Metal supports exact canonical `ABS` under both
-profiles, keeps NEG/affine/`CONTIGUOUS` strict-only, and supports tensor FLOAT32
-`ADD`/`SUB`/`MUL`/`DIV` plus canonical FLOAT32 `SUM`/`MEAN`/`SUM_TO_SHAPE` only under
-`ACCELERATOR`; unsupported pairs fail closed. Rank-zero Metal support is local to produced
-reduction targets and does not widen caller ingress or transfer.
+CPU supports both profiles identically with exact current behavior. Metal supports exact canonical
+`ABS` under both profiles, keeps NEG/affine/`CONTIGUOUS` strict-only, and supports tensor FLOAT32
+`ADD`/`SUB`/`MUL`/`DIV`, canonical FLOAT32 `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static
+rank-two FLOAT32 MATMUL with authenticated local transposes only under `ACCELERATOR`; unsupported
+pairs fail closed. Rank-zero Metal support is local to produced reduction targets and does not
+widen caller ingress or transfer. The narrow explicitly seeded rank-two MATMUL gradient path
+remains backend execution of the Compiler graph, not training ownership.
 
 The current Model fixed recurrent scan follows this same flat boundary. Model owns the fixed
 `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM` meanings, one `FORWARD` or `REVERSE` attribute, ordered

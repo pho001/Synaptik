@@ -18,10 +18,13 @@ import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSele
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.index.SelectKind;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
+import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
@@ -483,6 +486,68 @@ final class GradientRulesTest {
         assertMatmulGradient(Shape.of(1, 2, 3), Shape.of(5, 3, 4), 0);
         assertMatmulGradient(Shape.of(5, 2, 3), Shape.of(1, 3, 4), 1);
         assertMatmulGradient(Shape.of(2, 0), Shape.of(0, 4), 0);
+    }
+
+    @Test
+    void rankTwoMatmulUsesTheExplicitSeedAndOnlyLocalTransposeMatmulFormulas() {
+        Tensor left = tensor(Shape.of(2, 3));
+        Tensor right = tensor(Shape.of(3, 4));
+        Tensor output = left.matmul(right);
+        Tensor seed = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(2, 4), Optional.empty(), false));
+        FunctionalGradientRequest.Stage stage = new FunctionalGradientRequest.Stage(
+                List.of(new FunctionalGradientRequest.ForwardTensorReference(output)),
+                List.of(Optional.of(seed)),
+                List.of(left, right),
+                false,
+                FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+        AutogradPreflight.StagePlan plan = AutogradPreflight.preflight(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(output),
+                stage,
+                CompileTimeConstantGraph.Ingress.empty());
+        FirstOrderAutograd.Expansion expansion =
+                FirstOrderAutograd.expand(plan, CompileTimeConstantGraph.Ingress.empty());
+
+        Tensor leftReduction = expansion.targetGradients().get(0).gradient();
+        assertTrue(leftReduction.provenance().orElseThrow().operation().attrs()
+                instanceof SumToShapeAttrs);
+        Tensor leftMatmul =
+                leftReduction.provenance().orElseThrow().inputs().getFirst();
+        assertEquals(
+                MatmulKind.MATMUL,
+                leftMatmul.provenance().orElseThrow().operation().kind());
+        assertSame(seed, leftMatmul.provenance().orElseThrow().inputs().get(0));
+        Tensor rightTranspose = leftMatmul.provenance().orElseThrow().inputs().get(1);
+        assertEquals(
+                AxisTransformKind.PERMUTE,
+                rightTranspose.provenance().orElseThrow().operation().kind());
+        assertEquals(
+                List.of(1, 0),
+                ((PermutationAttrs) rightTranspose.provenance().orElseThrow()
+                        .operation().attrs()).axes());
+        assertSame(
+                right,
+                rightTranspose.provenance().orElseThrow().inputs().getFirst());
+
+        Tensor rightReduction = expansion.targetGradients().get(1).gradient();
+        assertTrue(rightReduction.provenance().orElseThrow().operation().attrs()
+                instanceof SumToShapeAttrs);
+        Tensor rightMatmul =
+                rightReduction.provenance().orElseThrow().inputs().getFirst();
+        assertEquals(
+                MatmulKind.MATMUL,
+                rightMatmul.provenance().orElseThrow().operation().kind());
+        Tensor leftTranspose = rightMatmul.provenance().orElseThrow().inputs().get(0);
+        assertEquals(
+                AxisTransformKind.PERMUTE,
+                leftTranspose.provenance().orElseThrow().operation().kind());
+        assertEquals(
+                List.of(1, 0),
+                ((PermutationAttrs) leftTranspose.provenance().orElseThrow()
+                        .operation().attrs()).axes());
+        assertSame(left, leftTranspose.provenance().orElseThrow().inputs().getFirst());
+        assertSame(seed, rightMatmul.provenance().orElseThrow().inputs().get(1));
     }
 
     @Test

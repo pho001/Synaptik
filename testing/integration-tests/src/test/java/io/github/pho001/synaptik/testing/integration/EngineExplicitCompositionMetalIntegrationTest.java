@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
 import io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration;
 import io.github.pho001.synaptik.backend.metal.MetalBackendIntegration;
+import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.config.tuning.ModelAutotuningConfig;
 import io.github.pho001.synaptik.engine.Engine;
@@ -17,7 +18,16 @@ import io.github.pho001.synaptik.engine.InferenceSession;
 import io.github.pho001.synaptik.engine.ModelAutotuningPreparation;
 import io.github.pho001.synaptik.engine.ModelAutotuningRequest;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
+import io.github.pho001.synaptik.model.graph.CompiledNode;
+import io.github.pho001.synaptik.model.graph.GraphPhase;
+import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
+import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
+import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
@@ -738,6 +748,217 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         }
     }
 
+    @Test
+    void cpuFreeAcceleratorMetalRunsRankTwoMatmulLinearAndSeededGradients() {
+        Path library = configuredMetalLibrary();
+        float[] leftValues = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+        float[] rightValues = {
+                7.0f, 8.0f, 9.0f, 10.0f,
+                11.0f, 12.0f, 13.0f, 14.0f,
+                15.0f, 16.0f, 17.0f, 18.0f
+        };
+        float[] weightValues = {
+                7.0f, 11.0f, 15.0f,
+                8.0f, 12.0f, 16.0f,
+                9.0f, 13.0f, 17.0f,
+                10.0f, 14.0f, 18.0f
+        };
+        float[] seedValues = {
+                1.0f, 2.0f, 3.0f, 4.0f,
+                5.0f, 6.0f, 7.0f, 8.0f
+        };
+        try (Arena arena = Arena.ofShared()) {
+            Tensor left = nativeTensor(
+                    descriptor(Shape.of(2, 3), true), arena, leftValues);
+            Tensor right = nativeTensor(
+                    descriptor(Shape.of(3, 4), true), arena, rightValues);
+            Tensor weight = nativeTensor(
+                    descriptor(Shape.of(4, 3)), arena, weightValues);
+            Tensor seed = nativeTensor(
+                    descriptor(Shape.of(2, 4)), arena, seedValues);
+            Tensor output = left.matmul(right);
+            Tensor linear = left.linear(weight);
+
+            try (Engine.Builder strictBuilder = Engine.builder()) {
+                strictBuilder.takeOwnership(MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library)));
+                try (Engine strictEngine = strictBuilder.build()) {
+                    IllegalStateException failure = assertThrows(
+                            IllegalStateException.class,
+                            () -> strictEngine.compile(List.of(output)));
+                    assertTrue(failure.getMessage().contains(
+                            "no hard-eligible backend is available for ownership selection"));
+                }
+            }
+
+            try (Engine.Builder builder = Engine.builder()) {
+                builder.numericalProfile(NumericalProfile.ACCELERATOR);
+                builder.takeOwnership(MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library)));
+                try (Engine engine = builder.build()) {
+                    var gradientCompiled = engine.compile(
+                            List.of(output), List.of(seed), List.of(left, right));
+                    assertEquals(
+                            List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(gradientCompiled));
+                    assertEquals(
+                            List.of(left.id(), right.id(), seed.id()),
+                            gradientCompiled.inputs().stream()
+                                    .map(input -> input.tensorId())
+                                    .toList());
+                    assertMatmulGradientGraph(
+                            EngineMixedOwnerTestAccess.compileArtifacts(gradientCompiled),
+                            left,
+                            right,
+                            seed);
+
+                    List<Tensor> gradientInputs = List.of(seed, right, left);
+                    InferenceSession reused = engine.session(gradientCompiled);
+                    try (InferenceSession independent = engine.session(gradientCompiled)) {
+                        for (int run = 0; run < 2; run++) {
+                            try (var result = reused.run(gradientInputs)) {
+                                assertMatmulGradientResults(result);
+                            }
+                        }
+                        try (var result = independent.run(gradientInputs)) {
+                            assertMatmulGradientResults(result);
+                        }
+                        reused.close();
+                        assertTrue(reused.isClosed());
+                        assertThrows(
+                                IllegalStateException.class,
+                                () -> reused.run(gradientInputs));
+                    } finally {
+                        reused.close();
+                    }
+
+                    var linearCompiled = engine.compile(List.of(linear));
+                    assertEquals(
+                            List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(linearCompiled));
+                    CompiledGraphModel linearGraph =
+                            EngineMixedOwnerTestAccess.compileArtifacts(linearCompiled).graph();
+                    assertEquals(
+                            List.of(AxisTransformKind.PERMUTE, MatmulKind.MATMUL),
+                            linearGraph.nodes().stream()
+                                    .map(node -> node.operation().kind())
+                                    .toList());
+                    try (InferenceSession session = engine.session(linearCompiled);
+                            var result = session.run(List.of(left, weight))) {
+                        assertPublication(result, 0,
+                                74.0f, 80.0f, 86.0f, 92.0f,
+                                173.0f, 188.0f, 203.0f, 218.0f);
+                    }
+
+                    assertTensorBitsUnchanged(left, leftValues);
+                    assertTensorBitsUnchanged(right, rightValues);
+                    assertTensorBitsUnchanged(weight, weightValues);
+                    assertTensorBitsUnchanged(seed, seedValues);
+                }
+            }
+        }
+    }
+
+    private static void assertMatmulGradientGraph(
+            CompileArtifacts artifacts, Tensor left, Tensor right, Tensor seed) {
+        CompiledGraphModel graph = artifacts.graph();
+        ValueId leftInput = inputValue(artifacts, left);
+        ValueId rightInput = inputValue(artifacts, right);
+        ValueId seedInput = inputValue(artifacts, seed);
+
+        CompiledNode forward = producer(
+                graph, artifacts.publication().forwardBindings().getFirst().valueId());
+        assertEquals(MatmulKind.MATMUL, forward.operation().kind());
+        assertEquals(List.of(leftInput, rightInput), forward.inputs());
+        assertEquals(GraphPhase.FORWARD, graph.nodePhases().get(forward.id()));
+
+        var gradients = artifacts.publication().gradientBindings();
+        assertEquals(List.of(left.id(), right.id()),
+                gradients.stream().map(binding -> binding.target()).toList());
+        assertEquals(7, graph.nodes().size());
+        assertEquals(6, graph.nodes().stream()
+                .filter(node -> graph.nodePhases().get(node.id()) == GraphPhase.BACKWARD)
+                .count());
+
+        CompiledNode leftBoundary = producer(graph, gradients.get(0).valueId());
+        assertShapeRestoration(leftBoundary);
+        CompiledNode leftGradient = producer(graph, leftBoundary.inputs().getFirst());
+        assertEquals(MatmulKind.MATMUL, leftGradient.operation().kind());
+        assertEquals(seedInput, leftGradient.inputs().get(0));
+        assertExactTranspose(graph, leftGradient.inputs().get(1), rightInput);
+
+        CompiledNode rightBoundary = producer(graph, gradients.get(1).valueId());
+        assertShapeRestoration(rightBoundary);
+        CompiledNode rightGradient = producer(graph, rightBoundary.inputs().getFirst());
+        assertEquals(MatmulKind.MATMUL, rightGradient.operation().kind());
+        assertExactTranspose(graph, rightGradient.inputs().get(0), leftInput);
+        assertEquals(seedInput, rightGradient.inputs().get(1));
+    }
+
+    private static void assertShapeRestoration(CompiledNode boundary) {
+        assertEquals(AggregateReductionKind.SUM, boundary.operation().kind());
+        assertTrue(boundary.operation().attrs() instanceof SumToShapeAttrs);
+    }
+
+    private static void assertExactTranspose(
+            CompiledGraphModel graph, ValueId transposeOutput, ValueId expectedInput) {
+        CompiledNode transpose = producer(graph, transposeOutput);
+        assertEquals(AxisTransformKind.PERMUTE, transpose.operation().kind());
+        assertEquals(List.of(expectedInput), transpose.inputs());
+        assertEquals(
+                List.of(1, 0),
+                ((PermutationAttrs) transpose.operation().attrs()).axes());
+        assertEquals(GraphPhase.BACKWARD, graph.nodePhases().get(transpose.id()));
+    }
+
+    private static ValueId inputValue(CompileArtifacts artifacts, Tensor tensor) {
+        return artifacts.constants().bindableInputBindings().stream()
+                .filter(binding -> binding.tensorId().equals(tensor.id()))
+                .map(binding -> binding.valueId())
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private static CompiledNode producer(CompiledGraphModel graph, ValueId output) {
+        return graph.nodes().stream()
+                .filter(node -> node.outputs().contains(output))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private static void assertMatmulGradientResults(
+            io.github.pho001.synaptik.engine.RunResult result) {
+        assertEquals(3, result.resultCount());
+        assertEquals(
+                List.of(
+                        io.github.pho001.synaptik.engine.RunResult.Role.FORWARD,
+                        io.github.pho001.synaptik.engine.RunResult.Role.GRADIENT,
+                        io.github.pho001.synaptik.engine.RunResult.Role.GRADIENT),
+                result.publications().stream()
+                        .map(publication -> publication.role())
+                        .toList());
+        assertPublication(result, 0,
+                74.0f, 80.0f, 86.0f, 92.0f,
+                173.0f, 188.0f, 203.0f, 218.0f);
+        assertPublication(result, 1,
+                90.0f, 130.0f, 170.0f,
+                226.0f, 330.0f, 434.0f);
+        assertPublication(result, 2,
+                21.0f, 26.0f, 31.0f, 36.0f,
+                27.0f, 34.0f, 41.0f, 48.0f,
+                33.0f, 42.0f, 51.0f, 60.0f);
+    }
+
+    private static void assertTensorBitsUnchanged(Tensor tensor, float[] expected) {
+        MemorySegmentStorage storage =
+                (MemorySegmentStorage) tensor.hostStorage().orElseThrow();
+        for (int index = 0; index < expected.length; index++) {
+            assertEquals(
+                    Float.floatToRawIntBits(expected[index]),
+                    storage.segment().getAtIndex(ValueLayout.JAVA_INT, index));
+        }
+    }
+
     private static void assertBinaryResults(
             io.github.pho001.synaptik.engine.RunResult result,
             int[] matrix,
@@ -1027,11 +1248,15 @@ final class EngineExplicitCompositionMetalIntegrationTest {
 
 
     private static TensorDescriptor descriptor(Shape shape) {
+        return descriptor(shape, false);
+    }
+
+    private static TensorDescriptor descriptor(Shape shape, boolean requiresGrad) {
         return new TensorDescriptor(
                 DataType.FLOAT32,
                 shape,
                 Optional.of(LayoutDescriptor.contiguous(shape)),
-                false);
+                requiresGrad);
     }
 
     private static Tensor nativeTensorBits(

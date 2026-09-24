@@ -281,7 +281,7 @@ class MetalNegRouteCandidateGeneratorTest {
     }
 
     @Test
-    void reductionFingerprintsCoverKindFormAxesOrderKeepAndSumToTarget() {
+    void typedNodeFingerprintsCoverMatmulAndReductionKindFormAxesOrderKeepAndTarget() {
         TestNativeApi api = new TestNativeApi();
         try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
             TensorDescriptor input = canonical(Shape.of(2, 3, 4));
@@ -330,7 +330,9 @@ class MetalNegRouteCandidateGeneratorTest {
                                     1,
                                     MetalMpsGraphProgram.ReductionForm.MULTI_AXIS,
                                     List.of(1),
-                                    false))));
+                                    false))),
+                    new MetalMpsGraphProgram(List.of(
+                            MetalMpsGraphProgram.Node.matmul(0, 0, 1))));
             for (MetalMpsGraphProgram changedRecord : changedRecords) {
                 MetalNegPreparationPlan changed = copyPlan(
                         plan,
@@ -412,14 +414,14 @@ class MetalNegRouteCandidateGeneratorTest {
                     MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
                     current.batch().compatibility(), MetalNegTuningBatch.Candidate.MPSGRAPH);
             var codec = new MetalNegTuningCodec();
-            assertEquals(8, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
-            assertEquals(8, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
-            assertEquals(8, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
+            assertEquals(9, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
+            assertEquals(9, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
+            assertEquals(9, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
             byte[] first = codec.encodeDecision(decision);
-            assertEquals(8, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
-            assertEquals(8, current.batch().compatibility().schemaVersion());
-            assertEquals(8, current.batch().compatibility().candidateSchemaVersion());
-            assertEquals(8, current.batch().compatibility().routePolicyVersion());
+            assertEquals(9, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
+            assertEquals(9, current.batch().compatibility().schemaVersion());
+            assertEquals(9, current.batch().compatibility().candidateSchemaVersion());
+            assertEquals(9, current.batch().compatibility().routePolicyVersion());
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());

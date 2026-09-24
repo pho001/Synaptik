@@ -251,6 +251,7 @@ unsupported profile/operation pair rather than ignoring the profile or inferring
 `DeviceClass`. The current CPU provider returns the same exact answer under `STRICT_IEEE` and
 `ACCELERATOR`. The current Metal provider admits exact canonical FLOAT32 `ABS` under both
 profiles, strict NEG/affine/`CONTIGUOUS`, and accelerator tensor FLOAT32
-`ADD`/`SUB`/`MUL`/`DIV` plus canonical FLOAT32 `SUM`/`MEAN`/`SUM_TO_SHAPE` reductions. Neither
-provider treats accelerator identity as generic fast math, and every other unsupported pair
-remains false.
+`ADD`/`SUB`/`MUL`/`DIV`, canonical FLOAT32 `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static
+rank-two FLOAT32 MATMUL with canonical or exact local-transpose layouts. Complete-partition
+analysis authenticates each admitted MATMUL transpose to its local producer. Neither provider
+treats accelerator identity as generic fast math, and every other unsupported pair remains false.

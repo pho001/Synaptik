@@ -17,9 +17,12 @@ import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryCo
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
+import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MaskedReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
@@ -291,6 +294,90 @@ class MetalCapabilityProviderTest {
     }
 
     @Test
+    void acceleratorMatmulAdmitsOnlyExactRankTwoShapesAndTransposeCandidates() {
+        TensorDescriptor left = descriptor(Shape.of(2, 3), true);
+        TensorDescriptor right = descriptor(Shape.of(3, 4), false);
+        TensorDescriptor output = descriptor(Shape.of(2, 4), true);
+        Operation matmul = new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE);
+        assertTrue(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                List.of(left, right),
+                List.of(output))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                matmul,
+                List.of(left, right),
+                List.of(output))));
+
+        TensorDescriptor leftTranspose = transposeCandidate(Shape.of(2, 3), true);
+        TensorDescriptor rightTranspose = transposeCandidate(Shape.of(3, 4), false);
+        assertTrue(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                List.of(leftTranspose, rightTranspose),
+                List.of(output))));
+        assertTrue(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                new Operation(
+                        AxisTransformKind.PERMUTE,
+                        new PermutationAttrs(List.of(1, 0))),
+                List.of(descriptor(Shape.of(3, 2), true)),
+                List.of(leftTranspose))));
+
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                List.of(left, descriptor(Shape.of(2, 4), false)),
+                List.of(output))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                List.of(left, right),
+                List.of(descriptor(Shape.of(2, 5), true)))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                List.of(left, right),
+                List.of(descriptor(Shape.of(2, 4), false)))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                List.of(
+                        new TensorDescriptor(
+                                DataType.FLOAT32,
+                                left.shape(),
+                                Optional.of(LayoutDescriptor.of(
+                                        left.shape(), new long[] {2, 1}, 0L, true)),
+                                true),
+                        right),
+                List.of(output))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                List.of(
+                        descriptor(Shape.of(2, 0), true),
+                        descriptor(Shape.of(0, 4), false)),
+                List.of(output))));
+        TensorDescriptor vector = descriptor(Shape.of(3), true);
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                List.of(vector, right),
+                List.of(output))));
+        TensorDescriptor float64 = new TensorDescriptor(
+                DataType.FLOAT64,
+                Shape.of(2, 3),
+                Optional.of(LayoutDescriptor.contiguous(Shape.of(2, 3))),
+                true);
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                List.of(float64, right),
+                List.of(output))));
+    }
+
+    @Test
     void rejectsNullWithTheContractMessage() {
         var failure = assertThrows(NullPointerException.class, () -> provider.supports(null));
         assertEquals("query", failure.getMessage());
@@ -346,6 +433,16 @@ class MetalCapabilityProviderTest {
     private static TensorDescriptor descriptor(Shape shape, boolean requiresGrad) {
         return new TensorDescriptor(DataType.FLOAT32, shape,
                 Optional.of(LayoutDescriptor.contiguous(shape)), requiresGrad);
+    }
+
+    private static TensorDescriptor transposeCandidate(Shape shape, boolean requiresGrad) {
+        long[] dimensions = shape.toLongArray();
+        return new TensorDescriptor(
+                DataType.FLOAT32,
+                shape,
+                Optional.of(LayoutDescriptor.of(
+                        shape, new long[] {1L, dimensions[0]}, 0L, true)),
+                requiresGrad);
     }
 
     private static TensorDescriptor typed(DataType type) {

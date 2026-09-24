@@ -11,20 +11,21 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Immutable typed operation table for the version-seven Metal MPSGraph node schema.
+ * Immutable typed operation table for the version-eight Metal MPSGraph node schema.
  *
  * <p>ABI version four points at fixed 160-byte discriminated records. Each record contains a
  * closed operation identity, exact ordered value indices, one typed attribute discriminator, and
  * bounded target-shape, permutation, normalized-axis, or reduction state. Reduction records use
  * a typed full/single/multi/sum-to-Shape form, ordered axes (including an empty multi-axis list),
- * exact keep-dimensions state, or the exact scalar-or-positive-rank sum-to-Shape target. Every
- * unused scalar is a required zero or {@code UINT32_MAX} sentinel and every unused attribute cell
- * is zero. No operation name, generic integer payload, object graph, map, or executable state
+ * exact keep-dimensions state, or the exact scalar-or-positive-rank sum-to-Shape target. MATMUL
+ * appends wire identity 15 with two ordered inputs, no attributes, and canonical output state.
+ * Every unused scalar is a required zero or {@code UINT32_MAX} sentinel and every unused attribute
+ * cell is zero. No operation name, generic integer payload, object graph, map, or executable state
  * crosses the ABI.</p>
  */
 final class MetalMpsGraphProgram {
     /** Exact node schema carried across native ABI version four. */
-    static final int SCHEMA_VERSION = 7;
+    static final int SCHEMA_VERSION = 8;
     /** Maximum target rank or permutation length. */
     static final int MAX_RANK = 16;
     /** Exact fixed native record size. */
@@ -103,7 +104,8 @@ final class MetalMpsGraphProgram {
         CONTIGUOUS(11, 1, AttributeKind.NONE, ValueState.CANONICAL, true),
         ABS(12, 1, AttributeKind.NONE, ValueState.CANONICAL, false),
         SUM(13, 1, AttributeKind.REDUCTION, ValueState.CANONICAL, false),
-        MEAN(14, 1, AttributeKind.REDUCTION, ValueState.CANONICAL, false);
+        MEAN(14, 1, AttributeKind.REDUCTION, ValueState.CANONICAL, false),
+        MATMUL(15, 2, AttributeKind.NONE, ValueState.CANONICAL, true);
 
         private final int wireIdentity;
         private final int inputCount;
@@ -150,7 +152,7 @@ final class MetalMpsGraphProgram {
         }
     }
 
-    /** One immutable typed version-seven node record. */
+    /** One immutable typed version-eight node record. */
     static final class Node {
         private final NodeKind kind;
         private final int firstInputIndex;
@@ -290,6 +292,12 @@ final class MetalMpsGraphProgram {
             return noAttributes(kind, leftInputIndex, rightInputIndex, outputIndex);
         }
 
+        static Node matmul(
+                int leftInputIndex, int rightInputIndex, int outputIndex) {
+            return noAttributes(
+                    NodeKind.MATMUL, leftInputIndex, rightInputIndex, outputIndex);
+        }
+
         static Node contiguous(int inputIndex, int outputIndex) {
             return noAttributes(NodeKind.CONTIGUOUS, inputIndex, NO_SECOND_INPUT, outputIndex);
         }
@@ -421,7 +429,7 @@ final class MetalMpsGraphProgram {
         return encoded.array();
     }
 
-    /** Allocates and writes exact native-endian version-seven records for one downcall. */
+    /** Allocates and writes exact native-endian version-eight records for one downcall. */
     MemorySegment encodeNative(Arena arena) {
         Objects.requireNonNull(arena, "arena");
         long bytes = Math.multiplyExact((long) nodes.size(), NODE_RECORD_BYTES);

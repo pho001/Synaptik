@@ -1,5 +1,6 @@
 package io.github.pho001.synaptik.engine;
 
+import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.runtime.run.RunState;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -26,6 +27,12 @@ public final class EngineMixedOwnerTestAccess {
             owners.add((String) invoke(owner, "value"));
         }
         return List.copyOf(owners);
+    }
+
+    /** Returns the exact immutable Compiler artifacts retained by one compiled graph. */
+    public static CompileArtifacts compileArtifacts(CompiledGraph graph) {
+        Objects.requireNonNull(graph, "graph");
+        return (CompileArtifacts) field(graph, "artifacts");
     }
 
     /**

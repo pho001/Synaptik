@@ -24,7 +24,7 @@ class MetalMpsGraphRawAbiNativeTest {
     private static final Consumer<MemorySegment> UNCHANGED = ignored -> { };
 
     @Test
-    void rawVersionSevenRecordRejectsEveryMalformedHeaderAndUnusedField() {
+    void rawVersionEightRecordRejectsEveryMalformedHeaderAndUnusedField() {
         try (RawAbi abi = RawAbi.open()) {
             MetalMpsGraphProgram reshape = new MetalMpsGraphProgram(List.of(
                     MetalMpsGraphProgram.Node.targetShape(
@@ -70,7 +70,9 @@ class MetalMpsGraphRawAbiNativeTest {
                     ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
             abi.assertRejected("stale schema version six", INVALID_ARGUMENT, 6,
                     ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
-            abi.assertRejected("unknown schema version eight", INVALID_ARGUMENT, 8,
+            abi.assertRejected("stale schema version seven", INVALID_ARGUMENT, 7,
+                    ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
+            abi.assertRejected("unknown schema version nine", INVALID_ARGUMENT, 9,
                     ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
         }
     }
@@ -333,6 +335,86 @@ class MetalMpsGraphRawAbiNativeTest {
                     new int[] {3, 0, 0},
                     dimensions(new long[][] {{2, 3, 4}, {}, {}}),
                     scalarConsumer, new int[] {0}, new int[] {2}, UNCHANGED);
+        }
+    }
+
+    @Test
+    void rawMatmulRecordsRejectMalformedGeometryAndUnauthenticatedViews() {
+        try (RawAbi abi = RawAbi.open()) {
+            int[] ranks = {2, 2, 2};
+            long[] dimensions = dimensions(new long[][] {{2, 3}, {3, 4}, {2, 4}});
+            MetalMpsGraphProgram direct = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.matmul(0, 1, 2)));
+            abi.assertRejected("MATMUL second-input sentinel", ranks, dimensions, direct,
+                    new int[] {0, 1}, new int[] {2},
+                    record -> record.set(JAVA_INT, 12L, -1));
+            abi.assertRejected("MATMUL attribute discriminator", ranks, dimensions, direct,
+                    new int[] {0, 1}, new int[] {2},
+                    record -> record.set(JAVA_INT, 4L, 1));
+            abi.assertRejected("MATMUL attribute count", ranks, dimensions, direct,
+                    new int[] {0, 1}, new int[] {2},
+                    record -> record.set(JAVA_INT, 20L, 1));
+            abi.assertRejected("MATMUL axis sentinel", ranks, dimensions, direct,
+                    new int[] {0, 1}, new int[] {2},
+                    record -> record.set(JAVA_INT, 24L, 0));
+            abi.assertRejected("MATMUL reserved cell", ranks, dimensions, direct,
+                    new int[] {0, 1}, new int[] {2},
+                    record -> record.set(JAVA_INT, 28L, 1));
+            abi.assertRejected("MATMUL unused payload", ranks, dimensions, direct,
+                    new int[] {0, 1}, new int[] {2},
+                    record -> record.set(JAVA_LONG, 32L, 1L));
+            abi.assertRejected(
+                    "MATMUL contraction dimensions disagree",
+                    ranks,
+                    dimensions(new long[][] {{2, 3}, {2, 4}, {2, 4}}),
+                    direct,
+                    new int[] {0, 1},
+                    new int[] {2},
+                    UNCHANGED);
+            abi.assertRejected(
+                    "MATMUL output dimensions disagree",
+                    ranks,
+                    dimensions(new long[][] {{2, 3}, {3, 4}, {2, 5}}),
+                    direct,
+                    new int[] {0, 1},
+                    new int[] {2},
+                    UNCHANGED);
+            abi.assertRejected(
+                    "MATMUL rank must be two",
+                    new int[] {1, 2, 2},
+                    dimensions(new long[][] {{3}, {3, 4}, {1, 4}}),
+                    direct,
+                    new int[] {0, 1},
+                    new int[] {2},
+                    UNCHANGED);
+
+            MetalMpsGraphProgram hiddenMaterialization = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.targetShape(
+                            MetalMpsGraphProgram.NodeKind.RESHAPE,
+                            0,
+                            2,
+                            new long[] {2, 3}),
+                    MetalMpsGraphProgram.Node.matmul(2, 1, 3)));
+            abi.assertRejected(
+                    "MATMUL affine input must be exact local transpose",
+                    new int[] {1, 2, 2, 2},
+                    dimensions(new long[][] {{6}, {3, 4}, {2, 3}, {2, 4}}),
+                    hiddenMaterialization,
+                    new int[] {0, 1},
+                    new int[] {3},
+                    UNCHANGED);
+
+            MetalMpsGraphProgram localTranspose = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.permutation(0, 2, List.of(1, 0)),
+                    MetalMpsGraphProgram.Node.matmul(2, 1, 3)));
+            abi.assertRejected(
+                    "MATMUL local transpose cannot also be a target",
+                    new int[] {2, 2, 2, 2},
+                    dimensions(new long[][] {{3, 2}, {3, 4}, {2, 3}, {2, 4}}),
+                    localTranspose,
+                    new int[] {0, 1},
+                    new int[] {2, 3},
+                    UNCHANGED);
         }
     }
 

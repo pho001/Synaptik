@@ -4,16 +4,14 @@
 
 Ready
 
-Readiness verification: Model 0029 is Complete at
-`308267837a17c2fdbeb8b90ad381d1f899980786`; its 1,823-case/168,461-tree/
-1,895,389-plan/3,232-root proof, 23-task validation, synchronized documentation, and independent
-Class C `APPROVE` with zero findings passed. Metal 0020, Model 0027, Config 0006, and Engine 0018
-remain Complete. Current Metal is ABI v4 with exactly thirteen exports, fixed node schema 7, and
-version-eight workload/exact-policy/candidate/compatibility/route/codec identities. Historical
-Metal 0018 remains Blocked without active write scope; Metal 0016 has no restart. Conflicts and the
-named owner paths remain current. This is the sole Ready frontier from clean base
-`308267837a17c2fdbeb8b90ad381d1f899980786` plus this planning-only authorization. No Metal 0018
-probe artifact, partial cell, or result may satisfy this task's completely fresh full oracle.
+Implementation checkpoint: the completely fresh disposable Apple M3 Max oracle passed before
+production edits and was removed. Metal remains ABI v4 with exactly thirteen exports; the
+implementation advances the fixed node schema to 8 with `MATMUL=15` and advances
+workload/exact-policy/candidate/compatibility/route/codec identities to version nine. Historical
+Metal 0018 remains Blocked without active write scope; Metal 0016 has no restart. Model 0029 is
+Complete at `308267837a17c2fdbeb8b90ad381d1f899980786`, and Metal 0020, Model 0027, Config
+0006, and Engine 0018 remain Complete. This task remains Ready only because mandatory independent
+Class C review has not yet run; no earlier 0018 probe artifact or partial cell was reused.
 
 ## Change class
 
@@ -149,7 +147,8 @@ stop and report the conflict.
 5. Native/Java lifecycle proof covers targets, inputs, transpose forms, reuse, concurrency,
    sessions/contexts, rollback, cleanup, and close rejection.
 6. A real CPU-free Engine executes oracle-checked direct/linear forward and seeded gradients for
-   both operands; graph inspection proves only planned rank-two PERMUTE/MATMUL formulas.
+   both operands; graph inspection proves the planned rank-two PERMUTE/MATMUL formulas beneath the
+   existing shape-restoration boundaries.
 7. Focused/native/conformance/Compiler/Engine/architecture/full-build/documentation/diff checks pass
    and independent Class C review has no unresolved finding.
 
@@ -187,4 +186,29 @@ real seeded Engine proof, Runtime/Trace absence, changed scope, and probe remova
 
 ## Result
 
-Not started.
+Implementation and worker validation are complete; status remains `Ready` pending one independent
+Class C review. Before production edits, a fresh disposable Objective-C probe passed:
+
+```text
+PASS device=Apple M3 Max smoke_executables=1 smoke_runs=1 full_executables=384
+full_runs=3072 oracle_cells=18441 oracle_normalizations=30729
+oracle_raw_operations=4334198 oracle_members=31498 term_mask=0x1f
+k1_product=-0 k1_publication=both opt=0,1 contexts=2 forms=4
+reduced_precision=none
+```
+
+The matrix covered direct, left-transposed, right-transposed, and both-transposed forms; two
+optimization levels and two contexts; three independently compiled executables per full cell and
+eight runs per executable; Shape/data, stable/permuted binding, guarded-target, DAZ/FTZ,
+reassociation/FMA, exact-zero publication, all-term, and reduced-precision controls. The prior
+`K=1` witness retained product `-0` and passed only through Model 0029's final-publication
+either-zero-sign freedom. The source and binary were removed before production edits.
+
+The implementation adds the exact accelerator-only capability, local transpose authentication,
+schema-eight wire `15`, Java/native fail-closed geometry and topology validation, direct MPSGraph
+matrix multiplication with reduced-precision-none readback, version-nine identities, reusable
+prepared execution, and CPU-free direct/linear/seeded-gradient Engine coverage. The seeded graph
+inspection proves `seed @ transpose(right)` and `transpose(left) @ seed` beneath the existing
+shape-restoration boundaries; real runs publish raw-bit-checked forward and both operand gradients
+with no CPU owner. Strict MATMUL remains false. No Runtime, Trace, public API, ABI export,
+packaging, discovery, scalar-loss training, batched MATMUL, or broader backward scope was added.

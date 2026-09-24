@@ -38,6 +38,7 @@ import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
+import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
@@ -622,6 +623,84 @@ class MetalNegPreparedExecutionTest {
         } finally {
             context.close();
         }
+    }
+
+    @Test
+    void acceleratorMatmulAuthenticatesLocalTransposesAndReusesOnePreparedExecutable() {
+        Fixture fixture = matmulFixture();
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        try {
+            assertThrows(IllegalArgumentException.class,
+                    () -> analyze(fixture, context, NumericalProfile.STRICT_IEEE));
+            assertEquals(0, api.executableCreates.get());
+
+            TensorDescriptor transposedLeft = descriptorFor(fixture, fixture.v2());
+            Fixture boundaryTranspose = withRequirement(
+                    fixture,
+                    requirement(
+                            fixture.v2(),
+                            transposedLeft,
+                            Optional.of(fixture.partition()),
+                            List.of(fixture.partition()),
+                            true));
+            assertThrows(IllegalArgumentException.class,
+                    () -> analyze(
+                            boundaryTranspose, context, NumericalProfile.ACCELERATOR));
+
+            BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
+                    analyze(fixture, context, NumericalProfile.ACCELERATOR);
+            MetalNegPreparationPlan plan = analysis.plan();
+            assertEquals(MetalNegPreparationPlan.Route.MPSGRAPH, plan.route());
+            assertEquals(List.of(
+                    MetalMpsGraphProgram.NodeKind.PERMUTE,
+                    MetalMpsGraphProgram.NodeKind.PERMUTE,
+                    MetalMpsGraphProgram.NodeKind.MATMUL),
+                    plan.graphProgram().nodes().stream()
+                            .map(MetalMpsGraphProgram.Node::kind)
+                            .toList());
+            MetalMpsGraphProgram.Node matmul = plan.graphProgram().nodes().get(2);
+            assertEquals(1, matmul.firstInputIndex());
+            assertEquals(3, matmul.secondInputIndex());
+            assertEquals(4, matmul.outputIndex());
+            assertEquals(0, matmul.attributeCount());
+            assertEquals(MetalMpsGraphProgram.NO_AXIS, matmul.axis());
+            assertEquals(List.of(fixture.v0(), fixture.v1()), plan.feedValueIds());
+            assertEquals(List.of(fixture.v4()), plan.targetValueIds());
+            assertEquals(List.of(
+                    MetalMpsGraphProgram.ValueState.CANONICAL,
+                    MetalMpsGraphProgram.ValueState.AFFINE_VIEW,
+                    MetalMpsGraphProgram.ValueState.CANONICAL,
+                    MetalMpsGraphProgram.ValueState.AFFINE_VIEW,
+                    MetalMpsGraphProgram.ValueState.CANONICAL),
+                    plan.valueStates());
+
+            try (var left = context.createBuffer(24);
+                    var right = context.createBuffer(48);
+                    var output = context.createBuffer(32);
+                    var workspace = addressWorkspace(context, left, right, output);
+                    var resource = context.createMpsGraphExecutable(plan)) {
+                resource.run(
+                        2,
+                        workspace.segment().asSlice(0, 2L * Long.BYTES),
+                        1,
+                        workspace.segment().asSlice(2L * Long.BYTES, Long.BYTES));
+                resource.run(
+                        2,
+                        workspace.segment().asSlice(0, 2L * Long.BYTES),
+                        1,
+                        workspace.segment().asSlice(2L * Long.BYTES, Long.BYTES));
+                assertEquals(1, api.executableCreates.get());
+                assertEquals(2, api.runCalls.get());
+                assertArrayEquals(
+                        plan.graphProgram().encodedNodeRecords(),
+                        api.createdProgram.encodedNodeRecords());
+            }
+            assertEquals(1, api.executableReleases.get());
+        } finally {
+            context.close();
+        }
+        assertEquals(1, api.contextReleases.get());
     }
 
     @Test
@@ -2473,6 +2552,56 @@ class MetalNegPreparedExecutionTest {
                 requirement(v5, matrix, Optional.of(partition), List.of(), true));
         return new Fixture(
                 partition, nodes, values, requirements, v0, v1, v2, v3, v4, v5);
+    }
+
+    private static Fixture matmulFixture() {
+        TensorDescriptor leftSource = descriptor(Shape.of(3, 2));
+        TensorDescriptor rightSource = descriptor(Shape.of(4, 3));
+        TensorDescriptor left = viewDescriptor(Shape.of(2, 3), 1, 2);
+        TensorDescriptor right = viewDescriptor(Shape.of(3, 4), 1, 3);
+        TensorDescriptor output = descriptor(Shape.of(2, 4));
+        ValueId v0 = new ValueId(32_000);
+        ValueId v1 = new ValueId(32_001);
+        ValueId v2 = new ValueId(32_002);
+        ValueId v3 = new ValueId(32_003);
+        ValueId v4 = new ValueId(32_004);
+        List<CompiledNode> nodes = List.of(
+                new CompiledNode(
+                        new NodeId(32_000),
+                        new Operation(
+                                AxisTransformKind.PERMUTE,
+                                new PermutationAttrs(List.of(1, 0))),
+                        List.of(v0),
+                        List.of(v2)),
+                new CompiledNode(
+                        new NodeId(32_001),
+                        new Operation(
+                                AxisTransformKind.PERMUTE,
+                                new PermutationAttrs(List.of(1, 0))),
+                        List.of(v1),
+                        List.of(v3)),
+                new CompiledNode(
+                        new NodeId(32_002),
+                        new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE),
+                        List.of(v2, v3),
+                        List.of(v4)));
+        PlannedPartition partition = new PlannedPartition(
+                MetalCapabilityProvider.METAL_BACKEND_ID,
+                nodes.stream().map(CompiledNode::id).toList());
+        List<GraphValue> values = List.of(
+                new GraphValue(v0, leftSource),
+                new GraphValue(v1, rightSource),
+                new GraphValue(v2, left),
+                new GraphValue(v3, right),
+                new GraphValue(v4, output));
+        List<LogicalMemoryRequirement> requirements = List.of(
+                requirement(v0, leftSource, Optional.empty(), List.of(partition), false),
+                requirement(v1, rightSource, Optional.empty(), List.of(partition), false),
+                requirement(v2, left, Optional.of(partition), List.of(partition), false),
+                requirement(v3, right, Optional.of(partition), List.of(partition), false),
+                requirement(v4, output, Optional.of(partition), List.of(), true));
+        return new Fixture(
+                partition, nodes, values, requirements, v0, v1, v2, v3, v4, v4);
     }
 
     private static Fixture reductionFixture() {

@@ -116,7 +116,8 @@ ordinary Engine captures one profile for its lifetime and transports it through 
 capability, compile artifacts, Prepare, and backend identity. CPU executes both profiles with the
 same exact current semantics. Metal admits exact canonical `ABS` under both profiles, keeps
 NEG/affine/`CONTIGUOUS` under `STRICT_IEEE`, and admits tensor FLOAT32
-`ADD`/`SUB`/`MUL`/`DIV` plus canonical FLOAT32 `SUM`/`MEAN`/`SUM_TO_SHAPE` only under
+`ADD`/`SUB`/`MUL`/`DIV`, canonical FLOAT32 `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static
+rank-two FLOAT32 `MATMUL` with canonical or authenticated local-transpose operands only under
 `ACCELERATOR`; unsupported combinations fail closed rather than selecting a fallback. Model
 remains the sole semantic owner of profile meaning.
 
@@ -175,10 +176,13 @@ graph-local ID canonicalization and whole-graph DCE plus phase-local CSE are cur
 behavior. CPU physical execution is current for its documented bounded affine units. Metal forward
 execution is current for exact canonical `FLOAT32` ABS under both profiles, strict chains of the
 five affine views plus `CONTIGUOUS` with graph-local view provenance and canonical NEG/ABS
-boundaries, and accelerator canonical tensor binary/reduction partitions. Metal reduction
-execution is forward-only; a positive-rank result may compose locally, while a scalar result is a
-direct target with four-byte local materialization. Public gradient requests/publication and
-Metal backward execution are not introduced by those routes.
+boundaries, and accelerator canonical tensor binary/reduction plus rank-two MATMUL partitions.
+Metal reduction execution remains forward-only; a positive-rank result may compose locally, while
+a scalar result is a direct target with four-byte local materialization. Accelerator MATMUL also
+executes the Compiler-generated explicitly seeded first-order formulas for both canonical rank-two
+operands through exact local transposes beneath the existing shape-restoration boundaries. This
+narrow path introduces no scalar-loss, implicit-seed, batched-MATMUL, or general Metal training
+claim.
 
 `AxisTransformKind.PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` are current semantic identities.
 `PermutationAttrs` stores a complete normalized output-to-input axis permutation, while

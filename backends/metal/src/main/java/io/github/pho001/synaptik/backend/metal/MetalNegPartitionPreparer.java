@@ -16,6 +16,7 @@ import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
+import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
@@ -40,16 +41,19 @@ import java.util.Optional;
  * ordered operand, and derives unique feeds and targets before selecting a closed private route.
  * Under {@code STRICT_IEEE}, it walks explicit unavailable/canonical/affine-view states in node
  * order for the retained NEG/ABS, affine, and CONTIGUOUS domain. Under {@code ACCELERATOR}, it
- * accepts canonical ABS, binary arithmetic, and the exact SUM/MEAN/SUM_TO_SHAPE reduction forms.
- * Reduction lowering retains the typed form, ordered normalized axes (including empty), exact
- * keep-dimensions flag, sum-to-Shape target, and shape-derived term geometry in schema-seven
- * records. Every graph feed is canonical positive-rank FLOAT32. Analysis freshly regenerates the
- * complete candidate batch; an absent decision preserves the singleton-NEG heuristic, while a
- * present decision must authenticate against current schema, workload, profile, session target,
- * and candidate identity. The selected route is fixed before exact declarations. Published affine
- * views retain logical descriptors while declarations use full dense represented-order byte
- * geometry. Analysis allocates no physical resource and never changes partition ownership or
- * capability.</p>
+ * accepts canonical ABS, binary arithmetic, the exact SUM/MEAN/SUM_TO_SHAPE reduction forms, and
+ * positive static rank-two FLOAT32 MATMUL. An affine MATMUL operand is authenticated to the exact
+ * earlier local rank-two {@code PERMUTE [1,0]} of a canonical source; that view may be consumed
+ * only by local MATMUL and may not cross or become a partition boundary. MATMUL lowering retains
+ * both ordered operands in a schema-eight wire-15 record. Reduction lowering retains the typed
+ * form, ordered normalized axes (including empty), exact keep-dimensions flag, sum-to-Shape
+ * target, and shape-derived term geometry. Every graph feed is canonical positive-rank FLOAT32.
+ * Analysis freshly regenerates the complete candidate batch; an absent decision preserves the
+ * singleton-NEG heuristic, while a present decision must authenticate against current schema,
+ * workload, profile, session target, and candidate identity. The selected route is fixed before
+ * exact declarations. Published affine views retain logical descriptors while declarations use
+ * full dense represented-order byte geometry. Analysis allocates no physical resource and never
+ * changes partition ownership or capability.</p>
  */
 final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         MetalNegAnalysisInputs, MetalNegPreparationPlan> {
@@ -84,6 +88,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         var descriptors = new ArrayList<TensorDescriptor>();
         var states = new LinkedHashMap<ValueId, MetalMpsGraphProgram.ValueState>();
         var feeds = new ArrayList<ValueId>();
+        var localTranspose = new LinkedHashMap<ValueId, Boolean>();
         int nodeCount = context.nodes().size();
         var programNodes = new ArrayList<MetalMpsGraphProgram.Node>(nodeCount);
         for (int nodeIndex = 0; nodeIndex < nodeCount; nodeIndex++) {
@@ -110,6 +115,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     state = MetalMpsGraphProgram.ValueState.CANONICAL;
                     states.put(inputId, state);
                     feeds.add(inputId);
+                    localTranspose.put(inputId, false);
                 }
                 inputStates.add(state);
             }
@@ -148,13 +154,51 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     outputId, graphValues, valueIndexes, valueIds, descriptors);
             MetalMpsGraphProgram.Node lowered = lower(
                     node.operation(), inputIndices, outputIndex);
+            if (lowered.kind() == MetalMpsGraphProgram.NodeKind.MATMUL) {
+                for (int inputIndex = 0; inputIndex < inputStates.size(); inputIndex++) {
+                    if (inputStates.get(inputIndex)
+                                    == MetalMpsGraphProgram.ValueState.AFFINE_VIEW
+                            && !Boolean.TRUE.equals(
+                                    localTranspose.get(node.inputs().get(inputIndex)))) {
+                        throw new IllegalArgumentException(
+                                "Metal MATMUL affine input is not an authenticated local transpose");
+                    }
+                }
+            }
             if (inputStates.size() != lowered.kind().inputCount()
                     || inputStates.stream().anyMatch(state -> !lowered.kind().accepts(state))) {
                 throw new IllegalArgumentException(
                         "Metal node input value state is unavailable or incompatible");
             }
             programNodes.add(lowered);
+            boolean exactLocalTranspose =
+                    lowered.kind() == MetalMpsGraphProgram.NodeKind.PERMUTE
+                            && inputStates.getFirst()
+                                    == MetalMpsGraphProgram.ValueState.CANONICAL
+                            && inputDescriptors.getFirst().shape().rank() == 2
+                            && outputValue.descriptor().shape().rank() == 2
+                            && ((PermutationAttrs) node.operation().attrs())
+                                    .axes().equals(List.of(1, 0));
+            if (numericalProfile == NumericalProfile.ACCELERATOR
+                    && lowered.kind() == MetalMpsGraphProgram.NodeKind.PERMUTE
+                    && !exactLocalTranspose) {
+                throw new IllegalArgumentException(
+                        "Metal accelerator PERMUTE must be an exact local rank-two transpose");
+            }
+            localTranspose.put(outputId, exactLocalTranspose);
             states.put(outputId, lowered.kind().outputState());
+        }
+        if (numericalProfile == NumericalProfile.ACCELERATOR) {
+            for (Map.Entry<ValueId, Boolean> entry : localTranspose.entrySet()) {
+                if (!entry.getValue()) continue;
+                var consumers = context.partitionDag().consumers(entry.getKey());
+                if (consumers.isEmpty()
+                        || consumers.stream().anyMatch(consumer ->
+                                consumer.node().operation().kind() != MatmulKind.MATMUL)) {
+                    throw new IllegalArgumentException(
+                            "Metal local transpose must be consumed only by local MATMUL");
+                }
+            }
         }
         var graphProgram = new MetalMpsGraphProgram(programNodes);
 
@@ -186,6 +230,12 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     targets.add(output);
                 }
             }
+        }
+        if (numericalProfile == NumericalProfile.ACCELERATOR
+                && targets.stream().anyMatch(
+                        target -> Boolean.TRUE.equals(localTranspose.get(target)))) {
+            throw new IllegalArgumentException(
+                    "Metal local MATMUL transpose cannot be a partition boundary");
         }
         if (feeds.isEmpty() || targets.isEmpty()) {
             throw new IllegalArgumentException(
@@ -388,6 +438,9 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             };
             return MetalMpsGraphProgram.Node.binary(
                     nodeKind, inputs[0], inputs[1], output);
+        }
+        if (kind == MatmulKind.MATMUL) {
+            return MetalMpsGraphProgram.Node.matmul(inputs[0], inputs[1], output);
         }
         if (kind instanceof AggregateReductionKind reduction) {
             MetalMpsGraphProgram.NodeKind nodeKind = reduction == AggregateReductionKind.SUM

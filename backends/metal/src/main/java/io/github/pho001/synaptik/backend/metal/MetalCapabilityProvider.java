@@ -14,6 +14,7 @@ import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
+import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
@@ -32,17 +33,20 @@ import java.util.Objects;
  * registration, or caching. Under {@link NumericalProfile#STRICT_IEEE}, support is exactly unary
  * {@code NEG} and {@code ABS}, five FLOAT32 affine transforms, and the explicit {@code CONTIGUOUS}
  * canonicalization barrier. Under {@link NumericalProfile#ACCELERATOR}, support is exactly unary
- * {@code ABS}, tensor {@code ADD}/{@code SUB}/{@code MUL}/{@code DIV}, and canonical FLOAT32
- * {@code SUM}/{@code MEAN}/{@code SUM_TO_SHAPE}. Accelerator reductions admit only full,
- * normalized single-axis, ordered normalized multi-axis (including empty identity), and
+ * {@code ABS}, tensor {@code ADD}/{@code SUB}/{@code MUL}/{@code DIV}, canonical FLOAT32
+ * {@code SUM}/{@code MEAN}/{@code SUM_TO_SHAPE}, and positive static rank-two FLOAT32
+ * {@code MATMUL}. MATMUL accepts each operand only as canonical or as the exact rank-two transpose
+ * layout that complete-partition analysis must authenticate to a local {@code PERMUTE [1,0]}
+ * producer from a canonical source. Its output is canonical and carries the logical OR of the
+ * operand gradient flags. Strict MATMUL remains unsupported. Accelerator reductions admit only
+ * full, normalized single-axis, ordered normalized multi-axis (including empty identity), and
  * binding-resolved sum-to-Shape forms. Their input is canonical positive-rank {@code 1..16};
  * canonical outputs may be rank zero only as locally produced reduction results. Strict
  * reductions remain unsupported. Binary inputs and outputs are canonical dense non-views with
  * exact right-aligned broadcasting. {@code ABS} and strict {@code NEG} descriptors remain
  * canonical. A strict affine or contiguous input may be canonical or an exact resolved
  * zero-offset logical view; complete-partition analysis authenticates every admitted view as a
- * prior local affine result. Every admitted occurrence uses checked positive extents and
- * preserves one common gradient-eligibility flag.</p>
+ * prior local affine result. Every admitted occurrence uses checked positive extents.</p>
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
     /**
@@ -118,6 +122,12 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 if (operation.kind() instanceof AggregateReductionKind reduction) {
                     return supportsReduction(operation, inputs, output, reduction);
                 }
+                if (operation.kind() == MatmulKind.MATMUL) {
+                    return supportsMatmul(operation, inputs, output);
+                }
+                if (operation.kind() == AxisTransformKind.PERMUTE) {
+                    return supportsLocalMatmulTranspose(operation, inputs, output);
+                }
                 return supportsBinary(operation, inputs, output);
             }
             if (operation.kind() == UnaryElementwiseKind.NEG) {
@@ -163,6 +173,54 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 && left.requiresGrad() == right.requiresGrad()
                 && left.requiresGrad() == output.requiresGrad()
                 && ShapeBroadcast.broadcast(left.shape(), right.shape()).equals(output.shape());
+    }
+
+    private static boolean supportsMatmul(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        if (operation.attrs() != NoOperationAttrs.INSTANCE || inputs.size() != 2) {
+            return false;
+        }
+        TensorDescriptor left = inputs.get(0);
+        TensorDescriptor right = inputs.get(1);
+        if (!matmulInput(left)
+                || !matmulInput(right)
+                || !canonical(output)
+                || left.shape().rank() != 2
+                || right.shape().rank() != 2
+                || output.shape().rank() != 2
+                || output.requiresGrad() != (left.requiresGrad() || right.requiresGrad())) {
+            return false;
+        }
+        long[] leftShape = left.shape().toLongArray();
+        long[] rightShape = right.shape().toLongArray();
+        long[] outputShape = output.shape().toLongArray();
+        return leftShape[1] == rightShape[0]
+                && outputShape[0] == leftShape[0]
+                && outputShape[1] == rightShape[1];
+    }
+
+    private static boolean matmulInput(TensorDescriptor descriptor) {
+        if (!geometry(descriptor) || descriptor.shape().rank() != 2) {
+            return false;
+        }
+        LayoutDescriptor layout = descriptor.layout().orElseThrow();
+        if (layout.equals(LayoutDescriptor.contiguous(descriptor.shape()))) {
+            return true;
+        }
+        long[] shape = descriptor.shape().toLongArray();
+        return layout.equals(LayoutDescriptor.of(
+                descriptor.shape(), new long[] {1L, shape[0]}, 0L, true));
+    }
+
+    private static boolean supportsLocalMatmulTranspose(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        return inputs.size() == 1
+                && operation.attrs() instanceof PermutationAttrs attrs
+                && attrs.axes().equals(List.of(1, 0))
+                && canonical(inputs.getFirst())
+                && inputs.getFirst().shape().rank() == 2
+                && output.shape().rank() == 2
+                && supportsAffine(operation, inputs, output);
     }
 
     private static boolean supportsReduction(

@@ -533,6 +533,7 @@ A preparer receives the exact graph-wide `NumericalProfile` in `PrepareContext`.
 unsupported profile/operation combination before route analysis and retain the profile in every
 plan and compatibility identity that could otherwise be reused. CPU admits both profiles with
 identical exact routes and distinct identities. Metal admits exact canonical ABS in either
-profile, strict NEG/affine/`CONTIGUOUS`, or accelerator tensor-binary and canonical
-`SUM`/`MEAN`/`SUM_TO_SHAPE` reduction partitions and rejects profile-incompatible topology before
-native resource creation.
+profile, strict NEG/affine/`CONTIGUOUS`, or accelerator tensor-binary, canonical
+`SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two MATMUL partitions. The Metal preparer
+also authenticates each affine MATMUL operand to an exact local rank-two transpose of a canonical
+source and rejects boundary or unrelated views before native resource creation.

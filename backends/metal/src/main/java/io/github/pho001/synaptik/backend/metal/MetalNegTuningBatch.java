@@ -17,11 +17,11 @@ import java.util.Optional;
  */
 final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
     /** Current candidate and decision meaning. */
-    static final int CANDIDATE_SCHEMA_VERSION = 8;
+    static final int CANDIDATE_SCHEMA_VERSION = 9;
     /** Current canonical workload/target compatibility meaning. */
-    static final int COMPATIBILITY_SCHEMA_VERSION = 8;
+    static final int COMPATIBILITY_SCHEMA_VERSION = 9;
     /** Current exact profile-qualified Metal operation-composition policy meaning. */
-    static final int ROUTE_POLICY_VERSION = 8;
+    static final int ROUTE_POLICY_VERSION = 9;
 
     /** Stable complete private route configurations. */
     enum Candidate {
@@ -67,7 +67,7 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
         private final byte[] bytes;
 
         /**
-         * Snapshots canonical schema-seven workload-fingerprint bytes.
+         * Snapshots canonical schema-eight workload-fingerprint bytes.
          *
          * <p>The bytes include the stable explicit numerical-profile wire identity, so otherwise
          * equal workloads under different profiles cannot share workload identity.</p>

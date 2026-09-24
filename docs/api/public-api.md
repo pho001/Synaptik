@@ -23,18 +23,20 @@ identical exact execution under both numerical profiles. The Metal backend expos
 `MetalBackendConfiguration`, `MetalBackendIntegration`, and two profile-qualified `FLOAT32`
 domains. Both admit exact canonical `ABS`. Strict Metal additionally supports `NEG`, `RESHAPE`,
 `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`; accelerator Metal additionally
-supports canonical tensor `ADD`, `SUB`, `MUL`, and `DIV`, plus canonical
-`SUM`/`MEAN`/`SUM_TO_SHAPE` reductions, under the bounded Model profile. Strict binary/reduction
-and accelerator baseline operations fail ownership selection before native preparation. Every
-`ABS` operand and output, strict graph feed, and direct `NEG` operand is a canonical contiguous
-non-view. Affine operations may consume exact zero-offset views produced earlier in the same
-maximal strict Metal partition, retain their exact logical view descriptors, and privately write
-dense represented-order targets. `CONTIGUOUS` converts available canonical or local affine-view
-state to canonical state before subsequent strict `NEG` or `ABS`. Exact authenticated affine
-publications and locally produced scalar reduction targets may materialize to detached canonical
-host bytes; the latter uses exactly four bytes. Caller ingress and cross-owner transfer remain
-positive-rank and canonical-non-view-only. `Engine.builder()` is the
-public explicit composition root for
+supports canonical tensor `ADD`, `SUB`, `MUL`, and `DIV`; canonical
+`SUM`/`MEAN`/`SUM_TO_SHAPE`; and positive static rank-two `MATMUL` with canonical or authenticated
+local-transpose operands, under the bounded Model profile. Strict binary/reduction/MATMUL and
+accelerator baseline operations fail ownership selection before native preparation. Every `ABS`
+operand and output, strict graph feed, and direct `NEG` operand is a canonical contiguous non-view.
+Affine operations may consume exact zero-offset views produced earlier in the same maximal strict
+Metal partition, retain their exact logical view descriptors, and privately write dense
+represented-order targets. Accelerator MATMUL may consume only an exact local rank-two
+`PERMUTE [1,0]` view or canonical operand and produces canonical state. `CONTIGUOUS` converts
+available canonical or local affine-view state to canonical state before subsequent strict `NEG`
+or `ABS`. Exact authenticated affine publications and locally produced scalar reduction targets
+may materialize to detached canonical host bytes; the latter uses exactly four bytes.
+Caller ingress and cross-owner transfer remain positive-rank and canonical-non-view-only.
+`Engine.builder()` is the public explicit composition root for
 opened CPU and Metal integrations. It freezes their Planning inputs in registration order and
 supports a complete non-empty plan only when every partition has one exact registered owner. The
 `Engine.standard()` convenience still constructs one fresh CPU-only composition through that same
@@ -1257,8 +1259,10 @@ close in addition to capability.
 
 Metal retains a custom route only for an eligible strict singleton `NEG`; every `ABS` partition,
 every other supported strict NEG/affine/`CONTIGUOUS` partition, and every accelerator
-ABS/tensor-binary/reduction partition uses one typed whole-partition MPSGraph executable. This
-private route and native ABI choice adds no public Java type or method.
+ABS/tensor-binary/reduction/MATMUL partition uses one typed whole-partition MPSGraph executable.
+The MATMUL domain also executes Compiler-generated explicitly seeded rank-two gradients for both
+operands through authenticated local transposes; this does not add scalar-loss or general training
+support. This private route and native ABI choice adds no public Java type or method.
 
 `prepareTuned(...)` remains the bounded CPU-only workflow. It can tune a CPU-owned plan when Metal
 is also registered, but a Metal-owned plan fails with `IllegalStateException` before

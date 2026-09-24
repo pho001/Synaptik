@@ -122,7 +122,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * @param numericalProfile non-null cold plan profile used by Java fail-closed preflight
      * @param valueRanks non-null value-aligned ranks
      * @param valueDimensions non-null row-major value-count by sixteen dimension table
-     * @param graphProgram non-null version-seven typed node table
+     * @param graphProgram non-null version-eight typed node table
      * @param feedValueIndices non-null stable feed value indices
      * @param targetValueIndices non-null stable target value indices
      * @return a fresh non-null opaque executable handle owned by the caller
@@ -155,7 +155,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * @param context non-null live context whose ownership remains with the caller
      * @param valueRanks validated value-aligned ranks
      * @param valueDimensions validated padded dimension table
-     * @param graphProgram validated version-seven typed topological node table
+     * @param graphProgram validated version-eight typed topological node table
      * @param feedValueIndices validated unique feeds
      * @param targetValueIndices validated unique produced targets
      * @return non-null raw status/output-cell result for checked interpretation
@@ -482,7 +482,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
     }
 
-    /** Exact Java preflight for the version-seven typed MPSGraph executable-create schema. */
+    /** Exact Java preflight for the version-eight typed MPSGraph executable-create schema. */
     static final class MpsGraphExecutableAbi {
         private static final int MAX_RANK = 16;
 
@@ -560,6 +560,8 @@ abstract class MetalNativeApi implements AutoCloseable {
             java.util.Arrays.fill(states, MetalMpsGraphProgram.ValueState.UNAVAILABLE);
             boolean[] used = new boolean[valueCount];
             boolean[] produced = new boolean[valueCount];
+            boolean[] localTranspose = new boolean[valueCount];
+            boolean[] transposeConsumedByMatmul = new boolean[valueCount];
             for (int feed : feeds) {
                 requireIndex(feed, valueCount, "feed");
                 if (states[feed] != MetalMpsGraphProgram.ValueState.UNAVAILABLE) {
@@ -629,9 +631,25 @@ abstract class MetalNativeApi implements AutoCloseable {
                                 targetMatches(node, output, valueRanks, valueDimensions),
                                 "EXPAND target attributes must equal the output shape");
                     }
-                    case PERMUTE -> requireShape(
-                            permutationMatches(node, left, output, valueRanks, valueDimensions),
-                            "PERMUTE attributes and output shape disagree");
+                    case PERMUTE -> {
+                        boolean matches = permutationMatches(
+                                node, left, output, valueRanks, valueDimensions);
+                        requireShape(matches, "PERMUTE attributes and output shape disagree");
+                        long[] attributes = node.attributeValues();
+                        boolean exactLocalTranspose =
+                                states[left] == MetalMpsGraphProgram.ValueState.CANONICAL
+                                        && valueRanks[left] == 2
+                                        && valueRanks[output] == 2
+                                        && node.attributeCount() == 2
+                                        && attributes[0] == 1L
+                                        && attributes[1] == 0L;
+                        if (numericalProfile == NumericalProfile.ACCELERATOR
+                                && !exactLocalTranspose) {
+                            throw new IllegalArgumentException(
+                                    "Metal accelerator PERMUTE must be an exact local transpose");
+                        }
+                        localTranspose[output] = exactLocalTranspose;
+                    }
                     case EXPAND_DIMS -> requireShape(
                             expandDimsMatches(node, left, output, valueRanks, valueDimensions),
                             "EXPAND_DIMS axis and output shape disagree");
@@ -641,6 +659,31 @@ abstract class MetalNativeApi implements AutoCloseable {
                     case SUM, MEAN -> requireShape(
                             reductionMatches(node, left, output, valueRanks, valueDimensions),
                             "reduction attributes, count, and output shape disagree");
+                    case MATMUL -> {
+                        requireIndex(right, valueCount, "second node input");
+                        if (valueRanks[right] == 0
+                                || !node.kind().accepts(states[right])) {
+                            throw new IllegalArgumentException(
+                                    "Metal MATMUL second input must be positive-rank canonical"
+                                            + " or an affine view");
+                        }
+                        if ((states[left] == MetalMpsGraphProgram.ValueState.AFFINE_VIEW
+                                        && !localTranspose[left])
+                                || (states[right]
+                                                == MetalMpsGraphProgram.ValueState.AFFINE_VIEW
+                                        && !localTranspose[right])) {
+                            throw new IllegalArgumentException(
+                                    "Metal MATMUL affine inputs must be authenticated local"
+                                            + " rank-two transposes");
+                        }
+                        requireShape(
+                                matmulMatches(
+                                        left, right, output, valueRanks, valueDimensions),
+                                "MATMUL shapes must be exact positive rank-two contraction");
+                        if (localTranspose[left]) transposeConsumedByMatmul[left] = true;
+                        if (localTranspose[right]) transposeConsumedByMatmul[right] = true;
+                        used[right] = true;
+                    }
                 }
                 if (valueRanks[output] == 0
                         && node.kind() != MetalMpsGraphProgram.NodeKind.SUM
@@ -671,6 +714,12 @@ abstract class MetalNativeApi implements AutoCloseable {
                 if (valueRanks[value] == 0 && (!produced[value] || !targeted[value])) {
                     throw new IllegalArgumentException(
                             "Metal MPSGraph rank-zero reduction must be a direct target");
+                }
+                if (numericalProfile == NumericalProfile.ACCELERATOR
+                        && localTranspose[value]
+                        && (!transposeConsumedByMatmul[value] || targeted[value])) {
+                    throw new IllegalArgumentException(
+                            "Metal accelerator transpose must be local only to MATMUL");
                 }
             }
             for (int value = 0; value < valueCount; value++) {
@@ -740,14 +789,30 @@ abstract class MetalNativeApi implements AutoCloseable {
                 case STRICT_IEEE -> switch (kind) {
                     case NEG, ABS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE,
                             CONTIGUOUS -> true;
-                    case ADD, SUB, MUL, DIV, SUM, MEAN -> false;
+                    case ADD, SUB, MUL, DIV, SUM, MEAN, MATMUL -> false;
                 };
                 case ACCELERATOR -> switch (kind) {
-                    case ABS, ADD, SUB, MUL, DIV, SUM, MEAN -> true;
-                    case NEG, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE,
-                            CONTIGUOUS -> false;
+                    case ABS, ADD, SUB, MUL, DIV, SUM, MEAN, PERMUTE, MATMUL -> true;
+                    case NEG, RESHAPE, EXPAND, EXPAND_DIMS, SQUEEZE, CONTIGUOUS -> false;
                 };
             };
+        }
+
+        private static boolean matmulMatches(
+                int left,
+                int right,
+                int output,
+                int[] ranks,
+                long[] dimensions) {
+            if (ranks[left] != 2 || ranks[right] != 2 || ranks[output] != 2) {
+                return false;
+            }
+            int leftRow = left * MAX_RANK;
+            int rightRow = right * MAX_RANK;
+            int outputRow = output * MAX_RANK;
+            return dimensions[leftRow + 1] == dimensions[rightRow]
+                    && dimensions[outputRow] == dimensions[leftRow]
+                    && dimensions[outputRow + 1] == dimensions[rightRow + 1];
         }
 
         private static boolean reductionMatches(
