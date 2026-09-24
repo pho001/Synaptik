@@ -40,8 +40,9 @@ Model is also the sole owner of the two graph numerical-profile result sets. `ST
 each operation's current family-specific contract rather than universal bitwise strictness.
 `ACCELERATOR` is an opt-in, operation-specific `FLOAT32` superset bounded by the
 [sole normative table](contracts/foundational-modules.md#numerical-profiles); it is not generic
-fast math or tolerance. This semantic contract is current. No profile selector, propagation spine,
-or relaxed backend capability is implemented yet.
+fast math or tolerance. This semantic contract and the Config identity are current. Profile-qualified
+propagation and relaxed backend capability are not implemented yet; current strict capability remains
+fail-closed.
 
 The current Model fixed recurrent scan follows this same flat boundary. Model owns the fixed
 `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM` meanings, one `FORWARD` or `REVERSE` attribute, ordered
