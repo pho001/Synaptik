@@ -27,6 +27,7 @@ import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
+import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
@@ -209,6 +210,16 @@ class MetalCapabilityProviderTest {
             assertTrue(provider.supports(new OperationCapabilityQuery(
                     profile, unfold, List.of(input), List.of(output))),
                     profile + " admits the same exact occurrence");
+        }
+
+        Operation fold = new Operation(
+                WindowTransformKind.FOLD_AXIS, new FoldAxisAttrs(1, 6, 2));
+        TensorDescriptor foldInput = descriptor(Shape.of(2, 2, 3), true);
+        TensorDescriptor foldOutput = descriptor(Shape.of(2, 6), true);
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            assertFalse(provider.supports(new OperationCapabilityQuery(
+                    profile, fold, List.of(foldInput), List.of(foldOutput))),
+                    profile + " rejects an otherwise valid FOLD_AXIS solely by kind");
         }
 
         TensorDescriptor capInput = descriptor(Shape.of(2, 17), true);

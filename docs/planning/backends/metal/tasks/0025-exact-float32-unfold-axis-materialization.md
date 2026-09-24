@@ -333,6 +333,15 @@ Remediation evidence passed without rerunning the already successful full build:
   methods plus `:backends:metal:javadoc` in one focused Gradle invocation: `BUILD SUCCESSFUL`, 20
   actionable tasks, four executed and 16 up-to-date.
 
+The second independent re-review returned `BLOCK` for one remaining wrong-kind proof gap.
+Remediation began from exact clean checkpoint `d0a947fa953bddb2714c1917c7114ac345c530b7`
+and again makes no approval claim. The existing capability method now constructs the valid
+`FOLD_AXIS + FoldAxisAttrs(axis=1, outputSize=6, step=2)` occurrence from canonical FLOAT32
+`[2,2,3]` input to canonical FLOAT32 `[2,6]` output with matching `requiresGrad`, then proves its
+rejection under both profiles solely because the kind is not `UNFOLD_AXIS`. Its single focused test
+invocation passed: `BUILD SUCCESSFUL`, 19 actionable tasks, two executed and 17 up-to-date. No
+production code changed and the already-successful broader validation was not rerun.
+
 The exact 32-path checkpoint is:
 
 - production under
