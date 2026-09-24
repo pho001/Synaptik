@@ -39,61 +39,45 @@ import org.junit.jupiter.api.io.TempDir;
 /** Exercises real CPU-free Metal and mixed CPU/Metal public Engine composition. */
 final class EngineExplicitCompositionMetalIntegrationTest {
     @Test
-    void cpuFreeMetalEngineRunsCallerBroadcastGraphAcrossIsolatedSessions() {
+    void subnormalBinaryGraphIsCpuOwnedOrRejectedBeforeMetalPreparation() {
         Path library = configuredMetalLibrary();
-        try (Arena arena = Arena.ofShared();
-                Engine.Builder builder = Engine.builder()) {
-            builder.takeOwnership(MetalBackendIntegration.open(
-                    new MetalBackendConfiguration(library)));
-            try (Engine engine = builder.build()) {
-                Shape matrixShape = Shape.of(2, 3);
-                TensorDescriptor matrixDescriptor = new TensorDescriptor(
-                        DataType.FLOAT32,
-                        matrixShape,
-                        Optional.of(LayoutDescriptor.contiguous(matrixShape)),
-                        false);
-                Tensor matrix = nativeTensor(
-                        matrixDescriptor, arena, 3.0f, 4.0f, 6.0f, 3.0f, 4.0f, 6.0f);
-                Shape rowShape = Shape.of(3);
-                TensorDescriptor rowDescriptor = new TensorDescriptor(
-                        DataType.FLOAT32,
-                        rowShape,
-                        Optional.of(LayoutDescriptor.contiguous(rowShape)),
-                        false);
-                Tensor row = nativeTensor(rowDescriptor, arena, 2.0f, 2.0f, 2.0f);
-                Tensor negated = matrix.neg();
-                Tensor zero = negated.add(matrix);
-                Tensor broadcast = zero.add(row);
-                Tensor subtracted = matrix.sub(broadcast);
-                Tensor multiplied = subtracted.mul(row);
-                Tensor divided = multiplied.div(row);
-                Tensor reverseDivided = row.div(divided);
-                var compiled = engine.compile(
-                        List.of(zero, subtracted, divided, reverseDivided));
-                assertEquals(2, compiled.inputs().size());
+        try (Arena arena = Arena.ofShared()) {
+            TensorDescriptor descriptor = descriptor(Shape.of(2));
+            Tensor left = nativeTensorBits(
+                    descriptor, arena, 0x00000001, 0x80000001);
+            Tensor right = nativeTensorBits(
+                    descriptor, arena, 0x00000001, 0x80000001);
+            Tensor output = left.add(right);
 
-                InferenceSession first = engine.session(compiled);
-                InferenceSession second = engine.session(compiled);
-                try {
-                    assertCpuFreeMetalBroadcastResult(first, matrix, row);
-                    assertCpuFreeMetalBroadcastResult(first, matrix, row);
-                    assertCpuFreeMetalBroadcastResult(second, matrix, row);
+            try (Engine.Builder builder = Engine.builder()) {
+                builder.takeOwnership(MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library)));
+                try (Engine engine = builder.build()) {
+                    IllegalStateException failure = assertThrows(
+                            IllegalStateException.class,
+                            () -> engine.compile(List.of(output)));
+                    assertTrue(failure.getMessage().contains(
+                            "no hard-eligible backend is available for ownership selection"));
+                }
+            }
 
-                    first.close();
-                    assertTrue(first.isClosed());
-                    assertEquals("prepared execution is closed",
-                            assertThrows(IllegalStateException.class,
-                                    () -> first.run(null)).getMessage());
-                    assertCpuFreeMetalBroadcastResult(second, matrix, row);
-
-                    second.close();
-                    assertTrue(second.isClosed());
-                    assertEquals("prepared execution is closed",
-                            assertThrows(IllegalStateException.class,
-                                    () -> second.run(null)).getMessage());
-                } finally {
-                    second.close();
-                    first.close();
+            try (Engine.Builder builder = Engine.builder()) {
+                builder.takeOwnership(MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library)));
+                builder.takeOwnership(CpuBackendIntegration.open());
+                try (Engine engine = builder.build()) {
+                    var compiled = engine.compile(List.of(output));
+                    assertEquals(
+                            List.of("cpu"),
+                            EngineMixedOwnerTestAccess.partitionOwners(compiled));
+                    try (InferenceSession session = engine.session(compiled);
+                            var result = session.run(List.of(left, right))) {
+                        assertEquals(1, result.resultCount());
+                        ByteBuffer canonical = result.materialize(
+                                result.publications().getFirst(), 8L).bytes();
+                        assertEquals(0x00000002, canonical.getInt());
+                        assertEquals(0x80000002, canonical.getInt());
+                    }
                 }
             }
         }
@@ -368,24 +352,6 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         }
     }
 
-    private static void assertCpuFreeMetalBroadcastResult(
-            InferenceSession session, Tensor matrix, Tensor row) {
-        try (var result = session.run(List.of(matrix, row))) {
-            assertEquals(4, result.resultCount());
-            assertCanonical(
-                    result.materialize(result.publications().get(0), 24L).bytes(),
-                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
-            assertCanonical(
-                    result.materialize(result.publications().get(1), 24L).bytes(),
-                    1.0f, 2.0f, 4.0f, 1.0f, 2.0f, 4.0f);
-            assertCanonical(
-                    result.materialize(result.publications().get(2), 24L).bytes(),
-                    1.0f, 2.0f, 4.0f, 1.0f, 2.0f, 4.0f);
-            assertCanonical(
-                    result.materialize(result.publications().get(3), 24L).bytes(),
-                    2.0f, 1.0f, 0.5f, 2.0f, 1.0f, 0.5f);
-        }
-    }
 
     private static void assertMixedResult(
             Engine engine,

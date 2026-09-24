@@ -19,14 +19,14 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
     static final int CANDIDATE_SCHEMA_VERSION = 3;
     /** Current canonical workload/target compatibility meaning. */
     static final int COMPATIBILITY_SCHEMA_VERSION = 3;
-    /** Current exact/default Metal elementwise-and-affine policy meaning. */
+    /** Current exact/default Metal NEG-and-affine policy meaning. */
     static final int ROUTE_POLICY_VERSION = 3;
 
     /** Stable complete private route configurations. */
     enum Candidate {
         /** One-node, one-feed, one-target custom FLOAT32 NEG configuration. */
         CUSTOM_SINGLE_NEG(1, MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG),
-        /** Whole-partition typed MPSGraph elementwise-and-terminal-affine configuration. */
+        /** Whole-partition typed MPSGraph NEG-and-terminal-affine configuration. */
         MPSGRAPH(2, MetalNegPreparationPlan.Route.MPSGRAPH);
 
         private final int wireIdentity;

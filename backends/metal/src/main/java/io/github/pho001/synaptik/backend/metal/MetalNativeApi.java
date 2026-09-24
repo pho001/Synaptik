@@ -120,7 +120,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * @param context non-null live context whose ownership remains with the caller
      * @param valueRanks non-null value-aligned ranks
      * @param valueDimensions non-null row-major value-count by sixteen dimension table
-     * @param graphProgram non-null version-two typed node table
+     * @param graphProgram non-null version-three typed node table
      * @param feedValueIndices non-null stable feed value indices
      * @param targetValueIndices non-null stable target value indices
      * @return a fresh non-null opaque executable handle owned by the caller
@@ -150,7 +150,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * @param context non-null live context whose ownership remains with the caller
      * @param valueRanks validated value-aligned ranks
      * @param valueDimensions validated padded dimension table
-     * @param graphProgram validated version-two typed topological node table
+     * @param graphProgram validated version-three typed topological node table
      * @param feedValueIndices validated unique feeds
      * @param targetValueIndices validated unique produced targets
      * @return non-null raw status/output-cell result for checked interpretation
@@ -477,7 +477,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
     }
 
-    /** Exact Java preflight for the version-two typed MPSGraph executable-create ABI. */
+    /** Exact Java preflight for the version-three typed MPSGraph executable-create ABI. */
     static final class MpsGraphExecutableAbi {
         private static final int MAX_RANK = 16;
 
@@ -561,7 +561,6 @@ abstract class MetalNativeApi implements AutoCloseable {
             }
             for (MetalMpsGraphProgram.Node node : graphProgram.nodes()) {
                 int left = node.firstInputIndex();
-                int right = node.secondInputIndex();
                 int output = node.outputIndex();
                 requireIndex(left, valueCount, "first node input");
                 requireIndex(output, valueCount, "node output");
@@ -577,17 +576,6 @@ abstract class MetalNativeApi implements AutoCloseable {
                     case NEG -> requireShape(
                             sameShape(left, output, valueRanks, valueDimensions),
                             "NEG input/output shapes must match exactly");
-                    case ADD, SUB, MUL, DIV -> {
-                        requireIndex(right, valueCount, "second node input");
-                        if (available[right] == 0 || available[right] == 3) {
-                            throw new IllegalArgumentException(
-                                    "Metal MPSGraph second node input must be a canonical feed or earlier output");
-                        }
-                        requireShape(
-                                broadcastsTo(left, right, output, valueRanks, valueDimensions),
-                                "binary output must equal exact right-aligned broadcast");
-                        used[right] = true;
-                    }
                     case RESHAPE -> {
                         requireShape(
                                 sameElementCount(left, output, valueRanks, valueDimensions),
@@ -834,37 +822,6 @@ abstract class MetalNativeApi implements AutoCloseable {
             return true;
         }
 
-        private static boolean broadcastsTo(
-                int left,
-                int right,
-                int output,
-                int[] ranks,
-                long[] dimensions) {
-            int leftRank = ranks[left];
-            int rightRank = ranks[right];
-            int outputRank = ranks[output];
-            if (outputRank != Math.max(leftRank, rightRank)) return false;
-            int leftRow = left * MAX_RANK;
-            int rightRow = right * MAX_RANK;
-            int outputRow = output * MAX_RANK;
-            int leftPadding = outputRank - leftRank;
-            int rightPadding = outputRank - rightRank;
-            for (int axis = 0; axis < outputRank; axis++) {
-                long leftDimension = axis < leftPadding
-                        ? 1L : dimensions[leftRow + axis - leftPadding];
-                long rightDimension = axis < rightPadding
-                        ? 1L : dimensions[rightRow + axis - rightPadding];
-                if (leftDimension != rightDimension
-                        && leftDimension != 1L && rightDimension != 1L) {
-                    return false;
-                }
-                if (dimensions[outputRow + axis]
-                        != Math.max(leftDimension, rightDimension)) {
-                    return false;
-                }
-            }
-            return true;
-        }
     }
 
     /** Production JDK Foreign Function and Memory binding of the exact thirteen-symbol ABI. */

@@ -9,20 +9,20 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
- * Immutable typed operation table for the version-two Metal MPSGraph node schema.
+ * Immutable typed operation table for the version-three Metal MPSGraph node schema.
  *
  * <p>ABI version four points at fixed 160-byte discriminated records. Each record contains a
- * closed operation identity, exact ordered value indices, one typed attribute discriminator, and
- * bounded target-shape, permutation, or normalized-axis state. Every unused scalar is a required
- * zero or {@code UINT32_MAX} sentinel and every unused attribute cell is zero. No operation name,
- * generic integer payload, object graph, map, or executable state crosses the ABI.</p>
+ * closed operation identity, exact value indices, one typed attribute discriminator, and bounded
+ * target-shape, permutation, or normalized-axis state. Operation wire identities {@code 2..5} are
+ * withdrawn and rejected. Every unused scalar is a required zero or {@code UINT32_MAX} sentinel
+ * and every unused attribute cell is zero. No operation name, generic integer payload, object
+ * graph, map, or executable state crosses the ABI.</p>
  */
 final class MetalMpsGraphProgram {
     /** Exact node schema carried across native ABI version four. */
-    static final int SCHEMA_VERSION = 2;
+    static final int SCHEMA_VERSION = 3;
     /** Maximum target rank or permutation length. */
     static final int MAX_RANK = 16;
     /** Exact fixed native record size. */
@@ -51,24 +51,18 @@ final class MetalMpsGraphProgram {
 
     /** Closed operation vocabulary and stable schema-local wire identities. */
     enum NodeKind {
-        NEG(1, 1, AttributeKind.NONE),
-        ADD(2, 2, AttributeKind.NONE),
-        SUB(3, 2, AttributeKind.NONE),
-        MUL(4, 2, AttributeKind.NONE),
-        DIV(5, 2, AttributeKind.NONE),
-        RESHAPE(6, 1, AttributeKind.TARGET_SHAPE),
-        EXPAND(7, 1, AttributeKind.TARGET_SHAPE),
-        PERMUTE(8, 1, AttributeKind.PERMUTATION),
-        EXPAND_DIMS(9, 1, AttributeKind.AXIS),
-        SQUEEZE(10, 1, AttributeKind.AXIS);
+        NEG(1, AttributeKind.NONE),
+        RESHAPE(6, AttributeKind.TARGET_SHAPE),
+        EXPAND(7, AttributeKind.TARGET_SHAPE),
+        PERMUTE(8, AttributeKind.PERMUTATION),
+        EXPAND_DIMS(9, AttributeKind.AXIS),
+        SQUEEZE(10, AttributeKind.AXIS);
 
         private final int wireIdentity;
-        private final int inputCount;
         private final AttributeKind attributeKind;
 
-        NodeKind(int wireIdentity, int inputCount, AttributeKind attributeKind) {
+        NodeKind(int wireIdentity, AttributeKind attributeKind) {
             this.wireIdentity = wireIdentity;
-            this.inputCount = inputCount;
             this.attributeKind = attributeKind;
         }
 
@@ -76,9 +70,6 @@ final class MetalMpsGraphProgram {
             return wireIdentity;
         }
 
-        int inputCount() {
-            return inputCount;
-        }
 
         AttributeKind attributeKind() {
             return attributeKind;
@@ -88,17 +79,9 @@ final class MetalMpsGraphProgram {
             return attributeKind != AttributeKind.NONE;
         }
 
-        static Optional<NodeKind> fromWireIdentity(int wireIdentity) {
-            for (NodeKind kind : values()) {
-                if (kind.wireIdentity == wireIdentity) {
-                    return Optional.of(kind);
-                }
-            }
-            return Optional.empty();
-        }
     }
 
-    /** One immutable typed version-two node record. */
+    /** One immutable typed version-three node record. */
     static final class Node {
         private final NodeKind kind;
         private final int firstInputIndex;
@@ -123,10 +106,9 @@ final class MetalMpsGraphProgram {
             if (outputIndex < 0) {
                 throw new IllegalArgumentException("outputIndex must be non-negative");
             }
-            if ((kind.inputCount() == 1 && secondInputIndex != NO_SECOND_INPUT)
-                    || (kind.inputCount() == 2 && secondInputIndex < 0)) {
+            if (secondInputIndex != NO_SECOND_INPUT) {
                 throw new IllegalArgumentException(
-                        "secondInputIndex disagrees with the typed node kind");
+                        "secondInputIndex must use the absent-input sentinel");
             }
             Objects.requireNonNull(attributeValues, "attributeValues");
             if (kind.attributeKind() == AttributeKind.NONE) {
@@ -173,17 +155,6 @@ final class MetalMpsGraphProgram {
             return noAttributes(NodeKind.NEG, inputIndex, NO_SECOND_INPUT, outputIndex);
         }
 
-        static Node binary(
-                NodeKind kind,
-                int leftInputIndex,
-                int rightInputIndex,
-                int outputIndex) {
-            Objects.requireNonNull(kind, "kind");
-            if (kind.inputCount() != 2 || kind.attributeKind() != AttributeKind.NONE) {
-                throw new IllegalArgumentException("binary node kind must have two inputs");
-            }
-            return noAttributes(kind, leftInputIndex, rightInputIndex, outputIndex);
-        }
 
         static Node targetShape(
                 NodeKind kind, int inputIndex, int outputIndex, long[] dimensions) {
@@ -273,7 +244,7 @@ final class MetalMpsGraphProgram {
         return encoded.array();
     }
 
-    /** Allocates and writes exact native-endian version-two records for one downcall. */
+    /** Allocates and writes exact native-endian version-three records for one downcall. */
     MemorySegment encodeNative(Arena arena) {
         Objects.requireNonNull(arena, "arena");
         long bytes = Math.multiplyExact((long) nodes.size(), NODE_RECORD_BYTES);

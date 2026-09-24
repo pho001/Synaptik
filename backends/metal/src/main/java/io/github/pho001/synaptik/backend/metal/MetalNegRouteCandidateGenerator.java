@@ -19,8 +19,8 @@ import java.util.Optional;
  * Generates complete, stable, budget-bounded Metal supported-operation route candidates.
  *
  * <p>The workload fingerprint uses only versioned semantics and structural positions, including
- * typed elementwise or terminal-affine node kinds and attributes, ordered operands, exact logical
- * descriptors, and dense represented-order geometry. Graph-local identities, partition object
+ * typed NEG or terminal-affine node kinds and attributes, exact logical descriptors, and dense
+ * represented-order geometry. Graph-local identities, partition object
  * identity, native handles, measurements, and cache state are excluded. Generation is cold,
  * thread-safe, deterministic, and performs no native work.</p>
  */

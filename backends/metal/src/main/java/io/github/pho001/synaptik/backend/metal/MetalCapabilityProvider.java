@@ -4,7 +4,6 @@ import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
-import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
@@ -12,7 +11,6 @@ import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
-import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
@@ -23,10 +21,11 @@ import java.util.Objects;
  * Reports the exact operation-occurrence capability of the current Metal backend.
  *
  * <p>This provider is immutable and performs no device discovery, native-library loading,
- * allocation, registration, or caching. Support covers the existing unary {@code NEG} and binary
- * {@code ADD}, {@code SUB}, {@code MUL}, and {@code DIV} domain plus five terminal FLOAT32 affine
- * transforms. Elementwise descriptors remain canonical dense non-views. An affine input must also
- * be canonical, while its output must retain the exact resolved Model view descriptor. Every
+ * allocation, registration, or caching. Support covers unary {@code NEG} plus five terminal
+ * FLOAT32 affine transforms. Binary arithmetic is deliberately unsupported because the available
+ * MPSGraph arithmetic selectors do not preserve the Model's required subnormal semantics.
+ * {@code NEG} descriptors remain canonical dense non-views. An affine input must also be
+ * canonical, while its output must retain the exact resolved Model view descriptor. Every
  * admitted occurrence is fully static, has positive rank-1..16 geometry, and preserves one common
  * gradient-eligibility flag.</p>
  */
@@ -58,11 +57,11 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     }
 
     /**
-     * Reports support only for the exact prepared Metal elementwise and terminal-affine domain.
+     * Reports support only for the exact prepared Metal negation and terminal-affine domain.
      *
      * @param query the non-null immutable operation occurrence to classify without probing a
      *     device or native library
-     * @return {@code true} exactly for one supported elementwise or affine occurrence
+     * @return {@code true} exactly for one supported negation or affine occurrence
      * @throws NullPointerException if {@code query} is {@code null}, with message {@code query}
      */
     @Override
@@ -100,25 +99,6 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                         && canonical(output)
                         && input.shape().equals(output.shape())
                         && input.requiresGrad() == output.requiresGrad();
-            }
-            if (operation.kind() instanceof BinaryArithmeticKind binary) {
-                if (operation.attrs() != NoOperationAttrs.INSTANCE
-                        || (binary != BinaryArithmeticKind.ADD
-                                && binary != BinaryArithmeticKind.SUB
-                                && binary != BinaryArithmeticKind.MUL
-                                && binary != BinaryArithmeticKind.DIV)
-                        || inputs.size() != 2) {
-                    return false;
-                }
-                TensorDescriptor left = inputs.get(0);
-                TensorDescriptor right = inputs.get(1);
-                return canonical(left)
-                        && canonical(right)
-                        && canonical(output)
-                        && left.requiresGrad() == right.requiresGrad()
-                        && left.requiresGrad() == output.requiresGrad()
-                        && ShapeBroadcast.broadcast(left.shape(), right.shape())
-                                .equals(output.shape());
             }
             return supportsAffine(operation, inputs, output);
         } catch (IllegalArgumentException | ArithmeticException incompatible) {

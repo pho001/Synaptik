@@ -24,8 +24,10 @@ CPU composition; `Engine.builder()` explicitly owns opened CPU and/or Metal inte
 executes non-empty single-owner plans or bounded mixed CPU/Metal plans through deterministic
 owner-indexed representations and ordered transfer steps. Current cross-owner transfer supports
 positive rank-1..16 fully static canonical contiguous `FLOAT32` values in both directions. Metal
-executes supported static `FLOAT32` negation partitions through MPSGraph or a single-operation
-custom route. A standard-Metal convenience, generic plugin registration/discovery, broader Metal
+executes supported static `FLOAT32` negation and terminal affine partitions through MPSGraph, with
+a custom route for eligible singleton negation. Metal does not advertise binary arithmetic;
+explicitly registered CPU may own it, while Metal-only binary graphs fail during ownership
+selection. A standard-Metal convenience, generic plugin registration/discovery, broader Metal
 coverage, CUDA, training orchestration, persistence, and generic graph/plan tuning remain planned.
 Focused documentation identifies the exact current boundary for each area.
 

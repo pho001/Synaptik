@@ -2,9 +2,11 @@
 
 ## Status
 Ready
-This is the sole authorized Metal frontier from clean `main` at
-`e554d9da5656e8fef24c681d45cda2eb1766a76e`. Metal 0005/0008 are Complete; 0006–0007 and
-0009–0013 are independently Blocked. It does not depend on any blocked numerical operation.
+This remains the sole authorized Metal frontier after integration of the urgent binary-withdrawal
+remediation based on clean parent `9fce9401614e3e3b4e9a01e6f2f663538fdb2994`. Metal 0005's
+lifecycle/ABI foundation and 0008 are Complete; 0005 binary capability is withdrawn; 0006–0007
+and 0009–0013 are independently Blocked. This task does not depend on any withdrawn or blocked
+numerical operation.
 
 ## Change class
 Class C — this extends Metal occurrence capability, whole-partition topology, the private native
@@ -40,7 +42,7 @@ All admitted values are FLOAT32, fully static, strictly positive, rank `1..16`, 
 have checked logical element/byte geometry. Inputs and outputs retain one equal `requiresGrad`
 flag. New execution evidence is forward-only; no Metal-only backward/training claim is added.
 
-- Preserve the complete 0005 domain and 0008's five canonical-input terminal leaves.
+- Preserve the retained NEG domain and 0008's five canonical-input terminal leaves.
 - An affine node has the exact typed attributes and output Shape/layout produced by current Model
   and Compiler inference. Its input may be canonical or an exact resolved zero-offset view produced
   by an earlier admitted affine node in the same partition. Unresolved layouts reject. In
@@ -49,13 +51,13 @@ flag. New execution evidence is forward-only; no Metal-only backward/training cl
 - `CONTIGUOUS` has exactly one input/output, `NoOperationAttrs.INSTANCE`, identical Shape/type and
   gradient eligibility, any exact canonical or locally produced resolved-view input, and exact
   `LayoutDescriptor.contiguous(shape)` output. It lowers to same-Shape MPSGraph reshape.
-- A view value may feed another affine node or `CONTIGUOUS`; it may not feed existing NEG/binary
-  nodes directly. A `CONTIGUOUS` result is canonical and may feed existing 0005 nodes or another
-  affine node. Canonical graph feeds and existing canonical splats remain unchanged.
+- A view value may feed another affine node or `CONTIGUOUS`; it may not feed `NEG` directly. A
+  `CONTIGUOUS` result is canonical and may feed `NEG` or another affine node. Canonical graph
+  feeds and existing canonical splats remain unchanged.
 - One maximal supported topology lowers as one typed MPSGraph program. Stable fan-out, multiple
   publications, and a published intermediate that also feeds later supported nodes are allowed.
   Every noncanonical graph feed, foreign-partition view input, malformed order, unresolved result,
-  or affine-to-elementwise edge lacking `CONTIGUOUS` fails before native resource creation.
+  or affine-to-NEG edge lacking `CONTIGUOUS` fails before native resource creation.
 
 Exclude slice/select/pad/tile/concat/stack/window transforms, arbitrary materialization, offset or
 dynamic layouts, rank zero, zero extents, new types, blocked arithmetic/reductions/scans, custom
@@ -74,6 +76,8 @@ Probe at least these exact topology families:
 3. identity/inverse reshape, permutation, and rank-edit chains; view fan-out into distinct affine
    and contiguous consumers; rank-1 and rank-16 boundaries; and intermediate-plus-final targets.
 
+No binary arithmetic operation is part of the probe or preservation claim.
+
 Exhaust a fixed raw-bit corpus in every logical position and repeated coordinate: both zeros;
 positive/negative minimum and ordinary subnormals; minimum normals; adjacent and opposite ordinary
 values; maximum finite values; both infinities; and quiet/signaling NaNs of both signs with multiple
@@ -88,12 +92,12 @@ mark 0014 Blocked. Do not narrow the topology/corpus or add an undocumented sele
 identity, custom kernel, CPU copy, tolerance, or descriptor rewrite.
 ## Schema, identity, and representation
 Keep native ABI version 4, statuses, and exactly thirteen exports. Bump the fixed 160-byte node
-schema from version 2 to version 3, preserving wires `1..10`; assign operation wire `11` to
+schema from remediated version 3 to version 4. Preserve live wires `NEG=1` and affine `6..10`;
+withdrawn binary wires `2..5` remain unassigned and rejected. Assign operation wire `11` to
 `CONTIGUOUS` with attribute kind `NONE`, one input, `second_input = UINT32_MAX`, zero attribute
 count/payload/reserved cells, and exact same input/output Shape. Java and native validation use
 explicit value states: canonical feed/output, affine view output, and unavailable. Affine nodes may
-consume either prior state; `CONTIGUOUS` produces canonical state; existing elementwise nodes still
-reject view state.
+consume either prior state; `CONTIGUOUS` produces canonical state; `NEG` still rejects view state.
 
 Bump workload-signature, exact-policy, candidate, compatibility, route-policy, and codec versions
 from 3 to 4. Identity includes every kind and typed attr, exact descriptors/layouts, ordered edges,
@@ -138,14 +142,15 @@ export/version, transfer widening, alias guarantee, or non-MPSGraph route, stop 
 Blocked.
 
 ## Dependencies and integration
-- **Depends on:** Metal 0005/0008; current Model layout semantics and Compiler inference; Engine
-  0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016. Not Metal 0006–0007, 0009–0013, or
-  Model 0026.
+- **Depends on:** Metal 0005's retained lifecycle/ABI foundation after binary withdrawal; Metal
+  0008; current Model layout semantics and Compiler inference; Engine 0017; Compiler
+  0006B7/0006B11; Prepare 0008; Runtime 0016. Not the withdrawn binary domain, Metal 0006–0007,
+  0009–0013, or Model 0026.
 - **Conflicts with:** every concurrent Metal capability, preparation, native schema, candidate/
   codec, materialization, or Engine Metal integration change.
 - **Parallel group:** None.
-- **Common base revision:** N/A; serial frontier verified on clean `main` at
-  `e554d9da5656e8fef24c681d45cda2eb1766a76e`.
+- **Common base revision:** the urgent binary-withdrawal remediation based on clean parent
+  `9fce9401614e3e3b4e9a01e6f2f663538fdb2994`; execution must start from clean integrated `main`.
 - **Integration order:** mandatory probe -> capability/topology -> schema/state validation ->
   candidate invalidation -> lifecycle/authentication -> Engine proof -> docs/review.
 - **Integration validation:** native export/schema audit; focused Metal, conformance, Compiler,
@@ -154,7 +159,7 @@ Blocked.
 
 ## Files and symbols
 - `MetalCapabilityProvider`, `MetalNegPartitionPreparer`, `MetalMpsGraphProgram`, `MetalNativeApi`,
-  and native foundation — composed layouts, `CONTIGUOUS`, schema v3, and fail-closed topology.
+  and native foundation — composed layouts, `CONTIGUOUS`, schema v4, and fail-closed topology.
 - Preparation/finalization/executable/buffer/schedule and candidate/codec types — exact dense-target
   authentication, version invalidation, declarations, binding, and lifecycle.
 - Focused Metal/conformance/Compiler/Engine tests and affected Metal/native guides/Javadocs — exact
@@ -164,9 +169,9 @@ Blocked.
 - The disposable probe passes every topology, full corpus, direct target, Shape/order, canary,
   binding, repetition, concurrency, and independence gate before capability changes.
 - Capability and analysis admit only the stated local affine/contiguous compositions; view feeds,
-  unresolved geometry, and affine-to-elementwise edges without `CONTIGUOUS` fail closed.
-- ABI v4 retains thirteen exports; schema v3 retains 160-byte records and exact wire/state rules;
-  all versioned decisions invalidate.
+  unresolved geometry, and affine-to-NEG edges without `CONTIGUOUS` fail closed.
+- ABI v4 retains thirteen exports; schema v4 retains 160-byte records, keeps binary wires `2..5`
+  rejected, and enforces exact live wire/state rules; all versioned decisions invalidate.
 - Fake/native tests cover all positive topologies and malformed attrs, states, order, geometry,
   target authentication, rollback, close, reuse, concurrency, and independent sessions.
 - A Metal-only public Engine run publishes intermediate/final views and canonical contiguous

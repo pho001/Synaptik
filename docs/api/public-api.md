@@ -20,11 +20,13 @@ Public `GraphCompilationPort` exposes that complete constant-free pipeline as a 
 cross-module integration service-provider interface (SPI). The CPU backend exposes the supported
 `CpuBackendIntegration` lifecycle SPI, including bounded canonical host-byte materialization. The
 Metal backend exposes `MetalBackendConfiguration`, `MetalBackendIntegration`, and its narrow
-static positive rank-`1..16` `FLOAT32` capability for `NEG`, `ADD`, `SUB`, `MUL`, and `DIV` plus
-terminal `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE`. Elementwise geometry and
-affine inputs are canonical contiguous non-views; affine outputs retain their exact logical view
-descriptors while Metal privately writes dense represented-order targets. Exact prepared affine
-publications may materialize to detached canonical host bytes, but cross-owner transfer remains
+static positive rank-`1..16` `FLOAT32` capability for `NEG` plus terminal `RESHAPE`, `EXPAND`,
+`PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE`. `ADD`, `SUB`, `MUL`, and `DIV` are not advertised by
+Metal; an explicitly registered CPU may own those occurrences, while a Metal-only graph containing
+one fails ownership selection before native preparation. `NEG` geometry and affine inputs are
+canonical contiguous non-views; affine outputs retain their exact logical view descriptors while
+Metal privately writes dense represented-order targets. Exact prepared affine publications may
+materialize to detached canonical host bytes, but cross-owner transfer remains
 canonical-non-view-only. `Engine.builder()` is the public explicit composition root for
 opened CPU and Metal integrations. It freezes their Planning inputs in registration order and
 supports a complete non-empty plan only when every partition has one exact registered owner. The
@@ -1234,9 +1236,9 @@ path nor owns a duplicate Metal configuration. The integration supplies partitio
 physical creation contribution, exact transfer endpoints, host ingress, materialization, and
 close in addition to capability.
 
-Metal retains a custom route only for an eligible singleton `NEG`; every binary, mixed, or other
-supported partition uses one typed whole-partition MPSGraph executable. This private route and
-native ABI choice adds no public Java type or method.
+Metal retains a custom route only for an eligible singleton `NEG`; every other supported NEG,
+affine, or mixed partition uses one typed whole-partition MPSGraph executable. This private route
+and native ABI choice adds no public Java type or method.
 
 `prepareTuned(...)` remains the bounded CPU-only workflow. It can tune a CPU-owned plan when Metal
 is also registered, but a Metal-owned plan fails with `IllegalStateException` before

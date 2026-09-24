@@ -6,7 +6,6 @@ import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.Operation;
-import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
@@ -83,7 +82,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             }
             if (node.outputs().size() != 1) {
                 throw new IllegalArgumentException(
-                        "Metal elementwise partition requires one output per node");
+                        "Metal supported-operation partition requires one output per node");
             }
             ValueId outputId = node.outputs().getFirst();
             GraphValue outputValue = graphValues.get(outputId);
@@ -94,7 +93,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             if (!MetalCapabilityProvider.supportsOccurrence(
                     node.operation(), inputDescriptors, List.of(outputValue.descriptor()))) {
                 throw new IllegalArgumentException(
-                        "Metal elementwise occurrence is outside the capability domain");
+                        "Metal occurrence is outside the capability domain");
             }
             int[] inputIndices = new int[node.inputs().size()];
             for (int inputIndex = 0; inputIndex < inputIndices.length; inputIndex++) {
@@ -107,7 +106,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             }
             if (valueIndexes.containsKey(outputId)) {
                 throw new IllegalArgumentException(
-                        "Metal elementwise output must be produced exactly once in topological order");
+                        "Metal output must be produced exactly once in topological order");
             }
             int outputIndex = index(
                     outputId, graphValues, valueIndexes, valueIds, descriptors);
@@ -147,7 +146,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         }
         if (feeds.isEmpty() || targets.isEmpty()) {
             throw new IllegalArgumentException(
-                    "Metal elementwise partition requires at least one feed and one target");
+                    "Metal supported-operation partition requires at least one feed and one target");
         }
         var feedSplats = new ArrayList<Optional<ScalarValue>>(feeds.size());
         for (ValueId feed : feeds) {
@@ -323,18 +322,6 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         if (kind == UnaryElementwiseKind.NEG) {
             return MetalMpsGraphProgram.Node.neg(inputs[0], output);
         }
-        if (kind instanceof BinaryArithmeticKind binary) {
-            MetalMpsGraphProgram.NodeKind nodeKind = switch (binary) {
-                case ADD -> MetalMpsGraphProgram.NodeKind.ADD;
-                case SUB -> MetalMpsGraphProgram.NodeKind.SUB;
-                case MUL -> MetalMpsGraphProgram.NodeKind.MUL;
-                case DIV -> MetalMpsGraphProgram.NodeKind.DIV;
-                default -> throw new IllegalArgumentException(
-                        "unsupported Metal binary operation: " + binary);
-            };
-            return MetalMpsGraphProgram.Node.binary(
-                    nodeKind, inputs[0], inputs[1], output);
-        }
         if (kind instanceof ShapeTransformKind transform) {
             TargetShapeAttrs attrs = (TargetShapeAttrs) operation.attrs();
             MetalMpsGraphProgram.NodeKind nodeKind =
@@ -361,7 +348,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         long elements = 1L;
         for (long dimension : descriptor.shape().toLongArray()) {
             if (dimension <= 0L) throw new IllegalArgumentException(
-                    "Metal elementwise dimensions must be positive");
+                    "Metal dimensions must be positive");
             elements = Math.multiplyExact(elements, dimension);
         }
         return Math.multiplyExact(elements, Float.BYTES);

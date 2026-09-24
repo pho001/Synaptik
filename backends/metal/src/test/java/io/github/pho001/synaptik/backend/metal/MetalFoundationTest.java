@@ -507,31 +507,15 @@ class MetalFoundationTest {
                         valid.feeds(),
                         valid.targets()));
 
-        long[] binaryDimensions = new long[48];
-        binaryDimensions[0] = 2;
-        binaryDimensions[1] = 3;
-        binaryDimensions[16] = 3;
-        binaryDimensions[32] = 2;
-        binaryDimensions[33] = 3;
-        GraphCreate binary = new GraphCreate(
-                new int[] {2, 1, 2},
-                binaryDimensions,
-                new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.binary(
-                        MetalMpsGraphProgram.NodeKind.SUB, 0, 1, 2))),
-                new int[] {0, 1},
-                new int[] {2});
-        long[] badBroadcast = binary.dimensions().clone();
-        badBroadcast[33] = 2;
-        assertInvalidCreate(api, context, binary.withDimensions(badBroadcast));
 
         assertEquals(0, api.executableCreateCalls.get());
         assertTrue(api.createMpsGraphExecutable(
                         context,
-                        binary.ranks(),
-                        binary.dimensions(),
-                        binary.program(),
-                        binary.feeds(),
-                        binary.targets())
+                        valid.ranks(),
+                        valid.dimensions(),
+                        valid.program(),
+                        valid.feeds(),
+                        valid.targets())
                 != null);
         assertEquals(1, api.executableCreateCalls.get());
     }

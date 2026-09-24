@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through evidence-backed no-change 0010M; 0007A1D Review needed; 0010D1 and 0011 Blocked | No CPU task is Ready; any future default comparison requires a separately reviewed sealed matrix. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0017 | No Engine task is Ready; reopen only for a separately authorized capability. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0008; 0006–0007 and 0009–0013 Blocked; 0014 Ready | [0014](backends/metal/tasks/0014-mpsgraph-float32-affine-layout-composition.md) is the sole Ready frontier for bounded FLOAT32 affine layout composition and `CONTIGUOUS`. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0008; 0005 binary capability withdrawn; 0006–0007 and 0009–0013 Blocked; 0014 Ready | [0014](backends/metal/tasks/0014-mpsgraph-float32-affine-layout-composition.md) remains the sole Ready frontier because it uses only retained NEG/affine layout behavior plus `CONTIGUOUS`. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -78,6 +78,13 @@ implementation `7e39f705`, remediation `9713e528` and `aa42ed711`, and independe
 `APPROVE` with zero findings. It delivers the five bounded forward affine transforms with exact
 logical views, authenticated dense represented-order targets, ABI v4's exact thirteen exports,
 and unchanged canonical-only transfer.
+
+[0005](backends/metal/tasks/0005-mpsgraph-mixed-binary-whole-partition.md) remains a completed
+historical delivery, but its `ADD`/`SUB`/`MUL`/`DIV` capability is withdrawn. An independent Apple
+M3 Max audit found 12,096 subnormal-domain failures in 79,488 arithmetic comparisons across 576
+runs while identity, permutation, input-preservation, and canary controls passed. Current Metal
+rejects those occurrences and native wires `2..5`; CPU may own them when explicitly registered.
+ABI v4 retains exactly thirteen exports.
 
 [0006](backends/metal/tasks/0006-mpsgraph-float32-unary-algebra.md) remains `Blocked` by exact
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures. [0007](backends/metal/tasks/0007-mpsgraph-float32-reductions.md)
@@ -124,19 +131,21 @@ bindings passed. Corrected review evidence shows rank-six axis `5` valid for bot
 no production, native, test, or probe changes remain.
 
 [0014](backends/metal/tasks/0014-mpsgraph-float32-affine-layout-composition.md) is the sole `Ready`
-frontier from clean `main` at `e554d9da5656e8fef24c681d45cda2eb1766a76e`. It composes the five
-existing bit-preserving affine transforms and the current Model `CONTIGUOUS` request inside one
-authenticated FLOAT32 MPSGraph partition. Its mandatory raw-bit probe covers exact logical
-topology/layout, intermediate and final direct targets, dense represented order, canaries,
-bindings, repetition, concurrency, and independent sessions. Cross-owner transfer, caller
-ingress, alias promises, blocked numerical operations, and backward/training remain excluded.
+frontier after integration of the urgent binary-withdrawal remediation based on clean parent
+`9fce9401614e3e3b4e9a01e6f2f663538fdb2994`. It is independent of the withdrawn 0005 binary
+domain: the mandatory composition probe uses only the retained five bit-preserving affine
+transforms, `CONTIGUOUS`, and `NEG`. It still covers exact logical topology/layout, intermediate
+and final direct targets, dense represented order, canaries, bindings, repetition, concurrency,
+and independent sessions. Cross-owner transfer, caller ingress, alias promises, blocked numerical
+operations, and backward/training remain excluded.
 
-Strategic gate: evidence across Metal 0006/0007 and 0009–0013 shows a systemic mismatch between
-exact Model FLOAT32 contracts and MPSGraph numerical behavior, including subnormal flush-to-zero,
-signed-zero canonicalization/identity folding, and reduction-order effects. Do not automatically
-plan further exact numerical capability through MPSGraph. Prefer it for probe-proven
-bit-preserving layout/data movement. Exact arithmetic requires separately authorized custom Metal
-kernels or an explicit Model numerical-contract decision.
+Strategic gate: evidence across the withdrawn 0005 binary route, Metal 0006/0007, and 0009–0013
+shows a systemic mismatch between exact Model FLOAT32 contracts and MPSGraph numerical behavior,
+including subnormal flush-to-zero, signed-zero canonicalization/identity folding, and
+reduction-order effects. Do not automatically plan further exact numerical capability through
+MPSGraph. Prefer it for probe-proven bit-preserving layout/data movement. Exact arithmetic
+requires separately authorized custom Metal kernels or an explicit Model numerical-contract
+decision.
 
 
 ## Blocked, review-needed, and deferred work

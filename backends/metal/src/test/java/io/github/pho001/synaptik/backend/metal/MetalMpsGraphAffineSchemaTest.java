@@ -10,11 +10,11 @@ import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphAffineSchemaTest {
     @Test
-    void schemaVersionTwoEncodesTypedDiscriminantsAndRequiredUnusedSentinels() {
+    void schemaVersionThreeEncodesTypedDiscriminantsAndRequiredUnusedSentinels() {
         var reshape = MetalMpsGraphProgram.Node.targetShape(
                 MetalMpsGraphProgram.NodeKind.RESHAPE, 0, 1, new long[] {3, 2});
         byte[] encoded = new MetalMpsGraphProgram(List.of(reshape)).encodedNodeRecords();
-        assertEquals(2, MetalMpsGraphProgram.SCHEMA_VERSION);
+        assertEquals(3, MetalMpsGraphProgram.SCHEMA_VERSION);
         assertEquals(MetalMpsGraphProgram.NODE_RECORD_BYTES, encoded.length);
 
         ByteBuffer record = ByteBuffer.wrap(encoded).order(ByteOrder.BIG_ENDIAN);
@@ -86,7 +86,7 @@ class MetalMpsGraphAffineSchemaTest {
                         MetalMpsGraphProgram.NodeKind.SQUEEZE, 0, 1, 16));
         assertThrows(IllegalArgumentException.class, () ->
                 MetalMpsGraphProgram.Node.axis(
-                        MetalMpsGraphProgram.NodeKind.ADD, 0, 1, 0));
+                        MetalMpsGraphProgram.NodeKind.NEG, 0, 1, 0));
     }
 
     @Test

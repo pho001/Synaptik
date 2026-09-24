@@ -2,13 +2,13 @@
  * Supplies explicit capability, configuration, and lifecycle integration for the Metal backend.
  *
  * <p>{@link io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider} reports support only
- * for parameterless {@code NEG}, {@code ADD}, {@code SUB}, {@code MUL}, and {@code DIV}, plus
- * terminal {@code RESHAPE}, {@code EXPAND}, {@code PERMUTE}, {@code EXPAND_DIMS}, and
- * {@code SQUEEZE} occurrences. The domain is fully static, positive rank {@code 1..16}
- * {@code FLOAT32}. Elementwise descriptors and affine inputs are canonical dense-contiguous
- * non-views; affine outputs retain the exact Model view shape, offset, and strides. Planning may
- * form one maximal Metal-owned partition from any supported mixture, which the backend lowers as
- * one typed whole-partition program during preparation.</p>
+ * for parameterless {@code NEG} plus terminal {@code RESHAPE}, {@code EXPAND}, {@code PERMUTE},
+ * {@code EXPAND_DIMS}, and {@code SQUEEZE} occurrences. Binary arithmetic is intentionally not
+ * advertised. The domain is fully static, positive rank {@code 1..16} {@code FLOAT32}.
+ * {@code NEG} descriptors and affine inputs are canonical dense-contiguous non-views; affine
+ * outputs retain the exact Model view shape, offset, and strides. Planning may form one maximal
+ * Metal-owned partition from any supported mixture, which the backend lowers as one typed
+ * whole-partition program during preparation.</p>
  *
  * <p>{@link io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration} names one explicit
  * native bridge. {@link io.github.pho001.synaptik.backend.metal.MetalBackendIntegration} opens and

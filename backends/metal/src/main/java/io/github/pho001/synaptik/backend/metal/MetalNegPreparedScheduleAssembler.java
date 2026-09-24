@@ -26,8 +26,8 @@ import java.lang.foreign.MemorySegment;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 
 /**
- * Supplies Metal physical contributions for supported elementwise and terminal-affine operations
- * and assembles the legacy sole-partition route.
+ * Supplies Metal physical contributions for supported NEG and terminal-affine operations and
+ * assembles the legacy sole-partition route.
  *
  * <p>Shared mixed-owner composition uses {@link #contribute(PreparedScheduleContext)} and owns
  * the global step order. This class remains responsible only for Metal physical creation,

@@ -27,10 +27,10 @@ import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
-/** Conformance checks for public Metal elementwise truth and Planning maximal closure. */
+/** Conformance checks for public Metal capability truth and Planning maximal closure. */
 final class MetalNegCapabilityPartitionConformanceTest {
-    /** Proves all five typed kinds and exact broadcasting are public while ABS fails closed. */
-    @Test void advertisesExactElementwiseDomain() {
+    /** Proves NEG is public while all binary arithmetic and ABS fail closed. */
+    @Test void advertisesExactNegationDomain() {
         var provider = new MetalCapabilityProvider();
         TensorDescriptor matrix = descriptor(Shape.of(2, 3));
         TensorDescriptor row = descriptor(Shape.of(3));
@@ -41,80 +41,56 @@ final class MetalNegCapabilityPartitionConformanceTest {
                 BinaryArithmeticKind.SUB,
                 BinaryArithmeticKind.MUL,
                 BinaryArithmeticKind.DIV)) {
-            assertTrue(provider.supports(new OperationCapabilityQuery(
+            assertFalse(provider.supports(new OperationCapabilityQuery(
                     operation(kind), List.of(matrix, row), List.of(matrix))));
         }
         assertFalse(provider.supports(new OperationCapabilityQuery(
                 operation(UnaryElementwiseKind.ABS), List.of(matrix), List.of(matrix))));
-        assertFalse(provider.supports(new OperationCapabilityQuery(
-                operation(BinaryArithmeticKind.ADD),
-                List.of(matrix, descriptor(Shape.of(2, 2))),
-                List.of(matrix))));
     }
 
-    /** Proves a heterogeneous eligible chain becomes one whole maximal Metal partition. */
-    @Test void mixedEligibleOccurrencesBecomeOneMaximalPartition() {
+    /** Proves an eligible NEG chain becomes one whole maximal Metal partition. */
+    @Test void eligibleNegOccurrencesBecomeOneMaximalPartition() {
         TensorDescriptor descriptor = descriptor(Shape.of(4));
         ValueId input = new ValueId(0);
-        ValueId right = new ValueId(1);
-        ValueId negated = new ValueId(2);
-        ValueId added = new ValueId(3);
-        ValueId subtracted = new ValueId(4);
-        ValueId multiplied = new ValueId(5);
-        ValueId output = new ValueId(6);
-        CompiledNode neg = new CompiledNode(
+        ValueId negated = new ValueId(1);
+        ValueId restored = new ValueId(2);
+        ValueId output = new ValueId(3);
+        CompiledNode first = new CompiledNode(
                 new NodeId(0),
                 operation(UnaryElementwiseKind.NEG),
                 List.of(input),
                 List.of(negated));
-        CompiledNode add = new CompiledNode(
+        CompiledNode second = new CompiledNode(
                 new NodeId(1),
-                operation(BinaryArithmeticKind.ADD),
-                List.of(negated, right),
-                List.of(added));
-        CompiledNode sub = new CompiledNode(
+                operation(UnaryElementwiseKind.NEG),
+                List.of(negated),
+                List.of(restored));
+        CompiledNode third = new CompiledNode(
                 new NodeId(2),
-                operation(BinaryArithmeticKind.SUB),
-                List.of(added, right),
-                List.of(subtracted));
-        CompiledNode mul = new CompiledNode(
-                new NodeId(3),
-                operation(BinaryArithmeticKind.MUL),
-                List.of(subtracted, right),
-                List.of(multiplied));
-        CompiledNode div = new CompiledNode(
-                new NodeId(4),
-                operation(BinaryArithmeticKind.DIV),
-                List.of(multiplied, right),
+                operation(UnaryElementwiseKind.NEG),
+                List.of(restored),
                 List.of(output));
-        List<CompiledNode> nodes = List.of(neg, add, sub, mul, div);
+        List<CompiledNode> nodes = List.of(first, second, third);
         var graph = new CompiledGraphModel(
                 List.of(
                         new GraphValue(input, descriptor),
-                        new GraphValue(right, descriptor),
                         new GraphValue(negated, descriptor),
-                        new GraphValue(added, descriptor),
-                        new GraphValue(subtracted, descriptor),
-                        new GraphValue(multiplied, descriptor),
+                        new GraphValue(restored, descriptor),
                         new GraphValue(output, descriptor)),
                 nodes,
-                List.of(input, right),
-                List.of(added, output),
+                List.of(input),
+                List.of(restored, output),
                 Map.of(
-                        neg.id(), GraphPhase.FORWARD,
-                        add.id(), GraphPhase.FORWARD,
-                        sub.id(), GraphPhase.FORWARD,
-                        mul.id(), GraphPhase.FORWARD,
-                        div.id(), GraphPhase.FORWARD));
+                        first.id(), GraphPhase.FORWARD,
+                        second.id(), GraphPhase.FORWARD,
+                        third.id(), GraphPhase.FORWARD));
 
         var partitions = MaximalSameOwnerPartitioning.partition(
                 graph,
                 Map.of(
-                        neg.id(), MetalCapabilityProvider.METAL_BACKEND_ID,
-                        add.id(), MetalCapabilityProvider.METAL_BACKEND_ID,
-                        sub.id(), MetalCapabilityProvider.METAL_BACKEND_ID,
-                        mul.id(), MetalCapabilityProvider.METAL_BACKEND_ID,
-                        div.id(), MetalCapabilityProvider.METAL_BACKEND_ID));
+                        first.id(), MetalCapabilityProvider.METAL_BACKEND_ID,
+                        second.id(), MetalCapabilityProvider.METAL_BACKEND_ID,
+                        third.id(), MetalCapabilityProvider.METAL_BACKEND_ID));
 
         assertEquals(1, partitions.size());
         assertSame(MetalCapabilityProvider.METAL_BACKEND_ID, partitions.getFirst().owner());

@@ -13,7 +13,7 @@ import java.util.Optional;
 
 /**
  * Retains the immutable, shape-specialized lowering and route facts for one whole supported Metal
- * elementwise-and-terminal-affine partition.
+ * NEG-and-terminal-affine partition.
  *
  * <p>Value indices, typed MPSGraph nodes, feeds, targets, and declarations are already in their
  * stable ABI order. The route is either the safe heuristic or a freshly authenticated

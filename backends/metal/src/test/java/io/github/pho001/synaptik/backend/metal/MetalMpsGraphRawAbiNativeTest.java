@@ -24,7 +24,7 @@ class MetalMpsGraphRawAbiNativeTest {
     private static final Consumer<MemorySegment> UNCHANGED = ignored -> { };
 
     @Test
-    void rawVersionTwoRecordRejectsEveryMalformedHeaderAndUnusedField() {
+    void rawVersionThreeRecordRejectsEveryMalformedHeaderAndUnusedField() {
         try (RawAbi abi = RawAbi.open()) {
             MetalMpsGraphProgram reshape = new MetalMpsGraphProgram(List.of(
                     MetalMpsGraphProgram.Node.targetShape(
@@ -60,7 +60,9 @@ class MetalMpsGraphRawAbiNativeTest {
 
             abi.assertRejected("schema version one", INVALID_ARGUMENT, 1,
                     ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
-            abi.assertRejected("schema version three", INVALID_ARGUMENT, 3,
+            abi.assertRejected("withdrawn schema version two", INVALID_ARGUMENT, 2,
+                    ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
+            abi.assertRejected("schema version four", INVALID_ARGUMENT, 4,
                     ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
         }
     }
@@ -185,7 +187,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void rawNegAndBinaryNoneAttributesRejectEveryMalformedField() {
+    void rawNegNoneAttributesAndWithdrawnBinaryOperationsRejectEveryMalformedField() {
         try (RawAbi abi = RawAbi.open()) {
             int[] unaryRanks = {1, 1};
             long[] unaryDimensions = dimensions(new long[][] {{2}, {2}});
@@ -210,44 +212,23 @@ class MetalMpsGraphRawAbiNativeTest {
                     neg, new int[] {0}, new int[] {1},
                     record -> record.set(JAVA_INT, 12L, 0));
 
-            int[] binaryRanks = {1, 1, 1};
-            long[] binaryDimensions = dimensions(new long[][] {{2}, {2}, {2}});
-            MetalMpsGraphProgram add = new MetalMpsGraphProgram(List.of(
-                    MetalMpsGraphProgram.Node.binary(
-                            MetalMpsGraphProgram.NodeKind.ADD, 0, 1, 2)));
-            abi.assertRejected("binary attribute discriminator", binaryRanks, binaryDimensions,
-                    add, new int[] {0, 1}, new int[] {2},
-                    record -> record.set(JAVA_INT, 4L, 1));
-            abi.assertRejected("binary attribute count", binaryRanks, binaryDimensions,
-                    add, new int[] {0, 1}, new int[] {2},
-                    record -> record.set(JAVA_INT, 20L, 1));
-            abi.assertRejected("binary axis sentinel", binaryRanks, binaryDimensions,
-                    add, new int[] {0, 1}, new int[] {2},
-                    record -> record.set(JAVA_INT, 24L, 0));
-            abi.assertRejected("binary reserved scalar", binaryRanks, binaryDimensions,
-                    add, new int[] {0, 1}, new int[] {2},
-                    record -> record.set(JAVA_INT, 28L, 1));
-            abi.assertRejected("binary unused payload", binaryRanks, binaryDimensions,
-                    add, new int[] {0, 1}, new int[] {2},
-                    record -> record.set(JAVA_LONG, 32L, 1L));
+            for (int operation = 2; operation <= 5; operation++) {
+                int withdrawn = operation;
+                abi.assertRejected(
+                        "withdrawn binary operation wire " + withdrawn,
+                        unaryRanks,
+                        unaryDimensions,
+                        neg,
+                        new int[] {0},
+                        new int[] {1},
+                        record -> record.set(JAVA_INT, 0L, withdrawn));
+            }
         }
     }
 
     @Test
-    void rawBinaryExpandAndBoundaryIndicesRejectTheirExactNativeBranches() {
+    void rawExpandAndBoundaryIndicesRejectTheirExactNativeBranches() {
         try (RawAbi abi = RawAbi.open()) {
-            int[] binaryRanks = {1, 1, 1};
-            long[] binaryDimensions = dimensions(new long[][] {{2}, {2}, {2}});
-            MetalMpsGraphProgram add = new MetalMpsGraphProgram(List.of(
-                    MetalMpsGraphProgram.Node.binary(
-                            MetalMpsGraphProgram.NodeKind.ADD, 0, 1, 2)));
-            abi.assertRejected("binary second input is unavailable",
-                    binaryRanks, binaryDimensions, add,
-                    new int[] {0}, new int[] {2}, UNCHANGED);
-            abi.assertRejected("binary second input is out of range",
-                    binaryRanks, binaryDimensions, add,
-                    new int[] {0, 1}, new int[] {2},
-                    record -> record.set(JAVA_INT, 12L, 3));
 
             int[] expandRanks = {2, 2};
             long[] expandDimensions = dimensions(new long[][] {{2, 3}, {2, 4}});

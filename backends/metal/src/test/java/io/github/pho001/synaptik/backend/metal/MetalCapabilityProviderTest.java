@@ -28,7 +28,7 @@ class MetalCapabilityProviderTest {
     private final MetalCapabilityProvider provider = new MetalCapabilityProvider();
 
     @Test
-    void supportsEveryTypedElementwiseKindAndExactRightAlignedBroadcast() {
+    void supportsNegButRejectsEveryBinaryArithmeticKindForValidDescriptors() {
         assertSame(MetalCapabilityProvider.METAL_BACKEND_ID, provider.backendId());
         assertEquals("metal", provider.backendId().value());
         TensorDescriptor matrix = descriptor(Shape.of(2, 3), false);
@@ -43,25 +43,15 @@ class MetalCapabilityProviderTest {
                 BinaryArithmeticKind.SUB,
                 BinaryArithmeticKind.MUL,
                 BinaryArithmeticKind.DIV)) {
-            assertTrue(provider.supports(binaryQuery(kind, matrix, row, matrix)));
-            assertTrue(provider.supports(binaryQuery(kind, row, matrix, matrix)));
+            assertFalse(provider.supports(binaryQuery(kind, matrix, matrix, matrix)));
+            assertFalse(provider.supports(binaryQuery(kind, matrix, row, matrix)));
+            assertFalse(provider.supports(binaryQuery(kind, row, matrix, matrix)));
         }
-        assertTrue(provider.supports(binaryQuery(
-                BinaryArithmeticKind.SUB,
-                descriptor(Shape.of(4, 1, 3), false),
-                descriptor(Shape.of(2, 3), false),
-                descriptor(Shape.of(4, 2, 3), false))));
-        assertTrue(provider.supports(binaryQuery(
-                BinaryArithmeticKind.DIV,
-                descriptor(Shape.of(2, 3), false),
-                descriptor(Shape.of(4, 1, 3), false),
-                descriptor(Shape.of(4, 2, 3), false))));
     }
 
     @Test
     void rejectsEveryBoundaryOutsideTheExactDomain() {
         TensorDescriptor valid = descriptor(Shape.of(2, 3), false);
-        TensorDescriptor row = descriptor(Shape.of(3), false);
         Shape dynamic = Shape.ofDimensions(new DynamicDimension("N"));
         Shape rank17 = Shape.of(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
         var noLayout = new TensorDescriptor(
@@ -97,23 +87,6 @@ class MetalCapabilityProviderTest {
         assertFalse(provider.supports(query(typed(DataType.FLOAT64), typed(DataType.FLOAT64))));
         assertFalse(provider.supports(query(valid, descriptor(Shape.of(3, 2), false))));
         assertFalse(provider.supports(query(valid, descriptor(Shape.of(2, 3), true))));
-        assertFalse(provider.supports(binaryQuery(
-                BinaryArithmeticKind.ADD, valid, row, descriptor(Shape.of(2, 3), true))));
-        assertFalse(provider.supports(binaryQuery(
-                BinaryArithmeticKind.ADD,
-                descriptor(Shape.of(2, 3), true),
-                row,
-                descriptor(Shape.of(2, 3), true))));
-        assertFalse(provider.supports(binaryQuery(
-                BinaryArithmeticKind.ADD,
-                descriptor(Shape.of(2, 3), false),
-                descriptor(Shape.of(2, 2), false),
-                descriptor(Shape.of(2, 3), false))));
-        assertFalse(provider.supports(binaryQuery(
-                BinaryArithmeticKind.ADD,
-                valid,
-                row,
-                descriptor(Shape.of(3, 2), false))));
         assertFalse(provider.supports(query(
                 new TensorDescriptor(DataType.FLOAT32, dynamic, Optional.empty(), false),
                 new TensorDescriptor(DataType.FLOAT32, dynamic, Optional.empty(), false))));

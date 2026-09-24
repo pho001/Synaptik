@@ -4,6 +4,27 @@
 
 Complete
 
+## Post-completion correctness withdrawal
+
+The binary route documented below is historical delivery evidence, not current Metal capability.
+An independent Apple M3 Max audit exercised `ADD`, `SUB`, `MUL`, and `DIV` at MPSGraph
+optimization levels `0` and `1`: 576 runs and 79,488 arithmetic comparisons produced 12,096
+subnormal-domain failures while identity, permutation, input-preservation, and canary controls all
+passed. Basic MSL float arithmetic, including safe math mode, also flushed subnormals. Those
+results violate the Model's ordinary IEEE `FLOAT32` underflow contract.
+
+The accepted urgent remediation therefore removes all four operations from Metal capability and
+preparation, removes their Java/native lowering, and makes native node wires `2..5` fail closed.
+Metal-only binary graphs reject during compile ownership selection; explicitly registered CPU may
+own them. ABI version `4`, its exact thirteen exports, custom `NEG`, ordinary MPSGraph `NEG`, and
+the five 0008 affine operations remain. The live fixed-width node schema is version `3`; accepted
+operation wires are `NEG=1` and affine `6..10`. No fallback, value inspection, relaxed numerical
+contract, or custom float emulation was added.
+
+The original Goal, Scope, Result, and review evidence below are retained only to record what task
+0005 delivered before withdrawal.
+
+
 ## Review state
 
 Initial independent Class C review of implementation commit `8f117dcfa764483c997767acd6eb202608763ef3`
@@ -32,10 +53,9 @@ ordered SUB/DIV, fan-out, repeated runs, independent sessions, direct publicatio
 rejection, while mixed-owner composition remained separate; Javadoc, architecture, public-shape,
 documentation, allowlist, and `git diff --check` audits passed.
 
-ABI v4 remains exact: typed node schema `1` is the fixed 16-byte four-`uint32_t` record
-(`NEG=1`, `ADD=2`, `SUB=3`, `MUL=4`, `DIV=5`, `UINT32_MAX` unary sentinel), with no generic
-attributes, compatibility symbol, string dispatch, source payload, or fallback. The exact
-thirteen-symbol inventory is recorded in the Result below and in the master plan.
+ABI v4 still has the exact thirteen-symbol inventory recorded in the historical Result below.
+Current schema `3` keeps its 160-byte typed record, accepts `NEG=1` and affine wires `6..10`, and
+rejects the withdrawn binary wires `2..5`.
 
 ## Change class
 
@@ -61,12 +81,12 @@ No operations beyond `NEG`, `ADD`, `SUB`, `MUL`, `DIV`; no dtype beyond `FLOAT32
 ## Contracts
 
 - [`ARCHITECTURE.md` — Core invariants](../../../../../ARCHITECTURE.md#core-invariants) — Planning selects ownership only; backend analysis/lowering owns route choice; Runtime sees prepared typed work; Engine is composition root.
-- [`ARCHITECTURE.md` — Concrete CPU, Metal, and CUDA backends](../../../../../ARCHITECTURE.md#concrete-backend-modules) — Metal owns lowering, native resources, and execution without depending on Engine.
+- [Concrete backend modules](../../../../architecture/contracts/backend-execution.md#concrete-backend-modules) — Metal owns lowering, native resources, and execution without depending on Engine.
 - [`ARCHITECTURE.md` — Metal backend](../../../../architecture/contracts/backend-execution.md#metal-backend) — capability truth, MPSGraph lowering, native ABI, and custom route remain Metal-owned.
 - [`ARCHITECTURE.md` — Prepare lifecycle](../../../../architecture/contracts/runtime-prepare-engine.md#prepare-lifecycle) — analysis declares exact resources before assignment; finalization cannot add requirements or reselect.
 - [`ARCHITECTURE.md` — Public explicit composition](../../../../architecture/contracts/runtime-prepare-engine.md#public-explicit-composition) — public tests use explicit integration ownership; no discovery or implicit fallback.
 - [`ARCHITECTURE.md` — Run lifecycle](../../../../architecture/contracts/runtime-prepare-engine.md#run-lifecycle) — prepared recipes and direct cold-bound references only on the hot path.
-- [Metal backend guide](../../../../backend-guide/metal-backend.md) and [native guide](../../../../native/metal-macos-arm64/README.md) — update current domain, ABI inventory, and validation commands.
+- [Metal backend guide](../../../../backend-guide/metal-backend.md) and [native guide](../../../../../native/metal-macos-arm64/README.md) — update current domain, ABI inventory, and validation commands.
 
 If the generalized schema requires a new shared contract or architecture change, stop and report it before implementation.
 
@@ -221,8 +241,8 @@ Final task-owned allowlist:
 - `docs/planning/roadmap.md`
 - this task brief.
 
-No public Java type or method changed. The package-private `MetalNeg*` class names remain historical
-implementation names to avoid a weightless file-renaming cutover; their contracts and Javadocs
-describe the generalized typed elementwise route. Master plan and roadmap remain synchronized at
-`Complete` after the initial `BLOCK` → remediation → independent `APPROVE` trail above. ABI v4
-remains exact and Metal 0006 is now the sole Ready successor.
+No public Java type or method changed. The package-private `MetalNeg*` class names remain
+historical implementation names to avoid a weightless file-renaming cutover; their current
+contracts and Javadocs describe the safe NEG-and-affine route. Master plan and roadmap record the
+delivered-then-withdrawn 0005 state and retain independent affine-layout task 0014 as the sole
+`Ready` Metal successor. ABI v4 remains exact.

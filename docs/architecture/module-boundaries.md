@@ -3,11 +3,11 @@
 This document explains the module responsibilities established by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract is authoritative when a summary here is incomplete.
 
 The boundaries apply to both implemented and planned modules. Model, Backend Contract, Planning,
-Compiler, Runtime, Prepare, Engine, CPU, and the narrow Metal NEG route have substantive
-implementations; Config and Trace are partial. The current public execution path supports fixed
-CPU ownership and explicit CPU/Metal composition, including mixed-owner schedules with bounded
-bidirectional static contiguous `FLOAT32` transfer. Other concrete backends, broader transfer
-domains, and most extensions remain planned or incomplete. The
+Compiler, Runtime, Prepare, Engine, CPU, and the narrow Metal NEG/terminal-affine route have
+substantive implementations; Config and Trace are partial. The current public execution path
+supports fixed CPU ownership and explicit CPU/Metal composition, including mixed-owner schedules
+with bounded bidirectional static contiguous `FLOAT32` transfer. Other concrete backends, broader
+transfer domains, and most extensions remain planned or incomplete. The
 [roadmap](../planning/roadmap.md) records exact delivery status.
 
 ## Shared modules

@@ -45,6 +45,9 @@ Training-to-Metal optimizer bridge.
   tested, and colocated with their routes. Shared orchestration treats them opaquely.
 - Safe heuristics remain correct without tuning. Model 0026 must define IEEE FLOAT16 and affected
   numerical contracts before Metal advertises FLOAT16; two-byte storage implies neither BFLOAT16 nor FLOAT16 capability.
+- Post-completion audit withdrew task 0005's `ADD`/`SUB`/`MUL`/`DIV` capability: MPSGraph and
+  basic MSL arithmetic flush required `FLOAT32` subnormal results. Metal now fails those
+  occurrences closed; CPU may own them only when explicitly registered.
 - Blocked 0010 added no BOOL capability; blocked 0011 added no scalar arithmetic capability;
   blocked 0012 added no extrema reduction capability; blocked 0013 added no cumulative-scan
   capability. Ready 0014 composes only existing FLOAT32 affine layouts plus `CONTIGUOUS`. Later
@@ -83,7 +86,7 @@ visibility.
 | 0002 | [MPSGraph prepared execution route](tasks/0002-mpsgraph-prepared-execution-route.md) | Complete | 0001; Runtime 0016; Prepare 0006; Engine 0010; Compiler 0006B7 | None | None | Any | Focused Metal and conformance suites | Added maximal-partition positive-shape contiguous FLOAT32 NEG through reusable MPSGraph preparation/execution. |
 | 0003 | [Single-NEG custom Metal kernel route](tasks/0003-single-neg-custom-metal-kernel-route.md) | Complete | 0001–0002 | None | None | Any | Focused Metal/native suites | Added a private custom route for one NEG/feed/target within `1..UINT32_MAX`; all other supported partitions retain MPSGraph. |
 | 0004 | [Typed Metal route candidate generators and cache compatibility](tasks/0004-typed-metal-route-candidate-generators-and-cache-compatibility.md) | Complete | 0002–0003, opaque prepare/tuning boundary and artifact versioning | None | None | Any | Focused candidate, Metal, and conformance suites | Added typed NEG candidates and a session-compatible authenticated codec foundation without outer tuning integration. |
-| 0005 | [MPSGraph mixed NEG/binary FLOAT32 whole-partition route](tasks/0005-mpsgraph-mixed-binary-whole-partition.md) | Complete | 0001–0004; Engine 0017; Compiler 0006B7; Prepare 0008; Runtime 0016 | Metal capability/preparation/native ABI/Engine Metal scopes | None | ABI/schema → capability/analysis → Prepare → public Engine tests → docs/review | Native export audit; focused Metal/conformance; real public Engine integration; architecture checks; `git diff --check` | Approved after initial Class C BLOCK, remediation `9f3a264`, and independent APPROVE with zero residual findings; ABI v4 exact. |
+| 0005 | [MPSGraph mixed NEG/binary FLOAT32 whole-partition route](tasks/0005-mpsgraph-mixed-binary-whole-partition.md) | Complete | 0001–0004; Engine 0017; Compiler 0006B7; Prepare 0008; Runtime 0016 | Metal capability/preparation/native ABI/Engine Metal scopes | None | ABI/schema → capability/analysis → Prepare → public Engine tests → docs/review | Native export audit; focused Metal/conformance; real public Engine integration; architecture checks; `git diff --check` | Originally delivered and approved after remediation `9f3a264`; an independent post-completion subnormal audit later required withdrawing all four binary operations. ABI v4 remains exact; schema 3 rejects wires `2..5`. |
 | 0006 | [MPSGraph FLOAT32 unary algebra route](tasks/0006-mpsgraph-float32-unary-algebra.md) | Blocked | 0005; current Model unary semantics; Engine 0017; Compiler 0006B7; Prepare 0008; Runtime 0016 | Metal capability/preparation/native ABI/Engine Metal scopes; scalar schema work | None | Replacement route → numerical gates → Class C review | Reproducible real probe and fail-closed evidence; no production change | MPSGraph passed ABS ULP0, EXP ULP1, SIGMOID ULP1 but failed exact RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH cases; custom kernels or relaxed gates are required. |
 | 0007 | [MPSGraph FLOAT32 SUM/MEAN reduction foundation](tasks/0007-mpsgraph-float32-reductions.md) | Blocked | 0005; current Model reduction attrs and Compiler autograd; Engine 0017; Compiler 0006B7; Prepare 0008; Runtime 0016 | Metal capability/preparation/native ABI/Engine Metal scopes; 0006 is not a dependency | None | Exact replacement route → numerical gates → Class C review | Reproducible real direct-output probe and fail-closed evidence; no production change | Eight runs returned positive zero for cancellation cases requiring SUM `2.0f` and MEAN `0.5f`; selector/schema/rank-zero feasibility does not satisfy exact Model semantics. |
 | 0008 | [MPSGraph FLOAT32 affine transforms](tasks/0008-mpsgraph-float32-affine-transforms.md) | Complete | 0005; current Model/Compiler affine Shape and layout contracts; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007 | Metal capability/preparation/native ABI/Engine Metal materialization; shared aliasing or transfer work | None | Real selector/bit probe → typed schema → capability/analysis → Prepare/Runtime/materialization → Engine proof → docs/review | ABI-v4 export/schema audit; exact Shape/layout/raw-bit gates; direct affine publication; transfer non-widening; focused Metal/conformance/Engine/architecture checks | Approved after implementation `7e39f705`, remediation `9713e528`/`aa42ed711`, and independent Class C APPROVE with zero findings; five bounded affine transforms, ABI v4 exact. |
@@ -101,9 +104,9 @@ visibility.
 0006 and 0007 are independent `Blocked` branches from 0005. 0009–0013 are independently
 `Blocked` from 0008 by MATMUL subnormal flushing, comparison subnormal collapse, scalar arithmetic
 failures, extrema signed-zero/subnormal order dependence, and cumulative-scan subnormal flushing,
-respectively. 0014 is the sole authorized frontier and depends only on completed 0005/0008 plus
-current Model/Compiler layout contracts; it does not depend on any blocked Metal task, Model 0026,
-or reserved future Metal 0028/0029 type work.
+respectively. 0014 is the sole authorized frontier and depends on 0005's retained lifecycle/ABI
+foundation plus completed 0008, not on the withdrawn binary domain or any blocked Metal task,
+Model 0026, or reserved future Metal 0028/0029 type work.
 
 ## Integration ownership and shared documents
 
@@ -119,6 +122,12 @@ Class C review with zero findings. Metal 0006 remains `Blocked` after exact
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures. Metal 0007 remains independently `Blocked`
 after eight direct-output executions returned positive zero where the exact Model SUM/MEAN results
 are `2.0f`/`0.5f`.
+
+Task 0005's binary delivery is now withdrawn. The accepted Apple M3 Max audit ran 576 executions
+and 79,488 arithmetic comparisons across optimization levels `0` and `1`; 12,096 subnormal-domain
+comparisons failed while identity, permutation, input-preservation, and canary controls passed.
+Metal no longer advertises or prepares `ADD`, `SUB`, `MUL`, or `DIV`; CPU may own them when
+registered, and Metal-only binary graphs reject before native preparation.
 
 Metal 0009 is independently `Blocked`: at optimization levels `0` and `1`, three executables per
 level and eight runs per case, `K=1` MATMUL by one flushed positive/negative minimum and ordinary
@@ -171,13 +180,15 @@ numerical operations, FLOAT16, and BFLOAT16 are not widened.
 
 - Task 0001 is deliberately non-executing and fail closed. Task 0002 truthfully admits only the
   implemented fully static positive rank-`1..16`, dense-contiguous zero-offset FLOAT32 NEG domain.
-  Task 0003 changes route choice, not occurrence capability or partitioning.
+  Task 0003 changes route choice, not occurrence capability or partitioning. Task 0005's delivered
+  binary capability is withdrawn; its retained contribution is the generalized lifecycle and ABI
+  foundation used by NEG and affine operations.
 - The caller-supplied macOS arm64 native library uses an Objective-C C ABI reached through JDK 26
   Foreign Function and Memory (FFM). It is not packaged or discovered by the backend. ABI version
   1 established seven foundation functions and statuses `0..7`; version 2 retained them, added
   three typed MPSGraph functions and statuses `8..11`; version 3 retained all ten, added three
   custom-NEG functions and status `12`; version 4 replaces only the NEG-specific MPSGraph create
-  operation, whose pointed-to node table is now the version-two typed whole-partition schema.
+  operation. Its pointed-to node table now uses the version-three typed whole-partition schema.
   Opaque resource kinds are never reinterpreted. ABI v4 exports exactly:
 
   ```text
@@ -197,10 +208,12 @@ numerical operations, FLOAT16, and BFLOAT16 are not widened.
   ```
 
   The old `synaptik_metal_mpsgraph_neg_executable_create` symbol is absent.
-- Task 0008 retains the exact thirteen-symbol ABI while schema version 2 adds bounded typed target-
-  Shape, permutation, and axis attributes. Affine logical views receive distinct full-logical-size
-  represented-order Metal targets; only an exact finalized-route-authenticated target can use the
-  affine materialization path. Canonical-only cross-owner transfer remains unchanged.
+- Task 0008 retains the exact thirteen-symbol ABI; its bounded target-Shape, permutation, and axis
+  attributes remain live on operation wires `6..10`. The correctness withdrawal advances the
+  fixed record to schema version 3 and rejects former binary wires `2..5`. Affine logical views
+  receive distinct full-logical-size represented-order Metal targets; only an exact finalized-
+  route-authenticated target can use the affine materialization path. Canonical-only cross-owner
+  transfer remains unchanged.
 - Analysis validates the complete maximal Metal partition, selects the route, and declares exact
   buffers/workspaces. Finalization cannot change that route or add undeclared shared requirements;
   it creates route-specific persistent resources only after slot assignment.

@@ -30,7 +30,6 @@ import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
-import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
@@ -551,9 +550,9 @@ class MetalNegPreparedExecutionTest {
                 fixture.v4, fixture.v5), plan.valueIds());
         assertEquals(List.of(
                 MetalMpsGraphProgram.NodeKind.NEG,
-                MetalMpsGraphProgram.NodeKind.ADD,
-                MetalMpsGraphProgram.NodeKind.MUL,
-                MetalMpsGraphProgram.NodeKind.DIV),
+                MetalMpsGraphProgram.NodeKind.NEG,
+                MetalMpsGraphProgram.NodeKind.NEG,
+                MetalMpsGraphProgram.NodeKind.NEG),
                 plan.graphProgram().nodes().stream()
                         .map(MetalMpsGraphProgram.Node::kind)
                         .toList());
@@ -688,7 +687,7 @@ class MetalNegPreparedExecutionTest {
                             List.of(base.partition()), false),
                     requirement(base.v0(), a, Optional.empty(), List.of(), false),
                     requirement(base.v3(), a, Optional.of(base.partition()),
-                            List.of(base.partition()), true));
+                            List.of(), true));
             for (LogicalMemoryRequirement replacement : invalid) {
                 Fixture malformed = withRequirement(base, replacement);
                 assertThrows(IllegalArgumentException.class,
@@ -1312,22 +1311,18 @@ class MetalNegPreparedExecutionTest {
                         context, input0, input1, output0, output1, output2);
                 resource.run(2, workspace.segment().asSlice(0, 16),
                         3, workspace.segment().asSlice(16, 24));
-                assertNegated(output0, new float[] {
-                        0.0f, 0.0f, 0.0f, 0.0f, Float.NaN, Float.NaN
-                }, arena);
+                assertNegated(output0, a, arena);
                 assertNegated(output1, new float[] {
-                        9.0f, 16.0f, Float.POSITIVE_INFINITY, 0.0f
+                        -3.0f, 4.0f, Float.POSITIVE_INFINITY, -0.0f
                 }, arena);
                 assertNegated(output2, new float[] {
-                        -1.0f, -1.0f, Float.NaN, Float.NaN, Float.NaN, Float.NaN
+                        -1.0f, 2.0f, -0.0f, 0.0f, Float.NEGATIVE_INFINITY, Float.NaN
                 }, arena);
                 for (int run = 0; run < MPSGRAPH_AUTORELEASE_STRESS_RUNS; run++) {
                     resource.run(2, workspace.segment().asSlice(0, 16),
                             3, workspace.segment().asSlice(16, 24));
                 }
-                assertNegated(output0, new float[] {
-                        0.0f, 0.0f, 0.0f, 0.0f, Float.NaN, Float.NaN
-                }, arena);
+                assertNegated(output0, a, arena);
             }
         } finally {
             close(output2); close(output1); close(output0); close(input1); close(input0);
@@ -2241,14 +2236,11 @@ class MetalNegPreparedExecutionTest {
         ValueId v0 = new ValueId(0), v1 = new ValueId(1), v2 = new ValueId(2);
         ValueId v3 = new ValueId(3), v4 = new ValueId(4), v5 = new ValueId(5);
         Operation neg = new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE);
-        Operation add = new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE);
-        Operation mul = new Operation(BinaryArithmeticKind.MUL, NoOperationAttrs.INSTANCE);
-        Operation div = new Operation(BinaryArithmeticKind.DIV, NoOperationAttrs.INSTANCE);
         List<CompiledNode> nodes = List.of(
                 new CompiledNode(new NodeId(0), neg, List.of(v0), List.of(v2)),
-                new CompiledNode(new NodeId(1), add, List.of(v2, v0), List.of(v3)),
-                new CompiledNode(new NodeId(2), mul, List.of(v1, v1), List.of(v4)),
-                new CompiledNode(new NodeId(3), div, List.of(v2, v0), List.of(v5)));
+                new CompiledNode(new NodeId(1), neg, List.of(v2), List.of(v3)),
+                new CompiledNode(new NodeId(2), neg, List.of(v1), List.of(v4)),
+                new CompiledNode(new NodeId(3), neg, List.of(v3), List.of(v5)));
         PlannedPartition partition = new PlannedPartition(MetalCapabilityProvider.METAL_BACKEND_ID,
                 nodes.stream().map(CompiledNode::id).toList());
         List<GraphValue> values = List.of(new GraphValue(v0, a), new GraphValue(v1, b),
@@ -2258,7 +2250,7 @@ class MetalNegPreparedExecutionTest {
                 requirement(v0, a, Optional.empty(), List.of(partition), false),
                 requirement(v1, b, Optional.empty(), List.of(partition), false),
                 requirement(v2, a, Optional.of(partition), List.of(partition), false),
-                requirement(v3, a, Optional.of(partition), List.of(), true),
+                requirement(v3, a, Optional.of(partition), List.of(partition), true),
                 requirement(v4, b, Optional.of(partition), List.of(), true),
                 requirement(v5, a, Optional.of(partition), List.of(), true));
         return new Fixture(partition, nodes, values, requirements, v0, v1, v2, v3, v4, v5);
