@@ -10,11 +10,11 @@ import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphAffineSchemaTest {
     @Test
-    void schemaVersionThreeEncodesTypedDiscriminantsAndRequiredUnusedSentinels() {
+    void schemaVersionFourEncodesTypedDiscriminantsAndRequiredUnusedSentinels() {
         var reshape = MetalMpsGraphProgram.Node.targetShape(
                 MetalMpsGraphProgram.NodeKind.RESHAPE, 0, 1, new long[] {3, 2});
         byte[] encoded = new MetalMpsGraphProgram(List.of(reshape)).encodedNodeRecords();
-        assertEquals(3, MetalMpsGraphProgram.SCHEMA_VERSION);
+        assertEquals(4, MetalMpsGraphProgram.SCHEMA_VERSION);
         assertEquals(MetalMpsGraphProgram.NODE_RECORD_BYTES, encoded.length);
 
         ByteBuffer record = ByteBuffer.wrap(encoded).order(ByteOrder.BIG_ENDIAN);
@@ -34,28 +34,49 @@ class MetalMpsGraphAffineSchemaTest {
     }
 
     @Test
-    void JavaPreflightAcceptsEachTypedAffineMapping() {
-        validate(
-                new long[][] {{2, 3}, {3, 2}},
+    void contiguousWireElevenHasNoAttributesAndAFullZeroPayload() {
+        byte[] encoded = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.contiguous(3, 4))).encodedNodeRecords();
+        ByteBuffer record = ByteBuffer.wrap(encoded).order(ByteOrder.BIG_ENDIAN);
+        assertEquals(11, record.getInt());
+        assertEquals(0, record.getInt());
+        assertEquals(3, record.getInt());
+        assertEquals(-1, record.getInt());
+        assertEquals(4, record.getInt());
+        assertEquals(0, record.getInt());
+        assertEquals(-1, record.getInt());
+        assertEquals(0, record.getInt());
+        while (record.hasRemaining()) {
+            assertEquals(0L, record.getLong());
+        }
+    }
+
+    @Test
+    void JavaPreflightAcceptsAffineCompositionAndExplicitContiguousStateTransition() {
+        var program = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.targetShape(
                         MetalMpsGraphProgram.NodeKind.RESHAPE,
-                        0, 1, new long[] {3, 2}));
-        validate(
-                new long[][] {{1, 3}, {2, 3}},
+                        0, 1, new long[] {2, 1, 3}),
                 MetalMpsGraphProgram.Node.targetShape(
                         MetalMpsGraphProgram.NodeKind.EXPAND,
-                        0, 1, new long[] {2, 3}));
-        validate(
-                new long[][] {{2, 3}, {3, 2}},
-                MetalMpsGraphProgram.Node.permutation(0, 1, List.of(1, 0)));
-        validate(
-                new long[][] {{2, 3}, {2, 1, 3}},
+                        1, 2, new long[] {2, 4, 3}),
+                MetalMpsGraphProgram.Node.permutation(2, 3, List.of(1, 0, 2)),
                 MetalMpsGraphProgram.Node.axis(
-                        MetalMpsGraphProgram.NodeKind.EXPAND_DIMS, 0, 1, 1));
-        validate(
-                new long[][] {{2, 1, 3}, {2, 3}},
+                        MetalMpsGraphProgram.NodeKind.EXPAND_DIMS, 3, 4, 2),
                 MetalMpsGraphProgram.Node.axis(
-                        MetalMpsGraphProgram.NodeKind.SQUEEZE, 0, 1, 1));
+                        MetalMpsGraphProgram.NodeKind.SQUEEZE, 4, 5, 2),
+                MetalMpsGraphProgram.Node.contiguous(5, 6),
+                MetalMpsGraphProgram.Node.neg(6, 7),
+                MetalMpsGraphProgram.Node.targetShape(
+                        MetalMpsGraphProgram.NodeKind.RESHAPE,
+                        7, 8, new long[] {4, 6})));
+        long[][] shapes = {
+            {6}, {2, 1, 3}, {2, 4, 3}, {4, 2, 3}, {4, 2, 1, 3},
+            {4, 2, 3}, {4, 2, 3}, {4, 2, 3}, {4, 6}
+        };
+        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                ranks(shapes), dimensions(shapes), program,
+                new int[] {0}, new int[] {1, 2, 3, 4, 5, 6, 7, 8});
     }
 
     @Test
@@ -90,7 +111,7 @@ class MetalMpsGraphAffineSchemaTest {
     }
 
     @Test
-    void JavaPreflightRejectsMismatchedGeometryAndAffineResultInputs() {
+    void JavaPreflightRejectsMismatchedGeometryUnavailableStateAndViewToNeg() {
         assertInvalid(
                 new long[][] {{2, 3}, {2, 4}},
                 MetalMpsGraphProgram.Node.targetShape(
@@ -113,18 +134,23 @@ class MetalMpsGraphAffineSchemaTest {
                 MetalMpsGraphProgram.Node.axis(
                         MetalMpsGraphProgram.NodeKind.SQUEEZE, 0, 1, 1));
 
-        int[] ranks = {1, 2, 1};
-        long[] dimensions = dimensions(new long[][] {{6}, {2, 3}, {6}});
-        var program = new MetalMpsGraphProgram(List.of(
+        long[][] shapes = {{6}, {2, 3}, {2, 3}};
+        var viewToNeg = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.targetShape(
                         MetalMpsGraphProgram.NodeKind.RESHAPE,
                         0, 1, new long[] {2, 3}),
-                MetalMpsGraphProgram.Node.targetShape(
-                        MetalMpsGraphProgram.NodeKind.RESHAPE,
-                        1, 2, new long[] {6})));
+                MetalMpsGraphProgram.Node.neg(1, 2)));
         assertThrows(IllegalArgumentException.class, () ->
                 MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
-                        ranks, dimensions, program, new int[] {0}, new int[] {2}));
+                        ranks(shapes), dimensions(shapes), viewToNeg,
+                        new int[] {0}, new int[] {2}));
+
+        var unavailableInput = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.contiguous(1, 2)));
+        assertThrows(IllegalArgumentException.class, () ->
+                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                        ranks(shapes), dimensions(shapes), unavailableInput,
+                        new int[] {0}, new int[] {2}));
     }
 
     private static void validate(long[][] shapes, MetalMpsGraphProgram.Node node) {

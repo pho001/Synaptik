@@ -5,9 +5,10 @@
 This directory builds the local application binary interface (ABI) used by the Synaptik Metal
 backend on Apple-silicon macOS. ABI version 4 retains context, shared-storage buffer, executable,
 and bounded custom singleton-`NEG` ownership. Its versioned typed whole-partition MPSGraph program
-supports `NEG`, `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE`. Operation wires
-`2..5`, formerly used for `ADD`, `SUB`, `MUL`, and `DIV`, are withdrawn and rejected: real-device
-audit proved that MPSGraph arithmetic does not preserve required `FLOAT32` subnormal semantics.
+supports `NEG`, `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and the explicit
+`CONTIGUOUS` canonicalization barrier. Operation wires `2..5`, formerly used for `ADD`, `SUB`,
+`MUL`, and `DIV`, are withdrawn and rejected: real-device audit proved that MPSGraph arithmetic
+does not preserve required `FLOAT32` subnormal semantics.
 
 ```text
 Java analysis -> choose custom singleton or MPSGraph route -> declare exact resources
@@ -62,11 +63,11 @@ accepts only `1..UINT32_MAX`; it returns unsupported shape outside that domain r
 narrowing the value. Created handles use caller-supplied output cells, which remain null on
 failure.
 
-The graph creator accepts node schema `3` and a bounded fixed-width table:
+The graph creator accepts node schema `4` and a bounded fixed-width table:
 
 ```c
 typedef struct {
-    uint32_t operation;       /* NEG=1 or one of affine operations 6..10 */
+    uint32_t operation;       /* NEG=1, affine=6..10, CONTIGUOUS=11 */
     uint32_t attribute_kind;  /* NONE=0, TARGET_SHAPE=1, PERMUTATION=2, AXIS=3 */
     uint32_t first_input;
     uint32_t second_input;    /* UINT32_MAX for every accepted node */
@@ -75,7 +76,7 @@ typedef struct {
     uint32_t axis;            /* normalized axis or UINT32_MAX */
     uint32_t reserved;        /* zero */
     uint64_t attribute_values[16];
-} SynaptikMetalMpsGraphNodeV3; /* exactly 160 bytes; payload begins at byte 32 */
+} SynaptikMetalMpsGraphNodeV4; /* exactly 160 bytes; payload begins at byte 32 */
 ```
 
 Its exact signature is:
@@ -85,22 +86,25 @@ int32_t synaptik_metal_mpsgraph_executable_create(
     void *context, uint32_t node_schema_version,
     uint32_t value_count, const uint32_t *value_ranks,
     const uint64_t *value_dimensions,
-    uint32_t node_count, const SynaptikMetalMpsGraphNodeV3 *nodes,
+    uint32_t node_count, const SynaptikMetalMpsGraphNodeV4 *nodes,
     uint32_t feed_count, const uint32_t *feed_indices,
     uint32_t target_count, const uint32_t *target_indices,
     void **out_executable);
 ```
 
 The dimension table has `value_count * 16` cells with used positive axes followed by zero padding.
-Feeds are unique and available before node zero; nodes are topological and produce fresh values;
-targets are unique produced values. No-attribute nodes require zero attribute count/payload and the
-axis sentinel. Target Shapes and complete permutations use `attribute_count` payload cells; axis
-forms use count one, the normalized `axis`, and a zero payload. Every other cell is zero or its
-required sentinel. Native validation checks exact operation/attribute pairing, ranks `1..16`,
-positive dimensions, target Shapes, permutations, axes, `NEG` equality, and affine result
-geometry. An affine result cannot feed another node. Unknown operations, including withdrawn wires
-`2..5`, wrong sentinels, incompatible Shapes, unused values, malformed indices or payloads, and
-wrong schema versions fail closed.
+Feeds are unique canonical values available before node zero; nodes are topological and produce
+fresh values; targets are unique produced values. Native validation walks explicit unavailable,
+canonical, and affine-view states. Affine nodes accept canonical or prior affine-view state and
+produce affine-view state. `CONTIGUOUS` accepts either available state and produces canonical
+state. `NEG` accepts only canonical state. No-attribute nodes require zero attribute count/payload
+and the axis sentinel. Target Shapes and complete permutations use `attribute_count` payload
+cells; axis forms use count one, the normalized `axis`, and a zero payload. Every other cell is
+zero or its required sentinel. Native validation checks exact operation/attribute pairing, ranks
+`1..16`, positive dimensions, target Shapes, permutations, axes, `NEG`/`CONTIGUOUS` Shape
+equality, and affine result geometry. Unknown operations, including withdrawn wires `2..5`, wrong
+sentinels, incompatible Shapes, unavailable or invalid value states, unused values, malformed
+indices or payloads, and wrong schema versions fail closed.
 
 ### Status values
 
@@ -124,13 +128,14 @@ Unknown integers remain unknown and fail closed on the Java side with the raw st
 The deterministic Java fake/native seam is the accepted error-matrix evidence; real-device tests
 exercise successful execution and do not manufacture framework failures.
 
-## Prepared NEG and affine execution
+## Prepared NEG and affine-composition execution
 
 Creation consumes a validated, topologically ordered whole-partition description. Native code
 creates fixed-shape `FLOAT32` placeholders and lowers typed nodes to MPSGraph negation,
 `reshapeTensor:withShape:name:`, `broadcastTensor:toShape:name:`,
 `transposeTensor:permutation:name:`, `expandDimsOfTensor:axis:name:`, or
-`squeezeTensor:axis:name:`. It verifies each affine result Shape and compiles one shape-specialized
+`squeezeTensor:axis:name:`. `CONTIGUOUS` uses same-Shape
+`reshapeTensor:withShape:name:`. It verifies every result Shape and compiles one shape-specialized
 executable. The executable owner retains ordered feed and target Shapes, byte extents,
 stable-to-framework permutations, and the originating context.
 
@@ -144,9 +149,10 @@ after the supplied destinations are usable. Synaptik requests no result-synchron
 performs no explicit post-execution device or host copy. MPSGraph may still use internal temporary
 storage.
 
-Affine targets are supplied full positive logical byte extents and receive canonical logical
+Affine-view targets are supplied full positive logical byte extents and receive canonical logical
 coordinate order. That dense physical choice is backend-private: logical view strides, offsets,
 and `isView` metadata remain unchanged, and it does not imply aliasing with the source.
+`CONTIGUOUS` targets use the ordinary canonical materialization path.
 
 Java validates live typed handles and readable pointer arrays before native entry. The ABI cannot
 prove that an arbitrary non-null raw pointer is live, type-correct, or sufficiently sized;
@@ -166,11 +172,10 @@ Each invocation binds the direct input `MTLBuffer` at index `0` and assigned out
 at index `1`, creates one command buffer and one compute encoder, dispatches exactly the retained
 element count with `dispatchThreads`, and waits once for successful completion. The assigned
 output is written directly; the bridge performs no explicit host staging or intermediate output
-copy. Every other supported partition, including every affine occurrence, uses the typed MPSGraph
-route. The route is selected once during analysis and is never retried, replaced, or repartitioned
-in finalization or execution.
-This private implementation-domain boundary is not capability narrowing, tuning, fallback, or a
-performance claim.
+copy. Every other supported partition, including affine composition and `CONTIGUOUS`, uses the
+typed MPSGraph route. The route is selected once during analysis and is never retried, replaced,
+or repartitioned in finalization or execution. This private implementation-domain boundary is not
+capability narrowing, tuning, fallback, or a performance claim.
 
 ## Ownership and concurrency
 
@@ -217,18 +222,20 @@ The environment variable is required; ordinary sandboxed runs skip native-device
 foundation coverage proves context/buffer ownership and bounded shared-memory copies. Prepared
 coverage proves custom caller and splat execution, backend-local typed logical splats, stable
 multi-feed/multi-target ordering, direct supplied outputs, and 5,000 consecutive NEG MPSGraph runs
-through one retained executable. Affine coverage exercises all five selectors, adversarial raw
-bits, Shapes through rank sixteen, mixed NEG-prefix fan-out, direct dense targets, repeated runs,
-exact host publication, and unchanged canonical-only cross-owner transfer. Public Metal-only
-Engine cases prove supported NEG and affine execution. A focused subnormal binary graph proves
-that a Metal-only Engine rejects ownership before native preparation and that an explicitly
-registered CPU owns and executes the graph instead.
+through one retained executable. Affine coverage exercises all five selectors plus same-Shape
+`CONTIGUOUS`, adversarial raw bits, Shapes through rank sixteen, chained local views, fan-out,
+intermediate and final direct dense targets, repeated/concurrent runs, exact host publication, and
+unchanged canonical-only cross-owner transfer. A public Metal-only Engine case publishes composed
+views and the canonical barrier, then feeds existing `NEG`; no CPU owner participates. A focused
+subnormal binary graph proves that a Metal-only Engine rejects ownership before native preparation
+and that an explicitly registered CPU owns and executes the graph instead.
 
 ## Boundaries
 
 The bridge itself implements no library discovery, packaging, Engine composition, mixed-owner
 schedule, CPU fallback, general custom-kernel framework, asynchronous API, buffer pool,
 persistent constant buffer, executable serialization, FLOAT16, BFLOAT16, reduction, unary algebra,
-MATMUL, or performance claim. Affine lowering adds no custom kernel. The public Java Metal surface
-is `MetalCapabilityProvider`, `MetalBackendConfiguration`, and `MetalBackendIntegration`; Engine
-accepts an explicitly opened integration through `Engine.builder()`.
+binary arithmetic, MATMUL, backward execution, alias promise, or performance claim. Affine
+composition adds no custom kernel. The public Java Metal surface is `MetalCapabilityProvider`,
+`MetalBackendConfiguration`, and `MetalBackendIntegration`; Engine accepts an explicitly opened
+integration through `Engine.builder()`.

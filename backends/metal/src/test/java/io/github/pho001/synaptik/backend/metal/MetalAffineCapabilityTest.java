@@ -5,9 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
@@ -22,7 +24,7 @@ class MetalAffineCapabilityTest {
     private final MetalCapabilityProvider provider = new MetalCapabilityProvider();
 
     @Test
-    void admitsExactlyTheFiveTypedAffineMappingsWithCompilerViewLayouts() {
+    void admitsTypedAffineMappingsFromCanonicalAndExactViewInputs() {
         TensorDescriptor twoThree = canonical(Shape.of(2, 3), false);
         assertTrue(supports(
                 new Operation(ShapeTransformKind.RESHAPE,
@@ -66,14 +68,16 @@ class MetalAffineCapabilityTest {
     }
 
     @Test
-    void rejectsNoncanonicalInputsAndEveryOutputDescriptorMismatch() {
+    void admitsCompositionAndContiguousButRejectsDescriptorAndReshapeMismatches() {
         TensorDescriptor input = canonical(Shape.of(2, 3), false);
         Operation reshape = new Operation(
                 ShapeTransformKind.RESHAPE, new TargetShapeAttrs(Shape.of(3, 2)));
         TensorDescriptor exact = view(Shape.of(3, 2), new long[] {2, 1}, false);
 
-        assertFalse(supports(reshape,
+        assertTrue(supports(reshape,
                 view(Shape.of(2, 3), new long[] {3, 1}, false), exact));
+        assertFalse(supports(reshape,
+                view(Shape.of(2, 3), new long[] {1, 2}, false), exact));
         assertFalse(supports(reshape, input, canonical(Shape.of(3, 2), false)));
         assertFalse(supports(reshape, input,
                 view(Shape.of(3, 2), new long[] {1, 3}, false)));
@@ -83,19 +87,31 @@ class MetalAffineCapabilityTest {
                                 Shape.of(3, 2), new long[] {2, 1}, 0, true)), false)));
         assertFalse(supports(reshape, input,
                 view(Shape.of(3, 2), new long[] {2, 1}, true)));
-        assertFalse(supports(
-                new Operation(ShapeTransformKind.RESHAPE,
-                        new TargetShapeAttrs(Shape.of(4, 2))),
-                input,
-                view(Shape.of(4, 2), new long[] {2, 1}, false)));
 
         TensorDescriptor expanded = view(Shape.of(2, 3), new long[] {0, 1}, false);
-        assertFalse(supports(
+        assertTrue(supports(
                 new Operation(AxisTransformKind.PERMUTE,
                         new PermutationAttrs(List.of(1, 0))),
                 expanded,
-                view(Shape.of(3, 2), new long[] {1, 0}, false)),
-                "affine results must remain terminal leaves");
+                view(Shape.of(3, 2), new long[] {1, 0}, false)));
+        assertTrue(supports(
+                new Operation(ContiguousKind.CONTIGUOUS, NoOperationAttrs.INSTANCE),
+                expanded,
+                canonical(Shape.of(2, 3), false)));
+        assertFalse(supports(
+                new Operation(ContiguousKind.CONTIGUOUS, NoOperationAttrs.INSTANCE),
+                expanded,
+                expanded));
+        TensorDescriptor offsetView = new TensorDescriptor(
+                DataType.FLOAT32,
+                Shape.of(2, 3),
+                Optional.of(LayoutDescriptor.of(
+                        Shape.of(2, 3), new long[] {0, 1}, 1L, true)),
+                false);
+        assertFalse(supports(
+                new Operation(ContiguousKind.CONTIGUOUS, NoOperationAttrs.INSTANCE),
+                offsetView,
+                canonical(Shape.of(2, 3), false)));
     }
 
     @Test

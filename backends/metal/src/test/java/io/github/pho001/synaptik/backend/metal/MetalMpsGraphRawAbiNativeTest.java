@@ -24,7 +24,7 @@ class MetalMpsGraphRawAbiNativeTest {
     private static final Consumer<MemorySegment> UNCHANGED = ignored -> { };
 
     @Test
-    void rawVersionThreeRecordRejectsEveryMalformedHeaderAndUnusedField() {
+    void rawVersionFourRecordRejectsEveryMalformedHeaderAndUnusedField() {
         try (RawAbi abi = RawAbi.open()) {
             MetalMpsGraphProgram reshape = new MetalMpsGraphProgram(List.of(
                     MetalMpsGraphProgram.Node.targetShape(
@@ -49,6 +49,12 @@ class MetalMpsGraphRawAbiNativeTest {
                     new int[] {0}, new int[] {1}, record -> record.set(JAVA_LONG, 48L, 1L));
             abi.assertRejected("unknown operation", ranks, dimensions, reshape,
                     new int[] {0}, new int[] {1}, record -> record.set(JAVA_INT, 0L, 99));
+            for (int withdrawnWire = 2; withdrawnWire <= 5; withdrawnWire++) {
+                int wire = withdrawnWire;
+                abi.assertRejected("withdrawn operation wire " + wire, ranks, dimensions, reshape,
+                        new int[] {0}, new int[] {1},
+                        record -> record.set(JAVA_INT, 0L, wire));
+            }
             abi.assertRejected("zero target-shape count", ranks, dimensions, reshape,
                     new int[] {0}, new int[] {1}, record -> record.set(JAVA_INT, 20L, 0));
             abi.assertRejected("oversized target-shape count", ranks, dimensions, reshape,
@@ -62,7 +68,9 @@ class MetalMpsGraphRawAbiNativeTest {
                     ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
             abi.assertRejected("withdrawn schema version two", INVALID_ARGUMENT, 2,
                     ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
-            abi.assertRejected("schema version four", INVALID_ARGUMENT, 4,
+            abi.assertRejected("stale schema version three", INVALID_ARGUMENT, 3,
+                    ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
+            abi.assertRejected("unknown schema version five", INVALID_ARGUMENT, 5,
                     ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
         }
     }
@@ -121,6 +129,22 @@ class MetalMpsGraphRawAbiNativeTest {
             abi.assertRejected("axis discriminator pairing", squeezeRanks,
                     squeezeDimensions, squeeze, new int[] {0}, new int[] {1},
                     record -> record.set(JAVA_INT, 4L, 1));
+
+            MetalMpsGraphProgram contiguous = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.contiguous(0, 1)));
+            long[] contiguousDimensions = dimensions(new long[][] {{2, 3}, {2, 3}});
+            abi.assertRejected("contiguous attribute discriminator", rankTwo,
+                    contiguousDimensions, contiguous, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_INT, 4L, 1));
+            abi.assertRejected("contiguous attribute count", rankTwo,
+                    contiguousDimensions, contiguous, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_INT, 20L, 1));
+            abi.assertRejected("contiguous axis sentinel", rankTwo,
+                    contiguousDimensions, contiguous, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_INT, 24L, 0));
+            abi.assertRejected("contiguous payload", rankTwo,
+                    contiguousDimensions, contiguous, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_LONG, 32L, 1L));
         }
     }
 
@@ -167,7 +191,7 @@ class MetalMpsGraphRawAbiNativeTest {
             int[] chainRanks = {2, 2, 2};
             long[] chainDimensions = dimensions(
                     new long[][] {{2, 3}, {3, 2}, {3, 2}});
-            abi.assertRejected("affine result cannot feed another node", chainRanks,
+            abi.assertRejected("affine result cannot feed NEG without CONTIGUOUS", chainRanks,
                     chainDimensions, affineChain, new int[] {0}, new int[] {2}, UNCHANGED);
 
             MetalMpsGraphProgram duplicateOutput = new MetalMpsGraphProgram(List.of(

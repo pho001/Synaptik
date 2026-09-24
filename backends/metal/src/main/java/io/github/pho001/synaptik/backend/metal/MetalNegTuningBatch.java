@@ -16,17 +16,17 @@ import java.util.Optional;
  */
 final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
     /** Current candidate and decision meaning. */
-    static final int CANDIDATE_SCHEMA_VERSION = 3;
+    static final int CANDIDATE_SCHEMA_VERSION = 4;
     /** Current canonical workload/target compatibility meaning. */
-    static final int COMPATIBILITY_SCHEMA_VERSION = 3;
-    /** Current exact/default Metal NEG-and-affine policy meaning. */
-    static final int ROUTE_POLICY_VERSION = 3;
+    static final int COMPATIBILITY_SCHEMA_VERSION = 4;
+    /** Current exact/default Metal NEG-and-affine-composition policy meaning. */
+    static final int ROUTE_POLICY_VERSION = 4;
 
     /** Stable complete private route configurations. */
     enum Candidate {
         /** One-node, one-feed, one-target custom FLOAT32 NEG configuration. */
         CUSTOM_SINGLE_NEG(1, MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG),
-        /** Whole-partition typed MPSGraph NEG-and-terminal-affine configuration. */
+        /** Whole-partition typed MPSGraph NEG-and-affine-composition configuration. */
         MPSGRAPH(2, MetalNegPreparationPlan.Route.MPSGRAPH);
 
         private final int wireIdentity;
@@ -66,7 +66,7 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
         private final byte[] bytes;
 
         /**
-         * Snapshots canonical version-three workload-fingerprint bytes.
+         * Snapshots canonical version-four workload-fingerprint bytes.
          *
          * @param bytes non-null non-empty canonical bytes within the generator bound
          * @throws NullPointerException if {@code bytes} is {@code null}

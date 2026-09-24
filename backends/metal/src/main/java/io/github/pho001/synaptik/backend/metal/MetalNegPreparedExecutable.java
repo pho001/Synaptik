@@ -21,8 +21,9 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
  * <p>Selections are feeds in stable order followed by targets in stable order. Cold binding
  * validates live context-local buffer representations and byte extents, then creates a
  * route-specific bound invocation. MPSGraph retains direct slices of its run-owned native-address
- * workspace and writes full dense represented-order targets, including authenticated terminal
- * affine publications; the custom singleton retains direct typed input and output references and
+ * workspace and writes full dense represented-order targets, including authenticated composed
+ * affine-view publications; canonical {@code CONTIGUOUS} targets use the ordinary path. The custom
+ * singleton retains direct typed input and output references and
  * has no workspace. Hot execution makes exactly one matching native call and performs no lookup,
  * graph inspection, route selection, cast, address marshalling, or collection allocation. The
  * custom resource and MPSGraph resource are nominally distinct and cannot be interchanged.</p>
@@ -129,19 +130,22 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
     Optional<MetalBufferRepresentation.DenseAffinePublication> denseAffinePublication(
             ValueId valueId) {
         Objects.requireNonNull(valueId, "valueId");
-        int target = preparationPlan.targetValueIds().indexOf(valueId);
-        if (target < 0) {
+        int targetPosition = preparationPlan.targetValueIds().indexOf(valueId);
+        if (targetPosition < 0) {
             return Optional.empty();
         }
-        int value = preparationPlan.targetValueIndices()[target];
+        int value = preparationPlan.targetValueIndices()[targetPosition];
         var descriptor = preparationPlan.descriptors().get(value);
-        long byteSize = preparationPlan.targetRequiredBytes()[target];
-        if (!preparationPlan.authenticatesDenseAffineTarget(
-                valueId, descriptor, byteSize)) {
-            return Optional.empty();
-        }
-        return Optional.of(new MetalBufferRepresentation.DenseAffinePublication(
-                this, valueId, descriptor, byteSize));
+        long byteSize = preparationPlan.targetRequiredBytes()[targetPosition];
+        return preparationPlan.denseAffineProducerKind(
+                        targetPosition, valueId, descriptor, byteSize)
+                .map(producerKind -> new MetalBufferRepresentation.DenseAffinePublication(
+                        this,
+                        targetPosition,
+                        valueId,
+                        producerKind,
+                        descriptor,
+                        byteSize));
     }
 
     @Override

@@ -120,7 +120,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * @param context non-null live context whose ownership remains with the caller
      * @param valueRanks non-null value-aligned ranks
      * @param valueDimensions non-null row-major value-count by sixteen dimension table
-     * @param graphProgram non-null version-three typed node table
+     * @param graphProgram non-null version-four typed node table
      * @param feedValueIndices non-null stable feed value indices
      * @param targetValueIndices non-null stable target value indices
      * @return a fresh non-null opaque executable handle owned by the caller
@@ -150,7 +150,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * @param context non-null live context whose ownership remains with the caller
      * @param valueRanks validated value-aligned ranks
      * @param valueDimensions validated padded dimension table
-     * @param graphProgram validated version-three typed topological node table
+     * @param graphProgram validated version-four typed topological node table
      * @param feedValueIndices validated unique feeds
      * @param targetValueIndices validated unique produced targets
      * @return non-null raw status/output-cell result for checked interpretation
@@ -477,7 +477,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
     }
 
-    /** Exact Java preflight for the version-three typed MPSGraph executable-create ABI. */
+    /** Exact Java preflight for the version-four typed MPSGraph executable-create ABI. */
     static final class MpsGraphExecutableAbi {
         private static final int MAX_RANK = 16;
 
@@ -548,15 +548,18 @@ abstract class MetalNativeApi implements AutoCloseable {
                 }
             }
 
-            byte[] available = new byte[valueCount];
+            MetalMpsGraphProgram.ValueState[] states =
+                    new MetalMpsGraphProgram.ValueState[valueCount];
+            java.util.Arrays.fill(states, MetalMpsGraphProgram.ValueState.UNAVAILABLE);
             boolean[] used = new boolean[valueCount];
+            boolean[] produced = new boolean[valueCount];
             for (int feed : feeds) {
                 requireIndex(feed, valueCount, "feed");
-                if (available[feed] != 0) {
+                if (states[feed] != MetalMpsGraphProgram.ValueState.UNAVAILABLE) {
                     throw new IllegalArgumentException(
                             "Metal MPSGraph feed indices must be unique");
                 }
-                available[feed] = 1;
+                states[feed] = MetalMpsGraphProgram.ValueState.CANONICAL;
                 used[feed] = true;
             }
             for (MetalMpsGraphProgram.Node node : graphProgram.nodes()) {
@@ -564,18 +567,18 @@ abstract class MetalNativeApi implements AutoCloseable {
                 int output = node.outputIndex();
                 requireIndex(left, valueCount, "first node input");
                 requireIndex(output, valueCount, "node output");
-                if (available[left] == 0 || available[left] == 3) {
+                if (!node.kind().accepts(states[left])) {
                     throw new IllegalArgumentException(
-                            "Metal MPSGraph first node input must be a canonical feed or earlier output");
+                            "Metal MPSGraph node input value state is unavailable or incompatible");
                 }
-                if (available[output] != 0) {
+                if (states[output] != MetalMpsGraphProgram.ValueState.UNAVAILABLE) {
                     throw new IllegalArgumentException(
                             "Metal MPSGraph node outputs must be unique and not feeds");
                 }
                 switch (node.kind()) {
-                    case NEG -> requireShape(
+                    case NEG, CONTIGUOUS -> requireShape(
                             sameShape(left, output, valueRanks, valueDimensions),
-                            "NEG input/output shapes must match exactly");
+                            node.kind() + " input/output shapes must match exactly");
                     case RESHAPE -> {
                         requireShape(
                                 sameElementCount(left, output, valueRanks, valueDimensions),
@@ -602,14 +605,16 @@ abstract class MetalNativeApi implements AutoCloseable {
                             squeezeMatches(node, left, output, valueRanks, valueDimensions),
                             "SQUEEZE axis and output shape disagree");
                 }
-                available[output] = (byte) (node.kind().isAffine() ? 3 : 2);
+                states[output] = node.kind().outputState();
                 used[left] = true;
                 used[output] = true;
+                produced[output] = true;
             }
             boolean[] targeted = new boolean[valueCount];
             for (int target : targets) {
                 requireIndex(target, valueCount, "target");
-                if (available[target] != 2 && available[target] != 3) {
+                if (!produced[target]
+                        || states[target] == MetalMpsGraphProgram.ValueState.UNAVAILABLE) {
                     throw new IllegalArgumentException(
                             "Metal MPSGraph target must be a node-produced value");
                 }

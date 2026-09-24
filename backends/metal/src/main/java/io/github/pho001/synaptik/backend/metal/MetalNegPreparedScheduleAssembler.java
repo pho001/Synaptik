@@ -26,13 +26,14 @@ import java.lang.foreign.MemorySegment;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 
 /**
- * Supplies Metal physical contributions for supported NEG and terminal-affine operations and
+ * Supplies Metal physical contributions for supported NEG and affine-composition operations and
  * assembles the legacy sole-partition route.
  *
  * <p>Shared mixed-owner composition uses {@link #contribute(PreparedScheduleContext)} and owns
  * the global step order. This class remains responsible only for Metal physical creation,
- * authenticated dense affine publication targets, and the direct route-local execution step. The
- * legacy {@link #assemble(PreparedScheduleContext)} entry accepts only one Metal partition and
+ * authenticated dense affine-view publication targets, ordinary canonical
+ * {@code CONTIGUOUS}/NEG targets, and the direct route-local execution step. The legacy
+ * {@link #assemble(PreparedScheduleContext)} entry accepts only one Metal partition and
  * delegates to the same route-local assembly.</p>
  */
 final class MetalNegPreparedScheduleAssembler
@@ -374,9 +375,16 @@ final class MetalNegPreparedScheduleAssembler
         for (PreparedPartition partition : partitions) {
             if (partition.executable() instanceof MetalNegPreparedExecutable executable) {
                 MetalNegPreparationPlan candidate = executable.preparationPlan();
-                if (candidate.authenticatesDenseAffineTarget(
-                        valueId, descriptor, byteSize)) {
-                    return executable.denseAffinePublication(valueId);
+                int target = candidate.targetValueIds().indexOf(valueId);
+                if (target >= 0
+                        && candidate.targetRequiredBytes()[target] == byteSize
+                        && candidate.descriptors().get(candidate.targetValueIndices()[target])
+                                .equals(descriptor)) {
+                    Optional<MetalBufferRepresentation.DenseAffinePublication> publication =
+                            executable.denseAffinePublication(valueId);
+                    if (publication.isPresent()) {
+                        return publication;
+                    }
                 }
             }
         }

@@ -53,8 +53,10 @@ exposes repeated or concurrent runs through the same prepared execution and exis
 lifecycle. Ordinary preparation composes non-empty plans across registered owners, with
 deterministic owner-indexed representations and explicit direct CPU-to-Metal and Metal-to-CPU
 transfers for fully static canonical contiguous `FLOAT32` values.
-Metal execution remains bounded to supported static `FLOAT32` negation partitions through
-MPSGraph or the custom singleton route. The Training extension now owns a public reusable
+Metal execution remains bounded to supported static `FLOAT32` NEG, locally composed affine
+layouts, and explicit `CONTIGUOUS` canonicalization through MPSGraph, with the custom route
+reserved for an eligible singleton NEG.
+The Training extension now owns a public reusable
 Engine-backed scalar session with persistent SGD, accumulation, and detached in-memory state over
 its bounded native-storage domain. A standard-Metal convenience, generic plugin
 registration/discovery, broader Metal and transfer coverage, CUDA, generic graph/plan tuning,

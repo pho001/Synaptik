@@ -148,8 +148,10 @@ Package-private compiler verification of captured descriptors and retained resha
 current. The closed first-order matrix also currently reverses `CONTIGUOUS`, `RESHAPE`, `EXPAND`,
 `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` through public Tensor metadata operations. Mandatory
 graph-local ID canonicalization and whole-graph DCE plus phase-local CSE are current internal
-behavior. Physical aliasing/materialization, concrete binding, backend lowering, public gradient
-requests/publication, and execution remain planned.
+behavior. CPU physical execution is current for its documented bounded affine units. Metal forward
+execution is also current for strict static positive-rank `FLOAT32` chains of the five affine
+views plus `CONTIGUOUS`, with graph-local view provenance and canonical NEG boundaries. Public
+gradient requests/publication and Metal backward execution are not introduced by that route.
 
 `AxisTransformKind.PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` are current semantic identities.
 `PermutationAttrs` stores a complete normalized output-to-input axis permutation, while

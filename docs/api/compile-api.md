@@ -1545,8 +1545,9 @@ provenance, and does not inspect input layout, storage, or values. Resolved resu
 not allocate or copy storage. Package-private structural capture is current. The current fail-
 closed CPU path advertises, lowers, prepares, and executes only fully static, resolved-layout
 `CONTIGUOUS` occurrences with exact type/Shape preservation and canonical dense output, within a
-bounded one-through-eight-node affine unit. Dynamic binding, redundant-request canonicalization,
-and other-backend execution remain planned.
+bounded one-through-eight-node affine unit. Metal also executes strict static positive-rank
+`FLOAT32` `CONTIGUOUS` when its input is canonical or a locally produced affine view. Dynamic
+binding and redundant-request canonicalization remain planned.
 `Tensor.reshape(long...)` accepts all current data types, normalizes an empty request or one
 inferable `-1`, and rejects locally provable invalid counts. `Tensor.reshape(Shape)` retains an
 exact normalized target and defers count equality when either Shape is dynamic. Both overloads
@@ -1556,9 +1557,10 @@ target produces same-offset canonical view metadata; all other result layout rem
 Package-private structural capture can preserve this current model expression. The current fail-
 closed CPU path advertises, lowers, prepares, and executes only fully static, resolved-layout
 `RESHAPE` occurrences with contiguous input, equal checked element count, exact same-offset
-canonical view metadata, and membership in a bounded one-through-eight-node affine unit. Dynamic
-constraint solving, reshape-chain canonicalization, non-view materialization, and other-backend
-execution remain planned.
+canonical view metadata, and membership in a bounded one-through-eight-node affine unit. Metal
+also executes this strict static `FLOAT32` relationship for a canonical or contiguous locally
+produced input inside one maximal composed partition. Dynamic constraint solving, reshape-chain
+canonicalization, and non-view materialization remain planned.
 `Tensor.expand(long...)` treats every requested extent as a literal non-negative dimension, while
 `Tensor.expand(Shape)` retains the exact target reference. Both overloads require target rank at
 least input rank and allow new leading target axes. Structural equality and a static source
@@ -1583,8 +1585,9 @@ target-one-or-target-equal-source obligation. Existing Model reduction semantics
 This compiler contract binds no dimension and claims no value repetition, storage aliasing, or
 materialization. The current fail-closed CPU path advertises, lowers, prepares, and executes only
 fully static, resolved-layout `EXPAND` occurrences with the exact singleton-expansion Shape and
-zero-stride view relationship, within a bounded one-through-eight-node affine unit. Dynamic
-binding, materialization, and other-backend execution remain planned.
+zero-stride view relationship, within a bounded one-through-eight-node affine unit. Metal also
+executes that strict static `FLOAT32` relationship after a canonical or local affine producer.
+Dynamic binding and broader materialization remain planned.
 `Tensor.permute(int...)` accepts every current data type, requires a complete output-to-input axis
 mapping, normalizes each negative axis once, and reorders exact Dimension references. Any resolved
 input layout produces a new same-offset view descriptor with exact reordered strides; unresolved
@@ -1594,8 +1597,9 @@ records exact normalized attributes and one-input provenance, and remains fresh,
 storage-free. Package-private structural capture can preserve the occurrence. The current fail-
 closed CPU path advertises, lowers, prepares, and executes only fully static, resolved-layout
 `PERMUTE`/rank-two transpose occurrences with the exact same-offset reordered Shape/stride
-relationship, within a bounded one-through-eight-node affine unit. Permutation canonicalization,
-dynamic binding, materialization, and other-backend execution remain planned.
+relationship, within a bounded one-through-eight-node affine unit. Metal also executes that strict
+static `FLOAT32` relationship after a canonical or local affine producer. Permutation
+canonicalization, dynamic binding, and broader materialization remain planned.
 `Tensor.expandDims(int)` inserts one static singleton at a caller position normalized against the
 result rank. `Tensor.squeeze(int)` instead normalizes an existing input axis and removes it only
 when its dimension is statically known as one. Both preserve exact type and gradient eligibility,
@@ -1606,8 +1610,9 @@ selected stride removed. Package-private structural capture can preserve the occ
 current fail-closed CPU path advertises, lowers, prepares, and executes only fully static,
 resolved-layout `EXPAND_DIMS`/`SQUEEZE` occurrences with the exact inserted/removed singleton
 Shape and same-offset stride relationship, within a bounded one-through-eight-node affine unit.
-Gradient support remains the exact current Compiler matrix above. Dynamic singleton solving,
-inverse-pair canonicalization, materialization, and other-backend execution remain planned.
+Metal also executes those strict static `FLOAT32` relationships after a canonical or local affine
+producer. Gradient support remains the exact current Compiler matrix above. Dynamic singleton
+solving, inverse-pair canonicalization, and broader materialization remain planned.
 `Tensor.slice(long[], long[], int[], long[])` clones four parallel request arrays, normalizes raw
 axes and bounds against selected static dimensions, clamps bounds by step direction, derives a
 same-rank Shape, and records normalized start/length/axis/signed-step sequences in `SliceAttrs`.

@@ -53,76 +53,87 @@ class MetalMpsGraphAffineNativeTest {
     }
 
     @Test
-    void realGraphRunsElementwisePrefixIntoFanOutAffineTargets() {
+    void realGraphComposesViewContiguousNegAndReshapeWithPublishedIntermediate() {
         Path library = configuredLibrary();
         MetalNativeApi api = MetalNativeApi.open(library);
         MetalNativeApi.Handle context = null;
         MetalNativeApi.Handle executable = null;
         MetalNativeApi.Handle input = null;
-        MetalNativeApi.Handle reshape = null;
-        MetalNativeApi.Handle permute = null;
+        var outputs = new ArrayList<MetalNativeApi.Handle>();
         try {
             context = api.createContext();
-            int[] ranks = {2, 2, 2, 2};
-            long[] dimensions = new long[64];
-            for (int value = 0; value < ranks.length; value++) {
-                dimensions[value * 16] = value == 2 || value == 3 ? 3 : 2;
-                dimensions[value * 16 + 1] = value == 2 || value == 3 ? 2 : 3;
-            }
+            int[] ranks = {3, 3, 3, 3, 2};
+            long[] dimensions = dimensions(new long[][] {
+                {2, 3, 4}, {4, 2, 3}, {4, 2, 3}, {4, 2, 3}, {4, 6}
+            });
             executable = api.createMpsGraphExecutable(
                     context,
                     ranks,
                     dimensions,
                     new MetalMpsGraphProgram(List.of(
-                            MetalMpsGraphProgram.Node.neg(0, 1),
+                            MetalMpsGraphProgram.Node.permutation(
+                                    0, 1, List.of(2, 0, 1)),
+                            MetalMpsGraphProgram.Node.contiguous(1, 2),
+                            MetalMpsGraphProgram.Node.neg(2, 3),
                             MetalMpsGraphProgram.Node.targetShape(
                                     MetalMpsGraphProgram.NodeKind.RESHAPE,
-                                    1,
-                                    2,
-                                    new long[] {3, 2}),
-                            MetalMpsGraphProgram.Node.permutation(
-                                    1, 3, List.of(1, 0)))),
+                                    3,
+                                    4,
+                                    new long[] {4, 6}))),
                     new int[] {0},
-                    new int[] {2, 3});
-            input = api.createBuffer(context, 24L);
-            reshape = api.createBuffer(context, 24L);
-            permute = api.createBuffer(context, 24L);
+                    new int[] {1, 2, 3, 4});
+            input = api.createBuffer(context, 96L);
+            for (int target = 0; target < 4; target++) {
+                outputs.add(api.createBuffer(context, 96L));
+            }
             try (Arena arena = Arena.ofConfined()) {
-                MemorySegment source = arena.allocate(24L, Integer.BYTES);
-                int[] bits = {0x00000000, 0x80000000, 0x3f800001,
-                        0xbf400002, 0x7f800000, 0x7fc12345};
-                for (int index = 0; index < bits.length; index++) {
-                    source.setAtIndex(JAVA_INT, index, bits[index]);
+                MemorySegment source = arena.allocate(96L, Integer.BYTES);
+                for (int index = 0; index < ADVERSARIAL_BITS.length; index++) {
+                    source.setAtIndex(JAVA_INT, index, ADVERSARIAL_BITS[index]);
                 }
-                api.upload(input, 0L, source, 24L);
+                api.upload(input, 0L, source, 96L);
                 MemorySegment inputs = arena.allocate(ADDRESS);
-                MemorySegment outputs = arena.allocate(ADDRESS, 2);
+                MemorySegment targetAddresses = arena.allocate(ADDRESS, outputs.size());
                 inputs.setAtIndex(ADDRESS, 0L, input.carrier());
-                outputs.setAtIndex(ADDRESS, 0L, reshape.carrier());
-                outputs.setAtIndex(ADDRESS, 1L, permute.carrier());
-                MemorySegment first = arena.allocate(24L, Integer.BYTES);
-                MemorySegment second = arena.allocate(24L, Integer.BYTES);
+                for (int target = 0; target < outputs.size(); target++) {
+                    targetAddresses.setAtIndex(
+                            ADDRESS, target, outputs.get(target).carrier());
+                }
+                var downloaded = new ArrayList<MemorySegment>();
+                for (int target = 0; target < outputs.size(); target++) {
+                    downloaded.add(arena.allocate(96L, Integer.BYTES));
+                }
                 for (int iteration = 0; iteration < 2; iteration++) {
-                    api.runExecutable(executable, 1, inputs, 2, outputs);
-                    api.download(reshape, 0L, first, 24L);
-                    api.download(permute, 0L, second, 24L);
-                    int[] transpose = {0, 3, 1, 4, 2, 5};
-                    for (int index = 0; index < bits.length; index++) {
-                        long expected = Integer.toUnsignedLong(bits[index] ^ 0x80000000);
-                        assertEquals(expected,
-                                Integer.toUnsignedLong(first.getAtIndex(JAVA_INT, index)));
-                        assertEquals(
-                                Integer.toUnsignedLong(bits[transpose[index]] ^ 0x80000000),
-                                Integer.toUnsignedLong(second.getAtIndex(JAVA_INT, index)));
+                    api.runExecutable(executable, 1, inputs, 4, targetAddresses);
+                    for (int target = 0; target < outputs.size(); target++) {
+                        api.download(outputs.get(target), 0L, downloaded.get(target), 96L);
+                    }
+                    for (int outputIndex = 0; outputIndex < ADVERSARIAL_BITS.length;
+                            outputIndex++) {
+                        int k = outputIndex / 6;
+                        int remainder = outputIndex % 6;
+                        int i = remainder / 3;
+                        int j = remainder % 3;
+                        int sourceIndex = i * 12 + j * 4 + k;
+                        int expected = ADVERSARIAL_BITS[sourceIndex];
+                        assertEquals(Integer.toUnsignedLong(expected),
+                                Integer.toUnsignedLong(
+                                        downloaded.get(0).getAtIndex(JAVA_INT, outputIndex)));
+                        assertEquals(Integer.toUnsignedLong(expected),
+                                Integer.toUnsignedLong(
+                                        downloaded.get(1).getAtIndex(JAVA_INT, outputIndex)));
+                        assertEquals(Integer.toUnsignedLong(expected ^ 0x80000000),
+                                Integer.toUnsignedLong(
+                                        downloaded.get(2).getAtIndex(JAVA_INT, outputIndex)));
+                        assertEquals(Integer.toUnsignedLong(expected ^ 0x80000000),
+                                Integer.toUnsignedLong(
+                                        downloaded.get(3).getAtIndex(JAVA_INT, outputIndex)));
                     }
                 }
             }
         } finally {
-            if (permute != null) {
-                api.releaseBuffer(permute);
-            }
-            if (reshape != null) {
-                api.releaseBuffer(reshape);
+            for (int index = outputs.size(); index-- > 0;) {
+                api.releaseBuffer(outputs.get(index));
             }
             if (input != null) {
                 api.releaseBuffer(input);
@@ -379,6 +390,14 @@ class MetalMpsGraphAffineNativeTest {
             }
             return Math.toIntExact(linear(inputCoordinates, inputShape));
         }
+    }
+
+    private static long[] dimensions(long[][] shapes) {
+        long[] result = new long[Math.multiplyExact(shapes.length, 16)];
+        for (int value = 0; value < shapes.length; value++) {
+            System.arraycopy(shapes[value], 0, result, value * 16, shapes[value].length);
+        }
+        return result;
     }
 
     private static int elementCount(long[] shape) {

@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Immutable typed operation table for the version-three Metal MPSGraph node schema.
+ * Immutable typed operation table for the version-four Metal MPSGraph node schema.
  *
  * <p>ABI version four points at fixed 160-byte discriminated records. Each record contains a
  * closed operation identity, exact value indices, one typed attribute discriminator, and bounded
@@ -22,7 +22,7 @@ import java.util.Objects;
  */
 final class MetalMpsGraphProgram {
     /** Exact node schema carried across native ABI version four. */
-    static final int SCHEMA_VERSION = 3;
+    static final int SCHEMA_VERSION = 4;
     /** Maximum target rank or permutation length. */
     static final int MAX_RANK = 16;
     /** Exact fixed native record size. */
@@ -49,39 +49,65 @@ final class MetalMpsGraphProgram {
         }
     }
 
+    /** Explicit validated state of one value while walking the ordered program. */
+    enum ValueState {
+        UNAVAILABLE(0), CANONICAL(1), AFFINE_VIEW(2);
+
+        private final int wireIdentity;
+
+        ValueState(int wireIdentity) {
+            this.wireIdentity = wireIdentity;
+        }
+
+        int wireIdentity() {
+            return wireIdentity;
+        }
+    }
+
     /** Closed operation vocabulary and stable schema-local wire identities. */
     enum NodeKind {
-        NEG(1, AttributeKind.NONE),
-        RESHAPE(6, AttributeKind.TARGET_SHAPE),
-        EXPAND(7, AttributeKind.TARGET_SHAPE),
-        PERMUTE(8, AttributeKind.PERMUTATION),
-        EXPAND_DIMS(9, AttributeKind.AXIS),
-        SQUEEZE(10, AttributeKind.AXIS);
+        NEG(1, AttributeKind.NONE, ValueState.CANONICAL),
+        RESHAPE(6, AttributeKind.TARGET_SHAPE, ValueState.AFFINE_VIEW),
+        EXPAND(7, AttributeKind.TARGET_SHAPE, ValueState.AFFINE_VIEW),
+        PERMUTE(8, AttributeKind.PERMUTATION, ValueState.AFFINE_VIEW),
+        EXPAND_DIMS(9, AttributeKind.AXIS, ValueState.AFFINE_VIEW),
+        SQUEEZE(10, AttributeKind.AXIS, ValueState.AFFINE_VIEW),
+        CONTIGUOUS(11, AttributeKind.NONE, ValueState.CANONICAL);
 
         private final int wireIdentity;
         private final AttributeKind attributeKind;
+        private final ValueState outputState;
 
-        NodeKind(int wireIdentity, AttributeKind attributeKind) {
+        NodeKind(
+                int wireIdentity, AttributeKind attributeKind, ValueState outputState) {
             this.wireIdentity = wireIdentity;
             this.attributeKind = attributeKind;
+            this.outputState = outputState;
         }
 
         int wireIdentity() {
             return wireIdentity;
         }
 
-
         AttributeKind attributeKind() {
             return attributeKind;
         }
 
-        boolean isAffine() {
-            return attributeKind != AttributeKind.NONE;
+        ValueState outputState() {
+            return outputState;
         }
 
+        boolean isAffine() {
+            return outputState == ValueState.AFFINE_VIEW;
+        }
+
+        boolean accepts(ValueState inputState) {
+            return inputState == ValueState.CANONICAL
+                    || (inputState == ValueState.AFFINE_VIEW && this != NEG);
+        }
     }
 
-    /** One immutable typed version-three node record. */
+    /** One immutable typed version-four node record. */
     static final class Node {
         private final NodeKind kind;
         private final int firstInputIndex;
@@ -153,6 +179,10 @@ final class MetalMpsGraphProgram {
 
         static Node neg(int inputIndex, int outputIndex) {
             return noAttributes(NodeKind.NEG, inputIndex, NO_SECOND_INPUT, outputIndex);
+        }
+
+        static Node contiguous(int inputIndex, int outputIndex) {
+            return noAttributes(NodeKind.CONTIGUOUS, inputIndex, NO_SECOND_INPUT, outputIndex);
         }
 
 
@@ -244,7 +274,7 @@ final class MetalMpsGraphProgram {
         return encoded.array();
     }
 
-    /** Allocates and writes exact native-endian version-three records for one downcall. */
+    /** Allocates and writes exact native-endian version-four records for one downcall. */
     MemorySegment encodeNative(Arena arena) {
         Objects.requireNonNull(arena, "arena");
         long bytes = Math.multiplyExact((long) nodes.size(), NODE_RECORD_BYTES);

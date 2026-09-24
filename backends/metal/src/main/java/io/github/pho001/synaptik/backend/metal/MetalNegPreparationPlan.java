@@ -13,15 +13,16 @@ import java.util.Optional;
 
 /**
  * Retains the immutable, shape-specialized lowering and route facts for one whole supported Metal
- * NEG-and-terminal-affine partition.
+ * NEG-and-affine-composition partition.
  *
- * <p>Value indices, typed MPSGraph nodes, feeds, targets, and declarations are already in their
- * stable ABI order. The route is either the safe heuristic or a freshly authenticated
- * session-compatible decision, and is fixed before this plan's declarations escape analysis.
- * The plan contains no assigned slot, tuning value, native executable, physical buffer, or
- * per-run state. Affine targets retain exact logical view descriptors alongside their full dense
- * represented-order byte extents. The address workspace is present only for MPSGraph. Primitive
- * arrays are privately snapshotted and copied when marshalled.</p>
+ * <p>Value indices, explicit canonical/affine-view states, typed MPSGraph nodes, feeds, targets,
+ * and declarations are already in their stable ABI order. The route is either the safe heuristic
+ * or a freshly authenticated session-compatible decision, and is fixed before this plan's
+ * declarations escape analysis. The plan contains no assigned slot, tuning value, native
+ * executable, physical buffer, or per-run state. Affine targets retain exact logical view
+ * descriptors alongside their full dense represented-order byte extents. The address workspace
+ * is present only for MPSGraph. Primitive arrays are privately snapshotted and copied when
+ * marshalled.</p>
  */
 final class MetalNegPreparationPlan implements BackendPreparationPlan {
     /** Closed private implementation choice made during analysis. */
@@ -39,6 +40,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     private final Route route;
     private final List<ValueId> valueIds;
     private final List<TensorDescriptor> descriptors;
+    private final List<MetalMpsGraphProgram.ValueState> valueStates;
     private final int[] valueRanks;
     private final long[] valueDimensions;
     private final MetalMpsGraphProgram graphProgram;
@@ -61,6 +63,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
      * @param route non-null closed implementation route selected during analysis
      * @param valueIds non-null stable indexed value identities
      * @param descriptors non-null descriptors aligned with {@code valueIds}
+     * @param valueStates non-null explicit validated states aligned with {@code valueIds}
      * @param valueRanks non-null ranks aligned with values
      * @param valueDimensions non-null row-major value-count by sixteen dimension table
      * @param graphProgram non-null versioned typed node table in partition order
@@ -83,6 +86,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             Route route,
             List<ValueId> valueIds,
             List<TensorDescriptor> descriptors,
+            List<MetalMpsGraphProgram.ValueState> valueStates,
             int[] valueRanks,
             long[] valueDimensions,
             MetalMpsGraphProgram graphProgram,
@@ -105,6 +109,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
         this.route = Objects.requireNonNull(route, "route");
         this.valueIds = List.copyOf(valueIds);
         this.descriptors = List.copyOf(descriptors);
+        this.valueStates = List.copyOf(valueStates);
         this.valueRanks = valueRanks.clone();
         this.valueDimensions = valueDimensions.clone();
         this.graphProgram = Objects.requireNonNull(graphProgram, "graphProgram");
@@ -118,8 +123,10 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
         this.feedRequiredBytes = feedRequiredBytes.clone();
         this.targetRequiredBytes = targetRequiredBytes.clone();
         if (this.valueIds.size() != this.descriptors.size()
+                || this.valueIds.size() != this.valueStates.size()
                 || this.valueIds.size() != this.valueRanks.length
                 || this.valueDimensions.length != this.valueIds.size() * 16
+                || this.valueStates.contains(MetalMpsGraphProgram.ValueState.UNAVAILABLE)
                 || this.graphProgram.nodes().size() != partitionDag.nodes().size()
                 || this.feedValueIds.size() != this.feedValueIndices.length
                 || this.feedValueIds.size() != this.feedRequiredBytes.length
@@ -149,6 +156,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     Route route() { return route; }
     List<ValueId> valueIds() { return valueIds; }
     List<TensorDescriptor> descriptors() { return descriptors; }
+    List<MetalMpsGraphProgram.ValueState> valueStates() { return valueStates; }
     int[] valueRanks() { return valueRanks.clone(); }
     long[] valueDimensions() { return valueDimensions.clone(); }
     MetalMpsGraphProgram graphProgram() { return graphProgram; }
@@ -165,24 +173,32 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     long[] targetRequiredBytes() { return targetRequiredBytes.clone(); }
 
 
-    boolean authenticatesDenseAffineTarget(
-            ValueId valueId, TensorDescriptor descriptor, long byteSize) {
-        int target = targetValueIds.indexOf(valueId);
+    Optional<MetalMpsGraphProgram.NodeKind> denseAffineProducerKind(
+            int targetPosition,
+            ValueId valueId,
+            TensorDescriptor descriptor,
+            long byteSize) {
+        Objects.requireNonNull(valueId, "valueId");
+        Objects.requireNonNull(descriptor, "descriptor");
         if (route != Route.MPSGRAPH
-                || target < 0
-                || targetRequiredBytes[target] != byteSize) {
-            return false;
+                || targetPosition < 0
+                || targetPosition >= targetValueIds.size()
+                || !targetValueIds.get(targetPosition).equals(valueId)
+                || targetRequiredBytes[targetPosition] != byteSize) {
+            return Optional.empty();
         }
-        int value = targetValueIndices[target];
-        if (!descriptors.get(value).equals(descriptor)) {
-            return false;
+        int value = targetValueIndices[targetPosition];
+        if (!descriptors.get(value).equals(descriptor)
+                || valueStates.get(value) != MetalMpsGraphProgram.ValueState.AFFINE_VIEW) {
+            return Optional.empty();
         }
         for (MetalMpsGraphProgram.Node node : graphProgram.nodes()) {
             if (node.outputIndex() == value) {
-                return node.kind().isAffine();
+                return node.kind().isAffine()
+                        ? Optional.of(node.kind()) : Optional.empty();
             }
         }
-        return false;
+        return Optional.empty();
     }
 
     /**

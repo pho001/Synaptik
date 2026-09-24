@@ -19,15 +19,16 @@ import java.util.Optional;
  * Generates complete, stable, budget-bounded Metal supported-operation route candidates.
  *
  * <p>The workload fingerprint uses only versioned semantics and structural positions, including
- * typed NEG or terminal-affine node kinds and attributes, exact logical descriptors, and dense
- * represented-order geometry. Graph-local identities, partition object
- * identity, native handles, measurements, and cache state are excluded. Generation is cold,
+ * typed NEG/affine/contiguous node kinds and attributes, exact logical descriptors, ordered
+ * edges, explicit value states, target sets, and dense represented-order geometry. Graph-local
+ * identities, partition object identity, native handles, measurements, and cache state are
+ * excluded. Generation is cold,
  * thread-safe, deterministic, and performs no native work.</p>
  */
 final class MetalNegRouteCandidateGenerator {
     private static final long UINT32_MAX = 0xffff_ffffL;
-    private static final int WORKLOAD_SIGNATURE_VERSION = 3;
-    private static final int EXACT_DEFAULT_POLICY = 3;
+    private static final int WORKLOAD_SIGNATURE_VERSION = 4;
+    private static final int EXACT_DEFAULT_POLICY = 4;
 
     /**
      * Generates every currently valid complete candidate up to a positive budget.
@@ -153,6 +154,10 @@ final class MetalNegRouteCandidateGenerator {
         updateBytes(digest, plan.graphProgram().encodedNodeRecords());
         updateInts(digest, plan.valueRanks());
         updateLongs(digest, plan.valueDimensions());
+        updateInt(digest, plan.valueStates().size());
+        for (MetalMpsGraphProgram.ValueState state : plan.valueStates()) {
+            updateInt(digest, state.wireIdentity());
+        }
         updateLongs(digest, plan.feedRequiredBytes());
         updateLongs(digest, plan.targetRequiredBytes());
 

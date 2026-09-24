@@ -235,25 +235,35 @@ final class MetalBufferRepresentation implements BufferRepresentation {
 
     /**
      * Unforgeable outside this package: exact finalized-route evidence for one dense physical
-     * affine target whose public descriptor remains a logical view.
+     * affine target whose public descriptor remains a logical view. Evidence binds the executable,
+     * plan, context, value identity, producer kind, target position, descriptor, and byte extent.
      */
     static final class DenseAffinePublication {
         private final MetalNegPreparedExecutable executable;
         private final MetalNegPreparationPlan plan;
+        private final int targetPosition;
         private final ValueId valueId;
+        private final MetalMpsGraphProgram.NodeKind producerKind;
         private final TensorDescriptor descriptor;
         private final long byteSize;
         DenseAffinePublication(
                 MetalNegPreparedExecutable executable,
+                int targetPosition,
                 ValueId valueId,
+                MetalMpsGraphProgram.NodeKind producerKind,
                 TensorDescriptor descriptor,
                 long byteSize) {
             this.executable = Objects.requireNonNull(executable, "executable");
             this.plan = executable.preparationPlan();
+            this.targetPosition = targetPosition;
             this.valueId = Objects.requireNonNull(valueId, "valueId");
+            this.producerKind = Objects.requireNonNull(producerKind, "producerKind");
             this.descriptor = Objects.requireNonNull(descriptor, "descriptor");
             this.byteSize = byteSize;
-            if (!plan.authenticatesDenseAffineTarget(valueId, descriptor, byteSize)) {
+            if (plan.denseAffineProducerKind(
+                    targetPosition, valueId, descriptor, byteSize)
+                    .filter(producerKind::equals)
+                    .isEmpty()) {
                 throw new IllegalArgumentException(
                         "Metal dense affine publication is not an exact finalized route target");
             }
@@ -267,8 +277,10 @@ final class MetalBufferRepresentation implements BufferRepresentation {
                     && plan.context() == context
                     && descriptor.equals(expectedDescriptor)
                     && byteSize == expectedByteSize
-                    && plan.authenticatesDenseAffineTarget(
-                            valueId, expectedDescriptor, expectedByteSize);
+                    && plan.denseAffineProducerKind(
+                            targetPosition, valueId, expectedDescriptor, expectedByteSize)
+                            .filter(producerKind::equals)
+                            .isPresent();
         }
     }
 }

@@ -202,4 +202,30 @@ review covers capability truth, local view authentication, exact bits/layouts, s
 lifecycle, Engine evidence, and exclusions.
 
 ## Result
-Empty until execution.
+Implemented and validated on Apple M3 Max; the task deliberately remains `Ready` pending its
+independent Class C review.
+
+- Before production edits, a disposable Objective-C/MPSGraph probe passed two independent process
+  sessions. Each session covered five required topologies at optimization levels 0 and 1 with
+  three independently compiled executables per topology/level, 32 adversarial raw-bit corpus
+  rotations per executable, and one concurrent run per executable: 960 sequential plus 30
+  concurrent executions per session. Direct intermediate/final target buffers, canaries, Shapes,
+  feed immutability, feed/target permutations, fan-out, same-Shape `CONTIGUOUS`, and rank
+  boundaries all passed exact raw-bit checks.
+- Metal now admits only exact graph-local affine composition and explicit `CONTIGUOUS`, tracks
+  unavailable/canonical/affine-view states in Java and native validation, rejects foreign view
+  feeds and view-to-NEG edges, and retains binary-wire rejection.
+- Native node schema, workload/exact-policy, candidate, compatibility, route, and codec identities
+  are version 4. ABI 4 still exports exactly thirteen symbols, and node records remain 160 bytes.
+  Dense affine target authentication binds the exact executable, plan, context, target position,
+  value, producer kind, descriptor, byte extent, and live representation. Canonical targets and
+  cross-owner transfer retain their existing paths.
+- Backend, conformance, Compiler, real-device public Engine, Javadoc, architecture, whitespace,
+  Markdown fence, and local-link validations passed. The Engine proof uses Metal as the sole owner,
+  publishes every composed view plus canonical `CONTIGUOUS`/NEG results, and preserves exact
+  adversarial raw bits.
+- No numerical-policy Variant B was incorporated. The strict bit-preserving policy remains
+  current; its versioned workload/exact-policy fingerprint and candidate compatibility are the
+  explicit touchpoint for any separately authorized future numerical profile. No backward,
+  training, binary arithmetic, new type, transfer widening, alias promise, or custom kernel was
+  added.

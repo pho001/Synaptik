@@ -194,6 +194,85 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
+    void metalOnlyEnginePublishesComposedViewsAndRunsContiguousBarrierIntoNeg() {
+        Path library = configuredMetalLibrary();
+        try (Arena arena = Arena.ofShared();
+                Engine.Builder builder = Engine.builder()) {
+            builder.takeOwnership(MetalBackendIntegration.open(
+                    new MetalBackendConfiguration(library)));
+            try (Engine engine = builder.build()) {
+                int[] inputBits = {
+                    0x00000000,
+                    0x80000000,
+                    0x00000001,
+                    0xff800000,
+                    0x7fc12345,
+                    0xff812345
+                };
+                Tensor input = nativeTensorBits(
+                        descriptor(Shape.of(6)), arena, inputBits);
+                Tensor reshaped = input.reshape(2, 1, 3);
+                Tensor expanded = reshaped.expand(2, 4, 3);
+                Tensor permuted = expanded.permute(1, 0, 2);
+                Tensor rankEdited = permuted.expandDims(2);
+                Tensor finalView = rankEdited.squeeze(2);
+                Tensor contiguous = finalView.contiguous();
+                Tensor negated = contiguous.neg();
+                var compiled = engine.compile(List.of(
+                        reshaped,
+                        expanded,
+                        permuted,
+                        rankEdited,
+                        finalView,
+                        contiguous,
+                        negated));
+                assertEquals(List.of("metal"),
+                        EngineMixedOwnerTestAccess.partitionOwners(compiled));
+
+                int[] expandedBits = new int[24];
+                for (int batch = 0; batch < 2; batch++) {
+                    for (int repeat = 0; repeat < 4; repeat++) {
+                        System.arraycopy(
+                                inputBits, batch * 3, expandedBits,
+                                (batch * 4 + repeat) * 3, 3);
+                    }
+                }
+                int[] permutedBits = new int[24];
+                for (int repeat = 0; repeat < 4; repeat++) {
+                    for (int batch = 0; batch < 2; batch++) {
+                        System.arraycopy(
+                                inputBits, batch * 3, permutedBits,
+                                (repeat * 2 + batch) * 3, 3);
+                    }
+                }
+                int[] negatedBits = permutedBits.clone();
+                for (int index = 0; index < negatedBits.length; index++) {
+                    negatedBits[index] ^= 0x80000000;
+                }
+                List<int[]> expected = List.of(
+                        inputBits,
+                        expandedBits,
+                        permutedBits,
+                        permutedBits,
+                        permutedBits,
+                        permutedBits,
+                        negatedBits);
+                try (InferenceSession session = engine.session(compiled);
+                        var result = session.run(List.of(input))) {
+                    assertEquals(expected.size(), result.resultCount());
+                    for (int index = 0; index < expected.size(); index++) {
+                        ByteBuffer bytes = result.materialize(
+                                result.publications().get(index),
+                                Math.multiplyExact(expected.get(index).length, Integer.BYTES))
+                                .bytes();
+                        assertRawBits(bytes, expected.get(index));
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     void enginePreflightRejectsMetalAffineViewBeforeClosedBackendPreparation() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared();
@@ -319,7 +398,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         Optional.empty(),
                         Optional.of(new MemorySegmentStorage(
                                 DataType.FLOAT32, 2, arena.allocate(8, Float.BYTES))));
-                var cpuCompiled = engine.compile(List.of(cpuInput.contiguous()));
+                var cpuCompiled = engine.compile(List.of(cpuInput.abs()));
                 ModelAutotuningRequest cpuRequest = tuningRequest(
                         directory,
                         cpuInput,
@@ -411,6 +490,12 @@ final class EngineExplicitCompositionMetalIntegrationTest {
             for (int bits : expected.get(index)) {
                 assertEquals(bits, canonical.getInt());
             }
+        }
+    }
+
+    private static void assertRawBits(ByteBuffer canonical, int[] expected) {
+        for (int bits : expected) {
+            assertEquals(bits, canonical.getInt());
         }
     }
 

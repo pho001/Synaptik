@@ -4,11 +4,13 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
@@ -30,12 +32,15 @@ import java.util.Optional;
  *
  * <p>The deterministic analysis assigns stable native value indices, retains every node kind and
  * ordered operand, and derives unique feeds and targets before selecting a closed private route.
- * Analysis freshly regenerates the complete candidate batch; an absent decision preserves the
- * singleton-NEG heuristic, while a present decision must authenticate against current schema,
- * workload, session target, and candidate identity. The selected route is then fixed before exact
- * declarations. Supported terminal affine targets retain their logical view descriptors while
- * declarations use full dense represented-order byte geometry. Analysis allocates no physical
- * resource and never changes partition ownership or capability.</p>
+ * It walks explicit unavailable/canonical/affine-view states in node order: every graph feed must
+ * be canonical, every consumed view must be an earlier affine output in this exact partition,
+ * {@code CONTIGUOUS} restores canonical state, and {@code NEG} rejects view state. Analysis
+ * freshly regenerates the complete candidate batch; an absent decision preserves the singleton-
+ * NEG heuristic, while a present decision must authenticate against current schema, workload,
+ * session target, and candidate identity. The selected route is then fixed before exact
+ * declarations. Published affine views retain logical descriptors while declarations use full
+ * dense represented-order byte geometry. Analysis allocates no physical resource and never
+ * changes partition ownership or capability.</p>
  */
 final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         MetalNegAnalysisInputs, MetalNegPreparationPlan> {
@@ -67,11 +72,14 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         var valueIndexes = new LinkedHashMap<ValueId, Integer>();
         var valueIds = new ArrayList<ValueId>();
         var descriptors = new ArrayList<TensorDescriptor>();
+        var states = new LinkedHashMap<ValueId, MetalMpsGraphProgram.ValueState>();
+        var feeds = new ArrayList<ValueId>();
         int nodeCount = context.nodes().size();
         var programNodes = new ArrayList<MetalMpsGraphProgram.Node>(nodeCount);
         for (int nodeIndex = 0; nodeIndex < nodeCount; nodeIndex++) {
             var node = context.nodes().get(nodeIndex);
             var inputDescriptors = new ArrayList<TensorDescriptor>(node.inputs().size());
+            var inputStates = new ArrayList<MetalMpsGraphProgram.ValueState>(node.inputs().size());
             for (ValueId inputId : node.inputs()) {
                 GraphValue inputValue = graphValues.get(inputId);
                 if (inputValue == null) {
@@ -79,6 +87,21 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                             "partition value is missing: " + inputId);
                 }
                 inputDescriptors.add(inputValue.descriptor());
+                MetalMpsGraphProgram.ValueState state = states.get(inputId);
+                if (state == null) {
+                    if (context.partitionDag().producer(inputId).isPresent()) {
+                        throw new IllegalArgumentException(
+                                "Metal view producer must precede its consumer: " + inputId);
+                    }
+                    if (!canonicalFeed(inputValue.descriptor())) {
+                        throw new IllegalArgumentException(
+                                "Metal graph feeds must be canonical: " + inputId);
+                    }
+                    state = MetalMpsGraphProgram.ValueState.CANONICAL;
+                    states.put(inputId, state);
+                    feeds.add(inputId);
+                }
+                inputStates.add(state);
             }
             if (node.outputs().size() != 1) {
                 throw new IllegalArgumentException(
@@ -89,6 +112,10 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             if (outputValue == null) {
                 throw new IllegalArgumentException(
                         "partition value is missing: " + outputId);
+            }
+            if (states.containsKey(outputId) || valueIndexes.containsKey(outputId)) {
+                throw new IllegalArgumentException(
+                        "Metal output must be produced exactly once in topological order");
             }
             if (!MetalCapabilityProvider.supportsOccurrence(
                     node.operation(), inputDescriptors, List.of(outputValue.descriptor()))) {
@@ -104,14 +131,16 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         valueIds,
                         descriptors);
             }
-            if (valueIndexes.containsKey(outputId)) {
-                throw new IllegalArgumentException(
-                        "Metal output must be produced exactly once in topological order");
-            }
             int outputIndex = index(
                     outputId, graphValues, valueIndexes, valueIds, descriptors);
-            programNodes.add(lower(
-                    node.operation(), inputIndices, outputIndex));
+            MetalMpsGraphProgram.Node lowered = lower(
+                    node.operation(), inputIndices, outputIndex);
+            if (inputStates.size() != 1 || !lowered.kind().accepts(inputStates.getFirst())) {
+                throw new IllegalArgumentException(
+                        "Metal node input value state is unavailable or incompatible");
+            }
+            programNodes.add(lowered);
+            states.put(outputId, lowered.kind().outputState());
         }
         var graphProgram = new MetalMpsGraphProgram(programNodes);
 
@@ -125,13 +154,13 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         validateLogicalPartitionFacts(
                 context.partitionDag(), context.partition(), valueIds, requirements);
 
-        var feeds = new ArrayList<ValueId>();
-        for (var node : context.partitionDag().nodes()) {
-            for (ValueId input : node.inputs()) {
-                if (context.partitionDag().producer(input).isEmpty() && !feeds.contains(input)) {
-                    feeds.add(input);
-                }
+        var valueStates = new ArrayList<MetalMpsGraphProgram.ValueState>(valueIds.size());
+        for (ValueId valueId : valueIds) {
+            MetalMpsGraphProgram.ValueState state = states.get(valueId);
+            if (state == null || state == MetalMpsGraphProgram.ValueState.UNAVAILABLE) {
+                throw new IllegalArgumentException("Metal value state is unavailable: " + valueId);
             }
+            valueStates.add(state);
         }
         var targets = new ArrayList<ValueId>();
         for (var node : context.partitionDag().nodes()) {
@@ -191,7 +220,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         var heuristicPlan = new MetalNegPreparationPlan(
                 context.partition(), context.partitionDag(), deviceContext,
                 route,
-                valueIds, descriptors, ranks, dimensions, graphProgram,
+                valueIds, descriptors, valueStates, ranks, dimensions, graphProgram,
                 feeds, feedIndices, targets, targetIndices, declarations, feedSplats,
                 heuristicWorkspace, feedBytes, targetBytes);
         MetalNegTuningBatch freshBatch = new MetalNegRouteCandidateGenerator()
@@ -221,7 +250,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 : new MetalNegPreparationPlan(
                         context.partition(), context.partitionDag(), deviceContext,
                         route,
-                        valueIds, descriptors, ranks, dimensions, graphProgram,
+                        valueIds, descriptors, valueStates, ranks, dimensions, graphProgram,
                         feeds, feedIndices, targets, targetIndices, declarations, feedSplats,
                         selectedWorkspace, feedBytes, targetBytes);
         var allDeclarations = new ArrayList<PreparationResourceRequirement>(declarations);
@@ -298,6 +327,13 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         }
     }
 
+    private static boolean canonicalFeed(TensorDescriptor descriptor) {
+        return descriptor.dataType() == DataType.FLOAT32
+                && descriptor.layout().isPresent()
+                && descriptor.layout().orElseThrow().equals(
+                        LayoutDescriptor.contiguous(descriptor.shape()));
+    }
+
     private static int[] indices(List<ValueId> ids, Map<ValueId, Integer> indexes) {
         int[] result = new int[ids.size()];
         for (int index = 0; index < result.length; index++) {
@@ -321,6 +357,9 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         OperationKind kind = operation.kind();
         if (kind == UnaryElementwiseKind.NEG) {
             return MetalMpsGraphProgram.Node.neg(inputs[0], output);
+        }
+        if (kind == ContiguousKind.CONTIGUOUS) {
+            return MetalMpsGraphProgram.Node.contiguous(inputs[0], output);
         }
         if (kind instanceof ShapeTransformKind transform) {
             TargetShapeAttrs attrs = (TargetShapeAttrs) operation.attrs();

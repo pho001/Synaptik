@@ -20,14 +20,17 @@ Public `GraphCompilationPort` exposes that complete constant-free pipeline as a 
 cross-module integration service-provider interface (SPI). The CPU backend exposes the supported
 `CpuBackendIntegration` lifecycle SPI, including bounded canonical host-byte materialization. The
 Metal backend exposes `MetalBackendConfiguration`, `MetalBackendIntegration`, and its narrow
-static positive rank-`1..16` `FLOAT32` capability for `NEG` plus terminal `RESHAPE`, `EXPAND`,
-`PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE`. `ADD`, `SUB`, `MUL`, and `DIV` are not advertised by
-Metal; an explicitly registered CPU may own those occurrences, while a Metal-only graph containing
-one fails ownership selection before native preparation. `NEG` geometry and affine inputs are
-canonical contiguous non-views; affine outputs retain their exact logical view descriptors while
-Metal privately writes dense represented-order targets. Exact prepared affine publications may
-materialize to detached canonical host bytes, but cross-owner transfer remains
-canonical-non-view-only. `Engine.builder()` is the public explicit composition root for
+static positive rank-`1..16` `FLOAT32` capability for `NEG`, `RESHAPE`, `EXPAND`, `PERMUTE`,
+`EXPAND_DIMS`, `SQUEEZE`, and the explicit `CONTIGUOUS` canonicalization barrier. `ADD`, `SUB`,
+`MUL`, and `DIV` are not advertised by Metal; an explicitly registered CPU may own those
+occurrences, while a Metal-only graph containing one fails ownership selection before native
+preparation. Graph feeds and `NEG` operands are canonical contiguous non-views. Affine operations
+may consume exact zero-offset views produced earlier in the same maximal Metal partition, retain
+their exact logical view descriptors, and privately write dense represented-order targets.
+`CONTIGUOUS` converts available canonical or local affine-view state to canonical state before
+subsequent `NEG`. Exact authenticated affine publications may materialize to detached canonical
+host bytes, but cross-owner transfer remains canonical-non-view-only. `Engine.builder()` is the
+public explicit composition root for
 opened CPU and Metal integrations. It freezes their Planning inputs in registration order and
 supports a complete non-empty plan only when every partition has one exact registered owner. The
 `Engine.standard()` convenience still constructs one fresh CPU-only composition through that same

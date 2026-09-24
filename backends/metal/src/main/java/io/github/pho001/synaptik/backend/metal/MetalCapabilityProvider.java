@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.backend.metal;
 import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
+import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
@@ -21,13 +22,15 @@ import java.util.Objects;
  * Reports the exact operation-occurrence capability of the current Metal backend.
  *
  * <p>This provider is immutable and performs no device discovery, native-library loading,
- * allocation, registration, or caching. Support covers unary {@code NEG} plus five terminal
- * FLOAT32 affine transforms. Binary arithmetic is deliberately unsupported because the available
- * MPSGraph arithmetic selectors do not preserve the Model's required subnormal semantics.
- * {@code NEG} descriptors remain canonical dense non-views. An affine input must also be
- * canonical, while its output must retain the exact resolved Model view descriptor. Every
- * admitted occurrence is fully static, has positive rank-1..16 geometry, and preserves one common
- * gradient-eligibility flag.</p>
+ * allocation, registration, or caching. Support covers unary {@code NEG}, five FLOAT32 affine
+ * transforms, and the explicit {@code CONTIGUOUS} canonicalization barrier. Binary arithmetic is
+ * deliberately unsupported because the available MPSGraph arithmetic selectors do not preserve
+ * the Model's required subnormal semantics. {@code NEG} descriptors remain canonical dense
+ * non-views. An affine or contiguous input may be canonical or an exact resolved zero-offset
+ * logical view; complete-partition analysis authenticates every admitted view as a prior local
+ * affine result. Affine outputs retain the exact inferred view descriptor, while
+ * {@code CONTIGUOUS} outputs are canonical. Every admitted occurrence is fully static, has
+ * positive rank-1..16 geometry, and preserves one common gradient-eligibility flag.</p>
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
     /**
@@ -57,11 +60,11 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     }
 
     /**
-     * Reports support only for the exact prepared Metal negation and terminal-affine domain.
+     * Reports support only for the exact prepared Metal negation, affine, and contiguous domain.
      *
      * @param query the non-null immutable operation occurrence to classify without probing a
      *     device or native library
-     * @return {@code true} exactly for one supported negation or affine occurrence
+     * @return {@code true} exactly for one supported negation, affine, or contiguous occurrence
      * @throws NullPointerException if {@code query} is {@code null}, with message {@code query}
      */
     @Override
@@ -100,6 +103,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                         && input.shape().equals(output.shape())
                         && input.requiresGrad() == output.requiresGrad();
             }
+            if (operation.kind() == ContiguousKind.CONTIGUOUS) {
+                return supportsContiguous(operation, inputs, output);
+            }
             return supportsAffine(operation, inputs, output);
         } catch (IllegalArgumentException | ArithmeticException incompatible) {
             return false;
@@ -112,7 +118,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             return false;
         }
         TensorDescriptor input = inputs.getFirst();
-        if (!canonical(input)
+        if (!affineInput(input)
                 || !geometry(output)
                 || input.requiresGrad() != output.requiresGrad()) {
             return false;
@@ -125,6 +131,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 return false;
             }
             if (kind == ShapeTransformKind.RESHAPE) {
+                if (!inputLayout.isContiguous()) {
+                    return false;
+                }
                 if (input.shape().knownElementCount().orElseThrow()
                         != output.shape().knownElementCount().orElseThrow()) {
                     return false;
@@ -234,6 +243,28 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             return false;
         }
         return output.layout().orElseThrow().equals(expected);
+    }
+
+    private static boolean supportsContiguous(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        if (operation.attrs() != NoOperationAttrs.INSTANCE || inputs.size() != 1) {
+            return false;
+        }
+        TensorDescriptor input = inputs.getFirst();
+        return affineInput(input)
+                && canonical(output)
+                && input.shape().equals(output.shape())
+                && input.requiresGrad() == output.requiresGrad();
+    }
+
+    private static boolean affineInput(TensorDescriptor descriptor) {
+        if (!geometry(descriptor)) {
+            return false;
+        }
+        LayoutDescriptor layout = descriptor.layout().orElseThrow();
+        return layout.storageOffset() == 0L
+                && (layout.equals(LayoutDescriptor.contiguous(descriptor.shape()))
+                        || layout.isView());
     }
 
     private static boolean canonical(TensorDescriptor descriptor) {

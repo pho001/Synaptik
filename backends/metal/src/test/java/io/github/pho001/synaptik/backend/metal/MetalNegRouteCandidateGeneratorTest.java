@@ -399,6 +399,7 @@ class MetalNegRouteCandidateGeneratorTest {
                 source.route(),
                 source.valueIds(),
                 descriptors,
+                source.valueStates(),
                 source.valueRanks(),
                 source.valueDimensions(),
                 graphProgram,

@@ -33,6 +33,7 @@ import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
@@ -1530,6 +1531,88 @@ class MetalNegPreparedExecutionTest {
     }
 
     @Test
+    void affineCompositionAuthenticatesLocalViewsAndKeepsContiguousTargetsCanonical() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        BackendPartitionFinalizationResult finalized = null;
+        try {
+            AffineFixture fixture = compositionFixture(true);
+            BackendPartitionAnalysis<MetalNegPreparationPlan> analysis = analyze(fixture, context);
+            MetalNegPreparationPlan plan = analysis.plan();
+            assertEquals(List.of(fixture.feeds().getFirst()), plan.feedValueIds());
+            assertEquals(fixture.targets(), plan.targetValueIds());
+            assertEquals(List.of(
+                    MetalMpsGraphProgram.ValueState.CANONICAL,
+                    MetalMpsGraphProgram.ValueState.AFFINE_VIEW,
+                    MetalMpsGraphProgram.ValueState.AFFINE_VIEW,
+                    MetalMpsGraphProgram.ValueState.AFFINE_VIEW,
+                    MetalMpsGraphProgram.ValueState.AFFINE_VIEW,
+                    MetalMpsGraphProgram.ValueState.AFFINE_VIEW,
+                    MetalMpsGraphProgram.ValueState.CANONICAL,
+                    MetalMpsGraphProgram.ValueState.CANONICAL,
+                    MetalMpsGraphProgram.ValueState.AFFINE_VIEW),
+                    plan.valueStates());
+            assertEquals(List.of(
+                    MetalMpsGraphProgram.NodeKind.RESHAPE,
+                    MetalMpsGraphProgram.NodeKind.EXPAND,
+                    MetalMpsGraphProgram.NodeKind.PERMUTE,
+                    MetalMpsGraphProgram.NodeKind.EXPAND_DIMS,
+                    MetalMpsGraphProgram.NodeKind.SQUEEZE,
+                    MetalMpsGraphProgram.NodeKind.CONTIGUOUS,
+                    MetalMpsGraphProgram.NodeKind.NEG,
+                    MetalMpsGraphProgram.NodeKind.RESHAPE),
+                    plan.graphProgram().nodes().stream()
+                            .map(MetalMpsGraphProgram.Node::kind).toList());
+            assertArrayEquals(
+                    new long[] {24L, 96L, 96L, 96L, 96L, 96L, 96L, 96L},
+                    plan.targetRequiredBytes());
+
+            FinalizationFixture assignment = finalization(analysis);
+            finalized = new MetalNegPartitionFinalizer(context)
+                    .finalizePartition(assignment.finalization());
+            MetalNegPreparedExecutable executable =
+                    (MetalNegPreparedExecutable) finalized.executable();
+            for (int target = 0; target < fixture.targets().size(); target++) {
+                boolean affineView = target <= 4 || target == 7;
+                assertEquals(affineView,
+                        executable.denseAffinePublication(fixture.targets().get(target)).isPresent());
+            }
+        } finally {
+            if (finalized != null) {
+                finalized.resources().forEach(resource -> resource.close());
+            }
+            context.close();
+        }
+    }
+
+    @Test
+    void affineCompositionRejectsForeignViewMalformedOrderAndViewToNegBeforeNativeWork() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        try {
+            assertThrows(IllegalArgumentException.class,
+                    () -> analyze(externalViewFeedFixture(), context));
+            assertThrows(IllegalArgumentException.class,
+                    () -> analyze(compositionFixture(false), context));
+
+            AffineFixture ordered = compositionFixture(true);
+            var reorderedNodes = new ArrayList<>(ordered.nodes());
+            java.util.Collections.swap(reorderedNodes, 0, 1);
+            AffineFixture reordered = new AffineFixture(
+                    ordered.partition(),
+                    List.copyOf(reorderedNodes),
+                    ordered.values(),
+                    ordered.requirements(),
+                    ordered.feeds(),
+                    ordered.targets());
+            assertThrows(IllegalArgumentException.class, () -> analyze(reordered, context));
+            assertEquals(0, api.executableCreates.get());
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
     void everyMalformedAffineMappingRejectsBeforeFakeNativeAllocation() {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
@@ -2032,6 +2115,151 @@ class MetalNegPreparedExecutionTest {
                 List.copyOf(requirements),
                 feeds,
                 targets);
+    }
+
+    private static AffineFixture compositionFixture(boolean contiguousBarrier) {
+        var values = new ArrayList<GraphValue>();
+        var nodes = new ArrayList<CompiledNode>();
+        var feeds = new ArrayList<ValueId>();
+        var targets = new ArrayList<ValueId>();
+        ValueId v0 = new ValueId(21_000);
+        ValueId v1 = new ValueId(21_001);
+        ValueId v2 = new ValueId(21_002);
+        ValueId v3 = new ValueId(21_003);
+        ValueId v4 = new ValueId(21_004);
+        ValueId v5 = new ValueId(21_005);
+        ValueId v6 = new ValueId(21_006);
+        ValueId v7 = new ValueId(21_007);
+        ValueId v8 = new ValueId(21_008);
+        feeds.add(v0);
+        values.add(new GraphValue(v0, descriptor(Shape.of(6))));
+        values.add(new GraphValue(v1,
+                viewDescriptor(Shape.of(2, 1, 3), 3, 3, 1)));
+        values.add(new GraphValue(v2,
+                viewDescriptor(Shape.of(2, 4, 3), 3, 0, 1)));
+        values.add(new GraphValue(v3,
+                viewDescriptor(Shape.of(4, 2, 3), 0, 3, 1)));
+        values.add(new GraphValue(v4,
+                viewDescriptor(Shape.of(4, 2, 1, 3), 0, 3, 3, 1)));
+        values.add(new GraphValue(v5,
+                viewDescriptor(Shape.of(4, 2, 3), 0, 3, 1)));
+        if (contiguousBarrier) {
+            values.add(new GraphValue(v6, descriptor(Shape.of(4, 2, 3))));
+        }
+        values.add(new GraphValue(v7, descriptor(Shape.of(4, 2, 3))));
+        values.add(new GraphValue(v8,
+                viewDescriptor(Shape.of(4, 6), 6, 1)));
+
+        nodes.add(new CompiledNode(
+                new NodeId(21_000),
+                new Operation(
+                        ShapeTransformKind.RESHAPE,
+                        new TargetShapeAttrs(Shape.of(2, 1, 3))),
+                List.of(v0),
+                List.of(v1)));
+        nodes.add(new CompiledNode(
+                new NodeId(21_001),
+                new Operation(
+                        ShapeTransformKind.EXPAND,
+                        new TargetShapeAttrs(Shape.of(2, 4, 3))),
+                List.of(v1),
+                List.of(v2)));
+        nodes.add(new CompiledNode(
+                new NodeId(21_002),
+                new Operation(
+                        AxisTransformKind.PERMUTE,
+                        new PermutationAttrs(List.of(1, 0, 2))),
+                List.of(v2),
+                List.of(v3)));
+        nodes.add(new CompiledNode(
+                new NodeId(21_003),
+                new Operation(
+                        AxisTransformKind.EXPAND_DIMS,
+                        new AxisTransformAttrs(2)),
+                List.of(v3),
+                List.of(v4)));
+        nodes.add(new CompiledNode(
+                new NodeId(21_004),
+                new Operation(
+                        AxisTransformKind.SQUEEZE,
+                        new AxisTransformAttrs(2)),
+                List.of(v4),
+                List.of(v5)));
+        ValueId negInput;
+        if (contiguousBarrier) {
+            nodes.add(new CompiledNode(
+                    new NodeId(21_005),
+                    new Operation(ContiguousKind.CONTIGUOUS, NoOperationAttrs.INSTANCE),
+                    List.of(v5),
+                    List.of(v6)));
+            targets.add(v6);
+            negInput = v6;
+        } else {
+            negInput = v5;
+        }
+        nodes.add(new CompiledNode(
+                new NodeId(21_006),
+                new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE),
+                List.of(negInput),
+                List.of(v7)));
+        nodes.add(new CompiledNode(
+                new NodeId(21_007),
+                new Operation(
+                        ShapeTransformKind.RESHAPE,
+                        new TargetShapeAttrs(Shape.of(4, 6))),
+                List.of(v7),
+                List.of(v8)));
+        targets.addAll(0, List.of(v1, v2, v3, v4, v5));
+        targets.add(v7);
+        targets.add(v8);
+
+        PlannedPartition partition = new PlannedPartition(
+                MetalCapabilityProvider.METAL_BACKEND_ID,
+                nodes.stream().map(CompiledNode::id).toList());
+        var requirements = new ArrayList<LogicalMemoryRequirement>();
+        for (GraphValue value : values) {
+            ValueId valueId = value.id();
+            boolean feed = valueId.equals(v0);
+            boolean finalValue = valueId.equals(v8);
+            requirements.add(requirement(
+                    valueId,
+                    value.descriptor(),
+                    feed ? Optional.empty() : Optional.of(partition),
+                    finalValue ? List.of() : List.of(partition),
+                    !feed));
+        }
+        return new AffineFixture(
+                partition,
+                List.copyOf(nodes),
+                List.copyOf(values),
+                List.copyOf(requirements),
+                List.copyOf(feeds),
+                List.copyOf(targets));
+    }
+
+    private static AffineFixture externalViewFeedFixture() {
+        ValueId feed = new ValueId(22_000);
+        ValueId target = new ValueId(22_001);
+        TensorDescriptor input = viewDescriptor(Shape.of(2, 4, 3), 3, 0, 1);
+        TensorDescriptor output = viewDescriptor(Shape.of(4, 2, 3), 0, 3, 1);
+        CompiledNode node = new CompiledNode(
+                new NodeId(22_000),
+                new Operation(
+                        AxisTransformKind.PERMUTE,
+                        new PermutationAttrs(List.of(1, 0, 2))),
+                List.of(feed),
+                List.of(target));
+        PlannedPartition partition = new PlannedPartition(
+                MetalCapabilityProvider.METAL_BACKEND_ID, List.of(node.id()));
+        return new AffineFixture(
+                partition,
+                List.of(node),
+                List.of(new GraphValue(feed, input), new GraphValue(target, output)),
+                List.of(
+                        requirement(feed, input, Optional.empty(), List.of(partition), false),
+                        requirement(target, output, Optional.of(partition), List.of(), true)),
+                List.of(feed),
+                List.of(target));
     }
 
     private static AffineFixture withOperation(
