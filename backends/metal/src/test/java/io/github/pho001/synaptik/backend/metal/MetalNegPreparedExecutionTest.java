@@ -32,6 +32,8 @@ import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.Tensor;
@@ -543,12 +545,14 @@ class MetalNegPreparedExecutionTest {
 
         assertEquals(List.of(fixture.v0, fixture.v2, fixture.v3, fixture.v1,
                 fixture.v4, fixture.v5), plan.valueIds());
-        assertArrayEquals(new int[] {
-                1, 0, -1, 1,
-                2, 1, 0, 2,
-                4, 3, 3, 4,
-                5, 1, 0, 5
-        }, plan.graphProgram().encodedNodeRecords());
+        assertEquals(List.of(
+                MetalMpsGraphProgram.NodeKind.NEG,
+                MetalMpsGraphProgram.NodeKind.ADD,
+                MetalMpsGraphProgram.NodeKind.MUL,
+                MetalMpsGraphProgram.NodeKind.DIV),
+                plan.graphProgram().nodes().stream()
+                        .map(MetalMpsGraphProgram.Node::kind)
+                        .toList());
         assertEquals(List.of(fixture.v0, fixture.v1), plan.feedValueIds());
         assertArrayEquals(new int[] {0, 3}, plan.feedValueIndices());
         assertEquals(List.of(fixture.v3, fixture.v4, fixture.v5), plan.targetValueIds());
@@ -581,12 +585,6 @@ class MetalNegPreparedExecutionTest {
 
         assertEquals(1, api.executableCreates.get());
         assertEquals(2, api.runCalls.get());
-        assertArrayEquals(new int[] {
-                1, 0, -1, 1,
-                2, 1, 0, 2,
-                4, 3, 3, 4,
-                5, 1, 0, 5
-        }, api.nodeRecords);
         assertArrayEquals(new int[] {0, 3}, api.feeds);
         assertArrayEquals(new int[] {2, 4, 5}, api.targets);
         context.close();
@@ -1453,6 +1451,112 @@ class MetalNegPreparedExecutionTest {
         }
     }
 
+    @Test
+    void MetalAffinePublicationRequiresFinalizedRouteEvidenceAndUsesFullLogicalBytes() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        MetalBackendRuntime runtime = new MetalBackendRuntime(context);
+        BackendPartitionFinalizationResult finalized = null;
+        MetalBufferRepresentation authenticated = null;
+        MetalBufferRepresentation unauthenticated = null;
+        MetalBufferRepresentation canonical = null;
+        try {
+            Shape inputShape = Shape.of(1, 3);
+            Shape outputShape = Shape.of(2, 3);
+            TensorDescriptor inputDescriptor = descriptor(inputShape);
+            TensorDescriptor outputDescriptor = new TensorDescriptor(
+                    DataType.FLOAT32,
+                    outputShape,
+                    Optional.of(LayoutDescriptor.of(
+                            outputShape, new long[] {0, 1}, 0L, true)),
+                    false);
+            ValueId feed = new ValueId(600);
+            ValueId target = new ValueId(601);
+            CompiledNode node = new CompiledNode(
+                    new NodeId(600),
+                    new Operation(
+                            ShapeTransformKind.EXPAND,
+                            new TargetShapeAttrs(outputShape)),
+                    List.of(feed),
+                    List.of(target));
+            PlannedPartition partition = new PlannedPartition(
+                    MetalCapabilityProvider.METAL_BACKEND_ID, List.of(node.id()));
+            BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
+                    new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
+                            new PartitionDag(partition, List.of(node)),
+                            List.of(
+                                    new GraphValue(feed, inputDescriptor),
+                                    new GraphValue(target, outputDescriptor)),
+                            List.of(
+                                    requirement(
+                                            feed,
+                                            inputDescriptor,
+                                            Optional.empty(),
+                                            List.of(partition),
+                                            false),
+                                    requirement(
+                                            target,
+                                            outputDescriptor,
+                                            Optional.of(partition),
+                                            List.of(),
+                                            true)),
+                            Map.of(),
+                            new MetalNegAnalysisInputs(context)));
+            FinalizationFixture assignment = finalization(analysis);
+            finalized = new MetalNegPartitionFinalizer(context)
+                    .finalizePartition(assignment.finalization());
+            MetalNegPreparedExecutable executable =
+                    (MetalNegPreparedExecutable) finalized.executable();
+
+            authenticated = context.createBuffer(
+                    24L, executable.denseAffinePublication(target).orElseThrow());
+            unauthenticated = context.createBuffer(24L);
+            canonical = context.createBuffer(12L);
+            int[] denseBits = {
+                    0x00000000, 0x80000000, 0x7fc12345,
+                    0x00000000, 0x80000000, 0x7fc12345
+            };
+            uploadBits(authenticated, denseBits);
+            uploadBits(unauthenticated, denseBits);
+            uploadBits(canonical, 0x00000000, 0x80000000, 0x7fc12345);
+
+            byte[] affineBytes = runtime.copyToCanonicalHostBytes(
+                    authenticated, outputDescriptor, 24L);
+            assertEquals(24, affineBytes.length);
+            for (int index = 0; index < denseBits.length; index++) {
+                assertEquals(denseBits[index],
+                        java.nio.ByteBuffer.wrap(affineBytes)
+                                .getInt(index * Integer.BYTES));
+            }
+            MetalBufferRepresentation rejectedView = unauthenticated;
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> runtime.copyToCanonicalHostBytes(
+                            rejectedView, outputDescriptor, 24L));
+            byte[] canonicalBytes = runtime.copyToCanonicalHostBytes(
+                    canonical, inputDescriptor, 12L);
+            assertEquals(12, canonicalBytes.length);
+            assertEquals(0x7fc12345,
+                    java.nio.ByteBuffer.wrap(canonicalBytes).getInt(8));
+        } finally {
+            if (canonical != null) {
+                canonical.close();
+            }
+            if (unauthenticated != null) {
+                unauthenticated.close();
+            }
+            if (authenticated != null) {
+                authenticated.close();
+            }
+            if (finalized != null) {
+                for (int index = finalized.resources().size() - 1; index >= 0; index--) {
+                    finalized.resources().get(index).close();
+                }
+            }
+            runtime.close();
+        }
+    }
+
     private static void assertNegated(
             MetalBufferRepresentation buffer, float[] expected, Arena arena) {
         MemorySegment bytes = arena.allocate((long) expected.length * Float.BYTES);
@@ -1972,7 +2076,6 @@ class MetalNegPreparedExecutionTest {
         private volatile CountDownLatch runEntered = new CountDownLatch(0);
         private volatile CountDownLatch continueRuns = new CountDownLatch(0);
         private volatile CountDownLatch bufferCreateEntered = new CountDownLatch(0);
-        private int[] nodeRecords;
         private int[] feeds;
         private int[] targets;
 
@@ -2023,7 +2126,6 @@ class MetalNegPreparedExecutionTest {
                 int[] targetIndices) {
             executableCreates.incrementAndGet();
             if (createFailure != null) throw createFailure;
-            nodeRecords = graphProgram.encodedNodeRecords();
             feeds = feedIndices.clone();
             targets = targetIndices.clone();
             Handle created = createNullHandle ? null : handle();

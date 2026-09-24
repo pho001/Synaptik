@@ -15,8 +15,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Package-private typed seam for the version-four Metal foundation, MPSGraph, and custom-NEG C
- * ABI.
+ * Package-private typed seam for the ABI-v4 Metal foundation, MPSGraph, and custom-NEG C ABI.
  *
  * <p>Handles remain opaque carrier segments inside this package. Implementations consume each
  * successful context or buffer handle exactly once through its matching release call. Native
@@ -121,7 +120,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * @param context non-null live context whose ownership remains with the caller
      * @param valueRanks non-null value-aligned ranks
      * @param valueDimensions non-null row-major value-count by sixteen dimension table
-     * @param graphProgram non-null version-one typed node table
+     * @param graphProgram non-null version-two typed node table
      * @param feedValueIndices non-null stable feed value indices
      * @param targetValueIndices non-null stable target value indices
      * @return a fresh non-null opaque executable handle owned by the caller
@@ -151,7 +150,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * @param context non-null live context whose ownership remains with the caller
      * @param valueRanks validated value-aligned ranks
      * @param valueDimensions validated padded dimension table
-     * @param graphProgram validated version-one typed topological node table
+     * @param graphProgram validated version-two typed topological node table
      * @param feedValueIndices validated unique feeds
      * @param targetValueIndices validated unique produced targets
      * @return non-null raw status/output-cell result for checked interpretation
@@ -478,7 +477,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
     }
 
-    /** Exact Java preflight for the version-one typed MPSGraph executable-create ABI. */
+    /** Exact Java preflight for the version-two typed MPSGraph executable-create ABI. */
     static final class MpsGraphExecutableAbi {
         private static final int MAX_RANK = 16;
 
@@ -566,40 +565,63 @@ abstract class MetalNativeApi implements AutoCloseable {
                 int output = node.outputIndex();
                 requireIndex(left, valueCount, "first node input");
                 requireIndex(output, valueCount, "node output");
-                if (available[left] == 0) {
+                if (available[left] == 0 || available[left] == 3) {
                     throw new IllegalArgumentException(
-                            "Metal MPSGraph first node input must be a feed or earlier output");
+                            "Metal MPSGraph first node input must be a canonical feed or earlier output");
                 }
                 if (available[output] != 0) {
                     throw new IllegalArgumentException(
                             "Metal MPSGraph node outputs must be unique and not feeds");
                 }
-                if (node.kind() == MetalMpsGraphProgram.NodeKind.NEG) {
-                    if (!sameShape(left, output, valueRanks, valueDimensions)) {
-                        throw new IllegalArgumentException(
-                                "Metal MPSGraph NEG input/output shapes must match exactly");
+                switch (node.kind()) {
+                    case NEG -> requireShape(
+                            sameShape(left, output, valueRanks, valueDimensions),
+                            "NEG input/output shapes must match exactly");
+                    case ADD, SUB, MUL, DIV -> {
+                        requireIndex(right, valueCount, "second node input");
+                        if (available[right] == 0 || available[right] == 3) {
+                            throw new IllegalArgumentException(
+                                    "Metal MPSGraph second node input must be a canonical feed or earlier output");
+                        }
+                        requireShape(
+                                broadcastsTo(left, right, output, valueRanks, valueDimensions),
+                                "binary output must equal exact right-aligned broadcast");
+                        used[right] = true;
                     }
-                } else {
-                    requireIndex(right, valueCount, "second node input");
-                    if (available[right] == 0) {
-                        throw new IllegalArgumentException(
-                                "Metal MPSGraph second node input must be a feed or earlier output");
+                    case RESHAPE -> {
+                        requireShape(
+                                sameElementCount(left, output, valueRanks, valueDimensions),
+                                "RESHAPE input/output element counts must match");
+                        requireShape(
+                                targetMatches(node, output, valueRanks, valueDimensions),
+                                "RESHAPE target attributes must equal the output shape");
                     }
-                    if (!broadcastsTo(
-                            left, right, output, valueRanks, valueDimensions)) {
-                        throw new IllegalArgumentException(
-                                "Metal MPSGraph binary output must equal exact right-aligned broadcast");
+                    case EXPAND -> {
+                        requireShape(
+                                expandsTo(left, output, valueRanks, valueDimensions),
+                                "EXPAND output must be an exact right-aligned expansion");
+                        requireShape(
+                                targetMatches(node, output, valueRanks, valueDimensions),
+                                "EXPAND target attributes must equal the output shape");
                     }
-                    used[right] = true;
+                    case PERMUTE -> requireShape(
+                            permutationMatches(node, left, output, valueRanks, valueDimensions),
+                            "PERMUTE attributes and output shape disagree");
+                    case EXPAND_DIMS -> requireShape(
+                            expandDimsMatches(node, left, output, valueRanks, valueDimensions),
+                            "EXPAND_DIMS axis and output shape disagree");
+                    case SQUEEZE -> requireShape(
+                            squeezeMatches(node, left, output, valueRanks, valueDimensions),
+                            "SQUEEZE axis and output shape disagree");
                 }
-                available[output] = 2;
+                available[output] = (byte) (node.kind().isAffine() ? 3 : 2);
                 used[left] = true;
                 used[output] = true;
             }
             boolean[] targeted = new boolean[valueCount];
             for (int target : targets) {
                 requireIndex(target, valueCount, "target");
-                if (available[target] != 2) {
+                if (available[target] != 2 && available[target] != 3) {
                     throw new IllegalArgumentException(
                             "Metal MPSGraph target must be a node-produced value");
                 }
@@ -678,6 +700,136 @@ abstract class MetalNativeApi implements AutoCloseable {
             int secondRow = second * MAX_RANK;
             for (int axis = 0; axis < rank; axis++) {
                 if (dimensions[firstRow + axis] != dimensions[secondRow + axis]) return false;
+            }
+            return true;
+        }
+
+        private static void requireShape(boolean condition, String message) {
+            if (!condition) {
+                throw new IllegalArgumentException("Metal MPSGraph " + message);
+            }
+        }
+
+        private static boolean sameElementCount(
+                int first, int second, int[] ranks, long[] dimensions) {
+            return elementCount(first, ranks, dimensions)
+                    == elementCount(second, ranks, dimensions);
+        }
+
+        private static long elementCount(int value, int[] ranks, long[] dimensions) {
+            long elements = 1L;
+            int row = value * MAX_RANK;
+            for (int axis = 0; axis < ranks[value]; axis++) {
+                elements = Math.multiplyExact(elements, dimensions[row + axis]);
+            }
+            return elements;
+        }
+
+        private static boolean targetMatches(
+                MetalMpsGraphProgram.Node node,
+                int output,
+                int[] ranks,
+                long[] dimensions) {
+            if (node.attributeCount() != ranks[output]) {
+                return false;
+            }
+            long[] target = node.attributeValues();
+            int row = output * MAX_RANK;
+            for (int axis = 0; axis < target.length; axis++) {
+                if (target[axis] != dimensions[row + axis]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private static boolean expandsTo(
+                int input, int output, int[] ranks, long[] dimensions) {
+            int inputRank = ranks[input];
+            int outputRank = ranks[output];
+            if (inputRank > outputRank) {
+                return false;
+            }
+            int inputRow = input * MAX_RANK;
+            int outputRow = output * MAX_RANK;
+            int padding = outputRank - inputRank;
+            for (int axis = 0; axis < inputRank; axis++) {
+                long source = dimensions[inputRow + axis];
+                long target = dimensions[outputRow + axis + padding];
+                if (source != target && source != 1L) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private static boolean permutationMatches(
+                MetalMpsGraphProgram.Node node,
+                int input,
+                int output,
+                int[] ranks,
+                long[] dimensions) {
+            int rank = ranks[input];
+            if (ranks[output] != rank || node.attributeCount() != rank) {
+                return false;
+            }
+            long[] permutation = node.attributeValues();
+            int inputRow = input * MAX_RANK;
+            int outputRow = output * MAX_RANK;
+            for (int axis = 0; axis < rank; axis++) {
+                int source = Math.toIntExact(permutation[axis]);
+                if (dimensions[outputRow + axis] != dimensions[inputRow + source]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private static boolean expandDimsMatches(
+                MetalMpsGraphProgram.Node node,
+                int input,
+                int output,
+                int[] ranks,
+                long[] dimensions) {
+            int inputRank = ranks[input];
+            int axis = node.axis();
+            if (ranks[output] != inputRank + 1 || axis > inputRank) {
+                return false;
+            }
+            int inputRow = input * MAX_RANK;
+            int outputRow = output * MAX_RANK;
+            for (int outputAxis = 0; outputAxis < ranks[output]; outputAxis++) {
+                long expected = outputAxis == axis
+                        ? 1L
+                        : dimensions[inputRow + (outputAxis < axis
+                                ? outputAxis : outputAxis - 1)];
+                if (dimensions[outputRow + outputAxis] != expected) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private static boolean squeezeMatches(
+                MetalMpsGraphProgram.Node node,
+                int input,
+                int output,
+                int[] ranks,
+                long[] dimensions) {
+            int inputRank = ranks[input];
+            int axis = node.axis();
+            if (ranks[output] != inputRank - 1
+                    || axis >= inputRank
+                    || dimensions[input * MAX_RANK + axis] != 1L) {
+                return false;
+            }
+            int inputRow = input * MAX_RANK;
+            int outputRow = output * MAX_RANK;
+            for (int source = 0, target = 0; source < inputRank; source++) {
+                if (source != axis
+                        && dimensions[inputRow + source] != dimensions[outputRow + target++]) {
+                    return false;
+                }
             }
             return true;
         }
@@ -902,7 +1054,7 @@ abstract class MetalNativeApi implements AutoCloseable {
             try (Arena arena = Arena.ofConfined()) {
                 MemorySegment ranks = copyInts(arena, valueRanks);
                 MemorySegment dimensions = copyLongs(arena, valueDimensions);
-                MemorySegment nodes = copyInts(arena, graphProgram.encodedNodeRecords());
+                MemorySegment nodes = graphProgram.encodeNative(arena);
                 MemorySegment feeds = copyInts(arena, feedValueIndices);
                 MemorySegment targets = copyInts(arena, targetValueIndices);
                 MemorySegment output = arena.allocate(ADDRESS);

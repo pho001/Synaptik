@@ -1,6 +1,8 @@
 package io.github.pho001.synaptik.backend.metal;
 
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
+import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import java.lang.foreign.MemorySegment;
 import java.util.Objects;
 
@@ -21,6 +23,7 @@ final class MetalBufferRepresentation implements BufferRepresentation {
     /** Optional caller storage retained for the complete borrowed-input wrapper lifetime. */
     @SuppressWarnings("unused")
     private final Object retainedBorrow;
+    private final DenseAffinePublication denseAffinePublication;
     private boolean closed;
 
     /**
@@ -58,7 +61,13 @@ final class MetalBufferRepresentation implements BufferRepresentation {
         this.api = Objects.requireNonNull(api, "api");
         this.handle = Objects.requireNonNull(handle, "handle");
         this.logicalByteSize = logicalByteSize;
-        this.retainedBorrow = retainedBorrow;
+        if (retainedBorrow instanceof DenseAffinePublication publication) {
+            this.retainedBorrow = null;
+            this.denseAffinePublication = publication;
+        } else {
+            this.retainedBorrow = retainedBorrow;
+            this.denseAffinePublication = null;
+        }
     }
 
     /** @return the exact non-negative logical byte extent, including zero */
@@ -69,6 +78,15 @@ final class MetalBufferRepresentation implements BufferRepresentation {
     /** @return whether this live representation belongs to the exact supplied device context */
     synchronized boolean belongsTo(MetalDeviceContext expected) {
         return !closed && context == expected;
+    }
+
+    /** Returns whether this live buffer is an authenticated dense target for the exact view. */
+    synchronized boolean authenticatesDenseAffinePublication(TensorDescriptor descriptor) {
+        Objects.requireNonNull(descriptor, "descriptor");
+        return !closed
+                && denseAffinePublication != null
+                && denseAffinePublication.authenticates(
+                        context, descriptor, logicalByteSize);
     }
 
     /**
@@ -213,5 +231,44 @@ final class MetalBufferRepresentation implements BufferRepresentation {
             throw runtime;
         }
         throw (Error) failure;
+    }
+
+    /**
+     * Unforgeable outside this package: exact finalized-route evidence for one dense physical
+     * affine target whose public descriptor remains a logical view.
+     */
+    static final class DenseAffinePublication {
+        private final MetalNegPreparedExecutable executable;
+        private final MetalNegPreparationPlan plan;
+        private final ValueId valueId;
+        private final TensorDescriptor descriptor;
+        private final long byteSize;
+        DenseAffinePublication(
+                MetalNegPreparedExecutable executable,
+                ValueId valueId,
+                TensorDescriptor descriptor,
+                long byteSize) {
+            this.executable = Objects.requireNonNull(executable, "executable");
+            this.plan = executable.preparationPlan();
+            this.valueId = Objects.requireNonNull(valueId, "valueId");
+            this.descriptor = Objects.requireNonNull(descriptor, "descriptor");
+            this.byteSize = byteSize;
+            if (!plan.authenticatesDenseAffineTarget(valueId, descriptor, byteSize)) {
+                throw new IllegalArgumentException(
+                        "Metal dense affine publication is not an exact finalized route target");
+            }
+        }
+
+        private boolean authenticates(
+                MetalDeviceContext context,
+                TensorDescriptor expectedDescriptor,
+                long expectedByteSize) {
+            return executable.preparationPlan() == plan
+                    && plan.context() == context
+                    && descriptor.equals(expectedDescriptor)
+                    && byteSize == expectedByteSize
+                    && plan.authenticatesDenseAffineTarget(
+                            valueId, expectedDescriptor, expectedByteSize);
+        }
     }
 }

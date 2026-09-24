@@ -6,6 +6,12 @@ import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
+import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
@@ -17,11 +23,12 @@ import java.util.Objects;
  * Reports the exact operation-occurrence capability of the current Metal backend.
  *
  * <p>This provider is immutable and performs no device discovery, native-library loading,
- * allocation, registration, or caching. Support is limited to unary {@code NEG} and binary
- * {@code ADD}, {@code SUB}, {@code MUL}, and {@code DIV} over positive, fully static, canonical
- * dense-contiguous {@code FLOAT32} descriptors. Binary occurrences use exact right-aligned
- * broadcasting and retain ordered operands. Every input and output in one admitted occurrence
- * has the same gradient-eligibility flag.</p>
+ * allocation, registration, or caching. Support covers the existing unary {@code NEG} and binary
+ * {@code ADD}, {@code SUB}, {@code MUL}, and {@code DIV} domain plus five terminal FLOAT32 affine
+ * transforms. Elementwise descriptors remain canonical dense non-views. An affine input must also
+ * be canonical, while its output must retain the exact resolved Model view descriptor. Every
+ * admitted occurrence is fully static, has positive rank-1..16 geometry, and preserves one common
+ * gradient-eligibility flag.</p>
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
     /**
@@ -51,11 +58,11 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     }
 
     /**
-     * Reports support only for the exact prepared Metal elementwise domain.
+     * Reports support only for the exact prepared Metal elementwise and terminal-affine domain.
      *
      * @param query the non-null immutable operation occurrence to classify without probing a
      *     device or native library
-     * @return {@code true} exactly for supported unary NEG or binary arithmetic occurrences
+     * @return {@code true} exactly for one supported elementwise or affine occurrence
      * @throws NullPointerException if {@code query} is {@code null}, with message {@code query}
      */
     @Override
@@ -79,44 +86,183 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         Objects.requireNonNull(operation, "operation");
         Objects.requireNonNull(inputs, "inputs");
         Objects.requireNonNull(outputs, "outputs");
-        if (operation.attrs() != NoOperationAttrs.INSTANCE || outputs.size() != 1) {
+        if (outputs.size() != 1) {
             return false;
         }
         TensorDescriptor output = outputs.getFirst();
         try {
             if (operation.kind() == UnaryElementwiseKind.NEG) {
-                if (inputs.size() != 1) {
+                if (operation.attrs() != NoOperationAttrs.INSTANCE || inputs.size() != 1) {
                     return false;
                 }
                 TensorDescriptor input = inputs.getFirst();
-                return eligible(input)
-                        && eligible(output)
+                return canonical(input)
+                        && canonical(output)
                         && input.shape().equals(output.shape())
                         && input.requiresGrad() == output.requiresGrad();
             }
-            if (!(operation.kind() instanceof BinaryArithmeticKind binary)
-                    || (binary != BinaryArithmeticKind.ADD
-                            && binary != BinaryArithmeticKind.SUB
-                            && binary != BinaryArithmeticKind.MUL
-                            && binary != BinaryArithmeticKind.DIV)
-                    || inputs.size() != 2) {
-                return false;
+            if (operation.kind() instanceof BinaryArithmeticKind binary) {
+                if (operation.attrs() != NoOperationAttrs.INSTANCE
+                        || (binary != BinaryArithmeticKind.ADD
+                                && binary != BinaryArithmeticKind.SUB
+                                && binary != BinaryArithmeticKind.MUL
+                                && binary != BinaryArithmeticKind.DIV)
+                        || inputs.size() != 2) {
+                    return false;
+                }
+                TensorDescriptor left = inputs.get(0);
+                TensorDescriptor right = inputs.get(1);
+                return canonical(left)
+                        && canonical(right)
+                        && canonical(output)
+                        && left.requiresGrad() == right.requiresGrad()
+                        && left.requiresGrad() == output.requiresGrad()
+                        && ShapeBroadcast.broadcast(left.shape(), right.shape())
+                                .equals(output.shape());
             }
-            TensorDescriptor left = inputs.get(0);
-            TensorDescriptor right = inputs.get(1);
-            return eligible(left)
-                    && eligible(right)
-                    && eligible(output)
-                    && left.requiresGrad() == right.requiresGrad()
-                    && left.requiresGrad() == output.requiresGrad()
-                    && ShapeBroadcast.broadcast(left.shape(), right.shape())
-                            .equals(output.shape());
+            return supportsAffine(operation, inputs, output);
         } catch (IllegalArgumentException | ArithmeticException incompatible) {
             return false;
         }
     }
 
-    private static boolean eligible(TensorDescriptor descriptor) {
+    private static boolean supportsAffine(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        if (inputs.size() != 1) {
+            return false;
+        }
+        TensorDescriptor input = inputs.getFirst();
+        if (!canonical(input)
+                || !geometry(output)
+                || input.requiresGrad() != output.requiresGrad()) {
+            return false;
+        }
+        LayoutDescriptor inputLayout = input.layout().orElseThrow();
+        LayoutDescriptor expected;
+        if (operation.kind() instanceof ShapeTransformKind kind) {
+            if (!(operation.attrs() instanceof TargetShapeAttrs attrs)
+                    || !attrs.targetShape().equals(output.shape())) {
+                return false;
+            }
+            if (kind == ShapeTransformKind.RESHAPE) {
+                if (input.shape().knownElementCount().orElseThrow()
+                        != output.shape().knownElementCount().orElseThrow()) {
+                    return false;
+                }
+                expected = LayoutDescriptor.of(
+                        output.shape(),
+                        LayoutDescriptor.contiguous(output.shape()).strides(),
+                        0L,
+                        true);
+            } else if (kind == ShapeTransformKind.EXPAND) {
+                long[] inputShape = input.shape().toLongArray();
+                long[] outputShape = output.shape().toLongArray();
+                if (inputShape.length > outputShape.length) {
+                    return false;
+                }
+                long[] strides = new long[outputShape.length];
+                int padding = outputShape.length - inputShape.length;
+                for (int axis = 0; axis < inputShape.length; axis++) {
+                    long source = inputShape[axis];
+                    long target = outputShape[axis + padding];
+                    if (source != target && source != 1L) {
+                        return false;
+                    }
+                    strides[axis + padding] = source == 1L && target != 1L
+                            ? 0L : inputLayout.stride(axis);
+                }
+                expected = LayoutDescriptor.of(output.shape(), strides, 0L, true);
+            } else {
+                return false;
+            }
+        } else if (operation.kind() instanceof AxisTransformKind kind) {
+            long[] inputShape = input.shape().toLongArray();
+            if (kind == AxisTransformKind.PERMUTE) {
+                if (!(operation.attrs() instanceof PermutationAttrs attrs)
+                        || attrs.axes().size() != inputShape.length
+                        || output.shape().rank() != inputShape.length) {
+                    return false;
+                }
+                boolean[] seen = new boolean[inputShape.length];
+                long[] expectedShape = new long[inputShape.length];
+                long[] strides = new long[inputShape.length];
+                for (int axis = 0; axis < inputShape.length; axis++) {
+                    int source = attrs.axes().get(axis);
+                    if (source < 0 || source >= inputShape.length || seen[source]) {
+                        return false;
+                    }
+                    seen[source] = true;
+                    expectedShape[axis] = inputShape[source];
+                    strides[axis] = inputLayout.stride(source);
+                }
+                if (!java.util.Arrays.equals(expectedShape, output.shape().toLongArray())) {
+                    return false;
+                }
+                expected = LayoutDescriptor.of(output.shape(), strides, 0L, true);
+            } else {
+                if (!(operation.attrs() instanceof AxisTransformAttrs attrs)) {
+                    return false;
+                }
+                int axis = attrs.axis();
+                if (kind == AxisTransformKind.EXPAND_DIMS) {
+                    if (axis < 0 || axis > inputShape.length
+                            || output.shape().rank() != inputShape.length + 1) {
+                        return false;
+                    }
+                    long[] expectedShape = new long[inputShape.length + 1];
+                    long[] strides = new long[inputShape.length + 1];
+                    for (int outputAxis = 0; outputAxis < expectedShape.length; outputAxis++) {
+                        if (outputAxis == axis) {
+                            expectedShape[outputAxis] = 1L;
+                            strides[outputAxis] = outputAxis == inputShape.length
+                                    ? 1L
+                                    : Math.multiplyExact(
+                                            inputLayout.stride(outputAxis),
+                                            inputShape[outputAxis]);
+                        } else {
+                            int source = outputAxis < axis ? outputAxis : outputAxis - 1;
+                            expectedShape[outputAxis] = inputShape[source];
+                            strides[outputAxis] = inputLayout.stride(source);
+                        }
+                    }
+                    if (!java.util.Arrays.equals(expectedShape, output.shape().toLongArray())) {
+                        return false;
+                    }
+                    expected = LayoutDescriptor.of(output.shape(), strides, 0L, true);
+                } else if (kind == AxisTransformKind.SQUEEZE) {
+                    if (axis < 0 || axis >= inputShape.length || inputShape[axis] != 1L
+                            || output.shape().rank() != inputShape.length - 1) {
+                        return false;
+                    }
+                    long[] expectedShape = new long[inputShape.length - 1];
+                    long[] strides = new long[inputShape.length - 1];
+                    for (int source = 0, target = 0; source < inputShape.length; source++) {
+                        if (source != axis) {
+                            expectedShape[target] = inputShape[source];
+                            strides[target++] = inputLayout.stride(source);
+                        }
+                    }
+                    if (!java.util.Arrays.equals(expectedShape, output.shape().toLongArray())) {
+                        return false;
+                    }
+                    expected = LayoutDescriptor.of(output.shape(), strides, 0L, true);
+                } else {
+                    return false;
+                }
+            }
+        } else {
+            return false;
+        }
+        return output.layout().orElseThrow().equals(expected);
+    }
+
+    private static boolean canonical(TensorDescriptor descriptor) {
+        return geometry(descriptor)
+                && descriptor.layout().orElseThrow().equals(
+                        LayoutDescriptor.contiguous(descriptor.shape()));
+    }
+
+    private static boolean geometry(TensorDescriptor descriptor) {
         if (descriptor.dataType() != DataType.FLOAT32
                 || !descriptor.shape().isFullyStatic()
                 || descriptor.shape().rank() < 1 || descriptor.shape().rank() > 16
@@ -124,17 +270,14 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             return false;
         }
         long elements = 1L;
-        try {
-            for (long dimension : descriptor.shape().toLongArray()) {
-                if (dimension <= 0L) return false;
-                elements = Math.multiplyExact(elements, dimension);
+        for (long dimension : descriptor.shape().toLongArray()) {
+            if (dimension <= 0L) {
+                return false;
             }
-            Math.multiplyExact(elements, Float.BYTES);
-            return descriptor.layout().orElseThrow().equals(
-                    io.github.pho001.synaptik.model.layout.LayoutDescriptor.contiguous(
-                            descriptor.shape()));
-        } catch (IllegalArgumentException | ArithmeticException invalid) {
-            return false;
+            elements = Math.multiplyExact(elements, dimension);
         }
+        Math.multiplyExact(elements, Float.BYTES);
+        return true;
     }
+
 }

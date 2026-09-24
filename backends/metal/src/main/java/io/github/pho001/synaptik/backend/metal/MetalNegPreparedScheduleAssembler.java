@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.backend.metal;
 
 import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.prepare.PreparedBufferAssignment;
 import io.github.pho001.synaptik.prepare.PreparedPartition;
 import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
@@ -18,6 +19,7 @@ import java.util.HashSet;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Objects;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -101,21 +103,32 @@ final class MetalNegPreparedScheduleAssembler
                 continue;
             }
             var descriptor = descriptors.get(assignment.valueId());
+            long bytes = scheduleContext.memoryPlan().buffers()
+                    .get(assignment.planIndex()).byteSize();
+            Optional<MetalBufferRepresentation.DenseAffinePublication> affinePublication =
+                    denseAffinePublication(
+                            scheduleContext.partitions(),
+                            assignment.valueId(),
+                            descriptor,
+                            bytes);
             if (descriptor == null
                     || descriptor.dataType()
                             != io.github.pho001.synaptik.model.datatype.DataType.FLOAT32
                     || !descriptor.shape().isFullyStatic()
                     || descriptor.layout().isEmpty()
-                    || !descriptor.layout().orElseThrow().equals(
+                    || (!descriptor.layout().orElseThrow().equals(
                             io.github.pho001.synaptik.model.layout.LayoutDescriptor.contiguous(
-                                    descriptor.shape()))) {
+                                    descriptor.shape()))
+                            && affinePublication.isEmpty())) {
                 throw new IllegalArgumentException(
-                        "Metal NEG assigned buffer requires static contiguous FLOAT32");
+                        "Metal assigned buffer requires canonical or authenticated affine FLOAT32");
             }
-            long bytes = scheduleContext.memoryPlan().buffers()
-                    .get(assignment.planIndex()).byteSize();
             PreparedRepresentationPlan.BufferPreparation preparation;
-            if (representationIndex == 0 && bindable.contains(assignment.valueId())) {
+            if (affinePublication.isPresent()) {
+                var publication = affinePublication.orElseThrow();
+                preparation = new PreparedRepresentationPlan.CreatedBuffer(
+                        () -> context.createBuffer(bytes, publication));
+            } else if (representationIndex == 0 && bindable.contains(assignment.valueId())) {
                 preparation = new PreparedRepresentationPlan.CallerInput();
             } else if (representationIndex == 0
                     && scheduleContext.constants().containsKey(assignment.valueId())) {
@@ -233,6 +246,11 @@ final class MetalNegPreparedScheduleAssembler
             throw new IllegalArgumentException(
                     "Metal NEG analyzed plan/scheduled partition identity mismatch");
         }
+        if (!(preparedPartition.executable() instanceof MetalNegPreparedExecutable executable)
+                || executable.preparationPlan() != plan) {
+            throw new IllegalArgumentException(
+                    "Metal analyzed plan/scheduled executable identity mismatch");
+        }
         if (preparedPartition.executable().memoryPlan() != memoryPlan) {
             throw new IllegalArgumentException(
                     "Metal NEG scheduled executable/memory-plan identity mismatch");
@@ -274,8 +292,12 @@ final class MetalNegPreparedScheduleAssembler
             } else if (targets.contains(assignment.valueId())) {
                 long bytes = memoryPlan.buffers()
                         .get(assignment.planIndex()).byteSize();
+                Optional<MetalBufferRepresentation.DenseAffinePublication> publication =
+                        executable.denseAffinePublication(assignment.valueId());
                 preparation = List.of(new PreparedRepresentationPlan.CreatedBuffer(
-                        () -> context.createBuffer(bytes)));
+                        () -> publication.isPresent()
+                                ? context.createBuffer(bytes, publication.orElseThrow())
+                                : context.createBuffer(bytes)));
             } else {
                 throw new IllegalArgumentException(
                         "Metal NEG schedule contains an undeclared boundary buffer");
@@ -337,6 +359,27 @@ final class MetalNegPreparedScheduleAssembler
         }
     }
 
+
+    private static Optional<MetalBufferRepresentation.DenseAffinePublication>
+            denseAffinePublication(
+                    List<PreparedPartition> partitions,
+                    ValueId valueId,
+                    TensorDescriptor descriptor,
+                    long byteSize) {
+        if (descriptor == null) {
+            return Optional.empty();
+        }
+        for (PreparedPartition partition : partitions) {
+            if (partition.executable() instanceof MetalNegPreparedExecutable executable) {
+                MetalNegPreparationPlan candidate = executable.preparationPlan();
+                if (candidate.authenticatesDenseAffineTarget(
+                        valueId, descriptor, byteSize)) {
+                    return executable.denseAffinePublication(valueId);
+                }
+            }
+        }
+        return Optional.empty();
+    }
     private static PreparedBufferAssignment requireAssignment(
             Map<ValueId, PreparedBufferAssignment> assignments, ValueId valueId) {
         PreparedBufferAssignment assignment = assignments.get(valueId);

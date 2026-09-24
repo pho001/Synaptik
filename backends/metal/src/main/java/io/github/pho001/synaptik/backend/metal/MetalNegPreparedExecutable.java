@@ -1,5 +1,6 @@
 package io.github.pho001.synaptik.backend.metal;
 
+import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.runtime.execution.BoundInvocation;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
@@ -8,6 +9,7 @@ import io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation;
 import io.github.pho001.synaptik.runtime.run.RunState;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Objects;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -121,6 +123,24 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
     /** @return the exact immutable backend plan retained for cold schedule assembly */
     MetalNegPreparationPlan preparationPlan() {
         return preparationPlan;
+    }
+
+    Optional<MetalBufferRepresentation.DenseAffinePublication> denseAffinePublication(
+            ValueId valueId) {
+        Objects.requireNonNull(valueId, "valueId");
+        int target = preparationPlan.targetValueIds().indexOf(valueId);
+        if (target < 0) {
+            return Optional.empty();
+        }
+        int value = preparationPlan.targetValueIndices()[target];
+        var descriptor = preparationPlan.descriptors().get(value);
+        long byteSize = preparationPlan.targetRequiredBytes()[target];
+        if (!preparationPlan.authenticatesDenseAffineTarget(
+                valueId, descriptor, byteSize)) {
+            return Optional.empty();
+        }
+        return Optional.of(new MetalBufferRepresentation.DenseAffinePublication(
+                this, valueId, descriptor, byteSize));
     }
 
     @Override

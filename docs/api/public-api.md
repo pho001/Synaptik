@@ -20,8 +20,12 @@ Public `GraphCompilationPort` exposes that complete constant-free pipeline as a 
 cross-module integration service-provider interface (SPI). The CPU backend exposes the supported
 `CpuBackendIntegration` lifecycle SPI, including bounded canonical host-byte materialization. The
 Metal backend exposes `MetalBackendConfiguration`, `MetalBackendIntegration`, and its narrow
-canonical contiguous static `FLOAT32` capability for `NEG`, `ADD`, `SUB`, `MUL`, and `DIV` with
-exact right-aligned broadcasting. `Engine.builder()` is the public explicit composition root for
+static positive rank-`1..16` `FLOAT32` capability for `NEG`, `ADD`, `SUB`, `MUL`, and `DIV` plus
+terminal `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE`. Elementwise geometry and
+affine inputs are canonical contiguous non-views; affine outputs retain their exact logical view
+descriptors while Metal privately writes dense represented-order targets. Exact prepared affine
+publications may materialize to detached canonical host bytes, but cross-owner transfer remains
+canonical-non-view-only. `Engine.builder()` is the public explicit composition root for
 opened CPU and Metal integrations. It freezes their Planning inputs in registration order and
 supports a complete non-empty plan only when every partition has one exact registered owner. The
 `Engine.standard()` convenience still constructs one fresh CPU-only composition through that same

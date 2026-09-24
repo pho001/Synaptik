@@ -270,6 +270,12 @@ rollback, and absence of claims for 0006, 0007, backward reduction, or MATMUL.
 
 ## Result
 
-Unstarted. This is the sole Ready Metal frontier; 0006 and 0007 are Blocked with no production
-change. MATMUL remains an unauthorized successor pending successful affine completion and a
-separate detailed brief.
+Implemented from the required disposable real-device probe and retained for independent Class C
+review. The probe and production tests passed all five documented MPSGraph selectors with supplied
+direct targets, exact Shapes through rank sixteen, adversarial raw `FLOAT32` payloads, and repeated
+execution. Production keeps ABI version 4 and thirteen exports while using typed node schema 2,
+extends only the five bounded terminal affine occurrences, authenticates dense represented-order
+affine publication materialization, and leaves canonical-only CPU/Metal transfer unchanged.
+Compiler forward/first-order graph contracts and a Metal-only public Engine scenario are covered;
+no Metal-only backward, blocked 0006/0007, custom affine kernel, transfer widening, or MATMUL claim
+is made. Status remains `Ready`, not `Complete`, until the separately requested Class C review.

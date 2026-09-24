@@ -5076,18 +5076,18 @@ a schedule occurrence, a backend-global cache entry, or a garbage-collection-man
 mechanism. Runtime 0016 implements the nominal contract and owner lifecycle, and Prepare 0006
 implements the transactional finalizer handoff.
 
-### Metal elementwise prepared executable
+### Metal prepared executable
 
 The current Metal backend's package-private, shape-specialized Runtime recipe for one complete
-maximal partition of supported `NEG`, `ADD`, `SUB`, `MUL`, and `DIV` occurrences with exact
-right-aligned broadcasting. Metal analysis fixes stable feed, target, and structural value order,
-lowers versioned fixed-width typed nodes with ordered operands, generates a complete route batch,
-authenticates any supplied session decision, then fixes a closed private route before declaring
-shared resources. With no decision, an exact singleton `NEG` with one feed, one target, and
-checked element count in `1..UINT32_MAX` selects the custom route; every other supported partition
-selects MPSGraph. An eligible singleton can instead use an authenticated MPSGraph decision. This
-boundary does not change capability, fallback, retry, or partitioning and makes no performance
-claim.
+maximal partition of supported `NEG`, `ADD`, `SUB`, `MUL`, `DIV`, `RESHAPE`, `EXPAND`,
+`PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` occurrences. Metal analysis fixes stable feed, target,
+and structural value order, lowers version-two fixed-width typed nodes with ordered operands and
+bounded affine attributes, generates a complete route batch, authenticates any supplied
+session decision, then fixes a closed private route before declaring shared resources. With no
+decision, an exact singleton `NEG` with one feed, one target, and checked element count in
+`1..UINT32_MAX` selects the custom route; every other supported partition selects MPSGraph. An
+eligible singleton can instead use an authenticated MPSGraph decision. This boundary does not
+change capability, fallback, retry, or partitioning and makes no performance claim.
 
 After shared slot assignment, Metal finalization compiles either the fixed branch-free custom
 FLOAT32 NEG pipeline or one typed whole-partition `MPSGraphExecutable` and returns its owner as a
@@ -5096,11 +5096,17 @@ across runs. Each run separately borrows caller Metal buffers and owns fresh ini
 buffers and output buffers. MPSGraph runs additionally own a closeable native-address workspace;
 custom runs retain direct typed input and output references with no workspace.
 
+Affine results retain exact logical view descriptors but receive distinct full-logical-size Metal
+targets in canonical logical coordinate order. Materialization accepts that dense physical
+representation only with exact finalized-route, target, descriptor, context, and byte-extent
+authentication. It produces detached raw-bit-preserving canonical host bytes and does not widen
+canonical-non-view-only CPU/Metal transfer, establish source aliasing, or enable affine chaining.
+
 Hot execution makes one route-specific synchronous native downcall. The custom route submits one
 command buffer and compute encoder, waits once, and writes the assigned `MTLBuffer` output without
 an explicit host-staging or intermediate-copy step. The term does not imply a mixed-owner
-schedule, backend-global executable cache, per-run compilation, universal custom kernels, or that
-MPSGraph uses no internal temporary storage.
+schedule, backend-global executable cache, per-run compilation, universal custom kernels,
+Metal-only affine backward, or that MPSGraph uses no internal temporary storage.
 
 ### Prepared executable / `PreparedExecutable`
 

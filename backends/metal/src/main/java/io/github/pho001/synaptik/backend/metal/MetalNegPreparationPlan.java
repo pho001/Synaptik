@@ -163,6 +163,27 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     long[] feedRequiredBytes() { return feedRequiredBytes.clone(); }
     long[] targetRequiredBytes() { return targetRequiredBytes.clone(); }
 
+
+    boolean authenticatesDenseAffineTarget(
+            ValueId valueId, TensorDescriptor descriptor, long byteSize) {
+        int target = targetValueIds.indexOf(valueId);
+        if (route != Route.MPSGRAPH
+                || target < 0
+                || targetRequiredBytes[target] != byteSize) {
+            return false;
+        }
+        int value = targetValueIndices[target];
+        if (!descriptors.get(value).equals(descriptor)) {
+            return false;
+        }
+        for (MetalMpsGraphProgram.Node node : graphProgram.nodes()) {
+            if (node.outputIndex() == value) {
+                return node.kind().isAffine();
+            }
+        }
+        return false;
+    }
+
     /**
      * Returns the custom singleton's checked positive element count.
      *

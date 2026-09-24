@@ -25,8 +25,8 @@ import java.util.Optional;
  */
 final class MetalNegRouteCandidateGenerator {
     private static final long UINT32_MAX = 0xffff_ffffL;
-    private static final int WORKLOAD_SIGNATURE_VERSION = 2;
-    private static final int EXACT_DEFAULT_POLICY = 2;
+    private static final int WORKLOAD_SIGNATURE_VERSION = 3;
+    private static final int EXACT_DEFAULT_POLICY = 3;
 
     /**
      * Generates every currently valid complete candidate up to a positive budget.
@@ -141,6 +141,7 @@ final class MetalNegRouteCandidateGenerator {
         updateInt(digest, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
         updateInt(digest, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
         updateInt(digest, MetalNativeApi.ABI_VERSION);
+        updateInt(digest, MetalMpsGraphProgram.SCHEMA_VERSION);
 
         List<ValueId> valueIds = plan.valueIds();
         Map<ValueId, Integer> valuePositions = new LinkedHashMap<>();
@@ -148,7 +149,7 @@ final class MetalNegRouteCandidateGenerator {
             valuePositions.put(valueIds.get(index), index);
         }
         updateInt(digest, context.nodes().size());
-        updateInts(digest, plan.graphProgram().encodedNodeRecords());
+        updateBytes(digest, plan.graphProgram().encodedNodeRecords());
 
         updateInt(digest, plan.descriptors().size());
         for (var descriptor : plan.descriptors()) {
@@ -215,14 +216,15 @@ final class MetalNegRouteCandidateGenerator {
         }
     }
 
-    private static void updateInts(MessageDigest digest, int[] values) {
-        updateInt(digest, values.length);
-        for (int value : values) updateInt(digest, value);
-    }
 
     private static void updateLongs(MessageDigest digest, long[] values) {
         updateInt(digest, values.length);
         for (long value : values) updateLong(digest, value);
+    }
+
+    private static void updateBytes(MessageDigest digest, byte[] values) {
+        updateInt(digest, values.length);
+        digest.update(values);
     }
 
     private static void updateBoolean(MessageDigest digest, boolean value) {

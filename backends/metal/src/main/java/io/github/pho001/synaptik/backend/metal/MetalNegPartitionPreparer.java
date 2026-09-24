@@ -5,8 +5,14 @@ import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
+import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis;
@@ -105,7 +111,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             int outputIndex = index(
                     outputId, graphValues, valueIndexes, valueIds, descriptors);
             programNodes.add(lower(
-                    node.operation().kind(), inputIndices, outputIndex));
+                    node.operation(), inputIndices, outputIndex));
         }
         var graphProgram = new MetalMpsGraphProgram(programNodes);
 
@@ -311,21 +317,43 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
     }
 
     private static MetalMpsGraphProgram.Node lower(
-            OperationKind kind, int[] inputs, int output) {
+            Operation operation, int[] inputs, int output) {
+        OperationKind kind = operation.kind();
         if (kind == UnaryElementwiseKind.NEG) {
             return MetalMpsGraphProgram.Node.neg(inputs[0], output);
         }
-        BinaryArithmeticKind binary = (BinaryArithmeticKind) kind;
-        MetalMpsGraphProgram.NodeKind nodeKind = switch (binary) {
-            case ADD -> MetalMpsGraphProgram.NodeKind.ADD;
-            case SUB -> MetalMpsGraphProgram.NodeKind.SUB;
-            case MUL -> MetalMpsGraphProgram.NodeKind.MUL;
-            case DIV -> MetalMpsGraphProgram.NodeKind.DIV;
-            default -> throw new IllegalArgumentException(
-                    "unsupported Metal binary operation: " + binary);
-        };
-        return MetalMpsGraphProgram.Node.binary(
-                nodeKind, inputs[0], inputs[1], output);
+        if (kind instanceof BinaryArithmeticKind binary) {
+            MetalMpsGraphProgram.NodeKind nodeKind = switch (binary) {
+                case ADD -> MetalMpsGraphProgram.NodeKind.ADD;
+                case SUB -> MetalMpsGraphProgram.NodeKind.SUB;
+                case MUL -> MetalMpsGraphProgram.NodeKind.MUL;
+                case DIV -> MetalMpsGraphProgram.NodeKind.DIV;
+                default -> throw new IllegalArgumentException(
+                        "unsupported Metal binary operation: " + binary);
+            };
+            return MetalMpsGraphProgram.Node.binary(
+                    nodeKind, inputs[0], inputs[1], output);
+        }
+        if (kind instanceof ShapeTransformKind transform) {
+            TargetShapeAttrs attrs = (TargetShapeAttrs) operation.attrs();
+            MetalMpsGraphProgram.NodeKind nodeKind =
+                    transform == ShapeTransformKind.RESHAPE
+                            ? MetalMpsGraphProgram.NodeKind.RESHAPE
+                            : MetalMpsGraphProgram.NodeKind.EXPAND;
+            return MetalMpsGraphProgram.Node.targetShape(
+                    nodeKind, inputs[0], output, attrs.targetShape().toLongArray());
+        }
+        if (kind == AxisTransformKind.PERMUTE) {
+            PermutationAttrs attrs = (PermutationAttrs) operation.attrs();
+            return MetalMpsGraphProgram.Node.permutation(
+                    inputs[0], output, attrs.axes());
+        }
+        AxisTransformAttrs attrs = (AxisTransformAttrs) operation.attrs();
+        MetalMpsGraphProgram.NodeKind nodeKind = kind == AxisTransformKind.EXPAND_DIMS
+                ? MetalMpsGraphProgram.NodeKind.EXPAND_DIMS
+                : MetalMpsGraphProgram.NodeKind.SQUEEZE;
+        return MetalMpsGraphProgram.Node.axis(
+                nodeKind, inputs[0], output, attrs.axis());
     }
 
     private static long byteSize(TensorDescriptor descriptor) {

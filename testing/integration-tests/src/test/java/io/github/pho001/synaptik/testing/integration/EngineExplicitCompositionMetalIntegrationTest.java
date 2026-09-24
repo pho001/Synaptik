@@ -94,6 +94,61 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         }
     }
 
+
+    @Test
+    void cpuFreeMetalEngineMaterializesEveryAffineKindFromDenseDirectTargets() {
+        Path library = configuredMetalLibrary();
+        try (Arena arena = Arena.ofShared();
+                Engine.Builder builder = Engine.builder()) {
+            builder.takeOwnership(MetalBackendIntegration.open(
+                    new MetalBackendConfiguration(library)));
+            try (Engine engine = builder.build()) {
+                int[] matrixBits = {
+                        0x00000000, 0x80000000, 0x3f800000,
+                        0xc0000000, 0x40600000, 0xc0880000
+                };
+                int[] rowBits = {0x3f800000, 0xc0000000, 0x40400000};
+                int[] singletonBits = {
+                        0x3e800000, 0xbe800000, 0x40800000,
+                        0xc0a00000, 0x40c00000, 0xc0e00000
+                };
+                Tensor matrix = nativeTensorBits(
+                        descriptor(Shape.of(2, 3)), arena, matrixBits);
+                Tensor row = nativeTensorBits(
+                        descriptor(Shape.of(1, 3)), arena, rowBits);
+                Tensor singleton = nativeTensorBits(
+                        descriptor(Shape.of(2, 1, 3)), arena, singletonBits);
+
+                var compiled = engine.compile(List.of(
+                        matrix.reshape(3, 2),
+                        row.expand(2, 3),
+                        matrix.permute(1, 0),
+                        matrix.expandDims(1),
+                        singleton.squeeze(1)));
+                assertEquals(3, compiled.inputs().size());
+
+                List<int[]> expected = List.of(
+                        matrixBits,
+                        new int[] {
+                                rowBits[0], rowBits[1], rowBits[2],
+                                rowBits[0], rowBits[1], rowBits[2]
+                        },
+                        new int[] {
+                                matrixBits[0], matrixBits[3],
+                                matrixBits[1], matrixBits[4],
+                                matrixBits[2], matrixBits[5]
+                        },
+                        matrixBits,
+                        singletonBits);
+                try (InferenceSession first = engine.session(compiled);
+                        InferenceSession second = engine.session(compiled)) {
+                    assertAffineResults(first, List.of(matrix, row, singleton), expected);
+                    assertAffineResults(first, List.of(matrix, row, singleton), expected);
+                    assertAffineResults(second, List.of(matrix, row, singleton), expected);
+                }
+            }
+        }
+    }
     @Test
     void realMetalLifecycleMixedOwnerTransfersAndCpuTuning(@TempDir Path directory) {
         Path library = configuredMetalLibrary();
@@ -242,12 +297,50 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         }
     }
 
+
+    private static void assertAffineResults(
+            InferenceSession session, List<Tensor> inputs, List<int[]> expected) {
+        try (var result = session.run(inputs)) {
+            assertEquals(expected.size(), result.resultCount());
+            for (int index = 0; index < expected.size(); index++) {
+                ByteBuffer canonical = result.materialize(
+                        result.publications().get(index),
+                        Math.multiplyExact((long) expected.get(index).length, Float.BYTES)).bytes();
+                for (int bits : expected.get(index)) {
+                    assertEquals(bits, canonical.getInt());
+                }
+            }
+        }
+    }
+
     private static void assertCanonical(ByteBuffer canonical, float... expected) {
         for (float value : expected) {
             assertEquals(Float.floatToRawIntBits(value), canonical.getInt());
         }
     }
 
+
+    private static TensorDescriptor descriptor(Shape shape) {
+        return new TensorDescriptor(
+                DataType.FLOAT32,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                false);
+    }
+
+    private static Tensor nativeTensorBits(
+            TensorDescriptor descriptor, Arena arena, int... bits) {
+        var segment = arena.allocate(
+                Math.multiplyExact(bits.length, Integer.BYTES), Integer.BYTES);
+        for (int index = 0; index < bits.length; index++) {
+            segment.setAtIndex(ValueLayout.JAVA_INT, index, bits[index]);
+        }
+        return TensorFactory.create(
+                descriptor,
+                Optional.empty(),
+                Optional.of(new MemorySegmentStorage(
+                        DataType.FLOAT32, bits.length, segment)));
+    }
     private static Tensor nativeTensor(
             TensorDescriptor descriptor, Arena arena, float... values) {
         var segment = arena.allocate(

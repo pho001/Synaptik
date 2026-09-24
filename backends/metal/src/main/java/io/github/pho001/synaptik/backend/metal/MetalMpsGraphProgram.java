@@ -1,62 +1,93 @@
 package io.github.pho001.synaptik.backend.metal;
 
+import static java.lang.foreign.ValueLayout.JAVA_INT;
+import static java.lang.foreign.ValueLayout.JAVA_LONG;
+
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Immutable typed operation table for the version-one Metal MPSGraph executable schema.
+ * Immutable typed operation table for the version-two Metal MPSGraph node schema.
  *
- * <p>Each node has one exact operation kind, ordered input value indices, and one output value
- * index. Unary {@code NEG} carries no second input; binary operations retain left then right
- * operand order. The schema has no attribute payload, operation name, generic parameter map, or
- * executable state. Native marshalling uses one fixed four-{@code uint32_t} record per node.</p>
+ * <p>ABI version four points at fixed 160-byte discriminated records. Each record contains a
+ * closed operation identity, exact ordered value indices, one typed attribute discriminator, and
+ * bounded target-shape, permutation, or normalized-axis state. Every unused scalar is a required
+ * zero or {@code UINT32_MAX} sentinel and every unused attribute cell is zero. No operation name,
+ * generic integer payload, object graph, map, or executable state crosses the ABI.</p>
  */
 final class MetalMpsGraphProgram {
-    /** Exact schema version carried across native ABI version four. */
-    static final int SCHEMA_VERSION = 1;
-    /** Fixed number of unsigned 32-bit cells in one native node record. */
-    static final int NODE_RECORD_WIDTH = 4;
-    /** Unsigned {@code UINT32_MAX} sentinel for the absent unary second input. */
+    /** Exact node schema carried across native ABI version four. */
+    static final int SCHEMA_VERSION = 2;
+    /** Maximum target rank or permutation length. */
+    static final int MAX_RANK = 16;
+    /** Exact fixed native record size. */
+    static final int NODE_RECORD_BYTES = 160;
+    /** Unsigned {@code UINT32_MAX} sentinel for an absent second input. */
     static final int NO_SECOND_INPUT = -1;
+    /** Unsigned {@code UINT32_MAX} sentinel for an absent axis. */
+    static final int NO_AXIS = -1;
+
+    private static final long ATTRIBUTE_VALUES_OFFSET = 32L;
+
+    /** Closed attribute vocabulary and stable schema-local wire identities. */
+    enum AttributeKind {
+        NONE(0), TARGET_SHAPE(1), PERMUTATION(2), AXIS(3);
+
+        private final int wireIdentity;
+
+        AttributeKind(int wireIdentity) {
+            this.wireIdentity = wireIdentity;
+        }
+
+        int wireIdentity() {
+            return wireIdentity;
+        }
+    }
 
     /** Closed operation vocabulary and stable schema-local wire identities. */
     enum NodeKind {
-        /** Unary FLOAT32 negation. */
-        NEG(1, 1),
-        /** Ordered FLOAT32 addition. */
-        ADD(2, 2),
-        /** Ordered FLOAT32 subtraction. */
-        SUB(3, 2),
-        /** Ordered FLOAT32 multiplication. */
-        MUL(4, 2),
-        /** Ordered FLOAT32 division. */
-        DIV(5, 2);
+        NEG(1, 1, AttributeKind.NONE),
+        ADD(2, 2, AttributeKind.NONE),
+        SUB(3, 2, AttributeKind.NONE),
+        MUL(4, 2, AttributeKind.NONE),
+        DIV(5, 2, AttributeKind.NONE),
+        RESHAPE(6, 1, AttributeKind.TARGET_SHAPE),
+        EXPAND(7, 1, AttributeKind.TARGET_SHAPE),
+        PERMUTE(8, 1, AttributeKind.PERMUTATION),
+        EXPAND_DIMS(9, 1, AttributeKind.AXIS),
+        SQUEEZE(10, 1, AttributeKind.AXIS);
 
         private final int wireIdentity;
         private final int inputCount;
+        private final AttributeKind attributeKind;
 
-        NodeKind(int wireIdentity, int inputCount) {
+        NodeKind(int wireIdentity, int inputCount, AttributeKind attributeKind) {
             this.wireIdentity = wireIdentity;
             this.inputCount = inputCount;
+            this.attributeKind = attributeKind;
         }
 
-        /** @return stable positive version-one ABI identity */
         int wireIdentity() {
             return wireIdentity;
         }
 
-        /** @return exact semantic input count, either one or two */
         int inputCount() {
             return inputCount;
         }
 
-        /**
-         * Resolves an untrusted version-one wire identity.
-         *
-         * @param wireIdentity raw unsigned 32-bit identity represented as a Java {@code int}
-         * @return matching typed kind, or empty for an unknown identity
-         */
+        AttributeKind attributeKind() {
+            return attributeKind;
+        }
+
+        boolean isAffine() {
+            return attributeKind != AttributeKind.NONE;
+        }
+
         static Optional<NodeKind> fromWireIdentity(int wireIdentity) {
             for (NodeKind kind : values()) {
                 if (kind.wireIdentity == wireIdentity) {
@@ -67,22 +98,25 @@ final class MetalMpsGraphProgram {
         }
     }
 
-    /**
-     * One fixed-width typed node record.
-     *
-     * @param kind non-null exact operation kind
-     * @param firstInputIndex non-negative ordered first or unary input value index
-     * @param secondInputIndex non-negative ordered right input for binary kinds, or exactly
-     *     {@link #NO_SECOND_INPUT} for unary {@code NEG}
-     * @param outputIndex non-negative unique output value index
-     */
-    record Node(
-            NodeKind kind,
-            int firstInputIndex,
-            int secondInputIndex,
-            int outputIndex) {
-        Node {
-            Objects.requireNonNull(kind, "kind");
+    /** One immutable typed version-two node record. */
+    static final class Node {
+        private final NodeKind kind;
+        private final int firstInputIndex;
+        private final int secondInputIndex;
+        private final int outputIndex;
+        private final int attributeCount;
+        private final int axis;
+        private final long[] attributeValues;
+
+        private Node(
+                NodeKind kind,
+                int firstInputIndex,
+                int secondInputIndex,
+                int outputIndex,
+                int attributeCount,
+                int axis,
+                long[] attributeValues) {
+            this.kind = Objects.requireNonNull(kind, "kind");
             if (firstInputIndex < 0) {
                 throw new IllegalArgumentException("firstInputIndex must be non-negative");
             }
@@ -94,51 +128,130 @@ final class MetalMpsGraphProgram {
                 throw new IllegalArgumentException(
                         "secondInputIndex disagrees with the typed node kind");
             }
+            Objects.requireNonNull(attributeValues, "attributeValues");
+            if (kind.attributeKind() == AttributeKind.NONE) {
+                if (attributeCount != 0 || axis != NO_AXIS || attributeValues.length != 0) {
+                    throw new IllegalArgumentException("no-attribute node contains attribute state");
+                }
+            } else if (kind.attributeKind() == AttributeKind.TARGET_SHAPE) {
+                if (attributeCount < 1 || attributeCount > MAX_RANK
+                        || axis != NO_AXIS || attributeValues.length != attributeCount) {
+                    throw new IllegalArgumentException("target-shape node attributes are malformed");
+                }
+                for (long dimension : attributeValues) {
+                    if (dimension <= 0L) {
+                        throw new IllegalArgumentException(
+                                "target-shape dimensions must be positive");
+                    }
+                }
+            } else if (kind.attributeKind() == AttributeKind.PERMUTATION) {
+                if (attributeCount < 1 || attributeCount > MAX_RANK
+                        || axis != NO_AXIS || attributeValues.length != attributeCount) {
+                    throw new IllegalArgumentException("permutation node attributes are malformed");
+                }
+                boolean[] seen = new boolean[attributeCount];
+                for (long value : attributeValues) {
+                    if (value < 0L || value >= attributeCount || seen[(int) value]) {
+                        throw new IllegalArgumentException(
+                                "permutation must be complete, unique, and in range");
+                    }
+                    seen[(int) value] = true;
+                }
+            } else if (attributeCount != 1 || axis < 0 || axis >= MAX_RANK
+                    || attributeValues.length != 0) {
+                throw new IllegalArgumentException("axis node attributes are malformed");
+            }
+            this.firstInputIndex = firstInputIndex;
+            this.secondInputIndex = secondInputIndex;
+            this.outputIndex = outputIndex;
+            this.attributeCount = attributeCount;
+            this.axis = axis;
+            this.attributeValues = attributeValues.clone();
         }
 
-        /**
-         * Creates one unary NEG record.
-         *
-         * @param inputIndex non-negative input value index
-         * @param outputIndex non-negative output value index
-         * @return a new non-null typed unary record
-         */
         static Node neg(int inputIndex, int outputIndex) {
-            return new Node(NodeKind.NEG, inputIndex, NO_SECOND_INPUT, outputIndex);
+            return noAttributes(NodeKind.NEG, inputIndex, NO_SECOND_INPUT, outputIndex);
         }
 
-        /**
-         * Creates one binary record.
-         *
-         * @param kind non-null binary kind
-         * @param leftInputIndex non-negative semantic left operand value index
-         * @param rightInputIndex non-negative semantic right operand value index
-         * @param outputIndex non-negative output value index
-         * @return a new non-null typed binary record
-         * @throws IllegalArgumentException if {@code kind} is unary
-         */
         static Node binary(
                 NodeKind kind,
                 int leftInputIndex,
                 int rightInputIndex,
                 int outputIndex) {
             Objects.requireNonNull(kind, "kind");
-            if (kind.inputCount() != 2) {
+            if (kind.inputCount() != 2 || kind.attributeKind() != AttributeKind.NONE) {
                 throw new IllegalArgumentException("binary node kind must have two inputs");
             }
-            return new Node(kind, leftInputIndex, rightInputIndex, outputIndex);
+            return noAttributes(kind, leftInputIndex, rightInputIndex, outputIndex);
+        }
+
+        static Node targetShape(
+                NodeKind kind, int inputIndex, int outputIndex, long[] dimensions) {
+            Objects.requireNonNull(kind, "kind");
+            if (kind.attributeKind() != AttributeKind.TARGET_SHAPE) {
+                throw new IllegalArgumentException("node kind does not use target-shape attributes");
+            }
+            Objects.requireNonNull(dimensions, "dimensions");
+            return new Node(kind, inputIndex, NO_SECOND_INPUT, outputIndex,
+                    dimensions.length, NO_AXIS, dimensions);
+        }
+
+        static Node permutation(int inputIndex, int outputIndex, List<Integer> axes) {
+            Objects.requireNonNull(axes, "axes");
+            long[] values = new long[axes.size()];
+            for (int index = 0; index < axes.size(); index++) {
+                values[index] = Objects.requireNonNull(axes.get(index), "axes[" + index + "]");
+            }
+            return new Node(NodeKind.PERMUTE, inputIndex, NO_SECOND_INPUT, outputIndex,
+                    values.length, NO_AXIS, values);
+        }
+
+        static Node axis(NodeKind kind, int inputIndex, int outputIndex, int axis) {
+            Objects.requireNonNull(kind, "kind");
+            if (kind.attributeKind() != AttributeKind.AXIS) {
+                throw new IllegalArgumentException("node kind does not use axis attributes");
+            }
+            return new Node(kind, inputIndex, NO_SECOND_INPUT, outputIndex,
+                    1, axis, new long[0]);
+        }
+
+        private static Node noAttributes(
+                NodeKind kind, int firstInputIndex, int secondInputIndex, int outputIndex) {
+            return new Node(kind, firstInputIndex, secondInputIndex, outputIndex,
+                    0, NO_AXIS, new long[0]);
+        }
+
+        NodeKind kind() {
+            return kind;
+        }
+
+        int firstInputIndex() {
+            return firstInputIndex;
+        }
+
+        int secondInputIndex() {
+            return secondInputIndex;
+        }
+
+        int outputIndex() {
+            return outputIndex;
+        }
+
+        int attributeCount() {
+            return attributeCount;
+        }
+
+        int axis() {
+            return axis;
+        }
+
+        long[] attributeValues() {
+            return attributeValues.clone();
         }
     }
 
     private final List<Node> nodes;
 
-    /**
-     * Snapshots one non-empty topologically ordered typed node table.
-     *
-     * @param nodes non-null non-empty node sequence without null elements
-     * @throws NullPointerException if {@code nodes} or one element is {@code null}
-     * @throws IllegalArgumentException if the table is empty
-     */
     MetalMpsGraphProgram(List<Node> nodes) {
         this.nodes = List.copyOf(nodes);
         if (this.nodes.isEmpty()) {
@@ -146,26 +259,60 @@ final class MetalMpsGraphProgram {
         }
     }
 
-    /** @return immutable topological typed node sequence */
     List<Node> nodes() {
         return nodes;
     }
 
-    /**
-     * Encodes the exact fixed-width version-one native record table.
-     *
-     * @return fresh row-major {@code [kind, first, second, output]} cells
-     */
-    int[] encodedNodeRecords() {
-        int[] encoded = new int[Math.multiplyExact(nodes.size(), NODE_RECORD_WIDTH)];
+    /** Returns canonical big-endian bytes for workload compatibility hashing and tests. */
+    byte[] encodedNodeRecords() {
+        ByteBuffer encoded = ByteBuffer.allocate(
+                Math.multiplyExact(nodes.size(), NODE_RECORD_BYTES)).order(ByteOrder.BIG_ENDIAN);
+        for (Node node : nodes) {
+            putRecord(encoded, node);
+        }
+        return encoded.array();
+    }
+
+    /** Allocates and writes exact native-endian version-two records for one downcall. */
+    MemorySegment encodeNative(Arena arena) {
+        Objects.requireNonNull(arena, "arena");
+        long bytes = Math.multiplyExact((long) nodes.size(), NODE_RECORD_BYTES);
+        MemorySegment encoded = arena.allocate(bytes, Long.BYTES);
         for (int index = 0; index < nodes.size(); index++) {
-            Node node = nodes.get(index);
-            int offset = index * NODE_RECORD_WIDTH;
-            encoded[offset] = node.kind().wireIdentity();
-            encoded[offset + 1] = node.firstInputIndex();
-            encoded[offset + 2] = node.secondInputIndex();
-            encoded[offset + 3] = node.outputIndex();
+            writeNativeRecord(encoded, Math.multiplyExact((long) index, NODE_RECORD_BYTES),
+                    nodes.get(index));
         }
         return encoded;
+    }
+
+    private static void putRecord(ByteBuffer encoded, Node node) {
+        encoded.putInt(node.kind().wireIdentity());
+        encoded.putInt(node.kind().attributeKind().wireIdentity());
+        encoded.putInt(node.firstInputIndex());
+        encoded.putInt(node.secondInputIndex());
+        encoded.putInt(node.outputIndex());
+        encoded.putInt(node.attributeCount());
+        encoded.putInt(node.axis());
+        encoded.putInt(0);
+        long[] values = node.attributeValues();
+        for (int index = 0; index < MAX_RANK; index++) {
+            encoded.putLong(index < values.length ? values[index] : 0L);
+        }
+    }
+
+    private static void writeNativeRecord(MemorySegment target, long offset, Node node) {
+        target.set(JAVA_INT, offset, node.kind().wireIdentity());
+        target.set(JAVA_INT, offset + 4L, node.kind().attributeKind().wireIdentity());
+        target.set(JAVA_INT, offset + 8L, node.firstInputIndex());
+        target.set(JAVA_INT, offset + 12L, node.secondInputIndex());
+        target.set(JAVA_INT, offset + 16L, node.outputIndex());
+        target.set(JAVA_INT, offset + 20L, node.attributeCount());
+        target.set(JAVA_INT, offset + 24L, node.axis());
+        target.set(JAVA_INT, offset + 28L, 0);
+        long[] values = node.attributeValues();
+        for (int index = 0; index < MAX_RANK; index++) {
+            target.set(JAVA_LONG, offset + ATTRIBUTE_VALUES_OFFSET + (long) index * Long.BYTES,
+                    index < values.length ? values[index] : 0L);
+        }
     }
 }

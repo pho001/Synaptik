@@ -16,11 +16,11 @@ import java.util.Optional;
  */
 final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
     /** Current candidate and decision meaning. */
-    static final int CANDIDATE_SCHEMA_VERSION = 2;
+    static final int CANDIDATE_SCHEMA_VERSION = 3;
     /** Current canonical workload/target compatibility meaning. */
-    static final int COMPATIBILITY_SCHEMA_VERSION = 2;
-    /** Current exact/default Metal elementwise policy meaning. */
-    static final int ROUTE_POLICY_VERSION = 2;
+    static final int COMPATIBILITY_SCHEMA_VERSION = 3;
+    /** Current exact/default Metal elementwise-and-affine policy meaning. */
+    static final int ROUTE_POLICY_VERSION = 3;
 
     /** Stable complete private route configurations. */
     enum Candidate {
@@ -66,7 +66,7 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
         private final byte[] bytes;
 
         /**
-         * Snapshots canonical version-two workload-fingerprint bytes.
+         * Snapshots canonical version-three workload-fingerprint bytes.
          *
          * @param bytes non-null non-empty canonical bytes within the generator bound
          * @throws NullPointerException if {@code bytes} is {@code null}

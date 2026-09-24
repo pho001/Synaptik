@@ -4,8 +4,9 @@
 
 This directory builds the local application binary interface (ABI) used by the Synaptik Metal
 backend on Apple-silicon macOS. ABI version 4 retains context, shared-storage buffer, executable,
-and bounded custom singleton-`NEG` ownership while replacing the old NEG-only graph creator with
-a versioned typed whole-partition MPSGraph program for `NEG`, `ADD`, `SUB`, `MUL`, and `DIV`.
+and bounded custom singleton-`NEG` ownership. Its versioned typed whole-partition MPSGraph program
+supports `NEG`, `ADD`, `SUB`, `MUL`, `DIV`, `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, and
+`SQUEEZE`.
 
 ```text
 Java analysis -> choose custom singleton or MPSGraph route -> declare exact resources
@@ -60,15 +61,20 @@ accepts only `1..UINT32_MAX`; it returns unsupported shape outside that domain r
 narrowing the value. Created handles use caller-supplied output cells, which remain null on
 failure.
 
-The graph creator accepts node schema `1` and a bounded fixed-width table:
+The graph creator accepts node schema `2` and a bounded fixed-width table:
 
 ```c
 typedef struct {
-    uint32_t operation;    /* NEG=1, ADD=2, SUB=3, MUL=4, DIV=5 */
+    uint32_t operation;       /* NEG=1 through SQUEEZE=10 */
+    uint32_t attribute_kind;  /* NONE=0, TARGET_SHAPE=1, PERMUTATION=2, AXIS=3 */
     uint32_t first_input;
-    uint32_t second_input; /* UINT32_MAX exactly for NEG */
+    uint32_t second_input;    /* UINT32_MAX exactly for every unary node */
     uint32_t output;
-} SynaptikMetalMpsGraphNodeV1; /* exactly 16 bytes */
+    uint32_t attribute_count;
+    uint32_t axis;            /* normalized axis or UINT32_MAX */
+    uint32_t reserved;        /* zero */
+    uint64_t attribute_values[16];
+} SynaptikMetalMpsGraphNodeV2; /* exactly 160 bytes; payload begins at byte 32 */
 ```
 
 Its exact signature is:
@@ -78,7 +84,7 @@ int32_t synaptik_metal_mpsgraph_executable_create(
     void *context, uint32_t node_schema_version,
     uint32_t value_count, const uint32_t *value_ranks,
     const uint64_t *value_dimensions,
-    uint32_t node_count, const SynaptikMetalMpsGraphNodeV1 *nodes,
+    uint32_t node_count, const SynaptikMetalMpsGraphNodeV2 *nodes,
     uint32_t feed_count, const uint32_t *feed_indices,
     uint32_t target_count, const uint32_t *target_indices,
     void **out_executable);
@@ -86,10 +92,15 @@ int32_t synaptik_metal_mpsgraph_executable_create(
 
 The dimension table has `value_count * 16` cells with used positive axes followed by zero padding.
 Feeds are unique and available before node zero; nodes are topological, produce fresh values, and
-retain binary operand order; targets are unique produced values. `NEG` requires equal shapes.
-Binary output shapes must equal exact right-aligned broadcasting of the two declared input shapes.
-Unknown operations, wrong sentinels, incompatible shapes, unused values, malformed indices, and
-wrong schema versions fail closed.
+retain binary operand order; targets are unique produced values. No-attribute nodes require zero
+attribute count/payload and the axis sentinel. Target Shapes and complete permutations use
+`attribute_count` payload cells; axis forms use count one, the normalized `axis`, and a zero
+payload. Every other cell is zero or its required sentinel. Native validation checks exact
+operation/attribute pairing, ranks `1..16`, positive dimensions, target Shapes, permutations,
+axes, `NEG` equality, binary right-aligned broadcasting, and affine result geometry. An affine
+result cannot feed another node. Unknown operations, wrong sentinels, incompatible Shapes, unused
+values, malformed indices or payloads, and wrong schema versions fail closed.
+
 ### Status values
 
 | Value | C name | Meaning |
@@ -112,13 +123,15 @@ Unknown integers remain unknown and fail closed on the Java side with the raw st
 The deterministic Java fake/native seam is the accepted error-matrix evidence; real-device tests
 exercise successful execution and do not manufacture framework failures.
 
-## Prepared elementwise execution
+## Prepared elementwise and affine execution
 
 Creation consumes a validated, topologically ordered whole-partition description. Native code
-creates fixed-shape `FLOAT32` placeholders, lowers every typed node to the corresponding MPSGraph
-negation or ordered binary arithmetic operation, and compiles one shape-specialized executable.
-The executable owner retains ordered feed and target shapes, byte extents, stable-to-framework
-permutations, and the originating context.
+creates fixed-shape `FLOAT32` placeholders and lowers typed nodes to MPSGraph negation, ordered
+binary arithmetic, `reshapeTensor:withShape:name:`, `broadcastTensor:toShape:name:`,
+`transposeTensor:permutation:name:`, `expandDimsOfTensor:axis:name:`, or
+`squeezeTensor:axis:name:`. It verifies each affine result Shape and compiles one shape-specialized
+executable. The executable owner retains ordered feed and target Shapes, byte extents,
+stable-to-framework permutations, and the originating context.
 
 Each create and run call opens a local Objective-C `@autoreleasepool` inside its exception
 boundary. The executable box crosses the pool only through `__bridge_retained`; every success and
@@ -129,6 +142,10 @@ context command queue, checks the completion error and returned-result list, and
 after the supplied destinations are usable. Synaptik requests no result-synchronization blit and
 performs no explicit post-execution device or host copy. MPSGraph may still use internal temporary
 storage.
+
+Affine targets are supplied full positive logical byte extents and receive canonical logical
+coordinate order. That dense physical choice is backend-private: logical view strides, offsets,
+and `isView` metadata remain unchanged, and it does not imply aliasing with the source.
 
 Java validates live typed handles and readable pointer arrays before native entry. The ABI cannot
 prove that an arbitrary non-null raw pointer is live, type-correct, or sufficiently sized;
@@ -148,9 +165,9 @@ Each invocation binds the direct input `MTLBuffer` at index `0` and assigned out
 at index `1`, creates one command buffer and one compute encoder, dispatches exactly the retained
 element count with `dispatchThreads`, and waits once for successful completion. The assigned
 output is written directly; the bridge performs no explicit host staging or intermediate output
-copy. Every other supported elementwise partition uses the typed MPSGraph route. The route is
-selected once during analysis and is never retried, replaced, or repartitioned during
-finalization or execution.
+copy. Every other supported partition, including every affine occurrence, uses the typed MPSGraph
+route. The route is selected once during analysis and is never retried, replaced, or repartitioned
+in finalization or execution.
 This private implementation-domain boundary is not capability narrowing, tuning, fallback, or a
 performance claim.
 
@@ -199,15 +216,17 @@ The environment variable is required; ordinary sandboxed runs skip native-device
 foundation coverage proves context/buffer ownership and bounded shared-memory copies. Prepared
 coverage proves custom caller and splat execution, backend-local typed logical splats, stable
 multi-feed/multi-target ordering, direct supplied outputs, and 5,000 consecutive MPSGraph runs
-through one retained executable. One public test registers only Metal and proves the full caller-
-input mixed graph, repeated runs, independently prepared sessions, and closed-session rejection;
-a separate public test proves both CPU/Metal transfer directions.
+through one retained executable. Affine coverage exercises all five selectors, adversarial raw
+bits, Shapes through rank sixteen, mixed elementwise-prefix fan-out, direct dense targets, repeated
+runs, exact host publication, and unchanged canonical-only cross-owner transfer. Public Metal-only
+Engine cases prove all supported elementwise and affine operations, repeated runs, independently
+prepared sessions, and closed-session rejection.
 
 ## Boundaries
 
 The bridge itself implements no library discovery, packaging, Engine composition, mixed-owner
 schedule, CPU fallback, general custom-kernel framework, asynchronous API, buffer pool,
-persistent constant buffer, executable serialization, tuning, FLOAT16, BFLOAT16, or performance
-claim. The public Java Metal surface is `MetalCapabilityProvider`,
-`MetalBackendConfiguration`, and `MetalBackendIntegration`; Engine accepts an explicitly opened
-integration through `Engine.builder()`.
+persistent constant buffer, executable serialization, FLOAT16, BFLOAT16, reduction, unary algebra,
+MATMUL, or performance claim. Affine lowering adds no custom kernel. The public Java Metal surface
+is `MetalCapabilityProvider`, `MetalBackendConfiguration`, and `MetalBackendIntegration`; Engine
+accepts an explicitly opened integration through `Engine.builder()`.

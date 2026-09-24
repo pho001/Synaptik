@@ -209,8 +209,13 @@ final class MetalBackendRuntime implements AutoCloseable {
     /**
      * Downloads one Metal FLOAT32 publication into canonical row-major big-endian bytes.
      *
+     * <p>Canonical non-view publications retain the existing path. A logical affine view is
+     * accepted only when its representation carries exact finalized-route authentication for a
+     * full dense represented-order target. The logical descriptor is validated but never
+     * rewritten.</p>
+     *
      * @param representation non-null live representation owned by this context
-     * @param descriptor non-null fully static dense-contiguous zero-offset FLOAT32 descriptor
+     * @param descriptor non-null exact canonical or authenticated affine publication descriptor
      * @param maximumBytes non-negative caller byte ceiling
      * @return fresh non-null canonical bytes
      * @throws NullPointerException if an object argument is {@code null}
@@ -233,19 +238,30 @@ final class MetalBackendRuntime implements AutoCloseable {
             throw new IllegalArgumentException(
                     "representation must be a live buffer owned by this Metal integration");
         }
-        if (descriptor.dataType() != DataType.FLOAT32
-                || !descriptor.shape().isFullyStatic()
-                || descriptor.layout().isEmpty()
-                || descriptor.layout().orElseThrow().kind() != LayoutKind.DENSE_CONTIGUOUS
-                || descriptor.layout().orElseThrow().isView()
-                || descriptor.layout().orElseThrow().storageOffset() != 0L) {
+        LayoutDescriptor layout = descriptor.layout().orElse(null);
+        boolean canonical = descriptor.dataType() == DataType.FLOAT32
+                && descriptor.shape().isFullyStatic()
+                && layout != null
+                && layout.kind() == LayoutKind.DENSE_CONTIGUOUS
+                && !layout.isView()
+                && layout.storageOffset() == 0L;
+        boolean authenticatedAffine = descriptor.dataType() == DataType.FLOAT32
+                && descriptor.shape().isFullyStatic()
+                && descriptor.shape().rank() >= 1
+                && descriptor.shape().rank() <= 16
+                && layout != null
+                && layout.isView()
+                && layout.storageOffset() == 0L
+                && metal.authenticatesDenseAffinePublication(descriptor);
+        if (!canonical && !authenticatedAffine) {
             throw new IllegalArgumentException(
-                    "Metal materialization requires fully static dense contiguous FLOAT32");
+                    "Metal materialization requires canonical or authenticated affine FLOAT32");
         }
         long elements = 1L;
         for (long dimension : descriptor.shape().toLongArray()) {
-            if (dimension < 0L) {
-                throw new IllegalArgumentException("descriptor dimensions must be non-negative");
+            if (dimension < 0L || (authenticatedAffine && dimension == 0L)) {
+                throw new IllegalArgumentException(
+                        "descriptor dimensions are outside the materialization domain");
             }
             elements = Math.multiplyExact(elements, dimension);
         }
@@ -273,11 +289,28 @@ final class MetalBackendRuntime implements AutoCloseable {
     }
 
     private static boolean isContiguousFloat32(TensorDescriptor descriptor) {
-        return descriptor.dataType() == DataType.FLOAT32
-                && descriptor.shape().isFullyStatic()
-                && descriptor.layout().isPresent()
-                && descriptor.layout().orElseThrow().equals(
-                        LayoutDescriptor.contiguous(descriptor.shape()));
+        if (descriptor.dataType() != DataType.FLOAT32
+                || !descriptor.shape().isFullyStatic()
+                || descriptor.shape().rank() < 1
+                || descriptor.shape().rank() > 16
+                || descriptor.layout().isEmpty()
+                || !descriptor.layout().orElseThrow().equals(
+                        LayoutDescriptor.contiguous(descriptor.shape()))) {
+            return false;
+        }
+        try {
+            long elements = 1L;
+            for (long dimension : descriptor.shape().toLongArray()) {
+                if (dimension <= 0L) {
+                    return false;
+                }
+                elements = Math.multiplyExact(elements, dimension);
+            }
+            Math.multiplyExact(elements, Float.BYTES);
+            return true;
+        } catch (IllegalArgumentException | ArithmeticException invalid) {
+            return false;
+        }
     }
 
     private static long transferByteCount(TensorDescriptor descriptor) {

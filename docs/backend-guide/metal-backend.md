@@ -3,14 +3,14 @@
 ## Outcome and supported scope
 
 The Metal backend executes a whole maximal Metal-owned partition when every occurrence is one of
-parameterless `NEG`, `ADD`, `SUB`, `MUL`, or `DIV` and all participating descriptors satisfy:
-
-- data type is `FLOAT32`;
-- shape is fully static with rank `1..16` and every dimension is positive;
-- layout equals the canonical dense-contiguous, non-view, zero-offset layout;
-- every input and output in the occurrence has the same `requiresGrad` flag;
-- `NEG` input and output shapes are equal; and
-- a binary output shape equals the exact right-aligned broadcast of its ordered inputs.
+parameterless `NEG`, `ADD`, `SUB`, `MUL`, or `DIV`, or one of terminal `RESHAPE`, `EXPAND`,
+`PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE`. Every descriptor uses `FLOAT32`, has a fully static
+positive Shape of rank `1..16`, and preserves the occurrence's `requiresGrad` flag. Elementwise
+descriptors and every affine input are canonical dense-contiguous, zero-offset non-views.
+Elementwise outputs retain their established exact Shape rules. Each affine output instead equals
+the exact Model/Compiler logical view descriptor: zero offset, `isView = true`, and the derived
+reshape, broadcast-zero, permuted, inserted-axis, or removed-axis strides. An affine result is not
+an eligible input to another currently supported Metal occurrence.
 
 ```text
 capability -> Planning ownership -> Metal analysis and typed candidates
@@ -22,17 +22,17 @@ capability -> Planning ownership -> Metal analysis and typed candidates
 
 Capability applies per occurrence. Preparation accepts the complete maximal partition that
 Planning forms: heterogeneous chains, independent nodes, fan-out, repeated inputs, internal
-publications, multiple feeds and targets, exact broadcasts, and different valid shapes. Every
-other operation or attribute family, type, rank, zero extent, dynamic shape, unresolved or
-noncanonical layout, invalid broadcast, and multi-output form remains fail-closed.
+publications, multiple feeds and targets, exact broadcasts, and terminal affine leaves. Every
+other operation or attribute family, type, rank, zero extent, dynamic Shape, noncanonical affine
+input, mismatched affine output view, invalid broadcast, and multi-output form remains fail-closed.
 
-Within that unchanged capability domain, Metal analysis generates a typed complete candidate batch
+Within that capability domain, Metal analysis generates a typed complete candidate batch
 and selects one of two private routes:
 
 - `CUSTOM_SINGLE_NEG` for exactly one NEG occurrence, one unique feed, one unique target, and a
   checked element count in `1..UINT32_MAX`; or
-- `MPSGRAPH` for every other supported partition, including every binary or mixed-operation
-  partition and an otherwise matching singleton above `UINT32_MAX`.
+- `MPSGRAPH` for every other supported partition, including every binary, affine, or
+  mixed-operation partition and an otherwise matching singleton above `UINT32_MAX`.
 
 With no selected decision, the first candidate preserves this exact heuristic. A compatible
 session-local decision can select the other valid route for an eligible singleton. This remains a
@@ -58,7 +58,7 @@ device discovery.
 
 | Stage or resource | Owner and current behavior |
 |---|---|
-| Capability truth | Public `MetalCapabilityProvider` reports only the exact typed `FLOAT32` elementwise domain above. |
+| Capability truth | Public `MetalCapabilityProvider` reports only the exact typed `FLOAT32` elementwise and terminal affine domain above. |
 | Native configuration and integration | Public `MetalBackendConfiguration` and `MetalBackendIntegration` belong to Metal. Metal validates configuration, opens native ownership, and rolls partial construction back before Engine can take the completed integration. |
 | Backend ownership | Planning chooses `owner = metal` and groups consecutive equal owners; it never selects MPSGraph or a custom kernel. |
 | Analysis | Package-private Metal code validates the complete partition, assigns stable structural value order, regenerates typed route candidates and session compatibility, authenticates any supplied decision, fixes one route, and declares that route's exact resources. |
@@ -66,9 +66,9 @@ device discovery.
 | Shared preparation | `GraphPreparation` projects facts, assigns slots, validates the result, and transfers persistent resources transactionally. It does not inspect the Metal plan or route. |
 | Finalization | Metal validates exact assignments and compiles either one typed custom pipeline or one shape-specialized MPSGraph executable after slots exist. It never reselects the route. |
 | Persistent resource | One typed `PreparedResource` owns the selected native handle and context child lease; `PreparedExecution` becomes its sole owner. Custom-pipeline and MPSGraph handles are never interchangeable. |
-| Per-run state | Runtime borrows caller buffers and owns fresh initialized-constant buffers and output buffers. Only MPSGraph runs also own one native-address workspace. |
+| Per-run state | Runtime borrows caller buffers and owns fresh initialized-constant buffers and output buffers. Only MPSGraph runs also own one native-address workspace. Affine targets receive full logical-byte buffers, not referenced-span-sized buffers. |
 | Hot invocation | A cold-bound route-specific invocation retains direct references and makes one synchronous typed native call into assigned output destinations. |
-| Publication | Runtime leases the already-resident output representation; host observation is an explicit later download. |
+| Publication | Runtime leases the already-resident output representation. Canonical outputs and exact authenticated dense affine targets may be downloaded as detached canonical host bytes; ordinary CPU/Metal transfer still rejects logical views. |
 
 The public Java surface contains `MetalCapabilityProvider`, `MetalBackendConfiguration`, and
 `MetalBackendIntegration`. Contexts, physical storage, preparers, finalizers, schedules, executable
@@ -94,19 +94,19 @@ than consuming a caller position. Existing shared `GraphPreparation` tests indep
 the chain `CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
 Once stable feeds, targets, checked byte geometry, and typed node records are known, analysis
-creates a version-two candidate batch. MPSGraph is valid for every supported partition. The
-custom candidate exists only for one `NEG` node, one feed, one target, and an element count in
-`1..UINT32_MAX`. Candidate order is the current safe heuristic first and then the other valid
-route; a positive budget returns a stable prefix, so budget one cannot change ordinary
-preparation.
+creates a version-three candidate batch and workload fingerprint. MPSGraph is valid for every
+supported partition. The custom candidate exists only for one `NEG` node, one feed, one target,
+and an element count in `1..UINT32_MAX`; affine nodes never select it. Candidate order is the
+current safe heuristic first and then the other valid route, so a positive budget returns a stable
+prefix and budget one cannot change ordinary preparation.
 
-The version-two canonical workload fingerprint covers typed node kinds, ordered input positions,
-output positions, complete tensor descriptors and layouts, exact `FLOAT32` splat bits,
-logical-boundary roles, exact/default policy, candidate and route-policy schemas, and ABI schema.
-It encodes structural positions rather than `NodeId`, `ValueId`, or partition object identity, so
-equal occurrences within one live context compare equally. Target compatibility also contains a
-fresh private nonce from the exact `MetalDeviceContext`. ABI version `4` is intentionally not
-treated as a stable cross-session device fingerprint.
+The version-three canonical workload fingerprint covers typed node kinds and attributes, ordered
+input and output positions, complete tensor descriptors and logical layouts, dense represented-
+order geometry, exact `FLOAT32` splat bits, logical-boundary roles, exact/default policy,
+candidate and route-policy schemas, native node schema, and ABI version. It encodes structural
+positions rather than `NodeId`, `ValueId`, or partition object identity, so equal occurrences
+within one live context compare equally. Target compatibility also contains a fresh private nonce
+from the exact `MetalDeviceContext`; old schema-two decisions fail closed.
 
 Metal can construct an absent- or present-decision `BackendPartitionTuningHandoff`. Fresh analysis
 always regenerates the current batch. A present decision is accepted only when the exact partition,
@@ -140,7 +140,7 @@ route and constructs one immutable `PreparedExecutable` recipe.
 
 For the custom route, native creation compiles the fixed branch-free `synaptik_neg_f32` Metal
 Shading Language source and creates one `MTLComputePipelineState`. For MPSGraph, native creation
-validates a fixed-width version-one typed node table and compiles one fixed-shape
+validates a fixed-width version-two typed node table and compiles one fixed-shape
 `MPSGraphExecutable` for the whole partition. Compilation happens during prepare finalization,
 never during invocation.
 
@@ -164,7 +164,8 @@ Each run receives isolated mutable state:
 1. caller input positions borrow caller-owned Metal buffers;
 2. each constant feed allocates a fresh run-owned Metal buffer and uploads the exact raw
    `FLOAT32` splat bits once;
-3. each target allocates a fresh run-owned output buffer;
+3. each target allocates a fresh run-owned output buffer; affine targets use the full positive
+   logical element count and retain exact finalized-route authentication;
 4. an MPSGraph run allocates one native address-array workspace, while a custom run allocates no
    workspace; and
 5. cold binding validates context identity and byte extents and rejects input/output aliasing.
@@ -173,7 +174,9 @@ MPSGraph cold binding writes ordered native handles into its address workspace o
 direct input/output slices. Custom cold binding retains the exact input and output representations
 and their typed native handles directly. An allocation or upload failure closes the current and
 previously created run-owned resources through Runtime rollback. No constant buffer is prepared
-once, shared between runs, or owned by a backend-global cache.
+once, shared between runs, or owned by a backend-global cache. Materialization accepts a logical
+affine view only when the live buffer authenticates the exact finalized executable, preparation
+plan, target value, descriptor, context, and full logical byte extent.
 
 ### Custom singleton hot execution
 
@@ -278,16 +281,19 @@ singleton-NEG pipeline operations. The old
 `synaptik_metal_mpsgraph_neg_executable_create` symbol is absent. Statuses `0..12` retain their
 documented meanings; unknown integers fail closed with the raw value retained.
 
-The create ABI requires node schema `1` and four `uint32_t` cells per node: operation identity,
-first input, second input, and output. Operations are `NEG=1`, `ADD=2`, `SUB=3`, `MUL=4`, and
-`DIV=5`; `NEG` requires `UINT32_MAX` in its second-input cell. Java and native code validate every
-safely inspectable count, rank, dimension, index, topological availability, fresh output, target,
-sentinel, operation, equal NEG shape, exact binary broadcast, unused value, and checked byte
-geometry. Java additionally owns typed handle liveness and pointer-region preconditions that a
-raw C boundary cannot prove. Input/output aliasing and wrong device or insufficient extent map to
-status `10`; grid representability maps to status `8`; unusable threadgroup geometry and custom
-command failures map to status `11`; Objective-C exceptions map to status `7`. MPSGraph
-compilation remains status `9`, while custom compilation and target proof use status `12`.
+The create ABI requires node schema `2` and one 160-byte discriminated record per node. Operations
+are `NEG=1`, `ADD=2`, `SUB=3`, `MUL=4`, `DIV=5`, `RESHAPE=6`, `EXPAND=7`,
+`PERMUTE=8`, `EXPAND_DIMS=9`, and `SQUEEZE=10`. Attribute kinds are none, target Shape,
+permutation, and normalized axis; target dimensions and permutations occupy a bounded
+sixteen-`uint64_t` payload. Java and native code require exact operation/attribute pairing,
+`UINT32_MAX` absent-input/axis sentinels, zero reserved and unused payload fields, positive ranks
+and dimensions, complete permutations, valid axes, topological availability, fresh outputs,
+unique produced targets, exact declared Shapes, and checked full logical byte geometry. Java
+additionally owns typed handle liveness and pointer-region preconditions that a raw C boundary
+cannot prove. Input/output aliasing and wrong device or insufficient extent map to status `10`;
+grid representability maps to status `8`; unusable threadgroup geometry and custom command
+failures map to status `11`; Objective-C exceptions map to status `7`. MPSGraph compilation
+remains status `9`, while custom compilation and target proof use status `12`.
 
 ## Evidence composition
 
@@ -305,6 +311,15 @@ Task 0005 validation composes:
   publications, repeated runs of one session, independently prepared sessions, and closed-session
   rejection, kept separate from the CPU/Metal transfer scenario; and
 - Javadoc, architecture tests, public-shape tests, and whitespace validation.
+
+Task 0008 adds a disposable and retained real-device matrix for all five affine selectors,
+identity and shape-changing cases through rank sixteen, exact supplied output buffers, adversarial
+raw `FLOAT32` payloads, mixed elementwise-prefix/affine fan-out, repeated execution, and a Metal-
+only public Engine scenario with multiple targets and independent sessions. Fake-native and
+Compiler contract coverage checks typed attributes, malformed schema records, exact forward view
+layouts, inverse first-order operations (including `SUM_TO_SHAPE` for `EXPAND`), authenticated
+dense affine materialization, and unchanged canonical-only cross-owner transfer. This is forward
+Metal capability only; it makes no Metal-only backward, reduction, unary-algebra, or MATMUL claim.
 
 The public `GraphCompilationPort` intentionally supplies no explicit positive-rank forward
 constant ingress, so the CPU-free Engine scenario uses caller inputs rather than claiming a public
@@ -371,4 +386,5 @@ Related documentation:
 - [Metal task 0003](../planning/backends/metal/tasks/0003-single-neg-custom-metal-kernel-route.md)
 - [Metal task 0004](../planning/backends/metal/tasks/0004-typed-metal-route-candidate-generators-and-cache-compatibility.md)
 - [Metal task 0005](../planning/backends/metal/tasks/0005-mpsgraph-mixed-binary-whole-partition.md)
+- [Metal task 0008](../planning/backends/metal/tasks/0008-mpsgraph-float32-affine-transforms.md)
 - [Native ABI and build guide](../../native/metal-macos-arm64/README.md)

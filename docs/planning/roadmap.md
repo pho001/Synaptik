@@ -86,11 +86,12 @@ instead of exact `SUM = 2.0f` and `MEAN = 0.5f`. Selector, keep-dimensions, type
 rank-zero feasibility were proved but cannot satisfy the Model numerical contract. Neither task
 retains production, test, native, or probe changes.
 
-[0008](backends/metal/tasks/0008-mpsgraph-float32-affine-transforms.md) is the sole `Ready`
-frontier. It is bounded to forward FLOAT32 `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, and
-`SQUEEZE` with canonical inputs, exact logical affine-view descriptors, dense Metal represented
-order, raw-bit/Shape gates, and unchanged cross-owner transfer. It depends on 0005, not on blocked
-0006/0007. MATMUL remains an unauthorized successor pending 0008 completion and a separate brief.
+[0008](backends/metal/tasks/0008-mpsgraph-float32-affine-transforms.md) remains `Ready` pending
+its separately requested Class C review. Implementation and executable evidence now cover forward
+FLOAT32 `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` with canonical inputs, exact
+logical affine-view descriptors, dense authenticated Metal represented order, raw-bit/Shape
+gates, and unchanged cross-owner transfer. It depends on 0005, not on blocked 0006/0007. MATMUL
+remains an unauthorized successor pending 0008 completion and a separate brief.
 
 
 ## Blocked, review-needed, and deferred work
@@ -102,9 +103,9 @@ order, raw-bit/Shape gates, and unchanged cross-owner transfer. It depends on 00
   MPSGraph returned positive zero where the current exact Model contract requires SUM `2.0f` and
   MEAN `0.5f`. Unblocking requires an exact replacement route, such as separately authorized
   custom kernels, or an explicit Model contract change. No production or probe change remains.
-- Metal 0008 is the sole `Ready` frontier because affine coordinate transformations preserve raw
-  FLOAT32 bits and require neither blocked unary algebra nor reduction. It does not authorize
-  custom kernels, transfer widening, Metal-only `EXPAND` backward, or MATMUL.
+- Metal 0008 remains `Ready` rather than `Complete` while its implemented Class C change awaits
+  independent review. The implementation adds no custom affine kernel, transfer widening,
+  Metal-only `EXPAND` backward, blocked 0006/0007 semantics, or MATMUL.
 - [OpenBLAS provider 0004](backends/openblas-provider/tasks/0004-optional-direct-bfloat16-output-gemm-capability.md)
   and dependent CPU 0010D1 remain an optional blocked branch. Pinned evidence proves neither the
   required exported direct BFLOAT16-output ABI nor full-contraction FLOAT32 accumulation followed
@@ -134,8 +135,8 @@ order, raw-bit/Shape gates, and unchanged cross-owner transfer. It depends on 00
 
 ## Nearest next step
 
-1. Execute the sole Ready frontier, Metal 0008, through its mandatory real selector/raw-bit probe;
-   fail closed before production changes if any exact gate fails.
+1. Complete the independent Class C review of implemented Metal 0008 before changing its `Ready`
+   status or authorizing a MATMUL successor.
 
 ## History policy
 

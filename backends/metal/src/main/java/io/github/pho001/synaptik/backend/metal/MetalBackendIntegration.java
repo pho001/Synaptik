@@ -194,13 +194,17 @@ public final class MetalBackendIntegration implements AutoCloseable {
     /**
      * Downloads one live Metal publication into detached canonical host bytes.
      *
+     * <p>The descriptor is either an ordinary canonical non-view or an exact logical affine view
+     * whose representation carries finalized-route authentication for a full dense represented-
+     * order target. This does not widen the canonical-only CPU/Metal transfer predicate.</p>
+     *
      * @param representation non-null live representation owned by this integration
-     * @param descriptor non-null exact publication descriptor
+     * @param descriptor non-null exact canonical or authenticated affine publication descriptor
      * @param maximumBytes non-negative maximum canonical payload size
      * @return fresh non-null caller-owned row-major big-endian bytes
      * @throws NullPointerException if an object argument is {@code null}
-     * @throws IllegalArgumentException if type, layout, representation, size, or limit is invalid
-     * @throws IllegalStateException if the representation or integration is closed
+     * @throws IllegalArgumentException if type, layout, authentication, representation, size, or
+     *     limit is invalid
      * @throws ArithmeticException if checked size arithmetic overflows
      * @throws RuntimeException if native download fails
      * @throws Error if copying reports a fatal failure

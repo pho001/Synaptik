@@ -117,6 +117,25 @@ final class MetalDeviceContext implements AutoCloseable {
      * @throws RuntimeException if native allocation fails
      */
     synchronized MetalBufferRepresentation createBuffer(long logicalByteSize) {
+        return createBufferWithState(logicalByteSize, null);
+    }
+
+    /**
+     * Allocates one fresh dense physical target authenticated to an exact affine route result.
+     *
+     * @param logicalByteSize exact positive full logical byte extent
+     * @param publication exact non-null finalized-route evidence retained by the representation
+     * @return a new open authenticated target representation
+     */
+    synchronized MetalBufferRepresentation createBuffer(
+            long logicalByteSize,
+            MetalBufferRepresentation.DenseAffinePublication publication) {
+        return createBufferWithState(
+                logicalByteSize, Objects.requireNonNull(publication, "publication"));
+    }
+
+    private MetalBufferRepresentation createBufferWithState(
+            long logicalByteSize, Object retainedState) {
         requireOpen();
         requireNonNegative(logicalByteSize);
         MetalNativeApi.Handle buffer = Objects.requireNonNull(
@@ -125,7 +144,7 @@ final class MetalDeviceContext implements AutoCloseable {
         try {
             return Objects.requireNonNull(
                     resourcePublisher.publishBuffer(
-                            this, api, buffer, logicalByteSize, null),
+                            this, api, buffer, logicalByteSize, retainedState),
                     "Metal buffer representation");
         } catch (RuntimeException | Error failure) {
             suppressDistinct(failure, () -> api.releaseBuffer(buffer));

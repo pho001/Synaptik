@@ -12,7 +12,7 @@ import java.util.Optional;
 import java.util.zip.CRC32;
 
 /**
- * Canonical bounded session codec for Metal elementwise compatibility, candidates, and decisions.
+ * Canonical bounded session codec for Metal operation compatibility, candidates, and decisions.
  *
  * <p>The format is a backend-local defensive transport, not the tools-owned workload-cache
  * artifact. It contains no executable, native handle, file path, objective, sample, or timing.
@@ -27,7 +27,7 @@ final class MetalNegTuningCodec {
     private static final int COMPATIBILITY_MAGIC = 0x4d4e434d; // MNCM
     private static final int CANDIDATE_MAGIC = 0x4d4e4341; // MNCA
     private static final int DECISION_MAGIC = 0x4d4e4443; // MNDC
-    private static final int CODEC_VERSION = 2;
+    private static final int CODEC_VERSION = 3;
     private static final int SESSION_SCOPE = 1;
 
     /**
