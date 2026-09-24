@@ -174,9 +174,11 @@ current. The closed first-order matrix also currently reverses `CONTIGUOUS`, `RE
 `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` through public Tensor metadata operations. Mandatory
 graph-local ID canonicalization and whole-graph DCE plus phase-local CSE are current internal
 behavior. CPU physical execution is current for its documented bounded affine units. Metal forward
-execution is current for exact canonical `FLOAT32` ABS under both profiles, strict chains of the
-five affine views plus `CONTIGUOUS` with graph-local view provenance and canonical NEG/ABS
-boundaries, and accelerator canonical tensor binary/reduction plus rank-two MATMUL partitions.
+execution has a common exact FLOAT32 baseline under both profiles: `NEG`, `ABS`, `RESHAPE`,
+`EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`, with graph-local affine-view
+provenance and canonical unary boundaries. Accelerator Metal additionally executes tensor
+binary/reduction and positive static rank-two MATMUL partitions; strict Metal rejects those
+additions.
 Metal reduction execution remains forward-only; a positive-rank result may compose locally, while
 a scalar result is a direct target with four-byte local materialization. Accelerator MATMUL also
 executes the Compiler-generated explicitly seeded first-order formulas for both canonical rank-two

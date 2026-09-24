@@ -81,18 +81,21 @@ It contains no caller Tensor storage reference and performs no execution.
 
 Compilation uses the profile captured by the Engine for every capability query and carries it into
 preparation. The default is `STRICT_IEEE`. CPU answers the same exact capability matrix under
-either profile. Metal answers exact canonical FLOAT32 `ABS` under both profiles and, under
-`ACCELERATOR`, additionally answers only for canonical tensor FLOAT32
-`ADD`/`SUB`/`MUL`/`DIV`. Compilation does not silently change the requested profile or fall back
-when an occurrence has no eligible owner.
+either profile. Metal admits the common exact FLOAT32 baseline under both profiles: `NEG`, `ABS`,
+`RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`. `ACCELERATOR`
+additionally admits tensor `ADD`/`SUB`/`MUL`/`DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`
+reductions, and positive static rank-two `MATMUL`; strict rejects those additions. Compilation does
+not silently change the requested profile or fall back when an occurrence has no eligible owner.
 
 ## Limitations
 
 Current public composition supports fixed CPU execution and explicit CPU/Metal mixed-owner
-execution. Cross-owner values must be fully static canonical contiguous `FLOAT32`. Strict Metal
-admits its documented positive-rank ABS/NEG/affine/`CONTIGUOUS` domain; accelerator Metal admits
-exact ABS plus its canonical tensor-binary domain. Model construction leaves Conv2d and Conv3d
-result layouts unresolved; Compiler closes only eligible fully static final convolution
+execution. Cross-owner values must be fully static canonical contiguous `FLOAT32`. Both Metal
+profiles admit the documented positive-rank `NEG`, `ABS`, `RESHAPE`, `EXPAND`, `PERMUTE`,
+`EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS` baseline. Accelerator Metal additionally admits tensor
+binary, canonical reduction, and positive static rank-two `MATMUL`; strict Metal rejects those
+additions. Model construction leaves Conv2d and Conv3d result layouts unresolved; Compiler closes
+only eligible fully static final convolution
 descriptors before CPU
 Planning capability admission. Dynamic or partially
 dynamic convolution results remain unresolved. Conv3d forward execution is current on CPU, but

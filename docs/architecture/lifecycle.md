@@ -399,8 +399,10 @@ Engine selection -> Planning query -> CompileArtifacts -> PrepareContext -> back
 ```
 
 The same graph-wide `NumericalProfile` crosses these cold stages unchanged. CPU realizes both
-profiles identically. Metal accepts exact canonical `ABS` in both matrices, strict
-NEG/affine/`CONTIGUOUS`, and accelerator tensor binary, canonical
+profiles identically. Metal admits the common exact FLOAT32 baseline under both profiles: `NEG`,
+`ABS`, `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`.
+`ACCELERATOR` additionally admits tensor binary arithmetic, canonical
 `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two MATMUL with authenticated local
-transpose operands. Unsupported profile/operation pairs fail closed before Runtime, which
+transpose operands; strict rejects those additions. Unsupported profile/operation pairs fail
+closed before Runtime, which
 executes the prepared result with no profile branch.

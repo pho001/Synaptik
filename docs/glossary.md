@@ -4968,11 +4968,11 @@ shared requirement. It performs no tuning measurement or search, cache mutation,
 allocation, executable construction, slot assignment, scheduling, or Runtime execution. Current
 CPU and Metal modules implement this collaboration internally for their supported complete
 partitions. Each receives the exact graph-wide `NumericalProfile`; CPU retains either profile with
-identical routes, while Metal accepts exact canonical ABS under both profiles, strict
-NEG/affine/`CONTIGUOUS`, or accelerator tensor-binary, canonical
-`SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two MATMUL topology with authenticated local
-transpose operands. Their exact supported matrices are described in the CPU and Metal backend
-guides.
+identical routes. Metal admits the common exact FLOAT32 baseline under both profiles: `NEG`, `ABS`,
+`RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`. Accelerator Metal
+additionally admits tensor binary arithmetic, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive
+static rank-two MATMUL topology with authenticated local transpose operands; strict Metal rejects
+those additions. The exact supported matrices are described in the CPU and Metal backend guides.
 
 ### Preparation resource assignment
 
