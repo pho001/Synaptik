@@ -2,11 +2,11 @@
 
 ## Status
 
-Ready
+Blocked
 
-This is the sole authorized Metal frontier from clean `main` at
-`7b34a7a9352d05d8930d4463b286209dff9a6228`. Metal 0005/0008 are Complete; 0006–0007 and
-0009–0012 are independently Blocked. No implementation or probe change from 0012 remains.
+The mandatory exact real-device probe failed the FLOAT32 subnormal gate. Independent review
+returned `APPROVE-BLOCKER` and corrected the initial axis interpretation. No production, native,
+test, or probe change remains; Metal 0014 is the independent successor.
 
 ## Change class
 
@@ -197,4 +197,19 @@ compatibility invalidation, lifecycle, Engine evidence, and all exclusions.
 
 ## Result
 
-Empty until execution.
+- The Apple M3 Max probe used optimization levels `0` and `1`, reduced-precision fast math none,
+  and twelve independently compiled executables: three for each level/axis-length pair at lengths
+  `1` and `2`. Every one of the eight kind/mode combinations ran eight direct executions.
+- Inclusive length-one `CUM_SUM` and `CUM_PROD` flushed all six subnormal corpus values to zero;
+  for example, raw `0x00000001` became `0x00000000`. Length two produced additional mismatches
+  across multiple inclusive/exclusive and forward/reverse modes.
+- Strict host controls preserved `+0.0f + minimum-subnormal` and
+  `+1.0f * minimum-subnormal`. Exact exclusive `+0.0f`/`+1.0f` identities, raw identity,
+  direct-target canaries, and bindings passed, so the failures are in cumulative arithmetic.
+- Axis is not a blocker: corrected review evidence shows valid rank-six axis `5` compiles and runs
+  for both cumulative SUM and PRODUCT, while out-of-range axis `6` aborts during compilation as
+  required. The earlier contrary axis claim is superseded.
+- Independent review returned `APPROVE-BLOCKER`. Unblocking requires an exact replacement route or
+  an explicit Model numerical-contract change; custom kernels and relaxation remain unauthorized.
+- Status: Incomplete
+- Follow-up required: leave 0013 Blocked until an exact replacement or approved Model change exists.

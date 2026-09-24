@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through evidence-backed no-change 0010M; 0007A1D Review needed; 0010D1 and 0011 Blocked | No CPU task is Ready; any future default comparison requires a separately reviewed sealed matrix. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0017 | No Engine task is Ready; reopen only for a separately authorized capability. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0008; 0006–0007 and 0009–0012 Blocked; 0013 Ready | [0013](backends/metal/tasks/0013-mpsgraph-float32-cumulative-scans.md) is the sole Ready frontier for bounded no-gradient FLOAT32 `CUM_SUM`/`CUM_PROD`. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0008; 0006–0007 and 0009–0013 Blocked; 0014 Ready | [0014](backends/metal/tasks/0014-mpsgraph-float32-affine-layout-composition.md) is the sole Ready frontier for bounded FLOAT32 affine layout composition and `CONTIGUOUS`. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -114,15 +114,29 @@ signed zeros and zero/minimum-subnormal results: 2,016 MIN plus 2,016 MAX mismat
 subnormal failures. NaN classification, minimum normals, identity, canaries, and bindings passed.
 Independent review returned `APPROVE-BLOCKER`; no production, native, test, or probe changes remain.
 
-[0013](backends/metal/tasks/0013-mpsgraph-float32-cumulative-scans.md) is the sole `Ready`
-frontier. It is a forward-only, no-gradient FLOAT32 slice for the actual Model `CUM_SUM` and
-`CUM_PROD` family across all four inclusive/exclusive and forward/reverse modes, using the
-installed dedicated cumulative selectors and existing FLOAT32 storage. Its mandatory exhaustive
-real probe gates exact sequential-fold bits, NaN classification, signed zeros, subnormals,
-infinities, identities, axes, Shapes, direct targets, canaries, bindings, repetition, concurrency,
-and independent executables/sessions before production changes. Masked, ordinary, arg-extrema,
-advanced, Boolean, and recurrent reductions/scans; new storage types; custom kernels;
-backward/training; transfer widening; FLOAT16; and BFLOAT16 are excluded.
+[0013](backends/metal/tasks/0013-mpsgraph-float32-cumulative-scans.md) is independently
+`Blocked`. At optimization levels `0` and `1`, fast math disabled, twelve executables covering
+three per level/length pair for lengths `1` and `2`, and eight direct runs for all eight kind/mode
+combinations, inclusive length-one SUM and PRODUCT flushed all six subnormal corpus values to
+zero. Strict host operations preserved them; exclusive identities, raw identity, canaries, and
+bindings passed. Corrected review evidence shows rank-six axis `5` valid for both kinds and axis
+`6` correctly rejected, so axis is not a blocker. Independent review returned `APPROVE-BLOCKER`;
+no production, native, test, or probe changes remain.
+
+[0014](backends/metal/tasks/0014-mpsgraph-float32-affine-layout-composition.md) is the sole `Ready`
+frontier from clean `main` at `e554d9da5656e8fef24c681d45cda2eb1766a76e`. It composes the five
+existing bit-preserving affine transforms and the current Model `CONTIGUOUS` request inside one
+authenticated FLOAT32 MPSGraph partition. Its mandatory raw-bit probe covers exact logical
+topology/layout, intermediate and final direct targets, dense represented order, canaries,
+bindings, repetition, concurrency, and independent sessions. Cross-owner transfer, caller
+ingress, alias promises, blocked numerical operations, and backward/training remain excluded.
+
+Strategic gate: evidence across Metal 0006/0007 and 0009–0013 shows a systemic mismatch between
+exact Model FLOAT32 contracts and MPSGraph numerical behavior, including subnormal flush-to-zero,
+signed-zero canonicalization/identity folding, and reduction-order effects. Do not automatically
+plan further exact numerical capability through MPSGraph. Prefer it for probe-proven
+bit-preserving layout/data movement. Exact arithmetic requires separately authorized custom Metal
+kernels or an explicit Model numerical-contract decision.
 
 
 ## Blocked, review-needed, and deferred work
@@ -145,9 +159,10 @@ backward/training; transfer widening; FLOAT16; and BFLOAT16 are excluded.
   results. Unblocking requires an exact replacement route or explicit Model numerical-contract
   change; passing NaN classification, minimum-normal, identity, canary, and binding controls do
   not remove the blocker.
-- Metal 0013 is bounded to no-gradient FLOAT32 cumulative scans and existing FLOAT32 storage. It
-  does not authorize masked/ordinary/arg/advanced/Boolean/recurrent reductions, new data types,
-  custom kernels, backward/training, transfer widening, FLOAT16, or BFLOAT16.
+- Metal 0013 is independently `Blocked` by exact subnormal flushing in cumulative SUM/PRODUCT.
+  Unblocking requires an exact replacement route or explicit Model numerical-contract change;
+  passing exclusive identities, raw identity, canaries, bindings, and valid axis `5` do not remove
+  the blocker. Axis `6` correctly rejects and is not a blocker.
 - [OpenBLAS provider 0004](backends/openblas-provider/tasks/0004-optional-direct-bfloat16-output-gemm-capability.md)
   and dependent CPU 0010D1 remain an optional blocked branch. Pinned evidence proves neither the
   required exported direct BFLOAT16-output ABI nor full-contraction FLOAT32 accumulation followed
@@ -177,8 +192,8 @@ backward/training; transfer widening; FLOAT16; and BFLOAT16 are excluded.
 
 ## Nearest next step
 
-1. Execute Metal 0013 from this planning integration, beginning with its mandatory disposable
-   exhaustive real-device FLOAT32 cumulative-scan/direct-target probe.
+1. Execute Metal 0014 from this planning integration, beginning with its mandatory disposable
+   raw-bit affine-chain/`CONTIGUOUS` direct-target probe.
 
 ## History policy
 
