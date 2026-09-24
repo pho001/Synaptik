@@ -41,6 +41,7 @@ Focused architecture documentation:
 - [ADR 0016: CPU/Metal mixed-owner prepared schedule](../design/decisions/0016-cpu-metal-mixed-owner-schedule.md)
 - [ADR 0017: Reusable inference session facade](../design/decisions/0017-reusable-inference-session-facade.md)
 - [ADR 0018: Public Training Session and SGD lifecycle](../design/decisions/0018-public-training-session-and-sgd-lifecycle.md)
+- [ADR 0019: Explicit numerical profiles](../design/decisions/0019-explicit-numerical-profiles.md)
 
 ## Status
 
@@ -53,9 +54,12 @@ exposes repeated or concurrent runs through the same prepared execution and exis
 lifecycle. Ordinary preparation composes non-empty plans across registered owners, with
 deterministic owner-indexed representations and explicit direct CPU-to-Metal and Metal-to-CPU
 transfers for fully static canonical contiguous `FLOAT32` values.
-Metal execution remains bounded to supported static `FLOAT32` NEG, locally composed affine
-layouts, and explicit `CONTIGUOUS` canonicalization through MPSGraph, with the custom route
-reserved for an eligible singleton NEG.
+CPU realizes both numerical profiles through identical exact behavior and routes. Metal execution
+is profile-qualified: strict admits static `FLOAT32` NEG, locally composed affine layouts, and
+explicit `CONTIGUOUS`; accelerator admits only canonical tensor `FLOAT32` `ADD`, `SUB`, `MUL`, and
+`DIV` under bounded DAZ/FTZ. The custom Metal route remains reserved for an eligible strict
+singleton NEG.
+
 The Training extension now owns a public reusable
 Engine-backed scalar session with persistent SGD, accumulation, and detached in-memory state over
 its bounded native-storage domain. A standard-Metal convenience, generic plugin

@@ -4,8 +4,8 @@
 
 This guide compiles current Tensor expressions into an immutable, Engine-owned
 `CompiledGraph`. Compilation captures meaning, validates it, closes eligible fully static
-convolution layouts, chooses CPU ownership, and produces logical execution recipes. It does not
-allocate physical buffers or run the graph.
+convolution layouts, chooses ownership from the Engine's registered backends, and produces logical
+execution recipes. It does not allocate physical buffers or run the graph.
 
 ## Prerequisites
 
@@ -80,17 +80,19 @@ It contains no caller Tensor storage reference and performs no execution.
 ## Numerical profile
 
 Compilation uses the profile captured by the Engine for every capability query and carries it into
-preparation. The default is `STRICT_IEEE`. An Engine built with `ACCELERATOR` currently fails
-closed because CPU and Metal do not yet advertise that profile; compilation does not silently
-change the request.
+preparation. The default is `STRICT_IEEE`. CPU answers the same exact capability matrix under
+`ACCELERATOR`; Metal instead answers only for canonical tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`
+under that profile. Compilation does not silently change the requested profile or fall back when an
+occurrence has no eligible owner.
 
 ## Limitations
 
 Current public composition supports fixed CPU execution and explicit CPU/Metal mixed-owner
-execution. Cross-owner values must be fully static canonical contiguous `FLOAT32`; Metal currently
-admits only its documented positive-shape contiguous `FLOAT32` NEG domain. Model construction
-leaves Conv2d and Conv3d result layouts unresolved; Compiler closes only eligible fully static
-final convolution descriptors before CPU Planning capability admission. Dynamic or partially
+execution. Cross-owner values must be fully static canonical contiguous `FLOAT32`. Strict Metal
+admits its documented positive-rank NEG/affine/`CONTIGUOUS` domain; accelerator Metal admits only
+its canonical tensor-binary domain. Model construction leaves Conv2d and Conv3d result layouts
+unresolved; Compiler closes only eligible fully static final convolution descriptors before CPU
+Planning capability admission. Dynamic or partially
 dynamic convolution results remain unresolved. Conv3d forward execution is current on CPU, but
 Conv3d gradients are not.
 

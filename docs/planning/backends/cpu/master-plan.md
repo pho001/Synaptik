@@ -245,7 +245,7 @@ The table owns order and status; linked tasks own detailed evidence.
 | 0014 | AMD AOCL-BLAS and AOCL-LibM peer routes | Draft | 0005A; 0009; concrete AMD CPU use case and supported AOCL ABI evidence | Planned only after a concrete AMD CPU use case and supported AOCL ABI evidence. |
 | 0015 | Optional AMD ZenDNN partition peer routes | Draft | 0014; 0005A; 0009; stable common CPU lowering; concrete ZenDNN use case and integration evidence | Optional ZenDNN route waits for 0014 plus a concrete use case and integration evidence. |
 | 0016 | Cross-route CPU tuning-cache integration | Draft | 0010E; Prepare 0004; tools/tuning 0001; 0011–0015 as implemented | Generalize the proved tuning contract only across vendor peers that are actually implemented. |
-| 0017 | [Explicit ACCELERATOR numerical-profile realization](tasks/0017-explicit-accelerator-numerical-profile-realization.md) | Ready | Model 0027; Config 0006; Engine 0018; current exact portable/OpenBLAS routes and profile-keyed plans/caches | Admit `ACCELERATOR` with exactly current CPU semantics and routes, prove observable forward/backward execution under both profiles, and preserve every profile-separated identity without relaxed math. |
+| 0017 | [Explicit ACCELERATOR numerical-profile realization](tasks/0017-explicit-accelerator-numerical-profile-realization.md) | Complete | Model 0027; Config 0006; Engine 0018; current exact portable/OpenBLAS routes and profile-keyed plans/caches | Delivered identical exact CPU semantics and routes under both profiles with profile-separated plans, generated artifacts, OpenBLAS workloads, and tuning/cache identities. |
 
 ## Milestones and current frontier
 
@@ -255,25 +255,23 @@ The table owns order and status; linked tasks own detailed evidence.
   scalar with configured/available parallelism `1`/`1` and minimum elements per worker `1`; the
   invalid broad vector candidate was reverted and its reports removed.
 - 0007A1D is Review needed; 0010D1 and 0011 are Blocked; 0012–0016 are Draft.
-- Documentation-only 0010K and 0010L are Complete. [0017](tasks/0017-explicit-accelerator-numerical-profile-realization.md)
-  is Ready from completed Engine 0018 and exact common base
-  `07a01b9c13c2ceea0922b9af82da3e6e08375306`; it is the CPU member of
-  parallel group `numerical-profile-backends`.
+- Documentation-only 0010K and 0010L and profile realization
+  [0017](tasks/0017-explicit-accelerator-numerical-profile-realization.md) are Complete. CPU 0017
+  landed at `372a8b98`; its independent Class C review and the combined numerical-profile backend
+  integration checkpoint passed with zero findings or failures.
 
-## Parallel frontier integration
+## Completed numerical-profile integration
 
-- Depends on: Model 0027, Config 0006, Engine 0018, and current exact portable/OpenBLAS routes.
-- Conflicts with: CPU capability/preparation/generated/OpenBLAS/tuning/Engine-test scopes.
-- Parallel group: `numerical-profile-backends`.
-- Common base revision: `07a01b9c13c2ceea0922b9af82da3e6e08375306`.
-- Integration order: Any relative to Metal 0015; executable commits precede shared documents.
-- Integration validation: numerical-profile backend integration checkpoint.
+- Dependencies: Model 0027, Config 0006, Engine 0018, and current exact portable/OpenBLAS routes.
+- Completed parallel group: `numerical-profile-backends`.
+- Executable integration: CPU `372a8b98`; Metal `42c4cfbf` plus `fb102a46`.
+- Integration validation: native/export, backend, conformance, Engine, architecture, full-build,
+  Runtime/Trace profile-free, Javadoc, Markdown, status, and diff checks all passed serially.
 - Shared-document integration owner: Main planner.
 
-CPU 0017 and Metal 0015 are semantically independent after the completed spine: they change
-different backend capability/realization owners, native/cache formats only inside their backend,
-and disjoint integration tests. Workers use isolated worktrees and do not edit shared planning,
-architecture, API, user-guide, or glossary files.
+CPU 0017 and Metal 0015 were semantically independent after the completed spine and integrated
+without changing their disjoint backend ownership. Shared planning, architecture, API, user-guide,
+capability/preparer, and glossary documents now describe the combined current behavior.
 
 ## Live gates and decisions
 
@@ -300,8 +298,8 @@ architecture, API, user-guide, or glossary files.
 - CPU 0016 extends tuning only across implemented vendor peers and adds no CPU measurement or
   generated-class persistence. Complete Engine 0018 already transports profile identity through
   CPU plans, specializations, generated-artifact identity, and local/complete tuning
-  compatibility. Ready CPU 0017 may admit `ACCELERATOR` only with unchanged exact CPU arithmetic,
-  route policy, and Runtime hot paths.
+  compatibility. Complete CPU 0017 admits `ACCELERATOR` with unchanged exact CPU arithmetic, route
+  policy, and Runtime hot paths.
 
 - CPU 0010M retains five machine-local scalar reports and a minimum future-comparison acceptance
   framework under `backends/cpu/evidence/cpu-0010m-defaults/`. The reports validate the hardened

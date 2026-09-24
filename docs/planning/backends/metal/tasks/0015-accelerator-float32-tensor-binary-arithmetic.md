@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 Readiness verification: Metal 0014, Model 0027, Config 0006, and Engine 0018 are Complete. Engine
 0018 landed at implementation `ce7a7dfa` plus documentation/Javadoc remediation `07a01b9c` with
@@ -109,8 +109,8 @@ shrink the corpus or reinterpret the contract.
 No scalar arithmetic; binary `POW`, `MIN`, or `MAX`; comparison; unary/transcendental; SUM/MEAN or
 other reduction; MATMUL/convolution; cumulative scan; BOOL/WHERE; FLOAT16/BFLOAT16/FLOAT64; custom
 binary kernel; transfer/ingress widening; alias promise; backward/training; packaging/discovery; or
-performance claim. Metal 0006–0007 and 0009–0013 stay Blocked. Do not authorize a successor for any
-of them, and preserve Model 0026 as Draft.
+performance claim. Metal 0006–0007 and 0009–0013 stay Blocked within 0015; this task does not
+authorize a successor for any of them and preserves Model 0026 as Draft.
 
 ## Contracts
 
@@ -263,3 +263,13 @@ Validation passed:
 - `./gradlew :testing:backend-conformance:test --tests '*Metal*'`
 - real-device `EngineExplicitCompositionMetalIntegrationTest`
 - `git diff --check`
+- `./gradlew :backends:metal:test :backends:metal:javadoc` passed 84 tests with zero
+  failures/errors/skips against the real dylib; focused Metal conformance passed four tests, and
+  the real Metal Engine integration passed seven tests.
+- The serial combined checkpoint passed the native arm64 build and exact thirteen-export audit,
+  nine architecture tests, the full 87-task build, Runtime/Trace profile-free inspection, and
+  baseline-aware documentation, Javadoc, status, and diff checks.
+- Implementation commit `42c4cfbf` plus evidence-wording remediation `fb102a46` received final
+  independent Class C `APPROVE` with zero findings. No limitation or unresolved issue remains.
+
+Status: Complete

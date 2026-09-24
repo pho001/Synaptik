@@ -398,5 +398,7 @@ specific optimizer execution belongs to backend prepare and kernels.
 Engine selection -> Planning query -> CompileArtifacts -> PrepareContext -> backend plan/cache
 ```
 
-The same graph-wide `NumericalProfile` crosses these cold stages unchanged. CPU and Metal fail
-closed for `ACCELERATOR`; Runtime executes the prepared result with no profile branch.
+The same graph-wide `NumericalProfile` crosses these cold stages unchanged. CPU realizes both
+profiles identically; Metal accepts only its disjoint strict NEG/affine/`CONTIGUOUS` and accelerator
+tensor-binary matrices. Unsupported profile/operation pairs fail closed before Runtime, which
+executes the prepared result with no profile branch.

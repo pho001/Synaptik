@@ -3,11 +3,11 @@
 This document explains the module responsibilities established by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract is authoritative when a summary here is incomplete.
 
 The boundaries apply to both implemented and planned modules. Model, Backend Contract, Planning,
-Compiler, Runtime, Prepare, Engine, CPU, and the narrow Metal NEG/terminal-affine route have
-substantive implementations; Config and Trace are partial. The current public execution path
-supports fixed CPU ownership and explicit CPU/Metal composition, including mixed-owner schedules
-with bounded bidirectional static contiguous `FLOAT32` transfer. Other concrete backends, broader
-transfer domains, and most extensions remain planned or incomplete. The
+Compiler, Runtime, Prepare, Engine, CPU, and the profile-qualified Metal NEG/affine/tensor-binary
+routes have substantive implementations; Config and Trace are partial. The current public
+execution path supports fixed CPU ownership and explicit CPU/Metal composition, including mixed-
+owner schedules with bounded bidirectional static contiguous `FLOAT32` transfer. Other concrete
+backends, broader transfer domains, and most extensions remain planned or incomplete. The
 [roadmap](../planning/roadmap.md) records exact delivery status.
 
 ## Shared modules
@@ -40,9 +40,10 @@ Model is also the sole owner of the two graph numerical-profile result sets. `ST
 each operation's current family-specific contract rather than universal bitwise strictness.
 `ACCELERATOR` is an opt-in, operation-specific `FLOAT32` superset bounded by the
 [sole normative table](contracts/foundational-modules.md#numerical-profiles); it is not generic
-fast math or tolerance. The semantic contract, Config identity, and cold propagation spine are
-current. CPU and Metal capability and preparation remain strict-only and fail closed for
-`ACCELERATOR`; backend relaxation remains future work.
+fast math or tolerance. The semantic contract, Config identity, cold propagation spine, and first
+backend realizations are current. CPU supports both profiles identically with exact current
+behavior. Metal keeps NEG/affine/`CONTIGUOUS` strict-only and supports only tensor FLOAT32
+`ADD`/`SUB`/`MUL`/`DIV` under `ACCELERATOR`; unsupported pairs fail closed.
 
 The current Model fixed recurrent scan follows this same flat boundary. Model owns the fixed
 `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM` meanings, one `FORWARD` or `REVERSE` attribute, ordered

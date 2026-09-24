@@ -104,10 +104,11 @@ bounded superset only for the named `FLOAT32` operation families and transformat
 Tensor construction still performs no numerical evaluation and stores no profile choice.
 
 `NumericalProfile` remains outside Tensor: Tensor has no profile method or stored selection. The
-ordinary Engine now captures one profile for its lifetime and transports it through
-profile-qualified capability, compile artifacts, Prepare, and backend identity. CPU and Metal
-currently accept only `STRICT_IEEE`; `ACCELERATOR` compilation fails closed rather than selecting a
-relaxed fallback. Model remains the sole semantic owner of profile meaning.
+ordinary Engine captures one profile for its lifetime and transports it through profile-qualified
+capability, compile artifacts, Prepare, and backend identity. CPU executes both profiles with the
+same exact current semantics. Metal keeps NEG/affine/`CONTIGUOUS` under `STRICT_IEEE` and admits
+only tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV` under `ACCELERATOR`; unsupported combinations fail
+closed rather than selecting a fallback. Model remains the sole semantic owner of profile meaning.
 
 The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 

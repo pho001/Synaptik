@@ -634,6 +634,8 @@ workflow boundaries that feed prepare without entering runtime.
 ## Numerical profile at the boundary
 
 `PrepareContext` carries the exact selected `NumericalProfile` into backend analysis and preserves
-it across projections. A backend must reject an unsupported profile before route selection. A
-prepared schedule contains the resulting decision, so Runtime requires neither the profile nor a
-policy lookup.
+it across projections. A backend must reject an unsupported profile/operation pair before route
+selection and retain supported profile identity in every reusable plan/cache boundary. CPU admits
+both profiles through identical exact routes. Metal admits strict NEG/affine/`CONTIGUOUS` or
+accelerator tensor-binary partitions, never a mixed profile matrix. A prepared schedule contains
+the fixed result, so Runtime requires neither the profile nor a policy lookup.

@@ -18,18 +18,19 @@ Compiler orchestration now consumes those three operations and uses the public i
 `CompileArtifacts`, `PublicationPlan`, `CompileConstantPlan`, and `CompileDiagnostics` contracts.
 Public `GraphCompilationPort` exposes that complete constant-free pipeline as a narrow
 cross-module integration service-provider interface (SPI). The CPU backend exposes the supported
-`CpuBackendIntegration` lifecycle SPI, including bounded canonical host-byte materialization. The
-Metal backend exposes `MetalBackendConfiguration`, `MetalBackendIntegration`, and its narrow
-static positive rank-`1..16` `FLOAT32` capability for `NEG`, `RESHAPE`, `EXPAND`, `PERMUTE`,
-`EXPAND_DIMS`, `SQUEEZE`, and the explicit `CONTIGUOUS` canonicalization barrier. `ADD`, `SUB`,
-`MUL`, and `DIV` are not advertised by Metal; an explicitly registered CPU may own those
-occurrences, while a Metal-only graph containing one fails ownership selection before native
-preparation. Graph feeds and `NEG` operands are canonical contiguous non-views. Affine operations
-may consume exact zero-offset views produced earlier in the same maximal Metal partition, retain
-their exact logical view descriptors, and privately write dense represented-order targets.
-`CONTIGUOUS` converts available canonical or local affine-view state to canonical state before
-subsequent `NEG`. Exact authenticated affine publications may materialize to detached canonical
-host bytes, but cross-owner transfer remains canonical-non-view-only. `Engine.builder()` is the
+`CpuBackendIntegration` lifecycle SPI, including bounded canonical host-byte materialization and
+identical exact execution under both numerical profiles. The Metal backend exposes
+`MetalBackendConfiguration`, `MetalBackendIntegration`, and two disjoint profile-qualified
+positive-rank `FLOAT32` domains. Strict Metal supports `NEG`, `RESHAPE`, `EXPAND`, `PERMUTE`,
+`EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`; accelerator Metal supports only canonical tensor
+`ADD`, `SUB`, `MUL`, and `DIV` under bounded DAZ/FTZ. Strict binary and accelerator baseline
+operations fail ownership selection before native preparation. Strict graph feeds and `NEG`
+operands are canonical contiguous non-views. Affine operations may consume exact zero-offset views
+produced earlier in the same maximal strict Metal partition, retain their exact logical view
+descriptors, and privately write dense represented-order targets. `CONTIGUOUS` converts available
+canonical or local affine-view state to canonical state before subsequent strict `NEG`. Exact
+authenticated affine publications may materialize to detached canonical host bytes, but cross-
+owner transfer remains canonical-non-view-only. `Engine.builder()` is the
 public explicit composition root for
 opened CPU and Metal integrations. It freezes their Planning inputs in registration order and
 supports a complete non-empty plan only when every partition has one exact registered owner. The
@@ -206,7 +207,8 @@ The implemented `modules:config` surface contains five standalone compile-config
 `NumericalProfile` is identity only. Model remains the sole semantic owner of the profile-indexed
 allowed-result sets. A fresh `Engine.Builder` selects `STRICT_IEEE`; callers may replace that
 selection with `numericalProfile(...)` before building, and the built Engine transports the exact
-identity through compile and preparation.
+identity through compile and preparation. CPU supports both values identically; Metal applies the
+closed profile-specific matrices described above.
 
 They are immutable requests, not a runnable compiler configuration aggregate. For example:
 
@@ -270,9 +272,9 @@ scores, contain profile measurements, choose ownership or a device, select a rou
 perform compiler, prepare, runtime, or execution work. Current Planning interprets only its
 optional class preference through a cost-free provider-order baseline, and package-private
 Compiler supplies that value per final graph node. Numerical-profile selection is a separate,
-graph-wide Engine construction choice. `CompileConfig`, immutable cost profiles, relaxed backend
-profile realization, and public graph-wide planning remain planned; the current Engine passes the
-selected profile alongside the four operational standalone compile inputs.
+graph-wide Engine construction choice. `CompileConfig`, further backend profile realizations, and
+public graph-wide planning remain planned; the current Engine passes the selected profile alongside
+the four operational standalone compile inputs.
 
 The implemented `config.tuning` package contains one separate declarative facade,
 `ModelAutotuningConfig`. Possessing this value means that model autotuning was requested; there is
@@ -531,16 +533,18 @@ The public `backends:cpu` integration surface contains four supported types:
 - `CpuLocalWorkloadTuning`, the artifact-free Phase-1 route-candidate collaboration; and
 - `CpuCompletePlanTuning`, the artifact-free Phase-2 retained-plan collaboration.
 
-One `CpuBackendIntegration.open()` call creates the fixed exact/default CPU composition. It
-reports the immutable `cpu/host` availability fact, exposes the retained capability provider,
-exposes one artifact-free positional `PartitionPreparation` and one retained schedule assembler
-for exactly one non-empty maximal CPU-owned partition, and provides artifact-free local and
-complete-plan tuning collaborations. Engine owns the `CompileArtifacts`, obtains the exact
+One `CpuBackendIntegration.open()` call creates the fixed CPU composition for both profiles. It
+reports the immutable `cpu/host` availability fact, exposes one capability matrix whose strict and
+accelerator answers are identical, exposes one artifact-free positional `PartitionPreparation` and
+one retained schedule assembler for exactly one non-empty maximal CPU-owned partition, and provides
+artifact-free local and complete-plan tuning collaborations. CPU realizes accelerator requests
+with unchanged exact arithmetic and routes while retaining profile-separated plan, generated,
+OpenBLAS, tuning, and cache identity. Engine owns the `CompileArtifacts`, obtains the exact
 partition projection from `GraphPreparation`, and passes every ordinary, tuned, selected, or
 fallback preparation back through `GraphPreparation`. During complete preparation, shared Prepare
 identifies eligible fully static source-only published splat constants and asks the CPU assembler
-for their physical geometry. The integration also borrows intrinsically
-compatible `HostTensorStorage` as a non-owning Runtime buffer representation. Its
+for their physical geometry. The integration also borrows intrinsically compatible
+`HostTensorStorage` as a non-owning Runtime buffer representation. Its
 `copyToCanonicalHostBytes(representation, descriptor, maximumBytes)` operation copies one exact
 current CPU publication representation into a fresh caller-owned mutable `byte[]`. This is
 Engine-facing SPI, not an ordinary application result API; the caller pairs the representation
@@ -1248,9 +1252,10 @@ path nor owns a duplicate Metal configuration. The integration supplies partitio
 physical creation contribution, exact transfer endpoints, host ingress, materialization, and
 close in addition to capability.
 
-Metal retains a custom route only for an eligible singleton `NEG`; every other supported NEG,
-affine, or mixed partition uses one typed whole-partition MPSGraph executable. This private route
-and native ABI choice adds no public Java type or method.
+Metal retains a custom route only for an eligible strict singleton `NEG`; every other supported
+strict NEG/affine/`CONTIGUOUS` partition and every accelerator tensor-binary partition uses one
+typed whole-partition MPSGraph executable. This private route and native ABI choice adds no public
+Java type or method.
 
 `prepareTuned(...)` remains the bounded CPU-only workflow. It can tune a CPU-owned plan when Metal
 is also registered, but a Metal-owned plan fails with `IllegalStateException` before

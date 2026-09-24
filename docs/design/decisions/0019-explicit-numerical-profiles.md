@@ -97,9 +97,10 @@ prepared recipe without profile policy or a hot-path lookup.
 
 The selected profile is part of relevant backend route, specialization, generated-artifact,
 local-tuning, complete-plan-tuning, and cache-compatibility identity before a backend may advertise
-relaxed capability. CPU and Metal currently advertise and prepare only `STRICT_IEEE`;
-`ACCELERATOR` therefore fails closed until a backend's separate bounded conformance gate is
-complete.
+relaxed capability. CPU now advertises both profiles with identical exact behavior. Metal retains
+its strict NEG/affine/`CONTIGUOUS` matrix and separately advertises accelerator tensor-binary
+`ADD`/`SUB`/`MUL`/`DIV` after bounded conformance. Unsupported pairs still fail closed; no backend
+may infer permission merely from the identity.
 
 Trace payload changes remain deferred. The current propagation spine adds no trace field because
 the profile is cold prepared identity rather than per-run state; later observability requires a
@@ -128,9 +129,9 @@ separately coordinated Trace architecture update if operational evidence shows i
 
 ### Follow-up
 
-CPU task 0017 and Metal task 0015 own any future bounded `ACCELERATOR` realization and
-profile-specific conformance evidence. The current propagation spine deliberately enables no
-relaxed route.
+CPU task 0017 and Metal task 0015 completed the first bounded backend realizations with
+profile-specific conformance evidence. Later operations remain independently gated by the sole
+normative table, operation-specific evidence, and fail-closed capability.
 
 ## Related documentation
 

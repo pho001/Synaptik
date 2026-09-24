@@ -38,8 +38,8 @@ promise persistence.
   Hardware, availability, workload size, objectives, caches, and evidence never grant relaxed
   mathematics.
 - Completed 0006 owns only the two-value graph numerical-profile identity. Complete Engine 0018
-  owns coordinated propagation, strict default selection, and backend plan/cache identity; Ready
-  CPU 0017 and Metal 0015 separately own backend realization.
+  owns coordinated propagation, strict default selection, and backend plan/cache identity.
+  Complete CPU 0017 and Metal 0015 separately own their first backend realizations.
 - Config may depend on the JDK and explicitly justified declarative contracts. Its public backend
   identity/requirement surface uses `modules/backend-contract`; it has no concrete-backend or
   Runtime dependency.
@@ -86,10 +86,10 @@ review returned `APPROVE` with zero findings. Config 0006 is Complete at impleme
 plus remediation `37e9e9db`; its fresh test/Javadoc run passed 33 tests with zero failures, errors,
 or skips, generated enum/package pages and baseline-aware Markdown evidence passed inspection, and
 independent Class B review returned final `APPROVE` with zero findings. Engine 0018 is Complete at
-implementation `ce7a7dfa` plus remediation `07a01b9c`; CPU 0017 and Metal 0015 are the two Ready
-parallel backend frontiers. Config 0004 still waits for a concrete cost-bearing Planning consumer;
-0005 follows 0004. Config 0007 still follows 0005, and
-0008 closes the full ledger.
+implementation `ce7a7dfa` plus remediation `07a01b9c`; CPU 0017 and Metal 0015 are Complete after
+independent Class C approval and the combined serial checkpoint. Metal 0016 is the next Ready
+backend successor. Config 0004 still waits for a concrete cost-bearing Planning consumer; 0005
+follows 0004. Config 0007 still follows 0005, and 0008 closes the full ledger.
 
 ## Live gates, risks, and open decisions
 
