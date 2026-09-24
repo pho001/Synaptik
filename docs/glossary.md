@@ -2719,12 +2719,14 @@ kernel selection, executable units, storage, workspaces, and native integration.
 backends do not own public tensor semantics or global graph compilation. CPU supplies its current
 portable and optional native routes. Metal supplies package-private storage and prepared execution
 for exact canonical positive-shape `FLOAT32` ABS under both profiles, the strict
-NEG/affine/`CONTIGUOUS` domain, and accelerator tensor binary. Exact singleton-NEG partitions with
-one feed, one target, and `1..UINT32_MAX` elements use the custom pipeline; every ABS partition
-and every other supported Metal partition uses one typed whole-partition MPSGraph executable.
-Strict binary and unsupported accelerator baseline operations are CPU-owned when CPU is registered
-and unsupported by a Metal-only composition. CUDA remains an identity without concrete execution
-behavior. See [Module boundaries](architecture/module-boundaries.md).
+NEG/affine/`CONTIGUOUS` domain, and accelerator canonical tensor `ADD`/`SUB`/`MUL`/`DIV` plus
+canonical `FLOAT32` `SUM`/`MEAN`/`SUM_TO_SHAPE`. Reduction rank-zero publication is local-only;
+only positive-rank values may use the cross-owner transfer domain. Exact singleton-NEG partitions
+with one feed, one target, and `1..UINT32_MAX` elements use the custom pipeline; every ABS
+partition and every other supported Metal partition uses one typed whole-partition MPSGraph
+executable. Strict binary/reduction and unsupported accelerator baseline operations are CPU-owned
+when CPU is registered and unsupported by a Metal-only composition. CUDA remains an identity
+without concrete execution behavior. See [Module boundaries](architecture/module-boundaries.md).
 
 ### Cumulative scan
 

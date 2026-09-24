@@ -404,9 +404,11 @@ itself, the full matrix passed: 300 independently compiled executables and 2,400
 fresh contexts and optimization levels zero and one, with reduced-precision fast math disabled.
 The oracle enumerated every declared-term permutation and full binary tree, applied `FLOAT32`
 rounding plus permitted DAZ/FTZ after every arithmetic step, and admitted zero-sign freedom only
-at a final multi-term SUM/SUM_TO_SHAPE root or the mandatory final MEAN quotient. Empty-axis and
-one-term identities remained exact copies. The disposable source and binary were removed before
-production edits.
+at a final multi-term SUM/SUM_TO_SHAPE root or the mandatory final MEAN quotient. Empty-axis
+identities and one-term SUM/SUM_TO_SHAPE identities remained exact copies. MEAN always performs
+the mandatory positive-count FLOAT32 quotient and retains the row's DAZ/FTZ/NaN freedoms, even
+when the selected count is one. The disposable source and binary were removed before production
+edits.
 
 Current validation composes:
 

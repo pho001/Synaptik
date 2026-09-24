@@ -268,9 +268,11 @@ comparison/logical/scalar forms, MATMUL, backward execution, alias promise, or p
 Accelerator arithmetic and reductions do not imply strict IEEE subnormal preservation: every
 input, intermediate, or result may apply Model-owned DAZ/FTZ; finite arithmetic may reassociate and
 fuse; NaN payload/sign are unspecified; and only a final exact-zero SUM/SUM_TO_SHAPE root with at
-least two terms or the mandatory final MEAN quotient may choose either zero sign. Empty-axis and
-one-term reduction identities remain exact copies. ABS receives none of those relaxations. Affine
-composition adds no custom kernel.
+least two terms or the mandatory final MEAN quotient may choose either zero sign. Empty-axis
+identities and one-term SUM/SUM_TO_SHAPE identities remain exact copies. MEAN always performs the
+mandatory positive-count FLOAT32 quotient and retains the row's DAZ/FTZ/NaN freedoms, even when
+the selected count is one. ABS receives none of those relaxations. Affine composition adds no
+custom kernel.
 The public Java Metal surface is `MetalCapabilityProvider`, `MetalBackendConfiguration`, and
 `MetalBackendIntegration`; Engine accepts an explicitly opened integration through
 `Engine.builder()`.
