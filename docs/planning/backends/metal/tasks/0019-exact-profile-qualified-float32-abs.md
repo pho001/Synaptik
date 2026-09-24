@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 Readiness verification: Metal 0015, Model 0027, Config 0006, and Engine 0018 are Complete. Metal
 0016 is Blocked at its unchanged three-operation gate; it made no production, schema, identity, or
@@ -188,12 +188,21 @@ behavior or identifies a concrete stale-evidence risk.
 
 ## Result
 
-Worker implementation is complete; the task remains `Ready` pending independent Class C review.
-Gate reuse was accepted after comparing `9f7ad2d3e3d0fbdd690f200c14887fd4a158b514` with clean implementation base `54ecd962`: only planning documents changed.
-The selector, oracle/corpus, native executable/build baseline, Apple M3 Max target, and SDK/toolchain remained unchanged, and 0016 retained its 108-executable/864-run raw ABS summary, so no disposable rerun was required.
+Implementation `a6d1796d` plus mixed-owner test remediation `bcb717a6` completed the task.
+Gate reuse was accepted after comparing `9f7ad2d3e3d0fbdd690f200c14887fd4a158b514`
+with the clean implementation base: only planning documents had changed. The selector,
+oracle/corpus, native executable/build baseline, Apple M3 Max target, and SDK/toolchain remained
+unchanged, so 0016's 108-executable/864-run raw ABS result remained valid.
 
-Both profile matrices now admit exact canonical FLOAT32 ABS through MPSGraph only. Schema 6 appends `ABS=12`; wires `1..11`, ABI v4, all statuses, and exactly thirteen exports remain unchanged.
-Workload, exact-policy, candidate, compatibility, route-policy, and codec identities are version seven; stale version-six, cross-profile, foreign-session, malformed, corrupt, and unknown-wire inputs fail closed.
+Both profile matrices now admit exact canonical FLOAT32 ABS through MPSGraph only. Schema 6 appends
+`ABS=12`; wires `1..11`, ABI v4, all statuses, and exactly thirteen exports remain unchanged.
+Workload, exact-policy, candidate, compatibility, route-policy, and codec identities are version
+seven; stale version-six, cross-profile, foreign-session, malformed, corrupt, and unknown-wire
+inputs fail closed.
 
-A fresh dylib passed 86 Metal tests with zero skips/failures plus Javadoc; four Metal conformance, eight real-dylib Engine integration, and nine architecture tests also passed.
-Raw-bit evidence covers both profiles, all required value buckets and compositions, reuse/concurrency/independent contexts, direct targets, session/context/close rejection, while Runtime/Trace remain untouched. Changed Markdown links, anchors, fences, final newlines, whitespace, and `git diff --check` passed; independent review remains the only open gate.
+Independent validation passed the native ABI-v4 exact-thirteen-export audit, 86 Metal tests, four
+Metal conformance tests, eight real-dylib Engine tests, nine architecture tests, the full 87-task
+build, and planning/documentation/diff checks. Independent Class C final review returned
+`APPROVE` with zero findings. No limitation, unresolved issue, or follow-up remains.
+
+Status: Complete

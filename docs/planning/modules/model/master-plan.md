@@ -265,9 +265,10 @@ no detailed brief; dependent work remains in each owning master plan.
   contract and is Complete after independent validation and Class C approval. `STRICT_IEEE` means
   each current per-operation contract rather than universal bitwise `strictfp`; `ACCELERATOR` is
   only a bounded permission. Config 0006 identity, Engine 0018 propagation/cache isolation, and the
-  first CPU 0017/Metal 0015 realizations are Complete. Blocked Metal 0016 changes no Model
-  contract. Ready Metal 0019 may add only exact `ABS` under both profiles; no backend task may
-  reinterpret existing result sets or authorize another family.
+  first CPU 0017/Metal 0015 realizations and exact both-profile Metal 0019 are Complete. Blocked
+  Metal 0016 changes no Model contract. Ready Metal 0017 may realize only the already-defined
+  all-term `SUM`/`MEAN`/`SUM_TO_SHAPE` accelerator result set; no backend task may reinterpret it
+  or authorize another family.
 - **FLOAT16 and mixed precision:** BFLOAT16 remains a distinct current type. Only 0026 may add true
   IEEE binary16 FLOAT16 and must audit each affected family’s input, accumulation/intermediate,
   and output types. A shared two-byte carrier does not imply arithmetic, Java Vector support, or a

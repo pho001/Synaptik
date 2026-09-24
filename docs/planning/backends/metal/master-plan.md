@@ -51,17 +51,16 @@ Training-to-Metal optimizer bridge.
 - Blocked 0010 added no BOOL capability; blocked 0011 added no scalar arithmetic capability;
   blocked 0012 added no extrema reduction capability; blocked 0013 added no cumulative-scan
   capability. Complete 0014 composes exact strict affine layouts plus `CONTIGUOUS`. Complete 0015
-  gives accelerator graphs the four canonical tensor-binary operations. Ready 0019 now has a
-  worker implementation adding exact canonical `ABS` to both profile matrices; independent Class C
-  review is still pending.
+  gives accelerator graphs the four canonical tensor-binary operations. Complete 0019 adds exact
+  canonical `ABS` to both profile matrices.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
-  its new broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and
-  one-ULP requirements. Task 0019 remains Ready pending independent review; 0017 remains Draft for
-  accelerator `SUM`/`MEAN`/`SUM_TO_SHAPE`, and 0018 remains Draft for accelerator rank-two
-  `MATMUL`. Those tasks share Metal capability/schema/lifecycle scope and must not overlap.
+  its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
+  requirements. Ready 0017 owns accelerator `SUM`/`MEAN`/`SUM_TO_SHAPE`; 0018 remains Draft for
+  accelerator rank-two `MATMUL`. Those tasks share Metal capability/schema/lifecycle scope and
+  must not overlap.
 - Later Metal 0028 and 0029 remain reserved for separately authorized FLOAT16 and BFLOAT16 scopes.
-- Model 0027, Config 0006, Engine 0018, CPU 0017, and Metal 0015 are Complete. Model 0026 remains
-  an independent FLOAT16 Draft.
+- Model 0027, Config 0006, Engine 0018, CPU 0017, and Metal 0015/0019 are Complete. Model 0026
+  remains an independent FLOAT16 Draft.
 - Production dependencies may point to Model, Config, Planning, Runtime, Prepare,
   Backend Contract, and Trace, never Engine or Training. Task 0002's Compiler edge is test-only.
 
@@ -102,9 +101,9 @@ visibility.
 | 0014 | [MPSGraph FLOAT32 affine layout composition](tasks/0014-mpsgraph-float32-affine-layout-composition.md) | Complete | 0005/0008; current Model layout semantics and Compiler inference; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006–0007/0009–0013 or Model 0026 | Every concurrent Metal capability/preparation/native schema/candidate/materialization/Engine Metal scope | None | Probe -> capability/topology -> schema/state validation -> candidates/lifecycle/authentication -> Engine proof -> docs/review | Raw-bit selector-chain/direct-target probe; ABI-v4 exact exports; focused Metal/conformance/Compiler/Engine/architecture/Javadoc/docs checks | Commit `01e81be2` delivered exact local affine/`CONTIGUOUS` composition, schema/candidate version 4, and real Engine proof; independent Class C review returned `APPROVE` with zero findings. |
 | 0015 | [ACCELERATOR FLOAT32 tensor binary arithmetic](tasks/0015-accelerator-float32-tensor-binary-arithmetic.md) | Complete | 0014; Model 0027; Config 0006; Engine 0018 | Every Metal capability/preparation/native schema/candidate/materialization scope | `numerical-profile-backends` (complete) | Integrated after CPU 0017; shared documents last | Native/export, focused Metal/conformance/public Engine, architecture, full-build, and documentation checkpoint | Delivered accelerator-only tensor `ADD`/`SUB`/`MUL`/`DIV` under the bounded DAZ/FTZ oracle; strict retains NEG/affine/`CONTIGUOUS`; schema 5 and version-six identities fail closed. |
 | 0016 | [Profile-qualified FLOAT32 ABS, EXP, and SIGMOID](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) | Blocked | 0015; Model 0027; Config 0006; Engine 0018 | 0017–0019 and every Metal capability/preparation/native schema/candidate/materialization/Engine Metal scope | None | Exact replacement gate only | Reproducible real-device oracle; no production change | Exact `ABS` passed, but `EXP`/`SIGMOID` flushed representable subnormal results and `SIGMOID` also exceeded its one-ULP gate; all controls passed and the probe was removed. |
-| 0017 | ACCELERATOR FLOAT32 SUM/MEAN reductions | Draft | 0019; Model 0027 | 0018 and any 0016 restart; every Metal capability/preparation/native schema/candidate/materialization/Engine Metal scope | None | Serial after 0019, before 0018 | Future all-term binary-tree oracle and focused Class C checkpoint | Add accelerator-only `SUM`, `MEAN`, and `SUM_TO_SHAPE` for the former 0007 full, one-axis, ordered multi-axis, and binding-aware forms; use all and only declared terms in a Model-permitted FLOAT32 binary tree with per-step DAZ/FTZ; divide `MEAN` by the declared positive count; never drop, duplicate, or invent a term or widen rank-zero transfer. |
+| 0017 | [ACCELERATOR FLOAT32 SUM/MEAN/SUM_TO_SHAPE reductions](tasks/0017-accelerator-float32-sum-mean-sum-to-shape-reductions.md) | Ready | 0019; Model 0027; Config 0006; Engine 0018 | 0018 and any 0016 restart; every Metal capability/preparation/native schema/candidate/materialization/Engine Metal scope | None | Serial after 0019, before 0018 | All-term enumerating binary-tree oracle; native/export, Metal/conformance/Engine/architecture/full-build/docs; independent Class C review | Add accelerator-only full, one-axis, ordered multi-axis `SUM`/`MEAN` and binding-aware `SUM_TO_SHAPE`; preserve every declared term under only per-step FLOAT32 rounding and DAZ/FTZ, keep strict reductions false, and do not widen rank-zero transfer. |
 | 0018 | ACCELERATOR FLOAT32 rank-two MATMUL seeded-gradient checkpoint | Draft | 0017; Model 0027 | 0017 and any 0016 restart; every Metal capability/preparation/native schema/candidate/materialization/Engine Metal scope | None | Serial after 0017 | Future contraction-set oracle and focused Class C checkpoint | Add accelerator-only positive rank-two `MATMUL`, local rank-two transpose composition, and explicitly seeded two-operand gradient evidence; permit only Model DAZ/FTZ plus existing FMA/reassociation, never reduced precision or term loss. |
-| 0019 | [Exact profile-qualified FLOAT32 ABS](tasks/0019-exact-profile-qualified-float32-abs.md) | Ready | 0015; Model 0027; Config 0006; Engine 0018; not 0016 | Any 0016 restart; 0017–0018; every Metal capability/preparation/native schema/candidate/materialization/Engine Metal scope | None | Serial after 0015, before 0017–0018 | Exact both-profile Metal ABS checkpoint | Worker implementation and fresh schema-six/version-seven, real-dylib, conformance, and CPU-free Engine proof are complete; exact canonical `ABS` is present under both profiles, with independent Class C review still pending. |
+| 0019 | [Exact profile-qualified FLOAT32 ABS](tasks/0019-exact-profile-qualified-float32-abs.md) | Complete | 0015; Model 0027; Config 0006; Engine 0018; not 0016 | Any 0016 restart; 0017–0018; every Metal capability/preparation/native schema/candidate/materialization/Engine Metal scope | None | Serial after 0015, before 0017–0018 | Exact both-profile Metal ABS checkpoint | Implementation `a6d1796d` plus remediation `bcb717a6`; ABI/export, Metal/conformance/Engine/architecture/full-build/docs passed and independent Class C final review approved with zero findings. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -118,34 +117,35 @@ Completed profile spine and serial Metal successors:
 
 `0014 + Model 0027 + Config 0006 + Engine 0018 -> 0015`
 
-`0015 -> {0016 (Blocked), 0019 (Ready) -> 0017 (Draft) -> 0018 (Draft)}`
+`0015 -> {0016 (Blocked), 0019 (Complete) -> 0017 (Ready) -> 0018 (Draft)}`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) also keeps its failed three-operation
-contract and is not a dependency of any successor. [0019](tasks/0019-exact-profile-qualified-float32-abs.md)
-is the sole Ready Metal frontier. Tasks 0017 and 0018 remain Draft because they and 0019 mutate the
-same Metal capability, schema, candidate/codec, native, lifecycle, and Engine integration scopes;
-their serial dependencies are deliberate conflict edges, not semantic claims that ABS is required
-for reduction or reduction for MATMUL.
+contract and is not a dependency of any successor. Complete
+[0019](tasks/0019-exact-profile-qualified-float32-abs.md) satisfies 0017's serial dependency.
+[0017](tasks/0017-accelerator-float32-sum-mean-sum-to-shape-reductions.md) is the sole Ready Metal
+frontier; 0018 remains Draft because both tasks mutate the same capability, schema,
+candidate/codec, native, lifecycle, and Engine integration scopes. These serial edges do not claim
+that ABS is semantically required for reduction or reduction for MATMUL.
 
 ## Integration ownership and shared documents
 
 - Integration owner: each serial task implementer, with mandatory independent Class C review.
 - Shared documents: the active task owns synchronized Metal planning, architecture-status, API/user
   status, capability/preparer guides, and glossary updates after executable behavior stabilizes.
-- No Metal 0016–0019 write scopes may overlap. Blocked 0016 has no active write scope. Promote 0017
-  only after 0019 is Complete and its exact brief is authored; promote 0018 only after 0017 is
-  Complete and its exact brief is authored.
+- No Metal 0016–0019 write scopes may overlap. Blocked 0016 has no active write scope. Task 0017
+  is Ready only after Complete 0019 and this exact brief; promote 0018 only after 0017 is Complete
+  and its exact brief is authored.
 
 ## Milestones and current frontier
 
-Metal 0001–0005, 0008, and 0014–0015 are Complete. Task 0015 landed at `42c4cfbf` plus
-evidence-wording remediation `fb102a46`; its real-device oracle, exact thirteen-export audit,
-focused Metal/conformance/public Engine checks, architecture and full-build checkpoint, and
-independent Class C `APPROVE` with zero findings all passed. Ready task 0019 has completed its
-worker implementation and awaits independent review. Current ABI v4 retains exactly thirteen
-exports, points to node schema 6, and uses version-seven workload/candidate/compatibility/route/codec
-identities.
+Metal 0001–0005, 0008, 0014–0015, and 0019 are Complete. Task 0015 landed at `42c4cfbf` plus
+evidence-wording remediation `fb102a46`. Task 0019 landed at implementation `a6d1796d` plus
+mixed-owner test remediation `bcb717a6`; its native ABI-v4 exact-thirteen-export audit, 86 Metal,
+four conformance, eight real-dylib Engine, nine architecture, full 87-task build, documentation
+checks, and independent Class C final `APPROVE` with zero findings passed. Current ABI v4 retains
+exactly thirteen exports, points to node schema 6, and uses version-seven
+workload/candidate/compatibility/route/codec identities. Task 0017 is the sole Ready frontier.
 
 Metal 0006 remains `Blocked` after exact RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures.
 Metal 0007 remains independently `Blocked` after eight direct-output executions returned positive
@@ -201,11 +201,11 @@ without production changes: its 324-executable/2,592-run Apple M3 Max gate prove
 levels, Shapes, contexts, and forms; `SIGMOID` also produced two-ULP ordinary finite results. All
 controls passed and the disposable probe was removed. The unchanged broad contract is not weakened.
 
-[0019](tasks/0019-exact-profile-qualified-float32-abs.md) remains the sole Ready Metal frontier
-while its independent Class C review is pending. The worker implementation adds only exact
-canonical `ABS` under both profiles on node schema 6 and version-seven identities. `EXP`,
-`SIGMOID`, `RECIPROCAL`, `LOG`, `SQRT`, `RSQRT`, `RELU`, and `TANH` remain closed. Tasks 0017 and
-0018 are serial Draft successors for accelerator reduction and rank-two MATMUL. Comparison,
+Complete [0019](tasks/0019-exact-profile-qualified-float32-abs.md) adds only exact canonical `ABS`
+under both profiles on node schema 6 and version-seven identities. `EXP`, `SIGMOID`, `RECIPROCAL`,
+`LOG`, `SQRT`, `RSQRT`, `RELU`, and `TANH` remain closed. Ready
+[0017](tasks/0017-accelerator-float32-sum-mean-sum-to-shape-reductions.md) is the serial
+accelerator-reduction successor; 0018 remains the Draft rank-two MATMUL successor. Comparison,
 scalar, extrema, scan, every other unary operation, backward/training beyond the later bounded
 seeded-gradient scope, and Model 0026 remain unauthorized.
 
@@ -213,8 +213,8 @@ seeded-gradient scope, and Model 0026 remain unauthorized.
 
 - Task 0001 is deliberately non-executing and fail closed. Task 0002 established the strict
   positive-rank canonical FLOAT32 NEG domain, task 0014 added strict affine/`CONTIGUOUS`
-  composition, task 0015 added the accelerator tensor-binary domain, and task 0019's worker
-  implementation added exact canonical ABS to both profile matrices. Task 0003 changes
+  composition, task 0015 added the accelerator tensor-binary domain, and task 0019 added exact
+  canonical ABS to both profile matrices. Task 0003 changes
   singleton-NEG route choice, not occurrence capability or partitioning.
 - The caller-supplied macOS arm64 native library uses an Objective-C C ABI reached through JDK 26
   Foreign Function and Memory (FFM). It is not packaged or discovered by the backend. ABI version
