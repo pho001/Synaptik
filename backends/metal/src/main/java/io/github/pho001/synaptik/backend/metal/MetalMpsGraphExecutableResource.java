@@ -66,7 +66,7 @@ final class MetalMpsGraphExecutableResource implements PreparedResource {
     synchronized void run(int inputCount, MemorySegment inputHandles,
             int outputCount, MemorySegment outputHandles) {
         if (closed) throw new IllegalStateException("Metal MPSGraph executable is closed");
-        MetalNativeApi.NegExecutableAbi.validateRun(
+        MetalNativeApi.MpsGraphExecutableAbi.validateRun(
                 inputRequiredBytes.length, inputCount, inputHandles,
                 outputRequiredBytes.length, outputCount, outputHandles);
         api.runExecutable(executable, inputCount, inputHandles, outputCount, outputHandles);

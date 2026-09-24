@@ -63,38 +63,51 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     }
                 }
 
-                Tensor other = nativeTensor(descriptor, arena, 3.0f, 4.0f);
+                Shape matrixShape = Shape.of(2, 3);
+                TensorDescriptor matrixDescriptor = new TensorDescriptor(
+                        DataType.FLOAT32,
+                        matrixShape,
+                        Optional.of(LayoutDescriptor.contiguous(matrixShape)),
+                        false);
+                Shape rowShape = Shape.of(3);
+                TensorDescriptor rowDescriptor = new TensorDescriptor(
+                        DataType.FLOAT32,
+                        rowShape,
+                        Optional.of(LayoutDescriptor.contiguous(rowShape)),
+                        false);
+                Tensor matrix = nativeTensor(
+                        matrixDescriptor, arena, 2.0f, 4.0f, 8.0f, 2.0f, 4.0f, 8.0f);
+                Tensor row = nativeTensor(rowDescriptor, arena, 1.0f, 2.0f, 4.0f);
+                Tensor negated = matrix.neg();
+                Tensor zero = negated.add(matrix);
+                Tensor addedRow = zero.add(row);
+                Tensor subtracted = matrix.sub(addedRow);
+                Tensor multiplied = subtracted.mul(row);
+                Tensor divided = multiplied.div(row);
+                Tensor reverseDivided = row.div(divided);
+                assertMetalOnlyBroadcastResult(
+                        engine,
+                        engine.compile(List.of(zero, subtracted, divided, reverseDivided)),
+                        List.of(matrix, row));
+
                 assertMixedResult(
                         engine,
-                        engine.compile(List.of(input.neg().add(other))),
-                        List.of(input, other),
-                        1.75f,
-                        6.5f);
-                assertMixedResult(
-                        engine,
-                        engine.compile(List.of(input.add(other).neg())),
-                        List.of(input, other),
-                        -4.25f,
-                        -1.5f);
-                assertMixedResult(
-                        engine,
-                        engine.compile(List.of(input.neg().add(input))),
+                        engine.compile(List.of(input.abs().neg())),
                         List.of(input),
-                        0.0f,
-                        0.0f);
+                        -1.25f,
+                        -2.5f);
                 assertMixedResult(
                         engine,
-                        engine.compile(List.of(input.add(other.neg()))),
-                        List.of(input, other),
-                        -1.75f,
-                        -6.5f);
-                Tensor fanOut = input.add(other);
+                        engine.compile(List.of(input.neg().abs())),
+                        List.of(input),
+                        1.25f,
+                        2.5f);
                 assertMixedResult(
                         engine,
-                        engine.compile(List.of(fanOut.neg().add(fanOut))),
-                        List.of(input, other),
-                        0.0f,
-                        0.0f);
+                        engine.compile(List.of(input.neg().abs().neg())),
+                        List.of(input),
+                        -1.25f,
+                        -2.5f);
 
                 Tensor cpuInput = TensorFactory.create(
                         descriptor,
@@ -123,15 +136,40 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 assertEquals("model autotuning requires a CPU-owned partition plan",
                         assertThrows(IllegalStateException.class,
                                 () -> engine.prepareTuned(metalForTuning, metalRequest)).getMessage());
-                Tensor capturedBase = input.add(other);
+                Tensor capturedBase = input.abs();
                 Tensor metalPublication = capturedBase.neg();
-                Tensor cpuPublication = metalPublication.add(capturedBase);
+                Tensor cpuPublication = metalPublication.abs();
                 assertCapturedAdaptersSurviveRegistryPoison(
                         engine,
                         engine.compile(List.of(metalPublication, cpuPublication)),
-                        List.of(input, other));
+                        List.of(input));
             }
         }
+        }
+    }
+
+    private static void assertMetalOnlyBroadcastResult(
+            Engine engine,
+            io.github.pho001.synaptik.engine.CompiledGraph compiled,
+            List<Tensor> inputs) {
+        try (var session = engine.session(compiled)) {
+            for (int run = 0; run < 2; run++) {
+                try (var result = session.run(inputs)) {
+                    assertEquals(4, result.resultCount());
+                    assertCanonical(
+                            result.materialize(result.publications().get(0), 24L).bytes(),
+                            0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+                    assertCanonical(
+                            result.materialize(result.publications().get(1), 24L).bytes(),
+                            1.0f, 2.0f, 4.0f, 1.0f, 2.0f, 4.0f);
+                    assertCanonical(
+                            result.materialize(result.publications().get(2), 24L).bytes(),
+                            1.0f, 2.0f, 4.0f, 1.0f, 2.0f, 4.0f);
+                    assertCanonical(
+                            result.materialize(result.publications().get(3), 24L).bytes(),
+                            1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+                }
+            }
         }
     }
 
@@ -164,20 +202,21 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertEquals(2, result.resultCount());
                     assertCanonical(
                             result.materialize(result.publications().get(0), 8L).bytes(),
-                            -4.25f,
-                            -1.5f);
+                            -1.25f,
+                            -2.5f);
                     assertCanonical(
                             result.materialize(result.publications().get(1), 8L).bytes(),
-                            0.0f,
-                            0.0f);
+                            1.25f,
+                            2.5f);
                 }
             }
         }
     }
 
-    private static void assertCanonical(ByteBuffer canonical, float first, float second) {
-        assertEquals(Float.floatToRawIntBits(first), canonical.getInt());
-        assertEquals(Float.floatToRawIntBits(second), canonical.getInt());
+    private static void assertCanonical(ByteBuffer canonical, float... expected) {
+        for (float value : expected) {
+            assertEquals(Float.floatToRawIntBits(value), canonical.getInt());
+        }
     }
 
     private static Tensor nativeTensor(

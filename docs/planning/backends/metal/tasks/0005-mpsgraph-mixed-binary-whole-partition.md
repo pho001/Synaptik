@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Change class
 
@@ -98,4 +98,89 @@ Update backend guide, native README, public API scope text, targeted glossary en
 
 ## Result
 
-Empty until execution. On completion record changed files, exact commands/outcomes and skips, native export/version evidence, public Engine real-device evidence, documentation/review findings, limitations, and follow-up.
+Completed as one clean ABI cutover. Metal capability now admits exactly parameterless `NEG`,
+`ADD`, `SUB`, `MUL`, and `DIV` over positive static rank-`1..16` canonical contiguous `FLOAT32`
+descriptors with equal per-occurrence gradient flags and exact right-aligned binary broadcasting.
+Analysis lowers the entire maximal partition to immutable version-one typed node records while
+preserving operation identity, operand order, stable value/feed/target order, fan-out, and repeated
+inputs. The custom singleton-NEG route is unchanged; every other supported partition uses one
+typed whole-partition MPSGraph executable. Existing transactional finalization, direct assigned
+outputs, isolated run state, rollback, close/run leases, and concurrency ownership remain intact.
+
+Native ABI version `4` exports exactly:
+
+```text
+synaptik_metal_foundation_abi_version
+synaptik_metal_context_create
+synaptik_metal_context_release
+synaptik_metal_buffer_create
+synaptik_metal_buffer_release
+synaptik_metal_buffer_upload
+synaptik_metal_buffer_download
+synaptik_metal_mpsgraph_executable_create
+synaptik_metal_mpsgraph_executable_release
+synaptik_metal_mpsgraph_executable_run
+synaptik_metal_neg_kernel_pipeline_create
+synaptik_metal_neg_kernel_pipeline_release
+synaptik_metal_neg_kernel_pipeline_run
+```
+
+The old `synaptik_metal_mpsgraph_neg_executable_create` export is absent. Node schema `1` is a
+fixed 16-byte record of four `uint32_t` cells: operation (`NEG=1`, `ADD=2`, `SUB=3`, `MUL=4`,
+`DIV=5`), first input, second input (`UINT32_MAX` exactly for `NEG`), and output. Java and native
+preflight both validate ranks/dimensions, topology, ordered operands, sentinels, exact NEG shape,
+exact binary broadcast output, unique feeds/targets/outputs, and checked `FLOAT32` geometry.
+There is no compatibility symbol, generic attributes bag, string dispatch, source payload, or ABI
+fallback.
+
+Validation completed on Apple arm64:
+
+- `./native/metal-macos-arm64/build.sh` passed.
+- `file` reported a Mach-O 64-bit arm64 dylib; `nm -gU` reported exactly the thirteen exports
+  above; `otool -L` reported Foundation, Metal, and MetalPerformanceShadersGraph linkage.
+- Real-device `:backends:metal:test --tests '*Metal*' --rerun-tasks` passed 54 tests with zero
+  failures, errors, or skips. This includes custom caller/splat regressions, mixed typed MPSGraph
+  reuse, stable ordering, rollback, close/rejection, and concurrency.
+- `:testing:backend-conformance:test --tests '*Metal*'` passed both focused conformance tests with
+  no skips.
+- Real-device `EngineExplicitCompositionMetalIntegrationTest` passed with no skip. It exercises
+  all five operations in one Metal-only broadcast partition, asymmetric ordered `SUB`/`DIV`,
+  multiple feeds/targets, fan-out, direct internal publications, repeated session runs, and
+  CPU-to-Metal/Metal-to-CPU schedules.
+- Metal Javadoc, architecture tests, and Engine public-shape tests passed. Targeted documentation
+  audit and `git diff --check` passed.
+
+Final task-owned allowlist:
+
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalCapabilityProvider.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalDeviceContext.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalMpsGraphExecutableResource.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalMpsGraphProgram.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNativeApi.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegAnalysisInputs.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegPartitionFinalizer.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegPartitionPreparer.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegPreparationPlan.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegPreparedExecutable.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegPreparedScheduleAssembler.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegRouteCandidateGenerator.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegTuningBatch.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegTuningCodec.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegTuningDecision.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/package-info.java`
+- `backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalCapabilityProviderTest.java`
+- `backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalFoundationTest.java`
+- `backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalNegPreparedExecutionTest.java`
+- `backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalNegRouteCandidateGeneratorTest.java`
+- `native/metal-macos-arm64/src/synaptik_metal_foundation.m`
+- `native/metal-macos-arm64/README.md`
+- `testing/backend-conformance/src/test/java/io/github/pho001/synaptik/testing/conformance/MetalNegCapabilityPartitionConformanceTest.java`
+- `testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineExplicitCompositionMetalIntegrationTest.java`
+- `docs/backend-guide/metal-backend.md`
+- `docs/api/public-api.md`
+- `docs/glossary.md`
+- this task brief.
+
+No public Java type or method changed. The package-private `MetalNeg*` class names remain historical
+implementation names to avoid a weightless file-renaming cutover; their contracts and Javadocs now
+describe the generalized typed elementwise route. No master plan or roadmap was modified.

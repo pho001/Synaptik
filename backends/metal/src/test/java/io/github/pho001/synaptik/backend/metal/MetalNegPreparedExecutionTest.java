@@ -30,6 +30,7 @@ import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -95,7 +96,7 @@ class MetalNegPreparedExecutionTest {
             assertEquals(3, firstOversized.analysis().requirements().size());
             assertTrue(firstOversized.analysis().plan().addressWorkspace().isPresent());
             assertThrows(IllegalArgumentException.class,
-                    () -> context.createNegExecutable(maximum.analysis().plan()));
+                    () -> context.createMpsGraphExecutable(maximum.analysis().plan()));
             assertThrows(IllegalArgumentException.class,
                     () -> context.createNegKernelPipeline(firstOversized.analysis().plan()));
 
@@ -540,8 +541,12 @@ class MetalNegPreparedExecutionTest {
 
         assertEquals(List.of(fixture.v0, fixture.v2, fixture.v3, fixture.v1,
                 fixture.v4, fixture.v5), plan.valueIds());
-        assertArrayEquals(new int[] {0, 1, 3, 1}, plan.nodeInputValueIndices());
-        assertArrayEquals(new int[] {1, 2, 4, 5}, plan.nodeOutputValueIndices());
+        assertArrayEquals(new int[] {
+                1, 0, -1, 1,
+                2, 1, 0, 2,
+                4, 3, 3, 4,
+                5, 1, 0, 5
+        }, plan.graphProgram().encodedNodeRecords());
         assertEquals(List.of(fixture.v0, fixture.v1), plan.feedValueIds());
         assertArrayEquals(new int[] {0, 3}, plan.feedValueIndices());
         assertEquals(List.of(fixture.v3, fixture.v4, fixture.v5), plan.targetValueIds());
@@ -559,7 +564,7 @@ class MetalNegPreparedExecutionTest {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
         MetalMpsGraphExecutableResource resource =
-                context.createNegExecutable(analyze(fixture, context).plan());
+                context.createMpsGraphExecutable(analyze(fixture, context).plan());
         var first = context.createBuffer(24);
         var second = context.createBuffer(16);
         var out0 = context.createBuffer(24);
@@ -574,8 +579,12 @@ class MetalNegPreparedExecutionTest {
 
         assertEquals(1, api.executableCreates.get());
         assertEquals(2, api.runCalls.get());
-        assertArrayEquals(new int[] {0, 1, 3, 1}, api.nodeInputs);
-        assertArrayEquals(new int[] {1, 2, 4, 5}, api.nodeOutputs);
+        assertArrayEquals(new int[] {
+                1, 0, -1, 1,
+                2, 1, 0, 2,
+                4, 3, 3, 4,
+                5, 1, 0, 5
+        }, api.nodeRecords);
         assertArrayEquals(new int[] {0, 3}, api.feeds);
         assertArrayEquals(new int[] {2, 4, 5}, api.targets);
         context.close();
@@ -597,7 +606,7 @@ class MetalNegPreparedExecutionTest {
         MetalDeviceContext context = MetalDeviceContext.open(api);
 
         assertSame(expected, assertThrows(RuntimeException.class,
-                () -> context.createNegExecutable(analyze(fixture(), context).plan())));
+                () -> context.createMpsGraphExecutable(analyze(fixture(), context).plan())));
         context.close();
 
         assertEquals(0, api.executableReleases.get());
@@ -614,7 +623,7 @@ class MetalNegPreparedExecutionTest {
         MetalNegPreparationPlan plan = analyze(fixture(), first).plan();
         try {
             assertThrows(IllegalArgumentException.class,
-                    () -> second.createNegExecutable(plan));
+                    () -> second.createMpsGraphExecutable(plan));
             assertEquals(0, secondApi.executableCreates.get());
             second.close();
             assertEquals(1, secondApi.contextReleases.get(),
@@ -704,9 +713,9 @@ class MetalNegPreparedExecutionTest {
             try {
                 MetalNativeApi.NativeFailure failure = assertThrows(
                         MetalNativeApi.NativeFailure.class,
-                        () -> context.createNegExecutable(analyze(fixture(), context).plan()));
+                        () -> context.createMpsGraphExecutable(analyze(fixture(), context).plan()));
                 assertNativeFailure(failure,
-                        MetalNativeApi.NEG_EXECUTABLE_CREATE_OPERATION, status);
+                        MetalNativeApi.EXECUTABLE_CREATE_OPERATION, status);
                 assertEquals(1, api.executableCreates.get());
                 assertEquals(0, api.executableReleases.get());
             } finally {
@@ -721,8 +730,7 @@ class MetalNegPreparedExecutionTest {
         MetalDeviceContext nullContext = MetalDeviceContext.open(nullApi);
         try {
             IllegalStateException failure = assertThrows(IllegalStateException.class,
-                    () -> nullContext.createNegExecutable(
-                            analyze(fixture(), nullContext).plan()));
+                    () -> nullContext.createMpsGraphExecutable(analyze(fixture(), nullContext).plan()));
             assertTrue(failure.getMessage().contains("returned OK with a null handle"));
             assertEquals(1, nullApi.executableCreates.get());
             assertEquals(0, nullApi.executableReleases.get());
@@ -737,14 +745,13 @@ class MetalNegPreparedExecutionTest {
         MetalDeviceContext malformedContext = MetalDeviceContext.open(malformedApi);
         try {
             IllegalStateException failure = assertThrows(IllegalStateException.class,
-                    () -> malformedContext.createNegExecutable(
-                            analyze(fixture(), malformedContext).plan()));
+                    () -> malformedContext.createMpsGraphExecutable(analyze(fixture(), malformedContext).plan()));
             assertTrue(failure.getMessage().contains("failure with a non-null handle"));
             assertNativeFailure((MetalNativeApi.NativeFailure) failure.getCause(),
-                    MetalNativeApi.NEG_EXECUTABLE_CREATE_OPERATION, 9);
+                    MetalNativeApi.EXECUTABLE_CREATE_OPERATION, 9);
             assertEquals(1, failure.getSuppressed().length);
             assertNativeFailure((MetalNativeApi.NativeFailure) failure.getSuppressed()[0],
-                    MetalNativeApi.NEG_EXECUTABLE_CREATE_OPERATION
+                    MetalNativeApi.EXECUTABLE_CREATE_OPERATION
                             + " malformed-handle cleanup",
                     7);
             assertEquals(1, malformedApi.executableCreates.get());
@@ -759,7 +766,7 @@ class MetalNegPreparedExecutionTest {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
         MetalMpsGraphExecutableResource resource =
-                context.createNegExecutable(analyze(fixture(), context).plan());
+                context.createMpsGraphExecutable(analyze(fixture(), context).plan());
         var inputs = List.of(context.createBuffer(24), context.createBuffer(16));
         var outputs = List.of(context.createBuffer(24), context.createBuffer(16),
                 context.createBuffer(24));
@@ -795,7 +802,7 @@ class MetalNegPreparedExecutionTest {
         RecordingNativeApi unknownApi = new RecordingNativeApi();
         MetalDeviceContext unknownContext = MetalDeviceContext.open(unknownApi);
         MetalMpsGraphExecutableResource unknownResource =
-                unknownContext.createNegExecutable(analyze(fixture(), unknownContext).plan());
+                unknownContext.createMpsGraphExecutable(analyze(fixture(), unknownContext).plan());
         unknownContext.close();
         unknownApi.releaseStatus = 83;
         MetalNativeApi.NativeFailure unknownRelease = assertThrows(
@@ -812,7 +819,7 @@ class MetalNegPreparedExecutionTest {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
         MetalMpsGraphExecutableResource resource =
-                context.createNegExecutable(analyze(fixture(), context).plan());
+                context.createMpsGraphExecutable(analyze(fixture(), context).plan());
         RuntimeException contextFailure = new RuntimeException("context release");
         RuntimeException closeFailure = new RuntimeException("api close");
         api.releaseStatus = 7;
@@ -837,7 +844,7 @@ class MetalNegPreparedExecutionTest {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
         MetalMpsGraphExecutableResource resource =
-                context.createNegExecutable(analyze(fixture(), context).plan());
+                context.createMpsGraphExecutable(analyze(fixture(), context).plan());
         var first = context.createBuffer(24);
         var second = context.createBuffer(16);
         var out0 = context.createBuffer(24);
@@ -1012,7 +1019,7 @@ class MetalNegPreparedExecutionTest {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
         MetalMpsGraphExecutableResource resource =
-                context.createNegExecutable(analyze(fixture(), context).plan());
+                context.createMpsGraphExecutable(analyze(fixture(), context).plan());
         var input0 = context.createBuffer(24);
         var input1 = context.createBuffer(16);
         var output0 = context.createBuffer(24);
@@ -1232,7 +1239,7 @@ class MetalNegPreparedExecutionTest {
     }
 
     @Test
-    void realDeviceReusesOneExecutableAndWritesSuppliedDestinations() {
+    void realDeviceReusesOneMixedExecutableAndWritesSuppliedDestinations() {
         String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
         assumeTrue(configured != null && !configured.isBlank(),
                 "SYNAPTIK_METAL_TEST_LIBRARY is not set");
@@ -1245,7 +1252,7 @@ class MetalNegPreparedExecutionTest {
         MetalBufferRepresentation output1 = null;
         MetalBufferRepresentation output2 = null;
         try {
-            resource = context.createNegExecutable(analyze(fixture(), context).plan());
+            resource = context.createMpsGraphExecutable(analyze(fixture(), context).plan());
             input0 = context.createBuffer(24);
             input1 = context.createBuffer(16);
             output0 = context.createBuffer(24);
@@ -1264,15 +1271,20 @@ class MetalNegPreparedExecutionTest {
                         context, input0, input1, output0, output1, output2);
                 resource.run(2, workspace.segment().asSlice(0, 16),
                         3, workspace.segment().asSlice(16, 24));
-                assertNegated(output0, new float[] {1.0f, -2.0f, 0.0f, -0.0f,
-                        Float.POSITIVE_INFINITY, Float.NaN}, arena);
-                assertNegated(output1, new float[] {-3.0f, 4.0f, Float.POSITIVE_INFINITY, -0.0f}, arena);
-                assertNegated(output2, new float[] {1.0f, -2.0f, 0.0f, -0.0f,
-                        Float.POSITIVE_INFINITY, Float.NaN}, arena);
+                assertNegated(output0, new float[] {
+                        0.0f, 0.0f, 0.0f, 0.0f, Float.NaN, Float.NaN
+                }, arena);
+                assertNegated(output1, new float[] {
+                        9.0f, 16.0f, Float.POSITIVE_INFINITY, 0.0f
+                }, arena);
+                assertNegated(output2, new float[] {
+                        -1.0f, -1.0f, Float.NaN, Float.NaN, Float.NaN, Float.NaN
+                }, arena);
                 resource.run(2, workspace.segment().asSlice(0, 16),
                         3, workspace.segment().asSlice(16, 24));
-                assertNegated(output0, new float[] {1.0f, -2.0f, 0.0f, -0.0f,
-                        Float.POSITIVE_INFINITY, Float.NaN}, arena);
+                assertNegated(output0, new float[] {
+                        0.0f, 0.0f, 0.0f, 0.0f, Float.NaN, Float.NaN
+                }, arena);
             }
         } finally {
             close(output2); close(output1); close(output0); close(input1); close(input0);
@@ -1476,8 +1488,11 @@ class MetalNegPreparedExecutionTest {
                             new MetalNegAnalysisInputs(context)));
             MetalNegPreparationPlan plan = analysis.plan();
             assertEquals(concat(List.of(caller), splats), plan.feedValueIds());
-            int quietNanInput = plan.nodeInputValueIndices()[5];
-            assertEquals(quietNanInput, plan.nodeInputValueIndices()[6],
+            int quietNanInput =
+                    plan.graphProgram().nodes().get(5).firstInputIndex();
+            assertEquals(
+                    quietNanInput,
+                    plan.graphProgram().nodes().get(6).firstInputIndex(),
                     "repeated consumption must retain one indexed feed");
 
             var bufferEntries = new ArrayList<PreparedMemoryPlan.BufferEntry>();
@@ -1764,11 +1779,14 @@ class MetalNegPreparedExecutionTest {
         ValueId v0 = new ValueId(0), v1 = new ValueId(1), v2 = new ValueId(2);
         ValueId v3 = new ValueId(3), v4 = new ValueId(4), v5 = new ValueId(5);
         Operation neg = new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE);
+        Operation add = new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE);
+        Operation mul = new Operation(BinaryArithmeticKind.MUL, NoOperationAttrs.INSTANCE);
+        Operation div = new Operation(BinaryArithmeticKind.DIV, NoOperationAttrs.INSTANCE);
         List<CompiledNode> nodes = List.of(
                 new CompiledNode(new NodeId(0), neg, List.of(v0), List.of(v2)),
-                new CompiledNode(new NodeId(1), neg, List.of(v2), List.of(v3)),
-                new CompiledNode(new NodeId(2), neg, List.of(v1), List.of(v4)),
-                new CompiledNode(new NodeId(3), neg, List.of(v2), List.of(v5)));
+                new CompiledNode(new NodeId(1), add, List.of(v2, v0), List.of(v3)),
+                new CompiledNode(new NodeId(2), mul, List.of(v1, v1), List.of(v4)),
+                new CompiledNode(new NodeId(3), div, List.of(v2, v0), List.of(v5)));
         PlannedPartition partition = new PlannedPartition(MetalCapabilityProvider.METAL_BACKEND_ID,
                 nodes.stream().map(CompiledNode::id).toList());
         List<GraphValue> values = List.of(new GraphValue(v0, a), new GraphValue(v1, b),
@@ -1892,8 +1910,7 @@ class MetalNegPreparedExecutionTest {
         private volatile CountDownLatch runEntered = new CountDownLatch(0);
         private volatile CountDownLatch continueRuns = new CountDownLatch(0);
         private volatile CountDownLatch bufferCreateEntered = new CountDownLatch(0);
-        private int[] nodeInputs;
-        private int[] nodeOutputs;
+        private int[] nodeRecords;
         private int[] feeds;
         private int[] targets;
 
@@ -1934,14 +1951,19 @@ class MetalNegPreparedExecutionTest {
                         source[Math.toIntExact(offset + index)]);
             }
         }
-        @Override synchronized NativeCreateResult createNegExecutableNative(
-                Handle context, int[] ranks,
-                long[] dimensions, int[] inputs, int[] outputs, int[] feedIndices,
+        @Override
+        synchronized NativeCreateResult createMpsGraphExecutableNative(
+                Handle context,
+                int[] ranks,
+                long[] dimensions,
+                MetalMpsGraphProgram graphProgram,
+                int[] feedIndices,
                 int[] targetIndices) {
             executableCreates.incrementAndGet();
             if (createFailure != null) throw createFailure;
-            nodeInputs = inputs.clone(); nodeOutputs = outputs.clone();
-            feeds = feedIndices.clone(); targets = targetIndices.clone();
+            nodeRecords = graphProgram.encodedNodeRecords();
+            feeds = feedIndices.clone();
+            targets = targetIndices.clone();
             Handle created = createNullHandle ? null : handle();
             if (createStatus != 0 && !createHandleOnFailure) created = null;
             return new NativeCreateResult(createStatus, created);

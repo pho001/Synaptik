@@ -16,6 +16,7 @@ import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -26,39 +27,99 @@ import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
-/** Conformance checks for public Metal NEG truth and Planning's unchanged maximal closure. */
+/** Conformance checks for public Metal elementwise truth and Planning maximal closure. */
 final class MetalNegCapabilityPartitionConformanceTest {
-    /** Proves exact supported truth remains public while a neighboring operation fails closed. */
-    @Test void advertisesOnlyEligibleFloat32Neg() {
+    /** Proves all five typed kinds and exact broadcasting are public while ABS fails closed. */
+    @Test void advertisesExactElementwiseDomain() {
         var provider = new MetalCapabilityProvider();
-        TensorDescriptor descriptor = descriptor(Shape.of(2, 3));
+        TensorDescriptor matrix = descriptor(Shape.of(2, 3));
+        TensorDescriptor row = descriptor(Shape.of(3));
         assertTrue(provider.supports(new OperationCapabilityQuery(
-                operation(UnaryElementwiseKind.NEG), List.of(descriptor), List.of(descriptor))));
+                operation(UnaryElementwiseKind.NEG), List.of(matrix), List.of(matrix))));
+        for (BinaryArithmeticKind kind : List.of(
+                BinaryArithmeticKind.ADD,
+                BinaryArithmeticKind.SUB,
+                BinaryArithmeticKind.MUL,
+                BinaryArithmeticKind.DIV)) {
+            assertTrue(provider.supports(new OperationCapabilityQuery(
+                    operation(kind), List.of(matrix, row), List.of(matrix))));
+        }
         assertFalse(provider.supports(new OperationCapabilityQuery(
-                operation(UnaryElementwiseKind.ABS), List.of(descriptor), List.of(descriptor))));
+                operation(UnaryElementwiseKind.ABS), List.of(matrix), List.of(matrix))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                operation(BinaryArithmeticKind.ADD),
+                List.of(matrix, descriptor(Shape.of(2, 2))),
+                List.of(matrix))));
     }
 
-    /** Proves adjacent eligible NEG occurrences become one whole maximal Metal partition. */
-    @Test void adjacentEligibleOccurrencesRemainOneMaximalPartition() {
-        ValueId input = new ValueId(0), middle = new ValueId(1), output = new ValueId(2);
+    /** Proves a heterogeneous eligible chain becomes one whole maximal Metal partition. */
+    @Test void mixedEligibleOccurrencesBecomeOneMaximalPartition() {
         TensorDescriptor descriptor = descriptor(Shape.of(4));
-        CompiledNode first = new CompiledNode(new NodeId(0), operation(UnaryElementwiseKind.NEG),
-                List.of(input), List.of(middle));
-        CompiledNode second = new CompiledNode(new NodeId(1), operation(UnaryElementwiseKind.NEG),
-                List.of(middle), List.of(output));
+        ValueId input = new ValueId(0);
+        ValueId right = new ValueId(1);
+        ValueId negated = new ValueId(2);
+        ValueId added = new ValueId(3);
+        ValueId subtracted = new ValueId(4);
+        ValueId multiplied = new ValueId(5);
+        ValueId output = new ValueId(6);
+        CompiledNode neg = new CompiledNode(
+                new NodeId(0),
+                operation(UnaryElementwiseKind.NEG),
+                List.of(input),
+                List.of(negated));
+        CompiledNode add = new CompiledNode(
+                new NodeId(1),
+                operation(BinaryArithmeticKind.ADD),
+                List.of(negated, right),
+                List.of(added));
+        CompiledNode sub = new CompiledNode(
+                new NodeId(2),
+                operation(BinaryArithmeticKind.SUB),
+                List.of(added, right),
+                List.of(subtracted));
+        CompiledNode mul = new CompiledNode(
+                new NodeId(3),
+                operation(BinaryArithmeticKind.MUL),
+                List.of(subtracted, right),
+                List.of(multiplied));
+        CompiledNode div = new CompiledNode(
+                new NodeId(4),
+                operation(BinaryArithmeticKind.DIV),
+                List.of(multiplied, right),
+                List.of(output));
+        List<CompiledNode> nodes = List.of(neg, add, sub, mul, div);
         var graph = new CompiledGraphModel(
-                List.of(new GraphValue(input, descriptor), new GraphValue(middle, descriptor),
+                List.of(
+                        new GraphValue(input, descriptor),
+                        new GraphValue(right, descriptor),
+                        new GraphValue(negated, descriptor),
+                        new GraphValue(added, descriptor),
+                        new GraphValue(subtracted, descriptor),
+                        new GraphValue(multiplied, descriptor),
                         new GraphValue(output, descriptor)),
-                List.of(first, second), List.of(input), List.of(output),
-                Map.of(first.id(), GraphPhase.FORWARD, second.id(), GraphPhase.FORWARD));
+                nodes,
+                List.of(input, right),
+                List.of(added, output),
+                Map.of(
+                        neg.id(), GraphPhase.FORWARD,
+                        add.id(), GraphPhase.FORWARD,
+                        sub.id(), GraphPhase.FORWARD,
+                        mul.id(), GraphPhase.FORWARD,
+                        div.id(), GraphPhase.FORWARD));
 
-        var partitions = MaximalSameOwnerPartitioning.partition(graph,
-                Map.of(first.id(), MetalCapabilityProvider.METAL_BACKEND_ID,
-                        second.id(), MetalCapabilityProvider.METAL_BACKEND_ID));
+        var partitions = MaximalSameOwnerPartitioning.partition(
+                graph,
+                Map.of(
+                        neg.id(), MetalCapabilityProvider.METAL_BACKEND_ID,
+                        add.id(), MetalCapabilityProvider.METAL_BACKEND_ID,
+                        sub.id(), MetalCapabilityProvider.METAL_BACKEND_ID,
+                        mul.id(), MetalCapabilityProvider.METAL_BACKEND_ID,
+                        div.id(), MetalCapabilityProvider.METAL_BACKEND_ID));
 
         assertEquals(1, partitions.size());
         assertSame(MetalCapabilityProvider.METAL_BACKEND_ID, partitions.getFirst().owner());
-        assertEquals(List.of(first.id(), second.id()), partitions.getFirst().nodeIds());
+        assertEquals(nodes.stream().map(CompiledNode::id).toList(),
+                partitions.getFirst().nodeIds());
     }
 
     private static TensorDescriptor descriptor(Shape shape) {
@@ -67,6 +128,10 @@ final class MetalNegCapabilityPartitionConformanceTest {
     }
 
     private static Operation operation(UnaryElementwiseKind kind) {
+        return new Operation(kind, NoOperationAttrs.INSTANCE);
+    }
+
+    private static Operation operation(BinaryArithmeticKind kind) {
         return new Operation(kind, NoOperationAttrs.INSTANCE);
     }
 }

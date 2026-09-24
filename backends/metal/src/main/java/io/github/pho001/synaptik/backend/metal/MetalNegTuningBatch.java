@@ -7,7 +7,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Immutable Metal-owned candidates and session compatibility for one validated NEG partition.
+ * Immutable Metal-owned candidates and session compatibility for one elementwise partition.
  *
  * <p>The stable candidate order begins with the current safe heuristic. The value owns no
  * measurement, cache location, native handle, executable, physical allocation, or Runtime state.
@@ -16,17 +16,17 @@ import java.util.Optional;
  */
 final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
     /** Current candidate and decision meaning. */
-    static final int CANDIDATE_SCHEMA_VERSION = 1;
+    static final int CANDIDATE_SCHEMA_VERSION = 2;
     /** Current canonical workload/target compatibility meaning. */
-    static final int COMPATIBILITY_SCHEMA_VERSION = 1;
-    /** Current exact/default Metal NEG policy meaning. */
-    static final int ROUTE_POLICY_VERSION = 1;
+    static final int COMPATIBILITY_SCHEMA_VERSION = 2;
+    /** Current exact/default Metal elementwise policy meaning. */
+    static final int ROUTE_POLICY_VERSION = 2;
 
     /** Stable complete private route configurations. */
     enum Candidate {
         /** One-node, one-feed, one-target custom FLOAT32 NEG configuration. */
         CUSTOM_SINGLE_NEG(1, MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG),
-        /** Whole-partition MPSGraph NEG configuration. */
+        /** Whole-partition typed MPSGraph elementwise configuration. */
         MPSGRAPH(2, MetalNegPreparationPlan.Route.MPSGRAPH);
 
         private final int wireIdentity;

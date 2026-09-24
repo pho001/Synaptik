@@ -11,12 +11,12 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 
 /**
- * Validates assigned Metal NEG declarations and compiles the selected typed persistent resource.
+ * Validates assigned Metal elementwise declarations and compiles the selected persistent resource.
  *
  * <p>The finalizer changes no route or declaration. It compiles and owns the selected custom
- * pipeline or MPSGraph executable resource until the complete result returns, and reverses that
- * acquisition on every intervening failure while preserving the original failure and distinct
- * cleanup suppression.</p>
+ * singleton-NEG pipeline or typed whole-partition MPSGraph executable until the complete result
+ * returns, and reverses that acquisition on every intervening failure while preserving the
+ * original failure and distinct cleanup suppression.</p>
  */
 final class MetalNegPartitionFinalizer
         implements BackendPartitionFinalizer<MetalNegPreparationPlan> {
@@ -184,7 +184,7 @@ final class MetalNegPartitionFinalizer
                 || workspaceEntry.byteAlignment() != workspaceRequirement.byteAlignment()) {
             throw new IllegalArgumentException("Metal NEG address workspace geometry disagrees");
         }
-        MetalMpsGraphExecutableResource resource = context.createNegExecutable(plan);
+        MetalMpsGraphExecutableResource resource = context.createMpsGraphExecutable(plan);
         try {
             var executable = executableFactory.createMpsGraph(
                     plan,

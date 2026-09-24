@@ -5,7 +5,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Immutable Metal-owned selection reference for one compatible NEG candidate.
+ * Immutable Metal-owned selection reference for one compatible elementwise candidate.
  *
  * <p>The value contains compatibility and identity only. It contains no measurement, cache,
  * executable, native handle, physical resource, or Runtime state.</p>

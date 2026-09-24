@@ -6,7 +6,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Supplies the exact Metal device context used by one NEG partition analysis and finalization.
+ * Supplies the exact Metal device context used by one elementwise partition analysis/finalization.
  *
  * <p>The immutable value retains a backend-private prerequisite only. Analysis performs no native
  * work; finalization uses the same context to compile the persistent executable.</p>

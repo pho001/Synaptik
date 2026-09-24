@@ -11,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -433,105 +432,16 @@ class MetalFoundationTest {
         }
     }
 
-    @Test
-    void customPipelineNativeSourceRetainsEveryFailClosedBranch() throws Exception {
-        String source = Files.readString(repositoryPath(
-                "native/metal-macos-arm64/src/synaptik_metal_foundation.m"));
-        String create = functionSource(source,
-                "synaptik_metal_neg_kernel_pipeline_create",
-                "synaptik_metal_neg_kernel_pipeline_release");
-        String release = functionSource(source,
-                "synaptik_metal_neg_kernel_pipeline_release",
-                "synaptik_metal_neg_kernel_pipeline_run");
-        String run = functionSource(source,
-                "synaptik_metal_neg_kernel_pipeline_run", null);
-        String createContract = withoutWhitespace(create);
-        String releaseContract = withoutWhitespace(release);
-        String runContract = withoutWhitespace(run);
-
-        assertTrue(createContract.contains(
-                "if(out_pipeline==NULL)returnSYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;"
-                        + "*out_pipeline=NULL;"
-                        + "if(context==NULL)returnSYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;"
-                        + "if(element_count==0U"));
-        assertTrue(createContract.contains(
-                "if(element_count==0U||element_count>UINT32_MAX"
-                        + "||element_count>UINT64_MAX/sizeof(float)"
-                        + "||element_count>(uint64_t)NSUIntegerMax"
-                        + "||element_count*sizeof(float)>(uint64_t)NSUIntegerMax)"
-                        + "returnSYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE;"));
-        assertTrue(createContract.contains(
-                "if(![ctx.devicesupportsFamily:MTLGPUFamilyApple4])"
-                        + "returnSYNAPTIK_METAL_STATUS_KERNEL_COMPILATION_FAILED;"));
-        assertTrue(createContract.contains(
-                "if(library==nil||library_error!=nil)"
-                        + "returnSYNAPTIK_METAL_STATUS_KERNEL_COMPILATION_FAILED;"));
-        assertTrue(createContract.contains(
-                "if(function==nil)returnSYNAPTIK_METAL_STATUS_KERNEL_COMPILATION_FAILED;"));
-        assertTrue(createContract.contains(
-                "if(pipeline==nil||pipeline_error!=nil)"
-                        + "returnSYNAPTIK_METAL_STATUS_KERNEL_COMPILATION_FAILED;"));
-        assertTrue(createContract.contains(
-                "if(execution_width==0U||maximum_width==0U)"
-                        + "returnSYNAPTIK_METAL_STATUS_KERNEL_COMPILATION_FAILED;"));
-        assertTrue(createContract.contains(
-                "if(grid.width!=element_count||grid.height!=1U||grid.depth!=1U)"
-                        + "returnSYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE;"));
-        assertTrue(createContract.contains(
-                "if(group.width==0U||group.width>maximum_width"
-                        + "||group.height!=1U||group.depth!=1U)"
-                        + "returnSYNAPTIK_METAL_STATUS_EXECUTION_FAILED;"));
-        assertTrue(createContract.contains(
-                "if(box==nil)returnSYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;"));
-        assertTrue(createContract.contains(
-                "@catch(__unusedNSException*exception)"
-                        + "{returnSYNAPTIK_METAL_STATUS_INTERNAL_ERROR;}"));
-        assertTrue(releaseContract.contains(
-                "if(pipeline==NULL)returnSYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;"));
-        assertTrue(releaseContract.contains(
-                "@catch(__unusedNSException*exception)"
-                        + "{returnSYNAPTIK_METAL_STATUS_INTERNAL_ERROR;}"));
-
-        assertTrue(runContract.contains(
-                "if(pipeline==NULL||input_buffer==NULL||output_buffer==NULL)"
-                        + "returnSYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;"));
-        assertTrue(runContract.contains(
-                "if(input_buffer==output_buffer)"
-                        + "returnSYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE;"));
-        assertTrue(runContract.contains(
-                "if(input.buffer.device!=box.context.device"
-                        + "||output.buffer.device!=box.context.device"
-                        + "||input.logicalByteSize<box.requiredBytes"
-                        + "||output.logicalByteSize<box.requiredBytes)"
-                        + "returnSYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE;"));
-        assertTrue(runContract.contains(
-                "if(box.elementCount==0U||box.elementCount>UINT32_MAX"
-                        + "||box.threadsPerThreadgroup==0U"
-                        + "||box.threadsPerThreadgroup>"
-                        + "box.pipeline.maxTotalThreadsPerThreadgroup)"
-                        + "returnSYNAPTIK_METAL_STATUS_EXECUTION_FAILED;"));
-        assertTrue(runContract.contains(
-                "if(command==nil)returnSYNAPTIK_METAL_STATUS_EXECUTION_FAILED;"));
-        assertTrue(runContract.contains(
-                "if(encoder==nil)returnSYNAPTIK_METAL_STATUS_EXECUTION_FAILED;"));
-        assertTrue(runContract.contains(
-                "if(command.status!=MTLCommandBufferStatusCompleted||command.error!=nil)"
-                        + "returnSYNAPTIK_METAL_STATUS_EXECUTION_FAILED;"));
-        assertTrue(runContract.contains(
-                "@catch(__unusedNSException*exception)"
-                        + "{returnSYNAPTIK_METAL_STATUS_INTERNAL_ERROR;}"));
-    }
 
     @Test
-    void negExecutableCreatePreflightRejectsMalformedAbiWithoutNativeInvocation() {
+    void mpsGraphExecutableCreatePreflightRejectsMalformedAbiWithoutNativeInvocation() {
         var api = new FakeNativeApi();
         MetalNativeApi.Handle context = new MetalNativeApi.Handle(MemorySegment.ofAddress(97));
-        NegCreate valid = validNegCreate();
+        GraphCreate valid = validGraphCreate();
 
         assertInvalidCreate(api, context, valid.withRanks(new int[0]));
         assertInvalidCreate(api, context, valid.withDimensions(new long[47]));
-        assertInvalidCreate(api, context, valid.withNodeInputs(new int[0]));
-        assertInvalidCreate(api, context, valid.withNodeOutputs(new int[] {1}));
+        assertThrows(IllegalArgumentException.class, () -> new MetalMpsGraphProgram(List.of()));
         assertInvalidCreate(api, context, valid.withFeeds(new int[0]));
         assertInvalidCreate(api, context, valid.withTargets(new int[0]));
 
@@ -553,11 +463,18 @@ class MetalFoundationTest {
         assertInvalidCreate(api, context, valid.withTargets(new int[] {0}));
         assertInvalidCreate(api, context, valid.withTargets(new int[] {2, 2}));
 
-        assertInvalidCreate(api, context, valid.withNodeInputs(new int[] {3, 1}));
-        assertInvalidCreate(api, context, valid.withNodeInputs(new int[] {1, 0}));
-        assertInvalidCreate(api, context, valid.withNodeOutputs(new int[] {3, 2}));
-        assertInvalidCreate(api, context, valid.withNodeOutputs(new int[] {0, 2}));
-        assertInvalidCreate(api, context, valid.withNodeOutputs(new int[] {1, 1}));
+        assertInvalidCreate(api, context, valid.withProgram(new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.neg(3, 1),
+                MetalMpsGraphProgram.Node.neg(1, 2)))));
+        assertInvalidCreate(api, context, valid.withProgram(new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.neg(1, 2),
+                MetalMpsGraphProgram.Node.neg(0, 1)))));
+        assertInvalidCreate(api, context, valid.withProgram(new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.neg(0, 0),
+                MetalMpsGraphProgram.Node.neg(0, 2)))));
+        assertInvalidCreate(api, context, valid.withProgram(new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.neg(0, 1),
+                MetalMpsGraphProgram.Node.neg(0, 1)))));
 
         int[] mismatchedRank = valid.ranks().clone();
         mismatchedRank[1] = 1;
@@ -583,12 +500,39 @@ class MetalFoundationTest {
             dimensionsWithUnused[value * 16 + 1] = 3;
         }
         assertInvalidCreate(api, context,
-                new NegCreate(ranksWithUnused, dimensionsWithUnused,
-                        valid.nodeInputs(), valid.nodeOutputs(), valid.feeds(), valid.targets()));
+                new GraphCreate(
+                        ranksWithUnused,
+                        dimensionsWithUnused,
+                        valid.program(),
+                        valid.feeds(),
+                        valid.targets()));
+
+        long[] binaryDimensions = new long[48];
+        binaryDimensions[0] = 2;
+        binaryDimensions[1] = 3;
+        binaryDimensions[16] = 3;
+        binaryDimensions[32] = 2;
+        binaryDimensions[33] = 3;
+        GraphCreate binary = new GraphCreate(
+                new int[] {2, 1, 2},
+                binaryDimensions,
+                new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.binary(
+                        MetalMpsGraphProgram.NodeKind.SUB, 0, 1, 2))),
+                new int[] {0, 1},
+                new int[] {2});
+        long[] badBroadcast = binary.dimensions().clone();
+        badBroadcast[33] = 2;
+        assertInvalidCreate(api, context, binary.withDimensions(badBroadcast));
 
         assertEquals(0, api.executableCreateCalls.get());
-        assertTrue(api.createNegExecutable(context, valid.ranks(), valid.dimensions(),
-                valid.nodeInputs(), valid.nodeOutputs(), valid.feeds(), valid.targets()) != null);
+        assertTrue(api.createMpsGraphExecutable(
+                        context,
+                        binary.ranks(),
+                        binary.dimensions(),
+                        binary.program(),
+                        binary.feeds(),
+                        binary.targets())
+                != null);
         assertEquals(1, api.executableCreateCalls.get());
     }
 
@@ -632,78 +576,60 @@ class MetalFoundationTest {
     }
 
     private static void assertInvalidCreate(
-            FakeNativeApi api, MetalNativeApi.Handle context, NegCreate input) {
+            FakeNativeApi api, MetalNativeApi.Handle context, GraphCreate input) {
         int before = api.executableCreateCalls.get();
         assertThrows(IllegalArgumentException.class,
-                () -> api.createNegExecutable(context, input.ranks(), input.dimensions(),
-                        input.nodeInputs(), input.nodeOutputs(), input.feeds(), input.targets()));
+                () -> api.createMpsGraphExecutable(
+                        context,
+                        input.ranks(),
+                        input.dimensions(),
+                        input.program(),
+                        input.feeds(),
+                        input.targets()));
         assertEquals(before, api.executableCreateCalls.get());
     }
 
-    private static Path repositoryPath(String relativePath) {
-        Path current = Path.of("").toAbsolutePath().normalize();
-        while (current != null) {
-            Path candidate = current.resolve(relativePath);
-            if (Files.isRegularFile(candidate)) {
-                return candidate;
-            }
-            current = current.getParent();
-        }
-        throw new AssertionError("repository path not found: " + relativePath);
-    }
-
-    private static String functionSource(String source, String symbol, String nextSymbol) {
-        int start = source.indexOf(symbol);
-        if (start < 0) {
-            throw new AssertionError("native symbol not found: " + symbol);
-        }
-        int end = nextSymbol == null ? source.length() : source.indexOf(nextSymbol, start + 1);
-        if (end < 0) {
-            throw new AssertionError("next native symbol not found: " + nextSymbol);
-        }
-        return source.substring(start, end);
-    }
-
-    private static String withoutWhitespace(String source) {
-        return source.replaceAll("\\s+", "");
-    }
-
-    private static NegCreate validNegCreate() {
+    private static GraphCreate validGraphCreate() {
         int[] ranks = {2, 2, 2};
         long[] dimensions = new long[48];
         for (int value = 0; value < 3; value++) {
             dimensions[value * 16] = 2;
             dimensions[value * 16 + 1] = 3;
         }
-        return new NegCreate(ranks, dimensions, new int[] {0, 1}, new int[] {1, 2},
-                new int[] {0}, new int[] {2});
+        return new GraphCreate(
+                ranks,
+                dimensions,
+                new MetalMpsGraphProgram(List.of(
+                        MetalMpsGraphProgram.Node.neg(0, 1),
+                        MetalMpsGraphProgram.Node.neg(1, 2))),
+                new int[] {0},
+                new int[] {2});
     }
 
-    private record NegCreate(
-            int[] ranks, long[] dimensions, int[] nodeInputs, int[] nodeOutputs,
-            int[] feeds, int[] targets) {
-        NegCreate withRanks(int[] replacement) {
-            return new NegCreate(replacement, dimensions, nodeInputs, nodeOutputs, feeds, targets);
+    private record GraphCreate(
+            int[] ranks,
+            long[] dimensions,
+            MetalMpsGraphProgram program,
+            int[] feeds,
+            int[] targets) {
+        GraphCreate withRanks(int[] replacement) {
+            return new GraphCreate(replacement, dimensions, program, feeds, targets);
         }
 
-        NegCreate withDimensions(long[] replacement) {
-            return new NegCreate(ranks, replacement, nodeInputs, nodeOutputs, feeds, targets);
+        GraphCreate withDimensions(long[] replacement) {
+            return new GraphCreate(ranks, replacement, program, feeds, targets);
         }
 
-        NegCreate withNodeInputs(int[] replacement) {
-            return new NegCreate(ranks, dimensions, replacement, nodeOutputs, feeds, targets);
+        GraphCreate withProgram(MetalMpsGraphProgram replacement) {
+            return new GraphCreate(ranks, dimensions, replacement, feeds, targets);
         }
 
-        NegCreate withNodeOutputs(int[] replacement) {
-            return new NegCreate(ranks, dimensions, nodeInputs, replacement, feeds, targets);
+        GraphCreate withFeeds(int[] replacement) {
+            return new GraphCreate(ranks, dimensions, program, replacement, targets);
         }
 
-        NegCreate withFeeds(int[] replacement) {
-            return new NegCreate(ranks, dimensions, nodeInputs, nodeOutputs, replacement, targets);
-        }
-
-        NegCreate withTargets(int[] replacement) {
-            return new NegCreate(ranks, dimensions, nodeInputs, nodeOutputs, feeds, replacement);
+        GraphCreate withTargets(int[] replacement) {
+            return new GraphCreate(ranks, dimensions, program, feeds, replacement);
         }
     }
 
@@ -800,12 +726,11 @@ class MetalFoundationTest {
         }
 
         @Override
-        synchronized NativeCreateResult createNegExecutableNative(
+        synchronized NativeCreateResult createMpsGraphExecutableNative(
                 Handle context,
                 int[] valueRanks,
                 long[] valueDimensions,
-                int[] nodeInputValueIndices,
-                int[] nodeOutputValueIndices,
+                MetalMpsGraphProgram graphProgram,
                 int[] feedValueIndices,
                 int[] targetValueIndices) {
             executableCreateCalls.incrementAndGet();

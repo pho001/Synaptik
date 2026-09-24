@@ -2,11 +2,12 @@
  * Supplies explicit capability, configuration, and lifecycle integration for the Metal backend.
  *
  * <p>{@link io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider} reports support only
- * for unary {@code NEG} occurrences whose input and output are equal-shape, fully static,
- * positive rank {@code 1..16}, resolved dense-contiguous, non-view, zero-offset {@code FLOAT32}
- * descriptors with equal gradient-eligibility flags. Planning may consequently form one maximal
- * Metal-owned partition from adjacent supported occurrences; the backend lowers that complete
- * partition during preparation.</p>
+ * for parameterless {@code NEG}, {@code ADD}, {@code SUB}, {@code MUL}, and {@code DIV}
+ * occurrences over fully static, positive rank {@code 1..16}, canonical dense-contiguous
+ * {@code FLOAT32} descriptors with equal gradient-eligibility flags. Unary shape is preserved;
+ * binary outputs use exact right-aligned broadcasting with ordered operands. Planning may form
+ * one maximal Metal-owned partition from any supported mixture, which the backend lowers as one
+ * typed whole-partition program during preparation.</p>
  *
  * <p>{@link io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration} names one explicit
  * native bridge. {@link io.github.pho001.synaptik.backend.metal.MetalBackendIntegration} opens and

@@ -3,9 +3,9 @@
 ## Purpose
 
 This directory builds the local application binary interface (ABI) used by the Synaptik Metal
-backend on Apple-silicon macOS. ABI version 3 retains the context, shared-storage buffer, and
-Metal Performance Shaders Graph (MPSGraph) contracts and adds one typed custom compute-pipeline
-route for a bounded singleton `FLOAT32` unary `NEG` partition.
+backend on Apple-silicon macOS. ABI version 4 retains context, shared-storage buffer, executable,
+and bounded custom singleton-`NEG` ownership while replacing the old NEG-only graph creator with
+a versioned typed whole-partition MPSGraph program for `NEG`, `ADD`, `SUB`, `MUL`, and `DIV`.
 
 ```text
 Java analysis -> choose custom singleton or MPSGraph route -> declare exact resources
@@ -30,7 +30,7 @@ Metal, and MetalPerformanceShadersGraph. It writes only
 `native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib`. The ignored binary is not a
 packaged, signed, notarized, or published artifact; Java callers supply its absolute path.
 
-## ABI version 3
+## ABI version 4
 
 The dylib exports exactly these thirteen symbols:
 
@@ -42,7 +42,7 @@ synaptik_metal_buffer_create
 synaptik_metal_buffer_release
 synaptik_metal_buffer_upload
 synaptik_metal_buffer_download
-synaptik_metal_mpsgraph_neg_executable_create
+synaptik_metal_mpsgraph_executable_create
 synaptik_metal_mpsgraph_executable_release
 synaptik_metal_mpsgraph_executable_run
 synaptik_metal_neg_kernel_pipeline_create
@@ -50,18 +50,46 @@ synaptik_metal_neg_kernel_pipeline_release
 synaptik_metal_neg_kernel_pipeline_run
 ```
 
-The version function returns unsigned value `3`. All other functions return a signed 32-bit
-status. Context, buffer, MPSGraph-executable, and custom-pipeline values cross the boundary as
-separate opaque `void *` handle families. Buffer sizes and offsets are unsigned 64-bit values.
-MPSGraph value, node, feed, and target counts, ranks, and value indices are unsigned 32-bit
-values. Custom-pipeline `element_count` is carried as `uint64_t`, but custom NEG creation accepts
-only `1..UINT32_MAX`; it returns unsupported shape outside that domain rather than narrowing the
-value. Created handles use caller-supplied output cells, which remain null on failure.
+The version function returns unsigned value `4`. The removed
+`synaptik_metal_mpsgraph_neg_executable_create` symbol is not exported. All other functions return
+a signed 32-bit status. Context, buffer, MPSGraph-executable, and custom-pipeline values cross the
+boundary as separate opaque `void *` handle families. Buffer sizes and offsets are unsigned
+64-bit values. Counts, ranks, value indices, node fields, and the node-schema version are unsigned
+32-bit values. Custom-pipeline `element_count` is carried as `uint64_t`, but custom NEG creation
+accepts only `1..UINT32_MAX`; it returns unsupported shape outside that domain rather than
+narrowing the value. Created handles use caller-supplied output cells, which remain null on
+failure.
 
-The complete executable-create and run signatures, padded rank-16 dimension table, stable
-feed/target ordering, and pointer preconditions are recorded in
-[Metal task 0003](../../docs/planning/backends/metal/tasks/0003-single-neg-custom-metal-kernel-route.md#exact-native-abi-version-3).
+The graph creator accepts node schema `1` and a bounded fixed-width table:
 
+```c
+typedef struct {
+    uint32_t operation;    /* NEG=1, ADD=2, SUB=3, MUL=4, DIV=5 */
+    uint32_t first_input;
+    uint32_t second_input; /* UINT32_MAX exactly for NEG */
+    uint32_t output;
+} SynaptikMetalMpsGraphNodeV1; /* exactly 16 bytes */
+```
+
+Its exact signature is:
+
+```c
+int32_t synaptik_metal_mpsgraph_executable_create(
+    void *context, uint32_t node_schema_version,
+    uint32_t value_count, const uint32_t *value_ranks,
+    const uint64_t *value_dimensions,
+    uint32_t node_count, const SynaptikMetalMpsGraphNodeV1 *nodes,
+    uint32_t feed_count, const uint32_t *feed_indices,
+    uint32_t target_count, const uint32_t *target_indices,
+    void **out_executable);
+```
+
+The dimension table has `value_count * 16` cells with used positive axes followed by zero padding.
+Feeds are unique and available before node zero; nodes are topological, produce fresh values, and
+retain binary operand order; targets are unique produced values. `NEG` requires equal shapes.
+Binary output shapes must equal exact right-aligned broadcasting of the two declared input shapes.
+Unknown operations, wrong sentinels, incompatible shapes, unused values, malformed indices, and
+wrong schema versions fail closed.
 ### Status values
 
 | Value | C name | Meaning |
@@ -84,12 +112,13 @@ Unknown integers remain unknown and fail closed on the Java side with the raw st
 The deterministic Java fake/native seam is the accepted error-matrix evidence; real-device tests
 exercise successful execution and do not manufacture framework failures.
 
-## Prepared NEG execution
+## Prepared elementwise execution
 
 Creation consumes a validated, topologically ordered whole-partition description. Native code
-creates fixed-shape `FLOAT32` placeholders, lowers each node to MPSGraph negation, and compiles one
-shape-specialized executable. The executable owner retains ordered feed and target shapes, byte
-extents, stable-to-framework permutations, and the originating context.
+creates fixed-shape `FLOAT32` placeholders, lowers every typed node to the corresponding MPSGraph
+negation or ordered binary arithmetic operation, and compiles one shape-specialized executable.
+The executable owner retains ordered feed and target shapes, byte extents, stable-to-framework
+permutations, and the originating context.
 
 Each run binds ordered input and supplied output `MTLBuffer` objects through
 `MPSGraphTensorData`. It sets `waitUntilCompleted = YES`, submits the executable once on the
@@ -116,8 +145,9 @@ Each invocation binds the direct input `MTLBuffer` at index `0` and assigned out
 at index `1`, creates one command buffer and one compute encoder, dispatches exactly the retained
 element count with `dispatchThreads`, and waits once for successful completion. The assigned
 output is written directly; the bridge performs no explicit host staging or intermediate output
-copy. Every other already-supported NEG partition remains on MPSGraph. The route is selected once
-during analysis and is never retried, replaced, or repartitioned during finalization or execution.
+copy. Every other supported elementwise partition uses the typed MPSGraph route. The route is
+selected once during analysis and is never retried, replaced, or repartitioned during
+finalization or execution.
 This private implementation-domain boundary is not capability narrowing, tuning, fallback, or a
 performance claim.
 
@@ -152,21 +182,22 @@ otool -L native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib
 The symbol list must contain exactly the thirteen names above, and the link list must contain
 Foundation, Metal, and MetalPerformanceShadersGraph.
 
-Run the two opt-in real-device cases against the freshly built dylib:
+Run the opt-in real-device cases against the freshly built dylib:
 
 ```bash
 SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" \
-  ./gradlew :backends:metal:test \
-  --tests '*MetalFoundationTest.nativeFoundationRoundTrip' \
-  --tests '*MetalNegPreparedExecutionTest.nativePreparedNegRoundTripAndReuse'
+  ./gradlew :backends:metal:test --tests '*Metal*' --rerun-tasks
+SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" \
+  ./gradlew :testing:integration-tests:test \
+  --tests '*EngineExplicitCompositionMetalIntegrationTest' --rerun-tasks
 ```
 
 The environment variable is required; ordinary sandboxed runs skip native-device cases. The
-foundation case proves context/buffer ownership and bounded shared-memory copies. The prepared
-case proves custom caller and splat execution with pipeline reuse and direct supplied outputs,
-then real `GraphCompilationPort`, shared `GraphPreparation`, Runtime, and retained multi-node
-MPSGraph execution. Positive-rank compile-time splat construction uses backend-local typed
-`PrepareContext` because the public compilation port cannot express that forward constant.
+foundation coverage proves context/buffer ownership and bounded shared-memory copies. Prepared
+coverage proves custom caller and splat execution, typed mixed-operation MPSGraph execution,
+stable multi-feed/multi-target ordering, route reuse, and direct supplied outputs. The public
+Engine case proves exact broadcasts, asymmetric ordered `SUB`/`DIV`, fan-out, repeated sessions,
+direct internal publications, and both CPU/Metal transfer directions.
 
 ## Boundaries
 

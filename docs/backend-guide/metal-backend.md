@@ -2,14 +2,15 @@
 
 ## Outcome and supported scope
 
-The Metal backend currently executes a whole maximal Metal-owned partition when every occurrence
-is unary `NEG` with equal input and output descriptors satisfying all of these conditions:
+The Metal backend executes a whole maximal Metal-owned partition when every occurrence is one of
+parameterless `NEG`, `ADD`, `SUB`, `MUL`, or `DIV` and all participating descriptors satisfy:
 
 - data type is `FLOAT32`;
 - shape is fully static with rank `1..16` and every dimension is positive;
-- input and output shapes are equal;
-- layout is resolved dense-contiguous, non-view, and zero-offset; and
-- input and output `requiresGrad` flags are equal, with either shared value accepted.
+- layout equals the canonical dense-contiguous, non-view, zero-offset layout;
+- every input and output in the occurrence has the same `requiresGrad` flag;
+- `NEG` input and output shapes are equal; and
+- a binary output shape equals the exact right-aligned broadcast of its ordered inputs.
 
 ```text
 capability -> Planning ownership -> Metal analysis and typed candidates
@@ -20,18 +21,18 @@ capability -> Planning ownership -> Metal analysis and typed candidates
 ```
 
 Capability applies per occurrence. Preparation accepts the complete maximal partition that
-Planning forms: chains, independent nodes, fan-out, repeated consumption, internal values,
-multiple boundary values, and different valid shapes. Every other operation, type, rank, zero
-extent, dynamic shape, unresolved or view layout, broadcast, and multi-output form remains
-fail-closed.
+Planning forms: heterogeneous chains, independent nodes, fan-out, repeated inputs, internal
+publications, multiple feeds and targets, exact broadcasts, and different valid shapes. Every
+other operation or attribute family, type, rank, zero extent, dynamic shape, unresolved or
+noncanonical layout, invalid broadcast, and multi-output form remains fail-closed.
 
 Within that unchanged capability domain, Metal analysis generates a typed complete candidate batch
 and selects one of two private routes:
 
 - `CUSTOM_SINGLE_NEG` for exactly one NEG occurrence, one unique feed, one unique target, and a
   checked element count in `1..UINT32_MAX`; or
-- `MPSGRAPH` for every other supported partition, including an otherwise matching singleton
-  above `UINT32_MAX`.
+- `MPSGRAPH` for every other supported partition, including every binary or mixed-operation
+  partition and an otherwise matching singleton above `UINT32_MAX`.
 
 With no selected decision, the first candidate preserves this exact heuristic. A compatible
 session-local decision can select the other valid route for an eligible singleton. This remains a
@@ -57,7 +58,7 @@ device discovery.
 
 | Stage or resource | Owner and current behavior |
 |---|---|
-| Capability truth | Public `MetalCapabilityProvider` reports only the exact `FLOAT32` NEG domain above. Task 0003 does not change it. |
+| Capability truth | Public `MetalCapabilityProvider` reports only the exact typed `FLOAT32` elementwise domain above. |
 | Native configuration and integration | Public `MetalBackendConfiguration` and `MetalBackendIntegration` belong to Metal. Metal validates configuration, opens native ownership, and rolls partial construction back before Engine can take the completed integration. |
 | Backend ownership | Planning chooses `owner = metal` and groups consecutive equal owners; it never selects MPSGraph or a custom kernel. |
 | Analysis | Package-private Metal code validates the complete partition, assigns stable structural value order, regenerates typed route candidates and session compatibility, authenticates any supplied decision, fixes one route, and declares that route's exact resources. |
@@ -92,18 +93,19 @@ constant must be an exact `FLOAT32` splat. The run uses an `InitializedBuffer` f
 than consuming a caller position. Existing shared `GraphPreparation` tests independently enforce
 the chain `CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
-Once stable feeds and targets and checked byte geometry are known, analysis creates a version-one
-candidate batch. MPSGraph is valid for every supported partition. The custom candidate exists only
-for one node, one feed, one target, and an element count in `1..UINT32_MAX`. Candidate order is the
-current safe heuristic first and then the other valid route; a positive budget returns a stable
-prefix, so budget one cannot change ordinary preparation.
+Once stable feeds, targets, checked byte geometry, and typed node records are known, analysis
+creates a version-two candidate batch. MPSGraph is valid for every supported partition. The
+custom candidate exists only for one `NEG` node, one feed, one target, and an element count in
+`1..UINT32_MAX`. Candidate order is the current safe heuristic first and then the other valid
+route; a positive budget returns a stable prefix, so budget one cannot change ordinary
+preparation.
 
-The canonical workload fingerprint covers the validated operation and fixed attributes, ordered
-structural topology, complete tensor descriptors and layouts, exact `FLOAT32` splat bits,
+The version-two canonical workload fingerprint covers typed node kinds, ordered input positions,
+output positions, complete tensor descriptors and layouts, exact `FLOAT32` splat bits,
 logical-boundary roles, exact/default policy, candidate and route-policy schemas, and ABI schema.
 It encodes structural positions rather than `NodeId`, `ValueId`, or partition object identity, so
 equal occurrences within one live context compare equally. Target compatibility also contains a
-fresh private nonce from the exact `MetalDeviceContext`. ABI version `3` is intentionally not
+fresh private nonce from the exact `MetalDeviceContext`. ABI version `4` is intentionally not
 treated as a stable cross-session device fingerprint.
 
 Metal can construct an absent- or present-decision `BackendPartitionTuningHandoff`. Fresh analysis
@@ -118,10 +120,10 @@ supported singleton has only the MPSGraph candidate; analysis does not reject or
 
 ### Session decision codec and limitations
 
-The package-private version-one Metal codec produces bounded canonical compatibility, candidate,
+The package-private version-two Metal codec produces bounded canonical compatibility, candidate,
 and checksummed decision bytes. Decode rejects wrong magic, schema, session scope, malformed or
 truncated content, trailing or corrupt bytes, changed workload or context, and unknown or pruned
-candidates. The bytes contain no native handle or executable.
+candidates. The bytes contain no native handle or executable. Version-one bytes fail closed.
 
 This codec is only the backend-side authentication foundation. It performs no file input/output,
 measurement, winner selection, or persistent reuse, and there is no `tools/tuning`, Engine, or
@@ -138,8 +140,9 @@ route and constructs one immutable `PreparedExecutable` recipe.
 
 For the custom route, native creation compiles the fixed branch-free `synaptik_neg_f32` Metal
 Shading Language source and creates one `MTLComputePipelineState`. For MPSGraph, native creation
-compiles one fixed-shape `MPSGraphExecutable` for the whole partition. Compilation happens during
-prepare finalization, never during invocation.
+validates a fixed-width version-one typed node table and compiles one fixed-shape
+`MPSGraphExecutable` for the whole partition. Compilation happens during prepare finalization,
+never during invocation.
 
 The typed resource owns the selected native handle and one context child lease. A provisional
 lease prevents concurrent context close from invalidating native creation. A malformed native
@@ -222,21 +225,25 @@ and publishes `[-1.0, 2.0, -0.0, +0.0]`. A second run reuses the pipeline but ow
 output buffer. Replacing the caller feed with an exact positive-rank `FLOAT32` splat keeps the same
 route and creates one fresh initialized feed buffer per run.
 
-### Multi-node MPSGraph route
+### Mixed-operation MPSGraph route
 
-For input `x = [1.0, -2.0]`, this supported graph:
+For matrix input `x` and broadcast row `r`, this supported graph:
 
 ```text
-y = NEG(x)
-z = NEG(y)
-publish y, z
+n = NEG(x)
+z = ADD(n, x)
+s = SUB(x, ADD(z, r))
+m = MUL(s, r)
+d = DIV(m, r)
+q = DIV(r, d)
+publish z, s, d, q
 ```
 
-forms one maximal partition but has two NEG occurrences, so it remains MPSGraph. `x` is one feed,
-`y` is both an internal value and boundary target, and `z` is a boundary target. A run creates
-fresh supplied destinations for `y` and `z`, executes once, and publishes `y = [-1.0, 2.0]` and
-`z = [1.0, -2.0]`. A second run reuses the executable but receives different outputs and address
-workspace.
+forms one maximal typed MPSGraph partition. The fixed ABI retains ordered operands, so asymmetric
+`SUB` and `DIV` semantics survive lowering. `r` broadcasts by exact right alignment; `s` is both
+an internal value and a boundary target. A run creates fresh supplied destinations for all four
+targets, executes the graph once, and publishes them directly. Repeated sessions reuse the
+persistent executable while owning different outputs and address workspaces.
 
 The public Engine path for a supported NEG uses the same contracts:
 
@@ -262,59 +269,41 @@ variant or automatic Metal selection outside the explicitly registered inventory
 
 ## ABI and failures
 
-Private ABI version `3` exports exactly thirteen symbols: the version/context/buffer foundation,
-the three MPSGraph executable operations, and the three typed custom-pipeline operations. Statuses
-`0..11` retain their earlier meanings; status `12` is
-`KERNEL_COMPILATION_FAILED`. Unknown integers fail closed with the raw value retained.
+Private ABI version `4` exports exactly thirteen symbols: the version/context/buffer foundation,
+`synaptik_metal_mpsgraph_executable_create`, executable release/run, and the three typed custom
+singleton-NEG pipeline operations. The old
+`synaptik_metal_mpsgraph_neg_executable_create` symbol is absent. Statuses `0..12` retain their
+documented meanings; unknown integers fail closed with the raw value retained.
 
-Java and native code validate every safely inspectable count, rank, dimension, index, topology,
-equal NEG shape, and byte geometry. Java additionally owns typed handle liveness and pointer-region
-preconditions that a raw C boundary cannot prove. Input/output aliasing and wrong device or
-insufficient buffer extent map to status `10`; grid representability maps to status `8`;
-unusable threadgroup geometry and custom command failures map to status `11`; Objective-C
-exceptions map to status `7`. MPSGraph compilation remains status `9`, while custom compilation
-and target proof use status `12`. No status string or framework object crosses the ABI.
-
-Deterministic fake/native-seam tests are the accepted status and error matrix. Source-contract
-assertions cover the native fail-closed branches and mappings. Real-device tests validate
-successful native behavior rather than trying to induce undocumented framework failures.
+The create ABI requires node schema `1` and four `uint32_t` cells per node: operation identity,
+first input, second input, and output. Operations are `NEG=1`, `ADD=2`, `SUB=3`, `MUL=4`, and
+`DIV=5`; `NEG` requires `UINT32_MAX` in its second-input cell. Java and native code validate every
+safely inspectable count, rank, dimension, index, topological availability, fresh output, target,
+sentinel, operation, equal NEG shape, exact binary broadcast, unused value, and checked byte
+geometry. Java additionally owns typed handle liveness and pointer-region preconditions that a
+raw C boundary cannot prove. Input/output aliasing and wrong device or insufficient extent map to
+status `10`; grid representability maps to status `8`; unusable threadgroup geometry and custom
+command failures map to status `11`; Objective-C exceptions map to status `7`. MPSGraph
+compilation remains status `9`, while custom compilation and target proof use status `12`.
 
 ## Evidence composition
 
-The stabilized task-0003 evidence is:
+Task 0005 validation composes:
 
-- the focused `MetalFoundationTest` run reported 14 total, 13 passed, and one expected native
-  opt-in skip;
-- the final ordinary Metal suite reported 45 total, 42 passed, three expected native opt-in
-  skips, and no failures or errors;
-- an earlier focused `MetalNegPreparedExecutionTest` run reported 28 total, 26 passed, and two
-  expected native opt-in skips before the final test-only/native mapping refinement; the final
-  full suite supersedes that focused run;
-- the native dylib build passed as Mach-O arm64, with exactly thirteen `synaptik_metal_*` exports
-  and expected Foundation, Metal, and MetalPerformanceShadersGraph linkage;
-- both `nativeFoundationRoundTrip` and `nativePreparedNegRoundTripAndReuse` passed against the
-  final rebuilt dylib on the real device;
-- generated Javadoc and custom hot-shape `javap` inspection passed, and source assertions cover
-  the specified native fail-closed branches and status mappings; and
-- code-review blockers were fixed and independent re-review reported no blocking findings.
+- focused backend tests for capability negatives, typed ABI validation, stable ordering,
+  custom-singleton/codec regression, assignment rejection, rollback, lifecycle, and concurrency;
+- backend-conformance coverage for exact public truth and one maximal heterogeneous partition;
+- a rebuilt arm64 dylib inspected for exactly thirteen exports, ABI `4`, required framework
+  linkage, and absence of the old NEG-only create symbol;
+- real-device backend execution for custom and typed mixed-operation MPSGraph reuse;
+- a public Engine scenario covering all five operations, exact broadcast in both ordered
+  arithmetic directions, multiple feeds and targets, fan-out, internal publications, repeated
+  session runs, and CPU/Metal transfer directions; and
+- Javadoc, architecture tests, public-shape tests, and whitespace validation.
 
-`nativePreparedNegRoundTripAndReuse` proves repeated custom caller and splat execution, fresh
-direct outputs, and the retained multi-node MPSGraph path. Backend-local typed tests separately
-prove declaration timing, assignment validation, malformed output-cell cleanup, typed handle
-separation, rollback, close/run lifecycle, and concurrent admitted-run isolation. Existing shared
-`GraphPreparation` contract tests prove that a `ConstantSource` reaches the owning partition's
-`PrepareContext.constants()` and must use `InitializedBuffer`.
-
-The public `GraphCompilationPort` intentionally supplies no explicit positive-rank forward-
-constant ingress. Therefore the repository does not claim one public-port positive-rank-splat
-test. Combining the real caller-input route, backend-local typed splat route, and existing shared
-constant contracts is the truthful evidence.
-
-Task 0004 adds backend-local focused coverage for candidate domains and budget prefixes,
-structurally equal graph identities, independent compatibility changes, defensive codec failures,
-fresh decision authentication, selected-route declaration/finalization, zero native allocation
-during generation, and concurrent cold generation. The ordinary Metal suite and capability
-conformance test retain the existing native seam, execution, lifecycle, and partitioning evidence.
+The public compilation port intentionally supplies no explicit positive-rank forward-constant
+ingress. Backend-local typed splat execution and shared constant propagation contracts therefore
+remain the truthful coverage for initialized Metal feeds.
 
 ## Registration and composition
 
@@ -347,10 +336,11 @@ cannot select or prepare Metal.
 Metal production has no Compiler or Engine dependency. Architecture tests lock that direction and
 the API-visible Engine dependency on Metal. Builder lifecycle tests cover entry-time transfer,
 snapshot and order freezing, duplicate-ID rejection, terminal failed build, reverse cleanup, and
-pre-analysis transfer-domain rejection. The real public integration test covers single-owner
-Metal execution, CPU-to-Metal and Metal-to-CPU transfer, repeated mixed prepared runs, a
-three-partition fan-out, per-owner publications after registry lookup is poisoned, CPU tuning with
-Metal registered, and early Metal tuning rejection. These implement the construction boundary in
+pre-analysis transfer-domain rejection. The real public integration test covers custom singleton
+execution, one Metal-only heterogeneous broadcast partition, asymmetric `SUB`/`DIV`,
+multi-feed/multi-target fan-out and direct internal publications, repeated sessions, CPU-to-Metal
+and Metal-to-CPU transfer, adapter use after registry lookup is poisoned, CPU tuning with Metal
+registered, and early Metal tuning rejection. These implement the construction boundary in
 [ADR 0015](../design/decisions/0015-explicit-engine-backend-composition.md) and the current
 owner-indexed mixed schedule in
 [ADR 0016](../design/decisions/0016-cpu-metal-mixed-owner-schedule.md).
@@ -358,11 +348,11 @@ owner-indexed mixed schedule in
 ## Limitations and related documentation
 
 The current routes have no FLOAT16, BFLOAT16, FLOAT64, integer, BOOL, scalar-rank, zero-extent,
-dynamic-shape, strided/view/offset, broadcast, or multi-output support. There is no general custom
-kernel framework, asynchronous API, cross-run overlap guarantee, buffer pool, persistent constant
-buffer, executable serialization, packaging, discovery, persistent route cache, current tuning
-integration, or performance claim. Model task 0026 must define FLOAT16 semantics before any
-backend can advertise it.
+dynamic-shape, noncanonical strided/view/offset, variadic, or multi-output support. There is no
+general custom-kernel framework, asynchronous API, cross-run overlap guarantee, buffer pool,
+persistent constant buffer, executable serialization, packaging, discovery, persistent route
+cache, current tuning integration, or performance claim. Model task 0026 must define FLOAT16
+semantics before any backend can advertise it.
 
 Related documentation:
 
@@ -372,4 +362,5 @@ Related documentation:
 - [Metal strategy note](../design/notes/metal-backend-strategy.md)
 - [Metal task 0003](../planning/backends/metal/tasks/0003-single-neg-custom-metal-kernel-route.md)
 - [Metal task 0004](../planning/backends/metal/tasks/0004-typed-metal-route-candidate-generators-and-cache-compatibility.md)
+- [Metal task 0005](../planning/backends/metal/tasks/0005-mpsgraph-mixed-binary-whole-partition.md)
 - [Native ABI and build guide](../../native/metal-macos-arm64/README.md)

@@ -1089,13 +1089,14 @@ through the architecture-approved inward dependency on planning and supports onl
 `BinaryArithmeticKind.ADD` with `NoOperationAttrs`, two inputs, one output, equal fully static
 shapes, one of `FLOAT64`, `FLOAT32`, `INT32`, or `INT64`, and either unresolved or
 `DENSE_CONTIGUOUS` non-view zero-offset layout. The current Metal provider reports support only
-for unary `NEG` occurrences with equal input/output `FLOAT32` descriptors whose shape is fully
-static and positive with rank `1..16`, whose layout is resolved dense-contiguous, non-view, and
-zero-offset, and whose gradient flags match. That occurrence-level answer is independent of
-native availability and constant provenance; it allows Planning to form one maximal Metal-owned
-partition that Metal preparation must accept as a whole. The package-private hard-eligibility
-step is the first internal planning consumer. Compile-time plans retain `BackendId`, not a
-provider object.
+for parameterless `NEG`, `ADD`, `SUB`, `MUL`, and `DIV` over `FLOAT32` descriptors whose shapes
+are fully static and positive with rank `1..16`, layouts equal their canonical dense-contiguous
+forms, and gradient flags match within each occurrence. `NEG` preserves shape; binary output is
+the exact right-aligned broadcast of its ordered inputs. That occurrence-level answer is
+independent of native availability and constant provenance; it allows Planning to form one
+maximal Metal-owned partition that Metal preparation must accept as a whole. The package-private
+hard-eligibility step is the first internal planning consumer. Compile-time plans retain
+`BackendId`, not a provider object.
 
 ### Backend hard eligibility
 
@@ -2427,11 +2428,11 @@ compatibility projection, and Engine's representative execution are implemented.
 Engine path produces the sole occurrence-0/partition-0/weight-1 mapping. Model extraction and
 multiple-occurrence aggregation remain planned.
 
-The Metal NEG instance is also implemented internally. Its version-one fingerprint covers fixed
-NEG semantics and attributes, structural topology positions, descriptors and layouts, exact splat
-bits, logical-boundary facts, exact/default policy, candidate/route schemas, and native ABI
-schema. Compatibility separately includes the exact live `MetalDeviceContext` session nonce;
-ABI version `3` is not a stable cross-session device fingerprint. It currently supports only
+The Metal elementwise instance is also implemented internally. Its version-two fingerprint covers
+typed node kinds, ordered structural operand/output positions, descriptors and layouts, exact
+splat bits, logical-boundary facts, exact/default policy, candidate/route schemas, and native ABI
+schema. Compatibility separately includes the exact live `MetalDeviceContext` session nonce; ABI
+version `4` is not a stable cross-session device fingerprint. It currently supports only
 backend-local construction and authentication, not the tools-owned workload cache.
 
 ### Candidate generator
@@ -2448,10 +2449,10 @@ caller-supplied workload-tuning orchestration, and supported CPU-local enumerati
 collaboration and Engine's public bounded two-phase CPU composition are implemented. Multiple
 occurrences and broader Compiler/Planning candidate orchestration remain planned.
 
-Metal NEG has a second internal generator. It emits the existing safe heuristic first, followed
-by the other valid route for an eligible singleton, while MPSGraph is the sole candidate
-elsewhere. Positive budgets return stable complete prefixes, and generation performs no native
-allocation.
+Metal elementwise preparation has a second internal generator. It emits the existing custom
+singleton-NEG heuristic first, followed by MPSGraph for an eligible singleton, while MPSGraph is
+the sole candidate for every binary, mixed, or other supported partition. Positive budgets return
+stable complete prefixes, and generation performs no native allocation.
 
 ### Candidate batch
 
@@ -2468,9 +2469,10 @@ representation for the same exact projected context and sole CPU partition. It a
 exact authenticated Phase-1 result. These two batches answer different questions; treating the local
 batch as a plan batch would incorrectly repeat local route search.
 
-The Metal NEG batch is session-scoped. It contains only `CUSTOM_SINGLE_NEG` and `MPSGRAPH`
-configurations that are complete for the current validated partition. Its compatibility and
-candidate schemas are version one, and no private field crosses the marker-role boundary.
+The Metal elementwise batch is session-scoped. It contains only `CUSTOM_SINGLE_NEG` and
+`MPSGRAPH` configurations that are complete for the current validated partition. Its
+compatibility and candidate schemas are version two, and no private field crosses the marker-role
+boundary.
 
 ### Complete-plan candidate
 
@@ -2508,11 +2510,12 @@ prepare a mismatched live decision fails without heuristic substitution. A selec
 decision contains no measurement, cache representation, executable, provider, native address,
 physical resource, or Runtime state.
 
-The Metal NEG decision follows the same owner-defined pattern with a bounded checksummed
-version-one session codec. Fresh Metal analysis regenerates current facts and accepts a selection
+The Metal elementwise decision follows the same owner-defined pattern with a bounded checksummed
+version-two session codec. Fresh Metal analysis regenerates current facts and accepts a selection
 only when schema, workload, exact context session, and candidate identity match. Decode rejects
-malformed, corrupt, trailing, stale, foreign-session, and unknown-candidate bytes. These bytes are
-not a persistent workload-cache artifact and have no current `tools/tuning` adapter.
+malformed, corrupt, trailing, stale, foreign-session, old-schema, and unknown-candidate bytes.
+These bytes are not a persistent workload-cache artifact and have no current `tools/tuning`
+adapter.
 
 The generic Phase-2 tool may persist a decision only when its producer declares persistent reuse,
 supplies a bounded encoding, and decodes that encoding back to an equal compatible decision. That
@@ -2533,8 +2536,8 @@ cannot enumerate candidates, interpret compatibility, select a winner, apply a d
 serialize either value through these roles. The handoff is cold point-in-time state, not part of
 the shared `PrepareContext` shape, `BackendPartitionAnalysis`, graph preparation, a tuning cache, a
 measurement result, an executable, or Runtime state. A concrete backend may carry the handoff
-inside its own opaque analysis-input value. The current CPU OpenBLAS and Metal NEG batches and
-decisions implement the roles nominally; each backend alone validates and interprets its contents.
+inside its own opaque analysis-input value. The current CPU OpenBLAS and Metal elementwise batches
+and decisions implement the roles nominally; each backend alone validates and interprets them.
 
 ### Compile
 
@@ -2693,10 +2696,12 @@ It owns backend-specific capability reporting, prepare-time lowering, fusion, sp
 kernel selection, executable units, storage, workspaces, and native integration. Concrete
 backends do not own public tensor semantics or global graph compilation. CPU supplies its current
 portable and optional native routes. Metal supplies package-private storage and prepared execution
-for its exact fully static, positive-shape, resolved dense-contiguous FLOAT32 unary-NEG domain;
-exact one-node/one-feed/one-target partitions with `1..UINT32_MAX` elements use the custom
-pipeline, while every other supported Metal NEG partition uses MPSGraph. CUDA remains an identity
-without concrete execution behavior. See [Module boundaries](architecture/module-boundaries.md).
+for its exact fully static, positive-shape, canonical contiguous `FLOAT32` `NEG`, `ADD`, `SUB`,
+`MUL`, and `DIV` domain with exact right-aligned broadcasting. Exact singleton-NEG partitions
+with one feed, one target, and `1..UINT32_MAX` elements use the custom pipeline; every other
+supported Metal partition uses one typed whole-partition MPSGraph executable. CUDA remains an
+identity without concrete execution behavior. See
+[Module boundaries](architecture/module-boundaries.md).
 
 ### Cumulative scan
 
@@ -4260,9 +4265,9 @@ storage. Current Runtime defines the distinct nominal `BufferRepresentation` and
 `WorkspaceRepresentation` lifecycle roles, each exposing only unchecked cleanup through
 `close()`. CPU provides package-private borrowed and run-owned native implementations. Metal
 provides package-private shared-storage buffer and workspace implementations with explicit native
-ownership and context leases. Its prepared NEG routes borrow caller input buffers and create
-fresh per-run initialized constant buffers and output buffers. An MPSGraph run also owns one
-native-address workspace; a custom-singleton run owns none. The typed persistent MPSGraph
+ownership and context leases. Its prepared elementwise routes borrow caller input buffers and
+create fresh per-run initialized constant buffers and output buffers. An MPSGraph run also owns
+one native-address workspace; a custom-singleton NEG run owns none. The typed persistent MPSGraph
 executable or custom pipeline is a separate prepared resource rather than a representation.
 Runtime owns the logical per-run association, ownership, structural residency, explicit buffer
 validity, and cleanup orchestration. The backend representation owns physical allocation,
@@ -5071,19 +5076,21 @@ a schedule occurrence, a backend-global cache entry, or a garbage-collection-man
 mechanism. Runtime 0016 implements the nominal contract and owner lifecycle, and Prepare 0006
 implements the transactional finalizer handoff.
 
-### Metal NEG prepared executable
+### Metal elementwise prepared executable
 
 The current Metal backend's package-private, shape-specialized Runtime recipe for one complete
-maximal partition of supported unary `NEG` occurrences. Metal analysis fixes stable feed, target,
-and structural value order, generates a complete typed route batch, authenticates any supplied
-session decision, then fixes a closed private route before declaring shared resources. With no
-decision, an exact one-node/one-feed/one-target partition with checked element count in
-`1..UINT32_MAX` selects the custom singleton route; every other supported NEG partition selects
-MPSGraph. An eligible singleton can instead use an authenticated MPSGraph decision. This boundary
-does not change capability, fallback, retry, or partitioning and makes no performance claim.
+maximal partition of supported `NEG`, `ADD`, `SUB`, `MUL`, and `DIV` occurrences with exact
+right-aligned broadcasting. Metal analysis fixes stable feed, target, and structural value order,
+lowers versioned fixed-width typed nodes with ordered operands, generates a complete route batch,
+authenticates any supplied session decision, then fixes a closed private route before declaring
+shared resources. With no decision, an exact singleton `NEG` with one feed, one target, and
+checked element count in `1..UINT32_MAX` selects the custom route; every other supported partition
+selects MPSGraph. An eligible singleton can instead use an authenticated MPSGraph decision. This
+boundary does not change capability, fallback, retry, or partitioning and makes no performance
+claim.
 
 After shared slot assignment, Metal finalization compiles either the fixed branch-free custom
-FLOAT32 NEG pipeline or one `MPSGraphExecutable` and returns its typed owner as a
+FLOAT32 NEG pipeline or one typed whole-partition `MPSGraphExecutable` and returns its owner as a
 [`PreparedResource`](#prepared-resource--preparedresource). `PreparedExecution` owns that resource
 across runs. Each run separately borrows caller Metal buffers and owns fresh initialized constant
 buffers and output buffers. MPSGraph runs additionally own a closeable native-address workspace;

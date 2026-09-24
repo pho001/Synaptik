@@ -4,8 +4,8 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
-import io.github.pho001.synaptik.model.layout.LayoutKind;
-import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
+import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
@@ -21,14 +21,15 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Analyzes and lowers one complete maximal Metal-owned unary-NEG partition.
+ * Analyzes and lowers one complete maximal Metal-owned elementwise partition.
  *
- * <p>The deterministic analysis assigns stable native value indices and derives unique feeds and
- * targets before selecting a closed private route. Analysis freshly regenerates the complete
- * candidate batch; an absent decision preserves the current singleton heuristic, while a present
- * decision must authenticate against current schema, workload, session target, and candidate
- * identity. The selected route is then fixed before exact declarations. Analysis allocates no
- * physical resource and never changes partition ownership or capability.</p>
+ * <p>The deterministic analysis assigns stable native value indices, retains every node kind and
+ * ordered operand, and derives unique feeds and targets before selecting a closed private route.
+ * Analysis freshly regenerates the complete candidate batch; an absent decision preserves the
+ * singleton-NEG heuristic, while a present decision must authenticate against current schema,
+ * workload, session target, and candidate identity. The selected route is then fixed before exact
+ * declarations. Analysis allocates no physical resource and never changes partition ownership or
+ * capability.</p>
  */
 final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         MetalNegAnalysisInputs, MetalNegPreparationPlan> {
@@ -61,29 +62,52 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         var valueIds = new ArrayList<ValueId>();
         var descriptors = new ArrayList<TensorDescriptor>();
         int nodeCount = context.nodes().size();
-        int[] nodeInputs = new int[nodeCount];
-        int[] nodeOutputs = new int[nodeCount];
+        var programNodes = new ArrayList<MetalMpsGraphProgram.Node>(nodeCount);
         for (int nodeIndex = 0; nodeIndex < nodeCount; nodeIndex++) {
             var node = context.nodes().get(nodeIndex);
-            if (node.operation().kind() != UnaryElementwiseKind.NEG
-                    || node.operation().attrs() != NoOperationAttrs.INSTANCE
-                    || node.inputs().size() != 1 || node.outputs().size() != 1) {
-                throw new IllegalArgumentException(
-                        "Metal NEG partition contains an unsupported operation occurrence");
+            var inputDescriptors = new ArrayList<TensorDescriptor>(node.inputs().size());
+            for (ValueId inputId : node.inputs()) {
+                GraphValue inputValue = graphValues.get(inputId);
+                if (inputValue == null) {
+                    throw new IllegalArgumentException(
+                            "partition value is missing: " + inputId);
+                }
+                inputDescriptors.add(inputValue.descriptor());
             }
-            nodeInputs[nodeIndex] = index(node.inputs().getFirst(), graphValues,
-                    valueIndexes, valueIds, descriptors);
-            nodeOutputs[nodeIndex] = index(node.outputs().getFirst(), graphValues,
-                    valueIndexes, valueIds, descriptors);
-            TensorDescriptor input = descriptors.get(nodeInputs[nodeIndex]);
-            TensorDescriptor output = descriptors.get(nodeOutputs[nodeIndex]);
-            if (!eligible(input) || !eligible(output)
-                    || !input.shape().equals(output.shape())
-                    || input.requiresGrad() != output.requiresGrad()) {
+            if (node.outputs().size() != 1) {
                 throw new IllegalArgumentException(
-                        "Metal NEG occurrence descriptors are outside the capability domain");
+                        "Metal elementwise partition requires one output per node");
             }
+            ValueId outputId = node.outputs().getFirst();
+            GraphValue outputValue = graphValues.get(outputId);
+            if (outputValue == null) {
+                throw new IllegalArgumentException(
+                        "partition value is missing: " + outputId);
+            }
+            if (!MetalCapabilityProvider.supportsOccurrence(
+                    node.operation(), inputDescriptors, List.of(outputValue.descriptor()))) {
+                throw new IllegalArgumentException(
+                        "Metal elementwise occurrence is outside the capability domain");
+            }
+            int[] inputIndices = new int[node.inputs().size()];
+            for (int inputIndex = 0; inputIndex < inputIndices.length; inputIndex++) {
+                inputIndices[inputIndex] = index(
+                        node.inputs().get(inputIndex),
+                        graphValues,
+                        valueIndexes,
+                        valueIds,
+                        descriptors);
+            }
+            if (valueIndexes.containsKey(outputId)) {
+                throw new IllegalArgumentException(
+                        "Metal elementwise output must be produced exactly once in topological order");
+            }
+            int outputIndex = index(
+                    outputId, graphValues, valueIndexes, valueIds, descriptors);
+            programNodes.add(lower(
+                    node.operation().kind(), inputIndices, outputIndex));
         }
+        var graphProgram = new MetalMpsGraphProgram(programNodes);
 
         int[] ranks = new int[valueIds.size()];
         long[] dimensions = new long[Math.multiplyExact(valueIds.size(), 16)];
@@ -116,19 +140,19 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         }
         if (feeds.isEmpty() || targets.isEmpty()) {
             throw new IllegalArgumentException(
-                    "Metal NEG partition requires at least one feed and one target");
+                    "Metal elementwise partition requires at least one feed and one target");
         }
         var feedSplats = new ArrayList<Optional<ScalarValue>>(feeds.size());
         for (ValueId feed : feeds) {
             ScalarValue scalar = context.constants().get(feed);
             if (scalar != null && scalar.dataType() != DataType.FLOAT32) {
-                throw new IllegalArgumentException("Metal NEG splat feed must be FLOAT32");
+                throw new IllegalArgumentException("Metal splat feed must be FLOAT32");
             }
             feedSplats.add(Optional.ofNullable(scalar));
         }
         for (ValueId constant : context.constants().keySet()) {
             if (!feeds.contains(constant)) {
-                throw new IllegalArgumentException("Metal NEG constant must be a boundary feed");
+                throw new IllegalArgumentException("Metal constant must be a boundary feed");
             }
         }
 
@@ -148,6 +172,8 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         }
         long singletonElements = feedBytes.length == 1 ? feedBytes[0] / Float.BYTES : 0L;
         MetalNegPreparationPlan.Route route = nodeCount == 1
+                        && graphProgram.nodes().getFirst().kind()
+                                == MetalMpsGraphProgram.NodeKind.NEG
                         && feeds.size() == 1
                         && targets.size() == 1
                         && singletonElements >= 1L
@@ -159,9 +185,9 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         var heuristicPlan = new MetalNegPreparationPlan(
                 context.partition(), context.partitionDag(), deviceContext,
                 route,
-                valueIds, descriptors, ranks, dimensions,
-                nodeInputs, nodeOutputs, feeds, feedIndices, targets, targetIndices,
-                declarations, feedSplats, heuristicWorkspace, feedBytes, targetBytes);
+                valueIds, descriptors, ranks, dimensions, graphProgram,
+                feeds, feedIndices, targets, targetIndices, declarations, feedSplats,
+                heuristicWorkspace, feedBytes, targetBytes);
         MetalNegTuningBatch freshBatch = new MetalNegRouteCandidateGenerator()
                 .generate(context, heuristicPlan, MetalNegTuningBatch.Candidate.values().length);
         var suppliedHandoff = context.backendInputs().tuningHandoff();
@@ -189,9 +215,9 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 : new MetalNegPreparationPlan(
                         context.partition(), context.partitionDag(), deviceContext,
                         route,
-                        valueIds, descriptors, ranks, dimensions,
-                        nodeInputs, nodeOutputs, feeds, feedIndices, targets, targetIndices,
-                        declarations, feedSplats, selectedWorkspace, feedBytes, targetBytes);
+                        valueIds, descriptors, ranks, dimensions, graphProgram,
+                        feeds, feedIndices, targets, targetIndices, declarations, feedSplats,
+                        selectedWorkspace, feedBytes, targetBytes);
         var allDeclarations = new ArrayList<PreparationResourceRequirement>(declarations);
         plan.addressWorkspace().ifPresent(allDeclarations::add);
         return new BackendPartitionAnalysis<>(context.partition(), plan, allDeclarations);
@@ -284,26 +310,29 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         return result;
     }
 
-    private static boolean eligible(TensorDescriptor descriptor) {
-        if (descriptor.dataType() != DataType.FLOAT32
-                || !descriptor.shape().isFullyStatic()
-                || descriptor.shape().rank() < 1 || descriptor.shape().rank() > 16
-                || descriptor.layout().isEmpty()) return false;
-        try {
-            if (byteSize(descriptor) <= 0L) return false;
-        } catch (ArithmeticException overflow) {
-            return false;
+    private static MetalMpsGraphProgram.Node lower(
+            OperationKind kind, int[] inputs, int output) {
+        if (kind == UnaryElementwiseKind.NEG) {
+            return MetalMpsGraphProgram.Node.neg(inputs[0], output);
         }
-        var layout = descriptor.layout().orElseThrow();
-        return layout.kind() == LayoutKind.DENSE_CONTIGUOUS
-                && !layout.isView() && layout.storageOffset() == 0L;
+        BinaryArithmeticKind binary = (BinaryArithmeticKind) kind;
+        MetalMpsGraphProgram.NodeKind nodeKind = switch (binary) {
+            case ADD -> MetalMpsGraphProgram.NodeKind.ADD;
+            case SUB -> MetalMpsGraphProgram.NodeKind.SUB;
+            case MUL -> MetalMpsGraphProgram.NodeKind.MUL;
+            case DIV -> MetalMpsGraphProgram.NodeKind.DIV;
+            default -> throw new IllegalArgumentException(
+                    "unsupported Metal binary operation: " + binary);
+        };
+        return MetalMpsGraphProgram.Node.binary(
+                nodeKind, inputs[0], inputs[1], output);
     }
 
     private static long byteSize(TensorDescriptor descriptor) {
         long elements = 1L;
         for (long dimension : descriptor.shape().toLongArray()) {
             if (dimension <= 0L) throw new IllegalArgumentException(
-                    "Metal NEG dimensions must be positive");
+                    "Metal elementwise dimensions must be positive");
             elements = Math.multiplyExact(elements, dimension);
         }
         return Math.multiplyExact(elements, Float.BYTES);

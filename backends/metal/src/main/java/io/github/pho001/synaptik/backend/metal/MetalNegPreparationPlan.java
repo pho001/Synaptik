@@ -12,14 +12,15 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Retains the immutable, shape-specialized lowering and route facts for one whole NEG partition.
+ * Retains the immutable, shape-specialized lowering and route facts for one whole supported
+ * Metal elementwise partition.
  *
- * <p>Value indices, node arrays, feeds, targets, and declarations are already in their stable ABI
- * order. The route is either the safe heuristic or a freshly authenticated session-compatible
- * decision, and is fixed before this plan's declarations escape analysis. The plan contains no
- * assigned slot, tuning value, native executable, physical buffer, or per-run state. The address
- * workspace is present only for MPSGraph. Primitive arrays are privately snapshotted and copied
- * when marshalled.</p>
+ * <p>Value indices, typed MPSGraph nodes, feeds, targets, and declarations are already in their
+ * stable ABI order. The route is either the safe heuristic or a freshly authenticated
+ * session-compatible decision, and is fixed before this plan's declarations escape analysis.
+ * The plan contains no assigned slot, tuning value, native executable, physical buffer, or
+ * per-run state. The address workspace is present only for MPSGraph. Primitive arrays are
+ * privately snapshotted and copied when marshalled.</p>
  */
 final class MetalNegPreparationPlan implements BackendPreparationPlan {
     /** Closed private implementation choice made during analysis. */
@@ -27,7 +28,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
         /** Exact singleton NEG with one feed, one target, and {@code 1..UINT32_MAX} elements. */
         CUSTOM_SINGLE_NEG,
 
-        /** Every other partition in the unchanged supported Metal NEG capability domain. */
+        /** Every supported partition except an eligible custom singleton NEG. */
         MPSGRAPH
     }
 
@@ -39,8 +40,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     private final List<TensorDescriptor> descriptors;
     private final int[] valueRanks;
     private final long[] valueDimensions;
-    private final int[] nodeInputValueIndices;
-    private final int[] nodeOutputValueIndices;
+    private final MetalMpsGraphProgram graphProgram;
     private final List<ValueId> feedValueIds;
     private final int[] feedValueIndices;
     private final List<ValueId> targetValueIds;
@@ -62,8 +62,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
      * @param descriptors non-null descriptors aligned with {@code valueIds}
      * @param valueRanks non-null ranks aligned with values
      * @param valueDimensions non-null row-major value-count by sixteen dimension table
-     * @param nodeInputValueIndices non-null node input indices in partition order
-     * @param nodeOutputValueIndices non-null node output indices in partition order
+     * @param graphProgram non-null versioned typed node table in partition order
      * @param feedValueIds non-null unique boundary inputs in stable feed order
      * @param feedValueIndices non-null value indices aligned with feeds
      * @param targetValueIds non-null unique boundary outputs in stable target order
@@ -85,8 +84,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             List<TensorDescriptor> descriptors,
             int[] valueRanks,
             long[] valueDimensions,
-            int[] nodeInputValueIndices,
-            int[] nodeOutputValueIndices,
+            MetalMpsGraphProgram graphProgram,
             List<ValueId> feedValueIds,
             int[] feedValueIndices,
             List<ValueId> targetValueIds,
@@ -108,8 +106,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
         this.descriptors = List.copyOf(descriptors);
         this.valueRanks = valueRanks.clone();
         this.valueDimensions = valueDimensions.clone();
-        this.nodeInputValueIndices = nodeInputValueIndices.clone();
-        this.nodeOutputValueIndices = nodeOutputValueIndices.clone();
+        this.graphProgram = Objects.requireNonNull(graphProgram, "graphProgram");
         this.feedValueIds = List.copyOf(feedValueIds);
         this.feedValueIndices = feedValueIndices.clone();
         this.targetValueIds = List.copyOf(targetValueIds);
@@ -122,8 +119,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
         if (this.valueIds.size() != this.descriptors.size()
                 || this.valueIds.size() != this.valueRanks.length
                 || this.valueDimensions.length != this.valueIds.size() * 16
-                || this.nodeInputValueIndices.length != partitionDag.nodes().size()
-                || this.nodeOutputValueIndices.length != partitionDag.nodes().size()
+                || this.graphProgram.nodes().size() != partitionDag.nodes().size()
                 || this.feedValueIds.size() != this.feedValueIndices.length
                 || this.feedValueIds.size() != this.feedRequiredBytes.length
                 || this.feedValueIds.size() != this.feedSplats.size()
@@ -135,6 +131,8 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
         }
         if ((this.route == Route.CUSTOM_SINGLE_NEG
                         && (partitionDag.nodes().size() != 1
+                                || this.graphProgram.nodes().getFirst().kind()
+                                        != MetalMpsGraphProgram.NodeKind.NEG
                                 || this.feedValueIds.size() != 1
                                 || this.targetValueIds.size() != 1
                                 || this.addressWorkspace.isPresent()))
@@ -152,8 +150,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     List<TensorDescriptor> descriptors() { return descriptors; }
     int[] valueRanks() { return valueRanks.clone(); }
     long[] valueDimensions() { return valueDimensions.clone(); }
-    int[] nodeInputValueIndices() { return nodeInputValueIndices.clone(); }
-    int[] nodeOutputValueIndices() { return nodeOutputValueIndices.clone(); }
+    MetalMpsGraphProgram graphProgram() { return graphProgram; }
     List<ValueId> feedValueIds() { return feedValueIds; }
     int[] feedValueIndices() { return feedValueIndices.clone(); }
     List<ValueId> targetValueIds() { return targetValueIds; }

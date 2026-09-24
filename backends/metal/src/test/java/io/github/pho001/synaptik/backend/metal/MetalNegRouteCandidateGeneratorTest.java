@@ -327,9 +327,9 @@ class MetalNegRouteCandidateGeneratorTest {
         @Override void releaseBuffer(Handle buffer) { }
         @Override void upload(Handle buffer, long offset, MemorySegment source, long count) { }
         @Override void download(Handle buffer, long offset, MemorySegment target, long count) { }
-        @Override NativeCreateResult createNegExecutableNative(
-                Handle context, int[] ranks, long[] dimensions, int[] inputs, int[] outputs,
-                int[] feeds, int[] targets) {
+        @Override NativeCreateResult createMpsGraphExecutableNative(
+                Handle context, int[] ranks, long[] dimensions,
+                MetalMpsGraphProgram graphProgram, int[] feeds, int[] targets) {
             nativeAllocations.incrementAndGet();
             return new NativeCreateResult(0, handle());
         }

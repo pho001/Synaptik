@@ -20,9 +20,10 @@ Public `GraphCompilationPort` exposes that complete constant-free pipeline as a 
 cross-module integration service-provider interface (SPI). The CPU backend exposes the supported
 `CpuBackendIntegration` lifecycle SPI, including bounded canonical host-byte materialization. The
 Metal backend exposes `MetalBackendConfiguration`, `MetalBackendIntegration`, and its narrow
-`FLOAT32` NEG capability. `Engine.builder()` is the public explicit composition root for opened CPU
-and Metal integrations. It freezes their Planning inputs in registration order and supports a
-complete non-empty plan only when every partition has one exact registered owner. The ordinary
+canonical contiguous static `FLOAT32` capability for `NEG`, `ADD`, `SUB`, `MUL`, and `DIV` with
+exact right-aligned broadcasting. `Engine.builder()` is the public explicit composition root for
+opened CPU and Metal integrations. It freezes their Planning inputs in registration order and
+supports a complete non-empty plan only when every partition has one exact registered owner. The
 `Engine.standard()` convenience still constructs one fresh CPU-only composition through that same
 path. Both forms expose owner-bound compiled graphs, reusable `InferenceSession` construction,
 `TensorId`-matched per-run host-input binding, synchronous execution, forward and gradient
@@ -1228,6 +1229,10 @@ native context before the integration is transferred. Engine neither parses the 
 path nor owns a duplicate Metal configuration. The integration supplies partition preparation,
 physical creation contribution, exact transfer endpoints, host ingress, materialization, and
 close in addition to capability.
+
+Metal retains a custom route only for an eligible singleton `NEG`; every binary, mixed, or other
+supported partition uses one typed whole-partition MPSGraph executable. This private route and
+native ABI choice adds no public Java type or method.
 
 `prepareTuned(...)` remains the bounded CPU-only workflow. It can tune a CPU-owned plan when Metal
 is also registered, but a Metal-owned plan fails with `IllegalStateException` before

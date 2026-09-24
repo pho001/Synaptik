@@ -16,16 +16,17 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Generates complete, stable, budget-bounded Metal NEG route candidates from validated facts.
+ * Generates complete, stable, budget-bounded Metal elementwise route candidates.
  *
- * <p>The workload fingerprint uses only versioned semantics and structural positions. Graph-local
- * node/value identities, partition object identity, native handles, measurements, and cache state
- * are excluded. Generation is cold, thread-safe, deterministic, and performs no native work.</p>
+ * <p>The workload fingerprint uses only versioned semantics and structural positions, including
+ * typed node kinds and ordered operands. Graph-local identities, partition object identity,
+ * native handles, measurements, and cache state are excluded. Generation is cold, thread-safe,
+ * deterministic, and performs no native work.</p>
  */
 final class MetalNegRouteCandidateGenerator {
     private static final long UINT32_MAX = 0xffff_ffffL;
-    private static final int WORKLOAD_SIGNATURE_VERSION = 1;
-    private static final int EXACT_DEFAULT_POLICY = 1;
+    private static final int WORKLOAD_SIGNATURE_VERSION = 2;
+    private static final int EXACT_DEFAULT_POLICY = 2;
 
     /**
      * Generates every currently valid complete candidate up to a positive budget.
@@ -74,6 +75,8 @@ final class MetalNegRouteCandidateGenerator {
     /** Returns whether the validated structural facts admit the exact custom singleton route. */
     private static boolean customCandidateIsValid(MetalNegPreparationPlan plan) {
         if (plan.partitionDag().nodes().size() != 1
+                || plan.graphProgram().nodes().getFirst().kind()
+                        != MetalMpsGraphProgram.NodeKind.NEG
                 || plan.feedValueIds().size() != 1
                 || plan.targetValueIds().size() != 1) {
             return false;
@@ -145,8 +148,7 @@ final class MetalNegRouteCandidateGenerator {
             valuePositions.put(valueIds.get(index), index);
         }
         updateInt(digest, context.nodes().size());
-        updateInts(digest, plan.nodeInputValueIndices());
-        updateInts(digest, plan.nodeOutputValueIndices());
+        updateInts(digest, plan.graphProgram().encodedNodeRecords());
 
         updateInt(digest, plan.descriptors().size());
         for (var descriptor : plan.descriptors()) {

@@ -193,7 +193,7 @@ final class MetalDeviceContext implements AutoCloseable {
     }
 
     /**
-     * Compiles one persistent whole-partition NEG executable under a provisional child lease.
+     * Compiles one persistent whole-partition typed MPSGraph executable under a provisional lease.
      *
      * <p>Lease acquisition is atomic with owner close. Compilation runs outside the lifecycle
      * monitor while the lease keeps the native context alive. Successful wrapper construction
@@ -207,23 +207,26 @@ final class MetalDeviceContext implements AutoCloseable {
      * @throws RuntimeException if native compilation or cleanup fails
      * @throws Error if compilation or cleanup reports an error
      */
-    MetalMpsGraphExecutableResource createNegExecutable(MetalNegPreparationPlan plan) {
+    MetalMpsGraphExecutableResource createMpsGraphExecutable(MetalNegPreparationPlan plan) {
         Objects.requireNonNull(plan, "plan");
         if (plan.context() != this) {
             throw new IllegalArgumentException(
-                    "Metal NEG executable plan belongs to another device context");
+                    "Metal MPSGraph executable plan belongs to another device context");
         }
         if (plan.route() != MetalNegPreparationPlan.Route.MPSGRAPH) {
             throw new IllegalArgumentException(
-                    "Metal NEG MPSGraph executable requires the MPSGraph route");
+                    "Metal MPSGraph executable requires the MPSGraph route");
         }
         ChildLease lease = acquireChildLease();
         MetalNativeApi.Handle executable = null;
         try {
-            executable = api.createNegExecutable(handle,
-                    plan.valueRanks(), plan.valueDimensions(),
-                    plan.nodeInputValueIndices(), plan.nodeOutputValueIndices(),
-                    plan.feedValueIndices(), plan.targetValueIndices());
+            executable = api.createMpsGraphExecutable(
+                    handle,
+                    plan.valueRanks(),
+                    plan.valueDimensions(),
+                    plan.graphProgram(),
+                    plan.feedValueIndices(),
+                    plan.targetValueIndices());
             return new MetalMpsGraphExecutableResource(
                     this, api, executable, lease,
                     plan.feedRequiredBytes(), plan.targetRequiredBytes());

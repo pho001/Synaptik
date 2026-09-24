@@ -2,21 +2,26 @@ package io.github.pho001.synaptik.backend.metal;
 
 import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.model.datatype.DataType;
-import io.github.pho001.synaptik.model.layout.LayoutKind;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
+import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
+import java.util.List;
 import java.util.Objects;
 
 /**
  * Reports the exact operation-occurrence capability of the current Metal backend.
  *
  * <p>This provider is immutable and performs no device discovery, native-library loading,
- * allocation, registration, or caching. Support is limited to positive, fully static, resolved
- * dense-contiguous {@code FLOAT32} unary negation occurrences that the backend can lower as part
- * of any resulting maximal Metal partition.</p>
+ * allocation, registration, or caching. Support is limited to unary {@code NEG} and binary
+ * {@code ADD}, {@code SUB}, {@code MUL}, and {@code DIV} over positive, fully static, canonical
+ * dense-contiguous {@code FLOAT32} descriptors. Binary occurrences use exact right-aligned
+ * broadcasting and retain ordered operands. Every input and output in one admitted occurrence
+ * has the same gradient-eligibility flag.</p>
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
     /**
@@ -46,26 +51,69 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     }
 
     /**
-     * Reports support only for the exact prepared unary-negation domain.
+     * Reports support only for the exact prepared Metal elementwise domain.
      *
      * @param query the non-null immutable operation occurrence to classify without probing a
      *     device or native library
-     * @return {@code true} exactly for the supported unary-negation descriptor domain
+     * @return {@code true} exactly for supported unary NEG or binary arithmetic occurrences
      * @throws NullPointerException if {@code query} is {@code null}, with message {@code query}
      */
     @Override
     public boolean supports(OperationCapabilityQuery query) {
         Objects.requireNonNull(query, "query");
-        if (query.operation().kind() != UnaryElementwiseKind.NEG
-                || query.operation().attrs() != NoOperationAttrs.INSTANCE
-                || query.inputs().size() != 1 || query.outputs().size() != 1) {
+        return supportsOccurrence(query.operation(), query.inputs(), query.outputs());
+    }
+
+    /**
+     * Validates one projected occurrence against the same exact domain used by Planning.
+     *
+     * @param operation non-null typed operation
+     * @param inputs non-null ordered input descriptors
+     * @param outputs non-null ordered output descriptors
+     * @return whether the occurrence is supported
+     */
+    static boolean supportsOccurrence(
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            List<TensorDescriptor> outputs) {
+        Objects.requireNonNull(operation, "operation");
+        Objects.requireNonNull(inputs, "inputs");
+        Objects.requireNonNull(outputs, "outputs");
+        if (operation.attrs() != NoOperationAttrs.INSTANCE || outputs.size() != 1) {
             return false;
         }
-        TensorDescriptor input = query.inputs().getFirst();
-        TensorDescriptor output = query.outputs().getFirst();
-        return eligible(input) && eligible(output)
-                && input.shape().equals(output.shape())
-                && input.requiresGrad() == output.requiresGrad();
+        TensorDescriptor output = outputs.getFirst();
+        try {
+            if (operation.kind() == UnaryElementwiseKind.NEG) {
+                if (inputs.size() != 1) {
+                    return false;
+                }
+                TensorDescriptor input = inputs.getFirst();
+                return eligible(input)
+                        && eligible(output)
+                        && input.shape().equals(output.shape())
+                        && input.requiresGrad() == output.requiresGrad();
+            }
+            if (!(operation.kind() instanceof BinaryArithmeticKind binary)
+                    || (binary != BinaryArithmeticKind.ADD
+                            && binary != BinaryArithmeticKind.SUB
+                            && binary != BinaryArithmeticKind.MUL
+                            && binary != BinaryArithmeticKind.DIV)
+                    || inputs.size() != 2) {
+                return false;
+            }
+            TensorDescriptor left = inputs.get(0);
+            TensorDescriptor right = inputs.get(1);
+            return eligible(left)
+                    && eligible(right)
+                    && eligible(output)
+                    && left.requiresGrad() == right.requiresGrad()
+                    && left.requiresGrad() == output.requiresGrad()
+                    && ShapeBroadcast.broadcast(left.shape(), right.shape())
+                            .equals(output.shape());
+        } catch (IllegalArgumentException | ArithmeticException incompatible) {
+            return false;
+        }
     }
 
     private static boolean eligible(TensorDescriptor descriptor) {
@@ -82,11 +130,11 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 elements = Math.multiplyExact(elements, dimension);
             }
             Math.multiplyExact(elements, Float.BYTES);
-        } catch (ArithmeticException overflow) {
+            return descriptor.layout().orElseThrow().equals(
+                    io.github.pho001.synaptik.model.layout.LayoutDescriptor.contiguous(
+                            descriptor.shape()));
+        } catch (IllegalArgumentException | ArithmeticException invalid) {
             return false;
         }
-        var layout = descriptor.layout().orElseThrow();
-        return layout.kind() == LayoutKind.DENSE_CONTIGUOUS
-                && !layout.isView() && layout.storageOffset() == 0L;
     }
 }
