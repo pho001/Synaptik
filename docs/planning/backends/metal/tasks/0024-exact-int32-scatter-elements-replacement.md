@@ -2,13 +2,14 @@
 
 ## Status
 
-Ready
+Complete
 
-The scoped implementation and worker validation are complete from exact clean base
-`ad07e7e5d029f0472f1d05e82f2e869899d7dbf7`; independent lean Class C review remains. Metal 0023
-is Complete at implementation `9a7911c9447eeb5125ceb8a4d78e55349ec18b97` plus evidence
-`80e6cedda96df2a03f284d551e6e34046eaaa2f3`; its final review returned `APPROVE` with zero
-findings. No declared conflict is active, and this task remains the sole Ready Metal frontier.
+Completed at implementation `a947e574732273bee4469d42afe8935082d53109` from exact clean base
+`ad07e7e5d029f0472f1d05e82f2e869899d7dbf7`, followed by documentation remediation
+`aa191ca469010d081150e97dcddd504ec626dd9e`. Final independent lean Class C review returned
+`APPROVE` with zero findings after both checkpoints. Metal 0023 remains Complete at implementation
+`9a7911c9447eeb5125ceb8a4d78e55349ec18b97` plus evidence
+`80e6cedda96df2a03f284d551e6e34046eaaa2f3`. Metal 0025 is the sole Ready successor.
 
 ## Change class
 
@@ -323,8 +324,9 @@ The exact 34-path checkpoint is:
   `docs/planning/backends/metal/tasks/0024-exact-int32-scatter-elements-replacement.md`,
   `docs/planning/roadmap.md`, and `native/metal-macos-arm64/README.md`.
 
-The task deliberately remains **Ready**. Independent lean Class C review is the only remaining
-closure gate.
+Implementation `a947e574732273bee4469d42afe8935082d53109`, documentation remediation
+`aa191ca469010d081150e97dcddd504ec626dd9e`, and final independent lean Class C `APPROVE` with zero
+findings close this task.
 
 ## Architecture impact
 
