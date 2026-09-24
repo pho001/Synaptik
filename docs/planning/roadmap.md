@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0015; historical 0006–0007 and 0009–0013 Blocked; 0016 Ready; 0017–0018 Draft | [0016](backends/metal/tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) is the sole Ready serial frontier for operation-by-operation exact/no-relaxation unary adoption. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0015; historical 0006–0007 and 0009–0013 plus 0016 Blocked; 0019 Ready; 0017–0018 Draft | [0019](backends/metal/tasks/0019-exact-profile-qualified-float32-abs.md) is the sole Ready serial frontier for exact both-profile `ABS`; failed 0016 remains unchanged. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -85,21 +85,27 @@ The completed cross-area profile DAG is:
 
 The next Metal-only serial DAG is:
 
-`Metal 0015 -> Metal 0016 -> Metal 0017 -> Metal 0018`
+`Metal 0015 -> {Metal 0016 (Blocked), Metal 0019 (Ready) -> Metal 0017 -> Metal 0018}`
 
-[Metal 0016](backends/metal/tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) is the sole
-Ready Metal frontier. It may add only canonical `ABS`, `EXP`, and `SIGMOID` under both profiles
-after separate exact/no-relaxation real-device gates. Historical 0006 remains Blocked:
-`RECIPROCAL`, `LOG`, `SQRT`, `RSQRT`, `RELU`, and `TANH` stay closed, including the forbidden
-`RELU(NaN) -> +0` and `TANH(NaN) -> +1` observations.
+[Metal 0016](backends/metal/tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) is Blocked
+without production changes. Its Apple M3 Max gate proved exact `ABS`, but `EXP` and `SIGMOID`
+reproducibly flushed representable subnormal results to positive zero across every level, Shape,
+context, and form; `SIGMOID` also exceeded its one-ULP gate on ordinary finite inputs. All controls
+passed and the probe was removed. Historical 0006 remains Blocked under its own contract.
+
+[Metal 0019](backends/metal/tasks/0019-exact-profile-qualified-float32-abs.md) is the sole Ready
+Metal frontier. It may add only canonical exact `ABS` under both profiles, with no relaxed unary
+semantics. `EXP`, `SIGMOID`, and the six historically failing 0006 operations remain closed,
+including the forbidden `RELU(NaN) -> +0` and `TANH(NaN) -> +1` observations.
 
 Metal 0017 remains Draft for accelerator-only `SUM`, `MEAN`, and `SUM_TO_SHAPE`; every result must
 use all and only declared terms in a Model-permitted binary tree with per-step FLOAT32 rounding and
-DAZ/FTZ, and `MEAN` divides the selected sum by the declared positive count. Metal 0018 remains
-Draft for accelerator-only positive rank-two `MATMUL`, local rank-two transpose composition, and
-explicitly seeded two-operand gradient evidence; only Model-permitted DAZ/FTZ, FMA, and
-reassociation are allowed. The tasks conflict across the same Metal schema/lifecycle
-scope and therefore execute serially. Model 0026 remains an independent FLOAT16 Draft.
+DAZ/FTZ, and `MEAN` divides the selected sum by the declared positive count. It depends on 0019,
+not failed 0016. Metal 0018 remains Draft after 0017 for accelerator-only positive rank-two
+`MATMUL`, local rank-two transpose composition, and explicitly seeded two-operand gradient
+evidence; only Model-permitted DAZ/FTZ, FMA, and reassociation are allowed. The tasks conflict
+across the same Metal schema/lifecycle scope and therefore execute serially. Model 0026 remains an
+independent FLOAT16 Draft.
 
 Engine
 [0017](modules/engine/tasks/0017-reusable-inference-session-api.md) is Complete from exact base
@@ -179,15 +185,18 @@ Java preflight rejects profile-incompatible node sets before native entry, versi
 separate profile/topology compatibility, and Runtime/Trace remain profile-free.
 
 Strategic gate: historical blocker evidence is preserved, but separate new successors may consume
-only the bounded Model permissions that now exist. Ready 0016 owns exact/no-relaxation unary
-adoption; Draft 0017 owns all-term accelerator reductions; Draft 0018 owns accelerator rank-two
-MATMUL under only DAZ/FTZ/FMA/reassociation. No task may infer generic fast math or authorize gross
-special-value errors.
+only bounded results proved within current Model permissions. Blocked 0016 changes no contract;
+Ready 0019 owns exact both-profile `ABS` only. Draft 0017 owns all-term accelerator reductions, and
+Draft 0018 owns accelerator rank-two MATMUL under only DAZ/FTZ/FMA/reassociation. No task may infer
+generic fast math, relax unary semantics, or authorize gross special-value errors.
 
 ## Blocked, review-needed, and deferred work
 
 - Metal 0006 is `Blocked` by the exact special-value/underflow failures recorded in its brief.
   Unblocking requires custom kernels or an explicitly accepted relaxed numerical contract.
+- Metal 0016 is independently `Blocked` by reproducible `EXP`/`SIGMOID` result flushing and
+  `SIGMOID` ordinary finite results beyond its one-ULP gate. Its exact three-operation contract is
+  unchanged; an exact replacement for both failed operations is required to restart it.
 - Metal 0007 is independently `Blocked` by its repeated exact reduction counterexample. Unblocking
   requires an exact replacement route or an explicit Model contract change.
 - Metal 0009 is independently `Blocked` by exact subnormal flushing in `K=1` MATMUL. Unblocking
@@ -222,8 +231,8 @@ special-value errors.
   group, and all existing fallbacks/thresholds. The report-only protocol is hardened; a future
   comparison still requires a separately reviewed, fully sealed matrix before measurement.
 - Model 0026 remains an independent FLOAT16 Draft. Model 0027, Config 0006, Engine 0018, CPU 0017,
-  and Metal 0015 are Complete. Metal 0016 is the sole Ready successor; Metal 0017–0018 remain
-  serial Draft tasks, and every other blocked family remains unauthorized.
+  and Metal 0015 are Complete. Metal 0016 is Blocked; Metal 0019 is the sole Ready successor;
+  Metal 0017–0018 remain serial Draft tasks, and every other blocked family remains unauthorized.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -237,10 +246,11 @@ special-value errors.
 
 ## Nearest next step
 
-Launch [Metal 0016](backends/metal/tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) as the
-sole Ready Metal frontier. Run its `ABS`, `EXP`, and `SIGMOID` gates separately and leave all six
-historically failing unary operations closed. Do not launch Draft Metal 0017 or 0018, Model 0026,
-or any other blocked Metal successor.
+Launch [Metal 0019](backends/metal/tasks/0019-exact-profile-qualified-float32-abs.md) as the sole
+Ready Metal frontier. Reuse the recorded `ABS` selector gate only under its exact freshness policy,
+then produce fresh schema/identity, real-dylib, conformance, public Engine, and independent Class C
+review evidence. Do not launch blocked Metal 0016, Draft Metal 0017 or 0018, Model 0026, or any
+other blocked Metal successor.
 
 ## History policy
 

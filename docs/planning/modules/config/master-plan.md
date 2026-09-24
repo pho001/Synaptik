@@ -87,8 +87,9 @@ plus remediation `37e9e9db`; its fresh test/Javadoc run passed 33 tests with zer
 or skips, generated enum/package pages and baseline-aware Markdown evidence passed inspection, and
 independent Class B review returned final `APPROVE` with zero findings. Engine 0018 is Complete at
 implementation `ce7a7dfa` plus remediation `07a01b9c`; CPU 0017 and Metal 0015 are Complete after
-independent Class C approval and the combined serial checkpoint. Metal 0016 is the next Ready
-backend successor. Config 0004 still waits for a concrete cost-bearing Planning consumer; 0005
+independent Class C approval and the combined serial checkpoint. Metal 0016 is Blocked by its
+unchanged unary gate; exact both-profile Metal 0019 is the next Ready backend successor. Config
+0004 still waits for a concrete cost-bearing Planning consumer; 0005
 follows 0004. Config 0007 still follows 0005, and 0008 closes the full ledger.
 
 ## Live gates, risks, and open decisions

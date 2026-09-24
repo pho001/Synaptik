@@ -155,8 +155,8 @@ not a catch-all service registry.
 - Numerical-profile selection is graph-wide and cold. Complete 0018 retains one immutable profile
   through Planning, compile, Prepare, and backend plan/cache identity, while Runtime/session hot
   paths execute only the prepared recipe. CPU 0017 and Metal 0015 are Complete backend
-  realizations; Engine owns neither realization. Metal 0016 is the next backend-owned Ready
-  successor.
+  realizations; Engine owns neither realization. Metal 0016 is Blocked by its unchanged unary
+  gate; exact both-profile Metal 0019 is the next backend-owned Ready successor.
 - Metal configuration, native open, and partial-open rollback remain Metal-owned; Engine may take
   an opened integration but must not duplicate or interpret Metal policy.
 

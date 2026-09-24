@@ -2,13 +2,13 @@
 
 ## Status
 
-Ready
+Blocked
 
-Readiness verification: CPU 0017 and Metal 0015 are Complete. Their independent Class C reviews
-returned `APPROVE` with zero findings, and the serial numerical-profile backend checkpoint passed.
-Metal 0015 supplies the current ABI-v4, node-schema-5, profile-guarded whole-partition route and
-version-six identities. No conflicting Metal write task is active. Historical Metal 0006 remains
-Blocked; this successor neither rewrites that result nor assumes its broad nine-operation scope.
+Readiness was verified before execution: CPU 0017 and Metal 0015 were Complete, their independent
+Class C reviews returned `APPROVE` with zero findings, and the serial numerical-profile backend
+checkpoint passed. The mandatory real-device gate then blocked this task before production edits.
+Historical Metal 0006 remains Blocked; this task neither rewrites that result nor assumes its broad
+nine-operation scope.
 
 ## Change class
 
@@ -175,3 +175,21 @@ profile topology, no-relaxation proof, gross-error exclusions, schema/identity e
 real Engine evidence, Runtime/Trace absence, and exact scope.
 
 ## Result
+
+The mandatory Apple M3 Max probe ran 324 independently compiled executables for 2,592 executions
+across both optimization levels, all three Shapes, two fresh contexts, and all three topology
+forms. `ABS` passed its exact gate completely. `EXP` and `SIGMOID` reproducibly flushed
+representable subnormal results to positive zero, including input `-88.0f` (`0xc2b00000`), whose
+expected result was `0x0041edc4`, across every level, Shape, context, and form. `SIGMOID` also
+produced two-unit-in-the-last-place ordinary finite results at `-7.25f` and `-1.125f`, exceeding
+the unchanged one-ULP gate. Input preservation, canaries, reported Shapes, direct targets,
+feed/target permutations, and no-DAZ controls all passed.
+
+Because the contract requires all three independent gates to pass, no capability, schema, native,
+identity, test, or documentation behavior change was made. The disposable probe was removed and
+the tree returned to clean revision `9f7ad2d3e3d0fbdd690f200c14887fd4a158b514`. A future restart
+of 0016 requires an exact replacement for both failed operations without weakening this contract.
+
+Status: Incomplete
+Follow-up required: leave 0016 Blocked unless both `EXP` and `SIGMOID` satisfy every unchanged
+gate through an exact replacement route.

@@ -253,7 +253,8 @@ no detailed brief; dependent work remains in each owning master plan.
 - Task 0027 is `Complete` at implementation commit `ff86a302` after independent validation passed
   1,114 Model tests and nine architecture tests with zero failures or skips and Class C review
   returned `APPROVE` with zero findings. Config 0006, Engine 0018, CPU 0017, and Metal 0015 are
-  also Complete; Metal 0016 is the next profile-qualified backend successor.
+  also Complete; Metal 0016 is Blocked and exact both-profile Metal 0019 is the next
+  profile-qualified backend successor.
 - Task 0026 remains an independent `Draft` with no detailed brief and no dependency relationship
   to 0027. It is selected only when IEEE-754 binary16 `FLOAT16` and mixed-precision semantics
   become current.
@@ -264,9 +265,9 @@ no detailed brief; dependent work remains in each owning master plan.
   contract and is Complete after independent validation and Class C approval. `STRICT_IEEE` means
   each current per-operation contract rather than universal bitwise `strictfp`; `ACCELERATOR` is
   only a bounded permission. Config 0006 identity, Engine 0018 propagation/cache isolation, and the
-  first CPU 0017/Metal 0015 realizations are Complete. Ready Metal 0016 may add only operations
-  whose results remain inside the existing Model sets; no backend task may reinterpret those sets
-  or authorize another family.
+  first CPU 0017/Metal 0015 realizations are Complete. Blocked Metal 0016 changes no Model
+  contract. Ready Metal 0019 may add only exact `ABS` under both profiles; no backend task may
+  reinterpret existing result sets or authorize another family.
 - **FLOAT16 and mixed precision:** BFLOAT16 remains a distinct current type. Only 0026 may add true
   IEEE binary16 FLOAT16 and must audit each affected family’s input, accumulation/intermediate,
   and output types. A shared two-byte carrier does not imply arithmetic, Java Vector support, or a
