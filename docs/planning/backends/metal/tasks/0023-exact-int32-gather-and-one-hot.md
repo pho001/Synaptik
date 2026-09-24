@@ -2,15 +2,15 @@
 
 ## Status
 
-Ready
+Complete
 
-Implemented at `9a7911c9447eeb5125ceb8a4d78e55349ec18b97` from clean base
-`854c2e8e4b1c3b4d81fd3c1f0e99656e9ae40b3e`. Metal 0022 remains
-Complete at implementation `415175947efc5151b71e764ad941f91445342cd7` plus documentation
-remediation `90cd5fd925a149d055d434fac2e5bb2ee38b130f`; final independent Class C review returned
-`APPROVE` with zero findings. Model 0018C–0018D and 0019A2, Compiler 0005C, CPU 0006A2, Config
-0006, and Engine 0018 are Complete. This remains the sole Ready Metal successor while the completed
-implementation waits for one lean independent Class C review.
+Completed at implementation `9a7911c9447eeb5125ceb8a4d78e55349ec18b97` from clean base
+`854c2e8e4b1c3b4d81fd3c1f0e99656e9ae40b3e`, with committed evidence checkpoint
+`80e6cedda96df2a03f284d551e6e34046eaaa2f3`. The final independent lean Class C review returned
+`APPROVE` with zero findings. It reused the committed evidence and ran only one concrete-risk
+disposable production-ABI probe: GATHER preserved signaling-NaN encodings `0x7fa12345` and
+`0xffa54321` exactly. The reviewer removed every probe artifact. Metal 0024 is the sole Ready
+successor.
 
 ## Change class
 
@@ -364,8 +364,8 @@ validation/documentation evidence.
 ## Implementation evidence
 
 Implementation `9a7911c9447eeb5125ceb8a4d78e55349ec18b97` began from clean
-`854c2e8e4b1c3b4d81fd3c1f0e99656e9ae40b3e` and remains `Ready` only for the mandatory independent
-Class C review.
+`854c2e8e4b1c3b4d81fd3c1f0e99656e9ae40b3e`; committed evidence checkpoint
+`80e6cedda96df2a03f284d551e6e34046eaaa2f3` records the final implementation evidence.
 
 Before any production edit, one disposable Objective-C program at
 `/tmp/synaptik_task0023_selector_smoke.m` compiled with `xcrun --sdk macosx clang -arch arm64`
@@ -458,3 +458,12 @@ Changed paths:
 - `docs/planning/backends/metal/master-plan.md`
 - `docs/planning/backends/metal/tasks/0023-exact-int32-gather-and-one-hot.md`
 - `docs/planning/roadmap.md`
+
+## Final independent review
+
+The independent lean Class C review returned `APPROVE` with zero findings. It reused the committed
+implementation/evidence instead of repeating the established selector, lifecycle, native,
+conformance, Engine, architecture, or build matrix. The reviewer identified one concrete residual
+raw-bit risk and ran one disposable production-ABI GATHER probe only: signaling-NaN encodings
+`0x7fa12345` and `0xffa54321` were preserved exactly. All disposable source, binary, and generated
+artifacts were removed. Implementation `9a7911c9` plus evidence `80e6cedd` is therefore Complete.
