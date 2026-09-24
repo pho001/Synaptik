@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through evidence-backed no-change 0010M; 0007A1D Review needed; 0010D1 and 0011 Blocked | No CPU task is Ready; any future default comparison requires a separately reviewed sealed matrix. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0017 | No Engine task is Ready; reopen only for a separately authorized capability. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0005; 0006 Blocked; 0007 Ready | [0006](backends/metal/tasks/0006-mpsgraph-float32-unary-algebra.md) is Blocked by exact real-probe semantic failures with no production change; [0007](backends/metal/tasks/0007-mpsgraph-float32-reductions.md) is the sole Ready frontier and depends on 0005, not 0006. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0005; 0006–0007 Blocked; 0008 Ready | [0006](backends/metal/tasks/0006-mpsgraph-float32-unary-algebra.md) and [0007](backends/metal/tasks/0007-mpsgraph-float32-reductions.md) are independently Blocked by exact real-probe semantic failures with no production change; [0008](backends/metal/tasks/0008-mpsgraph-float32-affine-transforms.md) is the sole Ready frontier. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -79,12 +79,18 @@ re-review `APPROVE` with zero residual findings. Evidence includes the exact ABI
 audit, 5,000-run/native CPU-free proof, focused Metal/conformance passes, and real CPU-free Engine
 integration. [0006](backends/metal/tasks/0006-mpsgraph-float32-unary-algebra.md) is `Blocked`:
 the real probe passed `ABS` ULP0, `EXP` ULP1, and `SIGMOID` ULP1, but failed exact
-`RECIPROCAL`, `LOG`, `SQRT`, `RSQRT`, `RELU`, and `TANH` semantics. No production code or probe
-changes remain. [0007](backends/metal/tasks/0007-mpsgraph-float32-reductions.md) is the sole
-`Ready` frontier, bounded to typed FLOAT32 SUM/MEAN reductions and Metal-only scalar
-materialization; it does not widen rank-0 CPU↔Metal transfer. Compiler-generated gradient graph
-shape/compile is a gate only; executable Metal-only backward is deferred to Metal 0008/0009 after
-affine EXPAND support.
+`RECIPROCAL`, `LOG`, `SQRT`, `RSQRT`, `RELU`, and `TANH` semantics.
+[0007](backends/metal/tasks/0007-mpsgraph-float32-reductions.md) is independently `Blocked`:
+eight real direct-output runs returned positive zero for `[1.0e20f, 1.0f, 1.0f, -1.0e20f]`
+instead of exact `SUM = 2.0f` and `MEAN = 0.5f`. Selector, keep-dimensions, typed-schema, and
+rank-zero feasibility were proved but cannot satisfy the Model numerical contract. Neither task
+retains production, test, native, or probe changes.
+
+[0008](backends/metal/tasks/0008-mpsgraph-float32-affine-transforms.md) is the sole `Ready`
+frontier. It is bounded to forward FLOAT32 `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, and
+`SQUEEZE` with canonical inputs, exact logical affine-view descriptors, dense Metal represented
+order, raw-bit/Shape gates, and unchanged cross-owner transfer. It depends on 0005, not on blocked
+0006/0007. MATMUL remains an unauthorized successor pending 0008 completion and a separate brief.
 
 
 ## Blocked, review-needed, and deferred work
@@ -92,11 +98,13 @@ affine EXPAND support.
 - Metal 0006 is `Blocked` by the exact special-value/underflow failures recorded in its brief.
   Unblocking requires custom kernels or an explicitly accepted relaxed numerical contract; the
   repository remains clean fail-closed with no production change.
-- Metal 0007 is the sole `Ready` frontier. It depends on 0005, not blocked 0006, and must prove
-  full/single/multi-axis SUM/MEAN, keep-dims, SUM_TO_SHAPE, rank-0 Metal-only materialization,
-  typed versioned attrs, ABI-v4 compatibility, numerical gates, and compiler gradient
-  graph-shape/compile evidence. Executable Metal-only backward is deferred to Metal 0008/0009
-  after affine EXPAND support; no cross-owner rank-1..16 transfer widening is permitted.
+- Metal 0007 is independently `Blocked` by a repeated direct-output reduction counterexample:
+  MPSGraph returned positive zero where the current exact Model contract requires SUM `2.0f` and
+  MEAN `0.5f`. Unblocking requires an exact replacement route, such as separately authorized
+  custom kernels, or an explicit Model contract change. No production or probe change remains.
+- Metal 0008 is the sole `Ready` frontier because affine coordinate transformations preserve raw
+  FLOAT32 bits and require neither blocked unary algebra nor reduction. It does not authorize
+  custom kernels, transfer widening, Metal-only `EXPAND` backward, or MATMUL.
 - [OpenBLAS provider 0004](backends/openblas-provider/tasks/0004-optional-direct-bfloat16-output-gemm-capability.md)
   and dependent CPU 0010D1 remain an optional blocked branch. Pinned evidence proves neither the
   required exported direct BFLOAT16-output ABI nor full-contraction FLOAT32 accumulation followed
@@ -126,7 +134,8 @@ affine EXPAND support.
 
 ## Nearest next step
 
-1. No Training task is Ready; select another frontier only through the normal authorization policy.
+1. Execute the sole Ready frontier, Metal 0008, through its mandatory real selector/raw-bit probe;
+   fail closed before production changes if any exact gate fails.
 
 ## History policy
 

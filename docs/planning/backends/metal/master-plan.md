@@ -76,14 +76,16 @@ visibility.
 | 0004 | [Typed Metal route candidate generators and cache compatibility](tasks/0004-typed-metal-route-candidate-generators-and-cache-compatibility.md) | Complete | 0002–0003, opaque prepare/tuning boundary and artifact versioning | None | None | Any | Focused candidate, Metal, and conformance suites | Added typed NEG candidates and a session-compatible authenticated codec foundation without outer tuning integration. |
 | 0005 | [MPSGraph mixed NEG/binary FLOAT32 whole-partition route](tasks/0005-mpsgraph-mixed-binary-whole-partition.md) | Complete | 0001–0004; Engine 0017; Compiler 0006B7; Prepare 0008; Runtime 0016 | Metal capability/preparation/native ABI/Engine Metal scopes | None | ABI/schema → capability/analysis → Prepare → public Engine tests → docs/review | Native export audit; focused Metal/conformance; real public Engine integration; architecture checks; `git diff --check` | Approved after initial Class C BLOCK, remediation `9f3a264`, and independent APPROVE with zero residual findings; ABI v4 exact. |
 | 0006 | [MPSGraph FLOAT32 unary algebra route](tasks/0006-mpsgraph-float32-unary-algebra.md) | Blocked | 0005; current Model unary semantics; Engine 0017; Compiler 0006B7; Prepare 0008; Runtime 0016 | Metal capability/preparation/native ABI/Engine Metal scopes; scalar schema work | None | Replacement route → numerical gates → Class C review | Reproducible real probe and fail-closed evidence; no production change | MPSGraph passed ABS ULP0, EXP ULP1, SIGMOID ULP1 but failed exact RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH cases; custom kernels or relaxed gates are required. |
-| 0007 | [MPSGraph FLOAT32 SUM/MEAN reduction foundation](tasks/0007-mpsgraph-float32-reductions.md) | Ready | 0005; current Model reduction attrs and Compiler autograd; Engine 0017; Compiler 0006B7; Prepare 0008; Runtime 0016 | Metal capability/preparation/native ABI/Engine Metal scopes; 0006 is not a dependency | None | Typed reduction schema → capability/analysis → Prepare → fake/native tests → CPU-free forward Engine → docs/review | Native export/schema audit; reduction numerical gates; rank-0 Metal-only materialization; no-widening transfer check; compiler gradient graph-shape gate; executable Metal-only backward deferred to 0008/0009 | Bounded FLOAT32 SUM/MEAN full/single/multi-axis and SUM_TO_SHAPE, exact keep-dims and scalar publication; ABI v4/export set retained. |
+| 0007 | [MPSGraph FLOAT32 SUM/MEAN reduction foundation](tasks/0007-mpsgraph-float32-reductions.md) | Blocked | 0005; current Model reduction attrs and Compiler autograd; Engine 0017; Compiler 0006B7; Prepare 0008; Runtime 0016 | Metal capability/preparation/native ABI/Engine Metal scopes; 0006 is not a dependency | None | Exact replacement route → numerical gates → Class C review | Reproducible real direct-output probe and fail-closed evidence; no production change | Eight runs returned positive zero for cancellation cases requiring SUM `2.0f` and MEAN `0.5f`; selector/schema/rank-zero feasibility does not satisfy exact Model semantics. |
+| 0008 | [MPSGraph FLOAT32 affine transforms](tasks/0008-mpsgraph-float32-affine-transforms.md) | Ready | 0005; current Model/Compiler affine Shape and layout contracts; Engine 0017; Compiler 0006B7/0006B11; Prepare 0008; Runtime 0016; not 0006/0007 | Metal capability/preparation/native ABI/Engine Metal materialization; shared aliasing or transfer work | None | Real selector/bit probe → typed schema → capability/analysis → Prepare/Runtime/materialization → Engine proof → docs/review | ABI-v4 export/schema audit; exact Shape/layout/raw-bit gates; direct affine publication; transfer non-widening; focused Metal/conformance/Engine/architecture checks | Sole Ready frontier: bounded terminal RESHAPE/EXPAND/PERMUTE/EXPAND_DIMS/SQUEEZE with canonical inputs, exact logical view descriptors, and dense Metal represented order; forward only. |
 
 ## Dependency DAG and authorized frontiers
 
 `0001 → 0002 → 0003 → 0004 → 0005`
 
-0006 is explicitly `Blocked` by the recorded exact-semantics probe. 0007 depends on 0005, not
-0006, and is the sole authorized `Ready` frontier. No other Metal task is Ready.
+0006 and 0007 are independent `Blocked` branches from 0005. 0008 also depends on 0005, not on
+either blocked task, and is the sole authorized `Ready` frontier. A later MATMUL checkpoint
+remains unauthorized until 0008 completes and receives its own detailed brief.
 
 ## Integration ownership and shared documents
 
@@ -98,8 +100,11 @@ Metal 0001–0005 are Complete. 0005's initial Class C `BLOCK` (two P1/two P2) w
 the exact ABI-v4 thirteen-export audit, 5,000-run/native CPU-free proof, focused 55-test Metal
 pass, 2/2 conformance pass, and 2/2 real CPU-free Engine integration pass. Metal 0006 is
 `Blocked`: its real probe passed only ABS ULP0, EXP ULP1, and SIGMOID ULP1 and failed the exact
-RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH cases. Metal 0007 is the sole `Ready` frontier and retains
-ABI v4/export compatibility while adding no cross-owner rank-0 transfer.
+RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH cases. Metal 0007 is independently `Blocked`: eight direct-
+output executions returned positive zero for a cancellation case whose exact Model results are
+SUM `2.0f` and MEAN `0.5f`. Neither blocked task retains production or probe changes. Metal 0008
+is the sole `Ready` frontier because its affine raw-bit/Shape semantics require neither unary
+algebra nor reduction.
 
 
 ## Delivered lifecycle and ABI boundary

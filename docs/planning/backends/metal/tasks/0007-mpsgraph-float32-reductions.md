@@ -2,13 +2,38 @@
 
 ## Status
 
-Ready
+Blocked
+
+The implementation/probe pass is complete and fail-closed. No production code, native code,
+tests, or probe artifacts remain changed.
+
+## Blocking evidence
+
+The current Model contract requires FLOAT32 `SUM` to perform exact real addition followed by one
+rounding to FLOAT32; `MEAN` is that exact sum divided by the positive reduction count, then rounded.
+A real shape-specialized `MPSGraphExecutable`, bound directly to the scalar output buffer, was run
+eight times with input raw FLOAT32 values `[1.0e20f, 1.0f, 1.0f, -1.0e20f]`. Every run returned:
+
+- `SUM`: positive zero, bits `0x00000000`, instead of `2.0f`, bits `0x40000000`;
+- `MEAN`: positive zero, bits `0x00000000`, instead of `0.5f`, bits `0x3f000000`.
+
+This is a reproducible semantic failure, not tolerance noise or publication error. The direct
+scalar destination and repeated identical result isolate the observed MPSGraph reduction
+semantics from a host-copy fallback. Ordinary API feasibility was otherwise proved during the
+reverted attempt: the current SDK selectors are `reductionSumWithTensor:axes:name:` and
+`meanOfTensor:axes:name:`, keep-dimensions can be represented by an exact reshape, and the typed
+schema plus rank-zero path compiled. None of that evidence satisfies the numerical contract.
+
+The task therefore remains Blocked rather than weakening Model semantics, introducing a hidden
+fallback, or silently authorizing custom kernels. Unblocking requires an exact bounded
+implementation, such as separately authorized custom kernels, or an explicit Model contract
+change. Neither is authorized here.
 
 ## Change class
 
-Class C. This is a bounded Metal backend extension after the blocked 0006 unary experiment. It
-owns typed reduction lowering, route identity, Metal resources, lifecycle evidence, and the
-backend-local scalar publication seam; it does not alter shared transfer policy.
+Class C. This was a bounded Metal backend extension after the blocked 0006 unary experiment. It
+would have owned typed reduction lowering, route identity, Metal resources, lifecycle evidence,
+and the backend-local scalar publication seam; it did not alter shared transfer policy.
 
 ## Goal
 
@@ -20,10 +45,10 @@ axis order as semantic metadata while passing a normalized axis set to MPSGraph.
 `keepDimensions` exactly, including rank-0 scalar results. Do not admit masked, statistical,
 product, extrema, logical, arg-extrema, scan, normalization, or any other reduction family.
 
-This is feasible without reopening shared architecture: Model already has typed records and
-Compiler already infers exact output Shapes and expands SUM_TO_SHAPE gradients. Metal adds only
-backend-local typed route fields and physical materialization. `0005` is the dependency; blocked
-0006 is not a dependency.
+The typed Model and Compiler prerequisites exist without reopening shared architecture: Model has
+the required records, Compiler infers exact output Shapes and expands SUM_TO_SHAPE gradients, and
+`0005` is the architectural predecessor. Blocked 0006 is not a dependency. The real numerical
+probe above nevertheless prevents this route from becoming production capability.
 
 ## Model and Compiler contract readout
 
@@ -37,23 +62,25 @@ backend-local typed route fields and physical materialization. `0005` is the dep
 - Compiler inference computes rank changes and rank-0 Shape precisely. `ReductionGradientRules`
   restores ordinary SUM/MEAN gradients with `expandDims` when axes are removed and then `expand`
   to the source Shape; `SUM_TO_SHAPE` backward directly calls `gradient.expand(sourceShape)`.
-  With Metal 0008 affine transforms not yet supported, every nontrivial admitted reduction
-  backward requires an unsupported EXPAND path. Metal 0007 therefore owns forward reduction only.
-- Compiler-generated gradient graphs must still be built and inspected/compiled as a shape and
-  contract gate, but executable Metal-only backward evidence is deferred to the Metal 0008/0009
-  affine/materialization checkpoint. This is a truthful deferral, not a weakened forward scope.
+  Every nontrivial admitted reduction backward contains an EXPAND path. Metal 0008 may implement
+  that affine operation independently, but it cannot make the blocked reduction forward route
+  executable or establish a complete Metal-only reduction backward path.
+- Compiler-generated gradient graphs were intended as a shape/contract gate only. No executable
+  Metal-only backward claim survives this task's numerical failure.
 - No generic attribute bag is permitted. The backend schema must distinguish the four typed forms
   and carry only validated axes, keep-dims, and right-aligned target geometry.
 
 ## MPSGraph lowering and geometry
 
-Use the documented typed MPSGraph selectors `sumWithTensor:axes:name:` and
-`meanWithTensor:axes:name:`. Build one graph for the complete maximal Metal-owned partition,
-feed tensors in stable order, and target tensors in stable order. For ordinary reductions, the
-lowering supplies the normalized selected axes and lets MPSGraph produce the retained or removed
-axes. For full reduction, supply every input axis. For SUM_TO_SHAPE, derive the exact reduced-axis
-set from the bound source/target pair, reduce those axes, and retain equal aligned axes; when no
-axis reduces, the route is a typed identity/copy result rather than an accidental reduction.
+The reverted feasibility pass confirmed the documented typed MPSGraph selectors
+`reductionSumWithTensor:axes:name:` and `meanOfTensor:axes:name:`. Keep-dimensions can be expressed
+by reshaping the reduced result to the exact inferred retained-axis Shape. A future replacement
+would still build one graph for the complete maximal Metal-owned partition, feed tensors in stable
+order, and target tensors in stable order. For ordinary reductions, lowering would supply the
+normalized selected axes. For full reduction, it would supply every input axis. For
+SUM_TO_SHAPE, it would derive the exact reduced-axis set from the bound source/target pair, reduce
+those axes, and retain equal aligned axes; when no axis reduces, the route would be a typed
+identity/copy result rather than an accidental reduction.
 
 Admit fully static positive input Shapes of rank `1..16`, FLOAT32, canonical dense-contiguous,
 zero-offset, non-view layouts, and equal `requiresGrad` flags. An output may have rank `0..16` and
@@ -95,13 +122,15 @@ right-aligned target geometry, ordered topology, numerical policy, and ABI schem
 
 ## Numerical and special-value gates
 
-The CPU oracle compares ordinary finite FLOAT32 SUM/MEAN results with a documented maximum ULP
-and absolute/relative gate selected for the implementation's accumulation order. Tests must also
-cover deterministic empty/reduced-domain rejection (zero extents are unsupported), signed zero,
-positive/negative infinity, and NaN propagation according to the current Model FLOAT32 aggregate
-contract. SUM and MEAN must not silently use relaxed math, flush-to-zero, or a different dtype;
-MEAN's divisor is the exact reduced element count represented by the bound Shape. Every full,
-single-axis, multi-axis, keep-dims, and SUM_TO_SHAPE case is checked against the CPU oracle.
+The controlling gate is exact, not an implementation-selected ULP tolerance: Model FLOAT32 `SUM`
+means exact real addition followed by one result-format rounding, and `MEAN` means that exact sum
+divided by the positive reduction count followed by result-format rounding. NaN, infinity, signed
+zero, empty-domain, and count semantics remain those of the current Model contract. The real
+counterexample in **Blocking evidence** fails this gate for both operations, so no production
+route may be admitted. Any future restart must first prove the cancellation vector and then the
+full, single-axis, multi-axis, keep-dimensions, and SUM_TO_SHAPE matrices without relaxed math,
+flush-to-zero, narrower accumulation, reassociation that changes the required result, or a
+different data type.
 
 ## Lifecycle and implementation boundaries
 
@@ -128,20 +157,21 @@ lookup is allowed. Candidate generation and authenticated compatibility follow 0
   publication, close/rejection, and no CPU integration. A separate negative test proves rank-0
   CPU↔Metal transfer is rejected and rank-1..16 transfer behavior is unchanged.
 - Compiler-generated SUM/MEAN forward and autograd graphs are built, and their inferred gradient
-  Shape/operation contracts are inspected or compiled as a non-execution gate. Executable
-  Metal-only backward evidence is explicitly deferred to Metal 0008/0009 after affine EXPAND
-  support; 0007 must not claim CPU-free backward execution.
+  Shape/operation contracts may be inspected as a non-execution gate in a future restart.
+  Executable Metal-only backward remains unavailable while the reduction route is blocked; Metal
+  0008's affine scope does not change that result.
 - Documentation, Javadocs, native schema audit, lifecycle review, architecture checks, and an
   independent Class C review pass; no production claim is made before all gates pass.
 
 ## Dependencies and review
 
 Depends on Metal 0005, current Model reduction contracts, Compiler autograd/inference, Engine
-0017, Compiler 0006B7, Prepare 0008, and Runtime 0016. It does not depend on Metal 0006; 0006
-remains Blocked. Metal 0008/0009 own the later affine EXPAND path and executable Metal-only
-backward checkpoint. Review must specifically inspect MPSGraph selector semantics, typed attrs
-schema, rank-0 publication, no-widening transfer behavior, numerical/special gates, candidate
-bump, transactional cleanup, and truthful gradient graph-shape deferral.
+0017, Compiler 0006B7, Prepare 0008, and Runtime 0016. It does not depend on Metal 0006; both 0006
+and 0007 are independently Blocked by exact semantic failures. Metal 0008 may proceed with
+independent affine transforms, but it does not unblock reduction execution or claim Metal-only
+reduction backward. A future 0007 restart must specifically review the replacement numerical
+route, typed attrs schema, rank-zero publication, no-widening transfer behavior, candidate bump,
+transactional cleanup, and truthful gradient scope.
 
 ## Validation
 
@@ -157,4 +187,7 @@ git diff --check
 
 ## Result
 
-Unstarted. This is the sole Ready Metal frontier; 0006 is blocked with no production change.
+Blocked. Across eight real executions, MPSGraph returned positive zero for the cancellation input
+whose Model-exact results are `SUM = 2.0f` and `MEAN = 0.5f`. Selector, keep-dimensions, typed
+schema, and rank-zero API feasibility were proved but cannot overcome the numerical failure. No
+production, native, test, or probe change remains; the repository is clean fail-closed.
