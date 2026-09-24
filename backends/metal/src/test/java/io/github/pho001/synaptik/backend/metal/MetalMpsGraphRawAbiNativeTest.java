@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphRawAbiNativeTest {
     private static final int INVALID_ARGUMENT = 1;
+    private static final int UNSUPPORTED_SHAPE = 8;
     private static final Consumer<MemorySegment> UNCHANGED = ignored -> { };
 
     @Test
@@ -57,10 +58,10 @@ class MetalMpsGraphRawAbiNativeTest {
             abi.assertRejected("mismatched target dimension", ranks, dimensions, reshape,
                     new int[] {0}, new int[] {1}, record -> record.set(JAVA_LONG, 32L, 2L));
 
-            abi.assertRejected("schema version one", 1, ranks, dimensions, reshape,
-                    new int[] {0}, new int[] {1}, UNCHANGED);
-            abi.assertRejected("schema version three", 3, ranks, dimensions, reshape,
-                    new int[] {0}, new int[] {1}, UNCHANGED);
+            abi.assertRejected("schema version one", INVALID_ARGUMENT, 1,
+                    ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
+            abi.assertRejected("schema version three", INVALID_ARGUMENT, 3,
+                    ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
         }
     }
 
@@ -183,6 +184,139 @@ class MetalMpsGraphRawAbiNativeTest {
         }
     }
 
+    @Test
+    void rawNegAndBinaryNoneAttributesRejectEveryMalformedField() {
+        try (RawAbi abi = RawAbi.open()) {
+            int[] unaryRanks = {1, 1};
+            long[] unaryDimensions = dimensions(new long[][] {{2}, {2}});
+            MetalMpsGraphProgram neg = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.neg(0, 1)));
+            abi.assertRejected("NEG attribute discriminator", unaryRanks, unaryDimensions,
+                    neg, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_INT, 4L, 1));
+            abi.assertRejected("NEG attribute count", unaryRanks, unaryDimensions,
+                    neg, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_INT, 20L, 1));
+            abi.assertRejected("NEG axis sentinel", unaryRanks, unaryDimensions,
+                    neg, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_INT, 24L, 0));
+            abi.assertRejected("NEG reserved scalar", unaryRanks, unaryDimensions,
+                    neg, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_INT, 28L, 1));
+            abi.assertRejected("NEG unused payload", unaryRanks, unaryDimensions,
+                    neg, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_LONG, 32L, 1L));
+            abi.assertRejected("NEG second-input sentinel", unaryRanks, unaryDimensions,
+                    neg, new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_INT, 12L, 0));
+
+            int[] binaryRanks = {1, 1, 1};
+            long[] binaryDimensions = dimensions(new long[][] {{2}, {2}, {2}});
+            MetalMpsGraphProgram add = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.binary(
+                            MetalMpsGraphProgram.NodeKind.ADD, 0, 1, 2)));
+            abi.assertRejected("binary attribute discriminator", binaryRanks, binaryDimensions,
+                    add, new int[] {0, 1}, new int[] {2},
+                    record -> record.set(JAVA_INT, 4L, 1));
+            abi.assertRejected("binary attribute count", binaryRanks, binaryDimensions,
+                    add, new int[] {0, 1}, new int[] {2},
+                    record -> record.set(JAVA_INT, 20L, 1));
+            abi.assertRejected("binary axis sentinel", binaryRanks, binaryDimensions,
+                    add, new int[] {0, 1}, new int[] {2},
+                    record -> record.set(JAVA_INT, 24L, 0));
+            abi.assertRejected("binary reserved scalar", binaryRanks, binaryDimensions,
+                    add, new int[] {0, 1}, new int[] {2},
+                    record -> record.set(JAVA_INT, 28L, 1));
+            abi.assertRejected("binary unused payload", binaryRanks, binaryDimensions,
+                    add, new int[] {0, 1}, new int[] {2},
+                    record -> record.set(JAVA_LONG, 32L, 1L));
+        }
+    }
+
+    @Test
+    void rawBinaryExpandAndBoundaryIndicesRejectTheirExactNativeBranches() {
+        try (RawAbi abi = RawAbi.open()) {
+            int[] binaryRanks = {1, 1, 1};
+            long[] binaryDimensions = dimensions(new long[][] {{2}, {2}, {2}});
+            MetalMpsGraphProgram add = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.binary(
+                            MetalMpsGraphProgram.NodeKind.ADD, 0, 1, 2)));
+            abi.assertRejected("binary second input is unavailable",
+                    binaryRanks, binaryDimensions, add,
+                    new int[] {0}, new int[] {2}, UNCHANGED);
+            abi.assertRejected("binary second input is out of range",
+                    binaryRanks, binaryDimensions, add,
+                    new int[] {0, 1}, new int[] {2},
+                    record -> record.set(JAVA_INT, 12L, 3));
+
+            int[] expandRanks = {2, 2};
+            long[] expandDimensions = dimensions(new long[][] {{2, 3}, {2, 4}});
+            MetalMpsGraphProgram expand = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.targetShape(
+                            MetalMpsGraphProgram.NodeKind.EXPAND,
+                            0,
+                            1,
+                            new long[] {2, 4})));
+            abi.assertRejected("EXPAND source cannot broadcast to target",
+                    expandRanks, expandDimensions, expand,
+                    new int[] {0}, new int[] {1}, UNCHANGED);
+
+            int[] unaryRanks = {1, 1};
+            long[] unaryDimensions = dimensions(new long[][] {{2}, {2}});
+            MetalMpsGraphProgram neg = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.neg(0, 1)));
+            abi.assertRejected("feed index is out of range",
+                    unaryRanks, unaryDimensions, neg,
+                    new int[] {2}, new int[] {1}, UNCHANGED);
+            abi.assertRejected("target index is out of range",
+                    unaryRanks, unaryDimensions, neg,
+                    new int[] {0}, new int[] {2}, UNCHANGED);
+        }
+    }
+
+    @Test
+    void rawValueGeometryTablesReturnExactUnsupportedOrInvalidStatuses() {
+        try (RawAbi abi = RawAbi.open()) {
+            MetalMpsGraphProgram neg = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.neg(0, 1)));
+
+            abi.assertRejected("rank zero", UNSUPPORTED_SHAPE,
+                    new int[] {0, 1},
+                    dimensions(new long[][] {{}, {1}}),
+                    neg, new int[] {0}, new int[] {1}, UNCHANGED);
+            abi.assertRejected("rank exceeds schema bound", UNSUPPORTED_SHAPE,
+                    new int[] {17, 1},
+                    dimensions(new long[][] {{1}, {1}}),
+                    neg, new int[] {0}, new int[] {1}, UNCHANGED);
+            abi.assertRejected("zero dimension", UNSUPPORTED_SHAPE,
+                    new int[] {1, 1},
+                    dimensions(new long[][] {{0}, {1}}),
+                    neg, new int[] {0}, new int[] {1}, UNCHANGED);
+
+            long[] nonzeroPadding = dimensions(new long[][] {{2}, {2}});
+            nonzeroPadding[1] = 1L;
+            abi.assertRejected("unused dimension padding", INVALID_ARGUMENT,
+                    new int[] {1, 1},
+                    nonzeroPadding,
+                    neg, new int[] {0}, new int[] {1}, UNCHANGED);
+
+            abi.assertRejected("element-count multiplication overflow", UNSUPPORTED_SHAPE,
+                    new int[] {2, 2},
+                    dimensions(new long[][] {
+                            {Long.MAX_VALUE, 3},
+                            {Long.MAX_VALUE, 3}
+                    }),
+                    neg, new int[] {0}, new int[] {1}, UNCHANGED);
+            abi.assertRejected("FLOAT32 byte geometry overflow", UNSUPPORTED_SHAPE,
+                    new int[] {1, 1},
+                    dimensions(new long[][] {
+                            {Long.MAX_VALUE},
+                            {Long.MAX_VALUE}
+                    }),
+                    neg, new int[] {0}, new int[] {1}, UNCHANGED);
+        }
+    }
+
     private static long[] dimensions(long[][] shapes) {
         long[] result = new long[Math.multiplyExact(shapes.length, MetalMpsGraphProgram.MAX_RANK)];
         for (int value = 0; value < shapes.length; value++) {
@@ -258,12 +392,26 @@ class MetalMpsGraphRawAbiNativeTest {
                 int[] feeds,
                 int[] targets,
                 Consumer<MemorySegment> mutation) {
-            assertRejected(name, MetalMpsGraphProgram.SCHEMA_VERSION, ranks, dimensions,
-                    program, feeds, targets, mutation);
+            assertRejected(name, INVALID_ARGUMENT, MetalMpsGraphProgram.SCHEMA_VERSION,
+                    ranks, dimensions, program, feeds, targets, mutation);
         }
 
         void assertRejected(
                 String name,
+                int expectedStatus,
+                int[] ranks,
+                long[] dimensions,
+                MetalMpsGraphProgram program,
+                int[] feeds,
+                int[] targets,
+                Consumer<MemorySegment> mutation) {
+            assertRejected(name, expectedStatus, MetalMpsGraphProgram.SCHEMA_VERSION,
+                    ranks, dimensions, program, feeds, targets, mutation);
+        }
+
+        void assertRejected(
+                String name,
+                int expectedStatus,
                 int schemaVersion,
                 int[] ranks,
                 long[] dimensions,
@@ -273,7 +421,7 @@ class MetalMpsGraphRawAbiNativeTest {
                 Consumer<MemorySegment> mutation) {
             CreateOutcome outcome = invoke(
                     schemaVersion, ranks, dimensions, program, feeds, targets, mutation);
-            assertEquals(INVALID_ARGUMENT, outcome.status(), name);
+            assertEquals(expectedStatus, outcome.status(), name);
             assertEquals(0L, outcome.outputAddress(), name + " must null the output cell");
         }
 
