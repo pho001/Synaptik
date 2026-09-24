@@ -2,15 +2,14 @@
 
 ## Status
 
-Ready
+Complete
 
-Readiness verification: Model 0028 is Complete at `fc003ab8` after its bounded proof, 23-task
-validation, and independent Class C `APPROVE` with zero findings. Metal 0019, Model 0027, Config
-0006, and Engine 0018 are Complete; Metal 0016/0017 remain inactive Blocked records and Metal 0018
-remains Draft. The implementation now retains ABI v4 with exactly thirteen exports, advances the
-fixed 160-byte node schema to version seven, and advances workload/candidate/compatibility/route/
-codec identities to version eight. Strict reduction capability remains false and rank zero remains
-local-only. The task remains Ready for its mandatory independent Class C review.
+Completed at implementation `9ddb75f6` plus documentation remediation `5b77c742`. The fresh
+corrected Apple M3 oracle, worker validation, documentation remediation, and independent Class C
+final review are complete; the review returned `APPROVE` with zero findings. ABI v4 retains exactly
+thirteen exports, the fixed 160-byte node schema is version seven, workload/candidate/
+compatibility/route/codec identities are version eight, strict reduction capability remains false,
+and rank zero remains local-only. Historical Metal 0017 stays Blocked.
 
 ## Change class
 
@@ -116,8 +115,8 @@ schema, or capability edits.
 No strict or masked reduction; other reduction/scan/MATMUL/convolution/scalar family; custom kernel;
 host fallback/rewrite; rank-zero transfer; dynamic, zero-extent, or view Shape; other type;
 backward/training; packaging/discovery; or performance claim. Metal 0017 stays Blocked under the old
-contract, 0018 stays Draft after this task, 0016 and historical 0006–0007/0009–0013 stay Blocked,
-and Model 0026 stays Draft.
+contract. This task did not itself authorize 0018; post-completion planning may promote that serial
+successor. Metal 0016 and historical 0006–0007/0009–0013 stay Blocked, and Model 0026 stays Draft.
 
 ## Contracts
 
@@ -213,8 +212,8 @@ real Engine proof, Runtime/Trace absence, changed scope, and artifact removal.
 
 ## Result
 
-Implemented from clean base `89ca7961`; this task remains Ready pending one independent Class C
-review.
+Implemented from clean base `89ca7961` at `9ddb75f6`, with documentation remediation at
+`5b77c742`; the task is Complete.
 
 - The corrected fresh pre-edit M3 gate passed 50 matrix cells at each of optimization levels zero
   and one: 22 SUM, 21 MEAN, and 7 SUM-to-Shape cells across two fresh contexts, 300 executables,
@@ -242,3 +241,13 @@ review.
   changed files; `tensor-api.md` has the same 172 duplicate-heading diagnostics as the base and no
   new Markdown structural diagnostic. Status/frontier, probe-removal, changed-path, and diff checks
   passed.
+- The independent Class C final review examined the committed implementation and remediated
+  documentation against the fresh oracle, all-term/count and exact-zero rules,
+  strict-false matrix, schema/cache identity, local scalar publication, lifecycle/cleanup, real
+  Engine proof, Runtime/Trace absence, and probe removal. It returned `APPROVE` with zero findings.
+  No executable source changed after the recorded worker validation.
+- Documentation remediation synchronized affected Javadocs and explanatory/current-status
+  documents without changing Runtime or Trace. Historical 0017 remains Blocked under its old
+  contract; Model 0026 remains Draft.
+
+Status: Complete
