@@ -103,10 +103,11 @@ bounded superset only for the named `FLOAT32` operation families and transformat
 [sole normative table](../architecture/contracts/foundational-modules.md#numerical-profiles).
 Tensor construction still performs no numerical evaluation and stores no profile choice.
 
-No public Config selector, Tensor method, capability row, propagation path, or relaxed backend
-route is implemented by that semantic contract. Until the dependent Config, propagation, and
-backend tasks complete, the current execution path retains its existing strict per-operation
-behavior and fail-closed capability.
+The public Config identity vocabulary is now current as `NumericalProfile`, but it has no Tensor
+method, capability row, propagation path, or relaxed backend route. Model remains the sole semantic
+owner of profile meaning; propagation and backend realization remain planned. Until those dependent
+tasks complete, the current execution path retains its existing strict per-operation behavior and
+fail-closed capability.
 
 The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 

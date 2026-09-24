@@ -31,13 +31,15 @@ Final compile artifacts now associate every caller-bindable graph input with the
 `TensorId` of its originating logical caller Tensor. The ordinary Engine uses that metadata for
 current logical binding; the association itself retains no Tensor, descriptor copy, host storage,
 or runtime representation.
-The current config module provides four immutable standalone input values that a later compile
-configuration aggregate can contain: `BackendIntent`, `CompileMode`, and
-`GraphOptimizationConfig`, plus `PartitionScoringConfig`. The current planning module provides the
-immutable `OperationCapabilityQuery` and the explicitly supplied `BackendCapabilityProvider`
-collaboration. It keeps per-query hard eligibility and baseline comparison package-private and
-exposes one public `BackendOwnerPlanning.selectOwner(...)` collaboration that composes them
-without exposing the intermediate. It also exposes the existing stateless
+The current config module provides five immutable standalone values that a later compile
+configuration aggregate can contain: `BackendIntent`, `CompileMode`,
+`GraphOptimizationConfig`, `PartitionScoringConfig`, and the identity-only `NumericalProfile`.
+Model remains the sole authority for profile semantics; no current compiler, Planning, Engine, or
+backend consumes or propagates `NumericalProfile`, and Config supplies no default. The current
+planning module provides the immutable `OperationCapabilityQuery` and the explicitly supplied
+`BackendCapabilityProvider` collaboration. It keeps per-query hard eligibility and baseline
+comparison package-private and exposes one public `BackendOwnerPlanning.selectOwner(...)`
+collaboration that composes them without exposing the intermediate. It also exposes the existing
 `MaximalSameOwnerPartitioning.partition(...)` and `LogicalMemoryPlanning.plan(...)` operations in
 their owning packages. The module still provides no reusable/public capability matrix, public
 graph-wide planner workflow, general cost scoring, or owner-map assembly. Compiler owns the

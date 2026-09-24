@@ -194,13 +194,18 @@ supplies one CPU provider; `Engine.builder()` compiles against the frozen provid
 registered CPU and/or Metal integrations. Generic plugin registration, other executable backends,
 and a public graph-wide Planning surface remain planned.
 
-The implemented `modules:config` surface contains four standalone compile-configuration values:
+The implemented `modules:config` surface contains five standalone compile-configuration values:
 
 - `BackendIntent` records whether planning has one hard backend eligibility target;
 - `CompileMode` records the requested compile-time graph scope;
-- `GraphOptimizationConfig` permits or suppresses optional semantics-preserving compiler work; and
+- `GraphOptimizationConfig` permits or suppresses optional semantics-preserving compiler work;
 - `PartitionScoringConfig` records an optional soft `DeviceClass` preference for later ranking of
-  already eligible ownership candidates.
+  already eligible ownership candidates; and
+- `NumericalProfile` records immutable graph-wide numerical-profile identity vocabulary.
+
+`NumericalProfile` is identity only. Model remains the sole semantic owner of the profile-indexed
+allowed-result sets; no current compiler, Planning, Engine, or backend consumer propagates or
+realizes the identity, and no Config API selects a default.
 
 They are immutable requests, not a runnable compiler configuration aggregate. For example:
 
@@ -212,6 +217,7 @@ import io.github.pho001.synaptik.config.compile.BackendIntent;
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 
 BackendId cuda = new BackendId("cuda");
 BackendIntent unconstrained = BackendIntent.unconstrained();
@@ -222,6 +228,7 @@ GraphOptimizationConfig optimization = GraphOptimizationConfig.standard();
 PartitionScoringConfig neutralRanking = PartitionScoringConfig.neutral();
 PartitionScoringConfig preferAccelerator =
         PartitionScoringConfig.preferring(DeviceClass.ACCELERATOR);
+NumericalProfile profileIdentity = NumericalProfile.STRICT_IEEE;
 ```
 
 `unconstrained.hardRequirement()` is empty. That absence means only that no hard eligibility
@@ -261,9 +268,10 @@ rejects null with message `preferredDeviceClass`; `preferring(null)` rejects nul
 scores, contain profile measurements, choose ownership or a device, select a route or kernel, or
 perform compiler, prepare, runtime, or execution work. Current Planning interprets only its
 optional class preference through a cost-free provider-order baseline, and package-private
-Compiler supplies that value per final graph node. `CompileConfig`, immutable cost profiles, and
-public graph-wide planning remain planned; the current advanced Engine consumes the four
-standalone compile inputs directly.
+Compiler supplies that value per final graph node. `NumericalProfile` is not consumed by any current
+layer. `CompileConfig`, immutable cost profiles, profile propagation, and public graph-wide
+planning remain planned; the current advanced Engine consumes the four operational standalone
+compile inputs directly.
 
 The implemented `config.tuning` package contains one separate declarative facade,
 `ModelAutotuningConfig`. Possessing this value means that model autotuning was requested; there is

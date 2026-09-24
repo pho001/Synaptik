@@ -64,8 +64,10 @@ policy, but it contains no benchmark runner, search algorithm, live discovery, m
 live service, concrete backend class, executable unit, runtime state, or kernel class reference.
 A concrete backend interprets its backend-specific prepare inputs inside that backend.
 
-A later Config task will own only the immutable graph numerical-profile selector. Config will not
-define operation result sets, interpret profile meaning, or select a backend route.
+Owns the immutable graph numerical-profile identity vocabulary through `NumericalProfile`. Model
+remains the sole owner of profile-indexed allowed-result sets; Config does not interpret profile
+meaning or select a backend route. Propagation and realization by Planning, Compiler, Prepare,
+Engine, and concrete backends remain planned, and no current layer consumes the identity.
 
 ### `modules/planning`
 
