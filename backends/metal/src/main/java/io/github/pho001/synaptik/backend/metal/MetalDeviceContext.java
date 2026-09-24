@@ -241,6 +241,7 @@ final class MetalDeviceContext implements AutoCloseable {
         try {
             executable = api.createMpsGraphExecutable(
                     handle,
+                    plan.numericalProfile(),
                     plan.valueRanks(),
                     plan.valueDimensions(),
                     plan.graphProgram(),

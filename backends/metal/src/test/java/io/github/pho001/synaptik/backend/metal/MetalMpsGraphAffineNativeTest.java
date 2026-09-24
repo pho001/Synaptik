@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -68,6 +69,7 @@ class MetalMpsGraphAffineNativeTest {
             });
             executable = api.createMpsGraphExecutable(
                     context,
+                    NumericalProfile.STRICT_IEEE,
                     ranks,
                     dimensions,
                     new MetalMpsGraphProgram(List.of(
@@ -200,6 +202,7 @@ class MetalMpsGraphAffineNativeTest {
             System.arraycopy(test.outputShape(), 0, dimensions, 16, test.outputShape().length);
             executable = api.createMpsGraphExecutable(
                     context,
+                    NumericalProfile.STRICT_IEEE,
                     ranks,
                     dimensions,
                     new MetalMpsGraphProgram(List.of(test.node())),

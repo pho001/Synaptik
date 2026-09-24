@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider;
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
@@ -32,20 +33,55 @@ import org.junit.jupiter.api.Test;
 
 /** Conformance checks for public Metal capability truth and Planning maximal closure. */
 final class MetalNegCapabilityPartitionConformanceTest {
-    /** Proves NEG is public while all binary arithmetic and ABS fail closed. */
-    @Test void advertisesExactNegationDomain() {
+    /** Proves the strict baseline and accelerator binary matrices remain disjoint and closed. */
+    @Test
+    void advertisesExactProfileQualifiedDomain() {
         var provider = new MetalCapabilityProvider();
         TensorDescriptor matrix = descriptor(Shape.of(2, 3));
         TensorDescriptor row = descriptor(Shape.of(3));
-        assertTrue(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, operation(UnaryElementwiseKind.NEG), List.of(matrix), List.of(matrix))));
-        for (BinaryArithmeticKind kind : List.of(
-                BinaryArithmeticKind.ADD,
-                BinaryArithmeticKind.SUB,
-                BinaryArithmeticKind.MUL,
-                BinaryArithmeticKind.DIV)) {
-            assertFalse(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, operation(kind), List.of(matrix, row), List.of(matrix))));
+        assertTrue(provider.supports(query(
+                NumericalProfile.STRICT_IEEE,
+                operation(UnaryElementwiseKind.NEG),
+                List.of(matrix),
+                List.of(matrix))));
+        assertFalse(provider.supports(query(
+                NumericalProfile.ACCELERATOR,
+                operation(UnaryElementwiseKind.NEG),
+                List.of(matrix),
+                List.of(matrix))));
+        for (BinaryArithmeticKind kind : BinaryArithmeticKind.values()) {
+            boolean supported = kind == BinaryArithmeticKind.ADD
+                    || kind == BinaryArithmeticKind.SUB
+                    || kind == BinaryArithmeticKind.MUL
+                    || kind == BinaryArithmeticKind.DIV;
+            assertFalse(provider.supports(query(
+                    NumericalProfile.STRICT_IEEE,
+                    operation(kind),
+                    List.of(matrix, row),
+                    List.of(matrix))));
+            assertEquals(supported, provider.supports(query(
+                    NumericalProfile.ACCELERATOR,
+                    operation(kind),
+                    List.of(matrix, row),
+                    List.of(matrix))));
         }
-        assertFalse(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, operation(UnaryElementwiseKind.ABS), List.of(matrix), List.of(matrix))));
+        assertFalse(provider.supports(query(
+                NumericalProfile.ACCELERATOR,
+                operation(UnaryElementwiseKind.ABS),
+                List.of(matrix),
+                List.of(matrix))));
+        Operation contiguous = new Operation(
+                ContiguousKind.CONTIGUOUS, NoOperationAttrs.INSTANCE);
+        assertTrue(provider.supports(query(
+                NumericalProfile.STRICT_IEEE,
+                contiguous,
+                List.of(matrix),
+                List.of(matrix))));
+        assertFalse(provider.supports(query(
+                NumericalProfile.ACCELERATOR,
+                contiguous,
+                List.of(matrix),
+                List.of(matrix))));
     }
 
     /** Proves an eligible NEG chain becomes one whole maximal Metal partition. */
@@ -95,6 +131,67 @@ final class MetalNegCapabilityPartitionConformanceTest {
         assertEquals(1, partitions.size());
         assertSame(MetalCapabilityProvider.METAL_BACKEND_ID, partitions.getFirst().owner());
         assertEquals(nodes.stream().map(CompiledNode::id).toList(),
+                partitions.getFirst().nodeIds());
+    }
+
+    /** Proves all four accelerator binaries form one ordered maximal partition. */
+    @Test
+    void eligibleAcceleratorBinaryOccurrencesBecomeOneMaximalPartition() {
+        TensorDescriptor matrix = descriptor(Shape.of(2, 3));
+        TensorDescriptor row = descriptor(Shape.of(3));
+        ValueId matrixInput = new ValueId(20);
+        ValueId rowInput = new ValueId(21);
+        ValueId added = new ValueId(22);
+        ValueId subtracted = new ValueId(23);
+        ValueId multiplied = new ValueId(24);
+        ValueId divided = new ValueId(25);
+        List<CompiledNode> nodes = List.of(
+                new CompiledNode(
+                        new NodeId(20),
+                        operation(BinaryArithmeticKind.ADD),
+                        List.of(matrixInput, rowInput),
+                        List.of(added)),
+                new CompiledNode(
+                        new NodeId(21),
+                        operation(BinaryArithmeticKind.SUB),
+                        List.of(rowInput, matrixInput),
+                        List.of(subtracted)),
+                new CompiledNode(
+                        new NodeId(22),
+                        operation(BinaryArithmeticKind.MUL),
+                        List.of(matrixInput, matrixInput),
+                        List.of(multiplied)),
+                new CompiledNode(
+                        new NodeId(23),
+                        operation(BinaryArithmeticKind.DIV),
+                        List.of(added, rowInput),
+                        List.of(divided)));
+        List<GraphValue> values = List.of(
+                new GraphValue(matrixInput, matrix),
+                new GraphValue(rowInput, row),
+                new GraphValue(added, matrix),
+                new GraphValue(subtracted, matrix),
+                new GraphValue(multiplied, matrix),
+                new GraphValue(divided, matrix));
+        Map<NodeId, GraphPhase> phases = nodes.stream().collect(
+                java.util.stream.Collectors.toMap(
+                        CompiledNode::id, ignored -> GraphPhase.FORWARD));
+        var graph = new CompiledGraphModel(
+                values,
+                nodes,
+                List.of(matrixInput, rowInput),
+                List.of(added, subtracted, multiplied, divided),
+                phases);
+        Map<NodeId, io.github.pho001.synaptik.backend.contract.BackendId> owners =
+                nodes.stream().collect(java.util.stream.Collectors.toMap(
+                        CompiledNode::id,
+                        ignored -> MetalCapabilityProvider.METAL_BACKEND_ID));
+
+        var partitions = MaximalSameOwnerPartitioning.partition(graph, owners);
+        assertEquals(1, partitions.size());
+        assertSame(MetalCapabilityProvider.METAL_BACKEND_ID, partitions.getFirst().owner());
+        assertEquals(
+                nodes.stream().map(CompiledNode::id).toList(),
                 partitions.getFirst().nodeIds());
     }
 
@@ -161,6 +258,14 @@ final class MetalNegCapabilityPartitionConformanceTest {
         assertSame(MetalCapabilityProvider.METAL_BACKEND_ID, partitions.getFirst().owner());
         assertEquals(nodes.stream().map(CompiledNode::id).toList(),
                 partitions.getFirst().nodeIds());
+    }
+
+    private static OperationCapabilityQuery query(
+            NumericalProfile profile,
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            List<TensorDescriptor> outputs) {
+        return new OperationCapabilityQuery(profile, operation, inputs, outputs);
     }
 
     private static TensorDescriptor descriptor(Shape shape) {

@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.backend.metal;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
@@ -118,16 +119,19 @@ abstract class MetalNativeApi implements AutoCloseable {
      * Compiles one shape-specialized whole-partition typed MPSGraph executable.
      *
      * @param context non-null live context whose ownership remains with the caller
+     * @param numericalProfile non-null cold plan profile used by Java fail-closed preflight
      * @param valueRanks non-null value-aligned ranks
      * @param valueDimensions non-null row-major value-count by sixteen dimension table
-     * @param graphProgram non-null version-four typed node table
+     * @param graphProgram non-null version-five typed node table
      * @param feedValueIndices non-null stable feed value indices
      * @param targetValueIndices non-null stable target value indices
      * @return a fresh non-null opaque executable handle owned by the caller
-     * @throws RuntimeException if native construction, validation, or compilation fails
+     * @throws RuntimeException if Java validation, native construction, validation, or compilation
+     *     fails
      */
     final Handle createMpsGraphExecutable(
             Handle context,
+            NumericalProfile numericalProfile,
             int[] valueRanks,
             long[] valueDimensions,
             MetalMpsGraphProgram graphProgram,
@@ -135,6 +139,7 @@ abstract class MetalNativeApi implements AutoCloseable {
             int[] targetValueIndices) {
         Objects.requireNonNull(context, "context");
         MpsGraphExecutableAbi.validateCreate(
+                numericalProfile,
                 valueRanks, valueDimensions, graphProgram,
                 feedValueIndices, targetValueIndices);
         NativeCreateResult result = Objects.requireNonNull(createMpsGraphExecutableNative(
@@ -150,7 +155,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * @param context non-null live context whose ownership remains with the caller
      * @param valueRanks validated value-aligned ranks
      * @param valueDimensions validated padded dimension table
-     * @param graphProgram validated version-four typed topological node table
+     * @param graphProgram validated version-five typed topological node table
      * @param feedValueIndices validated unique feeds
      * @param targetValueIndices validated unique produced targets
      * @return non-null raw status/output-cell result for checked interpretation
@@ -477,18 +482,20 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
     }
 
-    /** Exact Java preflight for the version-four typed MPSGraph executable-create ABI. */
+    /** Exact Java preflight for the version-five typed MPSGraph executable-create schema. */
     static final class MpsGraphExecutableAbi {
         private static final int MAX_RANK = 16;
 
         private MpsGraphExecutableAbi() {}
 
         static void validateCreate(
+                NumericalProfile numericalProfile,
                 int[] valueRanks,
                 long[] valueDimensions,
                 MetalMpsGraphProgram graphProgram,
                 int[] feeds,
                 int[] targets) {
+            Objects.requireNonNull(numericalProfile, "numericalProfile");
             Objects.requireNonNull(valueRanks, "valueRanks");
             Objects.requireNonNull(valueDimensions, "valueDimensions");
             Objects.requireNonNull(graphProgram, "graphProgram");
@@ -563,7 +570,14 @@ abstract class MetalNativeApi implements AutoCloseable {
                 used[feed] = true;
             }
             for (MetalMpsGraphProgram.Node node : graphProgram.nodes()) {
+                if (!profileAllows(numericalProfile, node.kind())) {
+                    throw new IllegalArgumentException(
+                            "Metal MPSGraph node kind is incompatible with numerical profile");
+                }
+            }
+            for (MetalMpsGraphProgram.Node node : graphProgram.nodes()) {
                 int left = node.firstInputIndex();
+                int right = node.secondInputIndex();
                 int output = node.outputIndex();
                 requireIndex(left, valueCount, "first node input");
                 requireIndex(output, valueCount, "node output");
@@ -579,6 +593,17 @@ abstract class MetalNativeApi implements AutoCloseable {
                     case NEG, CONTIGUOUS -> requireShape(
                             sameShape(left, output, valueRanks, valueDimensions),
                             node.kind() + " input/output shapes must match exactly");
+                    case ADD, SUB, MUL, DIV -> {
+                        requireIndex(right, valueCount, "second node input");
+                        if (!node.kind().accepts(states[right])) {
+                            throw new IllegalArgumentException(
+                                    "Metal MPSGraph second node input must be canonical");
+                        }
+                        requireShape(
+                                broadcastsTo(left, right, output, valueRanks, valueDimensions),
+                                "binary output must equal exact right-aligned broadcast");
+                        used[right] = true;
+                    }
                     case RESHAPE -> {
                         requireShape(
                                 sameElementCount(left, output, valueRanks, valueDimensions),
@@ -683,6 +708,20 @@ abstract class MetalNativeApi implements AutoCloseable {
                 throw new IllegalArgumentException(
                         "Metal MPSGraph " + role + " index is out of range");
             }
+        }
+
+        private static boolean profileAllows(
+                NumericalProfile numericalProfile, MetalMpsGraphProgram.NodeKind kind) {
+            return switch (numericalProfile) {
+                case STRICT_IEEE -> switch (kind) {
+                    case NEG, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, CONTIGUOUS -> true;
+                    case ADD, SUB, MUL, DIV -> false;
+                };
+                case ACCELERATOR -> switch (kind) {
+                    case ADD, SUB, MUL, DIV -> true;
+                    case NEG, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, CONTIGUOUS -> false;
+                };
+            };
         }
 
         private static boolean sameShape(
@@ -821,6 +860,40 @@ abstract class MetalNativeApi implements AutoCloseable {
             for (int source = 0, target = 0; source < inputRank; source++) {
                 if (source != axis
                         && dimensions[inputRow + source] != dimensions[outputRow + target++]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private static boolean broadcastsTo(
+                int left,
+                int right,
+                int output,
+                int[] ranks,
+                long[] dimensions) {
+            int leftRank = ranks[left];
+            int rightRank = ranks[right];
+            int outputRank = ranks[output];
+            if (outputRank != Math.max(leftRank, rightRank)) {
+                return false;
+            }
+            int leftRow = left * MAX_RANK;
+            int rightRow = right * MAX_RANK;
+            int outputRow = output * MAX_RANK;
+            int leftPadding = outputRank - leftRank;
+            int rightPadding = outputRank - rightRank;
+            for (int axis = 0; axis < outputRank; axis++) {
+                long leftDimension = axis < leftPadding
+                        ? 1L : dimensions[leftRow + axis - leftPadding];
+                long rightDimension = axis < rightPadding
+                        ? 1L : dimensions[rightRow + axis - rightPadding];
+                if (leftDimension != rightDimension
+                        && leftDimension != 1L && rightDimension != 1L) {
+                    return false;
+                }
+                if (dimensions[outputRow + axis]
+                        != Math.max(leftDimension, rightDimension)) {
                     return false;
                 }
             }

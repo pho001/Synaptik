@@ -5,10 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.file.Path;
@@ -507,16 +509,40 @@ class MetalFoundationTest {
                         valid.feeds(),
                         valid.targets()));
 
-
+        assertThrows(IllegalArgumentException.class, () -> api.createMpsGraphExecutable(
+                context,
+                NumericalProfile.ACCELERATOR,
+                valid.ranks(),
+                valid.dimensions(),
+                valid.program(),
+                valid.feeds(),
+                valid.targets()));
+        long[] binaryDimensions = new long[48];
+        binaryDimensions[0] = 2;
+        binaryDimensions[1] = 3;
+        binaryDimensions[16] = 3;
+        binaryDimensions[32] = 2;
+        binaryDimensions[33] = 3;
+        MetalMpsGraphProgram binary = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.binary(
+                        MetalMpsGraphProgram.NodeKind.ADD, 0, 1, 2)));
+        assertThrows(IllegalArgumentException.class, () -> api.createMpsGraphExecutable(
+                context,
+                NumericalProfile.STRICT_IEEE,
+                new int[] {2, 1, 2},
+                binaryDimensions,
+                binary,
+                new int[] {0, 1},
+                new int[] {2}));
         assertEquals(0, api.executableCreateCalls.get());
-        assertTrue(api.createMpsGraphExecutable(
-                        context,
-                        valid.ranks(),
-                        valid.dimensions(),
-                        valid.program(),
-                        valid.feeds(),
-                        valid.targets())
-                != null);
+        assertNotNull(api.createMpsGraphExecutable(
+                context,
+                NumericalProfile.STRICT_IEEE,
+                valid.ranks(),
+                valid.dimensions(),
+                valid.program(),
+                valid.feeds(),
+                valid.targets()));
         assertEquals(1, api.executableCreateCalls.get());
     }
 
@@ -562,14 +588,14 @@ class MetalFoundationTest {
     private static void assertInvalidCreate(
             FakeNativeApi api, MetalNativeApi.Handle context, GraphCreate input) {
         int before = api.executableCreateCalls.get();
-        assertThrows(IllegalArgumentException.class,
-                () -> api.createMpsGraphExecutable(
-                        context,
-                        input.ranks(),
-                        input.dimensions(),
-                        input.program(),
-                        input.feeds(),
-                        input.targets()));
+        assertThrows(IllegalArgumentException.class, () -> api.createMpsGraphExecutable(
+                context,
+                NumericalProfile.STRICT_IEEE,
+                input.ranks(),
+                input.dimensions(),
+                input.program(),
+                input.feeds(),
+                input.targets()));
         assertEquals(before, api.executableCreateCalls.get());
     }
 

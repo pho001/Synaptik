@@ -6,8 +6,9 @@ import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
-import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
@@ -29,19 +30,19 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Analyzes and lowers one complete maximal Metal-owned supported-operation partition.
+ * Analyzes and lowers one complete maximal Metal-owned profile-qualified partition.
  *
  * <p>The deterministic analysis assigns stable native value indices, retains every node kind and
  * ordered operand, and derives unique feeds and targets before selecting a closed private route.
- * It walks explicit unavailable/canonical/affine-view states in node order: every graph feed must
- * be canonical, every consumed view must be an earlier affine output in this exact partition,
- * {@code CONTIGUOUS} restores canonical state, and {@code NEG} rejects view state. Analysis
- * freshly regenerates the complete candidate batch; an absent decision preserves the singleton-
- * NEG heuristic, while a present decision must authenticate against current schema, workload,
- * session target, and candidate identity. The selected route is then fixed before exact
- * declarations. Published affine views retain logical descriptors while declarations use full
- * dense represented-order byte geometry. Analysis allocates no physical resource and never
- * changes partition ownership or capability.</p>
+ * Under {@code STRICT_IEEE}, it walks explicit unavailable/canonical/affine-view states in node
+ * order for the retained NEG, affine, and CONTIGUOUS baseline. Under {@code ACCELERATOR}, it
+ * accepts only binary nodes whose two inputs and output are canonical. Every graph feed is
+ * canonical. Analysis freshly regenerates the complete candidate batch; an absent decision
+ * preserves the singleton-NEG heuristic, while a present decision must authenticate against
+ * current schema, workload, profile, session target, and candidate identity. The selected route is
+ * fixed before exact declarations. Published affine views retain logical descriptors while
+ * declarations use full dense represented-order byte geometry. Analysis allocates no physical
+ * resource and never changes partition ownership or capability.</p>
  */
 final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         MetalNegAnalysisInputs, MetalNegPreparationPlan> {
@@ -60,10 +61,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
     public BackendPartitionAnalysis<MetalNegPreparationPlan> analyze(
             PrepareContext<MetalNegAnalysisInputs> context) {
         Objects.requireNonNull(context, "context");
-        if (context.numericalProfile() != NumericalProfile.STRICT_IEEE) {
-            throw new IllegalArgumentException(
-                    "Metal backend supports only STRICT_IEEE numerical profile");
-        }
+        NumericalProfile numericalProfile = context.numericalProfile();
         if (!context.partition().owner().equals(MetalCapabilityProvider.METAL_BACKEND_ID)) {
             throw new IllegalArgumentException("partition owner must be Metal");
         }
@@ -123,7 +121,10 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         "Metal output must be produced exactly once in topological order");
             }
             if (!MetalCapabilityProvider.supportsOccurrence(
-                    node.operation(), inputDescriptors, List.of(outputValue.descriptor()))) {
+                    numericalProfile,
+                    node.operation(),
+                    inputDescriptors,
+                    List.of(outputValue.descriptor()))) {
                 throw new IllegalArgumentException(
                         "Metal occurrence is outside the capability domain");
             }
@@ -140,7 +141,8 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     outputId, graphValues, valueIndexes, valueIds, descriptors);
             MetalMpsGraphProgram.Node lowered = lower(
                     node.operation(), inputIndices, outputIndex);
-            if (inputStates.size() != 1 || !lowered.kind().accepts(inputStates.getFirst())) {
+            if (inputStates.size() != lowered.kind().inputCount()
+                    || inputStates.stream().anyMatch(state -> !lowered.kind().accepts(state))) {
                 throw new IllegalArgumentException(
                         "Metal node input value state is unavailable or incompatible");
             }
@@ -364,6 +366,18 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         OperationKind kind = operation.kind();
         if (kind == UnaryElementwiseKind.NEG) {
             return MetalMpsGraphProgram.Node.neg(inputs[0], output);
+        }
+        if (kind instanceof BinaryArithmeticKind binary) {
+            MetalMpsGraphProgram.NodeKind nodeKind = switch (binary) {
+                case ADD -> MetalMpsGraphProgram.NodeKind.ADD;
+                case SUB -> MetalMpsGraphProgram.NodeKind.SUB;
+                case MUL -> MetalMpsGraphProgram.NodeKind.MUL;
+                case DIV -> MetalMpsGraphProgram.NodeKind.DIV;
+                default -> throw new IllegalArgumentException(
+                        "unsupported Metal binary operation: " + binary);
+            };
+            return MetalMpsGraphProgram.Node.binary(
+                    nodeKind, inputs[0], inputs[1], output);
         }
         if (kind == ContiguousKind.CONTIGUOUS) {
             return MetalMpsGraphProgram.Node.contiguous(inputs[0], output);

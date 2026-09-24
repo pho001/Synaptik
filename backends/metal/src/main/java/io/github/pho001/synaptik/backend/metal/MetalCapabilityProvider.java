@@ -3,16 +3,18 @@ package io.github.pho001.synaptik.backend.metal;
 import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
-import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
-import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
@@ -22,16 +24,18 @@ import java.util.Objects;
 /**
  * Reports the exact operation-occurrence capability of the current Metal backend.
  *
- * <p>This provider is immutable and performs no device discovery, native-library loading,
- * allocation, registration, or caching. Support covers unary {@code NEG}, five FLOAT32 affine
- * transforms, and the explicit {@code CONTIGUOUS} canonicalization barrier. Binary arithmetic is
- * deliberately unsupported because the available MPSGraph arithmetic selectors do not preserve
- * the Model's required subnormal semantics. {@code NEG} descriptors remain canonical dense
- * non-views. An affine or contiguous input may be canonical or an exact resolved zero-offset
- * logical view; complete-partition analysis authenticates every admitted view as a prior local
- * affine result. Affine outputs retain the exact inferred view descriptor, while
- * {@code CONTIGUOUS} outputs are canonical. Every admitted occurrence is fully static, has
- * positive rank-1..16 geometry, and preserves one common gradient-eligibility flag.</p>
+ * <p>This provider is immutable and performs no native loading, device discovery, allocation,
+ * registration, or caching. Under {@link NumericalProfile#STRICT_IEEE}, support is
+ * exactly unary {@code NEG}, five FLOAT32 affine transforms, and the explicit {@code CONTIGUOUS}
+ * canonicalization barrier. Under {@link NumericalProfile#ACCELERATOR}, support is exactly tensor
+ * {@code ADD}, {@code SUB}, {@code MUL}, and {@code DIV}; every strict baseline operation remains
+ * closed. Binary inputs and outputs are canonical dense non-views with exact right-aligned
+ * broadcasting. Strict {@code NEG} descriptors remain canonical. A strict affine or contiguous
+ * input may be canonical or an exact resolved zero-offset logical view; complete-partition
+ * analysis authenticates every admitted view as a prior local affine result. Affine outputs
+ * retain the exact inferred view descriptor, while {@code CONTIGUOUS} outputs are canonical.
+ * Every admitted occurrence is fully static, has positive rank-1..16 checked geometry, and
+ * preserves one common gradient-eligibility flag.</p>
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
     /**
@@ -61,34 +65,37 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     }
 
     /**
-     * Reports support only for the exact prepared Metal negation, affine, and contiguous domain.
+     * Reports support only for the exact profile-qualified prepared Metal domain.
      *
      * @param query the non-null immutable operation occurrence to classify without probing a
      *     device or native library
-     * @return {@code true} exactly for one supported negation, affine, or contiguous occurrence
+     * @return {@code true} exactly for a retained strict baseline occurrence or one of the four
+     *     accelerator binary occurrences
      * @throws NullPointerException if {@code query} is {@code null}, with message {@code query}
      */
     @Override
     public boolean supports(OperationCapabilityQuery query) {
         Objects.requireNonNull(query, "query");
-        if (query.numericalProfile() == NumericalProfile.ACCELERATOR) {
-            return false;
-        }
-        return supportsOccurrence(query.operation(), query.inputs(), query.outputs());
+        return supportsOccurrence(
+                query.numericalProfile(), query.operation(), query.inputs(), query.outputs());
     }
 
     /**
-     * Validates one projected occurrence against the same exact domain used by Planning.
+     * Validates one projected occurrence against the same profile-qualified domain used by
+     * Planning.
      *
+     * @param numericalProfile non-null cold graph-wide numerical-profile identity
      * @param operation non-null typed operation
      * @param inputs non-null ordered input descriptors
      * @param outputs non-null ordered output descriptors
      * @return whether the occurrence is supported
      */
     static boolean supportsOccurrence(
+            NumericalProfile numericalProfile,
             Operation operation,
             List<TensorDescriptor> inputs,
             List<TensorDescriptor> outputs) {
+        Objects.requireNonNull(numericalProfile, "numericalProfile");
         Objects.requireNonNull(operation, "operation");
         Objects.requireNonNull(inputs, "inputs");
         Objects.requireNonNull(outputs, "outputs");
@@ -97,6 +104,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         }
         TensorDescriptor output = outputs.getFirst();
         try {
+            if (numericalProfile == NumericalProfile.ACCELERATOR) {
+                return supportsBinary(operation, inputs, output);
+            }
             if (operation.kind() == UnaryElementwiseKind.NEG) {
                 if (operation.attrs() != NoOperationAttrs.INSTANCE || inputs.size() != 1) {
                     return false;
@@ -114,6 +124,27 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         } catch (IllegalArgumentException | ArithmeticException incompatible) {
             return false;
         }
+    }
+
+    private static boolean supportsBinary(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        if (!(operation.kind() instanceof BinaryArithmeticKind binary)
+                || operation.attrs() != NoOperationAttrs.INSTANCE
+                || (binary != BinaryArithmeticKind.ADD
+                        && binary != BinaryArithmeticKind.SUB
+                        && binary != BinaryArithmeticKind.MUL
+                        && binary != BinaryArithmeticKind.DIV)
+                || inputs.size() != 2) {
+            return false;
+        }
+        TensorDescriptor left = inputs.get(0);
+        TensorDescriptor right = inputs.get(1);
+        return canonical(left)
+                && canonical(right)
+                && canonical(output)
+                && left.requiresGrad() == right.requiresGrad()
+                && left.requiresGrad() == output.requiresGrad()
+                && ShapeBroadcast.broadcast(left.shape(), right.shape()).equals(output.shape());
     }
 
     private static boolean supportsAffine(

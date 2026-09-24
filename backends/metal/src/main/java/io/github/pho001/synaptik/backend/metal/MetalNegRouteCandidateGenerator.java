@@ -20,16 +20,16 @@ import java.util.Optional;
  * Generates complete, stable, budget-bounded Metal supported-operation route candidates.
  *
  * <p>The workload fingerprint uses only versioned semantics and structural positions, including
- * typed NEG/affine/contiguous node kinds and attributes, exact logical descriptors, ordered
- * edges, explicit value states, target sets, and dense represented-order geometry. Graph-local
- * identities, partition object identity, native handles, measurements, and cache state are
- * excluded. Generation is cold,
- * thread-safe, deterministic, and performs no native work.</p>
+ * the cold numerical profile, schema-five ordered typed nodes and attributes, exact logical
+ * descriptors, ordered edges, explicit value states, target sets, dense represented-order
+ * geometry, ABI identity, and splats. Graph-local identities, partition object identity, native
+ * handles, measurements, and cache state are excluded. Generation is cold, thread-safe,
+ * deterministic, and performs no native work.</p>
  */
 final class MetalNegRouteCandidateGenerator {
     private static final long UINT32_MAX = 0xffff_ffffL;
-    private static final int WORKLOAD_SIGNATURE_VERSION = 5;
-    private static final int EXACT_DEFAULT_POLICY = 5;
+    private static final int WORKLOAD_SIGNATURE_VERSION = 6;
+    private static final int EXACT_DEFAULT_POLICY = 6;
 
     /**
      * Generates every currently valid complete candidate up to a positive budget.
@@ -165,7 +165,6 @@ final class MetalNegRouteCandidateGenerator {
         updateLongs(digest, plan.feedRequiredBytes());
         updateLongs(digest, plan.targetRequiredBytes());
 
-
         updateInt(digest, plan.descriptors().size());
         for (var descriptor : plan.descriptors()) {
             updateInt(digest, descriptor.dataType() == DataType.FLOAT32 ? 1 : 0);
@@ -237,7 +236,6 @@ final class MetalNegRouteCandidateGenerator {
             updateInt(digest, position);
         }
     }
-
 
     private static void updateInts(MessageDigest digest, int[] values) {
         updateInt(digest, values.length);

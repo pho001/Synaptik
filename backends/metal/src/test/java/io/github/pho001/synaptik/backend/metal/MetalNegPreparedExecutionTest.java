@@ -20,6 +20,7 @@ import io.github.pho001.synaptik.compiler.GraphCompilationPort;
 import io.github.pho001.synaptik.config.compile.BackendIntent;
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
@@ -30,6 +31,7 @@ import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
@@ -559,6 +561,63 @@ class MetalNegPreparedExecutionTest {
         assertEquals(5, plan.declarations().size());
         assertEquals(List.of(fixture.v0, fixture.v1, fixture.v3, fixture.v4, fixture.v5),
                 plan.declarations().stream().map(value -> value.valueId()).toList());
+    }
+
+    @Test
+    void acceleratorBinaryPartitionLowersOrderedBroadcastChainsFanOutAndRepeatedOperands() {
+        Fixture fixture = binaryFixture();
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        try {
+            BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
+                    new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
+                            NumericalProfile.ACCELERATOR,
+                            new PartitionDag(fixture.partition(), fixture.nodes()),
+                            fixture.values(),
+                            fixture.requirements(),
+                            Map.of(fixture.v1(), ScalarValue.float32(-0.5f)),
+                            new MetalNegAnalysisInputs(context)));
+            MetalNegPreparationPlan plan = analysis.plan();
+            assertEquals(
+                    NumericalProfile.ACCELERATOR,
+                    plan.numericalProfile());
+            assertEquals(MetalNegPreparationPlan.Route.MPSGRAPH, plan.route());
+            assertEquals(List.of(
+                    MetalMpsGraphProgram.NodeKind.ADD,
+                    MetalMpsGraphProgram.NodeKind.SUB,
+                    MetalMpsGraphProgram.NodeKind.MUL,
+                    MetalMpsGraphProgram.NodeKind.DIV),
+                    plan.graphProgram().nodes().stream()
+                            .map(MetalMpsGraphProgram.Node::kind)
+                            .toList());
+            assertEquals(List.of(fixture.v0(), fixture.v1()), plan.feedValueIds());
+            assertArrayEquals(new int[] {0, 1}, plan.feedValueIndices());
+            assertEquals(
+                    List.of(fixture.v2(), fixture.v3(), fixture.v4(), fixture.v5()),
+                    plan.targetValueIds());
+            assertArrayEquals(new int[] {2, 3, 4, 5}, plan.targetValueIndices());
+            assertTrue(plan.valueStates().stream().allMatch(
+                    state -> state == MetalMpsGraphProgram.ValueState.CANONICAL));
+            assertEquals(6, plan.declarations().size());
+            assertTrue(plan.feedSplats().get(0).isEmpty());
+            assertEquals(
+                    Float.floatToRawIntBits(-0.5f),
+                    Float.floatToRawIntBits(
+                            plan.feedSplats().get(1).orElseThrow().float32Value()));
+
+            MetalMpsGraphExecutableResource resource =
+                    context.createMpsGraphExecutable(plan);
+            try {
+                assertEquals(1, api.executableCreates.get());
+                assertArrayEquals(
+                        plan.graphProgram().encodedNodeRecords(),
+                        api.createdProgram.encodedNodeRecords());
+            } finally {
+                resource.close();
+            }
+        } finally {
+            context.close();
+        }
     }
 
     @Test
@@ -1989,7 +2048,23 @@ class MetalNegPreparedExecutionTest {
 
     private static BackendPartitionAnalysis<MetalNegPreparationPlan> analyze(
             Fixture fixture, MetalDeviceContext context) {
-        return new MetalNegPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new PartitionDag(fixture.partition, fixture.nodes), fixture.values, fixture.requirements, Map.of(), new MetalNegAnalysisInputs(context)));
+        return analyze(
+                fixture,
+                context,
+                NumericalProfile.STRICT_IEEE);
+    }
+
+    private static BackendPartitionAnalysis<MetalNegPreparationPlan> analyze(
+            Fixture fixture,
+            MetalDeviceContext context,
+            NumericalProfile numericalProfile) {
+        return new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
+                numericalProfile,
+                new PartitionDag(fixture.partition, fixture.nodes),
+                fixture.values,
+                fixture.requirements,
+                Map.of(),
+                new MetalNegAnalysisInputs(context)));
     }
     private static BackendPartitionAnalysis<MetalNegPreparationPlan> analyze(
             AffineFixture fixture, MetalDeviceContext context) {
@@ -2269,6 +2344,56 @@ class MetalNegPreparedExecutionTest {
                 false);
     }
 
+    private static Fixture binaryFixture() {
+        TensorDescriptor matrix = descriptor(Shape.of(2, 3));
+        TensorDescriptor row = descriptor(Shape.of(3));
+        ValueId v0 = new ValueId(30_000);
+        ValueId v1 = new ValueId(30_001);
+        ValueId v2 = new ValueId(30_002);
+        ValueId v3 = new ValueId(30_003);
+        ValueId v4 = new ValueId(30_004);
+        ValueId v5 = new ValueId(30_005);
+        List<CompiledNode> nodes = List.of(
+                new CompiledNode(
+                        new NodeId(30_000),
+                        new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE),
+                        List.of(v0, v1),
+                        List.of(v2)),
+                new CompiledNode(
+                        new NodeId(30_001),
+                        new Operation(BinaryArithmeticKind.SUB, NoOperationAttrs.INSTANCE),
+                        List.of(v1, v0),
+                        List.of(v3)),
+                new CompiledNode(
+                        new NodeId(30_002),
+                        new Operation(BinaryArithmeticKind.MUL, NoOperationAttrs.INSTANCE),
+                        List.of(v0, v0),
+                        List.of(v4)),
+                new CompiledNode(
+                        new NodeId(30_003),
+                        new Operation(BinaryArithmeticKind.DIV, NoOperationAttrs.INSTANCE),
+                        List.of(v2, v1),
+                        List.of(v5)));
+        PlannedPartition partition = new PlannedPartition(
+                MetalCapabilityProvider.METAL_BACKEND_ID,
+                nodes.stream().map(CompiledNode::id).toList());
+        List<GraphValue> values = List.of(
+                new GraphValue(v0, matrix),
+                new GraphValue(v1, row),
+                new GraphValue(v2, matrix),
+                new GraphValue(v3, matrix),
+                new GraphValue(v4, matrix),
+                new GraphValue(v5, matrix));
+        List<LogicalMemoryRequirement> requirements = List.of(
+                requirement(v0, matrix, Optional.empty(), List.of(partition), false),
+                requirement(v1, row, Optional.empty(), List.of(partition), false),
+                requirement(v2, matrix, Optional.of(partition), List.of(partition), true),
+                requirement(v3, matrix, Optional.of(partition), List.of(), true),
+                requirement(v4, matrix, Optional.of(partition), List.of(), true),
+                requirement(v5, matrix, Optional.of(partition), List.of(), true));
+        return new Fixture(
+                partition, nodes, values, requirements, v0, v1, v2, v3, v4, v5);
+    }
 
     private static SingleNegRoute singleNegRoute(
             MetalDeviceContext context, Shape shape, Optional<ScalarValue> splat) {

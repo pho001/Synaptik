@@ -17,6 +17,7 @@ import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
@@ -101,6 +102,24 @@ class MetalNegRouteCandidateGeneratorTest {
                 assertNotEquals(baselineCompatibility,
                         generated(changedWorkload, 2).batch().compatibility());
             }
+
+            Workload binaryAdd = binaryWorkload(
+                    device, 10_000, BinaryArithmeticKind.ADD, false);
+            Workload binarySubtract = binaryWorkload(
+                    device, 20_000, BinaryArithmeticKind.SUB, false);
+            Workload binaryReversed = binaryWorkload(
+                    device, 30_000, BinaryArithmeticKind.ADD, true);
+            assertEquals(
+                    List.of(MetalNegTuningBatch.Candidate.MPSGRAPH),
+                    generated(binaryAdd, 2).batch().candidates());
+            assertNotEquals(
+                    workloadSignature(binaryAdd),
+                    workloadSignature(binarySubtract),
+                    "ordered binary operation kind participates in workload identity");
+            assertNotEquals(
+                    workloadSignature(binaryAdd),
+                    workloadSignature(binaryReversed),
+                    "ordered binary operand edges participate in workload identity");
         }
     }
 
@@ -253,7 +272,14 @@ class MetalNegRouteCandidateGeneratorTest {
                     MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
                     current.batch().compatibility(), MetalNegTuningBatch.Candidate.MPSGRAPH);
             var codec = new MetalNegTuningCodec();
+            assertEquals(6, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
+            assertEquals(6, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
+            assertEquals(6, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
             byte[] first = codec.encodeDecision(decision);
+            assertEquals(6, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
+            assertEquals(6, current.batch().compatibility().schemaVersion());
+            assertEquals(6, current.batch().compatibility().candidateSchemaVersion());
+            assertEquals(6, current.batch().compatibility().routePolicyVersion());
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());
@@ -291,6 +317,9 @@ class MetalNegRouteCandidateGeneratorTest {
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, 4, 2), current.batch()).isEmpty(),
                     "checksummed schema-v2 decisions must fail closed");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, 4, 5), current.batch()).isEmpty(),
+                    "checksummed codec-v5 decisions must fail closed");
             assertTrue(codec.decodeDecision(rewriteInt(first, 8, 99), current.batch()).isEmpty());
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, first.length - 8, 99), current.batch()).isEmpty());
@@ -372,10 +401,9 @@ class MetalNegRouteCandidateGeneratorTest {
                     valid.context().memoryRequirements(),
                     valid.context().constants(),
                     new MetalNegAnalysisInputs(device));
-            assertEquals("Metal backend supports only STRICT_IEEE numerical profile",
-                    assertThrows(IllegalArgumentException.class,
-                            () -> new MetalNegPartitionPreparer().analyze(accelerator))
-                            .getMessage());
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> new MetalNegPartitionPreparer().analyze(accelerator));
             var invalid = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, invalidDag, valid.context().values(), valid.context().memoryRequirements(), valid.context().constants(), new MetalNegAnalysisInputs(device));
             assertThrows(IllegalArgumentException.class, () -> new MetalNegPartitionPreparer()
                     .analyze(invalid));
@@ -473,6 +501,58 @@ class MetalNegRouteCandidateGeneratorTest {
                         List.of(),
                         true)), Map.of(), new MetalNegAnalysisInputs(device));
         return new Workload(context);
+    }
+
+    private static Workload binaryWorkload(
+            MetalDeviceContext device,
+            long identityBase,
+            BinaryArithmeticKind kind,
+            boolean reverseInputs) {
+        TensorDescriptor leftDescriptor = canonical(Shape.of(2, 1));
+        TensorDescriptor rightDescriptor = canonical(Shape.of(1, 3));
+        TensorDescriptor outputDescriptor = canonical(Shape.of(2, 3));
+        ValueId left = new ValueId(identityBase);
+        ValueId right = new ValueId(identityBase + 1);
+        ValueId output = new ValueId(identityBase + 2);
+        List<ValueId> inputs = reverseInputs
+                ? List.of(right, left)
+                : List.of(left, right);
+        CompiledNode node = new CompiledNode(
+                new NodeId(identityBase),
+                new Operation(kind, NoOperationAttrs.INSTANCE),
+                inputs,
+                List.of(output));
+        PlannedPartition partition = new PlannedPartition(
+                MetalCapabilityProvider.METAL_BACKEND_ID,
+                List.of(node.id()));
+        return new Workload(new PrepareContext<>(
+                NumericalProfile.ACCELERATOR,
+                new PartitionDag(partition, List.of(node)),
+                List.of(
+                        new GraphValue(left, leftDescriptor),
+                        new GraphValue(right, rightDescriptor),
+                        new GraphValue(output, outputDescriptor)),
+                List.of(
+                        new LogicalMemoryRequirement(
+                                left,
+                                leftDescriptor,
+                                Optional.empty(),
+                                List.of(partition),
+                                false),
+                        new LogicalMemoryRequirement(
+                                right,
+                                rightDescriptor,
+                                Optional.empty(),
+                                List.of(partition),
+                                false),
+                        new LogicalMemoryRequirement(
+                                output,
+                                outputDescriptor,
+                                Optional.of(partition),
+                                List.of(),
+                                true)),
+                Map.of(),
+                new MetalNegAnalysisInputs(device)));
     }
 
     private static Workload twoAffineLeaves(

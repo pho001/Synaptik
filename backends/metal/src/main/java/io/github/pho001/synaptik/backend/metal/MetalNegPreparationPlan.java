@@ -1,26 +1,28 @@
 package io.github.pho001.synaptik.backend.metal;
 
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
-import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
+import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.planning.partition.PlannedPartition;
 import io.github.pho001.synaptik.prepare.analysis.BackendPreparationPlan;
 import io.github.pho001.synaptik.prepare.analysis.PartitionDag;
 import io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement;
-import io.github.pho001.synaptik.planning.partition.PlannedPartition;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
 /**
  * Retains the immutable, shape-specialized lowering and route facts for one whole supported Metal
- * NEG-and-affine-composition partition.
+ * partition.
  *
- * <p>Value indices, explicit canonical/affine-view states, typed MPSGraph nodes, feeds, targets,
- * and declarations are already in their stable ABI order. The route is either the safe heuristic
- * or a freshly authenticated session-compatible decision, and is fixed before this plan's
- * declarations escape analysis. The plan contains no assigned slot, tuning value, native
- * executable, physical buffer, or per-run state. Affine targets retain exact logical view
+ * <p>The retained numerical profile closes the operation domain: strict partitions contain only
+ * NEG, affine transforms, and CONTIGUOUS; accelerator partitions contain only tensor ADD, SUB,
+ * MUL, and DIV. Value indices, explicit canonical/affine-view states, typed MPSGraph nodes, feeds,
+ * targets, and declarations are already in their stable ABI order. The route is either the safe
+ * heuristic or a freshly authenticated session-compatible decision, and is fixed before this
+ * plan's declarations escape analysis. The plan contains no assigned slot, tuning value, native
+ * executable, physical buffer, or per-run state. Strict affine targets retain exact logical view
  * descriptors alongside their full dense represented-order byte extents. The address workspace
  * is present only for MPSGraph. Primitive arrays are privately snapshotted and copied when
  * marshalled.</p>

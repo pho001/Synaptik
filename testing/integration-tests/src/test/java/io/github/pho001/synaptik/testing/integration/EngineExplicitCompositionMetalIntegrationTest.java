@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
 import io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration;
 import io.github.pho001.synaptik.backend.metal.MetalBackendIntegration;
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.config.tuning.ModelAutotuningConfig;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.EngineMixedOwnerTestAccess;
@@ -16,6 +17,7 @@ import io.github.pho001.synaptik.engine.InferenceSession;
 import io.github.pho001.synaptik.engine.ModelAutotuningPreparation;
 import io.github.pho001.synaptik.engine.ModelAutotuningRequest;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
@@ -28,6 +30,8 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -83,6 +87,110 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         }
     }
 
+    @Test
+    void cpuFreeAcceleratorMetalRunsAllBinaryOperationsWithinBoundedRawBitSets() {
+        Path library = configuredMetalLibrary();
+        try (Arena arena = Arena.ofShared();
+                Engine.Builder builder = Engine.builder()) {
+            builder.numericalProfile(NumericalProfile.ACCELERATOR);
+            builder.takeOwnership(MetalBackendIntegration.open(
+                    new MetalBackendConfiguration(library)));
+            try (Engine engine = builder.build()) {
+                int[] matrixBits = {
+                    0x00800000, 0x80800000, 0x00000001, 0x80000001,
+                    0x7f7fffff, 0x7f800000, 0x00000000, 0x80000000
+                };
+                int[] rowBits = {
+                    Float.floatToRawIntBits(0.5f),
+                    Float.floatToRawIntBits(2.0f),
+                    0x00000001,
+                    0x7f7fffff
+                };
+                int[] columnBits = {
+                    Float.floatToRawIntBits(1.0f),
+                    Float.floatToRawIntBits(-0.5f)
+                };
+                int[] scalarBits = {Float.floatToRawIntBits(2.0f)};
+                Tensor matrix = nativeTensorBits(
+                        descriptor(Shape.of(2, 4)), arena, matrixBits);
+                Tensor row = nativeTensorBits(
+                        descriptor(Shape.of(4)), arena, rowBits);
+                Tensor column = nativeTensorBits(
+                        descriptor(Shape.of(2, 1)), arena, columnBits);
+                Tensor scalar = nativeTensorBits(
+                        descriptor(Shape.of(1)), arena, scalarBits);
+                Tensor added = matrix.add(row);
+                Tensor subtracted = row.sub(matrix);
+                Tensor multiplied = matrix.mul(row);
+                Tensor divided = matrix.div(scalar);
+                Tensor cancellation = matrix.sub(matrix);
+                Tensor chained = added.mul(row);
+                Tensor reverseDivided = scalar.div(matrix);
+                var compiled = engine.compile(List.of(
+                        added,
+                        subtracted,
+                        multiplied,
+                        divided,
+                        cancellation,
+                        chained,
+                        reverseDivided));
+                assertEquals(List.of("metal"),
+                        EngineMixedOwnerTestAccess.partitionOwners(compiled));
+                List<Tensor> inputs = List.of(matrix, row, scalar);
+
+                InferenceSession first = engine.session(compiled);
+                try (InferenceSession independent = engine.session(compiled)) {
+                    Object firstPublication;
+                    try (var initial = first.run(inputs)) {
+                        assertBinaryResults(
+                                initial, matrixBits, rowBits, scalarBits);
+                        firstPublication = EngineMixedOwnerTestAccess
+                                .runOwnedIdentities(initial)
+                                .publications()
+                                .getFirst();
+                    }
+                    try (var reused = first.run(inputs)) {
+                        assertBinaryResults(
+                                reused, matrixBits, rowBits, scalarBits);
+                        assertNotSame(firstPublication, EngineMixedOwnerTestAccess
+                                .runOwnedIdentities(reused)
+                                .publications()
+                                .getFirst());
+                    }
+                    try (var separate = independent.run(inputs)) {
+                        assertBinaryResults(
+                                separate, matrixBits, rowBits, scalarBits);
+                    }
+                    first.close();
+                    assertTrue(first.isClosed());
+                    assertThrows(
+                            IllegalStateException.class,
+                            () -> first.run(inputs));
+                } finally {
+                    first.close();
+                }
+
+                assertEquals(Shape.of(2, 1), column.descriptor().shape());
+                Tensor columnBroadcast = matrix.add(column);
+                var columnCompiled = engine.compile(List.of(columnBroadcast));
+                try (InferenceSession session = engine.session(columnCompiled);
+                        var result = session.run(List.of(matrix, column))) {
+                    int[] actual = rawBits(result.materialize(
+                            result.publications().getFirst(),
+                            (long) matrixBits.length * Integer.BYTES).bytes(),
+                            matrixBits.length);
+                    for (int lane = 0; lane < matrixBits.length; lane++) {
+                        assertAcceleratorAllowed(
+                                BinaryArithmeticKind.ADD,
+                                matrixBits[lane],
+                                columnBits[lane / 4],
+                                actual[lane],
+                                "column broadcast lane=" + lane);
+                    }
+                }
+            }
+        }
+    }
 
     @Test
     void cpuFreeMetalEngineRunsConcurrentAffineCallsWithIsolatedRunOwnership()
@@ -431,6 +539,129 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         }
     }
 
+    private static void assertBinaryResults(
+            io.github.pho001.synaptik.engine.RunResult result,
+            int[] matrix,
+            int[] row,
+            int[] scalar) {
+        assertEquals(7, result.resultCount());
+        var ownership = EngineMixedOwnerTestAccess.runOwnedIdentities(result);
+        assertEquals(7, ownership.publications().size());
+        assertEquals(1, ownership.workspaces().size());
+        BinaryArithmeticKind[] kinds = {
+            BinaryArithmeticKind.ADD,
+            BinaryArithmeticKind.SUB,
+            BinaryArithmeticKind.MUL,
+            BinaryArithmeticKind.DIV,
+            BinaryArithmeticKind.SUB,
+            BinaryArithmeticKind.MUL,
+            BinaryArithmeticKind.DIV
+        };
+        int[][] actual = new int[kinds.length][];
+        for (int target = 0; target < kinds.length; target++) {
+            actual[target] = rawBits(result.materialize(
+                    result.publications().get(target),
+                    (long) matrix.length * Integer.BYTES).bytes(),
+                    matrix.length);
+        }
+        for (int target = 0; target < kinds.length; target++) {
+            for (int lane = 0; lane < matrix.length; lane++) {
+                int column = lane % row.length;
+                int left = switch (target) {
+                    case 0, 2, 3, 4 -> matrix[lane];
+                    case 1 -> row[column];
+                    case 5 -> actual[0][lane];
+                    case 6 -> scalar[0];
+                    default -> throw new AssertionError();
+                };
+                int right = switch (target) {
+                    case 0, 2, 5 -> row[column];
+                    case 1, 4, 6 -> matrix[lane];
+                    case 3 -> scalar[0];
+                    default -> throw new AssertionError();
+                };
+                assertAcceleratorAllowed(
+                        kinds[target],
+                        left,
+                        right,
+                        actual[target][lane],
+                        "publication=" + target + " lane=" + lane);
+            }
+        }
+    }
+
+    private static void assertAcceleratorAllowed(
+            BinaryArithmeticKind kind,
+            int declaredLeft,
+            int declaredRight,
+            int observed,
+            String label) {
+        Set<Integer> allowed = new HashSet<>();
+        boolean allowsNaN = false;
+        for (int left : dazChoices(declaredLeft)) {
+            for (int right : dazChoices(declaredRight)) {
+                int result = evaluate(kind, left, right);
+                if (isNaN(result)) {
+                    allowsNaN = true;
+                } else {
+                    allowed.add(result);
+                }
+                if (isSubnormal(result)) {
+                    allowed.add(0x00000000);
+                    allowed.add(0x80000000);
+                }
+                if ((kind == BinaryArithmeticKind.ADD || kind == BinaryArithmeticKind.SUB)
+                        && (result & 0x7fffffff) == 0) {
+                    allowed.add(0x00000000);
+                    allowed.add(0x80000000);
+                }
+            }
+        }
+        assertTrue(
+                isNaN(observed) ? allowsNaN : allowed.contains(observed),
+                label + " kind=" + kind
+                        + " left=0x" + Integer.toHexString(declaredLeft)
+                        + " right=0x" + Integer.toHexString(declaredRight)
+                        + " observed=0x" + Integer.toHexString(observed));
+    }
+
+    private static int[] dazChoices(int bits) {
+        return isSubnormal(bits)
+                ? new int[] {bits, bits & 0x80000000}
+                : new int[] {bits};
+    }
+
+    private static int evaluate(
+            BinaryArithmeticKind kind, int leftBits, int rightBits) {
+        float left = Float.intBitsToFloat(leftBits);
+        float right = Float.intBitsToFloat(rightBits);
+        float result = switch (kind) {
+            case ADD -> left + right;
+            case SUB -> left - right;
+            case MUL -> left * right;
+            case DIV -> left / right;
+            default -> throw new AssertionError("unexpected binary kind " + kind);
+        };
+        return Float.floatToRawIntBits(result);
+    }
+
+    private static boolean isSubnormal(int bits) {
+        int magnitude = bits & 0x7fffffff;
+        return magnitude != 0 && magnitude < 0x00800000;
+    }
+
+    private static boolean isNaN(int bits) {
+        return (bits & 0x7f800000) == 0x7f800000
+                && (bits & 0x007fffff) != 0;
+    }
+
+    private static int[] rawBits(ByteBuffer bytes, int count) {
+        int[] bits = new int[count];
+        for (int index = 0; index < count; index++) {
+            bits[index] = bytes.getInt();
+        }
+        return bits;
+    }
 
     private static void assertMixedResult(
             Engine engine,

@@ -17,6 +17,8 @@ import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryCo
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -29,35 +31,54 @@ class MetalCapabilityProviderTest {
     private final MetalCapabilityProvider provider = new MetalCapabilityProvider();
 
     @Test
-    void supportsNegButRejectsEveryBinaryArithmeticKindForValidDescriptors() {
+    void enforcesClosedStrictAndAcceleratorCapabilityMatrices() {
         assertSame(MetalCapabilityProvider.METAL_BACKEND_ID, provider.backendId());
         assertEquals("metal", provider.backendId().value());
         TensorDescriptor matrix = descriptor(Shape.of(2, 3), false);
-        assertTrue(provider.supports(query(matrix, matrix)));
+        TensorDescriptor row = descriptor(Shape.of(3), false);
+        assertTrue(provider.supports(query(
+                NumericalProfile.STRICT_IEEE, matrix, matrix)));
         Shape rank16 = Shape.of(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
         assertTrue(provider.supports(query(
-                descriptor(rank16, true), descriptor(rank16, true))));
+                NumericalProfile.STRICT_IEEE,
+                descriptor(rank16, true),
+                descriptor(rank16, true))));
 
-        TensorDescriptor row = descriptor(Shape.of(3), false);
-        for (BinaryArithmeticKind kind : List.of(
-                BinaryArithmeticKind.ADD,
-                BinaryArithmeticKind.SUB,
-                BinaryArithmeticKind.MUL,
-                BinaryArithmeticKind.DIV)) {
-            assertFalse(provider.supports(binaryQuery(kind, matrix, matrix, matrix)));
-            assertFalse(provider.supports(binaryQuery(kind, matrix, row, matrix)));
-            assertFalse(provider.supports(binaryQuery(kind, row, matrix, matrix)));
+        for (BinaryArithmeticKind kind : BinaryArithmeticKind.values()) {
+            boolean supported = kind == BinaryArithmeticKind.ADD
+                    || kind == BinaryArithmeticKind.SUB
+                    || kind == BinaryArithmeticKind.MUL
+                    || kind == BinaryArithmeticKind.DIV;
+            assertFalse(provider.supports(binaryQuery(
+                    NumericalProfile.STRICT_IEEE, kind, matrix, row, matrix)));
+            assertEquals(supported, provider.supports(binaryQuery(
+                    NumericalProfile.ACCELERATOR, kind, matrix, row, matrix)));
+            assertEquals(supported, provider.supports(binaryQuery(
+                    NumericalProfile.ACCELERATOR, kind, row, matrix, matrix)));
         }
-    }
-
-    @Test
-    void acceleratorProfileFailsClosedForOtherwiseSupportedNeg() {
-        TensorDescriptor matrix = descriptor(Shape.of(2, 3), false);
-        assertFalse(provider.supports(new OperationCapabilityQuery(
-                NumericalProfile.ACCELERATOR,
-                neg(),
+        assertFalse(provider.supports(query(
+                NumericalProfile.ACCELERATOR, matrix, matrix)));
+        TensorDescriptor reshapedView = new TensorDescriptor(
+                DataType.FLOAT32,
+                matrix.shape(),
+                Optional.of(LayoutDescriptor.of(
+                        matrix.shape(), new long[] {3, 1}, 0L, true)),
+                false);
+        Operation reshape = new Operation(
+                ShapeTransformKind.RESHAPE,
+                new TargetShapeAttrs(matrix.shape()));
+        var strictReshape = new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                reshape,
                 List.of(matrix),
-                List.of(matrix))));
+                List.of(reshapedView));
+        var acceleratorReshape = new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                reshape,
+                List.of(matrix),
+                List.of(reshapedView));
+        assertTrue(provider.supports(strictReshape));
+        assertFalse(provider.supports(acceleratorReshape));
     }
 
     @Test
@@ -83,27 +104,66 @@ class MetalCapabilityProviderTest {
                 Optional.of(LayoutDescriptor.of(Shape.of(2, 3), new long[] {1, 2}, 0, false)),
                 false);
 
-        assertFalse(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(UnaryElementwiseKind.ABS, NoOperationAttrs.INSTANCE), List.of(valid), List.of(valid))));
-        assertFalse(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(BinaryComparisonKind.GREATER_THAN, NoOperationAttrs.INSTANCE), List.of(valid, valid), List.of(valid))));
-        assertFalse(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(
+        assertFalse(provider.supports(new OperationCapabilityQuery(NumericalProfile.STRICT_IEEE, new Operation(UnaryElementwiseKind.ABS, NoOperationAttrs.INSTANCE), List.of(valid), List.of(valid))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(NumericalProfile.ACCELERATOR, new Operation(UnaryElementwiseKind.ABS, NoOperationAttrs.INSTANCE), List.of(valid), List.of(valid))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(NumericalProfile.ACCELERATOR, new Operation(BinaryComparisonKind.GREATER_THAN, NoOperationAttrs.INSTANCE), List.of(valid, valid), List.of(valid))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(NumericalProfile.ACCELERATOR, new Operation(
                 ScalarElementwiseKind.ADD,
                 new ScalarValueAttrs(ScalarValue.float32(1.0f))), List.of(valid), List.of(valid))));
-        assertFalse(provider.supports(query(typed(DataType.FLOAT64), typed(DataType.FLOAT64))));
-        assertFalse(provider.supports(query(valid, descriptor(Shape.of(3, 2), false))));
-        assertFalse(provider.supports(query(valid, descriptor(Shape.of(2, 3), true))));
         assertFalse(provider.supports(query(
+                NumericalProfile.STRICT_IEEE, typed(DataType.FLOAT64), typed(DataType.FLOAT64))));
+        assertFalse(provider.supports(query(
+                NumericalProfile.STRICT_IEEE, valid, descriptor(Shape.of(3, 2), false))));
+        assertFalse(provider.supports(query(
+                NumericalProfile.STRICT_IEEE, valid, descriptor(Shape.of(2, 3), true))));
+        assertFalse(provider.supports(query(
+                NumericalProfile.STRICT_IEEE,
                 new TensorDescriptor(DataType.FLOAT32, dynamic, Optional.empty(), false),
                 new TensorDescriptor(DataType.FLOAT32, dynamic, Optional.empty(), false))));
         assertFalse(provider.supports(query(
+                NumericalProfile.STRICT_IEEE,
                 descriptor(Shape.of(), false), descriptor(Shape.of(), false))));
         assertFalse(provider.supports(query(
+                NumericalProfile.STRICT_IEEE,
                 descriptor(Shape.of(2, 0), false), descriptor(Shape.of(2, 0), false))));
         assertFalse(provider.supports(query(
+                NumericalProfile.STRICT_IEEE,
                 descriptor(rank17, false), descriptor(rank17, false))));
-        assertFalse(provider.supports(query(noLayout, noLayout)));
-        assertFalse(provider.supports(query(offset, offset)));
-        assertFalse(provider.supports(query(view, view)));
-        assertFalse(provider.supports(query(strided, strided)));
+        assertFalse(provider.supports(query(NumericalProfile.STRICT_IEEE, noLayout, noLayout)));
+        assertFalse(provider.supports(query(NumericalProfile.STRICT_IEEE, offset, offset)));
+        assertFalse(provider.supports(query(NumericalProfile.STRICT_IEEE, view, view)));
+        assertFalse(provider.supports(query(NumericalProfile.STRICT_IEEE, strided, strided)));
+
+        assertFalse(provider.supports(binaryQuery(
+                NumericalProfile.ACCELERATOR, BinaryArithmeticKind.ADD, valid, valid,
+                descriptor(Shape.of(3, 2), false))));
+        assertFalse(provider.supports(binaryQuery(
+                NumericalProfile.ACCELERATOR, BinaryArithmeticKind.ADD, valid, valid,
+                descriptor(Shape.of(2, 3), true))));
+        assertFalse(provider.supports(binaryQuery(
+                NumericalProfile.ACCELERATOR, BinaryArithmeticKind.ADD, view, valid, valid)));
+        TensorDescriptor float64 = typed(DataType.FLOAT64);
+        assertFalse(provider.supports(binaryQuery(
+                NumericalProfile.ACCELERATOR,
+                BinaryArithmeticKind.ADD,
+                float64,
+                float64,
+                float64)));
+        TensorDescriptor scalarRank = descriptor(Shape.of(), false);
+        assertFalse(provider.supports(binaryQuery(
+                NumericalProfile.ACCELERATOR,
+                BinaryArithmeticKind.ADD,
+                scalarRank,
+                scalarRank,
+                scalarRank)));
+        TensorDescriptor overRank = descriptor(rank17, false);
+        assertFalse(provider.supports(binaryQuery(
+                NumericalProfile.ACCELERATOR,
+                BinaryArithmeticKind.ADD,
+                overRank,
+                overRank,
+                overRank)));
+
     }
 
     @Test
@@ -112,15 +172,22 @@ class MetalCapabilityProviderTest {
         assertEquals("query", failure.getMessage());
     }
 
-    private static OperationCapabilityQuery query(TensorDescriptor input, TensorDescriptor output) {
-        return new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, neg(), List.of(input), List.of(output));
+    private static OperationCapabilityQuery query(
+            NumericalProfile profile, TensorDescriptor input, TensorDescriptor output) {
+        return new OperationCapabilityQuery(profile, neg(), List.of(input), List.of(output));
     }
+
     private static OperationCapabilityQuery binaryQuery(
+            NumericalProfile profile,
             BinaryArithmeticKind kind,
             TensorDescriptor left,
             TensorDescriptor right,
             TensorDescriptor output) {
-        return new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(kind, NoOperationAttrs.INSTANCE), List.of(left, right), List.of(output));
+        return new OperationCapabilityQuery(
+                profile,
+                new Operation(kind, NoOperationAttrs.INSTANCE),
+                List.of(left, right),
+                List.of(output));
     }
 
     private static Operation neg() {

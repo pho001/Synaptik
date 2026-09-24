@@ -220,5 +220,46 @@ and proof that blocked successors remain unauthorized.
 
 ## Result
 
+Completed on Apple M3 Max. Before production edits, the disposable Objective-C/MPSGraph probe ran
+`ADD`, `SUB`, `MUL`, and `DIV` as separate gates at optimization levels 0 and 1 with
+reduced-precision fast math disabled. Each operation/level/Shape/context combination used three
+independently compiled executables and eight repetitions across two fresh contexts. Equal, row,
+column, scalar-tensor, repeated-operand, fan-out, ordered, direct-target, target/feed permutation,
+input-preservation, and canary controls all passed. Every operation reported zero
+bounded-oracle mismatches and zero control failures. The `/tmp` probe source and binary were
+removed.
 
-Empty until execution.
+Metal now advertises only tensor `FLOAT32` `ADD`, `SUB`, `MUL`, and `DIV` under `ACCELERATOR`;
+`STRICT_IEEE` retains the unchanged NEG/affine/`CONTIGUOUS` domain and rejects binary arithmetic.
+Whole-partition lowering preserves ordered operands, exact broadcasting, canonical value states,
+fan-out, repeated operands, splat tensor feeds, publications, and binary chains. Java
+profile-qualified preflight rejects strict/binary and accelerator/baseline programs before the
+native call. Native node schema 5 restores wires `2..5`, validates ordered two-input topology and
+exact broadcast Shapes, lowers to the matching MPSGraph selectors, and explicitly disables
+reduced-precision fast math where available. ABI version 4, all statuses, the create signature,
+and exactly thirteen exports remain unchanged.
+
+Workload-signature, exact-policy, candidate, compatibility, route-policy, and codec identities are
+version 6. Workload identity includes profile, schema, ordered topology, descriptors, value
+states, targets, checked geometry, ABI, and splats. Version-five codec data, cross-profile
+decisions, malformed/corrupt bytes, changed workloads, foreign sessions, and unknown candidates
+fail closed.
+
+Backend-native coverage executes each binary operation separately against an independent exact
+raw-bit DAZ/FTZ/signed-zero/NaN-classification oracle with row, column, and scalar-tensor
+broadcasts, operand reversal, chains, fan-out, repeated operands, direct intermediate/final
+targets, repeated runs, and unchanged inputs. Public CPU-free Engine coverage selects
+`ACCELERATOR`, runs all four operations, includes a published-and-consumed chain plus reversed
+`SUB`/`DIV`, reuses one session, opens an independent session, materializes every publication, and
+proves close rejection. Existing strict Metal-only binary rejection and explicit CPU ownership
+remain covered.
+
+Validation passed:
+
+- `./native/metal-macos-arm64/build.sh`
+- `nm -gU native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib` (exactly thirteen
+  expected exports)
+- `./gradlew :backends:metal:test :backends:metal:javadoc` with the real dylib configured
+- `./gradlew :testing:backend-conformance:test --tests '*Metal*'`
+- real-device `EngineExplicitCompositionMetalIntegrationTest`
+- `git diff --check`

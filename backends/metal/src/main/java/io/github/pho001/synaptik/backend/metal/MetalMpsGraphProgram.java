@@ -11,18 +11,18 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Immutable typed operation table for the version-four Metal MPSGraph node schema.
+ * Immutable typed operation table for the version-five Metal MPSGraph node schema.
  *
  * <p>ABI version four points at fixed 160-byte discriminated records. Each record contains a
- * closed operation identity, exact value indices, one typed attribute discriminator, and bounded
- * target-shape, permutation, or normalized-axis state. Operation wire identities {@code 2..5} are
- * withdrawn and rejected. Every unused scalar is a required zero or {@code UINT32_MAX} sentinel
- * and every unused attribute cell is zero. No operation name, generic integer payload, object
- * graph, map, or executable state crosses the ABI.</p>
+ * closed operation identity, exact ordered value indices, one typed attribute discriminator, and
+ * bounded target-shape, permutation, or normalized-axis state. Binary wires {@code 2..5} have two
+ * ordered inputs and no attributes. Every unused scalar is a required zero or
+ * {@code UINT32_MAX} sentinel and every unused attribute cell is zero. No operation name, generic
+ * integer payload, object graph, map, or executable state crosses the ABI.</p>
  */
 final class MetalMpsGraphProgram {
     /** Exact node schema carried across native ABI version four. */
-    static final int SCHEMA_VERSION = 4;
+    static final int SCHEMA_VERSION = 5;
     /** Maximum target rank or permutation length. */
     static final int MAX_RANK = 16;
     /** Exact fixed native record size. */
@@ -66,27 +66,43 @@ final class MetalMpsGraphProgram {
 
     /** Closed operation vocabulary and stable schema-local wire identities. */
     enum NodeKind {
-        NEG(1, AttributeKind.NONE, ValueState.CANONICAL),
-        RESHAPE(6, AttributeKind.TARGET_SHAPE, ValueState.AFFINE_VIEW),
-        EXPAND(7, AttributeKind.TARGET_SHAPE, ValueState.AFFINE_VIEW),
-        PERMUTE(8, AttributeKind.PERMUTATION, ValueState.AFFINE_VIEW),
-        EXPAND_DIMS(9, AttributeKind.AXIS, ValueState.AFFINE_VIEW),
-        SQUEEZE(10, AttributeKind.AXIS, ValueState.AFFINE_VIEW),
-        CONTIGUOUS(11, AttributeKind.NONE, ValueState.CANONICAL);
+        NEG(1, 1, AttributeKind.NONE, ValueState.CANONICAL, false),
+        ADD(2, 2, AttributeKind.NONE, ValueState.CANONICAL, false),
+        SUB(3, 2, AttributeKind.NONE, ValueState.CANONICAL, false),
+        MUL(4, 2, AttributeKind.NONE, ValueState.CANONICAL, false),
+        DIV(5, 2, AttributeKind.NONE, ValueState.CANONICAL, false),
+        RESHAPE(6, 1, AttributeKind.TARGET_SHAPE, ValueState.AFFINE_VIEW, true),
+        EXPAND(7, 1, AttributeKind.TARGET_SHAPE, ValueState.AFFINE_VIEW, true),
+        PERMUTE(8, 1, AttributeKind.PERMUTATION, ValueState.AFFINE_VIEW, true),
+        EXPAND_DIMS(9, 1, AttributeKind.AXIS, ValueState.AFFINE_VIEW, true),
+        SQUEEZE(10, 1, AttributeKind.AXIS, ValueState.AFFINE_VIEW, true),
+        CONTIGUOUS(11, 1, AttributeKind.NONE, ValueState.CANONICAL, true);
 
         private final int wireIdentity;
+        private final int inputCount;
         private final AttributeKind attributeKind;
         private final ValueState outputState;
+        private final boolean acceptsAffineView;
 
         NodeKind(
-                int wireIdentity, AttributeKind attributeKind, ValueState outputState) {
+                int wireIdentity,
+                int inputCount,
+                AttributeKind attributeKind,
+                ValueState outputState,
+                boolean acceptsAffineView) {
             this.wireIdentity = wireIdentity;
+            this.inputCount = inputCount;
             this.attributeKind = attributeKind;
             this.outputState = outputState;
+            this.acceptsAffineView = acceptsAffineView;
         }
 
         int wireIdentity() {
             return wireIdentity;
+        }
+
+        int inputCount() {
+            return inputCount;
         }
 
         AttributeKind attributeKind() {
@@ -103,11 +119,11 @@ final class MetalMpsGraphProgram {
 
         boolean accepts(ValueState inputState) {
             return inputState == ValueState.CANONICAL
-                    || (inputState == ValueState.AFFINE_VIEW && this != NEG);
+                    || (inputState == ValueState.AFFINE_VIEW && acceptsAffineView);
         }
     }
 
-    /** One immutable typed version-four node record. */
+    /** One immutable typed version-five node record. */
     static final class Node {
         private final NodeKind kind;
         private final int firstInputIndex;
@@ -132,9 +148,10 @@ final class MetalMpsGraphProgram {
             if (outputIndex < 0) {
                 throw new IllegalArgumentException("outputIndex must be non-negative");
             }
-            if (secondInputIndex != NO_SECOND_INPUT) {
+            if ((kind.inputCount() == 1 && secondInputIndex != NO_SECOND_INPUT)
+                    || (kind.inputCount() == 2 && secondInputIndex < 0)) {
                 throw new IllegalArgumentException(
-                        "secondInputIndex must use the absent-input sentinel");
+                        "secondInputIndex disagrees with the typed node kind");
             }
             Objects.requireNonNull(attributeValues, "attributeValues");
             if (kind.attributeKind() == AttributeKind.NONE) {
@@ -181,10 +198,21 @@ final class MetalMpsGraphProgram {
             return noAttributes(NodeKind.NEG, inputIndex, NO_SECOND_INPUT, outputIndex);
         }
 
+        static Node binary(
+                NodeKind kind,
+                int leftInputIndex,
+                int rightInputIndex,
+                int outputIndex) {
+            Objects.requireNonNull(kind, "kind");
+            if (kind.inputCount() != 2 || kind.attributeKind() != AttributeKind.NONE) {
+                throw new IllegalArgumentException("binary node kind must have two inputs");
+            }
+            return noAttributes(kind, leftInputIndex, rightInputIndex, outputIndex);
+        }
+
         static Node contiguous(int inputIndex, int outputIndex) {
             return noAttributes(NodeKind.CONTIGUOUS, inputIndex, NO_SECOND_INPUT, outputIndex);
         }
-
 
         static Node targetShape(
                 NodeKind kind, int inputIndex, int outputIndex, long[] dimensions) {
@@ -274,7 +302,7 @@ final class MetalMpsGraphProgram {
         return encoded.array();
     }
 
-    /** Allocates and writes exact native-endian version-four records for one downcall. */
+    /** Allocates and writes exact native-endian version-five records for one downcall. */
     MemorySegment encodeNative(Arena arena) {
         Objects.requireNonNull(arena, "arena");
         long bytes = Math.multiplyExact((long) nodes.size(), NODE_RECORD_BYTES);

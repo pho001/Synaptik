@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.backend.metal;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
@@ -10,11 +11,11 @@ import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphAffineSchemaTest {
     @Test
-    void schemaVersionFourEncodesTypedDiscriminantsAndRequiredUnusedSentinels() {
+    void schemaVersionFiveEncodesTypedDiscriminantsAndRequiredUnusedSentinels() {
         var reshape = MetalMpsGraphProgram.Node.targetShape(
                 MetalMpsGraphProgram.NodeKind.RESHAPE, 0, 1, new long[] {3, 2});
         byte[] encoded = new MetalMpsGraphProgram(List.of(reshape)).encodedNodeRecords();
-        assertEquals(4, MetalMpsGraphProgram.SCHEMA_VERSION);
+        assertEquals(5, MetalMpsGraphProgram.SCHEMA_VERSION);
         assertEquals(MetalMpsGraphProgram.NODE_RECORD_BYTES, encoded.length);
 
         ByteBuffer record = ByteBuffer.wrap(encoded).order(ByteOrder.BIG_ENDIAN);
@@ -75,8 +76,12 @@ class MetalMpsGraphAffineSchemaTest {
             {4, 2, 3}, {4, 2, 3}, {4, 2, 3}, {4, 6}
         };
         MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
-                ranks(shapes), dimensions(shapes), program,
-                new int[] {0}, new int[] {1, 2, 3, 4, 5, 6, 7, 8});
+                NumericalProfile.STRICT_IEEE,
+                ranks(shapes),
+                dimensions(shapes),
+                program,
+                new int[] {0},
+                new int[] {1, 2, 3, 4, 5, 6, 7, 8});
     }
 
     @Test
@@ -142,22 +147,33 @@ class MetalMpsGraphAffineSchemaTest {
                 MetalMpsGraphProgram.Node.neg(1, 2)));
         assertThrows(IllegalArgumentException.class, () ->
                 MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
-                        ranks(shapes), dimensions(shapes), viewToNeg,
-                        new int[] {0}, new int[] {2}));
+                        NumericalProfile.STRICT_IEEE,
+                        ranks(shapes),
+                        dimensions(shapes),
+                        viewToNeg,
+                        new int[] {0},
+                        new int[] {2}));
 
         var unavailableInput = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.contiguous(1, 2)));
         assertThrows(IllegalArgumentException.class, () ->
                 MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
-                        ranks(shapes), dimensions(shapes), unavailableInput,
-                        new int[] {0}, new int[] {2}));
+                        NumericalProfile.STRICT_IEEE,
+                        ranks(shapes),
+                        dimensions(shapes),
+                        unavailableInput,
+                        new int[] {0},
+                        new int[] {2}));
     }
 
     private static void validate(long[][] shapes, MetalMpsGraphProgram.Node node) {
         MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
-                ranks(shapes), dimensions(shapes),
+                NumericalProfile.STRICT_IEEE,
+                ranks(shapes),
+                dimensions(shapes),
                 new MetalMpsGraphProgram(List.of(node)),
-                new int[] {0}, new int[] {1});
+                new int[] {0},
+                new int[] {1});
     }
 
     private static void assertInvalid(long[][] shapes, MetalMpsGraphProgram.Node node) {

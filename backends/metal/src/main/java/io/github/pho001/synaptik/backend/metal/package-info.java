@@ -1,15 +1,17 @@
 /**
  * Supplies explicit capability, configuration, and lifecycle integration for the Metal backend.
  *
- * <p>{@link io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider} reports support only
- * for parameterless {@code NEG}, {@code RESHAPE}, {@code EXPAND}, {@code PERMUTE},
- * {@code EXPAND_DIMS}, {@code SQUEEZE}, and the explicit {@code CONTIGUOUS} canonicalization
- * barrier. Binary arithmetic is intentionally not advertised. The domain is fully static,
- * positive rank {@code 1..16} {@code FLOAT32}. Graph feeds and {@code NEG} operands are canonical
- * dense non-views. Affine inputs may also be exact resolved zero-offset views produced earlier in
- * the same maximal partition; affine outputs retain the exact Model view geometry.
- * {@code CONTIGUOUS} produces canonical geometry and is required before a view feeds {@code NEG}.
- * Metal lowers the complete partition as one typed whole-partition program during preparation.</p>
+ * <p>{@link io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider} reports two disjoint
+ * profile-qualified domains. {@code STRICT_IEEE} retains parameterless {@code NEG},
+ * {@code RESHAPE}, {@code EXPAND}, {@code PERMUTE}, {@code EXPAND_DIMS}, {@code SQUEEZE}, and the
+ * explicit {@code CONTIGUOUS} canonicalization barrier. {@code ACCELERATOR} admits only tensor
+ * {@code ADD}, {@code SUB}, {@code MUL}, and {@code DIV}. Every descriptor is fully static,
+ * positive rank {@code 1..16} {@code FLOAT32}. Accelerator binary inputs and outputs are canonical
+ * dense non-views and use exact right-aligned broadcasting. Strict graph feeds and {@code NEG}
+ * operands are canonical; strict affine inputs may also be exact resolved zero-offset views
+ * produced earlier in the same maximal partition. Strict affine outputs retain their exact Model
+ * view geometry, while {@code CONTIGUOUS} produces canonical geometry. Metal lowers one complete
+ * profile-homogeneous partition as a typed whole-partition program during preparation.</p>
  *
  * <p>{@link io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration} names one explicit
  * native bridge. {@link io.github.pho001.synaptik.backend.metal.MetalBackendIntegration} opens and
@@ -23,8 +25,8 @@
  * internals remain package-private. There is no library discovery, CPU fallback, or backend-global
  * integration.</p>
  *
- * <p>Capability and preparation currently support only {@code STRICT_IEEE} and fail closed for
- * {@code ACCELERATOR}. The selected numerical profile participates in partition-plan, route,
- * tuning, decision-codec, and workload identity; no native ABI or MPSGraph schema is changed.</p>
+ * <p>The selected numerical profile participates in partition-plan, route, tuning,
+ * decision-codec, and workload identity. Java rejects profile/schema mismatches before native
+ * entry. ABI version four remains stable; node schema version five adds ordered binary wires.</p>
  */
 package io.github.pho001.synaptik.backend.metal;
