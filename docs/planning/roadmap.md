@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Mainline Complete through evidence-backed no-change 0010M; 0007A1D Review needed; 0010D1 and 0011 Blocked | No CPU task is Ready; any future default comparison requires a separately reviewed sealed matrix. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through 0017 | No Engine task is Ready; reopen only for a separately authorized capability. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0008; 0006–0007 Blocked; 0009 Ready | [0009](backends/metal/tasks/0009-mpsgraph-float32-rank2-matmul-training-checkpoint.md) is the sole Ready frontier for bounded rank-two FLOAT32 MATMUL forward and explicit-seed backward. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0008; 0006–0007 and 0009 Blocked; 0010 Ready | [0010](backends/metal/tasks/0010-mpsgraph-float32-bool-predicates-and-selection.md) is the sole Ready frontier for bounded forward FLOAT32 predicates, canonical BOOL logic, and FLOAT32 selection. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -82,15 +82,25 @@ and unchanged canonical-only transfer.
 [0006](backends/metal/tasks/0006-mpsgraph-float32-unary-algebra.md) remains `Blocked` by exact
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures. [0007](backends/metal/tasks/0007-mpsgraph-float32-reductions.md)
 remains independently `Blocked` because repeated direct-output probes returned positive zero where
-the exact Model SUM/MEAN results are `2.0f`/`0.5f`. Neither retains production or probe changes.
+the exact Model SUM/MEAN results are `2.0f`/`0.5f`.
 
-[0009](backends/metal/tasks/0009-mpsgraph-float32-rank2-matmul-training-checkpoint.md) is the sole
-`Ready` frontier. Its bounded domain is same-type positive rank-two FLOAT32 MATMUL, including only
-authenticated same-partition rank-two transpose inputs. It requires real selector/direct-target
-and Model-permitted numerical gates, ABI-v4/schema/candidate invalidation, public Engine forward
-proof, and Compiler-generated explicit-cotangent backward for both operands. It does not claim
-scalar-loss `TrainingSession`, optimizer execution, batch/vector MATMUL, reduction-requiring
-gradients, or blocked 0006/0007 semantics.
+[0009](backends/metal/tasks/0009-mpsgraph-float32-rank2-matmul-training-checkpoint.md) is
+independently `Blocked`. Its mandatory Apple M3 Max probe passed selector, direct-target, Shape,
+permutation, transpose, repetition, and independent-executable gates, but `K=1` multiplication by
+one flushed positive/negative minimum and ordinary subnormals to zero. Strict host multiplication,
+`+0.0f` accumulation, and `fmaf` preserve the minimum subnormal, so zero is outside every
+Model-permitted association/FMA result. Signed zero is not a blocker. Independent review returned
+`APPROVE-BLOCKER`. Tasks 0006, 0007, and 0009 retain no production, test, or probe changes.
+
+[0010](backends/metal/tasks/0010-mpsgraph-float32-bool-predicates-and-selection.md) is the sole
+`Ready` frontier. It is a forward-only, independent whole-partition MPSGraph capability for six
+FLOAT32 comparisons, three FLOAT32 classifications, canonical BOOL `AND`/`OR`/`NOT`, and
+BOOL-conditioned FLOAT32 `WHERE`, with FLOAT32/BOOL Metal-only ingress and publication. Its
+mandatory real probe gates exact special values, subnormals, canonical BOOL bytes, selected raw
+bits, broadcasting, direct targets, and executable independence before production changes.
+Cross-owner transfer remains FLOAT32-only. CAST, backward/training, blocked numerical families,
+FLOAT16, and BFLOAT16 are excluded; later Metal 0028/0029 remain reserved for separately
+authorized FLOAT16/BFLOAT16 work.
 
 
 ## Blocked, review-needed, and deferred work
@@ -99,9 +109,12 @@ gradients, or blocked 0006/0007 semantics.
   Unblocking requires custom kernels or an explicitly accepted relaxed numerical contract.
 - Metal 0007 is independently `Blocked` by its repeated exact reduction counterexample. Unblocking
   requires an exact replacement route or an explicit Model contract change.
-- Metal 0009 remains bounded away from both blockers: only unbatched rank-two explicit-cotangent
-  backward is authorized. Scalar-loss training, batch unbroadcasting, `SUM_TO_SHAPE`, and broader
-  MATMUL remain unsupported rather than hidden follow-up inside the Ready task.
+- Metal 0009 is independently `Blocked` by exact subnormal flushing in `K=1` MATMUL. Unblocking
+  requires an exact replacement route or an explicit Model numerical-contract change; signed-zero
+  behavior does not block it.
+- Metal 0010 is bounded away from all three blockers and is forward-only. It does not authorize
+  scalar-loss training, reduction-requiring gradients, MATMUL, CAST, custom kernels, BOOL
+  cross-owner transfer, FLOAT16, or BFLOAT16.
 - [OpenBLAS provider 0004](backends/openblas-provider/tasks/0004-optional-direct-bfloat16-output-gemm-capability.md)
   and dependent CPU 0010D1 remain an optional blocked branch. Pinned evidence proves neither the
   required exported direct BFLOAT16-output ABI nor full-contraction FLOAT32 accumulation followed
@@ -131,8 +144,8 @@ gradients, or blocked 0006/0007 semantics.
 
 ## Nearest next step
 
-1. Execute Metal 0009 from exact base `aa42ed711a0d3120f97e4241181b557130255e97`, beginning with
-   its mandatory disposable real-device selector/direct-target/numerical probe.
+1. Execute Metal 0010 from exact production base `938a18cd1ab7e02e40fb6b585ec1bd6fcd5e40e2`,
+   beginning with its mandatory disposable real-device selector/type/value/direct-target probe.
 
 ## History policy
 

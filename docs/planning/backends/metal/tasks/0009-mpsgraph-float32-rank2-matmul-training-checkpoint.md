@@ -2,9 +2,36 @@
 
 ## Status
 
-Ready
+Blocked
 
-This is the sole authorized Metal frontier. Metal 0008 is Complete; 0006 and 0007 remain Blocked.
+The mandatory real probe is complete and fail-closed. No production code, native code, tests, or
+probe artifacts were changed or committed.
+
+## Blocking evidence
+
+On Apple M3 Max, rank-two FLOAT32 MPSGraph MATMUL was tested at optimization levels `0` and `1`
+with three independently compiled executables per level, eight runs per case, caller-supplied
+canary-filled direct targets, exact Shapes, and direct/left-transpose/right-transpose
+compositions. Selector availability, direct binding, complete target writes, Shape reporting,
+permutations, repetition, independence, and both transpose orientations passed.
+
+For `K=1`, multiplication by exact `1.0f` flushed all four tested subnormal inputs:
+
+- minimum positive/negative subnormal bits `0x00000001`/`0x80000001`; and
+- ordinary positive/negative subnormal bits `0x00400000`/`0x80400000`.
+
+The observed results were signed or unsigned zero. Minimum positive/negative normals
+`0x00800000`/`0x80800000` were preserved. Strict host multiplication, addition from `+0.0f`, and
+`fmaf` all preserve the minimum subnormal. Because `K=1` has no alternative association and every
+Model-permitted multiply/add or fused multiply-add realization preserves that nonzero result, no
+permitted FLOAT32 association/FMA outcome is zero. This is an exact precision failure, not
+tolerance noise, target publication error, or a selector/Shape/topology failure.
+
+Signed-zero behavior was investigated and is not a blocker: positive zero is permitted by the
+accumulator identity/FMA policy. The independent Class C verdict is `APPROVE-BLOCKER`: the probe
+supports marking 0009 Blocked with no production change. Unblocking requires an exact replacement
+route, such as separately authorized custom kernels, or an explicit Model numerical-contract
+change; neither is authorized here.
 
 ## Change class
 
@@ -197,4 +224,10 @@ numerics, raw schema, compatibility invalidation, lifecycle, Engine evidence, an
 
 ## Result
 
-Empty until execution.
+Blocked. The mandatory Apple M3 Max probe passed selector, direct-target, Shape, permutation,
+transpose, repetition, and independent-executable gates but failed exact FLOAT32 precision:
+`K=1`, multiplication by one flushed minimum and ordinary positive/negative subnormals to zero
+while minimum normals survived. Host strict multiply, `+0.0f` accumulation, and `fmaf` preserve
+the minimum subnormal, so zero is outside every permitted association/FMA result. Signed-zero was
+not a blocker. Independent review returned `APPROVE-BLOCKER`; no production, native, test, probe,
+or commit change exists.
