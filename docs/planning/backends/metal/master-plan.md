@@ -68,29 +68,38 @@ visibility.
 
 ## Task list
 
-| ID | Task | Status | Depends on | One-line result or intent |
-|---|---|---|---|---|
-| 0001 | [Metal capability, storage, and native foundation](tasks/0001-metal-capability-storage-and-native-foundation.md) | Complete | Complete shared planning, runtime, prepare, backend-contract, and trace contracts; no Model 0026 dependency while fail-closed | Added a fail-closed provider, native context, and run-owned storage without executable capability. |
-| 0002 | [MPSGraph prepared execution route](tasks/0002-mpsgraph-prepared-execution-route.md) | Complete | 0001; Runtime 0016; Prepare 0006; Engine 0010; Compiler 0006B7 | Added maximal-partition positive-shape contiguous FLOAT32 NEG through reusable MPSGraph preparation/execution. |
-| 0003 | [Single-NEG custom Metal kernel route](tasks/0003-single-neg-custom-metal-kernel-route.md) | Complete | 0001–0002 | Added a private custom route for one NEG/feed/target within `1..UINT32_MAX`; all other supported partitions retain MPSGraph. |
-| 0004 | [Typed Metal route candidate generators and cache compatibility](tasks/0004-typed-metal-route-candidate-generators-and-cache-compatibility.md) | Complete | 0002–0003, opaque prepare/tuning boundary and artifact versioning | Added typed NEG candidates and a session-compatible authenticated codec foundation without outer tuning integration. |
+| ID | Task | Status | Depends on | Conflicts with | Parallel group | Integration order | Integration validation | Intent/result |
+|---|---|---|---|---|---|---|---|---|
+| 0001 | [Metal capability, storage, and native foundation](tasks/0001-metal-capability-storage-and-native-foundation.md) | Complete | Complete shared planning, runtime, prepare, backend-contract, and trace contracts; no Model 0026 dependency while fail-closed | None | None | Any | Focused Metal foundation suite | Added a fail-closed provider, native context, and run-owned storage without executable capability. |
+| 0002 | [MPSGraph prepared execution route](tasks/0002-mpsgraph-prepared-execution-route.md) | Complete | 0001; Runtime 0016; Prepare 0006; Engine 0010; Compiler 0006B7 | None | None | Any | Focused Metal and conformance suites | Added maximal-partition positive-shape contiguous FLOAT32 NEG through reusable MPSGraph preparation/execution. |
+| 0003 | [Single-NEG custom Metal kernel route](tasks/0003-single-neg-custom-metal-kernel-route.md) | Complete | 0001–0002 | None | None | Any | Focused Metal/native suites | Added a private custom route for one NEG/feed/target within `1..UINT32_MAX`; all other supported partitions retain MPSGraph. |
+| 0004 | [Typed Metal route candidate generators and cache compatibility](tasks/0004-typed-metal-route-candidate-generators-and-cache-compatibility.md) | Complete | 0002–0003, opaque prepare/tuning boundary and artifact versioning | None | None | Any | Focused candidate, Metal, and conformance suites | Added typed NEG candidates and a session-compatible authenticated codec foundation without outer tuning integration. |
+| 0005 | [MPSGraph mixed NEG/binary FLOAT32 whole-partition route](tasks/0005-mpsgraph-mixed-binary-whole-partition.md) | Ready | 0001–0004; Engine 0017; Compiler 0006B7; Prepare 0008; Runtime 0016 | Metal capability/preparation/native ABI/Engine Metal scopes | None | ABI/schema → capability/analysis → Prepare → public Engine tests → docs/review | Native export audit; focused Metal/conformance; real public Engine integration; architecture checks; `git diff --check` | Authorized frontier for static canonical-dense FLOAT32 whole-partition NEG + ADD/SUB/MUL/DIV with exact right-aligned broadcasting; custom singleton NEG remains. |
+
+## Dependency DAG and authorized frontiers
+
+`0001 → 0002 → 0003 → 0004 → 0005`
+
+Authorized frontier: `0005` only. No other Metal task is Ready; all later Metal work remains
+unauthorized until 0005 is complete or explicitly blocked/superseded.
+
+## Integration ownership and shared documents
+
+- Integration owner: Main planner
+- Shared documents: this master plan and `docs/planning/roadmap.md`; planner owns synchronized
+  status/frontier edits.
 
 ## Milestones and current frontier
 
-The native/storage foundation, two NEG routes, and Metal-local candidate/session-compatibility
-foundation are `Complete` through 0004. Engine 0015's independently reviewed public CPU/Metal
-single-owner composition is also `Complete` and consumes Metal's public configuration/integration
-without changing capability or native ABI. No later Metal-local task is detailed or `Ready`.
+The native/storage foundation, two NEG routes, and Metal-local candidate/session compatibility
+foundation are Complete through 0004. Task 0005 is the sole authorized Ready frontier from exact
+base `8c83d01e74f9a0bc57fce84d68ba82f26007a75d` on `main`. It is a serial Class C boundary task;
+implementation, public Engine real-device evidence, rollback/lifecycle proof, and independent
+targeted review are all required before promotion.
 
-The 0004 readiness audit verified all four live gates against current source and contracts:
-
-1. the existing Prepare/tuning handoff can carry complete Metal candidates and decisions opaquely,
-   while 0004 adds only package-private Metal construction and authentication;
-2. Metal candidate/compatibility/decision schemas are versioned separately from the existing
-   tools-owned outer cache artifact, which 0004 neither reads nor writes;
-3. route selection, lowering, decoding, and resource declaration remain Metal-owned; and
-4. the production, test, and artifact file set is bounded and isolated except for explicit
-   route-integration points.
+The 0004 readiness audit remains historical evidence for its completed boundary. Its candidate
+codec is still package-private and unconsumed by outer tuning or Engine; task 0005 must not widen
+that boundary while generalizing the MPSGraph execution schema.
 
 ## Delivered lifecycle and ABI boundary
 
