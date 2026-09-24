@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Blocked
 
 ## Change class
 
@@ -64,8 +64,8 @@ kind, multi-output lifecycle, or fallback, stop and replan.
 - Integration validation: focused Metal/conformance/one real-Engine checkpoint, native export audit, architecture checks, Javadoc, one final build, Markdown and diff validation.
 - Shared-document integration owner: Metal 0030 implementer.
 
-All declared predecessors are Complete, blocked 0026/0027 have no active write scope, this contract
-is independent of their selectors, and 0030 is the sole authorized Metal frontier.
+All declared predecessors were Complete, blocked 0026/0027 had no active write scope, and 0030 was
+the sole authorized Metal frontier until its mandatory gate failed.
 
 ## Documented structural authorization
 
@@ -133,6 +133,34 @@ narrow geometry or values, weaken the oracle, move pooling to accelerator-only, 
 decompose, retry, or add fallback. A pass authorizes implementation; independent review reuses it
 unless it identifies a new concrete risk and first replans the one-execution policy.
 
+## Blocker evidence
+
+The sole gate ran from exact clean planning revision
+`f5e819cb27ac863eb04b6ff0f80b5c43182b332c` on the M3 Max. One disposable Objective-C source
+compiled against the active SDK, then its executable ran exactly once. It created one Metal
+device/queue context, graph, executable, direct max-pool node, target, and synchronous execution
+for the frozen `[1,1,1,18] -> [1,1,1,9]` corpus. Production default compilation, successful
+reduced-precision-fast-math-none set/read, and `MPSGraphOptionsNone` were used once.
+
+The nine actual output words, in frozen window order, were:
+
+```text
+0x40000000, 0x00000000, 0x80000000, 0x00000001, 0x80000001,
+0x40400000, 0x40400000, 0x40400000, 0x40400000
+```
+
+Ordinary `2`, `[-0,+0] -> +0`, positive/negative minimum-subnormal preservation, exact output
+Shape, unchanged input words, both guard words, and synchronous execution passed.
+`[+0,-0]` returned negative zero `0x80000000` instead of required positive zero `0x00000000`.
+Each first/later qNaN/sNaN window returned finite `3.0f` (`0x40400000`) instead of NaN. Thus the
+required signed-zero order and all four NaN-class cells failed; this is not a payload-policy issue.
+
+The source and binary were removed immediately. No second execution, retry, geometry/profile/
+option/context/repetition matrix, production or test edit, schema/identity/capability change,
+narrowing, indices route, decomposition, or fallback exists. Task 0030 is `Blocked`. Unblocking
+requires a separately planned exact replacement route or a preceding Model/architecture decision;
+do not retry or weaken this direct-selector contract.
+
 ## Typed schema and identity cutover
 
 - Append `NodeKind.MAX_POOL2D(20, 1, POOL2D, CANONICAL, false)` and `AttributeKind.POOL2D(7)`;
@@ -194,4 +222,7 @@ independent targeted implementation/documentation review.
 
 ## Result
 
-Empty until execution.
+The only permitted direct-selector execution failed one signed-zero cell and all four NaN-class
+cells. Task 0030 is Blocked without production changes or retained probe artifacts.
+The brief remains one atomic historical record despite exceeding the 200-line planning target
+because its prospective contract and non-retry blocker evidence must remain auditable together.
