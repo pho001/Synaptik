@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Blocked
 
 ## Change class
 
@@ -42,8 +42,8 @@ backend gradient operation, or all-Metal backward claim.
   architecture checks, Javadoc, one final build, Markdown and diff validation.
 - Shared-document integration owner: Metal 0027 implementer.
 
-The dependencies are Complete and the exact common base contains the finalized Metal 0026 blocker.
-Task 0027 is the sole authorized Metal frontier.
+The dependencies were Complete and the exact common base contained the finalized Metal 0026
+blocker. Task 0027 was the sole authorized Metal frontier until its mandatory gate failed.
 
 ## Exact capability and profile contract
 
@@ -147,6 +147,36 @@ production/schema/capability change. Do not narrow the value domain, weaken a cl
 normalization to accelerator-only, decompose it, or add fallback. A pass authorizes only this direct
 composition and proceeds to ordinary implementation verification.
 
+## Blocker evidence
+
+The mandatory gate ran from exact clean planning revision
+`3150d1871805108f48359b5b8d91124309a71f53`. One disposable Objective-C source compiled against
+the active SDK, then its executable ran exactly once on the M3 Max. It created one Metal
+device/queue, one context, one graph with five placeholders and four graph-local `[8]` to
+`[1,8,1]` reshapes, one direct
+`normalizationWithTensor:meanTensor:varianceTensor:gammaTensor:betaTensor:epsilon:name:` target,
+one executable at the production default optimization level with
+`MPSGraphReducedPrecisionFastMathNone` set/read and `MPSGraphOptionsNone`, and one synchronous
+execution for `[2,8,2]`, axis one, and epsilon `0.25f`.
+
+Exactly two of 32 output cells failed, both in channel 6:
+
+| Cell | Input bits | Required output | MPSGraph output |
+|---:|---:|---:|---:|
+| 0 | `0x3f800000` (`+1`) | `0x00000001` (positive minimum subnormal) | `0x00000000` (positive zero) |
+| 1 | `0xbf800000` (`-1`) | `0x80000001` (negative minimum subnormal) | `0x80000000` (negative zero) |
+
+The other 30 formula/class/sign cells passed. Exact output Shape and all five unchanged feed buffers
+passed. The failure is prohibited flush-to-zero under both profiles, not a ULP-tolerance issue:
+zero cannot replace the required nonzero subnormal. The disposable source and executable were
+removed immediately. No second device run, axis/rank/profile/options/context/repetition matrix,
+production edit, test edit, schema/identity/capability change, backward work, or fallback exists.
+
+Task 0027 is therefore `Blocked`. Unblocking requires a separately planned exact replacement route
+or a preceding Model/architecture numerical decision. Do not narrow inputs or outputs, exclude
+subnormal-producing values, weaken the raw-bit/class rule, retry the selector, move BatchNorm to
+accelerator-only, decompose it, or add fallback.
+
 ## Typed schema and identity cutover
 
 - Retain application binary interface (ABI) version 4, all statuses/signatures, the fixed 160-byte
@@ -230,3 +260,10 @@ evidence and reruns device work only for one newly identified concrete risk.
 
 Expected impact: None. Stop and replan if implementation requires a shared/public semantic, module
 edge, resource kind, profile relaxation, multi-output Metal lifecycle, or fallback.
+
+## Result
+
+The only permitted direct-selector gate failed the unchanged no-FTZ contract at channel 6 cells
+zero and one. Task 0027 is Blocked without production changes or retained probe artifacts.
+The brief remains one atomic historical record despite exceeding the 15 KB planning target because
+the exact prospective contract and its non-retry blocker evidence must remain auditable together.
