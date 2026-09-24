@@ -26,12 +26,14 @@ import java.lang.foreign.MemorySegment;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 
 /**
- * Supplies Metal elementwise physical contributions and assembles the legacy sole-partition route.
+ * Supplies Metal physical contributions for supported elementwise and terminal-affine operations
+ * and assembles the legacy sole-partition route.
  *
  * <p>Shared mixed-owner composition uses {@link #contribute(PreparedScheduleContext)} and owns
- * the global step order. This class remains responsible only for Metal physical creation and the
- * direct route-local execution step. The legacy {@link #assemble(PreparedScheduleContext)} entry
- * accepts only one Metal partition and delegates to the same route-local assembly.</p>
+ * the global step order. This class remains responsible only for Metal physical creation,
+ * authenticated dense affine publication targets, and the direct route-local execution step. The
+ * legacy {@link #assemble(PreparedScheduleContext)} entry accepts only one Metal partition and
+ * delegates to the same route-local assembly.</p>
  */
 final class MetalNegPreparedScheduleAssembler
         implements PreparedScheduleAssembler, PreparedScheduleContributor {

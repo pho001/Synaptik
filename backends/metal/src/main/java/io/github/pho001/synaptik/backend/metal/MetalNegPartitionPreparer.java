@@ -27,15 +27,16 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Analyzes and lowers one complete maximal Metal-owned elementwise partition.
+ * Analyzes and lowers one complete maximal Metal-owned supported-operation partition.
  *
  * <p>The deterministic analysis assigns stable native value indices, retains every node kind and
  * ordered operand, and derives unique feeds and targets before selecting a closed private route.
  * Analysis freshly regenerates the complete candidate batch; an absent decision preserves the
  * singleton-NEG heuristic, while a present decision must authenticate against current schema,
  * workload, session target, and candidate identity. The selected route is then fixed before exact
- * declarations. Analysis allocates no physical resource and never changes partition ownership or
- * capability.</p>
+ * declarations. Supported terminal affine targets retain their logical view descriptors while
+ * declarations use full dense represented-order byte geometry. Analysis allocates no physical
+ * resource and never changes partition ownership or capability.</p>
  */
 final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         MetalNegAnalysisInputs, MetalNegPreparationPlan> {

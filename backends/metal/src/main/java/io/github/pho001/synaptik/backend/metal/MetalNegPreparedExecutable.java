@@ -16,15 +16,16 @@ import java.lang.foreign.MemorySegment;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 
 /**
- * Immutable Runtime recipe for one selected shape-specialized Metal elementwise route.
+ * Immutable Runtime recipe for one selected shape-specialized Metal supported-operation route.
  *
  * <p>Selections are feeds in stable order followed by targets in stable order. Cold binding
  * validates live context-local buffer representations and byte extents, then creates a
  * route-specific bound invocation. MPSGraph retains direct slices of its run-owned native-address
- * workspace; the custom singleton retains direct typed input and output references and has no
- * workspace. Hot execution makes exactly one matching native call and performs no lookup, graph
- * inspection, route selection, cast, address marshalling, or collection allocation. The custom
- * resource and MPSGraph resource are nominally distinct and cannot be interchanged.</p>
+ * workspace and writes full dense represented-order targets, including authenticated terminal
+ * affine publications; the custom singleton retains direct typed input and output references and
+ * has no workspace. Hot execution makes exactly one matching native call and performs no lookup,
+ * graph inspection, route selection, cast, address marshalling, or collection allocation. The
+ * custom resource and MPSGraph resource are nominally distinct and cannot be interchanged.</p>
  */
 final class MetalNegPreparedExecutable extends PreparedExecutable {
     private final MetalNegPreparationPlan preparationPlan;

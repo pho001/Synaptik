@@ -120,10 +120,11 @@ supported singleton has only the MPSGraph candidate; analysis does not reject or
 
 ### Session decision codec and limitations
 
-The package-private version-two Metal codec produces bounded canonical compatibility, candidate,
+The package-private version-three Metal codec produces bounded canonical compatibility, candidate,
 and checksummed decision bytes. Decode rejects wrong magic, schema, session scope, malformed or
 truncated content, trailing or corrupt bytes, changed workload or context, and unknown or pruned
-candidates. The bytes contain no native handle or executable. Version-one bytes fail closed.
+candidates. The bytes contain no native handle or executable. Version-one and version-two bytes
+fail closed even when their trailing checksum is otherwise valid.
 
 This codec is only the backend-side authentication foundation. It performs no file input/output,
 measurement, winner selection, or persistent reuse, and there is no `tools/tuning`, Engine, or
@@ -314,12 +315,15 @@ Task 0005 validation composes:
 
 Task 0008 adds a disposable and retained real-device matrix for all five affine selectors,
 identity and shape-changing cases through rank sixteen, exact supplied output buffers, adversarial
-raw `FLOAT32` payloads, mixed elementwise-prefix/affine fan-out, repeated execution, and a Metal-
-only public Engine scenario with multiple targets and independent sessions. Fake-native and
-Compiler contract coverage checks typed attributes, malformed schema records, exact forward view
-layouts, inverse first-order operations (including `SUM_TO_SHAPE` for `EXPAND`), authenticated
-dense affine materialization, and unchanged canonical-only cross-owner transfer. This is forward
-Metal capability only; it makes no Metal-only backward, reduction, unary-algebra, or MATMUL claim.
+raw `FLOAT32` payloads, mixed elementwise-prefix/affine fan-out, repeated and same-session
+concurrent execution, and a Metal-only public Engine scenario with multiple targets and
+independent sessions. Direct raw-ABI negatives submit malformed 160-byte records and require
+status `INVALID_ARGUMENT` with a null output handle. Fake-native preparation covers every typed
+affine attribute form, full logical declaration geometry, pre-native rejection, rollback, and
+close behavior. Compiler contract coverage checks exact forward view layouts and inverse
+first-order operations, including `SUM_TO_SHAPE` for `EXPAND`; Engine integration separately
+checks affine-view transfer preflight and canonical rank-bound transfers. This is forward Metal
+capability only; it makes no Metal-only backward, reduction, unary-algebra, or MATMUL claim.
 
 The public `GraphCompilationPort` intentionally supplies no explicit positive-rank forward
 constant ingress, so the CPU-free Engine scenario uses caller inputs rather than claiming a public

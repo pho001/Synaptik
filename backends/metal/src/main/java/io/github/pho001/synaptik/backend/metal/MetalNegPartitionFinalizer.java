@@ -11,7 +11,7 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 
 /**
- * Validates assigned Metal elementwise declarations and compiles the selected persistent resource.
+ * Validates assigned Metal supported-operation declarations and compiles the selected resource.
  *
  * <p>The finalizer changes no route or declaration. It compiles and owns the selected custom
  * singleton-NEG pipeline or typed whole-partition MPSGraph executable until the complete result

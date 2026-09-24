@@ -12,15 +12,16 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Retains the immutable, shape-specialized lowering and route facts for one whole supported
- * Metal elementwise partition.
+ * Retains the immutable, shape-specialized lowering and route facts for one whole supported Metal
+ * elementwise-and-terminal-affine partition.
  *
  * <p>Value indices, typed MPSGraph nodes, feeds, targets, and declarations are already in their
  * stable ABI order. The route is either the safe heuristic or a freshly authenticated
  * session-compatible decision, and is fixed before this plan's declarations escape analysis.
  * The plan contains no assigned slot, tuning value, native executable, physical buffer, or
- * per-run state. The address workspace is present only for MPSGraph. Primitive arrays are
- * privately snapshotted and copied when marshalled.</p>
+ * per-run state. Affine targets retain exact logical view descriptors alongside their full dense
+ * represented-order byte extents. The address workspace is present only for MPSGraph. Primitive
+ * arrays are privately snapshotted and copied when marshalled.</p>
  */
 final class MetalNegPreparationPlan implements BackendPreparationPlan {
     /** Closed private implementation choice made during analysis. */

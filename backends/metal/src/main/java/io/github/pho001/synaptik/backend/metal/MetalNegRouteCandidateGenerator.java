@@ -16,12 +16,13 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Generates complete, stable, budget-bounded Metal elementwise route candidates.
+ * Generates complete, stable, budget-bounded Metal supported-operation route candidates.
  *
  * <p>The workload fingerprint uses only versioned semantics and structural positions, including
- * typed node kinds and ordered operands. Graph-local identities, partition object identity,
- * native handles, measurements, and cache state are excluded. Generation is cold, thread-safe,
- * deterministic, and performs no native work.</p>
+ * typed elementwise or terminal-affine node kinds and attributes, ordered operands, exact logical
+ * descriptors, and dense represented-order geometry. Graph-local identities, partition object
+ * identity, native handles, measurements, and cache state are excluded. Generation is cold,
+ * thread-safe, deterministic, and performs no native work.</p>
  */
 final class MetalNegRouteCandidateGenerator {
     private static final long UINT32_MAX = 0xffff_ffffL;
@@ -150,6 +151,11 @@ final class MetalNegRouteCandidateGenerator {
         }
         updateInt(digest, context.nodes().size());
         updateBytes(digest, plan.graphProgram().encodedNodeRecords());
+        updateInts(digest, plan.valueRanks());
+        updateLongs(digest, plan.valueDimensions());
+        updateLongs(digest, plan.feedRequiredBytes());
+        updateLongs(digest, plan.targetRequiredBytes());
+
 
         updateInt(digest, plan.descriptors().size());
         for (var descriptor : plan.descriptors()) {
@@ -216,6 +222,11 @@ final class MetalNegRouteCandidateGenerator {
         }
     }
 
+
+    private static void updateInts(MessageDigest digest, int[] values) {
+        updateInt(digest, values.length);
+        for (int value : values) updateInt(digest, value);
+    }
 
     private static void updateLongs(MessageDigest digest, long[] values) {
         updateInt(digest, values.length);

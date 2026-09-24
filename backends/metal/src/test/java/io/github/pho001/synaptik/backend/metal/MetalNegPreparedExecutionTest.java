@@ -32,6 +32,9 @@ import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -49,6 +52,7 @@ import io.github.pho001.synaptik.prepare.PartitionPreparation;
 import io.github.pho001.synaptik.prepare.PreparedBufferAssignment;
 import io.github.pho001.synaptik.prepare.PreparedPartition;
 import io.github.pho001.synaptik.prepare.PreparationResourceAssignment;
+import io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement;
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.memory.BufferSlot;
@@ -1452,6 +1456,160 @@ class MetalNegPreparedExecutionTest {
     }
 
     @Test
+    void affineAnalysisAndFakeNativeFinalizationCarryEveryTypedMappingAndDenseGeometry() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        BackendPartitionFinalizationResult finalized = null;
+        try {
+            AffineFixture fixture = affineFixture();
+            BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
+                    analyze(fixture, context);
+            MetalNegPreparationPlan plan = analysis.plan();
+
+            assertEquals(MetalNegPreparationPlan.Route.MPSGRAPH, plan.route());
+            assertEquals(fixture.feeds(), plan.feedValueIds());
+            assertEquals(fixture.targets(), plan.targetValueIds());
+            assertArrayEquals(new int[] {0, 2, 4, 6, 8}, plan.feedValueIndices());
+            assertArrayEquals(new int[] {1, 3, 5, 7, 9}, plan.targetValueIndices());
+            assertArrayEquals(new long[] {24, 12, 24, 24, 24},
+                    plan.feedRequiredBytes());
+            assertArrayEquals(new long[] {24, 24, 24, 24, 24},
+                    plan.targetRequiredBytes());
+            assertEquals(10, plan.declarations().size());
+            assertEquals(concat(fixture.feeds(), fixture.targets()),
+                    plan.declarations().stream().map(
+                            PreparationResourceRequirement.Buffer::valueId).toList());
+            assertEquals(
+                    List.of(24L, 12L, 24L, 24L, 24L, 24L, 24L, 24L, 24L, 24L),
+                    plan.declarations().stream().map(
+                            PreparationResourceRequirement.Buffer::byteSize).toList());
+            assertEquals(80L, plan.addressWorkspace().orElseThrow().byteSize());
+
+            List<MetalMpsGraphProgram.Node> nodes = plan.graphProgram().nodes();
+            assertTypedNode(nodes.get(0), MetalMpsGraphProgram.NodeKind.RESHAPE,
+                    0, 1, 2, MetalMpsGraphProgram.NO_AXIS, 3L, 2L);
+            assertTypedNode(nodes.get(1), MetalMpsGraphProgram.NodeKind.EXPAND,
+                    2, 3, 2, MetalMpsGraphProgram.NO_AXIS, 2L, 3L);
+            assertTypedNode(nodes.get(2), MetalMpsGraphProgram.NodeKind.PERMUTE,
+                    4, 5, 2, MetalMpsGraphProgram.NO_AXIS, 1L, 0L);
+            assertTypedNode(nodes.get(3), MetalMpsGraphProgram.NodeKind.EXPAND_DIMS,
+                    6, 7, 1, 1);
+            assertTypedNode(nodes.get(4), MetalMpsGraphProgram.NodeKind.SQUEEZE,
+                    8, 9, 1, 1);
+
+            TensorDescriptor expanded = descriptorFor(fixture, fixture.targets().get(1));
+            assertEquals(3L, expanded.layout().orElseThrow().referencedElementSpan());
+            assertEquals(24L, plan.targetRequiredBytes()[1],
+                    "dense affine declaration uses full logical geometry, not view span");
+
+            FinalizationFixture assignment = finalization(analysis);
+            finalized = new MetalNegPartitionFinalizer(context)
+                    .finalizePartition(assignment.finalization());
+            MetalNegPreparedExecutable executable =
+                    (MetalNegPreparedExecutable) finalized.executable();
+            for (ValueId target : fixture.targets()) {
+                assertTrue(executable.denseAffinePublication(target).isPresent());
+            }
+            assertEquals(1, api.executableCreates.get());
+            assertArrayEquals(plan.valueRanks(), api.createdRanks);
+            assertArrayEquals(plan.valueDimensions(), api.createdDimensions);
+            assertArrayEquals(plan.graphProgram().encodedNodeRecords(),
+                    api.createdProgram.encodedNodeRecords());
+            assertArrayEquals(plan.feedValueIndices(), api.feeds);
+            assertArrayEquals(plan.targetValueIndices(), api.targets);
+
+            context.close();
+            assertEquals(0, api.contextReleases.get(),
+                    "the finalized affine executable retains the context lease");
+            finalized.resources().getFirst().close();
+            finalized.resources().getFirst().close();
+            assertEquals(1, api.executableReleases.get());
+            assertEquals(1, api.contextReleases.get());
+            finalized = null;
+        } finally {
+            if (finalized != null) {
+                finalized.resources().forEach(resource -> resource.close());
+            }
+            context.close();
+        }
+    }
+
+    @Test
+    void everyMalformedAffineMappingRejectsBeforeFakeNativeAllocation() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        try {
+            AffineFixture fixture = affineFixture();
+            List<Operation> malformed = List.of(
+                    new Operation(
+                            ShapeTransformKind.RESHAPE,
+                            new TargetShapeAttrs(Shape.of(2, 3))),
+                    new Operation(
+                            ShapeTransformKind.EXPAND,
+                            new TargetShapeAttrs(Shape.of(1, 3))),
+                    new Operation(
+                            AxisTransformKind.PERMUTE,
+                            new PermutationAttrs(List.of(0, 1))),
+                    new Operation(
+                            AxisTransformKind.EXPAND_DIMS,
+                            new AxisTransformAttrs(0)),
+                    new Operation(
+                            AxisTransformKind.SQUEEZE,
+                            new AxisTransformAttrs(0)));
+            for (int index = 0; index < malformed.size(); index++) {
+                AffineFixture rejected = withOperation(fixture, index, malformed.get(index));
+                assertThrows(IllegalArgumentException.class,
+                        () -> analyze(rejected, context));
+                assertEquals(0, api.executableCreates.get(),
+                        "mapping " + index + " must reject before native create");
+                assertEquals(0, api.bufferCreates.get(),
+                        "mapping " + index + " must reject before physical allocation");
+            }
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void affineFinalizerRollbackReleasesSharedExecutableAndPreservesCleanupFailure() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
+                analyze(affineFixture(), context);
+        FinalizationFixture fixture = finalization(analysis);
+        RuntimeException primary = new RuntimeException("affine recipe construction");
+        api.releaseStatus = 7;
+        var finalizer = new MetalNegPartitionFinalizer(context,
+                (plan,
+                        memoryPlan,
+                        feeds,
+                        feedRepresentations,
+                        targets,
+                        targetRepresentations,
+                        resource,
+                        feedBytes,
+                        targetBytes,
+                        workspace) -> {
+                    assertEquals(5, plan.graphProgram().nodes().size());
+                    throw primary;
+                });
+        try {
+            RuntimeException failure = assertThrows(RuntimeException.class,
+                    () -> finalizer.finalizePartition(fixture.finalization()));
+            assertSame(primary, failure);
+            assertEquals(1, failure.getSuppressed().length);
+            assertNativeFailure((MetalNativeApi.NativeFailure) failure.getSuppressed()[0],
+                    MetalNativeApi.EXECUTABLE_RELEASE_OPERATION, 7);
+            assertEquals(1, api.executableCreates.get());
+            assertEquals(1, api.executableReleases.get());
+            assertEquals(0, api.pipelineCreates.get());
+        } finally {
+            context.close();
+        }
+        assertEquals(1, api.contextReleases.get());
+    }
+
+    @Test
     void MetalAffinePublicationRequiresFinalizedRouteEvidenceAndUsesFullLogicalBytes() {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
@@ -1775,6 +1933,144 @@ class MetalNegPreparedExecutionTest {
                 new PartitionDag(fixture.partition, fixture.nodes), fixture.values,
                 fixture.requirements, Map.of(), new MetalNegAnalysisInputs(context)));
     }
+    private static BackendPartitionAnalysis<MetalNegPreparationPlan> analyze(
+            AffineFixture fixture, MetalDeviceContext context) {
+        return new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
+                new PartitionDag(fixture.partition(), fixture.nodes()),
+                fixture.values(),
+                fixture.requirements(),
+                Map.of(),
+                new MetalNegAnalysisInputs(context)));
+    }
+
+    private static void assertTypedNode(
+            MetalMpsGraphProgram.Node node,
+            MetalMpsGraphProgram.NodeKind kind,
+            int input,
+            int output,
+            int attributeCount,
+            int axis,
+            long... attributeValues) {
+        assertEquals(kind, node.kind());
+        assertEquals(input, node.firstInputIndex());
+        assertEquals(MetalMpsGraphProgram.NO_SECOND_INPUT, node.secondInputIndex());
+        assertEquals(output, node.outputIndex());
+        assertEquals(attributeCount, node.attributeCount());
+        assertEquals(axis, node.axis());
+        assertArrayEquals(attributeValues, node.attributeValues());
+    }
+
+    private static AffineFixture affineFixture() {
+        List<ValueId> feeds = List.of(
+                new ValueId(20_000),
+                new ValueId(20_010),
+                new ValueId(20_020),
+                new ValueId(20_030),
+                new ValueId(20_040));
+        List<ValueId> targets = List.of(
+                new ValueId(20_001),
+                new ValueId(20_011),
+                new ValueId(20_021),
+                new ValueId(20_031),
+                new ValueId(20_041));
+        List<TensorDescriptor> inputs = List.of(
+                descriptor(Shape.of(2, 3)),
+                descriptor(Shape.of(1, 3)),
+                descriptor(Shape.of(2, 3)),
+                descriptor(Shape.of(2, 3)),
+                descriptor(Shape.of(2, 1, 3)));
+        List<TensorDescriptor> outputs = List.of(
+                viewDescriptor(Shape.of(3, 2), 2, 1),
+                viewDescriptor(Shape.of(2, 3), 0, 1),
+                viewDescriptor(Shape.of(3, 2), 1, 3),
+                viewDescriptor(Shape.of(2, 1, 3), 3, 3, 1),
+                viewDescriptor(Shape.of(2, 3), 3, 1));
+        List<Operation> operations = List.of(
+                new Operation(
+                        ShapeTransformKind.RESHAPE,
+                        new TargetShapeAttrs(Shape.of(3, 2))),
+                new Operation(
+                        ShapeTransformKind.EXPAND,
+                        new TargetShapeAttrs(Shape.of(2, 3))),
+                new Operation(
+                        AxisTransformKind.PERMUTE,
+                        new PermutationAttrs(List.of(1, 0))),
+                new Operation(
+                        AxisTransformKind.EXPAND_DIMS,
+                        new AxisTransformAttrs(1)),
+                new Operation(
+                        AxisTransformKind.SQUEEZE,
+                        new AxisTransformAttrs(1)));
+        var nodes = new ArrayList<CompiledNode>();
+        var values = new ArrayList<GraphValue>();
+        for (int index = 0; index < operations.size(); index++) {
+            nodes.add(new CompiledNode(
+                    new NodeId(20_000 + index),
+                    operations.get(index),
+                    List.of(feeds.get(index)),
+                    List.of(targets.get(index))));
+            values.add(new GraphValue(feeds.get(index), inputs.get(index)));
+            values.add(new GraphValue(targets.get(index), outputs.get(index)));
+        }
+        PlannedPartition partition = new PlannedPartition(
+                MetalCapabilityProvider.METAL_BACKEND_ID,
+                nodes.stream().map(CompiledNode::id).toList());
+        var requirements = new ArrayList<LogicalMemoryRequirement>();
+        for (int index = 0; index < operations.size(); index++) {
+            requirements.add(requirement(
+                    feeds.get(index),
+                    inputs.get(index),
+                    Optional.empty(),
+                    List.of(partition),
+                    false));
+            requirements.add(requirement(
+                    targets.get(index),
+                    outputs.get(index),
+                    Optional.of(partition),
+                    List.of(),
+                    true));
+        }
+        return new AffineFixture(
+                partition,
+                List.copyOf(nodes),
+                List.copyOf(values),
+                List.copyOf(requirements),
+                feeds,
+                targets);
+    }
+
+    private static AffineFixture withOperation(
+            AffineFixture fixture, int nodeIndex, Operation operation) {
+        var nodes = new ArrayList<>(fixture.nodes());
+        CompiledNode existing = nodes.get(nodeIndex);
+        nodes.set(nodeIndex, new CompiledNode(
+                existing.id(), operation, existing.inputs(), existing.outputs()));
+        return new AffineFixture(
+                fixture.partition(),
+                List.copyOf(nodes),
+                fixture.values(),
+                fixture.requirements(),
+                fixture.feeds(),
+                fixture.targets());
+    }
+
+    private static TensorDescriptor descriptorFor(
+            AffineFixture fixture, ValueId valueId) {
+        return fixture.values().stream()
+                .filter(value -> value.id().equals(valueId))
+                .findFirst()
+                .orElseThrow()
+                .descriptor();
+    }
+
+    private static TensorDescriptor viewDescriptor(Shape shape, long... strides) {
+        return new TensorDescriptor(
+                DataType.FLOAT32,
+                shape,
+                Optional.of(LayoutDescriptor.of(shape, strides, 0L, true)),
+                false);
+    }
+
 
     private static SingleNegRoute singleNegRoute(
             MetalDeviceContext context, Shape shape, Optional<ScalarValue> splat) {
@@ -2009,6 +2305,14 @@ class MetalNegPreparedExecutionTest {
             PlannedPartition partition, List<CompiledNode> nodes, List<GraphValue> values,
             List<LogicalMemoryRequirement> requirements, ValueId v0, ValueId v1, ValueId v2,
             ValueId v3, ValueId v4, ValueId v5) { }
+    private record AffineFixture(
+            PlannedPartition partition,
+            List<CompiledNode> nodes,
+            List<GraphValue> values,
+            List<LogicalMemoryRequirement> requirements,
+            List<ValueId> feeds,
+            List<ValueId> targets) { }
+
 
     private record SplatRoute(
             MetalDeviceContext context,
@@ -2078,6 +2382,9 @@ class MetalNegPreparedExecutionTest {
         private volatile CountDownLatch bufferCreateEntered = new CountDownLatch(0);
         private int[] feeds;
         private int[] targets;
+        private int[] createdRanks;
+        private long[] createdDimensions;
+        private MetalMpsGraphProgram createdProgram;
 
         @Override synchronized Handle createContext() { return handle(); }
         @Override void releaseContext(Handle context) {
@@ -2126,6 +2433,9 @@ class MetalNegPreparedExecutionTest {
                 int[] targetIndices) {
             executableCreates.incrementAndGet();
             if (createFailure != null) throw createFailure;
+            createdRanks = ranks.clone();
+            createdDimensions = dimensions.clone();
+            createdProgram = graphProgram;
             feeds = feedIndices.clone();
             targets = targetIndices.clone();
             Handle created = createNullHandle ? null : handle();

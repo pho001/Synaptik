@@ -1,6 +1,8 @@
 package io.github.pho001.synaptik.testing.integration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -27,6 +29,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -96,7 +101,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
 
 
     @Test
-    void cpuFreeMetalEngineMaterializesEveryAffineKindFromDenseDirectTargets() {
+    void cpuFreeMetalEngineRunsConcurrentAffineCallsWithIsolatedRunOwnership()
+            throws Exception {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared();
                 Engine.Builder builder = Engine.builder()) {
@@ -104,13 +110,13 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     new MetalBackendConfiguration(library)));
             try (Engine engine = builder.build()) {
                 int[] matrixBits = {
-                        0x00000000, 0x80000000, 0x3f800000,
-                        0xc0000000, 0x40600000, 0xc0880000
+                        0x00000000, 0x80000000, 0x00000001,
+                        0x80012345, 0x7f800000, 0xffc54321
                 };
-                int[] rowBits = {0x3f800000, 0xc0000000, 0x40400000};
+                int[] rowBits = {0x00000001, 0x80000000, 0x7fc12345};
                 int[] singletonBits = {
-                        0x3e800000, 0xbe800000, 0x40800000,
-                        0xc0a00000, 0x40c00000, 0xc0e00000
+                        0x007fffff, 0x807fffff, 0x00800000,
+                        0x80800000, 0x7f7fffff, 0xff7fffff
                 };
                 Tensor matrix = nativeTensorBits(
                         descriptor(Shape.of(2, 3)), arena, matrixBits);
@@ -140,15 +146,139 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         },
                         matrixBits,
                         singletonBits);
+                List<Tensor> inputs = List.of(matrix, row, singleton);
                 try (InferenceSession first = engine.session(compiled);
-                        InferenceSession second = engine.session(compiled)) {
-                    assertAffineResults(first, List.of(matrix, row, singleton), expected);
-                    assertAffineResults(first, List.of(matrix, row, singleton), expected);
-                    assertAffineResults(second, List.of(matrix, row, singleton), expected);
+                        InferenceSession second = engine.session(compiled);
+                        var executor = Executors.newFixedThreadPool(2)) {
+                    CountDownLatch start = new CountDownLatch(1);
+                    var leftFuture = executor.submit(() -> {
+                        start.await();
+                        return first.run(inputs);
+                    });
+                    var rightFuture = executor.submit(() -> {
+                        start.await();
+                        return first.run(inputs);
+                    });
+                    start.countDown();
+                    io.github.pho001.synaptik.engine.RunResult left =
+                            leftFuture.get(10, TimeUnit.SECONDS);
+                    io.github.pho001.synaptik.engine.RunResult right =
+                            rightFuture.get(10, TimeUnit.SECONDS);
+                    try {
+                        assertAffineResults(left, expected);
+                        assertAffineResults(right, expected);
+                        var leftOwned =
+                                EngineMixedOwnerTestAccess.runOwnedIdentities(left);
+                        var rightOwned =
+                                EngineMixedOwnerTestAccess.runOwnedIdentities(right);
+                        assertEquals(5, leftOwned.publications().size());
+                        assertEquals(5, rightOwned.publications().size());
+                        assertEquals(1, leftOwned.workspaces().size());
+                        assertEquals(1, rightOwned.workspaces().size());
+                        for (Object leftTarget : leftOwned.publications()) {
+                            for (Object rightTarget : rightOwned.publications()) {
+                                assertNotSame(leftTarget, rightTarget,
+                                        "concurrent runs must own distinct affine targets");
+                            }
+                        }
+                        assertNotSame(
+                                leftOwned.workspaces().getFirst(),
+                                rightOwned.workspaces().getFirst(),
+                                "concurrent runs must own distinct address workspaces");
+
+                        left.close();
+                        assertTrue(left.isClosed());
+                        assertFalse(right.isClosed());
+                        assertAffineResults(right, expected);
+                        assertEquals("run result is closed",
+                                assertThrows(
+                                        IllegalStateException.class,
+                                        () -> left.materialize(
+                                                left.publications().getFirst(), 24L))
+                                        .getMessage());
+                    } finally {
+                        right.close();
+                        left.close();
+                    }
+                    assertTrue(right.isClosed());
+
+                    assertAffineResults(first, inputs, expected);
+                    assertAffineResults(second, inputs, expected);
                 }
             }
         }
     }
+
+    @Test
+    void enginePreflightRejectsMetalAffineViewBeforeClosedBackendPreparation() {
+        Path library = configuredMetalLibrary();
+        try (Arena arena = Arena.ofShared();
+                Engine.Builder builder = Engine.builder()) {
+            MetalBackendIntegration metal = MetalBackendIntegration.open(
+                    new MetalBackendConfiguration(library));
+            builder.takeOwnership(metal);
+            builder.takeOwnership(CpuBackendIntegration.open());
+            try (Engine engine = builder.build()) {
+                Tensor input = nativeTensorBits(
+                        descriptor(Shape.of(2, 3)),
+                        arena,
+                        0x00000000,
+                        0x80000000,
+                        0x00000001,
+                        0x7f800000,
+                        0xff800000,
+                        0x7fc12345);
+                var compiled = engine.compile(List.of(input.reshape(3, 2).abs()));
+                assertEquals(
+                        List.of("metal", "cpu"),
+                        EngineMixedOwnerTestAccess.partitionOwners(compiled));
+
+                metal.close();
+                IllegalArgumentException failure = assertThrows(
+                        IllegalArgumentException.class,
+                        () -> engine.session(compiled));
+                assertTrue(failure.getMessage().startsWith(
+                        "unsupported cross-owner transfer from metal to cpu for "));
+            }
+        }
+    }
+
+    @Test
+    void canonicalCrossOwnerTransfersStillRunAtRankOneAndRankSixteen() {
+        Path library = configuredMetalLibrary();
+        try (Arena arena = Arena.ofShared();
+                Engine.Builder builder = Engine.builder()) {
+            builder.takeOwnership(MetalBackendIntegration.open(
+                    new MetalBackendConfiguration(library)));
+            builder.takeOwnership(CpuBackendIntegration.open());
+            try (Engine engine = builder.build()) {
+                List<Shape> rankBounds = List.of(
+                        Shape.of(2),
+                        Shape.of(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2));
+                for (Shape shape : rankBounds) {
+                    Tensor input = nativeTensor(
+                            descriptor(shape), arena, -1.25f, 2.5f);
+                    var compiled = engine.compile(List.of(
+                            input.neg().abs(),
+                            input.abs().neg()));
+                    try (var session = engine.session(compiled);
+                            var result = session.run(List.of(input))) {
+                        assertCanonical(
+                                result.materialize(
+                                        result.publications().get(0), 8L).bytes(),
+                                1.25f,
+                                2.5f);
+                        assertCanonical(
+                                result.materialize(
+                                        result.publications().get(1), 8L).bytes(),
+                                -1.25f,
+                                -2.5f);
+                    }
+                }
+            }
+        }
+    }
+
     @Test
     void realMetalLifecycleMixedOwnerTransfersAndCpuTuning(@TempDir Path directory) {
         Path library = configuredMetalLibrary();
@@ -301,14 +431,19 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     private static void assertAffineResults(
             InferenceSession session, List<Tensor> inputs, List<int[]> expected) {
         try (var result = session.run(inputs)) {
-            assertEquals(expected.size(), result.resultCount());
-            for (int index = 0; index < expected.size(); index++) {
-                ByteBuffer canonical = result.materialize(
-                        result.publications().get(index),
-                        Math.multiplyExact((long) expected.get(index).length, Float.BYTES)).bytes();
-                for (int bits : expected.get(index)) {
-                    assertEquals(bits, canonical.getInt());
-                }
+            assertAffineResults(result, expected);
+        }
+    }
+
+    private static void assertAffineResults(
+            io.github.pho001.synaptik.engine.RunResult result, List<int[]> expected) {
+        assertEquals(expected.size(), result.resultCount());
+        for (int index = 0; index < expected.size(); index++) {
+            ByteBuffer canonical = result.materialize(
+                    result.publications().get(index),
+                    Math.multiplyExact((long) expected.get(index).length, Float.BYTES)).bytes();
+            for (int bits : expected.get(index)) {
+                assertEquals(bits, canonical.getInt());
             }
         }
     }

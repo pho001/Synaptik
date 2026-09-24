@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphValue;
@@ -16,6 +17,11 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
+import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
@@ -98,6 +104,143 @@ class MetalNegRouteCandidateGeneratorTest {
     }
 
     @Test
+    void affineFingerprintsCoverKindsTypedAttrsLayoutsDenseGeometryAndOrderedTopology() {
+        TestNativeApi api = new TestNativeApi();
+        try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
+            TensorDescriptor matrix = canonical(Shape.of(2, 3));
+            TensorDescriptor identityView = view(Shape.of(2, 3), 3, 1);
+            Workload reshapeIdentity = affineWorkload(
+                    device,
+                    1_000,
+                    new Operation(
+                            ShapeTransformKind.RESHAPE,
+                            new TargetShapeAttrs(Shape.of(2, 3))),
+                    matrix,
+                    identityView);
+            Workload expandIdentity = affineWorkload(
+                    device,
+                    2_000,
+                    new Operation(
+                            ShapeTransformKind.EXPAND,
+                            new TargetShapeAttrs(Shape.of(2, 3))),
+                    matrix,
+                    identityView);
+            assertNotEquals(workloadSignature(reshapeIdentity), workloadSignature(expandIdentity),
+                    "operation kind is part of the affine compatibility identity");
+
+            Workload reshapeTranspose = affineWorkload(
+                    device,
+                    3_000,
+                    new Operation(
+                            ShapeTransformKind.RESHAPE,
+                            new TargetShapeAttrs(Shape.of(3, 2))),
+                    matrix,
+                    view(Shape.of(3, 2), 2, 1));
+            Workload reshapeFlat = affineWorkload(
+                    device,
+                    4_000,
+                    new Operation(
+                            ShapeTransformKind.RESHAPE,
+                            new TargetShapeAttrs(Shape.of(1, 6))),
+                    matrix,
+                    view(Shape.of(1, 6), 6, 1));
+            assertNotEquals(workloadSignature(reshapeTranspose), workloadSignature(reshapeFlat),
+                    "target-shape attributes are part of the affine compatibility identity");
+
+            TensorDescriptor symmetricRankThree = canonical(Shape.of(1, 1, 1));
+            TensorDescriptor symmetricRankThreeView = view(Shape.of(1, 1, 1), 1, 1, 1);
+            Workload identityPermutation = affineWorkload(
+                    device,
+                    5_000,
+                    new Operation(
+                            AxisTransformKind.PERMUTE,
+                            new PermutationAttrs(List.of(0, 1, 2))),
+                    symmetricRankThree,
+                    symmetricRankThreeView);
+            Workload swappedPermutation = affineWorkload(
+                    device,
+                    6_000,
+                    new Operation(
+                            AxisTransformKind.PERMUTE,
+                            new PermutationAttrs(List.of(1, 0, 2))),
+                    symmetricRankThree,
+                    symmetricRankThreeView);
+            assertNotEquals(
+                    workloadSignature(identityPermutation),
+                    workloadSignature(swappedPermutation),
+                    "permutation attributes change the fingerprint even when geometry does not");
+
+            TensorDescriptor symmetricRankTwo = canonical(Shape.of(1, 1));
+            TensorDescriptor insertedSingletonView = view(Shape.of(1, 1, 1), 1, 1, 1);
+            Workload frontAxis = affineWorkload(
+                    device,
+                    7_000,
+                    new Operation(
+                            AxisTransformKind.EXPAND_DIMS,
+                            new AxisTransformAttrs(0)),
+                    symmetricRankTwo,
+                    insertedSingletonView);
+            Workload middleAxis = affineWorkload(
+                    device,
+                    8_000,
+                    new Operation(
+                            AxisTransformKind.EXPAND_DIMS,
+                            new AxisTransformAttrs(1)),
+                    symmetricRankTwo,
+                    insertedSingletonView);
+            assertNotEquals(workloadSignature(frontAxis), workloadSignature(middleAxis),
+                    "normalized axis attributes change the fingerprint independently");
+
+            Generated baseline = generated(reshapeTranspose, 2);
+            MetalNegPreparationPlan plan = baseline.analysis().plan();
+            MetalMpsGraphProgram changedTargetAttributes = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.targetShape(
+                            MetalMpsGraphProgram.NodeKind.RESHAPE,
+                            0,
+                            1,
+                            new long[] {1, 6})));
+            MetalNegPreparationPlan changedTargetShape = copyPlan(
+                    plan,
+                    plan.descriptors(),
+                    changedTargetAttributes,
+                    plan.targetRequiredBytes());
+            assertNotEquals(
+                    baseline.batch().compatibility().workload(),
+                    generate(reshapeTranspose, changedTargetShape).compatibility().workload(),
+                    "target-shape attributes are authenticated independently of descriptors");
+            var changedDescriptors = new ArrayList<>(plan.descriptors());
+            changedDescriptors.set(1, view(Shape.of(3, 2), 1, 3));
+            MetalNegPreparationPlan changedLayout = copyPlan(
+                    plan,
+                    changedDescriptors,
+                    plan.graphProgram(),
+                    plan.targetRequiredBytes());
+            assertNotEquals(
+                    baseline.batch().compatibility().workload(),
+                    generate(reshapeTranspose, changedLayout).compatibility().workload(),
+                    "logical view layout and strides are authenticated independently");
+
+            long[] changedTargetBytes = plan.targetRequiredBytes();
+            changedTargetBytes[0] = Math.addExact(changedTargetBytes[0], Float.BYTES);
+            MetalNegPreparationPlan changedDenseGeometry = copyPlan(
+                    plan,
+                    plan.descriptors(),
+                    plan.graphProgram(),
+                    changedTargetBytes);
+            assertNotEquals(
+                    baseline.batch().compatibility().workload(),
+                    generate(reshapeTranspose, changedDenseGeometry).compatibility().workload(),
+                    "dense represented-order target geometry is authenticated independently");
+
+            assertNotEquals(
+                    workloadSignature(twoAffineLeaves(device, 9_000, false)),
+                    workloadSignature(twoAffineLeaves(device, 10_000, true)),
+                    "ordered affine topology changes the fingerprint");
+            assertEquals(0, api.nativeAllocations.get());
+        }
+    }
+
+    @Test
     void codecIsCanonicalBoundedAndRejectsEveryDefensiveMismatch() {
         TestNativeApi api = new TestNativeApi();
         TestNativeApi otherApi = new TestNativeApi();
@@ -123,6 +266,12 @@ class MetalNegRouteCandidateGeneratorTest {
                     current.batch()).isEmpty());
             assertTrue(codec.decodeDecision(rewriteInt(first, 0, 0), current.batch()).isEmpty());
             assertTrue(codec.decodeDecision(rewriteInt(first, 4, 99), current.batch()).isEmpty());
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, 4, 1), current.batch()).isEmpty(),
+                    "checksummed codec-v1 decisions must fail closed");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, 4, 2), current.batch()).isEmpty(),
+                    "checksummed schema-v2 decisions must fail closed");
             assertTrue(codec.decodeDecision(rewriteInt(first, 8, 99), current.batch()).isEmpty());
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, first.length - 8, 99), current.batch()).isEmpty());
@@ -228,6 +377,161 @@ class MetalNegRouteCandidateGeneratorTest {
                 workload.context(), analysis.plan(), budget);
         return new Generated(analysis, batch);
     }
+    private static MetalNegTuningBatch.WorkloadSignature workloadSignature(Workload workload) {
+        return generated(workload, 2).batch().compatibility().workload();
+    }
+
+    private static MetalNegTuningBatch generate(
+            Workload workload, MetalNegPreparationPlan plan) {
+        return new MetalNegRouteCandidateGenerator().generate(
+                workload.context(), plan, 2);
+    }
+
+    private static MetalNegPreparationPlan copyPlan(
+            MetalNegPreparationPlan source,
+            List<TensorDescriptor> descriptors,
+            MetalMpsGraphProgram graphProgram,
+            long[] targetRequiredBytes) {
+        return new MetalNegPreparationPlan(
+                source.partition(),
+                source.partitionDag(),
+                source.context(),
+                source.route(),
+                source.valueIds(),
+                descriptors,
+                source.valueRanks(),
+                source.valueDimensions(),
+                graphProgram,
+                source.feedValueIds(),
+                source.feedValueIndices(),
+                source.targetValueIds(),
+                source.targetValueIndices(),
+                source.declarations(),
+                source.feedSplats(),
+                source.addressWorkspace(),
+                source.feedRequiredBytes(),
+                targetRequiredBytes);
+    }
+
+    private static Workload affineWorkload(
+            MetalDeviceContext device,
+            long identityBase,
+            Operation operation,
+            TensorDescriptor inputDescriptor,
+            TensorDescriptor outputDescriptor) {
+        ValueId feed = new ValueId(identityBase);
+        ValueId target = new ValueId(identityBase + 1);
+        CompiledNode node = new CompiledNode(
+                new NodeId(identityBase),
+                operation,
+                List.of(feed),
+                List.of(target));
+        PlannedPartition partition = new PlannedPartition(
+                MetalCapabilityProvider.METAL_BACKEND_ID,
+                List.of(node.id()));
+        var context = new PrepareContext<>(
+                new PartitionDag(partition, List.of(node)),
+                List.of(
+                        new GraphValue(feed, inputDescriptor),
+                        new GraphValue(target, outputDescriptor)),
+                List.of(
+                        new LogicalMemoryRequirement(
+                                feed,
+                                inputDescriptor,
+                                Optional.empty(),
+                                List.of(partition),
+                                false),
+                        new LogicalMemoryRequirement(
+                                target,
+                                outputDescriptor,
+                                Optional.of(partition),
+                                List.of(),
+                                true)),
+                Map.of(),
+                new MetalNegAnalysisInputs(device));
+        return new Workload(context);
+    }
+
+    private static Workload twoAffineLeaves(
+            MetalDeviceContext device, long identityBase, boolean reverse) {
+        TensorDescriptor inputDescriptor = canonical(Shape.of(2, 3));
+        TensorDescriptor outputDescriptor = view(Shape.of(2, 3), 3, 1);
+        ValueId firstFeed = new ValueId(identityBase);
+        ValueId firstTarget = new ValueId(identityBase + 1);
+        ValueId secondFeed = new ValueId(identityBase + 2);
+        ValueId secondTarget = new ValueId(identityBase + 3);
+        CompiledNode reshape = new CompiledNode(
+                new NodeId(identityBase),
+                new Operation(
+                        ShapeTransformKind.RESHAPE,
+                        new TargetShapeAttrs(Shape.of(2, 3))),
+                List.of(firstFeed),
+                List.of(firstTarget));
+        CompiledNode expand = new CompiledNode(
+                new NodeId(identityBase + 1),
+                new Operation(
+                        ShapeTransformKind.EXPAND,
+                        new TargetShapeAttrs(Shape.of(2, 3))),
+                List.of(secondFeed),
+                List.of(secondTarget));
+        List<CompiledNode> nodes = reverse
+                ? List.of(expand, reshape)
+                : List.of(reshape, expand);
+        PlannedPartition partition = new PlannedPartition(
+                MetalCapabilityProvider.METAL_BACKEND_ID,
+                nodes.stream().map(CompiledNode::id).toList());
+        return new Workload(new PrepareContext<>(
+                new PartitionDag(partition, nodes),
+                List.of(
+                        new GraphValue(firstFeed, inputDescriptor),
+                        new GraphValue(firstTarget, outputDescriptor),
+                        new GraphValue(secondFeed, inputDescriptor),
+                        new GraphValue(secondTarget, outputDescriptor)),
+                List.of(
+                        new LogicalMemoryRequirement(
+                                firstFeed,
+                                inputDescriptor,
+                                Optional.empty(),
+                                List.of(partition),
+                                false),
+                        new LogicalMemoryRequirement(
+                                firstTarget,
+                                outputDescriptor,
+                                Optional.of(partition),
+                                List.of(),
+                                true),
+                        new LogicalMemoryRequirement(
+                                secondFeed,
+                                inputDescriptor,
+                                Optional.empty(),
+                                List.of(partition),
+                                false),
+                        new LogicalMemoryRequirement(
+                                secondTarget,
+                                outputDescriptor,
+                                Optional.of(partition),
+                                List.of(),
+                                true)),
+                Map.of(),
+                new MetalNegAnalysisInputs(device)));
+    }
+
+    private static TensorDescriptor canonical(Shape shape) {
+        return new TensorDescriptor(
+                DataType.FLOAT32,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                false);
+    }
+
+    private static TensorDescriptor view(Shape shape, long... strides) {
+        return new TensorDescriptor(
+                DataType.FLOAT32,
+                shape,
+                Optional.of(LayoutDescriptor.of(shape, strides, 0L, true)),
+                false);
+    }
+
 
     private static BackendPartitionAnalysis<MetalNegPreparationPlan> analyze(
             PrepareContext<MetalNegAnalysisInputs> context) {
