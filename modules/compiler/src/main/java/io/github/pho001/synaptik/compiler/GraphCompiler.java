@@ -194,7 +194,7 @@ final class GraphCompiler {
      * Compiles one graph and derives its immutable publication and backend-neutral planning
      * artifacts.
      *
-     * <p>All nine top-level arguments are validated in declaration order before graph
+     * <p>All ten top-level arguments are validated in declaration order before graph
      * construction. The existing graph-stage compile entry is invoked exactly once. Publication,
      * constant, caller Tensor identity, and diagnostic snapshots are then built from its final
      * graph. Thus published-constant closure, eligible static convolution closure, and the
@@ -203,6 +203,8 @@ final class GraphCompiler {
      * cross-validation.</p>
      *
      * @param mode non-null graph-scope mode
+     * @param numericalProfile non-null immutable graph-wide numerical-profile identity retained
+     *     unchanged in capability queries and compile artifacts
      * @param forwardOutputs non-null, non-empty ordered requested forward boundary
      * @param functionalGradientRequest non-null optional functional request with mode-compatible
      *     presence

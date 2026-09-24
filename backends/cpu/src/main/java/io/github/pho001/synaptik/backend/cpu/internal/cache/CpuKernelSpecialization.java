@@ -341,12 +341,14 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
     /**
      * Returns the stable generated-class identity projection.
      *
-     * <p>Schema 54 adds MATMUL forms. Retaining schema 52 for every unchanged family in this
- * projection preserves byte-exact binary names and class bytes for otherwise unchanged
- * pointwise specializations, while {@link #compatibilityBytes()} invalidates every schema-53
- * persisted envelope.</p>
+     * <p>Family-specific class-identity schema numbers remain selective: unchanged families retain
+     * schema 52 while MATMUL begins at schema 54 and later specialized families use their assigned
+     * schemas. Generator schema 67 nevertheless inserts the stable numerical-profile wire identity
+     * into every projection. Consequently, otherwise-equal specializations remain deterministic
+     * within one profile, while pre-67 and cross-profile binary names and class bytes are
+     * intentionally incompatible.</p>
      *
-     * @return a new deterministic schema-52 or MATMUL schema-54 identity byte array
+     * @return a new deterministic family-schema and numerical-profile identity byte array
      */
     public byte[] classIdentityBytes() {
         return (classIdentitySchema + "|" + loweringFingerprint.hex() + "|"

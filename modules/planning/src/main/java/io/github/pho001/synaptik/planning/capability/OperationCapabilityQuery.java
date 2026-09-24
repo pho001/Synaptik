@@ -16,7 +16,7 @@ import java.util.Objects;
  * and output counts declared by the operation's signature. It does not interpret profile
  * semantics or validate descriptor compatibility, graph closure, backend availability, hard
  * requirements, scoring, preparation, routing, or execution.</p>
-+
+ *
  * <p>Record equality, hashing, and diagnostic text use the profile, operation, and both ordered
  * snapshots. The diagnostic text is not a serialization or dispatch contract.</p>
  *

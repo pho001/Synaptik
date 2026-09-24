@@ -97,19 +97,20 @@ than consuming a caller position. Existing shared `GraphPreparation` tests indep
 the chain `CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
 Once stable values, states, feeds, targets, checked byte geometry, and typed node records are
-known, analysis creates a version-four candidate batch and workload fingerprint. MPSGraph is valid
+known, analysis creates a version-five candidate batch and workload fingerprint. MPSGraph is valid
 for every supported partition. The custom candidate exists only for one `NEG` node, one feed, one
 target, and an element count in `1..UINT32_MAX`; affine and `CONTIGUOUS` nodes never select it.
 Candidate order is the current safe heuristic first and then the other valid route, so a positive
 budget returns a stable prefix and budget one cannot change ordinary preparation.
 
-The version-four canonical workload fingerprint covers typed node kinds and attributes, ordered
-edges, explicit value states, complete tensor descriptors and logical layouts, dense represented-
-order geometry, target set, exact `FLOAT32` splat bits, logical-boundary roles, exact/default
-policy, candidate and route-policy schemas, native node schema, and ABI version. It encodes
-structural positions rather than `NodeId`, `ValueId`, or partition object identity, so equal
-occurrences within one live context compare equally. Target compatibility also contains a fresh
-private nonce from the exact `MetalDeviceContext`; stale version-three decisions fail closed.
+The version-five canonical workload fingerprint covers the explicit numerical-profile wire value,
+typed node kinds and attributes, ordered edges, explicit value states, complete tensor descriptors
+and logical layouts, dense represented-order geometry, target set, exact `FLOAT32` splat bits,
+logical-boundary roles, exact/default policy, candidate and route-policy schemas, native node
+schema, and ABI version. It encodes structural positions rather than `NodeId`, `ValueId`, or
+partition object identity, so equal occurrences under the same profile and live context compare
+equally. Target compatibility also contains a fresh private nonce from the exact
+`MetalDeviceContext`; version-four and earlier decisions fail closed.
 
 Metal can construct an absent- or present-decision `BackendPartitionTuningHandoff`. Fresh analysis
 always regenerates the current batch. A present decision is accepted only when the exact partition,
@@ -123,11 +124,12 @@ supported singleton has only the MPSGraph candidate; analysis does not reject or
 
 ### Session decision codec and limitations
 
-The package-private version-four Metal codec produces bounded canonical compatibility, candidate,
-and checksummed decision bytes. Decode rejects wrong magic, schema, session scope, malformed or
-truncated content, trailing or corrupt bytes, changed workload or context, and unknown or pruned
-candidates. The bytes contain no native handle or executable. Earlier codec versions fail closed
-even when their trailing checksum is otherwise valid.
+The package-private version-five Metal codec produces bounded canonical compatibility, candidate,
+and checksummed decision bytes. Decode rejects wrong magic, schema, session scope, numerical
+profile, malformed or truncated content, trailing or corrupt bytes, changed workload or context,
+and unknown or pruned candidates. The bytes contain no native handle or executable. Earlier codec
+versions and cross-profile decisions fail closed even when their trailing checksum is otherwise
+valid.
 
 This codec is only the backend-side authentication foundation. It performs no file input/output,
 measurement, winner selection, or persistent reuse, and there is no `tools/tuning`, Engine, or

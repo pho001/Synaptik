@@ -67,10 +67,12 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
         private final byte[] bytes;
 
         /**
-         * Snapshots canonical version-four workload-fingerprint bytes.
+         * Snapshots canonical schema-five workload-fingerprint bytes.
+         *
+         * <p>The bytes include the stable explicit numerical-profile wire identity, so otherwise
+         * equal workloads under different profiles cannot share workload identity.</p>
          *
          * @param bytes non-null non-empty canonical bytes within the generator bound
-         * @throws NullPointerException if {@code bytes} is {@code null}
          * @throws IllegalArgumentException if {@code bytes} is empty or exceeds the bound
          */
         WorkloadSignature(byte[] bytes) {
