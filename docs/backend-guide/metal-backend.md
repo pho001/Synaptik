@@ -2,28 +2,28 @@
 
 ## Outcome and supported scope
 
-The Metal backend executes one whole maximal profile-homogeneous Metal partition. Under
-`STRICT_IEEE`, every occurrence is parameterless `NEG` or `ABS`, one of `RESHAPE`, `EXPAND`,
-`PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE`, or the explicit `CONTIGUOUS` canonicalization barrier.
-Strict graph feeds and direct `NEG` or `ABS` operands are canonical dense, zero-offset non-views. A
-strict affine or `CONTIGUOUS` input may also be an exact resolved zero-offset view produced by an
-earlier admitted affine node in the same partition. Affine outputs retain exact Model/Compiler
-logical view geometry. `CONTIGUOUS` has unchanged Shape and canonical output geometry; it must
-separate an affine view from `NEG` or `ABS`.
+The Metal backend executes one whole maximal profile-homogeneous Metal partition. Under both
+profiles the common exact domain contains parameterless `NEG` and `ABS`, `RESHAPE`, `EXPAND`,
+`PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and the explicit `CONTIGUOUS` canonicalization barrier. Graph
+feeds and direct `NEG` or `ABS` operands are canonical dense, zero-offset non-views. An affine or
+`CONTIGUOUS` input may also be an exact resolved zero-offset view produced by an earlier admitted
+affine node in the same partition. Affine outputs retain exact Model/Compiler logical view
+geometry. `CONTIGUOUS` has unchanged Shape and canonical output geometry; it must separate an
+affine view from `NEG` or `ABS`.
 
-Under `ACCELERATOR`, every occurrence is exact `ABS`, tensor `ADD`, `SUB`, `MUL`, or `DIV`, a
-canonical `FLOAT32` reduction, positive static rank-two `FLOAT32` `MATMUL`, or the exact local
-rank-two `PERMUTE [1,0]` that supplies a MATMUL operand. The reduction set is full, normalized
+`ACCELERATOR` additionally admits tensor `ADD`, `SUB`, `MUL`, or `DIV`, canonical `FLOAT32`
+reductions, and positive static rank-two `FLOAT32` `MATMUL`. The reduction set is full, normalized
 single-axis, ordered normalized multi-axis including the empty identity, and exact keep-dimensions
-`SUM` or `MEAN`, plus binding-resolved `SUM_TO_SHAPE`. `ABS` has one canonical dense, zero-offset
-non-view input and an equal canonical output. Binary operations have two such ordered inputs, and
-their output Shape is the exact right-aligned broadcast of the input Shapes. MATMUL accepts
-canonical inputs or authenticated local transposes of canonical sources, requires exact
-`[M,K] @ [K,N] -> [M,N]` geometry, and produces a canonical output. Reduction and ordinary inputs
-are positive-rank `1..16`; a locally produced reduction target may be scalar. Every descriptor is
-fully static, checked `FLOAT32`, and has the operation-specific exact layout and `requiresGrad`
-relationship. `ABS` has the same exact Model result contract in both profiles; it receives no
-DAZ/FTZ, approximation, or profile-specific arithmetic freedom.
+`SUM` or `MEAN`, plus binding-resolved `SUM_TO_SHAPE`. Binary operations have two canonical dense,
+zero-offset non-view inputs, and their output Shape is the exact right-aligned broadcast of the
+input Shapes. MATMUL accepts canonical inputs or authenticated local transposes of canonical
+sources, requires exact `[M,K] @ [K,N] -> [M,N]` geometry, and produces a canonical output. Its
+authentication applies only to the affine operand on the consuming edge; the same transpose may
+also be published or have another valid affine consumer. Reduction and ordinary inputs are
+positive-rank `1..16`; a locally produced reduction target may be scalar. Every descriptor is fully
+static, checked `FLOAT32`, and has the operation-specific exact layout and `requiresGrad`
+relationship. The common exact operations have the same Model result contract in both profiles;
+they receive no DAZ/FTZ, approximation, or profile-specific arithmetic freedom.
 
 ```text
 capability -> Planning ownership -> Metal analysis and typed candidates
@@ -34,25 +34,25 @@ capability -> Planning ownership -> Metal analysis and typed candidates
 ```
 
 Capability applies per occurrence. Preparation then authenticates the complete maximal partition
-that Planning forms: strict NEG/ABS/affine/canonicalization graphs or accelerator
-ABS/binary/reduction/MATMUL chains with stable fan-out, repeated and ordered inputs, internal
-publications, and multiple feeds and targets. A positive-rank reduction result may compose with
-other supported accelerator nodes; a scalar reduction result is a direct target only. A local
-transpose accepted as a MATMUL operand must be produced inside the same partition from a canonical
-source and cannot itself be a boundary target. Scalar pointwise operation families; masked,
-extrema, and product reductions; every unary operation other than listed `NEG` and `ABS`, including
-`EXP`, `SIGMOID`, `RELU`, and `TANH`; comparison/logical operations; strict MATMUL; vector or
-batched MATMUL; profile-crossing operations; attributes outside the listed forms; and every other
-type, zero extent, dynamic or unresolved layout, noncanonical graph feed, foreign view,
-affine-to-NEG/ABS edge without `CONTIGUOUS`, mismatched descriptor, and multi-output form remain
-fail-closed.
+that Planning forms: common NEG/ABS/affine/canonicalization graphs and, under accelerator, valid
+compositions with binary/reduction/MATMUL nodes, stable fan-out, repeated and ordered inputs,
+internal publications, and multiple feeds and targets. A positive-rank reduction result may
+compose with other supported accelerator nodes; a scalar reduction result is a direct target only.
+A local transpose accepted as a MATMUL operand must be produced inside the same partition from a
+canonical source, but its other valid affine consumers and boundary publication remain available.
+Scalar pointwise operation families; masked, extrema, and product reductions; every unary
+operation other than listed `NEG` and `ABS`, including `EXP`, `SIGMOID`, `RELU`, and `TANH`;
+comparison/logical operations; strict MATMUL; vector or batched MATMUL; profile-crossing
+operations; attributes outside the listed forms; and every other type, zero extent, dynamic or
+unresolved layout, noncanonical graph feed, foreign view, affine-to-NEG/ABS edge without
+`CONTIGUOUS`, mismatched descriptor, and multi-output form remain fail-closed.
 
 Within that capability domain, Metal analysis generates a typed complete candidate batch
 and selects one of two private routes:
 
-- `CUSTOM_SINGLE_NEG` for exactly one NEG occurrence, one unique feed, one unique target, and a
-  checked element count in `1..UINT32_MAX`; or
-- `MPSGRAPH` for every other supported strict partition and every accelerator partition.
+- `CUSTOM_SINGLE_NEG` for exactly one NEG occurrence under either profile, one unique feed, one
+  unique target, and a checked element count in `1..UINT32_MAX`; or
+- `MPSGRAPH` for every other supported partition.
 
 With no selected decision, the first candidate preserves this exact heuristic. A compatible
 session-local decision can select the other valid route for an eligible singleton. This remains a
@@ -78,7 +78,7 @@ device discovery.
 
 | Stage or resource | Owner and current behavior |
 |---|---|
-| Capability truth | Public `MetalCapabilityProvider` reports only exact canonical FLOAT32 ABS under both profiles, the strict NEG/affine/`CONTIGUOUS` domain, and the accelerator tensor-binary, reduction, and positive static rank-two MATMUL domains above. |
+| Capability truth | Public `MetalCapabilityProvider` reports the exact canonical FLOAT32 NEG/ABS/affine/`CONTIGUOUS` domain under both profiles and the accelerator-only tensor-binary, reduction, and positive static rank-two MATMUL domains above. |
 | Native configuration and integration | Public `MetalBackendConfiguration` and `MetalBackendIntegration` belong to Metal. Metal validates configuration, opens native ownership, and rolls partial construction back before Engine can take the completed integration. |
 | Backend ownership | Planning chooses `owner = metal` and groups consecutive equal owners; it never selects MPSGraph or a custom kernel. |
 | Analysis | Package-private Metal code validates the complete partition, assigns stable structural value order, regenerates typed route candidates and session compatibility, authenticates any supplied decision, fixes one route, and declares that route's exact resources. |
@@ -99,29 +99,30 @@ recipes, native handles, Objective-C objects, MPSGraph types, and the custom rou
 ### Capability, whole-partition analysis, and route selection
 
 `MetalCapabilityProvider.supports` checks one occurrence, its numerical profile, and its exact
-descriptors. In strict mode it admits a resolved zero-offset view input only for affine or
-`CONTIGUOUS` occurrences because the query contains no graph closure. In either profile `ABS`
-requires one canonical input and equal canonical output. In accelerator mode each binary requires
-two canonical inputs and the exact broadcast output. A reduction requires one positive-rank
-canonical input and its exact full, normalized-axis, keep-dimensions, empty-axis identity, or
-binding-resolved sum-to-Shape output; only a reduction output may be rank zero. Accelerator
-MATMUL requires two positive static rank-two FLOAT32 inputs, exact contraction and output Shapes,
-canonical output, and canonical or exact transpose layout operands. Strict MATMUL is false.
+descriptors. Under either profile it admits a resolved zero-offset view input only for affine or
+`CONTIGUOUS` occurrences because the query contains no graph closure; `NEG` and `ABS` require one
+canonical input and an equal canonical output. In accelerator mode each binary requires two
+canonical inputs and the exact broadcast output. A reduction requires one positive-rank canonical
+input and its exact full, normalized-axis, keep-dimensions, empty-axis identity, or binding-resolved
+sum-to-Shape output; only a reduction output may be rank zero. Accelerator MATMUL requires two
+positive static rank-two FLOAT32 inputs, exact contraction and output Shapes, canonical output, and
+canonical or exact transpose layout operands. Strict MATMUL is false.
 Availability and hard backend requirements remain separate Planning facts.
 
 After Planning creates one maximal Metal partition, analysis walks nodes in partition order with
-explicit unavailable, canonical, and affine-view states. Every strict view input must resolve to
-an earlier admitted affine producer in that exact partition; every graph feed is canonical;
+explicit unavailable, canonical, and affine-view states. Every view input must resolve to an
+earlier admitted affine producer in that exact partition; every graph feed is canonical;
 `CONTIGUOUS` produces canonical state; and `NEG` and `ABS` reject affine-view state. Accelerator
-ABS, binary, and reduction nodes consume only canonical values and produce canonical values;
-binary nodes preserve the exact broadcast Shape, while reduction lowering preserves its typed
-form, ordered axes, keep-dimensions state, sum-to-Shape target, and checked term geometry.
-MATMUL produces canonical state and may consume affine state only when analysis authenticates the
-exact value as a local rank-two transpose of a canonical source. Every such transpose must feed a
-MATMUL and cannot be a partition boundary. A positive-rank result can feed later admitted nodes;
-a scalar result must be a direct target. Stable value indexing follows first encounter. Repeated
-use names the same value. Only feeds and published boundary targets receive Runtime slots; other
-intermediates remain symbolic MPSGraph tensors.
+binary and reduction nodes consume only canonical values and produce canonical values; binary
+nodes preserve the exact broadcast Shape, while reduction lowering preserves its typed form,
+ordered axes, keep-dimensions state, sum-to-Shape target, and checked term geometry. MATMUL
+produces canonical state and may consume affine state only when analysis authenticates that exact
+operand as a local rank-two transpose of a canonical source. That authentication constrains only
+the MATMUL input edge; the view may be published or used by another admitted affine operation.
+A positive-rank result can feed later admitted nodes; a scalar result must be a direct target.
+Stable value indexing follows first encounter. Repeated use names the same value. Only feeds and
+published boundary targets receive Runtime slots; other intermediates remain symbolic MPSGraph
+tensors.
 
 Analysis receives compile-time constant sources through `PrepareContext.constants()`. A boundary
 constant must be an exact `FLOAT32` splat. The run uses an `InitializedBuffer` for that feed rather
@@ -129,12 +130,12 @@ than consuming a caller position. Existing shared `GraphPreparation` tests indep
 the chain `CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
 Once stable values, states, feeds, targets, checked byte geometry, and typed node records are
-known, analysis creates a version-nine candidate batch and workload fingerprint. MPSGraph is
-valid for every supported partition. The custom candidate exists only for one strict `NEG` node,
-one feed, one target, and an element count in `1..UINT32_MAX`; ABS, affine, `CONTIGUOUS`,
-accelerator binary, reduction, and MATMUL nodes never select it. Candidate order is the current
-safe heuristic first and then the other valid route, so a positive budget returns a stable prefix
-and budget one cannot change ordinary preparation.
+known, analysis creates a version-nine candidate batch and workload fingerprint. MPSGraph is valid
+for every supported partition. The custom candidate exists only for one `NEG` node under either
+profile, one feed, one target, and an element count in `1..UINT32_MAX`; ABS, affine, `CONTIGUOUS`,
+binary, reduction, and MATMUL nodes never select it. Candidate order is the current safe heuristic
+first and then the other valid route, so a positive budget returns a stable prefix and budget one
+cannot change ordinary preparation.
 
 The version-nine canonical workload fingerprint covers the explicit numerical-profile wire value,
 schema-eight typed node kinds and attributes, ordered first/second input edges, reduction form,
@@ -571,13 +572,12 @@ Related documentation:
 
 ## Numerical profiles
 
-Metal capability and preparation use two exact profile matrices. Both admit canonical `FLOAT32`
-`ABS` with no relaxed result. `STRICT_IEEE` additionally retains the NEG/affine/`CONTIGUOUS`
-baseline; `ACCELERATOR` additionally admits tensor `FLOAT32` `ADD`/`SUB`/`MUL`/`DIV` with exact
-broadcasting, canonical `FLOAT32` `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two
-`FLOAT32` MATMUL with authenticated local transposes. Accelerator arithmetic uses only its
-operation-specific Model-owned bounded DAZ/FTZ, reassociation/FMA, NaN, and final-result exact-zero
-sign contracts. The profile is retained in partition plans and participates in route-candidate,
-tuning-compatibility, decision-codec, and workload identity. Java enforces the profile boundary
-before native entry. Native ABI version `4` remains unchanged; MPSGraph node schema `8` retains
-wires `1..14` and appends `MATMUL=15`.
+Metal capability and preparation make the exact canonical `FLOAT32`
+NEG/ABS/affine/`CONTIGUOUS` domain common to both profile matrices. `ACCELERATOR` additionally
+admits tensor `FLOAT32` `ADD`/`SUB`/`MUL`/`DIV` with exact broadcasting, canonical `FLOAT32`
+`SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two `FLOAT32` MATMUL with authenticated local
+transposes. Accelerator arithmetic uses only its operation-specific Model-owned bounded DAZ/FTZ,
+reassociation/FMA, NaN, and final-result exact-zero sign contracts. The profile is retained in
+partition plans and participates in route-candidate, tuning-compatibility, decision-codec, and
+workload identity. Java enforces the profile boundary before native entry. Native ABI version `4`
+remains unchanged; MPSGraph node schema `8` retains wires `1..14` and appends `MATMUL=15`.

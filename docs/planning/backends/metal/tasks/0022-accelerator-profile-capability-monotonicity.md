@@ -4,14 +4,13 @@
 
 Ready
 
-Readiness verification: Metal 0021 is Complete at implementation `ef2c6a1a`, worker-evidence
-remediation `be5543f9`, and final evidence correction `5631d51f`; independent Class C review
-returned `APPROVE` with zero findings. Model 0027, Config 0006, Engine 0018, and Metal 0014–0015
-and 0019–0021 are Complete. Current source proves the defect is a profile gate, not a missing native
-operation: schema-eight wires and lowering already exist for every strict operation, while
-`MetalCapabilityProvider`, `MetalNegPartitionPreparer`, and
-`MetalNativeApi.MpsGraphExecutableAbi` deliberately exclude or constrain them under
-`ACCELERATOR`. This is the sole authorized Metal frontier.
+Implementation and the serial worker checkpoint are complete from planning HEAD `a56d0b8d`; the
+task remains Ready for independent Class C review. Metal 0021 is Complete at implementation
+`ef2c6a1a`, worker-evidence remediation `be5543f9`, and final evidence correction `5631d51f`;
+independent Class C review returned `APPROVE` with zero findings. Model 0027, Config 0006, Engine
+0018, and Metal 0014–0015 and 0019–0021 are Complete. The correction reuses all schema-eight
+operations/lowering, adds no numerical freedom or probe, retains ABI/schema/identity versions, and
+is the sole authorized Metal frontier pending review.
 
 ## Change class
 
@@ -94,10 +93,11 @@ and produce exactly the same allowed result set:
 
 No fresh numerical/device probe is required or authorized for Task 0022 because it adds no selector,
 wire, data type, native lowering, numerical algorithm, or result-set freedom. Existing strict
-selectors/lowering and strict raw-bit tests are reused unchanged under a second profile. If
-implementation requires a new selector, native algorithm, schema wire, numerical allowance, or
-operation-specific lowering rather than removing profile exclusions, stop and replan with a new
-evidence gate before production changes continue.
+selectors/lowering and strict raw-bit tests are reused unchanged under a second profile. Numerical
+probes are required only when authoritative documentation is silent and a new floating numerical
+capability claim depends on device behavior; the smallest deciding adversarial corpus is mandatory.
+If implementation requires a new selector, algorithm, schema wire, or numerical allowance, stop
+and replan with a new evidence gate before production changes continue.
 
 ## Capability, preflight, and route corrections
 
@@ -146,11 +146,13 @@ stable, and no stale or foreign decision becomes compatible. If current encoding
 those discriminating facts, stop and report the concrete collision; only then may a separately
 justified identity bump be planned. Do not bump versions defensively.
 
-The native Objective-C foundation already validates and lowers schema-eight wires for the strict
-operations without receiving a numerical-profile parameter. No production native source change is
-expected. Raw-native tests must prove existing schema-eight programs and mixed exact/accelerator
-programs remain accepted with unchanged Shape/state validation; native build/export checks prove
-ABI stability.
+The native Objective-C foundation already lowers every schema-eight wire without receiving a
+numerical-profile parameter. Source inspection during implementation found one validation-only
+mirror of the obsolete global transpose restriction: when a partition contained MATMUL, every
+recognized local transpose was required to be MATMUL-only and non-target. Remove only that
+validation bookkeeping while retaining MATMUL's operand-edge authentication. This changes no
+selector, lowering, status, signature, schema, or numerical behavior; native build/export and the
+existing raw topology test prove the correction and ABI stability.
 
 ## Non-goals
 
@@ -184,9 +186,9 @@ resolve the architecture text explicitly rather than preserving the current nonm
 - Parallel group: None
 - Common base revision: `5631d51f425bbc9f7cb579127a788dac550e0501` plus this planning-only
   authorization
-- Integration order: Serial after Metal 0021; capability/common-domain refactor, partition and Java
-  preflight correction, focused/raw-native/Engine proof, authoritative/explanatory documentation,
-  then independent Class C review
+- Integration order: Serial after Metal 0021; capability/common-domain refactor, partition,
+  Java/native preflight correction, contract-minimal focused/Engine proof,
+  authoritative/explanatory documentation, then independent Class C review
 - Integration validation: Metal numerical-profile capability-monotonicity Class C checkpoint
 - Shared-document integration owner: task implementer, finalized by independent Class C review
 
@@ -205,9 +207,9 @@ resolve the architecture text explicitly rather than preserving the current nonm
 - `MetalNegPreparationPlan`, `MetalNegPartitionFinalizer`, `MetalNegPreparedExecutable`,
   `MetalMpsGraphExecutableResource`, and `MetalNegKernelPipelineResource` — expected production
   no-change; lifecycle tests prove existing resources serve the newly admitted profiles.
-- `native/metal-macos-arm64/src/synaptik_metal_foundation.m` — no expected production edit;
-  `MetalMpsGraphRawAbiNativeTest` and native integration prove schema-eight mixed programs and
-  unchanged thirteen-export ABI.
+- `native/metal-macos-arm64/src/synaptik_metal_foundation.m` — remove only the global
+  transpose-consumer/target validation mirror; `MetalMpsGraphRawAbiNativeTest` flips the obsolete
+  rejection to acceptance and native build/export proves unchanged schema-eight/thirteen-export ABI.
 - `MetalCapabilityProviderTest`, `MetalMpsGraphAffineSchemaTest`,
   `MetalMpsGraphAffineNativeTest`, `MetalMpsGraphRawAbiNativeTest`,
   `MetalNegPreparedExecutionTest`, and `MetalNegRouteCandidateGeneratorTest`.
@@ -217,108 +219,167 @@ resolve the architecture text explicitly rather than preserving the current nonm
   package/type Javadocs, Metal/native/backend/API/user/capability/preparer guides, targeted glossary,
   and synchronized planning after executable behavior passes.
 
-## Test and public Engine requirements
+## Contract-minimal test and public Engine requirements
 
-### Capability and preflight
+- One table-driven capability test covers one representative of every common exact operation plus
+  the existing cheap rank and descriptor boundaries. Every strict-positive representative must be
+  accelerator-positive; existing strict negatives and accelerator-only strict rejection remain.
+- One focused Java preflight case covers a general affine chain, direct affine publication,
+  `CONTIGUOUS`, NEG/ABS, and accelerator binary composition. The existing focused MATMUL case must
+  still reject a non-transpose affine input and accept canonical/authenticated-transpose inputs.
+- Existing route/codec coverage already proves cross-profile rejection and all version-nine
+  constants. Add only the missing valid accelerator singleton-NEG candidate/signature check.
+- Replace the obsolete raw-native assertion that a MATMUL-consumed transpose cannot also be a
+  target with acceptance. Existing raw/native tests own all unchanged schema and malformed-input
+  coverage; do not duplicate it.
+- One real CPU-free Engine smoke under `ACCELERATOR` composes affine publication,
+  `CONTIGUOUS`, NEG/ABS, tensor binary arithmetic, and reduction in one maximal Metal partition,
+  materializes exact raw bits, and proves there is no CPU owner or fallback.
 
-- Convert every existing accelerator-false assertion for strict NEG/affine/CONTIGUOUS into a
-  positive assertion over the identical descriptors. Add a table-driven monotonicity invariant:
-  every representative strict-positive kind, rank boundary, affine chain, and canonicalization form
-  is accelerator-positive with the same inputs/outputs.
-- Retain negative matrices for wrong attrs, FLOAT64/other types, scalar/zero/dynamic/rank-17 Shapes,
-  offset/foreign/arbitrary views, bad permutations/axes/target Shapes, gradient mismatch, malformed
-  topology, and every unsupported kind. Monotonicity does not turn strict negatives into positives.
-- Java preflight accepts general accelerator affine programs and mixed common/accelerator programs,
-  while strict preflight still rejects ADD/SUB/MUL/DIV/SUM/MEAN/MATMUL. MATMUL must still reject an
-  arbitrary affine input and accept only a canonical input or the authenticated local rank-two
-  transpose edge.
-- Prove a general accelerator PERMUTE may be a target or feed CONTIGUOUS/another affine operation;
-  prove a rank-two transpose can feed MATMUL and also participate in another valid local use without
-  losing authentication.
-
-### Route, identity, native, and lifecycle
-
-- Candidate tests prove an accelerator singleton NEG exposes the existing safe candidate order,
-  custom and MPSGraph routes remain exact, profile remains in workload/compatibility/codec identity,
-  cross-profile selection rejects, all version constants remain nine, and existing signature
-  fixtures remain unchanged.
-- Raw/native tests execute unchanged schema-eight NEG and every affine/CONTIGUOUS wire under the
-  corrected Java accelerator preflight, plus mixed chains with ABS and accelerator arithmetic.
-  Verify direct targets, stable/permuted feeds/targets, raw-bit preservation, canaries, input
-  preservation, reuse, concurrency, sessions/contexts, rollback, cleanup, and close rejection.
-- Assert ABI v4 and exactly thirteen exports. Assert schema 8, wires `1..15`, and version-nine
-  identities. No test may rewrite expected constants to a new version.
-
-### Real CPU-free Engine behavior
-
-Under `ACCELERATOR`, the real dylib and CPU-free Engine must execute and raw-bit-check:
-
-- direct singleton NEG, including the existing custom-route domain;
-- direct publication of each admitted affine transform and CONTIGUOUS;
-- a general affine chain whose view is canonicalized by CONTIGUOUS before NEG/ABS and accelerator
-  binary arithmetic;
-- composition from NEG/ABS into accelerator reduction and a valid MATMUL case;
-- an exact local transpose consumed by MATMUL while general affine publication remains valid;
-- session reuse, independent session, concurrency, close/rejection, and direct materialization.
-
-Run the same strict baseline smoke to prove behavior is unchanged. Inspect ownership/partition
-artifacts to prove each eligible mixed graph is one maximal Metal partition and contains no CPU
-owner, inserted transfer, host fallback, or hidden canonicalization. Results must assert exact raw
-bits and Shapes, not merely successful execution.
+Existing strict lowering, direct-operation matrices, feed permutations, fan-out, reuse,
+concurrency, lifecycle, rollback, sessions/contexts, cleanup, and close tests remain authoritative
+for unchanged behavior. Task 0022 must not duplicate those matrices. Native build/export is
+required only because implementation found and removed the validation-only native restriction; no
+numerical device probe is run.
 
 ## Acceptance criteria
 
-1. For the complete enumerated current Metal domain, every STRICT_IEEE-supported occurrence is also
+1. For the enumerated representative Metal domain, every STRICT_IEEE-supported occurrence is also
    ACCELERATOR-supported with identical descriptor boundaries. Strict accelerator-only families
-   remain false and every existing out-of-domain negative remains false.
+   remain false and existing out-of-domain negatives remain false.
 2. ACCELERATOR admits exact NEG, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, CONTIGUOUS, and
    ABS semantics without a new result freedom, selector, lowering, or numerical probe.
-3. Whole-partition analysis and Java preflight accept every valid common-plus-accelerator
-   composition, general affine publication/consumption, and CONTIGUOUS state bridge, while retaining
-   exact MATMUL local-transpose authentication and all malformed/foreign-state rejection.
+3. Whole-partition analysis and Java/native preflight accept common-plus-accelerator composition,
+   general affine publication/consumption, and the CONTIGUOUS state bridge, while retaining exact
+   MATMUL local-transpose authentication and malformed/foreign-state rejection.
 4. ABI v4 retains exactly thirteen exports; schema 8 and wires `1..15` remain unchanged; workload,
-   exact-policy, candidate, compatibility, route-policy, and codec versions remain 9. Tests prove
-   profile/signature separation and absence of a cache-identity collision.
-5. Existing custom singleton NEG and MPSGraph resources execute under accelerator with unchanged
-   direct binding, lifecycle, reuse, concurrency, rollback, cleanup, and hot-path behavior. No
-   native production edit or new resource exists.
-6. Real CPU-free Engine raw-bit-checks each newly admitted operation and mixed maximal-partition
-   composition under accelerator, while strict baseline behavior and accelerator-only operations
-   remain unchanged.
+   exact-policy, candidate, compatibility, route-policy, and codec versions remain 9. Existing
+   codec coverage plus the focused accelerator NEG check prove profile/signature separation.
+5. Existing custom singleton NEG and MPSGraph resources serve accelerator workloads without a new
+   route or resource. Existing unchanged lifecycle tests remain authoritative.
+6. One real CPU-free Engine mixed maximal-partition smoke raw-bit-checks the corrected accelerator
+   composition and proves no CPU owner, transfer, or host fallback.
 7. Authoritative architecture and explanatory docs state the capability/behavior monotonicity
-   invariant and exact current matrix; no stale text says accelerator rejects strict operations.
-8. Focused Metal/Javadoc, raw-native/export, conformance, real Engine, architecture, full-build,
-   Markdown/status/frontier, and diff checks pass; independent Class C review has no unresolved
-   finding.
+   invariant and exact current matrix; no stale current text says accelerator rejects common exact
+   operations.
+8. Focused changed-path Metal/Javadoc, raw-native/export, conformance, real Engine, architecture,
+   one full build, Markdown/status/frontier, and diff checks pass; independent Class C review has
+   no unresolved finding.
 
 ## Validation
 
-No numerical probe command belongs to this task. Worker validation:
+No numerical probe command belongs to this task. The worker runs the focused changed paths, then
+one full build:
 
 ```bash
 ./native/metal-macos-arm64/build.sh
 nm -gU native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib
-SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" ./gradlew :backends:metal:test :backends:metal:javadoc
-./gradlew :testing:backend-conformance:test --tests '*Metal*'
-SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" ./gradlew :testing:integration-tests:test --tests '*EngineExplicitCompositionMetalIntegrationTest*'
-./gradlew :testing:architecture-tests:test
+SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" ./gradlew :backends:metal:test --tests 'io.github.pho001.synaptik.backend.metal.MetalCapabilityProviderTest' --tests 'io.github.pho001.synaptik.backend.metal.MetalMpsGraphAffineSchemaTest' --tests 'io.github.pho001.synaptik.backend.metal.MetalMpsGraphRawAbiNativeTest' --tests 'io.github.pho001.synaptik.backend.metal.MetalNegRouteCandidateGeneratorTest'
+./gradlew :testing:backend-conformance:test --tests 'io.github.pho001.synaptik.testing.conformance.MetalNegCapabilityPartitionConformanceTest'
+SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" ./gradlew :testing:integration-tests:test --tests 'io.github.pho001.synaptik.testing.integration.EngineExplicitCompositionMetalIntegrationTest.cpuFreeAcceleratorPublishesAffineViewsAndRunsMixedExactComposition'
+./gradlew :backends:metal:javadoc :testing:architecture-tests:test
 ./gradlew build
 python3 /tmp/validate_synaptik_markdown.py
 git diff --check
 ```
 
-Record the strict-subset capability matrix, Java/native preflight positives and negatives, general
-PERMUTE versus MATMUL-authenticated transpose evidence, maximal mixed partitions, custom/MPSGraph
-routes, exact Engine raw bits/Shapes, lifecycle/concurrency, ABI/export/schema/version non-change,
-cache profile/signature separation, test counts/skips, changed paths, and synchronized status.
-The serial worker owns one full checkpoint. Independent review reruns executable checks only after
-relevant executable changes or when evidence is concretely stale.
+Record the strict-subset capability representatives, focused Java/native preflight positive and
+negative, general PERMUTE versus MATMUL-authenticated edge, maximal mixed partition, accelerator
+singleton candidates and cache profile/signature separation, exact Engine raw bits/Shapes,
+ABI/export/schema/version non-change, test counts/skips, changed paths, and synchronized status.
+Independent review reuses this evidence and reruns only for a concrete risk or relevant executable
+change.
+
+## Implementation result and worker evidence
+
+The common capability path now evaluates exact NEG/ABS/affine/`CONTIGUOUS` before the
+accelerator-only extension. The table-driven proof covers NEG, ABS, RESHAPE, EXPAND, PERMUTE,
+EXPAND_DIMS, SQUEEZE, CONTIGUOUS, and the rank-16 NEG boundary under both profiles. Existing
+negative matrices and strict rejection of binary/reduction/MATMUL remain unchanged.
+
+Partition analysis and Java preflight now accept general accelerator affine topology, targets, and
+the CONTIGUOUS bridge. The focused preflight program is
+RESHAPE -> EXPAND -> PERMUTE -> EXPAND_DIMS -> SQUEEZE -> CONTIGUOUS -> NEG -> ADD -> ABS with the
+general PERMUTE published directly; the existing malformed RESHAPE-to-MATMUL case still rejects.
+MATMUL recognizes an affine operand only when it is the exact local rank-two `PERMUTE [1,0]` of a
+canonical source. The native source needed one validation-only correction that planning had not
+identified: it independently enforced the obsolete MATMUL-wide transpose consumer/target rule.
+Only that bookkeeping was removed; edge authentication and lowering are unchanged. The raw native
+test now accepts one authenticated transpose as both MATMUL input and direct target.
+
+An accelerator singleton NEG exposes `CUSTOM_SINGLE_NEG` then `MPSGRAPH`; its workload signature
+differs from the otherwise identical strict workload. Existing codec tests reject both directions
+of cross-profile decision reuse. Candidate, compatibility, route-policy, exact-policy, workload,
+and codec versions remain 9. Node schema remains 8 with wires `1..15`; ABI remains 4.
+
+The real CPU-free Engine smoke owns one `metal` partition and no CPU partition, transfer, or host
+fallback. Starting from Shape `[6]`, it publishes exact raw bits through RESHAPE `[2,1,3]`, EXPAND
+`[2,4,3]`, PERMUTE `[4,2,3]`, EXPAND_DIMS `[4,2,1,3]`, SQUEEZE/CONTIGUOUS/NEG/ABS/ADD
+`[4,2,3]`, and axis-2 SUM `[4,2]`. Input values `[1,-2,3,-4,5,-6]` preserve exact affine bits;
+NEG flips only the sign bit, ABS is exact, ADD produces repeated `[2,4,6,8,10,12]`, and SUM
+produces repeated `[12,30]`, all asserted through raw-bit materialization.
+
+Worker checkpoint evidence:
+
+- Native build passed. `nm -gU` returned exactly the thirteen ABI-v4 exports:
+  `foundation_abi_version`, context create/release, buffer create/release/upload/download,
+  MPSGraph executable create/release/run, and NEG pipeline create/release/run.
+- Focused Metal capability/preflight/raw/identity command: 28 tests, 0 skipped, 0 failures.
+- Focused obsolete-assertion correction command: 56 tests, 0 skipped, 0 failures.
+- Focused Metal conformance: 5 tests, 0 skipped, 0 failures.
+- Focused real CPU-free Engine mixed smoke: 1 test, 0 skipped, 0 failures.
+- Metal Javadocs passed; architecture tests passed 9 tests, 0 skipped, 0 failures.
+- Markdown/link validation passed all 19 changed documents: 18 passed the duplicate-anchor validator;
+  `tensor-api.md` passed its structural/link scan with only its pre-existing repeated template
+  headings excluded.
+- `git diff --check` passed; the authoritative-doc stale-profile search returned no matches; the
+  change set contains exactly the 34 tracked paths below and no untracked path.
+- The final full `./gradlew build` passed. Its XML evidence contains 3,497 tests across 533 suites,
+  29 opt-in/performance skips, 0 failures, and 0 errors.
+- No numerical/device probe ran.
+
+Exact changed paths:
+
+- `ARCHITECTURE.md`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalCapabilityProvider.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNativeApi.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegPartitionPreparer.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/MetalNegPreparationPlan.java`
+- `backends/metal/src/main/java/io/github/pho001/synaptik/backend/metal/package-info.java`
+- `backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalCapabilityProviderTest.java`
+- `backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalFoundationTest.java`
+- `backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalMpsGraphAffineSchemaTest.java`
+- `backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalMpsGraphBinaryNativeTest.java`
+- `backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalMpsGraphRawAbiNativeTest.java`
+- `backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalNegPreparedExecutionTest.java`
+- `backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalNegRouteCandidateGeneratorTest.java`
+- `docs/api/compile-api.md`
+- `docs/api/public-api.md`
+- `docs/api/tensor-api.md`
+- `docs/architecture/contracts/backend-execution.md`
+- `docs/architecture/contracts/foundational-modules.md`
+- `docs/architecture/current-architecture-plan.md`
+- `docs/architecture/module-boundaries.md`
+- `docs/architecture/runtime-prepare-backend-boundary.md`
+- `docs/backend-guide/capability-provider.md`
+- `docs/backend-guide/metal-backend.md`
+- `docs/backend-guide/partition-preparer.md`
+- `docs/glossary.md`
+- `docs/index.md`
+- `docs/planning/backends/metal/master-plan.md`
+- `docs/planning/backends/metal/tasks/0022-accelerator-profile-capability-monotonicity.md`
+- `docs/planning/backends/metal/tasks/0023-exact-int32-gather-and-one-hot.md`
+- `docs/planning/roadmap.md`
+- `native/metal-macos-arm64/README.md`
+- `native/metal-macos-arm64/src/synaptik_metal_foundation.m`
+- `testing/backend-conformance/src/test/java/io/github/pho001/synaptik/testing/conformance/MetalNegCapabilityPartitionConformanceTest.java`
+- `testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineExplicitCompositionMetalIntegrationTest.java`
 
 ## Documentation and review impact
 
 Independent Class C review inspects the global monotonicity invariant, absence of widened operation
-domains or numerical freedoms, common capability implementation, complete topology/preflight
-correction, general affine publication and CONTIGUOUS bridging, retained MATMUL authentication,
-accelerator custom NEG, schema/ABI/identity non-change proof, real mixed Engine execution,
-lifecycle/concurrency/cleanup, Runtime/Trace absence, no-probe rationale, changed scope, and all
-authoritative/explanatory documentation and validation evidence.
+domains or numerical freedoms, common capability implementation, topology/preflight correction,
+general affine publication and CONTIGUOUS bridging, retained MATMUL authentication, accelerator
+custom NEG, schema/ABI/identity non-change proof, the one real mixed Engine smoke, reliance on
+existing unchanged lifecycle coverage, Runtime/Trace absence, no-probe rationale, changed scope,
+and all authoritative/explanatory documentation and validation evidence.

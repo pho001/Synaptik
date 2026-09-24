@@ -74,16 +74,6 @@ class MetalMpsGraphBinaryNativeTest {
                         new int[] {0, 1},
                         new int[] {2}));
 
-        MetalMpsGraphProgram baseline = new MetalMpsGraphProgram(List.of(
-                MetalMpsGraphProgram.Node.neg(0, 2)));
-        assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
-                        NumericalProfile.ACCELERATOR,
-                        new int[] {2, 1, 2},
-                        dimensions,
-                        baseline,
-                        new int[] {0, 1},
-                        new int[] {2}));
 
         long[] wrongBroadcast = dimensions(new long[][] {{2, 3}, {2}, {2, 3}});
         assertThrows(IllegalArgumentException.class, () ->

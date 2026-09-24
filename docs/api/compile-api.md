@@ -1590,7 +1590,7 @@ This compiler contract binds no dimension and claims no value repetition, storag
 materialization. The current fail-closed CPU path advertises, lowers, prepares, and executes only
 fully static, resolved-layout `EXPAND` occurrences with the exact singleton-expansion Shape and
 zero-stride view relationship, within a bounded one-through-eight-node affine unit. Metal also
-executes that strict static `FLOAT32` relationship after a canonical or local affine producer.
+executes that exact static `FLOAT32` relationship after a canonical or local affine producer.
 Dynamic binding and broader materialization remain planned.
 `Tensor.permute(int...)` accepts every current data type, requires a complete output-to-input axis
 mapping, normalizes each negative axis once, and reorders exact Dimension references. Any resolved
@@ -1614,7 +1614,7 @@ selected stride removed. Package-private structural capture can preserve the occ
 current fail-closed CPU path advertises, lowers, prepares, and executes only fully static,
 resolved-layout `EXPAND_DIMS`/`SQUEEZE` occurrences with the exact inserted/removed singleton
 Shape and same-offset stride relationship, within a bounded one-through-eight-node affine unit.
-Metal also executes those strict static `FLOAT32` relationships after a canonical or local affine
+Metal also executes those exact static `FLOAT32` relationships after a canonical or local affine
 producer. Gradient support remains the exact current Compiler matrix above. Dynamic singleton
 solving, inverse-pair canonicalization, and broader materialization remain planned.
 `Tensor.slice(long[], long[], int[], long[])` clones four parallel request arrays, normalizes raw

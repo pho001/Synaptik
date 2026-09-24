@@ -509,14 +509,6 @@ class MetalFoundationTest {
                         valid.feeds(),
                         valid.targets()));
 
-        assertThrows(IllegalArgumentException.class, () -> api.createMpsGraphExecutable(
-                context,
-                NumericalProfile.ACCELERATOR,
-                valid.ranks(),
-                valid.dimensions(),
-                valid.program(),
-                valid.feeds(),
-                valid.targets()));
         long[] binaryDimensions = new long[48];
         binaryDimensions[0] = 2;
         binaryDimensions[1] = 3;

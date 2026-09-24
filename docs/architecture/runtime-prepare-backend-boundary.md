@@ -635,9 +635,9 @@ workflow boundaries that feed prepare without entering runtime.
 
 `PrepareContext` carries the exact selected `NumericalProfile` into backend analysis and preserves
 it across projections. A backend must reject an unsupported profile/operation pair before route
-selection and retain supported profile identity in every reusable plan/cache boundary. CPU admits
-both profiles through identical exact routes. Metal admits exact canonical ABS in either matrix,
-strict NEG/affine/`CONTIGUOUS`, or accelerator tensor-binary, canonical
-`SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two MATMUL partitions with authenticated
-local transpose operands. A prepared schedule contains the fixed result, so Runtime requires
-neither the profile nor a policy lookup.
+selection, preserve strict capability as an accelerator subset, and retain supported profile
+identity in every reusable plan/cache boundary. CPU admits both profiles through identical exact
+routes. Metal admits exact canonical NEG/ABS/affine/`CONTIGUOUS` in either matrix and additionally
+admits accelerator tensor-binary, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static
+rank-two MATMUL partitions with authenticated local transpose operands. A prepared schedule
+contains the fixed result, so Runtime requires neither the profile nor a policy lookup.

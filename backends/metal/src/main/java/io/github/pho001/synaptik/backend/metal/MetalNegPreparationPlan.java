@@ -16,17 +16,18 @@ import java.util.Optional;
  * Retains the immutable, shape-specialized lowering and route facts for one whole supported Metal
  * partition.
  *
- * <p>The retained numerical profile closes the operation domain: strict partitions contain only
- * NEG, ABS, affine transforms, and CONTIGUOUS; accelerator partitions contain only ABS, tensor
- * ADD, SUB, MUL, DIV, the admitted reductions, rank-two MATMUL, and only the exact local rank-two
- * transposes consumed by MATMUL. Value indices, explicit canonical/affine-view states, typed
+ * <p>The retained numerical profile closes the operation domain: both profiles admit NEG, ABS,
+ * affine transforms, and CONTIGUOUS, while accelerator additionally admits tensor ADD, SUB, MUL,
+ * DIV, the admitted reductions, and rank-two MATMUL. An affine MATMUL input must be the exact local
+ * rank-two transpose authenticated on that consuming edge; the same affine value may otherwise be
+ * consumed or published normally. Value indices, explicit canonical/affine-view states, typed
  * MPSGraph nodes, feeds, targets, and declarations are already in their stable ABI order. The
  * route is either the safe heuristic or a freshly authenticated session-compatible decision, and
  * is fixed before this plan's declarations escape analysis. The plan contains no assigned slot,
- * tuning value, native executable, physical buffer, or per-run state. Strict affine targets retain
- * exact logical view descriptors alongside their full dense represented-order byte extents. The
- * address workspace is present only for MPSGraph. Primitive arrays are privately snapshotted and
- * copied when marshalled.</p>
+ * tuning value, native executable, physical buffer, or per-run state. Affine targets retain exact
+ * logical view descriptors alongside their full dense represented-order byte extents. The address
+ * workspace is present only for MPSGraph. Primitive arrays are privately snapshotted and copied
+ * when marshalled.</p>
  */
 final class MetalNegPreparationPlan implements BackendPreparationPlan {
     /** Closed private implementation choice made during analysis. */

@@ -40,7 +40,7 @@ import org.junit.jupiter.api.Test;
 
 /** Conformance checks for public Metal capability truth and Planning maximal closure. */
 final class MetalNegCapabilityPartitionConformanceTest {
-    /** Proves the strict and accelerator matrices admit only their complete listed domains. */
+    /** Proves the strict matrix is a subset of the complete accelerator matrix. */
     @Test
     void advertisesExactProfileQualifiedDomain() {
         var provider = new MetalCapabilityProvider();
@@ -56,7 +56,7 @@ final class MetalNegCapabilityPartitionConformanceTest {
                             List.of(matrix))),
                     "strict " + kind);
             assertEquals(
-                    kind == UnaryElementwiseKind.ABS,
+                    kind == UnaryElementwiseKind.NEG || kind == UnaryElementwiseKind.ABS,
                     provider.supports(query(
                             NumericalProfile.ACCELERATOR,
                             operation(kind),
@@ -169,7 +169,7 @@ final class MetalNegCapabilityPartitionConformanceTest {
                 contiguous,
                 List.of(matrix),
                 List.of(matrix))));
-        assertFalse(provider.supports(query(
+        assertTrue(provider.supports(query(
                 NumericalProfile.ACCELERATOR,
                 contiguous,
                 List.of(matrix),

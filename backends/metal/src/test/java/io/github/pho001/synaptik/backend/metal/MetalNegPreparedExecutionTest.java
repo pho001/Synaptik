@@ -644,9 +644,9 @@ class MetalNegPreparedExecutionTest {
                             Optional.of(fixture.partition()),
                             List.of(fixture.partition()),
                             true));
-            assertThrows(IllegalArgumentException.class,
-                    () -> analyze(
-                            boundaryTranspose, context, NumericalProfile.ACCELERATOR));
+            BackendPartitionAnalysis<MetalNegPreparationPlan> publishedTranspose =
+                    analyze(boundaryTranspose, context, NumericalProfile.ACCELERATOR);
+            assertTrue(publishedTranspose.plan().targetValueIds().contains(fixture.v2()));
 
             BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
                     analyze(fixture, context, NumericalProfile.ACCELERATOR);

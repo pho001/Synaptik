@@ -39,15 +39,16 @@ import java.util.Optional;
  *
  * <p>The deterministic analysis assigns stable native value indices, retains every node kind and
  * ordered operand, and derives unique feeds and targets before selecting a closed private route.
- * Under {@code STRICT_IEEE}, it walks explicit unavailable/canonical/affine-view states in node
- * order for the retained NEG/ABS, affine, and CONTIGUOUS domain. Under {@code ACCELERATOR}, it
- * accepts canonical ABS, binary arithmetic, the exact SUM/MEAN/SUM_TO_SHAPE reduction forms, and
- * positive static rank-two FLOAT32 MATMUL. An affine MATMUL operand is authenticated to the exact
- * earlier local rank-two {@code PERMUTE [1,0]} of a canonical source; that view may be consumed
- * only by local MATMUL and may not cross or become a partition boundary. MATMUL lowering retains
- * both ordered operands in a schema-eight wire-15 record. Reduction lowering retains the typed
- * form, ordered normalized axes (including empty), exact keep-dimensions flag, sum-to-Shape
- * target, and shape-derived term geometry. Every graph feed is canonical positive-rank FLOAT32.
+ * For both profiles, it walks explicit unavailable/canonical/affine-view states in node order for
+ * the retained NEG/ABS, affine, and CONTIGUOUS domain. Under {@code ACCELERATOR}, it additionally
+ * accepts binary arithmetic, the exact SUM/MEAN/SUM_TO_SHAPE reduction forms, and positive static
+ * rank-two FLOAT32 MATMUL. An affine MATMUL operand is authenticated to the exact earlier local
+ * rank-two {@code PERMUTE [1,0]} of a canonical source on that consuming edge; affine values
+ * otherwise retain the same valid local consumers and boundary publication as strict execution.
+ * MATMUL lowering retains both ordered operands in a schema-eight wire-15 record. Reduction
+ * lowering retains the typed form, ordered normalized axes (including empty), exact keep-dimensions
+ * flag, sum-to-Shape target, and shape-derived term geometry. Every graph feed is canonical
+ * positive-rank FLOAT32.
  * Analysis freshly regenerates the complete candidate batch; an absent decision preserves the
  * singleton-NEG heuristic, while a present decision must authenticate against current schema,
  * workload, profile, session target, and candidate identity. The selected route is fixed before
@@ -179,26 +180,8 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                             && outputValue.descriptor().shape().rank() == 2
                             && ((PermutationAttrs) node.operation().attrs())
                                     .axes().equals(List.of(1, 0));
-            if (numericalProfile == NumericalProfile.ACCELERATOR
-                    && lowered.kind() == MetalMpsGraphProgram.NodeKind.PERMUTE
-                    && !exactLocalTranspose) {
-                throw new IllegalArgumentException(
-                        "Metal accelerator PERMUTE must be an exact local rank-two transpose");
-            }
             localTranspose.put(outputId, exactLocalTranspose);
             states.put(outputId, lowered.kind().outputState());
-        }
-        if (numericalProfile == NumericalProfile.ACCELERATOR) {
-            for (Map.Entry<ValueId, Boolean> entry : localTranspose.entrySet()) {
-                if (!entry.getValue()) continue;
-                var consumers = context.partitionDag().consumers(entry.getKey());
-                if (consumers.isEmpty()
-                        || consumers.stream().anyMatch(consumer ->
-                                consumer.node().operation().kind() != MatmulKind.MATMUL)) {
-                    throw new IllegalArgumentException(
-                            "Metal local transpose must be consumed only by local MATMUL");
-                }
-            }
         }
         var graphProgram = new MetalMpsGraphProgram(programNodes);
 
@@ -230,12 +213,6 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     targets.add(output);
                 }
             }
-        }
-        if (numericalProfile == NumericalProfile.ACCELERATOR
-                && targets.stream().anyMatch(
-                        target -> Boolean.TRUE.equals(localTranspose.get(target)))) {
-            throw new IllegalArgumentException(
-                    "Metal local MATMUL transpose cannot be a partition boundary");
         }
         if (feeds.isEmpty() || targets.isEmpty()) {
             throw new IllegalArgumentException(

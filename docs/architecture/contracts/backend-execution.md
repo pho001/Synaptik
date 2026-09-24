@@ -249,14 +249,15 @@ missing scope requires an explicit architecture update.
 
 A concrete backend must qualify capability, preparation plans, specialization, generated
 artifacts, tuning candidates and decisions, and cache compatibility by the exact selected
-`NumericalProfile`. CPU currently supports both profiles through one identical exact matrix and
-unchanged routes. Metal supports exact canonical FLOAT32 `ABS` under both profiles and strict-only
-NEG/affine/`CONTIGUOUS`. Its accelerator-only set is tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`;
-canonical FLOAT32 `SUM`, `MEAN`, and binding-resolved `SUM_TO_SHAPE` over full, normalized
-single-axis, ordered normalized multi-axis including empty, and exact keep-dimensions forms; and
-positive static rank-two FLOAT32 MATMUL with exact contraction geometry and canonical or
-authenticated local rank-two-transpose operands. Strict MATMUL remains unsupported. Accelerator
-operations use only their operation-specific Model-owned bounded DAZ/FTZ, reassociation/FMA, NaN,
-reduction-root, and MATMUL final-publication exact-zero freedoms; every other unsupported
-profile/operation pair rejects before route selection. Transporting the identity does not
-authorize any result outside the Model-owned set.
+`NumericalProfile`. For the same occurrence domain, its strict capability and behavior must be a
+subset of accelerator capability and behavior. CPU currently supports both profiles through one
+identical exact matrix and unchanged routes. Metal's common exact domain is canonical FLOAT32
+`NEG`/`ABS`, affine transforms, and `CONTIGUOUS`. Its accelerator-only set is tensor FLOAT32
+`ADD`/`SUB`/`MUL`/`DIV`; canonical FLOAT32 `SUM`, `MEAN`, and binding-resolved `SUM_TO_SHAPE` over
+full, normalized single-axis, ordered normalized multi-axis including empty, and exact
+keep-dimensions forms; and positive static rank-two FLOAT32 MATMUL with exact contraction geometry
+and canonical or authenticated local rank-two-transpose operands. Strict MATMUL remains
+unsupported. Accelerator operations use only their operation-specific Model-owned bounded
+DAZ/FTZ, reassociation/FMA, NaN, reduction-root, and MATMUL final-publication exact-zero freedoms;
+every other unsupported profile/operation pair rejects before route selection. Transporting the
+identity does not authorize any result outside the Model-owned set.

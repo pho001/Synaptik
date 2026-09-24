@@ -55,13 +55,13 @@ lifecycle. Ordinary preparation composes non-empty plans across registered owner
 deterministic owner-indexed representations and explicit direct CPU-to-Metal and Metal-to-CPU
 transfers for fully static canonical contiguous `FLOAT32` values.
 CPU realizes both numerical profiles through identical exact behavior and routes. Metal execution
-is profile-qualified: both profiles admit exact canonical `FLOAT32` `ABS`; strict additionally
-admits `NEG`, locally composed affine layouts, and explicit `CONTIGUOUS`; accelerator additionally
-admits canonical tensor `FLOAT32` `ADD`, `SUB`, `MUL`, and `DIV`, plus canonical
-`SUM`/`MEAN`/`SUM_TO_SHAPE` reductions, under the Model-owned bounded profile. Locally produced
-scalar reduction targets materialize as four bytes, while caller ingress and CPU/Metal transfer
-remain positive-rank. The custom Metal route remains reserved for an eligible strict singleton
-NEG.
+is profile-qualified: both profiles admit exact canonical `FLOAT32` `NEG`/`ABS`, locally composed
+affine layouts, and explicit `CONTIGUOUS`; accelerator additionally admits canonical tensor
+`FLOAT32` `ADD`, `SUB`, `MUL`, and `DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE` reductions, and
+positive static rank-two MATMUL, under the Model-owned bounded profile. Locally produced scalar
+reduction targets materialize as four bytes, while caller ingress and CPU/Metal transfer remain
+positive-rank. The custom Metal route is available to an eligible singleton NEG under either
+profile.
 
 The Training extension now owns a public reusable
 Engine-backed scalar session with persistent SGD, accumulation, and detached in-memory state over

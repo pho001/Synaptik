@@ -494,16 +494,14 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
         NSMutableData *produced_data = [NSMutableData dataWithLength:value_count];
         NSMutableData *targeted_data = [NSMutableData dataWithLength:value_count];
         NSMutableData *local_transpose_data = [NSMutableData dataWithLength:value_count];
-        NSMutableData *transpose_consumed_data = [NSMutableData dataWithLength:value_count];
         if (state_data == nil || used_data == nil || produced_data == nil || targeted_data == nil
-                || local_transpose_data == nil || transpose_consumed_data == nil)
+                || local_transpose_data == nil)
             return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
         uint8_t *states = state_data.mutableBytes;
         uint8_t *used = used_data.mutableBytes;
         uint8_t *produced = produced_data.mutableBytes;
         uint8_t *targeted = targeted_data.mutableBytes;
         uint8_t *local_transpose = local_transpose_data.mutableBytes;
-        uint8_t *transpose_consumed = transpose_consumed_data.mutableBytes;
         BOOL contains_matmul = NO;
         for (uint32_t feed = 0; feed < feed_count; feed++) {
             uint32_t value = feed_indices[feed];
@@ -635,10 +633,6 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                             || output_shape[1].unsignedLongLongValue
                                     != right_shape[1].unsignedLongLongValue)
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-                    if (local_transpose[node.first_input] != 0U)
-                        transpose_consumed[node.first_input] = 1U;
-                    if (local_transpose[node.second_input] != 0U)
-                        transpose_consumed[node.second_input] = 1U;
                     used[node.second_input] = 1U;
                     contains_matmul = YES;
                     break;
@@ -668,10 +662,7 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
         for (uint32_t value = 0; value < value_count; value++) {
             if (used[value] == 0U
                     || (value_ranks[value] == 0U
-                            && (produced[value] == 0U || targeted[value] == 0U))
-                    || (contains_matmul
-                            && local_transpose[value] != 0U
-                            && (transpose_consumed[value] == 0U || targeted[value] != 0U)))
+                            && (produced[value] == 0U || targeted[value] == 0U)))
                 return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
         }
 

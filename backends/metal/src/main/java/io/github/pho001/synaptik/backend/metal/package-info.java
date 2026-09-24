@@ -1,25 +1,24 @@
 /**
  * Supplies explicit capability, configuration, and lifecycle integration for the Metal backend.
  *
- * <p>{@link io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider} reports two
- * profile-qualified domains. {@code STRICT_IEEE} admits parameterless {@code NEG} and {@code ABS},
- * {@code RESHAPE}, {@code EXPAND}, {@code PERMUTE}, {@code EXPAND_DIMS}, {@code SQUEEZE}, and the
- * explicit {@code CONTIGUOUS} canonicalization barrier. {@code ACCELERATOR} admits exact
- * {@code ABS}, tensor {@code ADD}, {@code SUB}, {@code MUL}, and {@code DIV}, canonical
- * {@code FLOAT32} {@code SUM}, {@code MEAN}, and binding-resolved {@code SUM_TO_SHAPE}, and
- * positive static rank-two {@code FLOAT32} {@code MATMUL}. Reductions support full, normalized
- * single-axis, ordered normalized multi-axis including empty, and exact keep-dimensions forms.
- * Feeds and ordinary outputs are fully static positive-rank {@code 1..16}; a locally produced
- * reduction target may be rank zero and materializes as exactly four canonical bytes without
- * widening caller ingress or CPU/Metal transfer. Accelerator binary inputs and outputs are
- * canonical dense non-views and use exact right-aligned broadcasting. Each MATMUL operand is
- * canonical or the authenticated exact local rank-two {@code PERMUTE [1,0]} of a canonical
- * source; its output is canonical. Strict MATMUL remains unsupported. Every {@code ABS}
- * operand/output and strict graph feed or {@code NEG} operand is canonical; strict affine inputs
- * may also be exact resolved zero-offset views produced earlier in the same maximal partition.
- * Strict affine outputs retain their exact Model view geometry, while {@code CONTIGUOUS} produces
- * canonical geometry. Metal lowers one complete profile-homogeneous partition as a typed
- * whole-partition program during preparation.</p>
+ * <p>{@link io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider} reports a common exact
+ * domain under both profiles: parameterless {@code NEG} and {@code ABS}, {@code RESHAPE},
+ * {@code EXPAND}, {@code PERMUTE}, {@code EXPAND_DIMS}, {@code SQUEEZE}, and the explicit
+ * {@code CONTIGUOUS} canonicalization barrier. {@code ACCELERATOR} additionally admits tensor
+ * {@code ADD}, {@code SUB}, {@code MUL}, and {@code DIV}, canonical {@code FLOAT32} {@code SUM},
+ * {@code MEAN}, and binding-resolved {@code SUM_TO_SHAPE}, and positive static rank-two
+ * {@code FLOAT32} {@code MATMUL}. Reductions support full, normalized single-axis, ordered
+ * normalized multi-axis including empty, and exact keep-dimensions forms. Feeds and ordinary
+ * outputs are fully static positive-rank {@code 1..16}; a locally produced reduction target may be
+ * rank zero and materializes as exactly four canonical bytes without widening caller ingress or
+ * CPU/Metal transfer. Accelerator binary inputs and outputs are canonical dense non-views and use
+ * exact right-aligned broadcasting. Each MATMUL operand is canonical or the authenticated exact
+ * local rank-two {@code PERMUTE [1,0]} of a canonical source; its output is canonical. Strict
+ * MATMUL remains unsupported. Every direct {@code NEG} or {@code ABS} operand/output and graph
+ * feed is canonical; affine inputs may also be exact resolved zero-offset views produced earlier
+ * in the same maximal partition. Affine outputs retain their exact Model view geometry, while
+ * {@code CONTIGUOUS} produces canonical geometry. Metal lowers one complete profile-homogeneous
+ * partition as a typed whole-partition program during preparation.</p>
  *
  * <p>{@link io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration} names one explicit
  * native bridge. {@link io.github.pho001.synaptik.backend.metal.MetalBackendIntegration} opens and

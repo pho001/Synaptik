@@ -113,13 +113,13 @@ construction still performs no numerical evaluation and stores no profile choice
 
 `NumericalProfile` remains outside Tensor: Tensor has no profile method or stored selection. The
 ordinary Engine captures one profile for its lifetime and transports it through profile-qualified
-capability, compile artifacts, Prepare, and backend identity. CPU executes both profiles with the
-same exact current semantics. Metal admits exact canonical `ABS` under both profiles, keeps
-NEG/affine/`CONTIGUOUS` under `STRICT_IEEE`, and admits tensor FLOAT32
-`ADD`/`SUB`/`MUL`/`DIV`, canonical FLOAT32 `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static
-rank-two FLOAT32 `MATMUL` with canonical or authenticated local-transpose operands only under
-`ACCELERATOR`; unsupported combinations fail closed rather than selecting a fallback. Model
-remains the sole semantic owner of profile meaning.
+capability, compile artifacts, Prepare, and backend identity. For any backend, strict capability
+and behavior are an accelerator subset for the same occurrence domain. CPU executes both profiles
+with the same exact current semantics. Metal admits exact canonical NEG/ABS/affine/`CONTIGUOUS`
+under both profiles and additionally admits tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`, canonical
+FLOAT32 `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two FLOAT32 `MATMUL` with canonical or
+authenticated local-transpose operands only under `ACCELERATOR`; unsupported combinations fail
+closed rather than selecting a fallback. Model remains the sole semantic owner of profile meaning.
 
 The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 

@@ -561,7 +561,6 @@ abstract class MetalNativeApi implements AutoCloseable {
             boolean[] used = new boolean[valueCount];
             boolean[] produced = new boolean[valueCount];
             boolean[] localTranspose = new boolean[valueCount];
-            boolean[] transposeConsumedByMatmul = new boolean[valueCount];
             for (int feed : feeds) {
                 requireIndex(feed, valueCount, "feed");
                 if (states[feed] != MetalMpsGraphProgram.ValueState.UNAVAILABLE) {
@@ -643,11 +642,6 @@ abstract class MetalNativeApi implements AutoCloseable {
                                         && node.attributeCount() == 2
                                         && attributes[0] == 1L
                                         && attributes[1] == 0L;
-                        if (numericalProfile == NumericalProfile.ACCELERATOR
-                                && !exactLocalTranspose) {
-                            throw new IllegalArgumentException(
-                                    "Metal accelerator PERMUTE must be an exact local transpose");
-                        }
                         localTranspose[output] = exactLocalTranspose;
                     }
                     case EXPAND_DIMS -> requireShape(
@@ -680,8 +674,6 @@ abstract class MetalNativeApi implements AutoCloseable {
                                 matmulMatches(
                                         left, right, output, valueRanks, valueDimensions),
                                 "MATMUL shapes must be exact positive rank-two contraction");
-                        if (localTranspose[left]) transposeConsumedByMatmul[left] = true;
-                        if (localTranspose[right]) transposeConsumedByMatmul[right] = true;
                         used[right] = true;
                     }
                 }
@@ -714,12 +706,6 @@ abstract class MetalNativeApi implements AutoCloseable {
                 if (valueRanks[value] == 0 && (!produced[value] || !targeted[value])) {
                     throw new IllegalArgumentException(
                             "Metal MPSGraph rank-zero reduction must be a direct target");
-                }
-                if (numericalProfile == NumericalProfile.ACCELERATOR
-                        && localTranspose[value]
-                        && (!transposeConsumedByMatmul[value] || targeted[value])) {
-                    throw new IllegalArgumentException(
-                            "Metal accelerator transpose must be local only to MATMUL");
                 }
             }
             for (int value = 0; value < valueCount; value++) {
@@ -791,10 +777,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                             CONTIGUOUS -> true;
                     case ADD, SUB, MUL, DIV, SUM, MEAN, MATMUL -> false;
                 };
-                case ACCELERATOR -> switch (kind) {
-                    case ABS, ADD, SUB, MUL, DIV, SUM, MEAN, PERMUTE, MATMUL -> true;
-                    case NEG, RESHAPE, EXPAND, EXPAND_DIMS, SQUEEZE, CONTIGUOUS -> false;
-                };
+                case ACCELERATOR -> true;
             };
         }
 

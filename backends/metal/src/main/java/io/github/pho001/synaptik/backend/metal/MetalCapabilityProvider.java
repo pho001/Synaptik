@@ -30,10 +30,10 @@ import java.util.Objects;
  * Reports the exact operation-occurrence capability of the current Metal backend.
  *
  * <p>This provider is immutable and performs no native loading, device discovery, allocation,
- * registration, or caching. Under {@link NumericalProfile#STRICT_IEEE}, support is exactly unary
- * {@code NEG} and {@code ABS}, five FLOAT32 affine transforms, and the explicit {@code CONTIGUOUS}
- * canonicalization barrier. Under {@link NumericalProfile#ACCELERATOR}, support is exactly unary
- * {@code ABS}, tensor {@code ADD}/{@code SUB}/{@code MUL}/{@code DIV}, canonical FLOAT32
+ * registration, or caching. Under either numerical profile, support includes unary {@code NEG}
+ * and {@code ABS}, five FLOAT32 affine transforms, and the explicit {@code CONTIGUOUS}
+ * canonicalization barrier. {@link NumericalProfile#ACCELERATOR} additionally supports tensor
+ * {@code ADD}/{@code SUB}/{@code MUL}/{@code DIV}, canonical FLOAT32
  * {@code SUM}/{@code MEAN}/{@code SUM_TO_SHAPE}, and positive static rank-two FLOAT32
  * {@code MATMUL}. MATMUL accepts each operand only as canonical or as the exact rank-two transpose
  * layout that complete-partition analysis must authenticate to a local {@code PERMUTE [1,0]}
@@ -43,10 +43,10 @@ import java.util.Objects;
  * binding-resolved sum-to-Shape forms. Their input is canonical positive-rank {@code 1..16};
  * canonical outputs may be rank zero only as locally produced reduction results. Strict
  * reductions remain unsupported. Binary inputs and outputs are canonical dense non-views with
- * exact right-aligned broadcasting. {@code ABS} and strict {@code NEG} descriptors remain
- * canonical. A strict affine or contiguous input may be canonical or an exact resolved
- * zero-offset logical view; complete-partition analysis authenticates every admitted view as a
- * prior local affine result. Every admitted occurrence uses checked positive extents.</p>
+ * exact right-aligned broadcasting. {@code ABS} and {@code NEG} descriptors remain canonical. An
+ * affine or contiguous input may be canonical or an exact resolved zero-offset logical view;
+ * complete-partition analysis authenticates every admitted view as a prior local affine result.
+ * Every admitted occurrence uses checked positive extents.</p>
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
     /**
@@ -115,8 +115,16 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         }
         TensorDescriptor output = outputs.getFirst();
         try {
-            if (operation.kind() == UnaryElementwiseKind.ABS) {
+            if (operation.kind() == UnaryElementwiseKind.NEG
+                    || operation.kind() == UnaryElementwiseKind.ABS) {
                 return supportsCanonicalUnary(operation, inputs, output);
+            }
+            if (operation.kind() == ContiguousKind.CONTIGUOUS) {
+                return supportsContiguous(operation, inputs, output);
+            }
+            if (operation.kind() instanceof ShapeTransformKind
+                    || operation.kind() instanceof AxisTransformKind) {
+                return supportsAffine(operation, inputs, output);
             }
             if (numericalProfile == NumericalProfile.ACCELERATOR) {
                 if (operation.kind() instanceof AggregateReductionKind reduction) {
@@ -125,18 +133,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 if (operation.kind() == MatmulKind.MATMUL) {
                     return supportsMatmul(operation, inputs, output);
                 }
-                if (operation.kind() == AxisTransformKind.PERMUTE) {
-                    return supportsLocalMatmulTranspose(operation, inputs, output);
-                }
                 return supportsBinary(operation, inputs, output);
             }
-            if (operation.kind() == UnaryElementwiseKind.NEG) {
-                return supportsCanonicalUnary(operation, inputs, output);
-            }
-            if (operation.kind() == ContiguousKind.CONTIGUOUS) {
-                return supportsContiguous(operation, inputs, output);
-            }
-            return supportsAffine(operation, inputs, output);
+            return false;
         } catch (IllegalArgumentException | ArithmeticException incompatible) {
             return false;
         }
@@ -212,16 +211,6 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 descriptor.shape(), new long[] {1L, shape[0]}, 0L, true));
     }
 
-    private static boolean supportsLocalMatmulTranspose(
-            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
-        return inputs.size() == 1
-                && operation.attrs() instanceof PermutationAttrs attrs
-                && attrs.axes().equals(List.of(1, 0))
-                && canonical(inputs.getFirst())
-                && inputs.getFirst().shape().rank() == 2
-                && output.shape().rank() == 2
-                && supportsAffine(operation, inputs, output);
-    }
 
     private static boolean supportsReduction(
             Operation operation,

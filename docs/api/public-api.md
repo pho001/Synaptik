@@ -20,22 +20,22 @@ Public `GraphCompilationPort` exposes that complete constant-free pipeline as a 
 cross-module integration service-provider interface (SPI). The CPU backend exposes the supported
 `CpuBackendIntegration` lifecycle SPI, including bounded canonical host-byte materialization and
 identical exact execution under both numerical profiles. The Metal backend exposes
-`MetalBackendConfiguration`, `MetalBackendIntegration`, and two profile-qualified `FLOAT32`
-domains. Both admit exact canonical `ABS`. Strict Metal additionally supports `NEG`, `RESHAPE`,
-`EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`; accelerator Metal additionally
-supports canonical tensor `ADD`, `SUB`, `MUL`, and `DIV`; canonical
-`SUM`/`MEAN`/`SUM_TO_SHAPE`; and positive static rank-two `MATMUL` with canonical or authenticated
-local-transpose operands, under the bounded Model profile. Strict binary/reduction/MATMUL and
-accelerator baseline operations fail ownership selection before native preparation. Every `ABS`
-operand and output, strict graph feed, and direct `NEG` operand is a canonical contiguous non-view.
-Affine operations may consume exact zero-offset views produced earlier in the same maximal strict
-Metal partition, retain their exact logical view descriptors, and privately write dense
+`MetalBackendConfiguration`, `MetalBackendIntegration`, and a common exact `FLOAT32` domain under
+both profiles. That domain contains canonical `NEG` and `ABS`, `RESHAPE`, `EXPAND`, `PERMUTE`,
+`EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`. Accelerator Metal additionally supports canonical
+tensor `ADD`, `SUB`, `MUL`, and `DIV`; canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`; and positive static
+rank-two `MATMUL` with canonical or authenticated local-transpose operands, under the bounded Model
+profile. Strict binary/reduction/MATMUL fails ownership selection before native preparation. Every
+graph feed and direct `NEG` or `ABS` operand/output is a canonical contiguous non-view. Affine
+operations under either profile may consume exact zero-offset views produced earlier in the same
+maximal Metal partition, retain their exact logical view descriptors, and privately write dense
 represented-order targets. Accelerator MATMUL may consume only an exact local rank-two
-`PERMUTE [1,0]` view or canonical operand and produces canonical state. `CONTIGUOUS` converts
-available canonical or local affine-view state to canonical state before subsequent strict `NEG`
-or `ABS`. Exact authenticated affine publications and locally produced scalar reduction targets
-may materialize to detached canonical host bytes; the latter uses exactly four bytes.
-Caller ingress and cross-owner transfer remain positive-rank and canonical-non-view-only.
+`PERMUTE [1,0]` view or canonical operand and produces canonical state; the transpose may otherwise
+be published or used by another valid affine consumer. `CONTIGUOUS` converts available canonical
+or local affine-view state to canonical state before a subsequent canonical-only operation. Exact
+authenticated affine publications and locally produced scalar reduction targets may materialize to
+detached canonical host bytes; the latter uses exactly four bytes. Caller ingress and cross-owner
+transfer remain positive-rank and canonical-non-view-only.
 `Engine.builder()` is the public explicit composition root for
 opened CPU and Metal integrations. It freezes their Planning inputs in registration order and
 supports a complete non-empty plan only when every partition has one exact registered owner. The
@@ -1257,9 +1257,8 @@ path nor owns a duplicate Metal configuration. The integration supplies partitio
 physical creation contribution, exact transfer endpoints, host ingress, materialization, and
 close in addition to capability.
 
-Metal retains a custom route only for an eligible strict singleton `NEG`; every `ABS` partition,
-every other supported strict NEG/affine/`CONTIGUOUS` partition, and every accelerator
-ABS/tensor-binary/reduction/MATMUL partition uses one typed whole-partition MPSGraph executable.
+Metal retains a custom route for an eligible singleton `NEG` under either profile; every `ABS`
+partition and every other supported partition uses one typed whole-partition MPSGraph executable.
 The MATMUL domain also executes Compiler-generated explicitly seeded rank-two gradients for both
 operands through authenticated local transposes; this does not add scalar-loss or general training
 support. This private route and native ABI choice adds no public Java type or method.

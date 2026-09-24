@@ -63,6 +63,21 @@ class MetalNegRouteCandidateGeneratorTest {
             assertEquals(List.of(MetalNegTuningBatch.Candidate.CUSTOM_SINGLE_NEG),
                     new MetalNegRouteCandidateGenerator().generate(
                             singleton.context(), generated.analysis().plan(), 1).candidates());
+            Workload acceleratorSingleton = unaryWorkload(
+                    device,
+                    150,
+                    NumericalProfile.ACCELERATOR,
+                    UnaryElementwiseKind.NEG);
+            Generated acceleratorGenerated = generated(acceleratorSingleton, 2);
+            assertEquals(
+                    List.of(
+                            MetalNegTuningBatch.Candidate.CUSTOM_SINGLE_NEG,
+                            MetalNegTuningBatch.Candidate.MPSGRAPH),
+                    acceleratorGenerated.batch().candidates());
+            assertNotEquals(
+                    generated.batch().compatibility().workload(),
+                    acceleratorGenerated.batch().compatibility().workload(),
+                    "profile separates otherwise identical singleton NEG workloads");
 
             Workload oversized = workload(device, 200, Shape.of(0x1_0000_0000L), false,
                     Optional.empty(), true, false, 1);
@@ -542,16 +557,6 @@ class MetalNegRouteCandidateGeneratorTest {
                     valid.context().nodes().getFirst().inputs(),
                     valid.context().nodes().getFirst().outputs());
             var invalidDag = new PartitionDag(valid.context().partition(), List.of(invalidNode));
-            var accelerator = new PrepareContext<>(
-                    NumericalProfile.ACCELERATOR,
-                    valid.context().partitionDag(),
-                    valid.context().values(),
-                    valid.context().memoryRequirements(),
-                    valid.context().constants(),
-                    new MetalNegAnalysisInputs(device));
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> new MetalNegPartitionPreparer().analyze(accelerator));
             var invalid = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, invalidDag, valid.context().values(), valid.context().memoryRequirements(), valid.context().constants(), new MetalNegAnalysisInputs(device));
             assertThrows(IllegalArgumentException.class, () -> new MetalNegPartitionPreparer()
                     .analyze(invalid));

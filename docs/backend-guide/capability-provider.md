@@ -246,12 +246,14 @@ style](../developer-guide/documentation/backend-guide-style.md).
 
 ## Profile-qualified capability
 
-Read `query.numericalProfile()` as part of the complete capability question. Return `false` for an
-unsupported profile/operation pair rather than ignoring the profile or inferring support from
-`DeviceClass`. The current CPU provider returns the same exact answer under `STRICT_IEEE` and
-`ACCELERATOR`. The current Metal provider admits exact canonical FLOAT32 `ABS` under both
-profiles, strict NEG/affine/`CONTIGUOUS`, and accelerator tensor FLOAT32
+Read `query.numericalProfile()` as part of the complete capability question. For the same
+occurrence domain, a backend's strict-positive answer must also be accelerator-positive. Return
+`false` for an unsupported profile/operation pair rather than ignoring the profile or inferring
+support from `DeviceClass`. The current CPU provider returns the same exact answer under
+`STRICT_IEEE` and `ACCELERATOR`. The current Metal provider admits exact canonical FLOAT32
+NEG/ABS/affine/`CONTIGUOUS` under both profiles and additionally admits accelerator tensor FLOAT32
 `ADD`/`SUB`/`MUL`/`DIV`, canonical FLOAT32 `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static
 rank-two FLOAT32 MATMUL with canonical or exact local-transpose layouts. Complete-partition
-analysis authenticates each admitted MATMUL transpose to its local producer. Neither provider
-treats accelerator identity as generic fast math, and every other unsupported pair remains false.
+analysis authenticates each affine MATMUL operand to its local producer on that consuming edge.
+Neither provider treats accelerator identity as generic fast math, and every other unsupported
+pair remains false.

@@ -51,11 +51,12 @@ positive zero. CONV2D and CONV3D retain only their existing reassociation/FMA pl
 rule. Intermediate values, reduction copies and identities, declared terms, mapping, count,
 classification, and finite nonzero results otherwise retain their contracts. The semantic
 contract, Config identity, cold propagation spine, and first backend realizations are current.
+For any backend and occurrence domain, strict capability and behavior are an accelerator subset.
 CPU supports both profiles identically with exact current behavior. Metal supports exact canonical
-`ABS` under both profiles, keeps NEG/affine/`CONTIGUOUS` strict-only, and supports tensor FLOAT32
+NEG/ABS/affine/`CONTIGUOUS` under both profiles, and additionally supports tensor FLOAT32
 `ADD`/`SUB`/`MUL`/`DIV`, canonical FLOAT32 `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static
-rank-two FLOAT32 MATMUL with authenticated local transposes only under `ACCELERATOR`; unsupported
-pairs fail closed. Rank-zero Metal support is local to produced reduction targets and does not
+rank-two FLOAT32 MATMUL with authenticated local transposes under `ACCELERATOR`; unsupported pairs
+fail closed. Rank-zero Metal support is local to produced reduction targets and does not
 widen caller ingress or transfer. The narrow explicitly seeded rank-two MATMUL gradient path
 remains backend execution of the Compiler graph, not training ownership.
 

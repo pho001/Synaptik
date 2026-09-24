@@ -17,7 +17,9 @@ import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryCo
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
@@ -50,7 +52,7 @@ class MetalCapabilityProviderTest {
                 NumericalProfile.STRICT_IEEE, UnaryElementwiseKind.ABS, matrix, matrix)));
         assertTrue(provider.supports(unaryQuery(
                 NumericalProfile.ACCELERATOR, UnaryElementwiseKind.ABS, matrix, matrix)));
-        assertFalse(provider.supports(unaryQuery(
+        assertTrue(provider.supports(unaryQuery(
                 NumericalProfile.ACCELERATOR, UnaryElementwiseKind.NEG, matrix, matrix)));
         Shape rank16 = Shape.of(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
         assertTrue(provider.supports(unaryQuery(
@@ -76,7 +78,7 @@ class MetalCapabilityProviderTest {
                     provider.supports(unaryQuery(
                             NumericalProfile.STRICT_IEEE, kind, matrix, matrix)),
                     "strict " + kind);
-            assertEquals(kind == UnaryElementwiseKind.ABS,
+            assertEquals(kind == UnaryElementwiseKind.NEG || kind == UnaryElementwiseKind.ABS,
                     provider.supports(unaryQuery(
                             NumericalProfile.ACCELERATOR, kind, matrix, matrix)),
                     "accelerator " + kind);
@@ -101,7 +103,91 @@ class MetalCapabilityProviderTest {
                 List.of(matrix),
                 List.of(reshapedView));
         assertTrue(provider.supports(strictReshape));
-        assertFalse(provider.supports(acceleratorReshape));
+        assertTrue(provider.supports(acceleratorReshape));
+    }
+
+    @Test
+    void everyStrictExactRepresentativeIsAlsoAcceleratorSupported() {
+        TensorDescriptor matrix = descriptor(Shape.of(2, 3), false);
+        TensorDescriptor flat = descriptor(Shape.of(6), false);
+        TensorDescriptor singletonRow = descriptor(Shape.of(1, 3), false);
+        TensorDescriptor singletonMatrix = descriptor(Shape.of(2, 1, 3), false);
+        TensorDescriptor reshaped = view(Shape.of(2, 3), 3, 1);
+        TensorDescriptor expanded = view(Shape.of(2, 3), 0, 1);
+        TensorDescriptor permuted = view(Shape.of(3, 2), 1, 3);
+        TensorDescriptor rankExpanded = view(Shape.of(2, 1, 3), 3, 3, 1);
+        TensorDescriptor squeezed = view(Shape.of(2, 3), 3, 1);
+        Shape rank16 = Shape.of(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
+        TensorDescriptor rank16Value = descriptor(rank16, false);
+        List<Occurrence> common = List.of(
+                new Occurrence(
+                        "NEG",
+                        new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE),
+                        matrix,
+                        matrix),
+                new Occurrence(
+                        "ABS",
+                        new Operation(UnaryElementwiseKind.ABS, NoOperationAttrs.INSTANCE),
+                        matrix,
+                        matrix),
+                new Occurrence(
+                        "RESHAPE",
+                        new Operation(
+                                ShapeTransformKind.RESHAPE,
+                                new TargetShapeAttrs(Shape.of(2, 3))),
+                        flat,
+                        reshaped),
+                new Occurrence(
+                        "EXPAND",
+                        new Operation(
+                                ShapeTransformKind.EXPAND,
+                                new TargetShapeAttrs(Shape.of(2, 3))),
+                        singletonRow,
+                        expanded),
+                new Occurrence(
+                        "PERMUTE",
+                        new Operation(
+                                AxisTransformKind.PERMUTE,
+                                new PermutationAttrs(List.of(1, 0))),
+                        matrix,
+                        permuted),
+                new Occurrence(
+                        "EXPAND_DIMS",
+                        new Operation(
+                                AxisTransformKind.EXPAND_DIMS,
+                                new AxisTransformAttrs(1)),
+                        matrix,
+                        rankExpanded),
+                new Occurrence(
+                        "SQUEEZE",
+                        new Operation(
+                                AxisTransformKind.SQUEEZE,
+                                new AxisTransformAttrs(1)),
+                        singletonMatrix,
+                        squeezed),
+                new Occurrence(
+                        "CONTIGUOUS",
+                        new Operation(ContiguousKind.CONTIGUOUS, NoOperationAttrs.INSTANCE),
+                        expanded,
+                        matrix),
+                new Occurrence(
+                        "rank-16 NEG boundary",
+                        new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE),
+                        rank16Value,
+                        rank16Value));
+
+        for (Occurrence occurrence : common) {
+            assertTrue(provider.supports(new OperationCapabilityQuery(
+                    NumericalProfile.STRICT_IEEE,
+                    occurrence.operation(),
+                    List.of(occurrence.input()),
+                    List.of(occurrence.output()))), occurrence.name() + " strict");
+            assertTrue(provider.supports(new OperationCapabilityQuery(
+                    NumericalProfile.ACCELERATOR,
+                    occurrence.operation(),
+                    List.of(occurrence.input()),
+                    List.of(occurrence.output()))), occurrence.name() + " accelerator");
+        }
     }
 
     @Test
@@ -444,6 +530,20 @@ class MetalCapabilityProviderTest {
                         shape, new long[] {1L, dimensions[0]}, 0L, true)),
                 requiresGrad);
     }
+
+    private static TensorDescriptor view(Shape shape, long... strides) {
+        return new TensorDescriptor(
+                DataType.FLOAT32,
+                shape,
+                Optional.of(LayoutDescriptor.of(shape, strides, 0L, true)),
+                false);
+    }
+
+    private record Occurrence(
+            String name,
+            Operation operation,
+            TensorDescriptor input,
+            TensorDescriptor output) { }
 
     private static TensorDescriptor typed(DataType type) {
         Shape shape = Shape.of(2, 3);

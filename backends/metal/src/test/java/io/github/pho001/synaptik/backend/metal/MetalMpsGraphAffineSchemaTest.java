@@ -53,7 +53,7 @@ class MetalMpsGraphAffineSchemaTest {
     }
 
     @Test
-    void JavaPreflightAcceptsAffineCompositionAndExplicitContiguousStateTransition() {
+    void JavaPreflightAcceptsAcceleratorAffineBridgeIntoBinaryAndGeneralViewTarget() {
         var program = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.targetShape(
                         MetalMpsGraphProgram.NodeKind.RESHAPE,
@@ -68,20 +68,21 @@ class MetalMpsGraphAffineSchemaTest {
                         MetalMpsGraphProgram.NodeKind.SQUEEZE, 4, 5, 2),
                 MetalMpsGraphProgram.Node.contiguous(5, 6),
                 MetalMpsGraphProgram.Node.neg(6, 7),
-                MetalMpsGraphProgram.Node.targetShape(
-                        MetalMpsGraphProgram.NodeKind.RESHAPE,
-                        7, 8, new long[] {4, 6})));
+                MetalMpsGraphProgram.Node.binary(
+                        MetalMpsGraphProgram.NodeKind.ADD, 7, 8, 9),
+                MetalMpsGraphProgram.Node.abs(9, 10)));
         long[][] shapes = {
             {6}, {2, 1, 3}, {2, 4, 3}, {4, 2, 3}, {4, 2, 1, 3},
-            {4, 2, 3}, {4, 2, 3}, {4, 2, 3}, {4, 6}
+            {4, 2, 3}, {4, 2, 3}, {4, 2, 3}, {4, 2, 3}, {4, 2, 3},
+            {4, 2, 3}
         };
         MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
-                NumericalProfile.STRICT_IEEE,
+                NumericalProfile.ACCELERATOR,
                 ranks(shapes),
                 dimensions(shapes),
                 program,
-                new int[] {0},
-                new int[] {1, 2, 3, 4, 5, 6, 7, 8});
+                new int[] {0, 8},
+                new int[] {3, 10});
     }
 
     @Test
@@ -132,14 +133,6 @@ class MetalMpsGraphAffineSchemaTest {
                 transposed,
                 new int[] {0, 1},
                 new int[] {4});
-        assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
-                        NumericalProfile.ACCELERATOR,
-                        ranks(transposedShapes),
-                        dimensions(transposedShapes),
-                        transposed,
-                        new int[] {0, 1},
-                        new int[] {2, 4}));
 
         long[][] malformedShapes = {
             {6}, {3, 4}, {2, 3}, {2, 4}

@@ -339,7 +339,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void rawMatmulRecordsRejectMalformedGeometryAndUnauthenticatedViews() {
+    void rawMatmulRecordsRejectMalformedGeometryAndAuthenticateOnlyConsumedAffineEdges() {
         try (RawAbi abi = RawAbi.open()) {
             int[] ranks = {2, 2, 2};
             long[] dimensions = dimensions(new long[][] {{2, 3}, {3, 4}, {2, 4}});
@@ -407,14 +407,13 @@ class MetalMpsGraphRawAbiNativeTest {
             MetalMpsGraphProgram localTranspose = new MetalMpsGraphProgram(List.of(
                     MetalMpsGraphProgram.Node.permutation(0, 2, List.of(1, 0)),
                     MetalMpsGraphProgram.Node.matmul(2, 1, 3)));
-            abi.assertRejected(
-                    "MATMUL local transpose cannot also be a target",
+            abi.assertAccepted(
+                    "MATMUL local transpose may also be a target",
                     new int[] {2, 2, 2, 2},
                     dimensions(new long[][] {{3, 2}, {3, 4}, {2, 3}, {2, 4}}),
                     localTranspose,
                     new int[] {0, 1},
-                    new int[] {2, 3},
-                    UNCHANGED);
+                    new int[] {2, 3});
         }
     }
 
@@ -670,6 +669,27 @@ class MetalMpsGraphRawAbiNativeTest {
                 if (lookupArena != null) lookupArena.close();
                 throw failure;
             }
+        }
+
+        void assertAccepted(
+                String name,
+                int[] ranks,
+                long[] dimensions,
+                MetalMpsGraphProgram program,
+                int[] feeds,
+                int[] targets) {
+            CreateOutcome outcome = invoke(
+                    MetalMpsGraphProgram.SCHEMA_VERSION,
+                    ranks,
+                    dimensions,
+                    program,
+                    feeds,
+                    targets,
+                    UNCHANGED);
+            assertEquals(0, outcome.status(), name);
+            assertTrue(outcome.outputAddress() != 0L, name + " must return an executable");
+            api.releaseExecutable(
+                    new MetalNativeApi.Handle(MemorySegment.ofAddress(outcome.outputAddress())));
         }
 
         void assertRejected(

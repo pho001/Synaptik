@@ -22,9 +22,10 @@ values. One-shot forward computation and a bounded scalar-objective backward con
 current. The public Training extension now adds one reusable Engine-backed scalar training
 session, persistent SGD, gradient accumulation, and detached in-memory state over its bounded
 shareable-native parameter domain. Metal executes its exact profile-qualified static `FLOAT32`
-domains: strict NEG/ABS/affine/`CONTIGUOUS`, accelerator ABS/tensor binary/reduction, and a custom
-route only for an eligible strict singleton NEG. Mixed CPU/Metal plans use explicit bidirectional
-transfer for fully static positive-rank canonical contiguous `FLOAT32` intermediates. A
+domains: both profiles admit NEG/ABS/affine/`CONTIGUOUS`; accelerator additionally admits tensor
+binary/reduction/MATMUL; and an eligible singleton NEG under either profile can use the custom
+route. Mixed CPU/Metal plans use explicit bidirectional transfer for fully static positive-rank
+canonical contiguous `FLOAT32` intermediates. A
 standard-Metal convenience, generic plugin registration/discovery, broader Metal and transfer
 coverage, CUDA, broader optimizers, durable persistence, and generic graph/plan tuning remain
 planned. Each

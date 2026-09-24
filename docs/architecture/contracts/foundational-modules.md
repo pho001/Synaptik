@@ -145,6 +145,11 @@ produce a strict result. It may produce an additional result only through the op
 `FLOAT32` transformation in the following table. All unlisted data types and operations retain
 their `STRICT_IEEE` allowed-result set.
 
+For the same operation occurrence, descriptor domain, and backend availability, a backend's
+`STRICT_IEEE` capability must be a subset of its `ACCELERATOR` capability. Accelerator execution
+may always choose a strict result; profile selection may add only the operation-specific results
+authorized below and must never remove a strict capability.
+
 Where a row permits DAZ/FTZ, DAZ means that a declared arithmetic `FLOAT32` subnormal input may be
 interpreted as same-signed zero, and FTZ means that a finite subnormal arithmetic result may be
 flushed to zero with either sign. These permissions affect only the arithmetic evaluation named by

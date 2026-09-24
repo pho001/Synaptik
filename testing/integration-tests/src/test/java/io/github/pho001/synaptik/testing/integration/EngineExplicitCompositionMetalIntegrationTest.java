@@ -504,20 +504,21 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
-    void metalOnlyEnginePublishesComposedViewsAndRunsContiguousBarrierIntoNeg() {
+    void cpuFreeAcceleratorPublishesAffineViewsAndRunsMixedExactComposition() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared();
                 Engine.Builder builder = Engine.builder()) {
+            builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library)));
             try (Engine engine = builder.build()) {
                 int[] inputBits = {
-                    0x00000000,
-                    0x80000000,
-                    0x00000001,
-                    0xff800000,
-                    0x7fc12345,
-                    0xff812345
+                    Float.floatToRawIntBits(1.0f),
+                    Float.floatToRawIntBits(-2.0f),
+                    Float.floatToRawIntBits(3.0f),
+                    Float.floatToRawIntBits(-4.0f),
+                    Float.floatToRawIntBits(5.0f),
+                    Float.floatToRawIntBits(-6.0f)
                 };
                 Tensor input = nativeTensorBits(
                         descriptor(Shape.of(6)), arena, inputBits);
@@ -528,6 +529,9 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 Tensor finalView = rankEdited.squeeze(2);
                 Tensor contiguous = finalView.contiguous();
                 Tensor negated = contiguous.neg();
+                Tensor absolute = negated.abs();
+                Tensor added = absolute.add(contiguous.abs());
+                Tensor reduced = added.sum(2);
                 var compiled = engine.compile(List.of(
                         reshaped,
                         expanded,
@@ -535,7 +539,10 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         rankEdited,
                         finalView,
                         contiguous,
-                        negated));
+                        negated,
+                        absolute,
+                        added,
+                        reduced));
                 assertEquals(List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(compiled));
 
@@ -556,9 +563,20 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     }
                 }
                 int[] negatedBits = permutedBits.clone();
+                int[] absoluteBits = permutedBits.clone();
+                int[] addedBits = permutedBits.clone();
                 for (int index = 0; index < negatedBits.length; index++) {
                     negatedBits[index] ^= 0x80000000;
+                    absoluteBits[index] &= 0x7fffffff;
+                    addedBits[index] = Float.floatToRawIntBits(
+                            2.0f * Math.abs(Float.intBitsToFloat(permutedBits[index])));
                 }
+                int[] reducedBits = {
+                    Float.floatToRawIntBits(12.0f), Float.floatToRawIntBits(30.0f),
+                    Float.floatToRawIntBits(12.0f), Float.floatToRawIntBits(30.0f),
+                    Float.floatToRawIntBits(12.0f), Float.floatToRawIntBits(30.0f),
+                    Float.floatToRawIntBits(12.0f), Float.floatToRawIntBits(30.0f)
+                };
                 List<int[]> expected = List.of(
                         inputBits,
                         expandedBits,
@@ -566,7 +584,10 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         permutedBits,
                         permutedBits,
                         permutedBits,
-                        negatedBits);
+                        negatedBits,
+                        absoluteBits,
+                        addedBits,
+                        reducedBits);
                 try (InferenceSession session = engine.session(compiled);
                         var result = session.run(List.of(input))) {
                     assertEquals(expected.size(), result.resultCount());

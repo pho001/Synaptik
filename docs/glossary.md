@@ -1100,21 +1100,21 @@ scoring policy, route selector, preparer, or execution service. The CPU backend 
 through the architecture-approved inward dependency on Planning and returns the same exact support
 answer under `STRICT_IEEE` and `ACCELERATOR`.
 
-The current Metal provider uses two profile matrices over fully static `FLOAT32`. Both admit exact
-parameterless canonical `ABS`. Strict support additionally contains parameterless `NEG`,
-`RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`; accelerator support
-additionally contains canonical tensor `ADD`, `SUB`, `MUL`, and `DIV` with exact right-aligned
-broadcasting; canonical `SUM`, `MEAN`, and binding-resolved `SUM_TO_SHAPE`; and positive static
-rank-two `MATMUL` with exact contraction geometry and canonical or exact local-transpose layouts.
-Reduction input is positive-rank; full, normalized single-axis, ordered normalized multi-axis
-including empty, and keep-dimensions outputs may be rank zero. Strict affine outputs retain their
-exact resolved Model view descriptors, while NEG, ABS, `CONTIGUOUS`, accelerator binary,
-reduction, and MATMUL outputs are canonical. Strict binary/reduction/MATMUL and accelerator
-baseline operations return false. Metal's occurrence-level answer is independent of native
-availability and constant provenance; it allows Planning to form one maximal profile-homogeneous
-Metal-owned partition that Metal preparation must accept as a whole and authenticate every affine
-MATMUL operand to a local transpose producer. The package-private hard-eligibility step is the
-first internal planning consumer. Compile-time plans retain `BackendId`, not a provider object.
+The current Metal provider uses two profile matrices over fully static `FLOAT32`. Their common
+exact domain contains parameterless canonical `NEG` and `ABS`, `RESHAPE`, `EXPAND`, `PERMUTE`,
+`EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`; accelerator support additionally contains canonical
+tensor `ADD`, `SUB`, `MUL`, and `DIV` with exact right-aligned broadcasting; canonical `SUM`,
+`MEAN`, and binding-resolved `SUM_TO_SHAPE`; and positive static rank-two `MATMUL` with exact
+contraction geometry and canonical or exact local-transpose layouts. Reduction input is
+positive-rank; full, normalized single-axis, ordered normalized multi-axis including empty, and
+keep-dimensions outputs may be rank zero. Affine outputs retain their exact resolved Model view
+descriptors, while NEG, ABS, `CONTIGUOUS`, binary, reduction, and MATMUL outputs are canonical.
+Strict binary/reduction/MATMUL remains false. Metal's occurrence-level answer is independent of
+native availability and constant provenance; it allows Planning to form one maximal
+profile-homogeneous Metal-owned partition that Metal preparation must accept as a whole and
+authenticate each affine MATMUL operand to a local transpose producer on that consuming edge. The
+package-private hard-eligibility step is the first internal planning consumer. Compile-time plans
+retain `BackendId`, not a provider object.
 
 ### Backend hard eligibility
 
@@ -2473,10 +2473,10 @@ collaboration and Engine's public bounded two-phase CPU composition are implemen
 occurrences and broader Compiler/Planning candidate orchestration remain planned.
 
 Profile-qualified Metal preparation has a second internal generator. It emits the custom
-singleton-NEG heuristic first, followed by MPSGraph, only for an eligible strict singleton NEG.
-MPSGraph is the sole candidate for every ABS partition, every other supported strict partition,
-and every accelerator ABS/binary/reduction/MATMUL partition. Positive budgets return stable
-complete prefixes, and generation performs no native allocation.
+singleton-NEG heuristic first, followed by MPSGraph, for an eligible singleton NEG under either
+profile. MPSGraph is the sole candidate for every ABS partition and every other supported
+partition. Positive budgets return stable complete prefixes, and generation performs no native
+allocation.
 
 ### Candidate batch
 
@@ -2721,15 +2721,15 @@ It owns backend-specific capability reporting, prepare-time lowering, fusion, sp
 kernel selection, executable units, storage, workspaces, and native integration. Concrete
 backends do not own public tensor semantics or global graph compilation. CPU supplies its current
 portable and optional native routes. Metal supplies package-private storage and prepared execution
-for exact canonical positive-shape `FLOAT32` ABS under both profiles, the strict
-NEG/affine/`CONTIGUOUS` domain, and accelerator canonical tensor `ADD`/`SUB`/`MUL`/`DIV` plus
-canonical `FLOAT32` `SUM`/`MEAN`/`SUM_TO_SHAPE`. Reduction rank-zero publication is local-only;
-only positive-rank values may use the cross-owner transfer domain. Exact singleton-NEG partitions
-with one feed, one target, and `1..UINT32_MAX` elements use the custom pipeline; every ABS
-partition and every other supported Metal partition uses one typed whole-partition MPSGraph
-executable. Strict binary/reduction and unsupported accelerator baseline operations are CPU-owned
-when CPU is registered and unsupported by a Metal-only composition. CUDA remains an identity
-without concrete execution behavior. See [Module boundaries](architecture/module-boundaries.md).
+for exact canonical positive-shape `FLOAT32` NEG/ABS/affine/`CONTIGUOUS` under both profiles and
+accelerator-only canonical tensor `ADD`/`SUB`/`MUL`/`DIV`, canonical `FLOAT32`
+`SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two MATMUL. Reduction rank-zero publication
+is local-only; only positive-rank values may use the cross-owner transfer domain. Exact
+singleton-NEG partitions with one feed, one target, and `1..UINT32_MAX` elements may use the custom
+pipeline under either profile; every ABS partition and every other supported Metal partition uses
+one typed whole-partition MPSGraph executable. Strict binary/reduction/MATMUL is CPU-owned when CPU
+is registered and unsupported by a Metal-only composition. CUDA remains an identity without
+concrete execution behavior. See [Module boundaries](architecture/module-boundaries.md).
 
 ### Cumulative scan
 
@@ -2899,12 +2899,13 @@ The semantic result sets remain Model-owned. The immutable Config identity `Nume
 selected once while constructing an Engine, defaults to `STRICT_IEEE`, and is transported
 unchanged through Planning queries, Compiler artifacts, Prepare projections, and backend
 plan/cache identity. Selection is explicit, graph-wide, and cold rather than inferred from
-hardware, provider availability, workload size, tuning, or benchmark evidence. CPU currently
-realizes both profiles with identical exact behavior and routes. Metal retains strict
-NEG/affine/`CONTIGUOUS` and realizes tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`, canonical
-`SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two FLOAT32 MATMUL with authenticated local
-transposes under `ACCELERATOR`; every unsupported pair fails closed. Both Metal profiles also
-admit exact canonical ABS.
+hardware, provider availability, workload size, tuning, or benchmark evidence. For the same
+occurrence domain, strict capability and behavior are an accelerator subset. CPU currently
+realizes both profiles with identical exact behavior and routes. Metal admits exact canonical
+NEG/ABS/affine/`CONTIGUOUS` under both profiles and realizes tensor FLOAT32
+`ADD`/`SUB`/`MUL`/`DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two
+FLOAT32 MATMUL with authenticated local transposes additionally under `ACCELERATOR`; every
+unsupported pair fails closed.
 
 ### Scalar-power realization
 
@@ -5142,18 +5143,18 @@ implements the transactional finalizer handoff.
 ### Metal prepared executable
 
 The current Metal backend's package-private, shape-specialized Runtime recipe for one complete
-maximal profile-homogeneous partition. Both profiles admit exact canonical `ABS`. A strict recipe
-additionally contains supported `NEG`, `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`,
-and `CONTIGUOUS`; an accelerator recipe additionally contains canonical tensor `ADD`, `SUB`,
-`MUL`, and `DIV`; canonical `SUM`, `MEAN`, and binding-resolved `SUM_TO_SHAPE`; and positive static
-rank-two `MATMUL` whose only affine operands are authenticated local `PERMUTE [1,0]` results.
-Metal analysis fixes stable feed, target, and structural value order, lowers node-schema-8
-fixed-width typed records, generates a complete version-nine route batch, authenticates any
-supplied session decision, then fixes a closed private route before declaring shared resources.
+maximal profile-homogeneous partition. Both profiles admit exact canonical `NEG`/`ABS`,
+`RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`; an accelerator recipe
+may additionally contain canonical tensor `ADD`, `SUB`, `MUL`, and `DIV`; canonical `SUM`, `MEAN`,
+and binding-resolved `SUM_TO_SHAPE`; and positive static rank-two `MATMUL` whose affine operands
+are authenticated local `PERMUTE [1,0]` results on their consuming edges. Metal analysis fixes
+stable feed, target, and structural value order, lowers node-schema-8 fixed-width typed records,
+generates a complete version-nine route batch, authenticates any supplied session decision, then
+fixes a closed private route before declaring shared resources.
 
-With no decision, an exact strict singleton `NEG` with one feed, one target, and checked element
-count in `1..UINT32_MAX` selects the custom route; every ABS partition and every other supported
-partition selects MPSGraph. An eligible strict singleton can instead use an authenticated
+With no decision, an exact singleton `NEG` under either profile with one feed, one target, and
+checked element count in `1..UINT32_MAX` selects the custom route; every ABS partition and every
+other supported partition selects MPSGraph. An eligible singleton can instead use an authenticated
 MPSGraph decision. Java profile, reduction-geometry, contraction, and local-transpose preflight
 rejects every incompatible record before native entry. This boundary does not change capability,
 fallback, retry, or partitioning and makes no performance claim.

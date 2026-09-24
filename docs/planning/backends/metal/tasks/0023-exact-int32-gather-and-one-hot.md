@@ -15,8 +15,8 @@ probe has run.
 
 Class C — this adds profile-qualified indexing capability, the first typed `INT32` Metal ingress and
 splat path, local `BOOL` publication, native pre-write value validation and exceptional diagnostics,
-node/cache schema evolution, and public Engine execution across the native boundary. A fresh
-pre-edit real-device selector probe and an independent final review are mandatory.
+node/cache schema evolution, and public Engine execution across the native boundary. A minimal
+real-device smoke and an independent final review are mandatory.
 
 ## Goal
 
@@ -122,43 +122,33 @@ Resolve the cross-backend diagnostic policy in favor of exact CPU-observable par
   run downcall and one synchronous MPSGraph submission; error-only download/rescan is not a normal
   route or undeclared workspace.
 
-## Mandatory fresh pre-edit real-M3 selector probe
+## Selector evidence policy and minimal device smoke
 
-Before any production/schema/capability edit, create a new disposable Objective-C probe under
-`/tmp`, compile it with `xcrun clang` against Foundation, Metal, and MPSGraph, run it on the real
-Apple M3, and remove source and binary. Use only the documented selectors:
+Apple's MPSGraph documentation is authoritative for selector availability, accepted type/Shape
+forms, and valid-index GATHER/ONE_HOT mapping. Task 0023 must use only the documented selectors:
 
 - `gatherWithUpdatesTensor:indicesTensor:axis:batchDimensions:name:` with
   `batchDimensions=0`;
 - `oneHotWithIndicesTensor:depth:dataType:onValue:offValue:name:` with trailing depth,
   `MPSDataTypeBool`, on-value `1.0`, and off-value `0.0`.
 
-Run optimization levels zero and one with reduced-precision fast math disabled, two independently
-created contexts, three independently compiled executables per valid cell per context, and eight
-runs per executable. The valid-value matrix must contain at least ten separately reported cells:
-six GATHER cells covering rank one, first/middle/last axes, multidimensional indices, repeated
-indices, direct/fan-out composition, and a bounded rank-16 case; and four ONE_HOT cells covering
-depth one, depth greater than one, rank-two indices, and a bounded rank-15 case. This is at least
-120 executables and 960 valid runs; report exact totals.
+Do not create a context/optimization/executable cross-product probe. One small real-device smoke is
+sufficient: execute a representative valid GATHER corpus containing both zero signs, subnormal,
+ordinary, infinity, and NaN payload bits and verify selected raw bits; execute one representative
+ONE_HOT input and verify every output byte and Shape. Use guarded caller-supplied direct targets,
+check input preservation and canaries, and remove any disposable smoke artifact.
 
-The GATHER oracle compares raw selected bits across both zeros, minimum/ordinary/maximum
-subnormals, minimum normals and neighbors, ordinary and maximum finite values, infinities, and
-signed quiet/signaling NaNs with varied payloads. The ONE_HOT oracle checks exact Shape/type and
-every raw target byte. Retain names and Shapes for their full native use, isolate compile/run cells
-with autorelease pools, use guarded caller-supplied direct targets, permute feed and target order,
-preserve inputs, exercise repeated execution and fresh contexts, and verify canaries after every
-run.
+Ordinary-GATHER and ONE_HOT out-of-bounds selector behavior is undocumented and is not part of the
+implementation contract. Host/native prevalidation tests must instead prove negative,
+exactly-equal-to-bound, later-ordinal, and multi-node invalid inputs are rejected before selector
+dispatch, preserve target bytes/canaries, and reconstruct the deterministic CPU-parity diagnostic.
+No selector observation may weaken that validation requirement.
 
-Characterize isolated negative, exactly-equal-to-bound, and multiple-invalid OOB cases, preferably
-in containment processes if the selector can raise. Record observed selector status, target, and
-canaries, but never rely on undocumented ordinary-GATHER or ONE_HOT OOB behavior and never weaken
-the production prevalidation requirement. Any valid-value mapping, raw-bit/byte, Shape/type,
-direct-target, binding, lifetime, repetition, or canary failure blocks Task 0023 without production
-edits.
-
-After implementation, a separate mandatory native/prepared gate must instrument dispatch and prove
-that production validation rejects each OOB class before selector dispatch, reports the exact first
-node/ordinal diagnostic, and preserves every prefilled target byte and canary.
+More generally, a numerical device probe is required only when authoritative documentation is
+silent and a new floating numerical capability claim depends on device behavior. Such a probe must
+use the smallest adversarial corpus that can decide the claim; combinatorial optimization,
+context, executable, repetition, or topology matrices are prohibited unless a concrete observed
+risk independently justifies them.
 
 ## Native schema, identity, lifecycle, and cache
 
@@ -241,9 +231,9 @@ profile state, or a different invalid-index diagnostic, stop and report the cont
   candidate/codec/ingress/materialization/public Engine scope
 - Parallel group: None
 - Common base revision: N/A until Metal 0022 is Complete and this Draft is reverified for promotion
-- Integration order: Serial after Metal 0022; when promoted, fresh valid-value selector probe before
-  production edits; then schema/type/validation, capability/topology, lifecycle, Engine proof,
-  documentation, and independent Class C review
+- Integration order: Serial after Metal 0022; when promoted, documented-selector implementation
+  with the minimal valid-value device smoke, then schema/type/prevalidation, capability/topology,
+  lifecycle, Engine proof, documentation, and independent Class C review
 - Integration validation: exact INT32 GATHER/ONE_HOT Metal Class C checkpoint
 - Shared-document integration owner: task implementer, finalized by independent Class C review
 
@@ -283,30 +273,26 @@ profile state, or a different invalid-index diagnostic, stop and report the cont
 
 ## Test and checkpoint requirements
 
-Focused capability tests cover each positive row under both profiles and independently reject every
-wrong kind, attr, type, rank, axis/depth, output Shape, layout/state, gradient flag, zero/dynamic
-extent, overflow, INT64, view, and transfer boundary. Conformance proves maximal same-owner closure
-for GATHER with existing canonical operations and terminal ONE_HOT publication without admitting a
-BOOL consumer.
+Focused capability tests cover the exact positive rows under both profiles and representative
+wrong kind, attr, type, rank, axis/depth, output Shape, layout/state, INT64, view, and transfer
+boundaries. Conformance proves maximal same-owner closure for GATHER with existing canonical
+operations and terminal ONE_HOT publication without admitting a BOOL consumer.
 
-Schema/raw-native tests prove exact schema-nine encoding, retained wires `1..15`, appended wires
-`16/17`, `AXIS=3`, `DEPTH=5`, full zero sentinels, inferred type consistency, correct byte widths,
-stale schema-eight rejection, unknown-wire/attribute rejection, malformed topology/Shapes/states,
-and failure before graph compilation/resource publication.
+Schema/raw-native tests prove schema-nine encoding, retained wires `1..15`, appended wires `16/17`,
+`AXIS=3`, `DEPTH=5`, inferred type consistency and byte widths, stale/unknown wire rejection, and
+malformed topology/Shape/state failure before resource publication. Prepared tests cover exact
+typed caller/splat ingress, GATHER selected raw bits, canonical ONE_HOT bytes, direct
+materialization, and lifecycle through existing unchanged generic resource tests.
 
-Native/prepared tests execute each operation separately and in supported composition. Cover first,
-middle, and last GATHER axes; multidimensional and repeated indices; depth one and greater;
-caller/splat INT32; direct/published intermediates; multiple feeds/targets; stable/permuted native
-order; FLOAT32 special raw bits; canonical BOOL bytes; reuse; concurrency; sessions/contexts;
-rollback; release; close rejection; and exact typed buffer extents. Instrument dispatch so every
-negative, equal-bound, later-ordinal, and multi-node invalid case proves deterministic first failure,
-zero selector dispatch, unchanged prefilled targets/canaries, and exact exception text.
+Focused host/native prevalidation tests instrument dispatch and prove negative,
+exactly-equal-to-bound, later-ordinal, and multi-node invalid inputs produce the deterministic first
+failure, zero selector dispatch, unchanged prefilled targets/canaries, and exact exception text.
 
-The real CPU-free Engine smoke runs forward GATHER and ONE_HOT under both profiles from caller and
-splat indices, materializes exact FLOAT32 bits and BOOL bytes, reuses a session, uses an independent
-session, exercises concurrency, and closes cleanly. Separate negatives prove unsupported forms fail
-before native creation, Metal-only gather gradient is not supported, and CPU↔Metal transfer remains
-FLOAT32-only. No test may assert only that execution does not throw.
+One small real CPU-free Engine smoke runs representative forward GATHER and ONE_HOT, materializes
+exact FLOAT32 bits and BOOL bytes, and proves Metal-only ownership. Separate negatives prove
+unsupported forms fail before native creation, Metal-only gather gradient is unsupported, and
+CPU↔Metal transfer remains FLOAT32-only. Existing generic tests own unchanged reuse, concurrency,
+session/context, rollback, cleanup, and close behavior and must not be duplicated.
 
 Update architecture/current-capability text, public API status, Metal backend/native guides,
 Javadocs, capability/preparer status, targeted glossary, and planning only after behavior is proven.
@@ -314,41 +300,38 @@ Do not change Compiler production documentation to imply a new gradient route.
 
 ## Acceptance criteria
 
-1. The fresh pre-edit real-M3 valid-value probe passes at least 120 executables/960 runs with exact
-   per-operation/cell totals and every raw-bit/byte, Shape/type, binding, direct-target, lifetime,
-   repetition, input-preservation, and canary gate; OOB observations are recorded but not trusted;
-   probe artifacts are removed.
+1. The documented MPSGraph selectors and type/Shape/valid-index mapping are used directly. One
+   minimal real-device smoke preserves representative selected GATHER raw bits and exact ONE_HOT
+   bytes/Shape; no combinatorial executable/run matrix is added.
 2. Both profiles admit exactly the bounded canonical INT32 GATHER/ONE_HOT domain. Every excluded
-   kind/type/rank/Shape/layout/state/attribute/transfer/backward form rejects before native creation,
-   and all prior capability remains unchanged.
+   kind/type/rank/Shape/layout/state/attribute/transfer/backward form rejects before native
+   creation, and all prior capability remains unchanged.
 3. Every valid GATHER result preserves selected FLOAT32 bits exactly and every ONE_HOT target byte
    is canonical. No profile relaxation, conversion, invalid default, host result fallback, or
    selector-dependent semantics exists.
-4. Native validates all indexing inputs before target writes/dispatch. Instrumented gates prove
-   deterministic node/ordinal first error, exact CPU-parity `IndexOutOfBoundsException` messages,
-   zero selector dispatch, and byte-for-byte unchanged targets/canaries for every OOB class.
+4. Native validates all indexing inputs before target writes/dispatch. Focused instrumented gates
+   prove deterministic node/ordinal first error, exact CPU-parity `IndexOutOfBoundsException`
+   messages, zero selector dispatch, and byte-for-byte unchanged targets/canaries for documented
+   OOB classes.
 5. ABI v4 retains exactly thirteen exports; schema nine appends only wires 16/17 and attribute
    depth five; Java/native type, Shape, byte, state, and topology validation agree. Version-ten
    identities reject old, cross-profile, changed-type/Shape/topology, corrupt, stale, and foreign
    data.
-6. Prepared lifecycle proof covers typed caller/splat ingress, BOOL publication, direct targets,
-   reuse, concurrency, contexts/sessions, rollback/close/cleanup, and valid-path one-downcall/one-
-   submission behavior. Cross-owner transfer remains exact FLOAT32-only.
-7. Real CPU-free Engine forward execution and materialization pass under both profiles. Existing
-   Compiler gather-scatter formula and ONE_HOT nondifferentiability stay unchanged; no gather
-   backward claim exists.
-8. Native/export, Metal/Javadoc, conformance, Compiler formula guard, real Engine, architecture,
-   full-build, Markdown/status/frontier, probe-removal, and diff checks pass; independent Class C
-   review has no unresolved finding.
+6. Focused prepared proof covers typed caller/splat ingress, BOOL publication, direct targets, and
+   valid-path one-downcall/one-submission behavior while existing generic lifecycle coverage remains
+   unchanged. Cross-owner transfer remains exact FLOAT32-only.
+7. One real CPU-free Engine forward smoke proves Metal-only execution and exact materialization.
+   Existing Compiler gather-scatter formula and ONE_HOT nondifferentiability stay unchanged; no
+   gather backward claim exists.
+8. Native/export, focused Metal/Javadoc, conformance, Compiler formula guard, real Engine,
+   architecture, full-build, Markdown/status/frontier, smoke-artifact removal, and diff checks
+   pass; independent Class C review has no unresolved finding.
 
 ## Validation
 
 Worker validation:
 
 ```bash
-xcrun clang -fobjc-arc -framework Foundation -framework Metal -framework MetalPerformanceShadersGraph /tmp/synaptik-metal-0023-indexing-probe.m -o /tmp/synaptik-metal-0023-indexing-probe
-/tmp/synaptik-metal-0023-indexing-probe
-rm -f /tmp/synaptik-metal-0023-indexing-probe.m /tmp/synaptik-metal-0023-indexing-probe
 ./native/metal-macos-arm64/build.sh
 nm -gU native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib
 SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" ./gradlew :backends:metal:test :backends:metal:javadoc
@@ -361,18 +344,18 @@ python3 /tmp/validate_synaptik_markdown.py
 git diff --check
 ```
 
-Record probe totals/removal and OOB characterization; production dispatch instrumentation; exact
-exception messages and unchanged-target evidence; exports/schema/wires/attribute/identity versions;
-test counts/skips; both-profile positives and negatives; typed ingress/publication and unchanged
-transfer; Compiler no-production-change evidence; changed paths; and synchronized frontier/status.
-The serial worker owns one full checkpoint. Independent review reruns executable checks only after
-relevant executable changes or when evidence is concretely stale.
+Record the documented selectors, minimal valid-value device smoke and artifact removal,
+pre-dispatch OOB evidence, exact exception messages and unchanged targets; exports/schema/wires/
+attribute/identity versions; focused test counts/skips; both-profile positives and negatives;
+typed ingress/publication and unchanged transfer; Compiler no-production-change evidence; changed
+paths; and synchronized frontier/status. The serial worker owns one full checkpoint. Independent
+review reuses evidence and reruns only for a concrete risk or relevant executable change.
 
 ## Documentation and review impact
 
-Independent Class C review inspects the fresh probe harness/totals/removal, raw-bit and canonical-
-BOOL oracles, documented-selector use, OOB non-reliance, native prevalidation and Java exceptional
-rescan, deterministic first error, unchanged targets, schema/type inference, version-ten identity,
-typed ingress/local publication versus unchanged transfer, lifecycle/concurrency/cleanup, real
-both-profile Engine proof, forward-only boundary, Runtime/Trace absence, changed scope, and all
+Independent Class C review inspects documented-selector use, the minimal raw-bit/canonical-BOOL
+smoke and artifact removal, OOB non-reliance, native prevalidation and Java exceptional rescan,
+deterministic first error, unchanged targets, schema/type inference, version-ten identity, typed
+ingress/local publication versus unchanged transfer, focused lifecycle reliance, the real
+Metal-only Engine smoke, forward-only boundary, Runtime/Trace absence, changed scope, and all
 validation/documentation evidence.

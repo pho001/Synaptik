@@ -5,13 +5,12 @@
 This directory builds the local application binary interface (ABI) used by the Synaptik Metal
 backend on Apple-silicon macOS. ABI version 4 retains context, shared-storage buffer, executable,
 and bounded custom singleton-`NEG` ownership. Its versioned typed whole-partition MPSGraph program
-uses node schema 8. Under Java's profile-qualified preflight, both profiles support exact
-canonical `ABS`; `STRICT_IEEE` additionally supports `NEG`, `RESHAPE`, `EXPAND`, `PERMUTE`,
-`EXPAND_DIMS`, `SQUEEZE`, and the explicit `CONTIGUOUS` canonicalization barrier.
-`ACCELERATOR` additionally supports tensor `ADD`, `SUB`, `MUL`, and `DIV`; canonical `FLOAT32`
-`SUM`, `MEAN`, and binding-resolved `SUM_TO_SHAPE`; and positive static rank-two `FLOAT32`
-`MATMUL` with exact authenticated local rank-two transpose operands. Strict `MATMUL` remains
-unsupported. No symbol or ABI-signature change was required.
+uses node schema 8. Under Java's profile-qualified preflight, both profiles support exact canonical
+`NEG`, `ABS`, `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and the explicit
+`CONTIGUOUS` canonicalization barrier. `ACCELERATOR` additionally supports tensor `ADD`, `SUB`,
+`MUL`, and `DIV`; canonical `FLOAT32` `SUM`, `MEAN`, and binding-resolved `SUM_TO_SHAPE`; and
+positive static rank-two `FLOAT32` `MATMUL` with exact authenticated local rank-two transpose
+operands. Strict `MATMUL` remains unsupported. No symbol or ABI-signature change was required.
 
 ```text
 Java analysis -> choose custom singleton or MPSGraph route -> declare exact resources
@@ -111,9 +110,10 @@ including an empty identity list, or `SUM`-only sum-to-Shape dimensions, plus ex
 keep-dimensions state. Native validation derives and checks the exact output Shape and a positive
 term count; a rank-zero result must be a direct target and cannot feed another node. `MATMUL`
 accepts positive rank-two canonical operands or exact local `PERMUTE [1,0]` views of canonical
-sources, requires exact `[M,K] @ [K,N] -> [M,N]` geometry, and produces canonical state. A local
-transpose used by MATMUL cannot be a feed, constant, partition boundary, target, or unrelated
-view. Affine nodes accept canonical or prior affine-view state and produce affine-view state.
+sources, requires exact `[M,K] @ [K,N] -> [M,N]` geometry, and produces canonical state. Local
+transpose authentication constrains only an affine operand actually consumed by MATMUL; that view
+may also be a target or have another valid affine consumer. Affine nodes accept canonical or prior
+affine-view state and produce affine-view state.
 `CONTIGUOUS` accepts either available state and produces canonical state. No-attribute nodes
 require zero attribute count/payload and the axis sentinel. Target Shapes and complete
 permutations use `attribute_count` payload cells; axis forms use count one, the normalized `axis`,
@@ -198,9 +198,9 @@ Each invocation binds the direct input `MTLBuffer` at index `0` and assigned out
 at index `1`, creates one command buffer and one compute encoder, dispatches exactly the retained
 element count with `dispatchThreads`, and waits once for successful completion. The assigned
 output is written directly; the bridge performs no explicit host staging or intermediate output
-copy. Every ABS partition, every other supported strict partition including affine composition
-and `CONTIGUOUS`, and every accelerator ABS/binary/reduction/MATMUL partition uses the typed
-MPSGraph route. The route is selected once during analysis and is never retried, replaced, or
+copy. Every ABS partition and every other supported partition uses the typed MPSGraph route unless
+it is an eligible singleton NEG using the custom route under either profile. The route is selected
+once during analysis and is never retried, replaced, or
 repartitioned in finalization or execution. This private implementation-domain boundary is not
 capability narrowing, tuning, fallback, or a performance claim.
 
@@ -273,7 +273,7 @@ right transpose, and explicitly seeded gradients for both operands without a CPU
 The bridge itself implements no library discovery, packaging, Engine composition, mixed-owner
 schedule, CPU fallback, general custom-kernel framework, asynchronous API, buffer pool,
 persistent constant buffer, executable serialization, FLOAT16, BFLOAT16, masked/extrema/product
-reductions, unary algebra beyond exact profile-independent `ABS` and strict `NEG`, binary
+reductions, unary algebra beyond exact profile-independent `NEG` and `ABS`, binary
 comparison/logical/scalar forms, strict/vector/batched/broadcast MATMUL, general backward
 execution, alias promise, or performance claim. Accelerator arithmetic, reductions, and rank-two
 MATMUL do not imply strict IEEE subnormal preservation: Model-owned DAZ/FTZ applies at its declared
