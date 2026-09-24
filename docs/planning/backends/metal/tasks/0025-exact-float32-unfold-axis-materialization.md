@@ -2,14 +2,15 @@
 
 ## Status
 
-Ready
+Complete
 
-Implementation is complete from exact clean planning revision
-`c54ccbde0dc8defd4def1e25c3fd2898a1d66f4e`; the task remains the sole Ready Metal frontier for
-independent lean Class C review. Metal 0024 is Complete at implementation
-`a947e574732273bee4469d42afe8935082d53109` plus documentation remediation
-`aa191ca469010d081150e97dcddd504ec626dd9e`; its final independent review returned `APPROVE` with
-zero findings.
+Implementation began from exact clean planning revision
+`c54ccbde0dc8defd4def1e25c3fd2898a1d66f4e` and landed at
+`44edd86092509348e1e72cf7f0f4c3b13d141fa8`. The first independent review's selector-cap and
+capability-proof findings were remediated at `d0a947fa953bddb2714c1917c7114ac345c530b7`; the second
+wrong-kind proof finding was remediated at `f88066e3ad0547987bb03b2d18ed2813f97de223`. Final
+independent lean Class C review of `f88066e3ad0547987bb03b2d18ed2813f97de223` returned `APPROVE`
+with zero findings.
 
 ## Change class
 
@@ -342,6 +343,10 @@ rejection under both profiles solely because the kind is not `UNFOLD_AXIS`. Its 
 invocation passed: `BUILD SUCCESSFUL`, 19 actionable tasks, two executed and 17 up-to-date. No
 production code changed and the already-successful broader validation was not rerun.
 
+Final independent lean Class C re-review then inspected exact remediation revision
+`f88066e3ad0547987bb03b2d18ed2813f97de223` and returned `APPROVE` with zero findings. This closes
+Task 0025 without further code, test, device, or documentation changes.
+
 The exact 32-path checkpoint is:
 
 - production under
@@ -367,8 +372,10 @@ The exact 32-path checkpoint is:
   `docs/planning/backends/metal/tasks/0025-exact-float32-unfold-axis-materialization.md`,
   `docs/planning/roadmap.md`, and `native/metal-macos-arm64/README.md`.
 
-Task 0025 remains Ready for independent lean Class C review. This checkpoint makes no review
-result or approval claim.
+Task 0025 is Complete at implementation `44edd86092509348e1e72cf7f0f4c3b13d141fa8`, first
+remediation `d0a947fa953bddb2714c1917c7114ac345c530b7`, and final remediation/reviewed revision
+`f88066e3ad0547987bb03b2d18ed2813f97de223`; final independent lean Class C review returned
+`APPROVE` with zero findings.
 
 ## Contracts
 

@@ -64,9 +64,11 @@ Training-to-Metal optimizer bridge.
   findings. Exact INT32 Scatter Elements replacement Task 0024 is Complete at implementation
   `a947e574732273bee4469d42afe8935082d53109` plus documentation remediation
   `aa191ca469010d081150e97dcddd504ec626dd9e` after final independent lean Class C `APPROVE` with
-  zero findings. Exact FLOAT32 UNFOLD_AXIS Task 0025 now has its implementation checkpoint from
-  clean planning base `c54ccbde0dc8defd4def1e25c3fd2898a1d66f4e` and remains the sole Ready
-  frontier for independent lean Class C review.
+  zero findings. Exact FLOAT32 UNFOLD_AXIS Task 0025 is Complete at implementation
+  `44edd86092509348e1e72cf7f0f4c3b13d141fa8`, first remediation
+  `d0a947fa953bddb2714c1917c7114ac345c530b7`, and final remediation/reviewed revision
+  `f88066e3ad0547987bb03b2d18ed2813f97de223`. Profile-common canonical FLOAT32 SOFTMAX Task 0026
+  is the sole Ready frontier.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
   requirements. Metal 0017 remains Blocked under its old accelerator-reduction contract.
@@ -86,11 +88,13 @@ Training-to-Metal optimizer bridge.
 - Complete Metal 0024 landed at implementation `a947e574732273bee4469d42afe8935082d53109`
   plus documentation remediation `aa191ca469010d081150e97dcddd504ec626dd9e`; final independent
   lean Class C review approved with zero findings.
-- Ready Metal 0025 has its bounded common-profile exact FLOAT32 UNFOLD_AXIS implementation
-  checkpoint and owns the sole independent lean Class C review frontier.
+- Complete Metal 0025 delivered bounded common-profile exact FLOAT32 UNFOLD_AXIS and passed final
+  independent lean Class C review at reviewed revision `f88066e3ad0547987bb03b2d18ed2813f97de223`.
+- Ready Metal 0026 owns the sole implementation frontier: profile-common canonical FLOAT32 SOFTMAX
+  forward plus only ACCELERATOR Compiler-generated gradient closure.
 - Later Metal 0028 and 0029 remain reserved for separately authorized FLOAT16 and BFLOAT16 scopes.
 - Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
-  0017, and Metal 0015/0019/0020/0021/0022/0023/0024 are Complete.
+  0017, and Metal 0015/0019/0020/0021/0022/0023/0024/0025 are Complete.
 - Production dependencies may point to Model, Config, Planning, Runtime, Prepare,
   Backend Contract, and Trace, never Engine or Training. Task 0002's Compiler edge is test-only.
 
@@ -139,7 +143,8 @@ visibility.
 | 0022 | [ACCELERATOR profile capability monotonicity](tasks/0022-accelerator-profile-capability-monotonicity.md) | Complete | 0021; 0014–0015/0019–0020; Model 0027; Config 0006; Engine 0018 | Any 0016 restart; every Metal capability/preparation/native-preflight/candidate/codec/public Engine/architecture-status scope; 0023 | None | Serial after 0021 | Contract-minimal capability/Java-native preflight/identity/real Engine smoke, native build/export, architecture/full-build/docs, then independent Class C review | Implementation `41517594`, documentation remediation `90cd5fd9`, and final independent `APPROVE` with zero findings delivered exact NEG/ABS/affine/CONTIGUOUS under both profiles, retained accelerator-only families and strict negatives, edge-local MATMUL authentication, and unchanged ABI v4/schema 8/version-nine identities. |
 | 0023 | [Exact INT32 GATHER and ONE_HOT](tasks/0023-exact-int32-gather-and-one-hot.md) | Complete | 0022 Complete; 0021; Model 0018C–0018D/0019A2; Compiler 0005C; CPU 0006A2; Config 0006; Engine 0018 | Any 0016 restart and every Metal capability/preparation/native schema/candidate/codec/ingress/materialization/public Engine scope | None | Implemented serially after 0022 from exact base `854c2e8e`; reviewed after evidence checkpoint `80e6cedd` | Documented selectors; one disposable one-run implementation smoke; focused OOB prevalidation, typed ingress/publication, conformance, Compiler guard, real Engine, native/export, architecture/full-build/docs evidence; one review-only production-ABI SNaN probe | Canonical positive-rank INT32 GATHER/ONE_HOT, exact invalid-index parity, typed ingress/local BOOL publication, schema 9/wires 16–17/DEPTH 5, identities 10, unchanged FLOAT32-only transfer, and final independent `APPROVE` with zero findings. |
 | 0024 | [Exact INT32 SCATTER_ELEMENTS replacement](tasks/0024-exact-int32-scatter-elements-replacement.md) | Complete | 0023 Complete; Model 0018G–0018H/0018O/0025C; Compiler 0005C; CPU 0006B1; Config 0006; Engine 0018 | Any 0016–0018 restart; arithmetic scatter/Scatter-ND work; every Metal capability/preparation/native schema/candidate/codec/ingress/materialization/public Engine scope | None | Implemented serially from exact clean base `ad07e7e5d029f0472f1d05e82f2e869899d7dbf7`; documentation remediation followed implementation | One disposable one-run raw-bit Set smoke; focused bounds/duplicate, schema/identity, conformance, real Engine, native/export, architecture/Javadoc/full-build/docs proof; independent Class C review | Implementation `a947e574732273bee4469d42afe8935082d53109`, docs `aa191ca469010d081150e97dcddd504ec626dd9e`, final independent lean Class C `APPROVE` with zero findings. |
-| 0025 | [Exact FLOAT32 UNFOLD_AXIS materialization](tasks/0025-exact-float32-unfold-axis-materialization.md) | Ready | 0024 Complete; Model 0017M–0017N/0018R/0023D; Compiler 0005C; CPU 0006A1; Config 0006; Engine 0018 | Any 0016–0018 restart; every concurrent Metal capability/schema/candidate/materialization scope; fold, 2D/3D window, pad, convolution, pooling, Model 0026, or shared production work | None | Implemented serially from exact clean planning base `c54ccbde0dc8defd4def1e25c3fd2898a1d66f4e`; independent lean Class C review is next | One one-run raw-bit slice/expand/concat smoke; focused reused Metal/conformance/Engine/native/export/architecture/full-build/docs proof; independent lean Class C review | Bounded canonical FLOAT32 UNFOLD_AXIS under both profiles through documented ascending slice/expand/concat composition; schema 11/wire 19/WINDOW_AXIS 6; version-twelve identities; awaiting independent review. |
+| 0025 | [Exact FLOAT32 UNFOLD_AXIS materialization](tasks/0025-exact-float32-unfold-axis-materialization.md) | Complete | 0024 Complete; Model 0017M–0017N/0018R/0023D; Compiler 0005C; CPU 0006A1; Config 0006; Engine 0018 | Any 0016–0018 restart; every concurrent Metal capability/schema/candidate/materialization scope; fold, 2D/3D window, pad, convolution, pooling, Model 0026, or shared production work | None | Implemented serially from exact clean planning base `c54ccbde0dc8defd4def1e25c3fd2898a1d66f4e`; two review remediations preceded final approval | One one-run raw-bit slice/expand/concat smoke; focused reused Metal/conformance/Engine/native/export/architecture/full-build/docs proof; independent lean Class C review | Implementation `44edd86092509348e1e72cf7f0f4c3b13d141fa8`, selector-cap/capability remediation `d0a947fa953bddb2714c1917c7114ac345c530b7`, wrong-kind remediation and final reviewed revision `f88066e3ad0547987bb03b2d18ed2813f97de223`; final `APPROVE` with zero findings. |
+| 0026 | [Profile-common canonical FLOAT32 SOFTMAX](tasks/0026-profile-common-float32-softmax.md) | Ready | 0025 Complete; Model 0016I–0016J; Compiler 0005B/0005C; CPU 0007E precedent; Config 0006; Engine 0018 | Any 0016–0018 restart; every concurrent Metal capability/schema/candidate/materialization scope; LOG_SOFTMAX, other normalization/loss/attention/fusion, profile-semantic, or shared production work | None | One smallest direct-selector numerical gate, then schema/identity, capability/preflight/native lowering, forward/generated-gradient proof, docs/review | One `[4,8]` one-run finite four-ULP gate; focused Metal/conformance/Engine/native/export/architecture/Javadoc/full-build/docs proof; independent lean Class C review | No arbitrary selected-width cap: common-profile canonical FLOAT32 SOFTMAX forward for every positive checked static extent; accelerator-only closure of the unchanged Compiler MUL/SUB/SUM gradient graph; schema 12/wire 20/AXIS 3 and version-thirteen identities; no LOG_SOFTMAX or general normalization. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -157,7 +162,7 @@ Completed profile spine and serial successors:
 
 `Model 0028 (Complete) -> 0020 (Complete) -> 0018 (Blocked)`
 
-`0018 blocker evidence -> Model 0029 (Complete) -> 0021 (Complete) -> 0022 (Complete) -> 0023 (Complete) -> 0024 (Complete) -> 0025 (Ready)`
+`0018 blocker evidence -> Model 0029 (Complete) -> 0021 (Complete) -> 0022 (Complete) -> 0023 (Complete) -> 0024 (Complete) -> 0025 (Complete) -> 0026 (Ready)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -180,7 +185,9 @@ independent Class C review with zero findings. Complete
 [0024](tasks/0024-exact-int32-scatter-elements-replacement.md) completed at
 `a947e574732273bee4469d42afe8935082d53109` plus documentation remediation
 `aa191ca469010d081150e97dcddd504ec626dd9e` and final independent lean Class C approval.
-[0025](tasks/0025-exact-float32-unfold-axis-materialization.md) is the sole Ready serial frontier.
+[0025](tasks/0025-exact-float32-unfold-axis-materialization.md) is Complete at final reviewed
+revision `f88066e3ad0547987bb03b2d18ed2813f97de223`.
+[0026](tasks/0026-profile-common-float32-softmax.md) is the sole Ready serial frontier.
 These edges serialize shared semantic and Metal mutation; they do not claim that reductions are
 semantically required for MATMUL or that MATMUL is semantically required for profile correction.
 
@@ -189,14 +196,14 @@ semantically required for MATMUL or that MATMUL is semantically required for pro
 - Integration owner: each serial task implementer, with mandatory independent Class C review.
 - Shared documents: the active task owns synchronized planning, architecture-status, API/user
   status, capability/preparer guides, and glossary updates after executable behavior stabilizes.
-- No Metal 0016–0025 write or review scopes may overlap. Blocked 0016–0018 have no active write
+- No Metal 0016–0026 write or review scopes may overlap. Blocked 0016–0018 have no active write
   scope. Complete Model 0028 owns the reduction semantic contract, Complete Model 0029 owns the
-  MATMUL final-publication semantic contract, Complete Metal 0021–0024 retain their reviewed
-  implementations, and Ready 0025 owns the sole authorized independent review scope.
+  MATMUL final-publication semantic contract, Complete Metal 0021–0025 retain their reviewed
+  implementations, and Ready 0026 owns the sole authorized implementation scope.
 
 ## Milestones and current frontier
 
-Metal 0001–0005, 0008, 0014–0015, and 0019–0024 are Complete. Task 0015 landed at `42c4cfbf` plus
+Metal 0001–0005, 0008, 0014–0015, and 0019–0025 are Complete. Task 0015 landed at `42c4cfbf` plus
 evidence-wording remediation `fb102a46`. Task 0019 landed at implementation `a6d1796d` plus
 mixed-owner test remediation `bcb717a6`; its complete evidence and independent Class C final
 `APPROVE` with zero findings passed. Metal 0020 landed at implementation `9ddb75f6` plus
@@ -223,9 +230,13 @@ bounds-before-uniqueness validation, and version-eleven identities while retaini
 thirteen exports, and FLOAT32-only transfer. Implementation
 `a947e574732273bee4469d42afe8935082d53109`, documentation remediation
 `aa191ca469010d081150e97dcddd504ec626dd9e`, and final independent lean Class C approval close it.
-Ready Metal 0025 now implements bounded common-profile exact FLOAT32 UNFOLD_AXIS at schema 11,
-wire 19, WINDOW_AXIS 6, and version-twelve identities from clean planning base
-`c54ccbde0dc8defd4def1e25c3fd2898a1d66f4e`; it awaits independent lean Class C review.
+Complete Metal 0025 adds bounded common-profile exact FLOAT32 UNFOLD_AXIS at schema 11, wire 19,
+WINDOW_AXIS 6, and version-twelve identities. It landed at implementation
+`44edd86092509348e1e72cf7f0f4c3b13d141fa8`, remediations
+`d0a947fa953bddb2714c1917c7114ac345c530b7` and
+`f88066e3ad0547987bb03b2d18ed2813f97de223`, and final independent lean Class C approval. Ready
+Metal 0026 is the sole frontier and adds no current capability until its mandatory direct-selector
+finite numerical gate passes.
 
 Metal 0006 remains `Blocked` after exact RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures.
 Metal 0007 remains independently `Blocked` after eight direct-output executions returned positive
@@ -309,10 +320,13 @@ remediation `90cd5fd9` and final independent approval. Complete Metal 0023 deliv
 exact indexing scope through `9a7911c9` plus evidence `80e6cedd` and final independent approval.
 Complete Metal 0024 delivered exact functional Scatter Elements replacement through
 `a947e574732273bee4469d42afe8935082d53109` plus documentation remediation
-`aa191ca469010d081150e97dcddd504ec626dd9e` and final independent approval. Ready Metal 0025 has
-implemented only exact bounded FLOAT32 UNFOLD_AXIS materialization from clean planning base
-`c54ccbde`; independent lean Class C review is next. Comparison, scalar, extrema, scan, every other
-unary operation, broader window/fold/backward/training, and Model 0026 remain unauthorized.
+`aa191ca469010d081150e97dcddd504ec626dd9e` and final independent approval. Complete Metal 0025
+delivered only exact bounded FLOAT32 UNFOLD_AXIS materialization at implementation `44edd860`,
+remediation `d0a947fa`, and final reviewed remediation `f88066e3`; final independent review
+approved with zero findings. Ready Metal 0026 authorizes only profile-common canonical FLOAT32
+SOFTMAX forward and accelerator composition of the unchanged Compiler-generated gradient graph.
+Comparison, scalar, extrema, scan, LOG_SOFTMAX, every general normalization, broader
+window/fold/backward/training, and Model 0026 remain unauthorized.
 
 ## Delivered lifecycle and ABI boundary
 
