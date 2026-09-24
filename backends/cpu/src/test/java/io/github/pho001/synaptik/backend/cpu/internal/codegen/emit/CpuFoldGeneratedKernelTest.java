@@ -295,9 +295,8 @@ class CpuFoldGeneratedKernelTest {
         var base = CpuScatterLoweringTest.context(new Operation(WindowTransformKind.FOLD_AXIS,
                         new FoldAxisAttrs(0, 5, 1)), List.of(0), List.of(inputDescriptor),
                 outputDescriptor);
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.FLOAT_ARRAY)));
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.FLOAT_ARRAY)));
         try (Arena arena = Arena.ofConfined()) {
             var input = arena.allocate(4L * Float.BYTES, Float.BYTES);
             input.set(ValueLayout.JAVA_FLOAT, Float.BYTES, 1.0f);
@@ -373,9 +372,8 @@ class CpuFoldGeneratedKernelTest {
     private static PrepareContext<CpuPartitionAnalysisInputs> carriers(
             PrepareContext<CpuPartitionAnalysisInputs> base, CarrierAccess input,
             CarrierAccess output) {
-        return new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
-                        List.of(input, output)));
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+                List.of(input, output)));
     }
 
     private static void assertDirectGeneratedShape(

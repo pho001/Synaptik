@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
@@ -50,6 +51,16 @@ class MetalCapabilityProviderTest {
     }
 
     @Test
+    void acceleratorProfileFailsClosedForOtherwiseSupportedNeg() {
+        TensorDescriptor matrix = descriptor(Shape.of(2, 3), false);
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                neg(),
+                List.of(matrix),
+                List.of(matrix))));
+    }
+
+    @Test
     void rejectsEveryBoundaryOutsideTheExactDomain() {
         TensorDescriptor valid = descriptor(Shape.of(2, 3), false);
         Shape dynamic = Shape.ofDimensions(new DynamicDimension("N"));
@@ -72,18 +83,11 @@ class MetalCapabilityProviderTest {
                 Optional.of(LayoutDescriptor.of(Shape.of(2, 3), new long[] {1, 2}, 0, false)),
                 false);
 
-        assertFalse(provider.supports(new OperationCapabilityQuery(
-                new Operation(UnaryElementwiseKind.ABS, NoOperationAttrs.INSTANCE),
-                List.of(valid), List.of(valid))));
-        assertFalse(provider.supports(new OperationCapabilityQuery(
-                new Operation(BinaryComparisonKind.GREATER_THAN, NoOperationAttrs.INSTANCE),
-                List.of(valid, valid), List.of(valid))));
-        assertFalse(provider.supports(new OperationCapabilityQuery(
-                new Operation(
-                        ScalarElementwiseKind.ADD,
-                        new ScalarValueAttrs(ScalarValue.float32(1.0f))),
-                List.of(valid),
-                List.of(valid))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(UnaryElementwiseKind.ABS, NoOperationAttrs.INSTANCE), List.of(valid), List.of(valid))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(BinaryComparisonKind.GREATER_THAN, NoOperationAttrs.INSTANCE), List.of(valid, valid), List.of(valid))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(
+                ScalarElementwiseKind.ADD,
+                new ScalarValueAttrs(ScalarValue.float32(1.0f))), List.of(valid), List.of(valid))));
         assertFalse(provider.supports(query(typed(DataType.FLOAT64), typed(DataType.FLOAT64))));
         assertFalse(provider.supports(query(valid, descriptor(Shape.of(3, 2), false))));
         assertFalse(provider.supports(query(valid, descriptor(Shape.of(2, 3), true))));
@@ -109,17 +113,14 @@ class MetalCapabilityProviderTest {
     }
 
     private static OperationCapabilityQuery query(TensorDescriptor input, TensorDescriptor output) {
-        return new OperationCapabilityQuery(neg(), List.of(input), List.of(output));
+        return new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, neg(), List.of(input), List.of(output));
     }
     private static OperationCapabilityQuery binaryQuery(
             BinaryArithmeticKind kind,
             TensorDescriptor left,
             TensorDescriptor right,
             TensorDescriptor output) {
-        return new OperationCapabilityQuery(
-                new Operation(kind, NoOperationAttrs.INSTANCE),
-                List.of(left, right),
-                List.of(output));
+        return new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(kind, NoOperationAttrs.INSTANCE), List.of(left, right), List.of(output));
     }
 
     private static Operation neg() {

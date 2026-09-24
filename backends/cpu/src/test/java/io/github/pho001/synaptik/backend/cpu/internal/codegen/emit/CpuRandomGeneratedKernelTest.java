@@ -99,8 +99,7 @@ class CpuRandomGeneratedKernelTest {
                 values.getFirst().id(), descriptor));
         memory.set(0, new io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement(
                 values.getFirst().id(), descriptor, Optional.of(base.partition()), List.of(), true));
-        var context = new PrepareContext<>(base.partition(), base.nodes(), values, memory,
-                base.constants(), base.backendInputs());
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), values, memory, base.constants(), base.backendInputs());
         var invocation = generated(context, List.of(CarrierAccess.LONG_ARRAY));
         long[] output = new long[6];
         Arrays.fill(output, 7);
@@ -237,9 +236,7 @@ class CpuRandomGeneratedKernelTest {
                 () -> assertEquals(-19.0f, output[3]),
                 () -> assertEquals((byte) -19, mask[3]));
 
-        var route = new CpuPartitionPreparer().analyze(new PrepareContext<>(context.partition(),
-                context.nodes(), context.values(), context.memoryRequirements(), context.constants(),
-                new CpuPartitionAnalysisInputs(false, carriers))).plan().units().getFirst()
+        var route = new CpuPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, context.partition(), context.nodes(), context.values(), context.memoryRequirements(), context.constants(), new CpuPartitionAnalysisInputs(false, carriers))).plan().units().getFirst()
                 .portablePlan();
         byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(
                 route.specialization(), route.kernelIr());
@@ -422,9 +419,7 @@ class CpuRandomGeneratedKernelTest {
 
     private static void assertDirectShape(PrepareContext<CpuPartitionAnalysisInputs> base,
             List<CarrierAccess> carriers, DataType valueType, boolean dense) {
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), base.constants(),
-                new CpuPartitionAnalysisInputs(false, carriers));
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
         var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
                 .portablePlan();
         byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(
@@ -544,8 +539,7 @@ class CpuRandomGeneratedKernelTest {
 
     private static Generated generated(PrepareContext<CpuPartitionAnalysisInputs> base,
             List<CarrierAccess> carriers) {
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();

@@ -96,13 +96,10 @@ class CpuSpecializedSubgraphTest {
                 io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization
                         .CarrierAccess.FLOAT_ARRAY);
         String key = "01".repeat(32);
-        var specialization = new CpuKernelSpecialization(
-                CpuLoweringFingerprint.fromHex(key),
-                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
-                List.of(DataType.FLOAT32),
-                List.of(CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY), 0, -1,
-                List.of(), false);
+        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(key), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+        List.of(DataType.FLOAT32),
+        List.of(CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY), 0, -1,
+        List.of(), false);
         var execution = new BaselineExecutionFact(BaselineRoute.PORTABLE, specialization,
                 BaselineCompute.SCALAR, BaselineOrchestration.SINGLE_THREAD, List.of(), 1, 1, 1,
                 0, List.of(), Optional.empty(), RuntimeTopology.POINTWISE, List.of(), "test");

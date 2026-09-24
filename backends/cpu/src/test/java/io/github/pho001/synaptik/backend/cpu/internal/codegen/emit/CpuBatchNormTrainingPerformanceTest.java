@@ -225,8 +225,7 @@ public final class CpuBatchNormTrainingPerformanceTest {
         var base=CpuBatchNormTrainingLoweringTest.context(types,shape,axis,occurrences,layouts);
         var config=new CpuPartitionAnalysisInputs.PortableExecutionConfig(
                 CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR,ranges,ranges,4096);
-        var context=new PrepareContext<>(base.partition(),base.nodes(),base.values(),base.memoryRequirements(),
-                base.constants(),new CpuPartitionAnalysisInputs(false,carriers,config));
+        var context=new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,carriers,config));
         var plan=new CpuPartitionPreparer().analyze(context).plan();assertEquals(ranges,plan.selectedRangeCount());
         var route=plan.units().getFirst().portablePlan();var gen=new CpuClassFileKernelGenerator();
         byte[] bytes=gen.generateClassBytes(route.specialization(),route.kernelIr());var g=plan.batchNormTrainingGeometry().orElseThrow();

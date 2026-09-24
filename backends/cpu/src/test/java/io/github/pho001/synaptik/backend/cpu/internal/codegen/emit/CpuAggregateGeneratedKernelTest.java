@@ -71,10 +71,8 @@ class CpuAggregateGeneratedKernelTest {
         var operation = new Operation(AggregateReductionKind.SUM, new SumToShapeAttrs(target));
         var base = CpuScatterLoweringTest.context(operation, List.of(0),
                 List.of(inputDescriptor), outputDescriptor);
-        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(),
-                base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
-                new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
-                        CarrierAccess.SHORT_ARRAY)));
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
+                CarrierAccess.SHORT_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
@@ -115,9 +113,8 @@ class CpuAggregateGeneratedKernelTest {
         var operation = new Operation(AggregateReductionKind.SUM, new SumToShapeAttrs(shape));
         var base = CpuScatterLoweringTest.context(operation, List.of(0),
                 List.of(inputDescriptor), outputDescriptor);
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.FLOAT_ARRAY)));
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.FLOAT_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
@@ -193,8 +190,7 @@ class CpuAggregateGeneratedKernelTest {
                     List<CarrierAccess> carriers) {
         var base = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM, type, source,
                 new SumToShapeAttrs(target), target);
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
         return new CpuPartitionPreparer().analyze(context).plan().units().getFirst().portablePlan();
     }
 
@@ -210,10 +206,8 @@ class CpuAggregateGeneratedKernelTest {
         var base = CpuScatterLoweringTest.context(new Operation(AggregateReductionKind.MIN,
                 new MultiAxisReductionAttrs(List.of(0, 2), true)), List.of(0),
                 List.of(inputDescriptor), outputDescriptor);
-        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(),
-                base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
-                new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
-                        CarrierAccess.SHORT_ARRAY)));
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
+                CarrierAccess.SHORT_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
@@ -278,10 +272,8 @@ class CpuAggregateGeneratedKernelTest {
         var base = CpuScatterLoweringTest.context(new Operation(AggregateReductionKind.MIN,
                 new MultiAxisReductionAttrs(List.of(0, 2), true)), List.of(0),
                 List.of(inputDescriptor), outputDescriptor);
-        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(),
-                base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
-                new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
-                        CarrierAccess.SHORT_ARRAY)));
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
+                CarrierAccess.SHORT_ARRAY)));
         var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
                 .portablePlan();
         var model = ClassFile.of().parse(new CpuClassFileKernelGenerator().generateClassBytes(
@@ -335,10 +327,8 @@ class CpuAggregateGeneratedKernelTest {
         var meanBase = CpuScatterLoweringTest.context(new Operation(AggregateReductionKind.MEAN,
                 new AxisReductionAttrs(1, false)), List.of(0), List.of(meanInputDescriptor),
                 meanOutputDescriptor);
-        PrepareContext<CpuPartitionAnalysisInputs> meanContext = new PrepareContext<>(
-                meanBase.partition(), meanBase.nodes(), meanBase.values(),
-                meanBase.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.FLOAT_ARRAY)));
+        PrepareContext<CpuPartitionAnalysisInputs> meanContext = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, meanBase.partition(), meanBase.nodes(), meanBase.values(), meanBase.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.FLOAT_ARRAY)));
         var meanPlan = new CpuPartitionPreparer().analyze(meanContext).plan();
         var meanRoute = meanPlan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
@@ -355,10 +345,8 @@ class CpuAggregateGeneratedKernelTest {
         var productBase = CpuScatterLoweringTest.context(new Operation(AggregateReductionKind.PROD,
                 new MultiAxisReductionAttrs(List.of(0, 2), true)), List.of(0),
                 List.of(productInputDescriptor), productOutputDescriptor);
-        PrepareContext<CpuPartitionAnalysisInputs> productContext = new PrepareContext<>(
-                productBase.partition(), productBase.nodes(), productBase.values(),
-                productBase.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.MEMORY_SEGMENT)));
+        PrepareContext<CpuPartitionAnalysisInputs> productContext = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, productBase.partition(), productBase.nodes(), productBase.values(), productBase.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.MEMORY_SEGMENT)));
         var productPlan = new CpuPartitionPreparer().analyze(productContext).plan();
         var productRoute = productPlan.units().getFirst().portablePlan();
         var productArtifact = generator.defineClassBytes(productRoute.specialization(),
@@ -464,10 +452,8 @@ class CpuAggregateGeneratedKernelTest {
         var meanBase = CpuScatterLoweringTest.context(new Operation(AggregateReductionKind.MEAN,
                 new AxisReductionAttrs(1, false)), List.of(0), List.of(meanInputDescriptor),
                 meanOutputDescriptor);
-        PrepareContext<CpuPartitionAnalysisInputs> meanContext = new PrepareContext<>(
-                meanBase.partition(), meanBase.nodes(), meanBase.values(),
-                meanBase.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.FLOAT_ARRAY)));
+        PrepareContext<CpuPartitionAnalysisInputs> meanContext = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, meanBase.partition(), meanBase.nodes(), meanBase.values(), meanBase.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.FLOAT_ARRAY)));
         var meanRoute = new CpuPartitionPreparer().analyze(meanContext).plan().units().getFirst()
                 .portablePlan();
 
@@ -481,10 +467,8 @@ class CpuAggregateGeneratedKernelTest {
         var productBase = CpuScatterLoweringTest.context(new Operation(AggregateReductionKind.PROD,
                 new MultiAxisReductionAttrs(List.of(0, 2), true)), List.of(0),
                 List.of(productInputDescriptor), productOutputDescriptor);
-        PrepareContext<CpuPartitionAnalysisInputs> productContext = new PrepareContext<>(
-                productBase.partition(), productBase.nodes(), productBase.values(),
-                productBase.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.MEMORY_SEGMENT)));
+        PrepareContext<CpuPartitionAnalysisInputs> productContext = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, productBase.partition(), productBase.nodes(), productBase.values(), productBase.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.MEMORY_SEGMENT)));
         var productRoute = new CpuPartitionPreparer().analyze(productContext).plan().units()
                 .getFirst().portablePlan();
 
@@ -511,10 +495,8 @@ class CpuAggregateGeneratedKernelTest {
         var base = CpuScatterLoweringTest.context(new Operation(AggregateReductionKind.ANY,
                 new AxisReductionAttrs(1, false)), List.of(0), List.of(inputDescriptor),
                 outputDescriptor);
-        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(),
-                base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
-                new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
-                        CarrierAccess.BYTE_ARRAY)));
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
+                CarrierAccess.BYTE_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
@@ -560,10 +542,8 @@ class CpuAggregateGeneratedKernelTest {
     @Test void numericalArtifactsHaveTypedScratchDescriptorsAndDirectAllowedMembers() {
         var base = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM, DataType.FLOAT64,
                 Shape.of(3), NoOperationAttrs.INSTANCE, Shape.scalar());
-        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(),
-                base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
-                new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
         var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst().portablePlan();
         var method = ClassFile.of().parse(new CpuClassFileKernelGenerator().generateClassBytes(
                 route.specialization(), route.kernelIr())).methods().getFirst();
@@ -585,10 +565,8 @@ class CpuAggregateGeneratedKernelTest {
     @Test void generatedClassContainsTypedAggregateFoldWithoutGenericDispatchBridge() {
         var base = CpuAggregateLoweringTest.context(AggregateReductionKind.MIN, DataType.FLOAT64,
                 Shape.of(1024), NoOperationAttrs.INSTANCE, Shape.scalar());
-        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(),
-                base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
-                new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
         var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst().portablePlan();
         var code = ClassFile.of().parse(new CpuClassFileKernelGenerator().generateClassBytes(
                 route.specialization(), route.kernelIr())).methods().getFirst().code().orElseThrow();
@@ -849,10 +827,8 @@ class CpuAggregateGeneratedKernelTest {
                 LayoutDescriptor.of(outputShape,new long[]{2},1,true));
         var base = CpuScatterLoweringTest.context(new Operation(AggregateReductionKind.MAX,
                 new AxisReductionAttrs(1,false)), List.of(0), List.of(inputDescriptor), outputDescriptor);
-        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(),
-                base.nodes(),base.values(),base.memoryRequirements(),Map.of(),
-                new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.MEMORY_SEGMENT,
-                        CarrierAccess.FLOAT_ARRAY)));
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.MEMORY_SEGMENT,
+                CarrierAccess.FLOAT_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan(); var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator(); var artifact = generator.defineClassBytes(
                 route.specialization(),generator.generateClassBytes(route.specialization(),route.kernelIr()));
@@ -876,10 +852,8 @@ class CpuAggregateGeneratedKernelTest {
         var base = CpuScatterLoweringTest.context(new Operation(AggregateReductionKind.SUM,
                 new AxisReductionAttrs(1,false)), List.of(0), List.of(inputDescriptor),
                 outputDescriptor);
-        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(),
-                base.nodes(),base.values(),base.memoryRequirements(),Map.of(),
-                new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.MEMORY_SEGMENT,
-                        CarrierAccess.FLOAT_ARRAY)));
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.MEMORY_SEGMENT,
+                CarrierAccess.FLOAT_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator(); var artifact = generator.defineClassBytes(
@@ -899,10 +873,8 @@ class CpuAggregateGeneratedKernelTest {
     @Test void numericalGeneratedBodyHonorsPartialAndEmptyOutputCellRanges() throws Throwable {
         var base = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM, DataType.FLOAT64,
                 Shape.of(4,3), new AxisReductionAttrs(1,false), Shape.of(4));
-        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(),
-                base.nodes(),base.values(),base.memoryRequirements(),Map.of(),
-                new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.DOUBLE_ARRAY,
-                        CarrierAccess.DOUBLE_ARRAY)));
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.DOUBLE_ARRAY,
+                CarrierAccess.DOUBLE_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();
         var artifact = generator.defineClassBytes(route.specialization(),
@@ -925,10 +897,8 @@ class CpuAggregateGeneratedKernelTest {
         var outputDescriptor=CpuScatterLoweringTest.desc(DataType.FLOAT32,outputShape);
         var base=CpuScatterLoweringTest.context(new Operation(AggregateReductionKind.MIN,
                 new AxisReductionAttrs(1,false)),List.of(0),List.of(inputDescriptor),outputDescriptor);
-        PrepareContext<CpuPartitionAnalysisInputs> context=new PrepareContext<>(base.partition(),
-                base.nodes(),base.values(),base.memoryRequirements(),Map.of(),
-                new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.FLOAT_ARRAY,
-                        CarrierAccess.FLOAT_ARRAY)));
+        PrepareContext<CpuPartitionAnalysisInputs> context=new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.FLOAT_ARRAY,
+                CarrierAccess.FLOAT_ARRAY)));
         var plan=new CpuPartitionPreparer().analyze(context).plan(); var route=plan.units().getFirst().portablePlan();
         var generator=new CpuClassFileKernelGenerator(); var artifact=generator.defineClassBytes(
                 route.specialization(),generator.generateClassBytes(route.specialization(),route.kernelIr()));
@@ -976,9 +946,7 @@ class CpuAggregateGeneratedKernelTest {
             OperationAttrs attrs, Shape outputShape, Object input) throws Throwable {
         var base = CpuAggregateLoweringTest.context(kind,type,inputShape,attrs,outputShape);
         CarrierAccess carrier = carrier(type);
-        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(),
-                base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
-                new CpuPartitionAnalysisInputs(false,List.of(carrier,carrier)));
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,List.of(carrier,carrier)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();
         var artifact = generator.defineClassBytes(route.specialization(),
@@ -1057,9 +1025,7 @@ class CpuAggregateGeneratedKernelTest {
         var base = CpuAggregateLoweringTest.context(kind, type, Shape.of(8),
                 NoOperationAttrs.INSTANCE, Shape.scalar());
         CarrierAccess carrier = carrier(type);
-        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(),
-                base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
-                new CpuPartitionAnalysisInputs(false, List.of(carrier, carrier)));
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, List.of(carrier, carrier)));
         var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst().portablePlan();
         var model = ClassFile.of().parse(new CpuClassFileKernelGenerator().generateClassBytes(
                 route.specialization(), route.kernelIr()));

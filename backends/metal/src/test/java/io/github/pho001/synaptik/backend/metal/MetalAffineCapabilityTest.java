@@ -138,8 +138,7 @@ class MetalAffineCapabilityTest {
 
     private boolean supports(
             Operation operation, TensorDescriptor input, TensorDescriptor output) {
-        return provider.supports(new OperationCapabilityQuery(
-                operation, List.of(input), List.of(output)));
+        return provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, operation, List.of(input), List.of(output)));
     }
 
     private static TensorDescriptor canonical(Shape shape, boolean requiresGrad) {

@@ -159,10 +159,7 @@ final class CpuLocalWorkloadTuningPublicTest {
     }
 
     private static CompileArtifacts compile(CpuBackendIntegration integration, Tensor output) {
-        return GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, List.of(output),
-                Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(),
-                PartitionScoringConfig.neutral(), List.of(integration.capabilityProvider()),
-                List.of(integration.availabilitySnapshot()));
+        return GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(output), Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(integration.capabilityProvider()), List.of(integration.availabilitySnapshot()));
     }
 
     private static CompileArtifacts resolvedMatmulArtifacts(
@@ -176,10 +173,7 @@ final class CpuLocalWorkloadTuningPublicTest {
                 return true;
             }
         };
-        CompileArtifacts base = GraphCompilationPort.compile(CompileMode.FORWARD_ONLY,
-                List.of(output), Optional.empty(), GraphOptimizationConfig.disabled(),
-                BackendIntent.unconstrained(), PartitionScoringConfig.neutral(),
-                List.of(captureProvider), List.of(integration.availabilitySnapshot()));
+        CompileArtifacts base = GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(output), Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(captureProvider), List.of(integration.availabilitySnapshot()));
         var outputIds = java.util.Set.copyOf(base.graph().outputs());
         var values = base.graph().values().stream().map(value -> {
             if (!outputIds.contains(value.id())) return value;
@@ -198,10 +192,8 @@ final class CpuLocalWorkloadTuningPublicTest {
                 new Class<?>[] {List.class, List.class}, List.of(), graph.inputs().stream()
                         .map(id -> new CompileConstantPlan.ConstantSource(
                                 id, ScalarValue.float32(1.0f))).toList());
-        return new CompileArtifacts(base.mode(), graph, base.partitions(),
-                LogicalMemoryPlanning.plan(graph, base.partitions()), publication, constants,
-                base.diagnostics(), new DerivativeGraphMetadata(
-                        graph, base.derivatives().derivativeOrderByNode()));
+        return new CompileArtifacts(base.mode(), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, graph, base.partitions(), LogicalMemoryPlanning.plan(graph, base.partitions()), publication, constants, base.diagnostics(), new DerivativeGraphMetadata(
+                graph, base.derivatives().derivativeOrderByNode()));
     }
 
     private static <T> T construct(

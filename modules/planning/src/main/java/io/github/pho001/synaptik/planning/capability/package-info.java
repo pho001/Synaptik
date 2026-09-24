@@ -1,10 +1,11 @@
 /**
  * Defines backend-neutral compile-time contracts for operation capability questions.
  *
- * <p>A capability question combines immutable backend-independent operation semantics with the
- * ordered logical input and output descriptors of one structurally valid occurrence. An
- * explicitly supplied provider answers whether its named backend can semantically own that
- * occurrence. The package also contains an internal per-query step that validates a complete
+ * <p>A capability question combines the exact graph-wide numerical profile with immutable
+ * backend-independent operation semantics and the ordered logical input and output descriptors of
+ * one structurally valid occurrence. An explicitly supplied provider answers whether its named
+ * backend can semantically own that complete profile-qualified occurrence. The package also
+ * contains an internal per-query step that validates a complete
  * provider-to-availability-snapshot association, applies current availability and one optional
  * exact hard requirement, and retains the supported backend identities that remain eligible. A
  * second internal step selects one owner from that complete ordered candidate set. The public
@@ -31,8 +32,8 @@
  * owner-selection collaboration. The current compiler constructs one query for each final graph
  * node and owns the graph-wide loop and owner map. Reusable or public capability matrices,
  * eligibility results, a graph-wide Planning workflow, numeric or cost scoring, operation-family
- * or workload classification, profiles, device-level capability or selection, preparation,
- * kernel or route selection, runtime state, execution, and provider implementations remain
- * outside this package or planned.</p>
+ * or workload classification, device-level capability or selection, preparation, kernel or route
+ * selection, runtime state, execution, and provider implementations remain outside this package
+ * or planned. Planning transports the profile identity without interpreting Model semantics.</p>
  */
 package io.github.pho001.synaptik.planning.capability;

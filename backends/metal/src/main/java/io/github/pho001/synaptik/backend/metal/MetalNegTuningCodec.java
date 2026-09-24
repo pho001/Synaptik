@@ -27,7 +27,7 @@ final class MetalNegTuningCodec {
     private static final int COMPATIBILITY_MAGIC = 0x4d4e434d; // MNCM
     private static final int CANDIDATE_MAGIC = 0x4d4e4341; // MNCA
     private static final int DECISION_MAGIC = 0x4d4e4443; // MNDC
-    private static final int CODEC_VERSION = 4;
+    private static final int CODEC_VERSION = 5;
     private static final int SESSION_SCOPE = 1;
 
     /**
@@ -47,6 +47,7 @@ final class MetalNegTuningCodec {
             output.writeInt(compatibility.schemaVersion());
             output.writeInt(compatibility.candidateSchemaVersion());
             output.writeInt(compatibility.routePolicyVersion());
+            output.writeInt(numericalProfileWireValue(compatibility.numericalProfile()));
             output.writeInt(compatibility.target().abiVersion());
             output.writeLong(compatibility.target().sessionNonce().highBits());
             output.writeLong(compatibility.target().sessionNonce().lowBits());
@@ -177,6 +178,14 @@ final class MetalNegTuningCodec {
             return Optional.empty();
         }
         return MetalNegTuningBatch.Candidate.fromWireIdentity(input.readInt());
+    }
+
+    private static int numericalProfileWireValue(
+            io.github.pho001.synaptik.config.compile.NumericalProfile profile) {
+        return switch (profile) {
+            case STRICT_IEEE -> 0x53545249;
+            case ACCELERATOR -> 0x41434345;
+        };
     }
 
     private static int readInt(byte[] bytes, int offset) {

@@ -197,16 +197,7 @@ final class RecurrentScanCompilerTest {
         BackendId backendId = new BackendId("recording-test-backend");
         List<OperationCapabilityQuery> queries = new ArrayList<>();
 
-        CompileArtifacts artifacts = GraphCompiler.compile(
-                CompileMode.FORWARD_ONLY,
-                List.of(result.finalHidden(), result.outputs()),
-                Optional.empty(),
-                CompileTimeConstantGraph.Ingress.empty(),
-                GraphOptimizationConfig.standard(),
-                BackendIntent.unconstrained(),
-                PartitionScoringConfig.neutral(),
-                List.of(recordingProvider(backendId, queries)),
-                List.of(snapshot(backendId)));
+        CompileArtifacts artifacts = GraphCompiler.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(result.finalHidden(), result.outputs()), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.standard(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(recordingProvider(backendId, queries)), List.of(snapshot(backendId)));
 
         OperationCapabilityQuery query = queries.getFirst();
         CompiledNode node = artifacts.graph().nodes().getFirst();

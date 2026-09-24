@@ -140,10 +140,9 @@ class CpuMatmulSemanticClosureTest {
         for (int i = 0; i < values.size(); i++) carriers.add(request.segment || request.mixed && i % 2 == 1
                 ? CarrierAccess.MEMORY_SEGMENT
                 : CpuGeneratedDirectEvidenceClosureTest.heapCarrier(values.get(i).descriptor().dataType()));
-        return new PrepareContext<>(base.partition(), base.nodes(), values, memory, base.constants(),
-                new CpuPartitionAnalysisInputs(false, carriers, request.execution,
-                        request.materialization ? MATERIALIZATION
-                                : CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED));
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), values, memory, base.constants(), new CpuPartitionAnalysisInputs(false, carriers, request.execution,
+                request.materialization ? MATERIALIZATION
+                        : CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED));
     }
 
     private static void fillInputs(PrepareContext<CpuPartitionAnalysisInputs> context,

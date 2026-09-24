@@ -3944,3 +3944,10 @@ Future CPU work must compare optimized routes with a scalar reference through ba
 tests and keep benchmarks reproducible.
 
 See the [CPU master plan](../planning/backends/cpu/master-plan.md), [kernel routes](kernel-routes.md), and [CPU kernel strategy](../design/notes/cpu-kernel-strategy.md).
+
+## Numerical profiles
+
+CPU preparation requires `STRICT_IEEE` and rejects `ACCELERATOR` before route analysis. The profile
+is included in partition plans, generated-kernel specialization and artifact identity, OpenBLAS
+workload identity, and local and complete-plan tuning compatibility. This prevents reuse across
+profiles without claiming a relaxed CPU realization.

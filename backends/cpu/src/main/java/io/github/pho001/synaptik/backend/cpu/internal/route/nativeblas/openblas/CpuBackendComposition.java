@@ -217,7 +217,7 @@ public final class CpuBackendComposition implements AutoCloseable {
         Objects.requireNonNull(context, "context");
         Objects.requireNonNull(phaseOneDecision, "phaseOneDecision");
         Objects.requireNonNull(selectedPlan, "selectedPlan");
-        if (selectedPlan.schemaVersion() != 1) {
+        if (selectedPlan.schemaVersion() != 2) {
             throw new IllegalArgumentException("CPU complete-plan schema is unsupported");
         }
         validatePhaseOne(context, phaseOneDecision);
@@ -311,8 +311,7 @@ public final class CpuBackendComposition implements AutoCloseable {
             throw new IllegalArgumentException(
                     "CPU integration requires exactly one non-empty CPU partition");
         }
-        return new PrepareContext<>(context.partitionDag(), context.values(),
-                context.memoryRequirements(), context.constants(), inputs);
+        return new PrepareContext<>(context.numericalProfile(), context.partitionDag(), context.values(), context.memoryRequirements(), context.constants(), inputs);
     }
 
     /**

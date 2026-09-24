@@ -741,6 +741,7 @@ public final class GraphPreparation {
             }
             PartitionDag partitionDag = new PartitionDag(partition, partitionNodes);
             return new PrepareContext<>(
+                    artifacts.numericalProfile(),
                     partitionDag,
                     values,
                     memoryRequirements,

@@ -107,17 +107,14 @@ class CpuAttentionEvidenceTest {
               CpuAttentionIr attention = attention(mapping, masked, causal, outputs, boundaryTypes);
               var ir = attention.encodedKernelIr();
               var specialization =
-                  new CpuKernelSpecialization(
-                      CpuLoweringFingerprint.fromHex(ir.structuralKey()),
-                      CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                      CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
-                      boundaryTypes,
-                      carriers,
-                      0,
-                      -1,
-                      List.of(),
-                      true,
-                      57);
+                  new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                  boundaryTypes,
+                  carriers,
+                  0,
+                  -1,
+                  List.of(),
+                  true,
+                  57);
               String key = specialization.structuralKey();
               assertTrue(keys.add(key), "duplicate specialization " + key);
               byte[] bytes = generator.generateClassBytes(specialization, ir);
@@ -373,11 +370,8 @@ class CpuAttentionEvidenceTest {
     List<DataType> types = boundaryTypes(mapping, masked, outputs);
     CpuAttentionIr attention = attention(mapping, masked, causal, outputs, types);
     var ir = attention.encodedKernelIr();
-    var specialization = new CpuKernelSpecialization(
-        CpuLoweringFingerprint.fromHex(ir.structuralKey()),
-        CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-        CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1, List.of(),
-        true, 57);
+    var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1, List.of(),
+    true, 57);
     byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(specialization, ir);
     return new Generated(specialization.structuralKey(), specialization, ir, types, bytes);
   }

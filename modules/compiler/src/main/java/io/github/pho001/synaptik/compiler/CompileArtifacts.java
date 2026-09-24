@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.compiler;
 
 import io.github.pho001.synaptik.config.compile.CompileMode;
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
 import io.github.pho001.synaptik.model.graph.GraphPhase;
 import io.github.pho001.synaptik.model.graph.GraphValue;
@@ -31,6 +32,8 @@ import java.util.Set;
  * state.</p>
  *
  * @param mode non-null exact graph-scope mode
+ * @param numericalProfile non-null immutable graph-wide numerical-profile identity retained
+ *     exactly without interpretation
  * @param graph non-null exact final immutable graph
  * @param partitions non-null exact maximal graph-order partition recipes; membership snapshotted
  * @param memory non-null logical-memory plan derived from this graph and partition list
@@ -42,6 +45,7 @@ import java.util.Set;
  */
 public record CompileArtifacts(
         CompileMode mode,
+        NumericalProfile numericalProfile,
         CompiledGraphModel graph,
         List<PlannedPartition> partitions,
         LogicalMemoryPlan memory,
@@ -53,6 +57,8 @@ public record CompileArtifacts(
      * Validates and snapshots one complete immutable compile recipe.
      *
      * @param mode non-null exact graph-scope mode
+     * @param numericalProfile non-null immutable graph-wide numerical-profile identity retained
+     *     exactly without interpretation
      * @param graph non-null exact final immutable graph
      * @param partitions non-null ordered exact maximal graph partitions
      * @param memory non-null logical-memory plan for the supplied graph and partitions
@@ -68,6 +74,7 @@ public record CompileArtifacts(
      */
     public CompileArtifacts {
         Objects.requireNonNull(mode, "mode");
+        Objects.requireNonNull(numericalProfile, "numericalProfile");
         Objects.requireNonNull(graph, "graph");
         Objects.requireNonNull(partitions, "partitions");
         Objects.requireNonNull(memory, "memory");

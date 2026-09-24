@@ -128,26 +128,19 @@ class MetalNegPreparedExecutionTest {
         try {
             SingleNegRoute heuristic = singleNegRoute(
                     context, Shape.of(4), Optional.empty());
-            PrepareContext<MetalNegAnalysisInputs> source = new PrepareContext<>(
-                    heuristic.analysis().plan().partitionDag(),
-                    List.of(
-                            new GraphValue(heuristic.feed(), descriptor(Shape.of(4))),
-                            new GraphValue(heuristic.target(), descriptor(Shape.of(4)))),
-                    List.of(
-                            requirement(heuristic.feed(), descriptor(Shape.of(4)),
-                                    Optional.empty(), List.of(heuristic.partition()), false),
-                            requirement(heuristic.target(), descriptor(Shape.of(4)),
-                                    Optional.of(heuristic.partition()), List.of(), true)),
-                    Map.of(), new MetalNegAnalysisInputs(context));
+            PrepareContext<MetalNegAnalysisInputs> source = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, heuristic.analysis().plan().partitionDag(), List.of(
+                    new GraphValue(heuristic.feed(), descriptor(Shape.of(4))),
+                    new GraphValue(heuristic.target(), descriptor(Shape.of(4)))), List.of(
+                    requirement(heuristic.feed(), descriptor(Shape.of(4)),
+                            Optional.empty(), List.of(heuristic.partition()), false),
+                    requirement(heuristic.target(), descriptor(Shape.of(4)),
+                            Optional.of(heuristic.partition()), List.of(), true)), Map.of(), new MetalNegAnalysisInputs(context));
             var generator = new MetalNegRouteCandidateGenerator();
             var batch = generator.generate(source, heuristic.analysis().plan(), 2);
             var handoff = generator.presentHandoff(
                     heuristic.partition(), batch, MetalNegTuningBatch.Candidate.MPSGRAPH);
             BackendPartitionAnalysis<MetalNegPreparationPlan> selected =
-                    new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
-                            source.partitionDag(), source.values(), source.memoryRequirements(),
-                            source.constants(),
-                            new MetalNegAnalysisInputs(context, Optional.of(handoff))));
+                    new MetalNegPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, source.partitionDag(), source.values(), source.memoryRequirements(), source.constants(), new MetalNegAnalysisInputs(context, Optional.of(handoff))));
             assertEquals(MetalNegPreparationPlan.Route.MPSGRAPH, selected.plan().route());
             assertEquals(3, selected.requirements().size());
             assertTrue(selected.plan().addressWorkspace().isPresent());
@@ -1353,11 +1346,7 @@ class MetalNegPreparedExecutionTest {
                     MetalCapabilityProvider.METAL_BACKEND_ID,
                     Map.of(new BackendDeviceId(MetalCapabilityProvider.METAL_BACKEND_ID, "default"),
                             DeviceClass.ACCELERATOR));
-            var artifacts = GraphCompilationPort.compile(
-                    CompileMode.FORWARD_ONLY, List.of(shared, chain, independent), Optional.empty(),
-                    GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(),
-                    PartitionScoringConfig.neutral(), List.of(new MetalCapabilityProvider()),
-                    List.of(availability));
+            var artifacts = GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(shared, chain, independent), Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(new MetalCapabilityProvider()), List.of(availability));
             assertEquals(1, artifacts.partitions().size());
 
             var analyzed = new AtomicReference<MetalNegPreparationPlan>();
@@ -1718,26 +1707,21 @@ class MetalNegPreparedExecutionTest {
             PlannedPartition partition = new PlannedPartition(
                     MetalCapabilityProvider.METAL_BACKEND_ID, List.of(node.id()));
             BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
-                    new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
-                            new PartitionDag(partition, List.of(node)),
-                            List.of(
-                                    new GraphValue(feed, inputDescriptor),
-                                    new GraphValue(target, outputDescriptor)),
-                            List.of(
-                                    requirement(
-                                            feed,
-                                            inputDescriptor,
-                                            Optional.empty(),
-                                            List.of(partition),
-                                            false),
-                                    requirement(
-                                            target,
-                                            outputDescriptor,
-                                            Optional.of(partition),
-                                            List.of(),
-                                            true)),
-                            Map.of(),
-                            new MetalNegAnalysisInputs(context)));
+                    new MetalNegPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new PartitionDag(partition, List.of(node)), List.of(
+                            new GraphValue(feed, inputDescriptor),
+                            new GraphValue(target, outputDescriptor)), List.of(
+                            requirement(
+                                    feed,
+                                    inputDescriptor,
+                                    Optional.empty(),
+                                    List.of(partition),
+                                    false),
+                            requirement(
+                                    target,
+                                    outputDescriptor,
+                                    Optional.of(partition),
+                                    List.of(),
+                                    true)), Map.of(), new MetalNegAnalysisInputs(context)));
             FinalizationFixture assignment = finalization(analysis);
             finalized = new MetalNegPartitionFinalizer(context)
                     .finalizePartition(assignment.finalization());
@@ -1885,9 +1869,7 @@ class MetalNegPreparedExecutionTest {
                         Float.intBitsToFloat(splatBits[index])));
             }
             BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
-                    new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
-                            new PartitionDag(partition, nodes), values, requirements, constants,
-                            new MetalNegAnalysisInputs(context)));
+                    new MetalNegPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new PartitionDag(partition, nodes), values, requirements, constants, new MetalNegAnalysisInputs(context)));
             MetalNegPreparationPlan plan = analysis.plan();
             assertEquals(concat(List.of(caller), splats), plan.feedValueIds());
             int quietNanInput =
@@ -2007,18 +1989,11 @@ class MetalNegPreparedExecutionTest {
 
     private static BackendPartitionAnalysis<MetalNegPreparationPlan> analyze(
             Fixture fixture, MetalDeviceContext context) {
-        return new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
-                new PartitionDag(fixture.partition, fixture.nodes), fixture.values,
-                fixture.requirements, Map.of(), new MetalNegAnalysisInputs(context)));
+        return new MetalNegPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new PartitionDag(fixture.partition, fixture.nodes), fixture.values, fixture.requirements, Map.of(), new MetalNegAnalysisInputs(context)));
     }
     private static BackendPartitionAnalysis<MetalNegPreparationPlan> analyze(
             AffineFixture fixture, MetalDeviceContext context) {
-        return new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
-                new PartitionDag(fixture.partition(), fixture.nodes()),
-                fixture.values(),
-                fixture.requirements(),
-                Map.of(),
-                new MetalNegAnalysisInputs(context)));
+        return new MetalNegPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new PartitionDag(fixture.partition(), fixture.nodes()), fixture.values(), fixture.requirements(), Map.of(), new MetalNegAnalysisInputs(context)));
     }
 
     private static void assertTypedNode(
@@ -2314,9 +2289,7 @@ class MetalNegPreparedExecutionTest {
                 .<Map<ValueId, ScalarValue>>map(value -> Map.of(feed, value))
                 .orElseGet(Map::of);
         BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
-                new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
-                        new PartitionDag(partition, List.of(node)), values, requirements,
-                        constants, new MetalNegAnalysisInputs(context)));
+                new MetalNegPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new PartitionDag(partition, List.of(node)), values, requirements, constants, new MetalNegAnalysisInputs(context)));
         return new SingleNegRoute(partition, feed, target, analysis);
     }
 

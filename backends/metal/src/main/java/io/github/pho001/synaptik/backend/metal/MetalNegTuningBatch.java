@@ -1,5 +1,6 @@
 package io.github.pho001.synaptik.backend.metal;
 
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.prepare.analysis.BackendTuningCandidateBatch;
 import java.util.Arrays;
 import java.util.List;
@@ -16,11 +17,11 @@ import java.util.Optional;
  */
 final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
     /** Current candidate and decision meaning. */
-    static final int CANDIDATE_SCHEMA_VERSION = 4;
+    static final int CANDIDATE_SCHEMA_VERSION = 5;
     /** Current canonical workload/target compatibility meaning. */
-    static final int COMPATIBILITY_SCHEMA_VERSION = 4;
+    static final int COMPATIBILITY_SCHEMA_VERSION = 5;
     /** Current exact/default Metal NEG-and-affine-composition policy meaning. */
-    static final int ROUTE_POLICY_VERSION = 4;
+    static final int ROUTE_POLICY_VERSION = 5;
 
     /** Stable complete private route configurations. */
     enum Candidate {
@@ -118,6 +119,7 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
      * @param schemaVersion exact compatibility schema
      * @param candidateSchemaVersion exact candidate schema
      * @param routePolicyVersion exact route-policy schema
+     * @param numericalProfile exact immutable graph-wide numerical-profile identity
      * @param workload exact canonical structural workload
      * @param target exact live-context session compatibility
      */
@@ -125,6 +127,7 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
             int schemaVersion,
             int candidateSchemaVersion,
             int routePolicyVersion,
+            NumericalProfile numericalProfile,
             WorkloadSignature workload,
             TargetCompatibility target) {
         Compatibility {
@@ -133,6 +136,7 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
                     || routePolicyVersion != ROUTE_POLICY_VERSION) {
                 throw new IllegalArgumentException("unsupported Metal NEG compatibility schema");
             }
+            Objects.requireNonNull(numericalProfile, "numericalProfile");
             Objects.requireNonNull(workload, "workload");
             Objects.requireNonNull(target, "target");
         }

@@ -6,6 +6,7 @@ import io.github.pho001.synaptik.config.compile.BackendIntent;
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphValue;
@@ -225,6 +226,7 @@ final class GraphCompiler {
      */
     static CompileArtifacts compile(
             CompileMode mode,
+            NumericalProfile numericalProfile,
             List<Tensor> forwardOutputs,
             Optional<FunctionalGradientRequest> functionalGradientRequest,
             CompileTimeConstantGraph.Ingress forwardConstants,
@@ -234,6 +236,7 @@ final class GraphCompiler {
             List<BackendCapabilityProvider> capabilityProviders,
             List<BackendAvailabilitySnapshot> availabilitySnapshots) {
         Objects.requireNonNull(mode, "mode");
+        Objects.requireNonNull(numericalProfile, "numericalProfile");
         validateForwardOutputs(forwardOutputs);
         Objects.requireNonNull(functionalGradientRequest, "functionalGradientRequest");
         Objects.requireNonNull(forwardConstants, "forwardConstants");
@@ -299,7 +302,7 @@ final class GraphCompiler {
                 outputs.add(descriptors.get(output));
             }
             OperationCapabilityQuery query =
-                    new OperationCapabilityQuery(node.operation(), inputs, outputs);
+                    new OperationCapabilityQuery(numericalProfile, node.operation(), inputs, outputs);
             BackendId owner;
             try {
                 owner = BackendOwnerPlanning.selectOwner(
@@ -331,6 +334,7 @@ final class GraphCompiler {
         LogicalMemoryPlan memory = LogicalMemoryPlanning.plan(graph, partitions);
         return new CompileArtifacts(
                 mode,
+                numericalProfile,
                 graph,
                 partitions,
                 memory,

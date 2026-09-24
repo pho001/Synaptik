@@ -4,6 +4,7 @@ import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
 import io.github.pho001.synaptik.config.compile.BackendIntent;
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
@@ -38,6 +39,8 @@ public final class GraphCompilationPort {
      * list is retained in the result.</p>
      *
      * @param mode non-null graph-scope mode
+     * @param numericalProfile non-null immutable graph-wide numerical-profile identity retained
+     *     in the result and supplied unchanged to every capability query
      * @param forwardOutputs non-null, non-empty ordered forward boundary; exact Tensor references
      *     and resolved logical values must be unique, and the list is not mutated
      * @param functionalGradientRequest non-null optional functional request, absent exactly for
@@ -66,6 +69,7 @@ public final class GraphCompilationPort {
      */
     public static CompileArtifacts compile(
             CompileMode mode,
+            NumericalProfile numericalProfile,
             List<Tensor> forwardOutputs,
             Optional<FunctionalGradientRequest> functionalGradientRequest,
             GraphOptimizationConfig optimizationConfig,
@@ -75,6 +79,7 @@ public final class GraphCompilationPort {
             List<BackendAvailabilitySnapshot> availabilitySnapshots) {
         return GraphCompiler.compile(
                 mode,
+                numericalProfile,
                 forwardOutputs,
                 functionalGradientRequest,
                 CompileTimeConstantGraph.Ingress.empty(),

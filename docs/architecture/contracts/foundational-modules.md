@@ -272,3 +272,9 @@ Planning must not answer:
 ```text
 Which concrete kernel, executable, BLAS route, MPSGraph route, or CUDA implementation should run it?
 ```
+
+## Numerical-profile transport
+
+Planning has a public API dependency on Config so each `OperationCapabilityQuery` carries the exact
+non-null graph-wide `NumericalProfile`. Planning treats that value as query identity only; it does
+not define allowed results, select a default, or infer a profile from backend or device facts.

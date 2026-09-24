@@ -152,8 +152,7 @@ class CpuLossEvidenceTest {
                 desc(resultType, outputShape));
         io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan plan;
         try {
-            plan = new CpuPartitionPreparer().analyze(new PrepareContext<>(base.partition(), base.nodes(),
-                    base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers))).plan();
+            plan = new CpuPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers))).plan();
         } catch (IllegalArgumentException failure) {
             throw new IllegalArgumentException(kind + " " + left + " " + right + " " + reduction
                     + " " + roles + " " + carriers, failure);
@@ -283,8 +282,7 @@ class CpuLossEvidenceTest {
         DataType result = kind == LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS ? left
                 : DataTypePromotion.promoteFloating(left, right);
         var base = CpuScatterLoweringTest.context(op, roles, inputs, desc(result, output));
-        var plan = new CpuPartitionPreparer().analyze(new PrepareContext<>(base.partition(), base.nodes(),
-                base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers))).plan();
+        var plan = new CpuPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers))).plan();
         var route = plan.units().getFirst().portablePlan();
         assertEquals(expectedKey, route.specialization().structuralKey(), "cold geometry identity");
         assertTrue(java.util.Arrays.equals(expectedBytes, new CpuClassFileKernelGenerator().generateClassBytes(
@@ -315,9 +313,7 @@ class CpuLossEvidenceTest {
         DataType result = kind == LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS ? left
                 : DataTypePromotion.promoteFloating(left, right);
         var base = CpuScatterLoweringTest.context(op, roles, inputs, desc(result, output));
-        var route = new CpuPartitionPreparer().analyze(new PrepareContext<>(base.partition(),
-                base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
-                new CpuPartitionAnalysisInputs(false, carriers))).plan().units().getFirst().portablePlan();
+        var route = new CpuPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers))).plan().units().getFirst().portablePlan();
         assertEquals(expectedKey, route.specialization().structuralKey(), "cold axis identity");
         assertTrue(java.util.Arrays.equals(expectedBytes, new CpuClassFileKernelGenerator()
                 .generateClassBytes(route.specialization(), route.kernelIr())), "cold axis bytes");

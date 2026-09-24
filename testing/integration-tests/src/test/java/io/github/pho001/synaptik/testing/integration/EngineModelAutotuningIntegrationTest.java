@@ -10,6 +10,7 @@ import io.github.pho001.synaptik.compiler.PublicationPlan;
 import io.github.pho001.synaptik.config.compile.BackendIntent;
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
 import io.github.pho001.synaptik.config.tuning.ModelAutotuningConfig;
 import io.github.pho001.synaptik.engine.CompiledGraph;
@@ -150,7 +151,7 @@ final class EngineModelAutotuningIntegrationTest {
                     .findFirst().orElseThrow().invoke(null, graph, partitions);
             Constructor<?> constructor = CompileArtifacts.class.getConstructors()[0];
             return (CompileArtifacts) constructor.newInstance(
-                    base.mode(), graph, partitions, memory, publication,
+                    base.mode(), base.numericalProfile(), graph, partitions, memory, publication,
                     base.constants(), base.diagnostics(), new DerivativeGraphMetadata(
                             graph, base.derivatives().derivativeOrderByNode()));
         } catch (ReflectiveOperationException failure) {
@@ -183,13 +184,13 @@ final class EngineModelAutotuningIntegrationTest {
                     "io.github.pho001.synaptik.compiler.GraphCompilationPort");
             var compile = java.util.Arrays.stream(compilation.getMethods())
                     .filter(method -> method.getName().equals("compile")
-                            && method.getParameterCount() == 8)
+                            && method.getParameterCount() == 9)
                     .findFirst().orElseThrow();
             return (CompileArtifacts) compile.invoke(null,
-                    CompileMode.FORWARD_ONLY, List.of(output), Optional.empty(),
-                    GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(),
-                    PartitionScoringConfig.neutral(), List.of(provider),
-                    List.of(integration.availabilitySnapshot()));
+                    CompileMode.FORWARD_ONLY, NumericalProfile.STRICT_IEEE, List.of(output),
+                    Optional.empty(), GraphOptimizationConfig.disabled(),
+                    BackendIntent.unconstrained(), PartitionScoringConfig.neutral(),
+                    List.of(provider), List.of(integration.availabilitySnapshot()));
         } catch (ReflectiveOperationException failure) {
             throw new AssertionError(failure);
         }

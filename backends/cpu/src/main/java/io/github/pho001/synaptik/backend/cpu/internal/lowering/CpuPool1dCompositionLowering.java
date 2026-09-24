@@ -80,10 +80,8 @@ public final class CpuPool1dCompositionLowering {
         GraphValue input = require(values, inputId), expanded = require(values, expandedId),
                 pooled = require(values, pooledId), output = require(values, outputId);
         var capabilities = new CpuCapabilityProvider();
-        if (!capabilities.supports(new OperationCapabilityQuery(expand.operation(),
-                        List.of(input.descriptor()), List.of(expanded.descriptor())))
-                || !capabilities.supports(new OperationCapabilityQuery(squeeze.operation(),
-                        List.of(pooled.descriptor()), List.of(output.descriptor()))))
+        if (!capabilities.supports(new OperationCapabilityQuery(context.numericalProfile(), expand.operation(), List.of(input.descriptor()), List.of(expanded.descriptor())))
+                || !capabilities.supports(new OperationCapabilityQuery(context.numericalProfile(), squeeze.operation(), List.of(pooled.descriptor()), List.of(output.descriptor()))))
             throw new IllegalArgumentException("Pool1d affine components are not independently supported");
         requireExternal(input); requireExternal(output);
         requireExpanded(input, expanded); requireSqueezed(output, pooled);
@@ -101,8 +99,7 @@ public final class CpuPool1dCompositionLowering {
                 Optional.empty(), List.of(syntheticPartition), false));
         syntheticMemory.add(new LogicalMemoryRequirement(outputId, syntheticOutput.descriptor(),
                 Optional.of(syntheticPartition), List.of(), true));
-        var synthetic = new PrepareContext<>(syntheticPartition, List.of(syntheticNode),
-                syntheticValues, syntheticMemory, Map.of(), context.backendInputs());
+        var synthetic = new PrepareContext<>(context.numericalProfile(), syntheticPartition, List.of(syntheticNode), syntheticValues, syntheticMemory, Map.of(), context.backendInputs());
         var lowered = pool2d.lower(synthetic);
         return new CpuPartitionLowering.LoweredPartition(lowered.portableKernelIr(),
                 lowered.boundaryValues(), lowered.accessBindings(), lowered.referencedElementSpans(),

@@ -2853,12 +2853,13 @@ only the operation-specific `FLOAT32` alternatives in the
 fixed instruction. `ACCELERATOR` is not generic fast math, tolerance, reduced precision, or
 permission for an unlisted operation or data type.
 
-The semantic result sets are current and Model-owned. The immutable declarative Config identity
-`NumericalProfile` is also current, but it is not yet consumed. Profile-qualified Planning queries,
-lifecycle propagation, backend realizations, and cache identities remain planned. Selection will be
-explicit, graph-wide, and cold rather than inferred from hardware, provider availability, workload
-size, tuning, or benchmark evidence. Later layers may transport and realize the identity without
-reinterpreting Model's semantic contract.
+The semantic result sets remain Model-owned. The immutable Config identity `NumericalProfile` is
+selected once while constructing an Engine, defaults to `STRICT_IEEE`, and is transported
+unchanged through Planning queries, Compiler artifacts, Prepare projections, and backend
+plan/cache identity. Selection is explicit, graph-wide, and cold rather than inferred from
+hardware, provider availability, workload size, tuning, or benchmark evidence. CPU and Metal
+currently reject `ACCELERATOR` capability and preparation, so the spine transports identity
+without yet enabling relaxed execution.
 
 ### Scalar-power realization
 

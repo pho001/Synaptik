@@ -1,5 +1,6 @@
 package io.github.pho001.synaptik.backend.metal;
 
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.GraphValue;
@@ -59,6 +60,10 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
     public BackendPartitionAnalysis<MetalNegPreparationPlan> analyze(
             PrepareContext<MetalNegAnalysisInputs> context) {
         Objects.requireNonNull(context, "context");
+        if (context.numericalProfile() != NumericalProfile.STRICT_IEEE) {
+            throw new IllegalArgumentException(
+                    "Metal backend supports only STRICT_IEEE numerical profile");
+        }
         if (!context.partition().owner().equals(MetalCapabilityProvider.METAL_BACKEND_ID)) {
             throw new IllegalArgumentException("partition owner must be Metal");
         }
@@ -218,6 +223,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         Optional<PreparationResourceRequirement.Workspace> heuristicWorkspace = workspace(
                 route, feeds.size(), targets.size());
         var heuristicPlan = new MetalNegPreparationPlan(
+                context.numericalProfile(),
                 context.partition(), context.partitionDag(), deviceContext,
                 route,
                 valueIds, descriptors, valueStates, ranks, dimensions, graphProgram,
@@ -248,6 +254,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         var plan = route == heuristicPlan.route()
                 ? heuristicPlan
                 : new MetalNegPreparationPlan(
+                        context.numericalProfile(),
                         context.partition(), context.partitionDag(), deviceContext,
                         route,
                         valueIds, descriptors, valueStates, ranks, dimensions, graphProgram,

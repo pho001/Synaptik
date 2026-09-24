@@ -52,10 +52,7 @@ public final class CpuPool2dLowering {
         Map<ValueId, GraphValue> values = new LinkedHashMap<>();
         context.values().forEach(value -> values.put(value.id(), value));
         var query =
-                new OperationCapabilityQuery(
-                        node.operation(),
-                        node.inputs().stream().map(id -> require(values, id).descriptor()).toList(),
-                        node.outputs().stream().map(id -> require(values, id).descriptor()).toList());
+                new OperationCapabilityQuery(context.numericalProfile(), node.operation(), node.inputs().stream().map(id -> require(values, id).descriptor()).toList(), node.outputs().stream().map(id -> require(values, id).descriptor()).toList());
         if (!capabilities.supports(query) || node.inputs().size() != 1 || node.outputs().size() != 1)
             throw new IllegalArgumentException("unsupported CPU Pool2d occurrence");
         Object kind = node.operation().kind();

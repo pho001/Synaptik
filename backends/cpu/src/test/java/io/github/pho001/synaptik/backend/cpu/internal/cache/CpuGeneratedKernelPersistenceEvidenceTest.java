@@ -168,10 +168,8 @@ class CpuGeneratedKernelPersistenceEvidenceTest {
             default -> List.of(heap,segment,heap,segment);
         };
         boolean vector = compute.equals("vector");
-        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()),
-                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                vector ? ExecutionStrategy.VECTOR : ExecutionStrategy.SCALAR, carriers,
-                vector ? DoubleVector.SPECIES_PREFERRED.vectorBitSize() : 0);
+        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, vector ? ExecutionStrategy.VECTOR : ExecutionStrategy.SCALAR, carriers,
+        vector ? DoubleVector.SPECIES_PREFERRED.vectorBitSize() : 0);
         return new Fixture(ir, specialization);
     }
 

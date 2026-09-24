@@ -242,10 +242,8 @@ class CpuBFloat16PointwisePerformanceTest {
                 != CpuKernelIr.Value.Kind.VIRTUAL).toList();
         List<DataType> types = values.stream().map(CpuKernelIr.Value::dataType).toList();
         List<CpuKernelSpecialization.CarrierAccess> carriers = carriers(row);
-        return new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()),
-                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1,
-                List.of(), false, 59);
+        return new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1,
+        List.of(), false, 59);
     }
 
     private static String classFileName(Row row) { return switch (row) {

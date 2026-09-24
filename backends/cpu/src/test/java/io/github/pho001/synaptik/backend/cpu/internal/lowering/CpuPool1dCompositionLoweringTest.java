@@ -56,6 +56,7 @@ class CpuPool1dCompositionLoweringTest {
                 ()->assertThrows(IllegalArgumentException.class,()->new CpuPartitionLowering().lower(context(2,true))),
                 ()->assertTrue(new CpuCapabilityProvider().supports(
                         new io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery(
+                                io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE,
                                 squeeze.operation(),List.of(descriptors.get(2)),List.of(descriptors.get(3))))),
                 ()->assertTrue(new CpuPartitionDagDecomposer().decompose(validHeightNearMatch(),
                         new CpuPartitionLowering()).size()>1));
@@ -65,8 +66,7 @@ class CpuPool1dCompositionLoweringTest {
         var base=context(2,false);var nodes=new ArrayList<>(base.nodes());var pool=nodes.get(1);
         nodes.set(1,new CompiledNode(pool.id(),new Operation(Pool2dKind.MAX_POOL2D,
                 new MaxPool2dAttrs(3,2,1,1,1,0,1,1,false)),pool.inputs(),pool.outputs()));
-        return new PrepareContext<>(base.partition(),nodes,base.values(),base.memoryRequirements(),
-                base.constants(),base.backendInputs());
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), nodes, base.values(), base.memoryRequirements(), base.constants(), base.backendInputs());
     }
 
     static PrepareContext<CpuPartitionAnalysisInputs> context(int axis,boolean publishIntermediate){
@@ -89,6 +89,6 @@ class CpuPool1dCompositionLoweringTest {
             memory.add(new LogicalMemoryRequirement(ids.get(i),descriptors.get(i),
                     produced?Optional.of(partition):Optional.empty(),i<3?List.of(partition):List.of(),
                     published));}
-        return new PrepareContext<>(partition,nodes,values,memory,Map.of(),CpuPartitionAnalysisInputs.DEFAULT);
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
     }
 }

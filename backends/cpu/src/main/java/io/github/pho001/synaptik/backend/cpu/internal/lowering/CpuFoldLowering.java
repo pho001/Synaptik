@@ -52,9 +52,9 @@ public final class CpuFoldLowering {
         var node = context.nodes().getFirst();
         Map<ValueId, GraphValue> values = new LinkedHashMap<>();
         context.values().forEach(value -> values.put(value.id(), value));
-        var query = new OperationCapabilityQuery(node.operation(), node.inputs().stream()
+        var query = new OperationCapabilityQuery(context.numericalProfile(), node.operation(), node.inputs().stream()
                 .map(id -> require(values, id).descriptor()).toList(), node.outputs().stream()
-                .map(id -> require(values, id).descriptor()).toList());
+        .map(id -> require(values, id).descriptor()).toList());
         if (!capabilities.supports(query)) {
             throw new IllegalArgumentException("partition contains an unsupported CPU fold occurrence");
         }

@@ -89,20 +89,21 @@ transcendental error budget. In particular, `maxFinite / maxFinite -> 0`,
 `CONTIGUOUS`, `CAST`, and selected `WHERE` values do not inherit DAZ/FTZ or NaN-payload freedom from
 neighboring arithmetic.
 
-The choice is graph-wide and cold. A later Config task will add only immutable declarative
-identity. A later atomic propagation task will carry the selection through Planning, Compiler,
-Prepare, and Engine. Planning will ask profile-qualified capability questions without interpreting
-semantics. Concrete backends will advertise and realize only allowed results during preparation.
-Runtime will execute the prepared recipe without profile policy or a hot-path lookup.
+The choice is graph-wide and cold. Config owns only the immutable declarative identity. Engine
+construction selects one value, defaulting to `STRICT_IEEE`, and the current propagation spine
+carries it through Planning, Compiler, Prepare, and backend plan/cache identity. Planning asks
+profile-qualified capability questions without interpreting semantics. Runtime executes the
+prepared recipe without profile policy or a hot-path lookup.
 
-The selected profile must be part of every relevant backend route, specialization,
-generated-artifact, local-tuning, complete-plan-tuning, and cache-compatibility identity before a
-backend advertises relaxed capability. Existing strict capability remains unchanged until the
-entire propagation spine and a backend's bounded conformance gate are complete.
+The selected profile is part of relevant backend route, specialization, generated-artifact,
+local-tuning, complete-plan-tuning, and cache-compatibility identity before a backend may advertise
+relaxed capability. CPU and Metal currently advertise and prepare only `STRICT_IEEE`;
+`ACCELERATOR` therefore fails closed until a backend's separate bounded conformance gate is
+complete.
 
-Trace payload changes are deferred. This decision adds no trace field because no selector or
-realization exists yet; later observability requires a separately coordinated Trace architecture
-update if operational evidence shows it is needed.
+Trace payload changes remain deferred. The current propagation spine adds no trace field because
+the profile is cold prepared identity rather than per-run state; later observability requires a
+separately coordinated Trace architecture update if operational evidence shows it is needed.
 
 ## Consequences
 
@@ -127,12 +128,13 @@ update if operational evidence shows it is needed.
 
 ### Follow-up
 
-Config will add the two-value declarative identity. One later Engine task will perform the atomic
-Config-to-Planning-to-Compiler-to-Prepare-to-Engine propagation. CPU and Metal will then own
-separate realization and cache-identity tasks with fresh profile-specific conformance evidence.
+CPU task 0017 and Metal task 0015 own any future bounded `ACCELERATOR` realization and
+profile-specific conformance evidence. The current propagation spine deliberately enables no
+relaxed route.
 
 ## Related documentation
 
 - [Authoritative foundational numerical-profile contract](../../architecture/contracts/foundational-modules.md#numerical-profiles)
 - [Architecture authority index](../../../ARCHITECTURE.md#scope-indexed-normative-contracts)
 - [Task 0027](../../planning/modules/model/tasks/0027-explicit-numerical-profile-semantic-authority.md)
+- [Engine task 0018](../../planning/modules/engine/tasks/0018-explicit-numerical-profile-propagation-spine.md)

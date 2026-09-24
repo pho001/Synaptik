@@ -77,12 +77,9 @@ class CpuAttentionCapabilityTest {
 
   private static OperationCapabilityQuery query(
       List<TensorDescriptor> inputs, List<TensorDescriptor> outputs) {
-    return new OperationCapabilityQuery(
-        new Operation(
-            ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION,
-            new ScaledDotProductAttentionAttrs(Optional.empty(), false)),
-        inputs,
-        outputs);
+    return new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(
+        ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION,
+        new ScaledDotProductAttentionAttrs(Optional.empty(), false)), inputs, outputs);
   }
 
   private static TensorDescriptor desc(DataType type, Shape shape, boolean grad) {

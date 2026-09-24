@@ -9,6 +9,7 @@ import io.github.pho001.synaptik.compiler.GraphCompilationPort;
 import io.github.pho001.synaptik.config.compile.BackendIntent;
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
 import io.github.pho001.synaptik.config.tuning.ModelAutotuningConfig;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
@@ -96,6 +97,7 @@ public final class AdvancedEngine implements AutoCloseable {
 
     private final Object lifecycleLock = new Object();
     private final EngineBackendRegistry composition;
+    private final NumericalProfile numericalProfile;
     private final ModelAutotuningTuning<?, ?, ?, ?, ?, ?> tuningOverride;
     private final OrdinaryPreparationOverride ordinaryPreparationOverride;
     private final PreparedExecutionRunner runner = new PreparedExecutionRunner();
@@ -187,32 +189,40 @@ public final class AdvancedEngine implements AutoCloseable {
     }
 
     /**
-     * Transfers cleanup ownership of one exact CPU integration to a new Engine.
+     * Transfers cleanup ownership of one exact CPU integration to a new Engine using one explicit
+     * immutable graph-wide numerical profile.
      *
-     * <p>After this method succeeds, the caller must neither use nor close the supplied adapter
-     * independently. Engine closure closes it exactly once after all Engine-owned open results.
-     * A null argument transfers nothing.</p>
+     * <p>Both arguments are validated before ownership transfers. After this method succeeds, the
+     * caller must neither use nor close the supplied adapter independently. Engine closure closes
+     * it exactly once after all Engine-owned open results.</p>
      *
      * @param cpuIntegration non-null open CPU integration whose ownership transfers on success
-     * @return a new non-null open Engine owning the exact adapter
-     * @throws NullPointerException if {@code cpuIntegration} is null, with message
-     *     {@code cpuIntegration}
+     * @param numericalProfile non-null graph-wide numerical-profile identity
+     * @return a new non-null open Engine owning the exact adapter and profile
+     * @throws NullPointerException if an argument is null, validating {@code cpuIntegration}
+     *     before {@code numericalProfile}
      */
-    public static AdvancedEngine takeOwnership(CpuBackendIntegration cpuIntegration) {
+    public static AdvancedEngine takeOwnership(
+            CpuBackendIntegration cpuIntegration, NumericalProfile numericalProfile) {
         Objects.requireNonNull(cpuIntegration, "cpuIntegration");
-        return new AdvancedEngine(new CpuEngineBackendComposition(cpuIntegration));
+        Objects.requireNonNull(numericalProfile, "numericalProfile");
+        return new AdvancedEngine(
+                new CpuEngineBackendComposition(cpuIntegration), numericalProfile);
     }
 
     /**
-     * Creates an Engine over one exact owned package-private composition.
+     * Creates an Engine over one exact owned package-private composition and explicit profile.
      *
      * @param composition non-null composition whose ownership transfers to this Engine
-     * @throws NullPointerException if {@code composition} is null
+     * @param numericalProfile non-null immutable graph-wide numerical-profile identity
+     * @throws NullPointerException if an argument is null
      */
-    AdvancedEngine(EngineBackendComposition composition) {
+    AdvancedEngine(
+            EngineBackendComposition composition, NumericalProfile numericalProfile) {
         this(
                 new EngineBackendRegistry(List.of(
                         Objects.requireNonNull(composition, "composition"))),
+                numericalProfile,
                 null,
                 null);
     }
@@ -223,50 +233,60 @@ public final class AdvancedEngine implements AutoCloseable {
      * construction under an existing admission.
      *
      * @param composition non-null owned Engine composition
+     * @param numericalProfile non-null immutable graph-wide numerical-profile identity
      * @param tuningOverride optional focused typed collaboration used instead of CPU production
      *     adaptation; retained without invoking it
      */
     AdvancedEngine(
             EngineBackendComposition composition,
+            NumericalProfile numericalProfile,
             ModelAutotuningTuning<?, ?, ?, ?, ?, ?> tuningOverride) {
         this(
                 new EngineBackendRegistry(List.of(
                         Objects.requireNonNull(composition, "composition"))),
+                numericalProfile,
                 tuningOverride,
                 null);
     }
 
     /**
-     * Creates a focused test composition with an explicit complete ordinary-preparation seam.
+     * Creates a focused test composition with an explicit profile and complete ordinary-
+     * preparation seam.
      *
      * @param composition non-null owned Engine composition used for compile, I/O, and closure
+     * @param numericalProfile non-null immutable graph-wide numerical-profile identity
      * @param ordinaryPreparationOverride non-null deterministic inward preparation callback
      */
     AdvancedEngine(
             EngineBackendComposition composition,
+            NumericalProfile numericalProfile,
             OrdinaryPreparationOverride ordinaryPreparationOverride) {
         this(
                 new EngineBackendRegistry(List.of(
                         Objects.requireNonNull(composition, "composition"))),
+                numericalProfile,
                 null,
                 Objects.requireNonNull(
                         ordinaryPreparationOverride, "ordinaryPreparationOverride"));
     }
 
     /**
-     * Creates a focused tuning test composition with explicit ordinary fallback preparation.
+     * Creates a focused tuning test composition with an explicit profile and ordinary fallback.
      *
      * @param composition non-null owned Engine composition
+     * @param numericalProfile non-null immutable graph-wide numerical-profile identity
      * @param tuningOverride non-null focused tuning collaboration
      * @param ordinaryPreparationOverride non-null complete ordinary fallback callback
      */
     AdvancedEngine(
             EngineBackendComposition composition,
+            NumericalProfile numericalProfile,
             ModelAutotuningTuning<?, ?, ?, ?, ?, ?> tuningOverride,
             OrdinaryPreparationOverride ordinaryPreparationOverride) {
         this(
                 new EngineBackendRegistry(List.of(
                         Objects.requireNonNull(composition, "composition"))),
+                numericalProfile,
                 Objects.requireNonNull(tuningOverride, "tuningOverride"),
                 Objects.requireNonNull(
                         ordinaryPreparationOverride, "ordinaryPreparationOverride"));
@@ -276,16 +296,21 @@ public final class AdvancedEngine implements AutoCloseable {
      * Creates an Engine over a complete ordered registry whose ownership transfers at entry.
      *
      * @param composition non-null owned registry
+     * @param numericalProfile non-null immutable graph-wide numerical-profile identity
      */
-    AdvancedEngine(EngineBackendRegistry composition) {
-        this(composition, null, null);
+    AdvancedEngine(
+            EngineBackendRegistry composition, NumericalProfile numericalProfile) {
+        this(composition, numericalProfile, null, null);
     }
 
     private AdvancedEngine(
             EngineBackendRegistry composition,
+            NumericalProfile numericalProfile,
             ModelAutotuningTuning<?, ?, ?, ?, ?, ?> tuningOverride,
             OrdinaryPreparationOverride ordinaryPreparationOverride) {
         this.composition = Objects.requireNonNull(composition, "composition");
+        this.numericalProfile =
+                Objects.requireNonNull(numericalProfile, "numericalProfile");
         this.tuningOverride = tuningOverride;
         this.ordinaryPreparationOverride = ordinaryPreparationOverride;
     }
@@ -297,6 +322,10 @@ public final class AdvancedEngine implements AutoCloseable {
      */
     EngineBackendComposition soleAdapterForHandle() {
         return composition.soleAdapter();
+    }
+
+    NumericalProfile numericalProfile() {
+        return numericalProfile;
     }
 
     /**
@@ -336,6 +365,7 @@ public final class AdvancedEngine implements AutoCloseable {
             Objects.requireNonNull(partitionScoringConfig, "partitionScoringConfig");
             CompileArtifacts artifacts = GraphCompilationPort.compile(
                     mode,
+                    numericalProfile,
                     forwardOutputs,
                     functionalGradientRequest,
                     optimizationConfig,
@@ -532,6 +562,7 @@ public final class AdvancedEngine implements AutoCloseable {
                     FunctionalGradientRequest.DisconnectedPolicy.ERROR);
             CompileArtifacts artifacts = GraphCompilationPort.compile(
                     CompileMode.FORWARD_AND_BACKWARD,
+                    numericalProfile,
                     outputs,
                     Optional.of(new FunctionalGradientRequest(List.of(stage))),
                     GraphOptimizationConfig.standard(),
@@ -1170,6 +1201,7 @@ public final class AdvancedEngine implements AutoCloseable {
     private CompiledGraph compileForwardOrdinaryOpen(Engine owner, List<Tensor> outputs) {
         CompileArtifacts artifacts = GraphCompilationPort.compile(
                 CompileMode.FORWARD_ONLY,
+                numericalProfile,
                 outputs,
                 Optional.empty(),
                 GraphOptimizationConfig.standard(),
@@ -1199,6 +1231,7 @@ public final class AdvancedEngine implements AutoCloseable {
                 FunctionalGradientRequest.DisconnectedPolicy.ERROR);
         CompileArtifacts artifacts = GraphCompilationPort.compile(
                 CompileMode.FORWARD_AND_BACKWARD,
+                numericalProfile,
                 List.of(objective),
                 Optional.of(new FunctionalGradientRequest(List.of(stage))),
                 GraphOptimizationConfig.standard(),

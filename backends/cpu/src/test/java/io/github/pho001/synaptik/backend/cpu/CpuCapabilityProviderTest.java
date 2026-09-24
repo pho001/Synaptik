@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.backend.cpu;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
@@ -36,6 +37,17 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class CpuCapabilityProviderTest {
+    @Test
+    void acceleratorProfileFailsClosedForOtherwiseSupportedOccurrence() {
+        var input = descriptor(DataType.FLOAT32, Shape.of(2));
+        var query = new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE),
+                List.of(input),
+                List.of(input));
+        assertFalse(new CpuCapabilityProvider().supports(query));
+    }
+
     @Test void reportsOnlyExactStaticResolvedFloatingNchwPool2dOccurrences() {
         var provider = new CpuCapabilityProvider();
         var max = new MaxPool2dAttrs(3, 2, 2, 2, 2, 2, 2, 1, true);
@@ -433,26 +445,16 @@ class CpuCapabilityProviderTest {
         var bf16 = descriptor(DataType.BFLOAT16, Shape.of(2, 3));
         var mask = descriptor(DataType.BOOL, Shape.of(2, 3));
         assertAll(
-                () -> assertTrue(provider.supports(new OperationCapabilityQuery(
-                        new Operation(io.github.pho001.synaptik.model.operation.random.GraphRngKind.INITIAL_STATE,
-                                new io.github.pho001.synaptik.model.operation.random.GraphRngStateAttrs(1, 2)),
-                        List.of(), List.of(state)))),
-                () -> assertTrue(provider.supports(new OperationCapabilityQuery(
-                        new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
-                                new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)),
-                        List.of(f64, state), List.of(f64, mask, state)))),
-                () -> assertTrue(provider.supports(new OperationCapabilityQuery(
-                        new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
-                                new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)),
-                        List.of(f32, state), List.of(f32, mask, state)))),
-                () -> assertFalse(provider.supports(new OperationCapabilityQuery(
-                        new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
-                                new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)),
-                        List.of(bf16, state), List.of(bf16, mask, state)))),
-                () -> assertFalse(provider.supports(new OperationCapabilityQuery(
-                        new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
-                                new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)),
-                        List.of(f64, aliasedState), List.of(f64, mask, state))))) ;
+                () -> assertTrue(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(io.github.pho001.synaptik.model.operation.random.GraphRngKind.INITIAL_STATE,
+                        new io.github.pho001.synaptik.model.operation.random.GraphRngStateAttrs(1, 2)), List.of(), List.of(state)))),
+                () -> assertTrue(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
+                        new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)), List.of(f64, state), List.of(f64, mask, state)))),
+                () -> assertTrue(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
+                        new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)), List.of(f32, state), List.of(f32, mask, state)))),
+                () -> assertFalse(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
+                        new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)), List.of(bf16, state), List.of(bf16, mask, state)))),
+                () -> assertFalse(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
+                        new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)), List.of(f64, aliasedState), List.of(f64, mask, state))))) ;
     }
     @Test void reportsExactStaticStableOrderingAndTwoOutputTopK() {
         var provider = new CpuCapabilityProvider();
@@ -464,12 +466,8 @@ class CpuCapabilityProviderTest {
                 () -> assertTrue(provider.supports(query(OrderingKind.ARGSORT,
                         new SortAttrs(1, false), List.of(input),
                         descriptor(DataType.INT64, Shape.of(2, 5))))),
-                () -> assertTrue(provider.supports(new OperationCapabilityQuery(
-                        new Operation(TopKKind.TOP_K, new TopKAttrs(1, 3, true, false)),
-                        List.of(input), List.of(values, indices)))),
-                () -> assertFalse(provider.supports(new OperationCapabilityQuery(
-                        new Operation(TopKKind.TOP_K, new TopKAttrs(1, 3, true, false)),
-                        List.of(input), List.of(indices, values)))));
+                () -> assertTrue(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(TopKKind.TOP_K, new TopKAttrs(1, 3, true, false)), List.of(input), List.of(values, indices)))),
+                () -> assertFalse(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(TopKKind.TOP_K, new TopKAttrs(1, 3, true, false)), List.of(input), List.of(indices, values)))));
     }
     @Test void reportsOnlyExactStaticSliceUpdateOccurrences() {
         var provider = new CpuCapabilityProvider();
@@ -889,20 +887,14 @@ class CpuCapabilityProviderTest {
                                 descriptor(DataType.BOOL,Shape.of(2,4))),
                         descriptor(DataType.BOOL,Shape.of(2,3))))),
                 () -> assertThrows(IllegalArgumentException.class, () ->
-                        new OperationCapabilityQuery(
-                        new Operation(AxisScatterKind.SCATTER_ELEMENTS,
-                                new ScatterElementsAttrs(1, ScatterReduction.NONE)),
-                        List.of(data, indices), List.of(output))),
+                        new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                                new ScatterElementsAttrs(1, ScatterReduction.NONE)), List.of(data, indices), List.of(output))),
                 () -> assertThrows(IllegalArgumentException.class, () ->
-                        new OperationCapabilityQuery(
-                        new Operation(AxisScatterKind.SCATTER_ELEMENTS,
-                                new ScatterElementsAttrs(1, ScatterReduction.NONE)),
-                        List.of(data, indices, updates), List.of())),
+                        new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                                new ScatterElementsAttrs(1, ScatterReduction.NONE)), List.of(data, indices, updates), List.of())),
                 () -> assertThrows(IllegalArgumentException.class, () ->
-                        new OperationCapabilityQuery(
-                        new Operation(AxisScatterKind.SCATTER_ELEMENTS,
-                                new ScatterElementsAttrs(1, ScatterReduction.NONE)),
-                        List.of(data, indices, updates), List.of(output, output))),
+                        new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                                new ScatterElementsAttrs(1, ScatterReduction.NONE)), List.of(data, indices, updates), List.of(output, output))),
                 () -> assertFalse(provider.supports(query(AxisScatterKind.SCATTER_ELEMENTS,
                         new ScatterElementsAttrs(1, ScatterReduction.NONE), List.of(data,
                                 descriptor(DataType.FLOAT32, Shape.of(2, 4)), updates), output))),
@@ -936,8 +928,7 @@ class CpuCapabilityProviderTest {
     private static OperationCapabilityQuery query(Object kind,
             io.github.pho001.synaptik.model.operation.OperationAttrs attrs,
             List<TensorDescriptor> inputs, TensorDescriptor output) {
-        return new OperationCapabilityQuery(new Operation(
-                (io.github.pho001.synaptik.model.operation.OperationKind) kind, attrs),
-                inputs, List.of(output));
+        return new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(
+                (io.github.pho001.synaptik.model.operation.OperationKind) kind, attrs), inputs, List.of(output));
     }
 }

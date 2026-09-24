@@ -77,7 +77,7 @@ class CpuPointwiseLedgerEvidenceTest {
                 ledger.metadata().get("mask-closure-evidence"));
         int historicalSchema = Integer.parseInt(ledger.metadata().get("generated-schema"));
         assertEquals(61, historicalSchema);
-        assertEquals(66, CpuGeneratorSchema.CURRENT_VERSION);
+        assertEquals(67, CpuGeneratorSchema.CURRENT_VERSION);
         assertTrue(historicalSchema <= CpuGeneratorSchema.CURRENT_VERSION);
         // CPU 0009G retains the original 78 rows and adds one exact readable row for each
         // previously unrepresented live form; the three historic summary rows remain explicit.

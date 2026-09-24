@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.backend.cpu.internal.prepare;
 
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan;
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -83,6 +84,21 @@ import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.ByteVector;
 
 public class CpuPartitionPreparerTest {
+    @Test
+    void acceleratorProfileFailsBeforeCpuRouteConstruction() {
+        PrepareContext<CpuPartitionAnalysisInputs> strict = context(Shape.of(2));
+        var accelerator = new PrepareContext<>(
+                NumericalProfile.ACCELERATOR,
+                strict.partitionDag(),
+                strict.values(),
+                strict.memoryRequirements(),
+                strict.constants(),
+                strict.backendInputs());
+        assertEquals("CPU backend supports only STRICT_IEEE numerical profile",
+                assertThrows(IllegalArgumentException.class,
+                        () -> new CpuPartitionPreparer().analyze(accelerator)).getMessage());
+    }
+
     @Test void partialReductionAdmissionKeepsWholeCellRouteWithoutTrustedEvidenceReader() {
         record Case(AggregateReductionKind kind, DataType type,
                     io.github.pho001.synaptik.model.operation.OperationAttrs attrs,
@@ -110,8 +126,7 @@ public class CpuPartitionPreparerTest {
                     CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED, false,
                     new CpuPartitionAnalysisInputs.PartialReductionEvidence(true, aggregateKind,
                             value.type(), value.form(), value.partialCount()));
-            var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                    base.memoryRequirements(), base.constants(), inputs);
+            var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), inputs);
             var analysis = new CpuPartitionPreparer().analyze(context);
             var plan = analysis.plan();
             assertAll(() -> assertTrue(plan.partialReductionRecipe().isEmpty()),
@@ -121,17 +136,15 @@ public class CpuPartitionPreparerTest {
         }
         var base = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM, DataType.INT32,
                 Shape.of(16), NoOperationAttrs.INSTANCE, Shape.scalar());
-        var fallback = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY), config));
+        var fallback = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY), config));
         var fallbackPlan = new CpuPartitionPreparer().analyze(fallback).plan();
-        var mismatched = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT), config,
-                        CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED, false,
-                        new CpuPartitionAnalysisInputs.PartialReductionEvidence(true,
-                                CpuAggregateIr.Kind.SUM, DataType.INT32,
-                                CpuAggregateIr.Form.FULL, 2)));
+        var mismatched = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT), config,
+                CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED, false,
+                new CpuPartitionAnalysisInputs.PartialReductionEvidence(true,
+                        CpuAggregateIr.Kind.SUM, DataType.INT32,
+                        CpuAggregateIr.Form.FULL, 2)));
         var mismatchedPlan = new CpuPartitionPreparer().analyze(mismatched).plan();
         assertAll(() -> assertTrue(fallbackPlan.partialReductionRecipe().isEmpty()),
                 () -> assertTrue(fallbackPlan.workspaceDeclaration().isEmpty()),
@@ -265,9 +278,7 @@ public class CpuPartitionPreparerTest {
     private static CpuPartitionPreparationPlan analyzeWith(
             PrepareContext<CpuPartitionAnalysisInputs> base, List<CarrierAccess> carriers,
             PortableExecutionConfig config) {
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), base.constants(),
-                new CpuPartitionAnalysisInputs(false, carriers, config));
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers, config));
         return new CpuPartitionPreparer().analyze(context).plan();
     }
 
@@ -277,10 +288,9 @@ public class CpuPartitionPreparerTest {
                         new io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs(
                                 2,2,2,1,1,1,0,0,0,1,1,1,false),DataType.FLOAT32,
                         Shape.of(1,1,3,3,3),Shape.of(1,1,2,2,2));
-        var context=new PrepareContext<>(base.partition(),base.nodes(),base.values(),
-                base.memoryRequirements(),base.constants(),new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.MEMORY_SEGMENT,CarrierAccess.FLOAT_ARRAY),
-                        new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE,4,4,1)));
+        var context=new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.MEMORY_SEGMENT,CarrierAccess.FLOAT_ARRAY),
+                new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE,4,4,1)));
         var plan=new CpuPartitionPreparer().analyze(context).plan();
         var unit=plan.units().getFirst();
         assertAll(()->assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.Compute.SCALAR,
@@ -302,11 +312,10 @@ public class CpuPartitionPreparerTest {
                         new io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs(
                                 2, 2, 1, 1, 0, 0, 1, 1, false),
                         DataType.FLOAT32, Shape.of(1, 1, 4, 4), Shape.of(1, 1, 3, 3));
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(
-                        false, List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY),
-                        new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE,
-                                1, 1, 1)));
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(
+                false, List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY),
+                new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE,
+                        1, 1, 1)));
 
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var unit = plan.units().getFirst();
@@ -329,11 +338,10 @@ public class CpuPartitionPreparerTest {
         BaselineExecutionFact execution = baseline.execution();
 
         CpuKernelSpecialization source = execution.specialization();
-        var changedSpecialization = new CpuKernelSpecialization(source.loweringFingerprint(),
-                source.numericalMode(), source.executionStrategy(), source.boundaryDataTypes(),
-                source.carrierPattern(), source.vectorSpeciesBitSize(),
-                source.materializedSourcePosition(), source.scalarPowerRealizations(),
-                !source.scratchParameter());
+        var changedSpecialization = new CpuKernelSpecialization(source.loweringFingerprint(), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, source.executionStrategy(), source.boundaryDataTypes(),
+        source.carrierPattern(), source.vectorSpeciesBitSize(),
+        source.materializedSourcePosition(), source.scalarPowerRealizations(),
+        !source.scratchParameter());
         var wrongSpecialization = withExecution(baseline, new BaselineExecutionFact(
                 execution.route(), changedSpecialization, execution.compute(),
                 execution.orchestration(), execution.extents(), execution.elementCount(),
@@ -352,10 +360,9 @@ public class CpuPartitionPreparerTest {
         var forgedMaterialization = new CpuSpecializedSubgraph.MaterializationFact(0, binding,
                 binding, unit.elementCount(), Math.multiplyExact(unit.elementCount(), Double.BYTES),
                 Double.BYTES, 1, 1, 10, 1, 1, 2, 8, 8_000, "forged");
-        var materializedSpecialization = new CpuKernelSpecialization(
-                source.loweringFingerprint(), source.numericalMode(), source.executionStrategy(),
-                source.boundaryDataTypes(), source.carrierPattern(), source.vectorSpeciesBitSize(),
-                0, source.scalarPowerRealizations(), false);
+        var materializedSpecialization = new CpuKernelSpecialization(source.loweringFingerprint(), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, source.executionStrategy(),
+        source.boundaryDataTypes(), source.carrierPattern(), source.vectorSpeciesBitSize(),
+        0, source.scalarPowerRealizations(), false);
         var materializedExecution = new BaselineExecutionFact(
                 execution.route(), materializedSpecialization, execution.compute(),
                 execution.orchestration(), execution.extents(), execution.elementCount(),
@@ -376,11 +383,9 @@ public class CpuPartitionPreparerTest {
                 execution.materialization(), CpuSpecializedSubgraph.RuntimeTopology.POINTWISE,
                 List.of(), execution.fusionReason()));
         String wrongKey = "02".repeat(32);
-        var wrongFingerprintSpecialization = new CpuKernelSpecialization(
-                CpuLoweringFingerprint.fromHex(wrongKey), source.numericalMode(),
-                source.executionStrategy(), source.boundaryDataTypes(), source.carrierPattern(),
-                source.vectorSpeciesBitSize(), source.materializedSourcePosition(),
-                source.scalarPowerRealizations(), source.scratchParameter());
+        var wrongFingerprintSpecialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(wrongKey), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, source.executionStrategy(), source.boundaryDataTypes(), source.carrierPattern(),
+        source.vectorSpeciesBitSize(), source.materializedSourcePosition(),
+        source.scalarPowerRealizations(), source.scratchParameter());
         var wrongIrExecution = new BaselineExecutionFact(execution.route(),
                 wrongFingerprintSpecialization, execution.compute(), execution.orchestration(),
                 execution.extents(), execution.elementCount(), execution.selectedRangeCount(),
@@ -449,7 +454,7 @@ public class CpuPartitionPreparerTest {
 
     private static CpuPartitionPreparationPlan copyRecognitionPlan(
             CpuPartitionPreparationPlan plan, CpuSpecializedSubgraph fact) {
-        return new CpuPartitionPreparationPlan(plan.units(), plan.route(),
+        return new CpuPartitionPreparationPlan(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, plan.units(), plan.route(),
                 plan.executionStrategy(), plan.bufferDeclarations(), plan.boundaryValues(),
                 plan.accessBindings(), plan.carrierPattern(), plan.generatedCarrierPattern(),
                 plan.extents(), plan.elementCount(), plan.affineAddressPairs(),
@@ -472,12 +477,11 @@ public class CpuPartitionPreparerTest {
         var config = new CpuPartitionAnalysisInputs.PortableExecutionConfig(
                 CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR,
                 4, 4, 1);
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
-                    List.of(io.github.pho001.synaptik.backend.cpu.internal.cache
-                            .CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
-                            io.github.pho001.synaptik.backend.cpu.internal.cache
-                            .CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY), config));
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+            List.of(io.github.pho001.synaptik.backend.cpu.internal.cache
+                    .CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
+                    io.github.pho001.synaptik.backend.cpu.internal.cache
+                    .CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY), config));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var geometry = plan.advancedReductionGeometry().orElseThrow();
         assertAll(() -> assertEquals(2, plan.bufferDeclarations().size()),
@@ -495,10 +499,9 @@ public class CpuPartitionPreparerTest {
         var base = CpuMaskedReductionLoweringTest.context(AggregateReductionKind.MEAN,
                 DataType.FLOAT32, Shape.of(8, 3), Shape.of(3), 1);
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.BYTE_ARRAY,
-                                CarrierAccess.FLOAT_ARRAY), config));
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.BYTE_ARRAY,
+                        CarrierAccess.FLOAT_ARRAY), config));
         var analysis = new CpuPartitionPreparer().analyze(context);
         var plan = analysis.plan();
         var geometry = plan.maskedReductionGeometry().orElseThrow();
@@ -523,9 +526,8 @@ public class CpuPartitionPreparerTest {
                 io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.ARG_MAX,
                 DataType.FLOAT32, Shape.of(16, 4), 1, true,
                 io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy.LAST_INDEX);
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.LONG_ARRAY)));
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.LONG_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         assertAll(() -> assertEquals(2, plan.bufferDeclarations().size()),
                 () -> assertEquals(List.of(DataType.FLOAT32, DataType.INT64),
@@ -568,9 +570,8 @@ public class CpuPartitionPreparerTest {
             PrepareContext<CpuPartitionAnalysisInputs> base, DataType type) {
         CarrierAccess carrier = type == DataType.FLOAT32 ? CarrierAccess.FLOAT_ARRAY
                 : CarrierAccess.MEMORY_SEGMENT;
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
-                        List.of(carrier, carrier)));
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                List.of(carrier, carrier)));
         return new CpuPartitionPreparer().analyze(context).plan();
     }
 
@@ -578,9 +579,8 @@ public class CpuPartitionPreparerTest {
         var base = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM, DataType.FLOAT64,
                 Shape.of(2, 3), new AxisReductionAttrs(1, false), Shape.of(2));
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 2, 2, 1);
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY), config));
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY), config));
         var analysis = new CpuPartitionPreparer().analyze(context);
         var plan = analysis.plan(); var geometry = plan.aggregateGeometry().orElseThrow();
         assertAll(
@@ -607,16 +607,14 @@ public class CpuPartitionPreparerTest {
                 () -> assertTrue(initial.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.randomGeometry().isPresent()),
-                () -> assertEquals(66, io.github.pho001.synaptik.backend.cpu.internal.cache
-                        .CpuGeneratorSchema.CURRENT_VERSION));
+                () -> assertEquals(67, io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratorSchema.CURRENT_VERSION));
     }
     @Test void foldDeclaresExactlyTwoBuffersOneArtifactAndNoWorkspaceOrMaterialization() {
         var base = CpuFoldLoweringTest.context(new Operation(WindowTransformKind.FOLD_AXIS,
                 new FoldAxisAttrs(0, 5, 1)), DataType.FLOAT32, Shape.of(3, 3), Shape.of(5));
         var config = new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 4, 4, 1);
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY), config));
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY), config));
         var analysis = new CpuPartitionPreparer().analyze(context);
         var plan = analysis.plan();
         assertAll(() -> assertEquals(2, analysis.requirements().size()),
@@ -641,10 +639,9 @@ public class CpuPartitionPreparerTest {
                 CpuScatterLoweringTest.desc(DataType.FLOAT32,Shape.of(4)));
         var config=new CpuPartitionAnalysisInputs.PortableExecutionConfig(
                 ComputePreference.VECTOR_IF_ELIGIBLE,4,4,1);
-        var context=new PrepareContext<>(base.partition(),base.nodes(),base.values(),
-                base.memoryRequirements(),base.constants(),new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.FLOAT_ARRAY,CarrierAccess.LONG_ARRAY,
-                                CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY),config));
+        var context=new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.FLOAT_ARRAY,CarrierAccess.LONG_ARRAY,
+                        CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY),config));
         var analysis=new CpuPartitionPreparer().analyze(context);
         var plan=analysis.plan();
         assertAll(() -> assertEquals(4,plan.bufferDeclarations().size()),
@@ -852,8 +849,7 @@ public class CpuPartitionPreparerTest {
         var old = memory.get(3);
         memory.set(3, new LogicalMemoryRequirement(old.valueId(), old.descriptor(),
                 old.producerPartition(), old.consumerPartitions(), true));
-        var changed = new PrepareContext<>(context.partition(), context.nodes(), context.values(),
-                memory, Map.of(), context.backendInputs());
+        var changed = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, context.partition(), context.nodes(), context.values(), memory, Map.of(), context.backendInputs());
         var plan = new CpuPartitionPreparer().analyze(changed).plan();
         assertAll(() -> assertEquals(2, plan.units().size()),
                 () -> assertTrue(plan.boundaryValues().contains(old.valueId())),
@@ -952,11 +948,8 @@ public class CpuPartitionPreparerTest {
                         () -> new CpuPartitionAnalysisInputs(false,
                                 java.util.Arrays.asList(CarrierAccess.DOUBLE_ARRAY, null))),
                 () -> assertThrows(IllegalArgumentException.class,
-                        () -> new CpuPartitionPreparer().analyze(new PrepareContext<>(
-                                context(Shape.of(2)).partition(), context(Shape.of(2)).nodes(),
-                                context(Shape.of(2)).values(), context(Shape.of(2)).memoryRequirements(),
-                                Map.of(), new CpuPartitionAnalysisInputs(false,
-                                        List.of(CarrierAccess.MEMORY_SEGMENT))))));
+                        () -> new CpuPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, context(Shape.of(2)).partition(), context(Shape.of(2)).nodes(), context(Shape.of(2)).values(), context(Shape.of(2)).memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+                                List.of(CarrierAccess.MEMORY_SEGMENT))))));
     }
 
     @Test void materializationPolicyAppliesCostBenefitMemoryAndEligibilityGates() {
@@ -1031,9 +1024,8 @@ public class CpuPartitionPreparerTest {
                 descriptor(DataType.INT32, Shape.of(10)));
         var preference = new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE,
                 4, 2, 1);
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
-                        CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(), preference));
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(), preference));
         var analysis = new CpuPartitionPreparer().analyze(context);
         var plan = analysis.plan();
 
@@ -1041,20 +1033,15 @@ public class CpuPartitionPreparerTest {
                 new Operation(TileKind.TILE, new TileAttrs(List.of(2L))), List.of(0),
                 List.of(descriptor(DataType.INT32, Shape.of(0))),
                 descriptor(DataType.INT32, Shape.of(0)));
-        var zero = new CpuPartitionPreparer().analyze(new PrepareContext<>(zeroBase.partition(),
-                zeroBase.nodes(), zeroBase.values(), zeroBase.memoryRequirements(),
-                zeroBase.constants(), new CpuPartitionAnalysisInputs(false,
-                        CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(), preference))).plan();
+        var zero = new CpuPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, zeroBase.partition(), zeroBase.nodes(), zeroBase.values(), zeroBase.memoryRequirements(), zeroBase.constants(), new CpuPartitionAnalysisInputs(false,
+                CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(), preference))).plan();
         var windowBase = CpuNonAffineMovementLoweringTest.context(
                 new Operation(WindowTransformKind.UNFOLD2D,
                         new Window2dAttrs(1, 1, 1, 1, 0, 0, 1, 1, false)), List.of(0),
                 List.of(descriptor(DataType.FLOAT32, Shape.of(2, 0, 3, 3))),
                 descriptor(DataType.FLOAT32, Shape.of(2, 0, 9)));
-        var windowAnalysis = new CpuPartitionPreparer().analyze(new PrepareContext<>(
-                windowBase.partition(), windowBase.nodes(), windowBase.values(),
-                windowBase.memoryRequirements(), windowBase.constants(),
-                new CpuPartitionAnalysisInputs(false,
-                        CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(), preference)));
+        var windowAnalysis = new CpuPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, windowBase.partition(), windowBase.nodes(), windowBase.values(), windowBase.memoryRequirements(), windowBase.constants(), new CpuPartitionAnalysisInputs(false,
+                CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(), preference)));
         var windowPlan = windowAnalysis.plan();
         assertAll(
                 () -> assertEquals(List.of(new ValueId(0), new ValueId(1), new ValueId(2)),
@@ -1084,10 +1071,9 @@ public class CpuPartitionPreparerTest {
                 descriptor(DataType.INT32, Shape.of(8)));
         var preference = new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE,
                 2, 2, 1);
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.INT_ARRAY, CarrierAccess.MEMORY_SEGMENT,
-                                CarrierAccess.INT_ARRAY), preference));
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.INT_ARRAY, CarrierAccess.MEMORY_SEGMENT,
+                        CarrierAccess.INT_ARRAY), preference));
         var analysis = new CpuPartitionPreparer().analyze(context);
         var plan = analysis.plan();
 
@@ -1202,7 +1188,7 @@ public class CpuPartitionPreparerTest {
                     produced ? Optional.of(partition) : Optional.empty(),
                     consumed ? List.of(partition) : List.of(), graphOutput));
         }
-        return new PrepareContext<>(partition, nodes, values, memory, Map.of(), inputs);
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), inputs);
     }
 
     private static List<TensorDescriptor> concat(List<TensorDescriptor> inputs,
@@ -1387,7 +1373,6 @@ public class CpuPartitionPreparerTest {
                     produced ? Optional.of(partition) : Optional.empty(),
                     consumed ? List.of(partition) : List.of(), i == 5));
         }
-        return new PrepareContext<>(partition, nodes, values, memory, Map.of(),
-                inputs);
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), inputs);
     }
 }

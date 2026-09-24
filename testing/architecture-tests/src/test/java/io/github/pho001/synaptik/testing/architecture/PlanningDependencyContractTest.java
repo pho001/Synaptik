@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 /** Verifies planning's exact dependency visibility and forbidden outward edges. */
 final class PlanningDependencyContractTest {
     /**
-     * Checks planning's two public signature dependencies and two internal dependencies.
+     * Checks planning's three public signature dependencies and one internal dependency.
      *
      * @throws IOException if the planning build file cannot be read
      */
@@ -30,11 +30,11 @@ final class PlanningDependencyContractTest {
         assertEquals(
                 List.of(
                         "api(project(\":modules:model\"))",
-                        "implementation(project(\":modules:config\"))",
+                        "api(project(\":modules:config\"))",
                         "api(project(\":modules:backend-contract\"))",
                         "implementation(project(\":modules:trace\"))"),
                 projectDependencyLines,
-                "planning must expose only model and backend-contract through public signatures");
+                "planning must expose model, config, and backend-contract through public signatures");
         assertTrue(
                 buildScript.contains("api(project(\":modules:model\"))"),
                 "model must be a public API dependency");
@@ -42,8 +42,8 @@ final class PlanningDependencyContractTest {
                 buildScript.contains("api(project(\":modules:backend-contract\"))"),
                 "backend-contract must be a public API dependency");
         assertTrue(
-                buildScript.contains("implementation(project(\":modules:config\"))"),
-                "config must remain an internal implementation dependency");
+                buildScript.contains("api(project(\":modules:config\"))"),
+                "config must be a public API dependency");
         assertTrue(
                 buildScript.contains("implementation(project(\":modules:trace\"))"),
                 "trace must remain an internal implementation dependency");

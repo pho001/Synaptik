@@ -111,6 +111,15 @@ backend.
 | `unconstrained()` is treated as guaranteed fallback | Absence of a hard requirement was mistaken for a valid candidate. | Expect compilation to fail when no supplied backend is eligible. |
 | A tuning result is treated as a generic plan | The bounded CPU-local handoff was generalized. | Keep later multi-occurrence and graph/plan tuning separate. |
 
+
+## Select numerical behavior
+
+`Engine.builder()` defaults to `NumericalProfile.STRICT_IEEE`. Call
+`numericalProfile(NumericalProfile.ACCELERATOR)` before `build()` to request the bounded Model
+profile explicitly. CPU and Metal currently reject that request during capability/preparation, so
+use `STRICT_IEEE` for executable graphs; there is no fallback to strict after an accelerator
+request.
+
 ## Limitations
 
 There is no current `CompileConfig` aggregate, reflective or service-based registration/discovery,

@@ -246,7 +246,7 @@ public final class CpuPartitionLowering {
             if (node.outputs().size() != 1) {
                 throw new IllegalArgumentException("pointwise node must have exactly one output");
             }
-            assertOccurrence(node, values);
+            assertOccurrence(context, node, values);
             ValueId output = node.outputs().getFirst();
             PartitionDag.ProducerOccurrence producer = dag.producer(output).orElseThrow();
             if (producer.node() != node || producer.outputPosition() != 0
@@ -349,10 +349,9 @@ public final class CpuPartitionLowering {
                 new long[0]);
     }
 
-    private void assertOccurrence(CompiledNode node, Map<ValueId, GraphValue> values) {
-        var query = new OperationCapabilityQuery(node.operation(),
-                node.inputs().stream().map(id -> require(values, id).descriptor()).toList(),
-                node.outputs().stream().map(id -> require(values, id).descriptor()).toList());
+    private void assertOccurrence(PrepareContext<? extends BackendAnalysisInputs> context,
+            CompiledNode node, Map<ValueId, GraphValue> values) {
+        var query = new OperationCapabilityQuery(context.numericalProfile(), node.operation(), node.inputs().stream().map(id -> require(values, id).descriptor()).toList(), node.outputs().stream().map(id -> require(values, id).descriptor()).toList());
         if (!capabilities.supports(query)) {
             throw new IllegalArgumentException("partition contains an unsupported CPU occurrence");
         }

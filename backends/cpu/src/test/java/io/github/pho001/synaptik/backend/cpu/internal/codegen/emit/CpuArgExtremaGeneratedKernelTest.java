@@ -172,10 +172,8 @@ class CpuArgExtremaGeneratedKernelTest {
             AggregateReductionKind kind, DataType type, boolean last) {
         var base = CpuArgExtremaLoweringTest.context(kind, type, Shape.of(4), 0, false,
                 last ? ArgExtremaTiePolicy.LAST_INDEX : ArgExtremaTiePolicy.FIRST_INDEX);
-        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(),
-                base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
-                new CpuPartitionAnalysisInputs(false, List.of(carrier(type),
-                        CarrierAccess.LONG_ARRAY)));
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, List.of(carrier(type),
+                CarrierAccess.LONG_ARRAY)));
         return new CpuPartitionPreparer().analyze(context).plan();
     }
 
@@ -184,9 +182,7 @@ class CpuArgExtremaGeneratedKernelTest {
             boolean keep, ArgExtremaTiePolicy tie, List<CarrierAccess> carriers) {
         var base = CpuScatterLoweringTest.context(new Operation(kind,
                         new ArgExtremaAttrs(axis, keep, tie)), List.of(0), List.of(input), output);
-        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(),
-                base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
-                new CpuPartitionAnalysisInputs(false, carriers));
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
         return new CpuPartitionPreparer().analyze(context).plan();
     }
 

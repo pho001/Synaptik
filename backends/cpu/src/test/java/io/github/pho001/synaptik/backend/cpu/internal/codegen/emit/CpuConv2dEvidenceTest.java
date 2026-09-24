@@ -31,7 +31,7 @@ public final class CpuConv2dEvidenceTest {
             int classes) { }
 
     @Test void retainsClosedRepresentativeGeneratedInventory() throws Exception {
-        assertEquals(66, CpuGeneratorSchema.CURRENT_VERSION);
+        assertEquals(67, CpuGeneratorSchema.CURRENT_VERSION);
         List<Target> targets = targets();
         assertEquals(List.of("CONV-DENSE-F32", "CONV-GROUPED-F64", "CONV-DEPTHWISE-BF16",
                 "CONV-GENERAL-MIXED", "CONV-FUSED-ADD", "CONV-FUSED-ADD-RELU", "CONV-PARALLEL-F32",
@@ -139,9 +139,7 @@ public final class CpuConv2dEvidenceTest {
         var config = new CpuPartitionAnalysisInputs.PortableExecutionConfig(
                 CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR,
                 parallelism, parallelism, 1);
-        return new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), base.constants(),
-                new CpuPartitionAnalysisInputs(true, carriers, config));
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(true, carriers, config));
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> publishConvOutput(
@@ -152,8 +150,7 @@ public final class CpuConv2dEvidenceTest {
                     ? new LogicalMemoryRequirement(requirement.valueId(), requirement.descriptor(),
                         requirement.producerPartition(), requirement.consumerPartitions(), true)
                     : requirement).toList();
-        return new PrepareContext<>(base.partition(), base.nodes(), base.values(), memory,
-                base.constants(), base.backendInputs());
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), memory, base.constants(), base.backendInputs());
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> addOnly(
@@ -173,8 +170,7 @@ public final class CpuConv2dEvidenceTest {
                                 ? Optional.of(partition) : Optional.empty(),
                             List.of(partition), false))
                 .toList();
-        return new PrepareContext<>(partition, nodes, values, memory, base.constants(),
-                base.backendInputs());
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, base.constants(), base.backendInputs());
     }
 
     private static void retain(String name, byte[] bytes, byte[] compatibility,

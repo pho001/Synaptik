@@ -61,9 +61,8 @@ class CpuSoftmaxGeneratedKernelTest {
         var output = CpuScatterLoweringTest.desc(DataType.FLOAT32, shape);
         var base = CpuScatterLoweringTest.context(new Operation(SoftmaxKind.LOG_SOFTMAX,
                 new SoftmaxAttrs(1)), List.of(0), List.of(input), output);
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
-                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.FLOAT_ARRAY)));
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+        List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.FLOAT_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();
         byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
@@ -86,9 +85,8 @@ class CpuSoftmaxGeneratedKernelTest {
                 Optional.of(LayoutDescriptor.of(shape, new long[] {20, 5, 1}, 2, true)), false);
         var base = CpuScatterLoweringTest.context(new Operation(SoftmaxKind.LOG_SOFTMAX,
                 new SoftmaxAttrs(1)), List.of(0), List.of(inputDescriptor), outputDescriptor);
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
-                List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+        List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
@@ -149,9 +147,8 @@ class CpuSoftmaxGeneratedKernelTest {
     @Test void directDoubleBodiesProduceStableExpectedValuesAndTypedClass() throws Throwable {
         for (SoftmaxKind kind : SoftmaxKind.values()) {
             var base = CpuSoftmaxLoweringTest.context(kind, DataType.FLOAT64, Shape.of(2, 3), 1);
-            var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                    base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
-                    List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
+            var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+            List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
             var plan = new CpuPartitionPreparer().analyze(context).plan();
             var route = plan.units().getFirst().portablePlan();
             var generator = new CpuClassFileKernelGenerator();
@@ -184,17 +181,14 @@ class CpuSoftmaxGeneratedKernelTest {
             plan(SoftmaxKind kind, DataType type, Shape shape, int axis,
                     List<CarrierAccess> carriers) {
         var base = CpuSoftmaxLoweringTest.context(kind, type, shape, axis);
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
         return new CpuPartitionPreparer().analyze(context).plan();
     }
 
     private static io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan
             controlPlan(PrepareContext<CpuPartitionAnalysisInputs> base,
                     List<CarrierAccess> carriers) {
-        return new CpuPartitionPreparer().analyze(new PrepareContext<>(base.partition(),
-                base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
-                new CpuPartitionAnalysisInputs(false, carriers))).plan();
+        return new CpuPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers))).plan();
     }
 
     private static void retainControl(String name,

@@ -395,8 +395,7 @@ class CpuConv2dGeneratedKernelTest {
                     produced ? Optional.of(partition) : Optional.empty(),
                     published ? List.of() : List.of(partition), published));
         }
-        return new PrepareContext<>(partition, nodes, values, memory, Map.of(),
-                CpuPartitionAnalysisInputs.DEFAULT);
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
     }
 
     private static short bf16(float value) {
@@ -405,11 +404,10 @@ class CpuConv2dGeneratedKernelTest {
 
     private static CpuKernelSpecialization provisionalVector(CpuKernelSpecialization scalar,
             int speciesBits) {
-        return new CpuKernelSpecialization(scalar.loweringFingerprint(), scalar.numericalMode(),
-                io.github.pho001.synaptik.backend.cpu.internal.prepare
-                        .CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
-                scalar.boundaryDataTypes(), scalar.carrierPattern(), speciesBits, -1,
-                scalar.scalarPowerRealizations(), false, 63);
+        return new CpuKernelSpecialization(scalar.loweringFingerprint(), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, io.github.pho001.synaptik.backend.cpu.internal.prepare
+                .CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
+        scalar.boundaryDataTypes(), scalar.carrierPattern(), speciesBits, -1,
+        scalar.scalarPowerRealizations(), false, 63);
     }
 
     private static int[] rawBits(float[] values) {
@@ -454,7 +452,6 @@ class CpuConv2dGeneratedKernelTest {
 
     private static PrepareContext<CpuPartitionAnalysisInputs> withInputs(
             PrepareContext<CpuPartitionAnalysisInputs> base, CpuPartitionAnalysisInputs inputs) {
-        return new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), base.constants(), inputs);
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), inputs);
     }
 }

@@ -320,7 +320,7 @@ public final class CpuOpenBlasNativeCheckpoint {
                         CpuPartitionAnalysisInputs.CostTerms.complete(1_000, 10, 100),
                         CpuPartitionAnalysisInputs.RepresentationCostTerms.ZERO,
                         java.util.OptionalLong.of(1), java.util.OptionalInt.of(1)));
-        return new PrepareContext<>(partition, List.of(node), values, memory, Map.of(), inputs);
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, List.of(node), values, memory, Map.of(), inputs);
     }
 
     private static TensorDescriptor descriptor(DataType type, Shape shape) {

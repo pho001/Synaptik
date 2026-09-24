@@ -138,14 +138,12 @@ public class CpuAggregateLoweringTest {
         var output = CpuIndexingLoweringTest.descriptor(DataType.FLOAT64, outputShape,
                 LayoutDescriptor.of(outputShape, new long[] {2,1}, 1, true));
         var operation = new Operation(AggregateReductionKind.MIN, new AxisReductionAttrs(1, true));
-        var query = new OperationCapabilityQuery(operation, List.of(input), List.of(output));
+        var query = new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, operation, List.of(input), List.of(output));
         assertAll(() -> assertTrue(new CpuCapabilityProvider().supports(query)),
                 () -> assertDoesNotThrow(() -> new CpuPartitionLowering().lower(
                         CpuScatterLoweringTest.context(operation, List.of(0), List.of(input), output))),
-                () -> assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(
-                        new Operation(AggregateReductionKind.SUM, NoOperationAttrs.INSTANCE),
-                        List.of(input), List.of(CpuScatterLoweringTest.desc(DataType.FLOAT64,
-                            Shape.scalar()))))));
+                () -> assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new Operation(AggregateReductionKind.SUM, NoOperationAttrs.INSTANCE), List.of(input), List.of(CpuScatterLoweringTest.desc(DataType.FLOAT64,
+                    Shape.scalar()))))));
     }
 
     public static CpuPartitionLowering.LoweredPartition lower(AggregateReductionKind kind,

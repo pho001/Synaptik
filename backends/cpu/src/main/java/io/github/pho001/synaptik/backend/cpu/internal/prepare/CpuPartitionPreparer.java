@@ -18,6 +18,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRepresentationDecisi
 import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasRoutePlan;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasRouteSelector;
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis;
@@ -204,6 +205,10 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     private SelectionAnalysis selectPlan(PrepareContext<CpuPartitionAnalysisInputs> context,
             Optional<SelectedCompletePlan> explicitSelection) {
         Objects.requireNonNull(context, "context");
+        if (context.numericalProfile() != NumericalProfile.STRICT_IEEE) {
+            throw new IllegalArgumentException(
+                    "CPU backend supports only STRICT_IEEE numerical profile");
+        }
         List<CpuPartitionDagDecomposer.Unit> baseline = decomposer.decompose(context, lowering);
         BackendPartitionAnalysis<CpuPartitionPreparationPlan> baselineAnalysis =
                 analyzeTopology(context, baseline, null);
@@ -293,7 +298,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             CpuOpenBlasRouteSelector.Result result) {
         var plan = analysis.plan();
         Optional<CpuOpenBlasRoutePlan> nativePlan = result.selectedOpenBlasPlan();
-        var selected = new CpuPartitionPreparationPlan(plan.units(),
+        var selected = new CpuPartitionPreparationPlan(plan.numericalProfile(), plan.units(),
                 nativePlan.isPresent() ? CpuPartitionPreparationPlan.Route.OPENBLAS
                         : CpuPartitionPreparationPlan.Route.PORTABLE,
                 plan.executionStrategy(),
@@ -353,7 +358,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             if (changed) {
                 var old = route.specialization();
                 var specialization = new CpuKernelSpecialization(
-                        CpuLoweringFingerprint.fromHex(ir.structuralKey()), old.numericalMode(),
+                        CpuLoweringFingerprint.fromHex(ir.structuralKey()), old.numericalProfile(),
                         old.executionStrategy(), old.boundaryDataTypes(), carriers,
                         old.vectorSpeciesBitSize(), representation.materializations().size() == 1
                             ? representation.materializations().getFirst().consumers().stream()
@@ -371,7 +376,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         for (CpuMaterializationPlan copy : representation.materializations()) requirements.add(
                 new PreparationResourceRequirement.Workspace(copy.workspaceRequirementId(),
                         copy.byteCount(), copy.byteAlignment()));
-        var representedPlan = new CpuPartitionPreparationPlan(plan.units(), plan.route(),
+        var representedPlan = new CpuPartitionPreparationPlan(
+                plan.numericalProfile(), plan.units(), plan.route(),
                 plan.executionStrategy(), plan.bufferDeclarations(), plan.boundaryValues(),
                 plan.accessBindings(), plan.carrierPattern(), plan.generatedCarrierPattern(),
                 plan.extents(), plan.elementCount(), plan.affineAddressPairs(),
@@ -451,7 +457,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         List<Integer> publicationBoundaryPositions = java.util.stream.IntStream.range(
                 0, plan.boundaryValues().size()).filter(position ->
                         publications.contains(plan.boundaryValues().get(position))).boxed().toList();
-        var enriched = new CpuPartitionPreparationPlan(plan.units(), plan.route(),
+        var enriched = new CpuPartitionPreparationPlan(
+                plan.numericalProfile(), plan.units(), plan.route(),
                 plan.executionStrategy(), plan.bufferDeclarations(), plan.boundaryValues(),
                 plan.accessBindings(), plan.carrierPattern(), plan.generatedCarrierPattern(),
                 plan.extents(), plan.elementCount(), plan.affineAddressPairs(),
@@ -493,7 +500,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 unit.attentionGeometry(), unit.outputCount(),
                 unit.fusionReason(), topology.dependencies(),
                 topology.memberNodeOrdinals(), facts);
-        var annotated = new CpuPartitionPreparationPlan(List.of(enriched), plan.route(),
+        var annotated = new CpuPartitionPreparationPlan(
+                plan.numericalProfile(), List.of(enriched), plan.route(),
                 plan.executionStrategy(), plan.bufferDeclarations(), plan.boundaryValues(),
                 plan.accessBindings(), plan.carrierPattern(), plan.generatedCarrierPattern(),
                 plan.extents(), plan.elementCount(), plan.affineAddressPairs(),
@@ -753,7 +761,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         }
         var specialization = new CpuKernelSpecialization(
                 CpuLoweringFingerprint.fromHex(kernelIr.structuralKey()),
-                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
+                context.numericalProfile(),
                 artifactStrategy, lowered.boundaryDataTypes(), carriers,
                 vectorEligible ? speciesBits : 0,
                 materialization.map(CpuMaterializationPlan::sourceBoundaryIndex).orElse(-1),
@@ -893,6 +901,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         if (partialRecipe.isPresent())
             workspaceUse = CpuPartitionPreparationPlan.WorkspaceUse.AGGREGATE_EXACT_STATE;
         var plan = new CpuPartitionPreparationPlan(
+                context.numericalProfile(),
                 List.of(new CpuPartitionPreparationPlan.ExecutionUnitPlan(
                         routePlan, lowered.boundaryValues(), bindings, requestedCarriers, carriers,
                         selectedExtents, iterationCount, strategy, selectedRangeCount,
@@ -1019,7 +1028,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 ? "form=GENERAL_PARTITION;units=" + units.size() + ";members="
                     + units.stream().map(CpuPartitionPreparationPlan.ExecutionUnitPlan::memberNodeOrdinals)
                         .toList() : "";
-        var combined = new CpuPartitionPreparationPlan(units,
+        var combined = new CpuPartitionPreparationPlan(
+                context.numericalProfile(), units,
                 CpuPartitionPreparationPlan.Route.PORTABLE,
                 CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
                 declarations, boundaryValues,

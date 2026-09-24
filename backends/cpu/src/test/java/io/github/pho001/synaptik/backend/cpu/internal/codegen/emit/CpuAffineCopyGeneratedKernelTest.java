@@ -41,13 +41,10 @@ class CpuAffineCopyGeneratedKernelTest {
         var affine = new CpuAffineCopyIr(DataType.FLOAT64, read, write,
                 List.of(new CpuAffineCopyIr.MappingStep(CpuAffineCopyIr.MappingKind.CONTIGUOUS,
                         1, 1, List.of())), CpuAffineCopyIr.WriteDomain.LOGICAL_ELEMENTS);
-        var specialization = new CpuKernelSpecialization(
-                CpuLoweringFingerprint.fromHex(affine.structuralKey()),
-                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
-                List.of(DataType.FLOAT64, DataType.FLOAT64),
-                List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.MEMORY_SEGMENT),
-                0, -1, List.of(), false);
+        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(affine.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+        List.of(DataType.FLOAT64, DataType.FLOAT64),
+        List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.MEMORY_SEGMENT),
+        0, -1, List.of(), false);
         var generator = new CpuClassFileKernelGenerator();
         assertTrue(CpuAffineCopyEmitter.ownsGeneralLongDenseResultCarrierAccess(
                 specialization, affine.encodedKernelIr()));

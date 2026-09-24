@@ -33,13 +33,15 @@ current logical binding; the association itself retains no Tensor, descriptor co
 or runtime representation.
 The current config module provides five immutable standalone values that a later compile
 configuration aggregate can contain: `BackendIntent`, `CompileMode`,
-`GraphOptimizationConfig`, `PartitionScoringConfig`, and the identity-only `NumericalProfile`.
-Model remains the sole authority for profile semantics; no current compiler, Planning, Engine, or
-backend consumes or propagates `NumericalProfile`, and Config supplies no default. The current
-planning module provides the immutable `OperationCapabilityQuery` and the explicitly supplied
-`BackendCapabilityProvider` collaboration. It keeps per-query hard eligibility and baseline
-comparison package-private and exposes one public `BackendOwnerPlanning.selectOwner(...)`
-collaboration that composes them without exposing the intermediate. It also exposes the existing
+`GraphOptimizationConfig`, `PartitionScoringConfig`, and `NumericalProfile`. Model remains the sole
+authority for profile semantics. `Engine.Builder` defaults the graph-wide selection to
+`STRICT_IEEE`; an explicit selection is captured once and passed to Planning capability queries,
+Compiler artifacts, Prepare projections, and backend plan/cache identities. Config itself supplies
+no default. The current planning module provides the immutable profile-qualified
+`OperationCapabilityQuery` and the explicitly supplied `BackendCapabilityProvider` collaboration.
+It keeps per-query hard eligibility and baseline comparison package-private and exposes one public
+`BackendOwnerPlanning.selectOwner(...)` collaboration that composes them without exposing the
+intermediate. It also exposes the existing
 `MaximalSameOwnerPartitioning.partition(...)` and `LogicalMemoryPlanning.plan(...)` operations in
 their owning packages. The module still provides no reusable/public capability matrix, public
 graph-wide planner workflow, general cost scoring, or owner-map assembly. Compiler owns the

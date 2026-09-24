@@ -526,3 +526,9 @@ neither loads nor mutates a cache.
 See the [Runtime/Prepare/Backend boundary](../architecture/runtime-prepare-backend-boundary.md),
 [Planning ownership and partition scoring](../architecture/partition-scoring.md), and
 [kernel routes](kernel-routes.md).
+
+## Numerical-profile admission
+
+A preparer receives the exact graph-wide `NumericalProfile` in `PrepareContext`. It must reject an
+unsupported value before route analysis and retain the value in every plan and compatibility
+identity that could otherwise be reused. CPU and Metal currently admit only `STRICT_IEEE`.

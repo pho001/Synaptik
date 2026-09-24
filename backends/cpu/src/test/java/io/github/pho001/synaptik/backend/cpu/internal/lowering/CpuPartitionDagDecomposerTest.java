@@ -217,8 +217,7 @@ class CpuPartitionDagDecomposerTest {
         var values = new ArrayList<>(base.values());
         values.removeLast();
         assertThrows(IllegalArgumentException.class, () -> new CpuPartitionPreparer().analyze(
-                new PrepareContext<>(base.partition(), base.nodes(), values,
-                        base.memoryRequirements(), Map.of(), base.backendInputs())));
+                new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), values, base.memoryRequirements(), Map.of(), base.backendInputs())));
     }
 
     private static String snapshot(
@@ -476,8 +475,7 @@ class CpuPartitionDagDecomposerTest {
                     produced ? Optional.of(partition) : Optional.empty(),
                     consumed ? List.of(partition) : List.of(), published);
         }).toList();
-        return new PrepareContext<>(partition, nodes, values, memory, Map.of(),
-                CpuPartitionAnalysisInputs.DEFAULT);
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
     }
 
     private static CompiledNode scalar(int node, ValueId input, ValueId output,
@@ -502,8 +500,7 @@ class CpuPartitionDagDecomposerTest {
                     produced ? Optional.of(partition) : Optional.empty(),
                     consumed ? List.of(partition) : List.of(), graphOutputs.contains(id)));
         }
-        return new PrepareContext<>(partition, nodes, values, memory, Map.of(),
-                CpuPartitionAnalysisInputs.DEFAULT);
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
     }
 
     private static TensorDescriptor descriptor(DataType type, Shape shape) {

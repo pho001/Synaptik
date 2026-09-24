@@ -1239,3 +1239,10 @@ Run may fail because an input binding is missing or incompatible, a prepared res
 - [Preparing execution](../user-guide/preparing-execution.md)
 - [Running models](../user-guide/running-models.md)
 - [Glossary](../glossary.md)
+
+## Numerical-profile boundary
+
+Runtime APIs deliberately expose no numerical-profile selector or per-run override. Engine captures
+the graph-wide profile before compilation, and backend preparation resolves it before a
+`PreparedExecutable` reaches Runtime. This keeps run state, bindings, and Trace payloads free of
+numerical-policy branches.

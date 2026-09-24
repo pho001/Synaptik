@@ -29,15 +29,7 @@ final class GraphCompilationPortPublicShapeTest {
         Tensor output = TensorFactory.create(new TensorDescriptor(
                 DataType.FLOAT32, Shape.of(2), Optional.empty(), false));
 
-        CompileArtifacts artifacts = GraphCompilationPort.compile(
-                CompileMode.FORWARD_ONLY,
-                List.of(output),
-                Optional.empty(),
-                GraphOptimizationConfig.disabled(),
-                BackendIntent.unconstrained(),
-                PartitionScoringConfig.neutral(),
-                List.of(),
-                List.of());
+        CompileArtifacts artifacts = GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(output), Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(), List.of());
 
         assertTrue(artifacts.graph().nodes().isEmpty());
         assertEquals(List.of(artifacts.graph().inputs().getFirst()),
@@ -58,7 +50,7 @@ final class GraphCompilationPortPublicShapeTest {
         assertEquals(List.of(TensorId.class, ValueId.class), Arrays.stream(
                         CompileConstantPlan.BindableInput.class.getRecordComponents())
                 .map(component -> component.getType()).toList());
-        assertEquals(8, CompileArtifacts.class.getRecordComponents().length);
+        assertEquals(9, CompileArtifacts.class.getRecordComponents().length);
         assertEquals(1, Arrays.stream(GraphCompilationPort.class.getDeclaredMethods())
                 .filter(method -> Modifier.isPublic(method.getModifiers()))
                 .count());

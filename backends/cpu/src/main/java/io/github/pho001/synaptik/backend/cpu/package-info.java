@@ -72,6 +72,11 @@
  * that exact Phase-1 state. It authenticates opaque decisions and freshly prepares the selected
  * recipe without execution, measurement, ranking, cache access, or fallback.
  *
+ * <p>Capability and preparation currently support only {@code STRICT_IEEE} and fail closed for
+ * {@code ACCELERATOR}. The selected numerical profile participates in partition-plan,
+ * generated-artifact, OpenBLAS workload, and both tuning-phase compatibility identity so cached
+ * or selected work cannot cross profiles.</p>
+ *
  * <p>The {@code internal} namespace contains unsupported implementation contracts for complete-
  * partition lowering, code generation, storage, and execution. No type in that namespace is a
  * supported public API.</p>

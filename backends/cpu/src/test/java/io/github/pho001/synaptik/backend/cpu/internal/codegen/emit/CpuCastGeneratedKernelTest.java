@@ -36,10 +36,8 @@ class CpuCastGeneratedKernelTest {
 
     @Test void crossTypeCastRejectsAVectorSpecialization() {
         CpuKernelIr ir = ir(DataType.BOOL, DataType.FLOAT32, Form.DENSE);
-        assertThrows(IllegalArgumentException.class, () -> new CpuKernelSpecialization(
-                CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, List.of(DataType.BOOL, DataType.FLOAT32),
-                List.of(carrier(DataType.BOOL, false), carrier(DataType.FLOAT32, false)), 0, 0, List.of(), false, 60));
+        assertThrows(IllegalArgumentException.class, () -> new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, List.of(DataType.BOOL, DataType.FLOAT32),
+        List.of(carrier(DataType.BOOL, false), carrier(DataType.FLOAT32, false)), 0, 0, List.of(), false, 60));
     }
 
     @Test void directF64ToBfloat16KeepsRawDoubleRoundingAndTieBoundaries() throws Throwable {
@@ -58,13 +56,11 @@ class CpuCastGeneratedKernelTest {
 
     @Test void denseArrayF64ToBfloat16KeepsTheCompactSingleEntryControlFlow() {
         CpuKernelIr ir = ir(DataType.FLOAT64, DataType.BFLOAT16, Form.DENSE);
-        var specification = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()),
-                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
-                List.of(DataType.FLOAT64, DataType.BFLOAT16),
-                List.of(CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY,
-                        CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY),
-                0, -1, List.of(), false, 60);
+        var specification = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+        List.of(DataType.FLOAT64, DataType.BFLOAT16),
+        List.of(CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY,
+                CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY),
+        0, -1, List.of(), false, 60);
         byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(specification, ir);
         var generated = ClassFile.of().parse(bytes);
         assertEquals(1, generated.methods().size(), "generated class retains one typed static entry");
@@ -112,12 +108,10 @@ class CpuCastGeneratedKernelTest {
                         new CpuKernelIr.Instruction(CpuPointwiseOpcode.CAST, List.of(1), 3)),
                 new CpuKernelIr.Loop("start", "end"), List.of(new CpuKernelIr.Store(2, 0),
                         new CpuKernelIr.Store(3, 1)));
-        var specification = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(chain.structuralKey()),
-                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
-                List.of(DataType.FLOAT64, DataType.BFLOAT16, DataType.INT32),
-                List.of(carrier(DataType.FLOAT64, false), carrier(DataType.BFLOAT16, false),
-                        carrier(DataType.INT32, false)), 0, -1, List.of(), false, 60);
+        var specification = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(chain.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+        List.of(DataType.FLOAT64, DataType.BFLOAT16, DataType.INT32),
+        List.of(carrier(DataType.FLOAT64, false), carrier(DataType.BFLOAT16, false),
+                carrier(DataType.INT32, false)), 0, -1, List.of(), false, 60);
         var generator = new CpuClassFileKernelGenerator();
         MethodHandle entry = generator.defineClassBytes(specification,
                 generator.generateClassBytes(specification, chain)).entryPoint();
@@ -249,10 +243,9 @@ class CpuCastGeneratedKernelTest {
 
     private static MethodHandle entry(DataType source, DataType target, CarrierForm forms, Form form) {
         CpuKernelIr ir = ir(source, target, form);
-        var spec = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()),
-                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
-                List.of(source, target), List.of(carrier(source, forms.inputSegment), carrier(target, forms.outputSegment)),
-                0, -1, List.of(), false, source == target ? source == DataType.BFLOAT16 ? 59 : 52 : 60);
+        var spec = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+        List.of(source, target), List.of(carrier(source, forms.inputSegment), carrier(target, forms.outputSegment)),
+        0, -1, List.of(), false, source == target ? source == DataType.BFLOAT16 ? 59 : 52 : 60);
         var generator = new CpuClassFileKernelGenerator();
         return generator.defineClassBytes(spec, generator.generateClassBytes(spec, ir)).entryPoint();
     }

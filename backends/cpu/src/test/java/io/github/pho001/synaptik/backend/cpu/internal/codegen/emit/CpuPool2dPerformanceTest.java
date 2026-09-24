@@ -300,17 +300,14 @@ public final class CpuPool2dPerformanceTest {
                                 CpuAccessPlan.AccessKind.WRITE, CpuAccessPlan.Regime.DENSE_LINEAR, 4, roles, 4));
         var ir = pool.encodedKernelIr();
         var s =
-                new CpuKernelSpecialization(
-                        CpuLoweringFingerprint.fromHex(ir.structuralKey()),
-                        CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                        CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
-                        List.of(g.dataType(), g.dataType()),
-                        List.of(in, out),
-                        0,
-                        -1,
-                        List.of(),
-                        false,
-                        55);
+                new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                List.of(g.dataType(), g.dataType()),
+                List.of(in, out),
+                0,
+                -1,
+                List.of(),
+                false,
+                55);
         var generator = new CpuClassFileKernelGenerator();
         byte[] bytes = generator.generateClassBytes(s, ir);
         return new Generated(generator.defineClassBytes(s, bytes).entryPoint(), bytes, s);

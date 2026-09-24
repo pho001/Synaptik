@@ -243,3 +243,10 @@ test requirement.
 See [Partition scoring](../architecture/partition-scoring.md), [backend
 selection](../user-guide/backend-selection.md), and the [backend guide
 style](../developer-guide/documentation/backend-guide-style.md).
+
+## Profile-qualified capability
+
+Read `query.numericalProfile()` as part of the complete capability question. Return `false` for an
+unsupported profile rather than ignoring it or inferring support from `DeviceClass`. The current
+CPU and Metal providers return `false` for every `ACCELERATOR` query and retain their existing
+strict support matrices for `STRICT_IEEE`.

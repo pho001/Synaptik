@@ -81,8 +81,7 @@ public class CpuOrderingLoweringTest {
             memory.add(new LogicalMemoryRequirement(outputIds.get(i), outputs.get(i),
                     Optional.of(partition), List.of(), true));
         }
-        return new PrepareContext<>(partition, List.of(node), values, memory, Map.of(),
-                CpuPartitionAnalysisInputs.DEFAULT);
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, List.of(node), values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
     }
 
     private static TensorDescriptor descriptor(DataType type, Shape shape) {

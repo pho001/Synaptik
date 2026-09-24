@@ -183,3 +183,9 @@ Tests under `testing/architecture-tests/` should fail when forbidden module or p
 - the Model/NN and public-Engine-to-Training direction.
 
 Architecture tests enforce the contract; they do not redefine it. When a dependency rule changes, update [`ARCHITECTURE.md`](../../ARCHITECTURE.md), the relevant explanatory document, an ADR when significant, and the architecture tests in the same change.
+
+## Numerical-profile dependency direction
+
+Config owns the identity, so Planning may depend on Config to put `NumericalProfile` in capability
+queries. Compiler, Prepare, Engine, CPU, and Metal may transport or realize it. Model remains the
+semantic authority, and Runtime and Trace remain profile-free.

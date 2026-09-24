@@ -1,5 +1,6 @@
 package io.github.pho001.synaptik.backend.metal;
 
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -34,6 +35,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
         MPSGRAPH
     }
 
+    private final NumericalProfile numericalProfile;
     private final PlannedPartition partition;
     private final PartitionDag partitionDag;
     private final MetalDeviceContext context;
@@ -57,6 +59,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     /**
      * Creates one completely validated analysis result snapshot.
      *
+     * @param numericalProfile non-null immutable graph-wide numerical-profile identity
      * @param partition exact non-null planned partition analyzed to produce this plan
      * @param partitionDag exact non-null partition topology retaining {@code partition}
      * @param context exact non-null Metal device context retained by identity
@@ -80,6 +83,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
      * @throws IllegalArgumentException if aligned cardinalities disagree
      */
     MetalNegPreparationPlan(
+            NumericalProfile numericalProfile,
             PlannedPartition partition,
             PartitionDag partitionDag,
             MetalDeviceContext context,
@@ -100,6 +104,8 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             long[] feedRequiredBytes,
             long[] targetRequiredBytes) {
         this.partition = Objects.requireNonNull(partition, "partition");
+        this.numericalProfile =
+                Objects.requireNonNull(numericalProfile, "numericalProfile");
         this.partitionDag = Objects.requireNonNull(partitionDag, "partitionDag");
         if (this.partitionDag.partition() != this.partition) {
             throw new IllegalArgumentException(
@@ -148,6 +154,8 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             throw new IllegalArgumentException("Metal NEG route and workspace facts disagree");
         }
     }
+    /** @return exact immutable graph-wide numerical-profile identity */
+    NumericalProfile numericalProfile() { return numericalProfile; }
 
     PlannedPartition partition() { return partition; }
     PartitionDag partitionDag() { return partitionDag; }

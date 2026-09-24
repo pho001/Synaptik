@@ -22,5 +22,9 @@
  * contributions and binders for the bounded bidirectional CPU/Metal mixed-owner schedule. Native
  * internals remain package-private. There is no library discovery, CPU fallback, or backend-global
  * integration.</p>
+ *
+ * <p>Capability and preparation currently support only {@code STRICT_IEEE} and fail closed for
+ * {@code ACCELERATOR}. The selected numerical profile participates in partition-plan, route,
+ * tuning, decision-codec, and workload identity; no native ABI or MPSGraph schema is changed.</p>
  */
 package io.github.pho001.synaptik.backend.metal;

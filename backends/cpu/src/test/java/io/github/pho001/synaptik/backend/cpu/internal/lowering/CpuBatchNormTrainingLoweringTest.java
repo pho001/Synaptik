@@ -26,5 +26,5 @@ public class CpuBatchNormTrainingLoweringTest {
   var op=new Operation(BatchNormKind.BATCH_NORM_TRAINING,new BatchNormTrainingAttrs(axis,momentum,epsilon));var node=new CompiledNode(new NodeId(0),op,inIds,outIds);var partition=new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID,List.of(node.id()));var values=new ArrayList<GraphValue>();var memory=new ArrayList<LogicalMemoryRequirement>();
   for(int i=0;i<5;i++)if(occurrences.indexOf(occurrences.get(i))==i){values.add(new GraphValue(inIds.get(i),inputs.get(i)));memory.add(new LogicalMemoryRequirement(inIds.get(i),inputs.get(i),Optional.empty(),List.of(partition),false));}
   for(int i=0;i<5;i++){values.add(new GraphValue(outIds.get(i),outputs.get(i)));memory.add(new LogicalMemoryRequirement(outIds.get(i),outputs.get(i),Optional.of(partition),List.of(),true));}
-  return new PrepareContext<>(partition,List.of(node),values,memory,Map.of(),CpuPartitionAnalysisInputs.DEFAULT);}
+  return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, List.of(node), values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);}
 }

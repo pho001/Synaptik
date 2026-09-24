@@ -596,13 +596,7 @@ class BackendPartitionFinalizationHandoffTest {
             CompiledNode node,
             List<GraphValue> values,
             List<LogicalMemoryRequirement> requirements) {
-        return new PrepareContext<>(
-                partition,
-                List.of(node),
-                values,
-                requirements,
-                Map.of(),
-                new FakeInputs("target"));
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, List.of(node), values, requirements, Map.of(), new FakeInputs("target"));
     }
 
     private static CompiledNode node(long id, ValueId input, ValueId output) {

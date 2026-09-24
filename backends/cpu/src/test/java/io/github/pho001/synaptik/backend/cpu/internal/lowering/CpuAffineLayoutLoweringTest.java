@@ -36,11 +36,10 @@ public class CpuAffineLayoutLoweringTest {
 
     @Test void affinePreparationAlwaysUsesScalarComputeAndNoWorkspace() {
         var base = select(DataType.FLOAT32, List.of());
-        var configured = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, List.of(),
-                new CpuPartitionAnalysisInputs.PortableExecutionConfig(
-                        CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference
-                                .VECTOR_IF_ELIGIBLE, 2, 2, 1)));
+        var configured = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, List.of(),
+        new CpuPartitionAnalysisInputs.PortableExecutionConfig(
+                CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference
+                        .VECTOR_IF_ELIGIBLE, 2, 2, 1)));
         var plan = new CpuPartitionPreparer().analyze(configured).plan();
         assertAll(
                 () -> assertEquals("parallel-scalar", plan.executionStrategy().toString()),
@@ -162,8 +161,7 @@ public class CpuAffineLayoutLoweringTest {
         var old = publishedMemory.get(1);
         publishedMemory.set(1, new LogicalMemoryRequirement(old.valueId(), old.descriptor(),
                 old.producerPartition(), old.consumerPartitions(), true));
-        var published = new PrepareContext<>(two.partition(), two.nodes(), two.values(),
-                publishedMemory, Map.of(), two.backendInputs());
+        var published = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, two.partition(), two.nodes(), two.values(), publishedMemory, Map.of(), two.backendInputs());
         assertThrows(IllegalArgumentException.class,
                 () -> new CpuPartitionLowering().lower(published));
 
@@ -195,8 +193,7 @@ public class CpuAffineLayoutLoweringTest {
                         List.of(partition), false),
                 new LogicalMemoryRequirement(new ValueId(2), descriptor, Optional.of(partition),
                         List.of(), true));
-        var context = new PrepareContext<>(partition, nodes, values, memory, Map.of(),
-                CpuPartitionAnalysisInputs.DEFAULT);
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
 
         assertAll(
                 () -> assertEquals(List.of(1, 1), context.partitionDag()
@@ -264,8 +261,7 @@ public class CpuAffineLayoutLoweringTest {
                     i == descriptors.size() - 1 ? List.of() : List.of(partition),
                     i == descriptors.size() - 1));
         }
-        return new PrepareContext<>(partition, nodes, values, memory, Map.of(),
-                CpuPartitionAnalysisInputs.DEFAULT);
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
     }
 
     public static PrepareContext<CpuPartitionAnalysisInputs> select(
@@ -277,9 +273,8 @@ public class CpuAffineLayoutLoweringTest {
                 Optional.of(LayoutDescriptor.of(outputShape, new long[]{3}, 1, true)), false);
         var base = context(List.of(new Operation(SelectKind.SELECT, new SelectAttrs(1, 1))),
                 List.of(input, output));
-        return new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers,
-                CpuPartitionAnalysisInputs.DEFAULT.portableExecution()));
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers,
+        CpuPartitionAnalysisInputs.DEFAULT.portableExecution()));
     }
 
     /** Returns one dense identity CONTIGUOUS context for generated-loop tests. */
@@ -289,9 +284,8 @@ public class CpuAffineLayoutLoweringTest {
         TensorDescriptor descriptor = descriptor(type, shape, LayoutDescriptor.contiguous(shape));
         var base = context(List.of(new Operation(ContiguousKind.CONTIGUOUS,
                 NoOperationAttrs.INSTANCE)), List.of(descriptor, descriptor));
-        return new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers,
-                CpuPartitionAnalysisInputs.DEFAULT.portableExecution()));
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers,
+        CpuPartitionAnalysisInputs.DEFAULT.portableExecution()));
     }
 
     /** Returns the frozen mixed-carrier BFLOAT16 PERMUTE/SLICE parity context. */
@@ -312,9 +306,8 @@ public class CpuAffineLayoutLoweringTest {
                         new SliceAttrs(List.of(0L), List.of((long) b),
                                 List.of(0), List.of(1L)))),
                 List.of(source, intermediate, intermediate));
-        return new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
-                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.SHORT_ARRAY),
-                CpuPartitionAnalysisInputs.DEFAULT.portableExecution()));
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+        List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.SHORT_ARRAY),
+        CpuPartitionAnalysisInputs.DEFAULT.portableExecution()));
     }
 }

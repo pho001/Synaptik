@@ -240,3 +240,10 @@ The performance-evidence section above owns the detailed boundaries for `tools/b
 contract. Root global invariants and dependency rules therefore apply; if CLI work encounters an
 architecture-sensitive ownership, dependency, or lifecycle question not answered there, the
 missing scope requires an explicit architecture update.
+
+## Numerical-profile backend identity
+
+A concrete backend must qualify capability, preparation plans, specialization, generated
+artifacts, tuning candidates and decisions, and cache compatibility by the exact selected
+`NumericalProfile`. CPU and Metal currently support only `STRICT_IEEE` and reject `ACCELERATOR`
+before route selection. Transporting the identity does not authorize relaxed results.

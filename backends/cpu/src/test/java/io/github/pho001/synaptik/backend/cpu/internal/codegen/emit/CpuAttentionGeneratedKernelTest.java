@@ -42,27 +42,24 @@ class CpuAttentionGeneratedKernelTest {
             List.of(read, read, read, write, write));
     var ir = attention.encodedKernelIr();
     var specialization =
-        new CpuKernelSpecialization(
-            CpuLoweringFingerprint.fromHex(ir.structuralKey()),
-            CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-            CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
-            List.of(
-                DataType.FLOAT32,
-                DataType.FLOAT32,
-                DataType.FLOAT32,
-                DataType.FLOAT32,
-                DataType.FLOAT32),
-            List.of(
-                CarrierAccess.FLOAT_ARRAY,
-                CarrierAccess.FLOAT_ARRAY,
-                CarrierAccess.FLOAT_ARRAY,
-                CarrierAccess.FLOAT_ARRAY,
-                CarrierAccess.FLOAT_ARRAY),
-            0,
-            -1,
-            List.of(),
-            true,
-            57);
+        new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+        List.of(
+            DataType.FLOAT32,
+            DataType.FLOAT32,
+            DataType.FLOAT32,
+            DataType.FLOAT32,
+            DataType.FLOAT32),
+        List.of(
+            CarrierAccess.FLOAT_ARRAY,
+            CarrierAccess.FLOAT_ARRAY,
+            CarrierAccess.FLOAT_ARRAY,
+            CarrierAccess.FLOAT_ARRAY,
+            CarrierAccess.FLOAT_ARRAY),
+        0,
+        -1,
+        List.of(),
+        true,
+        57);
     var generator = new CpuClassFileKernelGenerator();
     byte[] bytes = generator.generateClassBytes(specialization, ir);
     assertEquals(1, ClassFile.of().parse(bytes).methods().size());

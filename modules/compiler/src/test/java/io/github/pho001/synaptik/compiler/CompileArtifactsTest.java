@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.compiler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -25,7 +26,7 @@ import org.junit.jupiter.api.Test;
 
 final class CompileArtifactsTest {
     @Test
-    void exposesTheExactEightComponentImmutableRecipeAndRetainsExactReferences() {
+    void exposesTheExactNineComponentImmutableRecipeAndRetainsExactReferences() {
         TensorDescriptor descriptor = descriptor(DataType.FLOAT32, false);
         ValueId input = new ValueId(1);
         CompiledGraphModel graph = passThroughGraph(input, descriptor);
@@ -40,8 +41,10 @@ final class CompileArtifactsTest {
         List<io.github.pho001.synaptik.planning.partition.PlannedPartition> partitions =
                 new ArrayList<>();
 
-        CompileArtifacts artifacts = new CompileArtifacts(
+        CompileArtifacts artifacts = new CompileArtifacts(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, graph, partitions, memory, publication, constants, diagnostics, DerivativeGraphMetadata.forwardOnly(graph));
+        CompileArtifacts accelerator = new CompileArtifacts(
                 CompileMode.FORWARD_ONLY,
+                io.github.pho001.synaptik.config.compile.NumericalProfile.ACCELERATOR,
                 graph,
                 partitions,
                 memory,
@@ -54,6 +57,7 @@ final class CompileArtifactsTest {
         assertEquals(
                 List.of(
                         "mode",
+                        "numericalProfile",
                         "graph",
                         "partitions",
                         "memory",
@@ -68,6 +72,9 @@ final class CompileArtifactsTest {
         assertSame(memory, artifacts.memory());
         assertSame(publication, artifacts.publication());
         assertSame(constants, artifacts.constants());
+        assertNotEquals(artifacts, accelerator);
+        assertNotEquals(artifacts.hashCode(), accelerator.hashCode());
+        assertTrue(artifacts.toString().contains("numericalProfile=STRICT_IEEE"));
         assertSame(diagnostics, artifacts.diagnostics());
         assertTrue(artifacts.partitions().isEmpty());
         assertThrows(
@@ -92,15 +99,7 @@ final class CompileArtifactsTest {
                 "publication graph must be the exact graph reference",
                 assertThrows(
                         IllegalArgumentException.class,
-                        () -> new CompileArtifacts(
-                                CompileMode.FORWARD_ONLY,
-                                graph,
-                                List.of(),
-                                memory,
-                                wrongPublication,
-                                new CompileConstantPlan(List.of(binding(8, input)), List.of()),
-                                diagnostics,
-                                DerivativeGraphMetadata.forwardOnly(graph)))
+                        () -> new CompileArtifacts(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, graph, List.of(), memory, wrongPublication, new CompileConstantPlan(List.of(binding(8, input)), List.of()), diagnostics, DerivativeGraphMetadata.forwardOnly(graph)))
                         .getMessage());
 
         PublicationPlan publication = new PublicationPlan(
@@ -111,30 +110,14 @@ final class CompileArtifactsTest {
                 "memory does not match graph and partitions",
                 assertThrows(
                         IllegalArgumentException.class,
-                        () -> new CompileArtifacts(
-                                CompileMode.FORWARD_ONLY,
-                                graph,
-                                List.of(),
-                                new LogicalMemoryPlan(List.of()),
-                                publication,
-                                new CompileConstantPlan(List.of(binding(8, input)), List.of()),
-                                diagnostics,
-                                DerivativeGraphMetadata.forwardOnly(graph)))
+                        () -> new CompileArtifacts(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, graph, List.of(), new LogicalMemoryPlan(List.of()), publication, new CompileConstantPlan(List.of(binding(8, input)), List.of()), diagnostics, DerivativeGraphMetadata.forwardOnly(graph)))
                         .getMessage());
 
         assertEquals(
                 "constants do not classify graph.inputs[0] ValueId[value=1] in graph-input order",
                 assertThrows(
                         IllegalArgumentException.class,
-                        () -> new CompileArtifacts(
-                                CompileMode.FORWARD_ONLY,
-                                graph,
-                                List.of(),
-                                memory,
-                                publication,
-                                new CompileConstantPlan(List.of(), List.of()),
-                                diagnostics,
-                                DerivativeGraphMetadata.forwardOnly(graph)))
+                        () -> new CompileArtifacts(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, graph, List.of(), memory, publication, new CompileConstantPlan(List.of(), List.of()), diagnostics, DerivativeGraphMetadata.forwardOnly(graph)))
                         .getMessage());
     }
 
@@ -153,18 +136,10 @@ final class CompileArtifactsTest {
                 "constantSources[0] data type INT32 does not match graph input descriptor FLOAT32",
                 assertThrows(
                         IllegalArgumentException.class,
-                        () -> new CompileArtifacts(
-                                CompileMode.FORWARD_ONLY,
-                                floatGraph,
+                        () -> new CompileArtifacts(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, floatGraph, List.of(), LogicalMemoryPlanning.plan(floatGraph, List.of()), floatPublication, new CompileConstantPlan(
                                 List.of(),
-                                LogicalMemoryPlanning.plan(floatGraph, List.of()),
-                                floatPublication,
-                                new CompileConstantPlan(
-                                        List.of(),
-                                        List.of(new CompileConstantPlan.ConstantSource(
-                                                input, ScalarValue.int32(1)))),
-                                diagnostics,
-                                DerivativeGraphMetadata.forwardOnly(floatGraph)))
+                                List.of(new CompileConstantPlan.ConstantSource(
+                                        input, ScalarValue.int32(1)))), diagnostics, DerivativeGraphMetadata.forwardOnly(floatGraph)))
                         .getMessage());
 
         CompiledGraphModel gradientGraph =
@@ -177,18 +152,10 @@ final class CompileArtifactsTest {
                 "constantSources[0] fixes a gradient-eligible graph input",
                 assertThrows(
                         IllegalArgumentException.class,
-                        () -> new CompileArtifacts(
-                                CompileMode.FORWARD_ONLY,
-                                gradientGraph,
+                        () -> new CompileArtifacts(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, gradientGraph, List.of(), LogicalMemoryPlanning.plan(gradientGraph, List.of()), gradientPublication, new CompileConstantPlan(
                                 List.of(),
-                                LogicalMemoryPlanning.plan(gradientGraph, List.of()),
-                                gradientPublication,
-                                new CompileConstantPlan(
-                                        List.of(),
-                                        List.of(new CompileConstantPlan.ConstantSource(
-                                                input, ScalarValue.float32(1.0f)))),
-                                diagnostics,
-                                DerivativeGraphMetadata.forwardOnly(gradientGraph)))
+                                List.of(new CompileConstantPlan.ConstantSource(
+                                        input, ScalarValue.float32(1.0f)))), diagnostics, DerivativeGraphMetadata.forwardOnly(gradientGraph)))
                         .getMessage());
     }
 

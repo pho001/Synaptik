@@ -38,12 +38,11 @@ final class CpuMatmulGeneratedKernelTest {
                 CpuMatmulIr.Realization.DIRECT_N_VECTOR, CpuMatmulIr.Epilogue.none(), bits,
                 CpuMatmulIr.NumericalForm.SEQUENTIAL, List.of(read, read), write);
         var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(
-                ir.structuralKey()), CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
-                List.of(DataType.FLOAT32, DataType.FLOAT32, DataType.FLOAT32),
-                List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY,
-                        CarrierAccess.FLOAT_ARRAY), bits, -1, List.of(), false, 54,
-                java.util.Optional.of(ir));
+                ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
+        List.of(DataType.FLOAT32, DataType.FLOAT32, DataType.FLOAT32),
+        List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY,
+                CarrierAccess.FLOAT_ARRAY), bits, -1, List.of(), false, 54,
+        java.util.Optional.of(ir));
         var generator = new CpuClassFileKernelGenerator();
         byte[] bytes=generator.generateClassBytes(specialization, ir.encodedKernelIr());
         var generated = generator.defineClassBytes(specialization,bytes);
@@ -81,12 +80,10 @@ final class CpuMatmulGeneratedKernelTest {
                 CpuMatmulIr.Realization.DIRECT_N_VECTOR,new CpuMatmulIr.Epilogue(
                 CpuMatmulIr.Epilogue.AddInputOrder.MATMUL_LEFT,CpuMatmulIr.Epilogue.Terminal.NONE,null),
                 bits,CpuMatmulIr.NumericalForm.SEQUENTIAL,List.of(read,read,biasPlan),write);
-        var specialization=new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()),
-                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
-                java.util.Collections.nCopies(4,DataType.FLOAT32),
-                java.util.Collections.nCopies(4,CarrierAccess.FLOAT_ARRAY),bits,-1,List.of(),false,54,
-                java.util.Optional.of(ir));var generator=new CpuClassFileKernelGenerator();
+        var specialization=new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
+        java.util.Collections.nCopies(4,DataType.FLOAT32),
+        java.util.Collections.nCopies(4,CarrierAccess.FLOAT_ARRAY),bits,-1,List.of(),false,54,
+        java.util.Optional.of(ir));var generator=new CpuClassFileKernelGenerator();
         byte[] bytes=generator.generateClassBytes(specialization,ir.encodedKernelIr());
         var instructions=java.lang.classfile.ClassFile.of().parse(bytes).methods().getFirst()
                 .code().orElseThrow().elementStream().filter(java.lang.classfile.Instruction.class::isInstance)
@@ -125,12 +122,11 @@ final class CpuMatmulGeneratedKernelTest {
                 CpuMatmulIr.Realization.TILED_SCALAR_2X2,CpuMatmulIr.Epilogue.none(),0,
                 CpuMatmulIr.NumericalForm.SEQUENTIAL,List.of(read,read),write);
         var specialization=new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(
-                ir.structuralKey()),CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
-                List.of(DataType.FLOAT32,DataType.FLOAT32,DataType.FLOAT32),
-                List.of(CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY,
-                        CarrierAccess.FLOAT_ARRAY),0,-1,List.of(),false,54,
-                java.util.Optional.of(ir));
+                ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+        List.of(DataType.FLOAT32,DataType.FLOAT32,DataType.FLOAT32),
+        List.of(CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY,
+                CarrierAccess.FLOAT_ARRAY),0,-1,List.of(),false,54,
+        java.util.Optional.of(ir));
         var generator=new CpuClassFileKernelGenerator();
         byte[] bytes=generator.generateClassBytes(specialization,ir.encodedKernelIr());
         var instructions=java.lang.classfile.ClassFile.of().parse(bytes).methods().getFirst()
@@ -164,12 +160,11 @@ final class CpuMatmulGeneratedKernelTest {
                 CpuMatmulIr.Realization.TILED_N_VECTOR_2X2,CpuMatmulIr.Epilogue.none(),bits,
                 CpuMatmulIr.NumericalForm.SEQUENTIAL,List.of(read,read),write);
         var specialization=new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(
-                ir.structuralKey()),CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
-                List.of(DataType.FLOAT32,DataType.FLOAT32,DataType.FLOAT32),
-                List.of(CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY,
-                        CarrierAccess.FLOAT_ARRAY),bits,-1,List.of(),false,54,
-                java.util.Optional.of(ir));
+                ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
+        List.of(DataType.FLOAT32,DataType.FLOAT32,DataType.FLOAT32),
+        List.of(CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY,
+                CarrierAccess.FLOAT_ARRAY),bits,-1,List.of(),false,54,
+        java.util.Optional.of(ir));
         var generator=new CpuClassFileKernelGenerator();
         byte[] bytes=generator.generateClassBytes(specialization,ir.encodedKernelIr());
         var members=java.lang.classfile.ClassFile.of().parse(bytes).constantPool().spliterator();
@@ -234,11 +229,9 @@ final class CpuMatmulGeneratedKernelTest {
                 CpuMatmulIr.NumericalForm.SEQUENTIAL,accesses,write);
         var types=java.util.Collections.nCopies(epilogue.hasBias()?4:3,DataType.FLOAT64);
         var carriers=java.util.Collections.nCopies(epilogue.hasBias()?4:3,CarrierAccess.DOUBLE_ARRAY);
-        var specialization=new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()),
-                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
-                types,carriers,0,-1,List.of(),false,
-                54,java.util.Optional.of(ir));
+        var specialization=new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+        types,carriers,0,-1,List.of(),false,
+        54,java.util.Optional.of(ir));
         var generator=new CpuClassFileKernelGenerator();var generated=generator.defineClassBytes(
                 specialization,generator.generateClassBytes(specialization,ir.encodedKernelIr()));
         double[] output={0};long[] geometry={0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,1,1,1};
@@ -256,11 +249,10 @@ final class CpuMatmulGeneratedKernelTest {
                 CpuMatmulIr.Epilogue.none(),0,CpuMatmulIr.NumericalForm.SEQUENTIAL,
                 List.of(read,read),write);
         var specialization=new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(
-                ir.structuralKey()),CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,List.of(type,type,type),
-                List.of(CarrierAccess.MEMORY_SEGMENT,CarrierAccess.MEMORY_SEGMENT,
-                        CarrierAccess.MEMORY_SEGMENT),0,-1,List.of(),false,54,
-                java.util.Optional.of(ir));
+                ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,List.of(type,type,type),
+        List.of(CarrierAccess.MEMORY_SEGMENT,CarrierAccess.MEMORY_SEGMENT,
+                CarrierAccess.MEMORY_SEGMENT),0,-1,List.of(),false,54,
+        java.util.Optional.of(ir));
         var generator=new CpuClassFileKernelGenerator();
         var generated=generator.defineClassBytes(specialization,
                 generator.generateClassBytes(specialization,ir.encodedKernelIr()));
@@ -281,10 +273,9 @@ final class CpuMatmulGeneratedKernelTest {
                 CpuMatmulIr.NumericalForm.SEQUENTIAL, List.of(read, read), write);
         var carriers = List.of(carrier(leftType), carrier(rightType), carrier(resultType));
         var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(
-                ir.structuralKey()), CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
-                List.of(leftType, rightType, resultType), carriers, 0, -1, List.of(), false,
-                54, java.util.Optional.of(ir));
+                ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+        List.of(leftType, rightType, resultType), carriers, 0, -1, List.of(), false,
+        54, java.util.Optional.of(ir));
         var generator = new CpuClassFileKernelGenerator();
         var generated = generator.defineClassBytes(specialization,
                 generator.generateClassBytes(specialization, ir.encodedKernelIr()));
@@ -304,12 +295,9 @@ final class CpuMatmulGeneratedKernelTest {
                 List.of(read, read), write);
         CarrierAccess carrier = type == DataType.FLOAT32 ? CarrierAccess.FLOAT_ARRAY
                 : CarrierAccess.INT_ARRAY;
-        var specialization = new CpuKernelSpecialization(
-                CpuLoweringFingerprint.fromHex(ir.structuralKey()),
-                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
-                List.of(type,type,type), List.of(carrier,carrier,carrier), 0, -1,
-                List.of(), false, 54, java.util.Optional.of(ir));
+        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+        List.of(type,type,type), List.of(carrier,carrier,carrier), 0, -1,
+        List.of(), false, 54, java.util.Optional.of(ir));
         var generator = new CpuClassFileKernelGenerator();
         var generated = generator.defineClassBytes(specialization,
                 generator.generateClassBytes(specialization, ir.encodedKernelIr()));

@@ -611,15 +611,12 @@ class CpuRepresentationPlannerTest {
                 List.of(new CpuAffineCopyIr.MappingStep(
                         CpuAffineCopyIr.MappingKind.CONTIGUOUS, 1, 1, List.of())),
                 CpuAffineCopyIr.WriteDomain.LOGICAL_ELEMENTS);
-        var specialization = new CpuKernelSpecialization(
-                CpuLoweringFingerprint.fromHex(ir.structuralKey()),
-                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan
-                        .ExecutionStrategy.SCALAR,
-                List.of(DataType.FLOAT64, DataType.FLOAT64),
-                List.of(CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY,
-                        CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT),
-                0, -1, List.of(), false);
+        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan
+                .ExecutionStrategy.SCALAR,
+        List.of(DataType.FLOAT64, DataType.FLOAT64),
+        List.of(CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY,
+                CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT),
+        0, -1, List.of(), false);
         var artifact = new CpuGeneratedKernelArtifactStore().loadOrGenerate(
                 specialization, ir.encodedKernelIr());
         return new GeneratedCopy(artifact.entryPoint(), artifact.hiddenClass(),
@@ -816,7 +813,7 @@ class CpuRepresentationPlannerTest {
                     produced ? Optional.of(partition) : Optional.empty(),
                     consumed ? List.of(partition) : List.of(), index == 5));
         }
-        return new PrepareContext<>(partition, nodes, values, memory, Map.of(), inputs);
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), inputs);
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> disjointBenchmarkContext(
@@ -850,7 +847,7 @@ class CpuRepresentationPlannerTest {
                     index >= 2 ? Optional.of(partition) : Optional.empty(),
                     index == 4 ? List.of() : List.of(partition), index == 4));
         }
-        return new PrepareContext<>(partition, nodes, values, memory, Map.of(), inputs);
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), inputs);
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> reuseBenchmarkContext(DataType type,
@@ -888,7 +885,7 @@ class CpuRepresentationPlannerTest {
                     produced ? Optional.of(partition) : Optional.empty(),
                     consumed ? List.of(partition) : List.of(), publication));
         }
-        return new PrepareContext<>(partition, nodes, values, memory, Map.of(), inputs);
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), inputs);
     }
 
     private static TensorDescriptor typedDescriptor(DataType type, Shape shape,

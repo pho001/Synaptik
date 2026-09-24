@@ -53,7 +53,7 @@ public final class CpuLossLowering {
         var node = context.nodes().getFirst();
         if (!(node.operation().kind() instanceof LossKind kind)) throw new IllegalArgumentException("loss kind required");
         Map<ValueId, GraphValue> values = new LinkedHashMap<>(); context.values().forEach(v -> values.put(v.id(), v));
-        var query = new OperationCapabilityQuery(node.operation(), node.inputs().stream().map(i -> value(values, i).descriptor()).toList(), node.outputs().stream().map(i -> value(values, i).descriptor()).toList());
+        var query = new OperationCapabilityQuery(context.numericalProfile(), node.operation(), node.inputs().stream().map(i -> value(values, i).descriptor()).toList(), node.outputs().stream().map(i -> value(values, i).descriptor()).toList());
         if (!capabilities.supports(query)) throw new IllegalArgumentException("unsupported CPU loss");
         var unique = new ArrayList<ValueId>(); var rolePositions = new ArrayList<Integer>();
         for (ValueId input : node.inputs()) { int p = unique.indexOf(input); if (p < 0) { p = unique.size(); unique.add(input); } rolePositions.add(p); }

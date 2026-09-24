@@ -43,7 +43,7 @@ class CpuVectorScalarPowerSelfContainmentTest {
             CpuKernelIr.PowerRealization.RECIPROCAL);
 
     @Test void everyTypeRealizationAndOrderedCarrierPairIsSelfContained() {
-        assertEquals(66, CpuGeneratorSchema.CURRENT_VERSION);
+        assertEquals(67, CpuGeneratorSchema.CURRENT_VERSION);
         for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
             CpuKernelSpecialization.CarrierAccess array = arrayCarrier(type);
             for (CpuKernelIr.PowerRealization realization : REALIZATIONS) {
@@ -155,13 +155,10 @@ class CpuVectorScalarPowerSelfContainmentTest {
         var carriers = List.of(CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
                 CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
                 CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY);
-        var specialization = new CpuKernelSpecialization(
-                CpuLoweringFingerprint.fromHex(ir.structuralKey()),
-                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
-                List.of(type, type, type), carriers,
-                FloatVector.SPECIES_PREFERRED.vectorBitSize(), -1,
-                List.of(CpuKernelIr.PowerRealization.POSITIVE_ONE), false, 52);
+        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
+        List.of(type, type, type), carriers,
+        FloatVector.SPECIES_PREFERRED.vectorBitSize(), -1,
+        List.of(CpuKernelIr.PowerRealization.POSITIVE_ONE), false, 52);
         var generator = new CpuClassFileKernelGenerator();
         var artifact = generator.defineClassBytes(specialization,
                 generator.generateClassBytes(specialization, ir));
@@ -193,13 +190,10 @@ class CpuVectorScalarPowerSelfContainmentTest {
         var carriers = List.of(CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
                 CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
                 CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY);
-        var specialization = new CpuKernelSpecialization(
-                CpuLoweringFingerprint.fromHex(ir.structuralKey()),
-                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
-                List.of(type, type, type), carriers,
-                FloatVector.SPECIES_PREFERRED.vectorBitSize(), -1,
-                List.of(CpuKernelIr.PowerRealization.IDENTITY), false, 52);
+        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
+        List.of(type, type, type), carriers,
+        FloatVector.SPECIES_PREFERRED.vectorBitSize(), -1,
+        List.of(CpuKernelIr.PowerRealization.IDENTITY), false, 52);
         byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(specialization, ir);
         long nativeOrderCalls = ClassFile.of().parse(bytes).methods().getFirst().code().orElseThrow()
                 .elementStream().filter(InvokeInstruction.class::isInstance)
@@ -319,9 +313,8 @@ class CpuVectorScalarPowerSelfContainmentTest {
             CpuPartitionPreparationPlan.ExecutionStrategy strategy) {
         int species = type == DataType.FLOAT32 ? FloatVector.SPECIES_PREFERRED.vectorBitSize()
                 : DoubleVector.SPECIES_PREFERRED.vectorBitSize();
-        return new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()),
-                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT, strategy,
-                List.of(type, type), carriers, species, -1, List.of(realization), false, 52);
+        return new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, strategy,
+        List.of(type, type), carriers, species, -1, List.of(realization), false, 52);
     }
 
     private static CpuKernelIr ir(DataType type, CpuKernelIr.PowerRealization realization,

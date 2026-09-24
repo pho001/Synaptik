@@ -194,3 +194,10 @@ schedule.
 See [Lifecycle](lifecycle.md) for the full compile pipeline and [Runtime, Prepare, and Backend Boundary](runtime-prepare-backend-boundary.md) for where implementation selection occurs.
 See [Performance Evidence and Model Autotuning](performance-evidence-and-tuning.md) for the
 separate benchmarking, model-autotuning, runtime-profiling, and planning-cost boundaries.
+
+## Profile-qualified eligibility
+
+The selected `NumericalProfile` is part of every `OperationCapabilityQuery`, so two otherwise equal
+operation occurrences under different profiles are distinct eligibility questions. Scoring may
+compare only candidates that answered that exact query; it does not reinterpret profile semantics
+or infer a profile from an accelerator preference.

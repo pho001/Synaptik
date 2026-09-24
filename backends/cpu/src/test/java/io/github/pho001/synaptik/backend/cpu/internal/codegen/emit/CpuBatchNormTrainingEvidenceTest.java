@@ -25,7 +25,7 @@ public final class CpuBatchNormTrainingEvidenceTest {
             List<LayoutDescriptor> layouts, int parallelism) { }
 
     @Test void frozenEightTargetInventoryHasClosedGeneratedShapeAndMembers() throws Exception {
-        assertEquals(66, CpuGeneratorSchema.CURRENT_VERSION);
+        assertEquals(67, CpuGeneratorSchema.CURRENT_VERSION);
         List<Target> targets = targets();
         assertEquals(List.of("BNT-BF16-A1", "BNT-F32-A1", "BNT-F64-A1", "BNT-F32-A0",
                 "BNT-F32-A2", "BNT-MIX-F64", "BNT-MIX-F32", "BNT-REPEAT"),
@@ -39,9 +39,7 @@ public final class CpuBatchNormTrainingEvidenceTest {
         var config = new CpuPartitionAnalysisInputs.PortableExecutionConfig(
                 CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR,
                 target.parallelism, target.parallelism, 4096);
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), base.constants(),
-                new CpuPartitionAnalysisInputs(false, target.carriers, config));
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, target.carriers, config));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();

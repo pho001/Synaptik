@@ -74,7 +74,7 @@ final class CpuConvSimdEvidenceTest {
             CpuKernelSpecialization vector, byte[] vectorBytes) { }
 
     @Test void stageBSemanticMatrixExecutesExactlyFortyEightRawBitRows() throws Throwable {
-        assertEquals(66, CpuGeneratorSchema.CURRENT_VERSION);
+        assertEquals(67, CpuGeneratorSchema.CURRENT_VERSION);
         List<SemanticRow> rows = semanticRows();
         assertEquals(48, rows.size());
         assertEquals(48, rows.stream().distinct().count());
@@ -127,9 +127,9 @@ final class CpuConvSimdEvidenceTest {
             assertScalarControl(route.scalarBytes, dossier.toString());
             if (dossier.rank == Rank.CONV2D && dossier.type == DataType.FLOAT32
                     && !dossier.bias && dossier.carriers == CarrierForm.ARRAYS) {
-                assertEquals("61b2a3f334b4284ce399c97e826b3fcee4f6f69a3fad7ac85346d0bc6c7e87c7",
+                assertEquals("ee435967bfe81b02faf6e996838da18c47d0f2caea9637d6392722f594d5510c",
                         sha256(route.scalarBytes), "immutable Stage-A scalar class bytes");
-                assertEquals("f59e7af94e680d8d6549e4c7e2fca6399da7168c195fe077ce6fd1d2f523a13a",
+                assertEquals("6921d1fea6e1e7205571dd483f3cfc784dc3d568c255cfb2135c55902966de93",
                         route.scalar.structuralKey(), "immutable Stage-A scalar identity");
             }
             retain(dossier, route);
@@ -639,8 +639,7 @@ final class CpuConvSimdEvidenceTest {
 
     private static PrepareContext<CpuPartitionAnalysisInputs> withInputs(
             PrepareContext<CpuPartitionAnalysisInputs> base, CpuPartitionAnalysisInputs inputs) {
-        return new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), base.constants(), inputs);
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), inputs);
     }
 
     /** Generates directly for class-file and semantic inspection. */

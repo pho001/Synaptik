@@ -1469,8 +1469,8 @@ final class RepresentativeExecutionSessionTest {
 
     private static Engine engine(RecordingComposition composition) {
         composition.lifecycleOwner =
-                new AdvancedEngine(composition, composition::prepare);
-        composition.ordinaryOwner = new Engine(composition.lifecycleOwner);
+                new AdvancedEngine(composition, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, composition::prepare);
+        composition.ordinaryOwner = new Engine(composition.lifecycleOwner, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE);
         return composition.ordinaryOwner;
     }
 
@@ -1478,8 +1478,8 @@ final class RepresentativeExecutionSessionTest {
             RecordingComposition composition,
             AdvancedEngine.ModelAutotuningTuning<?, ?, ?, ?, ?, ?> tuning) {
         composition.lifecycleOwner =
-                new AdvancedEngine(composition, tuning, composition::prepare);
-        composition.ordinaryOwner = new Engine(composition.lifecycleOwner);
+                new AdvancedEngine(composition, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, tuning, composition::prepare);
+        composition.ordinaryOwner = new Engine(composition.lifecycleOwner, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE);
         return composition.ordinaryOwner;
     }
 

@@ -29,7 +29,7 @@ class CpuGeneratedCoverageCheckpointTest {
     private static final String POST_TERMINAL_PRE_FROZEN_LAYOUT_INVENTORY_SHA256 =
             "2e9f07e30b47429387c8c1043207ee6e8feae327f09ac24a7a8f8c51821918fb";
     private static final String FROZEN_LAYOUT_INVENTORY_SHA256 =
-            "1dcb69796c00fe3793d86f3f4cc3e816176062a45312ddbbaadfba9f8036cf20";
+            "6329ff2a28e423ea04873e06e780167361368becdecfb4a9d51a056c8b8216f2";
     private static final String HEADER = "owner-id\tevidence-key\toperation-form\tlowered-ir-family"
             + "\tdescriptor-alias-roles\tordered-boundary-values\tvirtual-values\tunit-count"
             + "\taffine-address-pairs\tordered-carriers\tlayout-access\trequested-strategy"
@@ -104,8 +104,9 @@ class CpuGeneratedCoverageCheckpointTest {
                     || owner.contains("/segment-contiguous-vector"), owner);
             assertNotEquals(previous[1], current[1], owner + " evidence identity changes");
             assertNotEquals(previous[19], current[19], owner + " generated class identity changes");
+            assertNotEquals(previous[20], current[20], owner + " normalized class identity changes");
             for (int column = 0; column < current.length; column++) {
-                if (column != 1 && column != 19) assertEquals(previous[column], current[column],
+                if (column != 1 && column != 19 && column != 20) assertEquals(previous[column], current[column],
                         owner + " preserves non-identity column " + column);
             }
         }
@@ -458,7 +459,7 @@ class CpuGeneratedCoverageCheckpointTest {
      */
     @Test void scatterProjectionIsExactCompleteAndBoundToTheCurrentInventoryBytes() throws Exception {
         String inventory = resource("generated-coverage-inventory.tsv");
-        assertEquals("1dcb69796c00fe3793d86f3f4cc3e816176062a45312ddbbaadfba9f8036cf20",
+        assertEquals("6329ff2a28e423ea04873e06e780167361368becdecfb4a9d51a056c8b8216f2",
                 hex(MessageDigest.getInstance("SHA-256").digest(inventory.getBytes(StandardCharsets.UTF_8))));
         Map<String, String[]> rows = parse(inventory);
         var scatter = rows.entrySet().stream().filter(entry -> entry.getKey().startsWith("ordinary:"))
@@ -493,7 +494,7 @@ class CpuGeneratedCoverageCheckpointTest {
      */
     @Test void aggregateAndScanProjectionHasExactlyThe460ExecutableOwners() throws Exception {
         String inventory = resource("generated-coverage-inventory.tsv");
-        assertEquals("1dcb69796c00fe3793d86f3f4cc3e816176062a45312ddbbaadfba9f8036cf20",
+        assertEquals("6329ff2a28e423ea04873e06e780167361368becdecfb4a9d51a056c8b8216f2",
                 hex(MessageDigest.getInstance("SHA-256").digest(inventory.getBytes(StandardCharsets.UTF_8))));
         Map<String, String[]> rows = parse(inventory);
         Set<String> forms = Set.of("SUM", "MEAN", "PROD", "AGGREGATE_MIN", "AGGREGATE_MAX",
@@ -533,7 +534,7 @@ class CpuGeneratedCoverageCheckpointTest {
     @Test void indexingAndOrderingProjectionHasExactlyThe336ExecutableOwners() throws Exception {
         String inventory = resource("generated-coverage-inventory.tsv");
         String digest = hex(MessageDigest.getInstance("SHA-256").digest(inventory.getBytes(StandardCharsets.UTF_8)));
-        assertEquals("1dcb69796c00fe3793d86f3f4cc3e816176062a45312ddbbaadfba9f8036cf20", digest);
+        assertEquals("6329ff2a28e423ea04873e06e780167361368becdecfb4a9d51a056c8b8216f2", digest);
         Map<String, String[]> rows = parse(inventory);
         Set<String> forms = Set.of("GATHER", "GATHER_ELEMENTS", "GATHER_ND", "SORT", "ARGSORT", "TOP_K");
         Set<String> projected = rows.entrySet().stream().filter(entry -> entry.getKey().startsWith("ordinary:"))

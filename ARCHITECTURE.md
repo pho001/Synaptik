@@ -180,6 +180,10 @@ The following invariants must remain true:
   graph-wide and cold: later lifecycle layers may transport, retain, query capability for, and
   realize it, but must not reinterpret Model semantics or consult profile policy on the runtime hot
   path.
+- Engine construction captures one exact graph-wide profile, defaulting to `STRICT_IEEE`.
+  Planning queries, Compiler artifacts, Prepare contexts, and backend plan/cache identities retain
+  it unchanged. CPU and Metal currently reject `ACCELERATOR`; Runtime and Trace remain
+  profile-free.
 - `CompiledGraphModel` is immutable compile-time graph state.
 - `CompileArtifacts` are immutable compile-time output.
 - `PreparedExecution`, its prepared memory/schedule/executable recipes, and immutable persistent

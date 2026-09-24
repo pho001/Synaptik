@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.prepare.analysis;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -36,80 +37,37 @@ class PrepareContextTest {
         Fixture fixture = fixture();
         NullPointerException nullPartitionDag = assertThrows(
                 NullPointerException.class,
-                () -> new PrepareContext<>(
-                        (PartitionDag) null,
-                        fixture.values,
-                        fixture.requirements,
-                        fixture.constants,
-                        fixture.inputs));
+                () -> new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, (PartitionDag) null, fixture.values, fixture.requirements, fixture.constants, fixture.inputs));
         List<CompiledNode> nodesWithNull =
                 new ArrayList<>(Arrays.asList(fixture.nodes.getFirst(), null, null));
 
         NullPointerException nullPartition = assertThrows(
                 NullPointerException.class,
-                () -> new PrepareContext<>(null, null, null, null, null, null));
+                () -> new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, null, null, null, null, null, null));
         NullPointerException nullNodes = assertThrows(
                 NullPointerException.class,
-                () -> new PrepareContext<>(
-                        fixture.partition, null, null, null, null, null));
+                () -> new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, fixture.partition, null, null, null, null, null));
         NullPointerException nullValues = assertThrows(
                 NullPointerException.class,
-                () -> new PrepareContext<>(
-                        fixture.partition, fixture.nodes, null, null, null, null));
+                () -> new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, fixture.partition, fixture.nodes, null, null, null, null));
         NullPointerException nullRequirements = assertThrows(
                 NullPointerException.class,
-                () -> new PrepareContext<>(
-                        fixture.partition,
-                        fixture.nodes,
-                        fixture.values,
-                        null,
-                        null,
-                        null));
+                () -> new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, fixture.partition, fixture.nodes, fixture.values, null, null, null));
         NullPointerException nullConstants = assertThrows(
                 NullPointerException.class,
-                () -> new PrepareContext<>(
-                        fixture.partition,
-                        fixture.nodes,
-                        fixture.values,
-                        fixture.requirements,
-                        null,
-                        null));
+                () -> new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, fixture.partition, fixture.nodes, fixture.values, fixture.requirements, null, null));
         NullPointerException nullBackendInputs = assertThrows(
                 NullPointerException.class,
-                () -> new PrepareContext<>(
-                        fixture.partition,
-                        fixture.nodes,
-                        fixture.values,
-                        fixture.requirements,
-                        fixture.constants,
-                        null));
+                () -> new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, fixture.partition, fixture.nodes, fixture.values, fixture.requirements, fixture.constants, null));
         NullPointerException nullNode = assertThrows(
                 NullPointerException.class,
-                () -> new PrepareContext<>(
-                        fixture.partition,
-                        nodesWithNull,
-                        fixture.values,
-                        fixture.requirements,
-                        fixture.constants,
-                        fixture.inputs));
+                () -> new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, fixture.partition, nodesWithNull, fixture.values, fixture.requirements, fixture.constants, fixture.inputs));
         IllegalArgumentException wrongSize = assertThrows(
                 IllegalArgumentException.class,
-                () -> new PrepareContext<>(
-                        fixture.partition,
-                        List.of(fixture.nodes.getFirst()),
-                        fixture.values,
-                        fixture.requirements,
-                        fixture.constants,
-                        fixture.inputs));
+                () -> new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, fixture.partition, List.of(fixture.nodes.getFirst()), fixture.values, fixture.requirements, fixture.constants, fixture.inputs));
         IllegalArgumentException wrongOrder = assertThrows(
                 IllegalArgumentException.class,
-                () -> new PrepareContext<>(
-                        fixture.partition,
-                        List.of(fixture.nodes.get(1), fixture.nodes.get(0)),
-                        fixture.values,
-                        fixture.requirements,
-                        fixture.constants,
-                        fixture.inputs));
+                () -> new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, fixture.partition, List.of(fixture.nodes.get(1), fixture.nodes.get(0)), fixture.values, fixture.requirements, fixture.constants, fixture.inputs));
 
         assertAll(
                 () -> assertEquals("partitionDag", nullPartitionDag.getMessage()),
@@ -306,15 +264,11 @@ class PrepareContextTest {
         ScalarValue firstConstant = fixture.constants.values().iterator().next();
         suppliedConstants.put(fixture.values.getFirst().id(), firstConstant);
 
-        PrepareContext<FakeInputs> context = new PrepareContext<>(
-                fixture.partition,
-                suppliedNodes,
-                suppliedValues,
-                suppliedRequirements,
-                suppliedConstants,
-                fixture.inputs);
+        PrepareContext<FakeInputs> context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, fixture.partition, suppliedNodes, suppliedValues, suppliedRequirements, suppliedConstants, fixture.inputs);
         PartitionDag partitionDag = context.partitionDag();
-        PrepareContext<FakeInputs> canonical = new PrepareContext<>(
+        PrepareContext<FakeInputs> canonical = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partitionDag, fixture.values, fixture.requirements, fixture.constants, fixture.inputs);
+        PrepareContext<FakeInputs> accelerator = new PrepareContext<>(
+                io.github.pho001.synaptik.config.compile.NumericalProfile.ACCELERATOR,
                 partitionDag,
                 fixture.values,
                 fixture.requirements,
@@ -330,9 +284,11 @@ class PrepareContextTest {
                 () -> assertSame(partitionDag.nodes(), context.nodes()),
                 () -> assertSame(partitionDag, canonical.partitionDag()),
                 () -> assertEquals(context, canonical),
+                () -> assertNotEquals(context, accelerator),
+                () -> assertNotEquals(context.hashCode(), accelerator.hashCode()),
                 () -> assertEquals(context.hashCode(), canonical.hashCode()),
                 () -> assertEquals(
-                        "PrepareContext[partitionDag=" + partitionDag
+                        "PrepareContext[numericalProfile=STRICT_IEEE, partitionDag=" + partitionDag
                                 + ", values=" + fixture.values
                                 + ", memoryRequirements=" + fixture.requirements
                                 + ", constants=" + fixture.constants
@@ -369,13 +325,7 @@ class PrepareContextTest {
             List<GraphValue> values,
             List<LogicalMemoryRequirement> requirements,
             Map<ValueId, ScalarValue> constants) {
-        return new PrepareContext<>(
-                fixture.partition,
-                fixture.nodes,
-                values,
-                requirements,
-                constants,
-                fixture.inputs);
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, fixture.partition, fixture.nodes, values, requirements, constants, fixture.inputs);
     }
 
     private static Fixture fixture() {

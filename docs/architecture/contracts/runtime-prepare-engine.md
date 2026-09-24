@@ -563,3 +563,10 @@ Any future generic backend registration must be explicit through Engine composit
 `ServiceLoader` or plugin discovery may be added later as a convenience layer only if this document is updated first.
 
 It must not become a runtime hot-path mechanism.
+
+## Numerical-profile lifecycle
+
+Engine construction captures one graph-wide `NumericalProfile`, defaulting to `STRICT_IEEE`.
+Compiler artifacts and every `PrepareContext` projection retain that exact value. Backend
+preparation may use it for capability, routes, and compatibility identity; Runtime and Trace do not
+receive it and perform no per-run profile lookup.

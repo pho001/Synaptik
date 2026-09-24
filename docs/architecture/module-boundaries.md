@@ -40,9 +40,9 @@ Model is also the sole owner of the two graph numerical-profile result sets. `ST
 each operation's current family-specific contract rather than universal bitwise strictness.
 `ACCELERATOR` is an opt-in, operation-specific `FLOAT32` superset bounded by the
 [sole normative table](contracts/foundational-modules.md#numerical-profiles); it is not generic
-fast math or tolerance. This semantic contract and the Config identity are current. Profile-qualified
-propagation and relaxed backend capability are not implemented yet; current strict capability remains
-fail-closed.
+fast math or tolerance. The semantic contract, Config identity, and cold propagation spine are
+current. CPU and Metal capability and preparation remain strict-only and fail closed for
+`ACCELERATOR`; backend relaxation remains future work.
 
 The current Model fixed recurrent scan follows this same flat boundary. Model owns the fixed
 `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM` meanings, one `FORWARD` or `REVERSE` attribute, ordered
@@ -67,8 +67,8 @@ A concrete backend interprets its backend-specific prepare inputs inside that ba
 
 Owns the immutable graph numerical-profile identity vocabulary through `NumericalProfile`. Model
 remains the sole owner of profile-indexed allowed-result sets; Config does not interpret profile
-meaning or select a backend route. Propagation and realization by Planning, Compiler, Prepare,
-Engine, and concrete backends remain planned, and no current layer consumes the identity.
+meaning or select a backend route. Engine selects one graph-wide identity, and later cold layers
+transport it unchanged.
 
 ### `modules/planning`
 
@@ -80,10 +80,9 @@ Planning may interpret a backend-neutral cost model to choose `BackendId` owners
 interprets route names, vector species or lanes, unroll factors, thread counts, chunks, tiles, or
 other backend parameter vocabulary.
 
-When profile propagation is implemented, Planning will ask whether a backend supports an
-operation occurrence under the selected profile. It will carry that graph-wide identity without
-reinterpreting Model's result sets; concrete backend preparation, not Planning, will realize an
-allowed result.
+Planning asks whether a backend supports an operation occurrence under the selected profile through
+`OperationCapabilityQuery`. It carries that graph-wide identity without reinterpreting Model's
+result sets; concrete backend preparation, not Planning, realizes an allowed result.
 
 When the fixed recurrent scan becomes executable, it enters Planning through the unchanged
 ordinary operation capability query. Planning selects an owner but does not interpret cell

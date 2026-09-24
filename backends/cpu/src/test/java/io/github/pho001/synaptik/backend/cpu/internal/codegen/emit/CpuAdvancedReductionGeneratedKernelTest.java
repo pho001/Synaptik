@@ -156,9 +156,8 @@ class CpuAdvancedReductionGeneratedKernelTest {
         var base = CpuScatterLoweringTest.context(new Operation(AggregateReductionKind.L1_NORM,
                 new MultiAxisReductionAttrs(List.of(2, 0), false)), List.of(0),
                 List.of(inputDescriptor), outputDescriptor);
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
-                    List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+            List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         double[] input = new double[13];
         for (int row = 0; row < 3; row++) for (int column = 0; column < 4; column++)
@@ -260,8 +259,7 @@ class CpuAdvancedReductionGeneratedKernelTest {
             plan(AggregateReductionKind kind, DataType type, Shape input, OperationAttrs attrs,
                     Shape output, List<CarrierAccess> carriers) {
         var base = CpuAggregateLoweringTest.context(kind, type, input, attrs, output);
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
         return new CpuPartitionPreparer().analyze(context).plan();
     }
 

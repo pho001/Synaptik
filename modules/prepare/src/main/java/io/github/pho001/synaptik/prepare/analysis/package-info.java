@@ -2,7 +2,8 @@
  * Defines the current analysis stage of the shared Prepare-to-backend handoff.
  *
  * <p>A {@link io.github.pho001.synaptik.prepare.analysis.PrepareContext} projects one fully static
- * planned partition without exposing Compiler-owned aggregates. Its immutable {@link
+ * planned partition and its exact graph-wide numerical profile without exposing Compiler-owned
+ * aggregates. Its immutable {@link
  * io.github.pho001.synaptik.prepare.analysis.PartitionDag} supplies ordered local producer,
  * consumer, edge, external-input-occurrence, and sink facts without selecting backend policy. A
  * concrete backend implements

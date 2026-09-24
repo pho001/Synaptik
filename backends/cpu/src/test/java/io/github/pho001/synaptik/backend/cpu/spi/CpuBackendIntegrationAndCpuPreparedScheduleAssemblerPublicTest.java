@@ -226,9 +226,7 @@ final class CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest {
     private static CompileArtifacts compile(List<Tensor> outputs,
             List<BackendCapabilityProvider> providers,
             List<BackendAvailabilitySnapshot> availability) {
-        return GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, outputs, Optional.empty(),
-                GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(),
-                PartitionScoringConfig.neutral(), providers, availability);
+        return GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, outputs, Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), providers, availability);
     }
 
     private static BackendCapabilityProvider provider(BackendId id) {

@@ -391,3 +391,12 @@ run:
 In both forms, `extensions/training` owns optimizer algorithms and training orchestration over the
 parameters declared by `extensions/nn`. It remains independent of concrete backends. Backend-
 specific optimizer execution belongs to backend prepare and kernels.
+
+## Numerical profile across the lifecycle
+
+```text
+Engine selection -> Planning query -> CompileArtifacts -> PrepareContext -> backend plan/cache
+```
+
+The same graph-wide `NumericalProfile` crosses these cold stages unchanged. CPU and Metal fail
+closed for `ACCELERATOR`; Runtime executes the prepared result with no profile branch.

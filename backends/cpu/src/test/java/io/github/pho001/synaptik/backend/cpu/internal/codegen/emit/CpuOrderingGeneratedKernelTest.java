@@ -156,9 +156,7 @@ class CpuOrderingGeneratedKernelTest {
         var context = customContext(operation, DataType.FLOAT32, shape, shape,
                 inputLayout, outputLayout);
         var carriers = List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY);
-        var selected = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
-                context.partition(), context.nodes(), context.values(), context.memoryRequirements(),
-                context.constants(), new CpuPartitionAnalysisInputs(false, carriers));
+        var selected = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, context.partition(), context.nodes(), context.values(), context.memoryRequirements(), context.constants(), new CpuPartitionAnalysisInputs(false, carriers));
         var plan = new CpuPartitionPreparer().analyze(selected).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
@@ -185,9 +183,7 @@ class CpuOrderingGeneratedKernelTest {
         carriers.add(heap(type));
         carriers.add(operation.kind() == OrderingKind.ARGSORT ? CarrierAccess.LONG_ARRAY : heap(type));
         if (topK) carriers.add(CarrierAccess.LONG_ARRAY);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(),
-                base.nodes(), base.values(), base.memoryRequirements(), base.constants(),
-                new CpuPartitionAnalysisInputs(false, carriers));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
@@ -220,9 +216,7 @@ class CpuOrderingGeneratedKernelTest {
         carriers.add(segments ? CarrierAccess.MEMORY_SEGMENT
                 : operation.kind() == OrderingKind.ARGSORT ? CarrierAccess.LONG_ARRAY : heap(type));
         if (topK) carriers.add(segments ? CarrierAccess.MEMORY_SEGMENT : CarrierAccess.LONG_ARRAY);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(),
-                base.nodes(), base.values(), base.memoryRequirements(), base.constants(),
-                new CpuPartitionAnalysisInputs(false, carriers));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
         var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
                 .portablePlan();
         var generator = new CpuClassFileKernelGenerator();
@@ -283,9 +277,7 @@ class CpuOrderingGeneratedKernelTest {
             Shape outputShape, boolean topK, List<CarrierAccess> carriers, List<Object> arguments)
             throws Throwable {
         var base = CpuOrderingLoweringTest.context(operation, type, inputShape, outputShape, topK);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(),
-                base.nodes(), base.values(), base.memoryRequirements(), base.constants(),
-                new CpuPartitionAnalysisInputs(false, carriers));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
@@ -326,8 +318,7 @@ class CpuOrderingGeneratedKernelTest {
                         inputId, input, Optional.empty(), List.of(partition), false),
                 new io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement(outputId,
                         output, Optional.of(partition), List.of(), true));
-        return new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(partition,
-                List.of(node), values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
+        return new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, List.of(node), values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
     }
 
     private static CarrierAccess heap(DataType type) {

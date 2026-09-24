@@ -31,7 +31,7 @@ import org.junit.jupiter.api.Test;
 class CpuRandomOneHotSemanticClosureTest {
     private static final String INVENTORY = "generated-coverage-inventory.tsv";
     private static final String INVENTORY_SHA256 =
-            "1dcb69796c00fe3793d86f3f4cc3e816176062a45312ddbbaadfba9f8036cf20";
+            "6329ff2a28e423ea04873e06e780167361368becdecfb4a9d51a056c8b8216f2";
     private static final Set<String> FORMS = Set.of("DROPOUT", "ONE_HOT", "INITIAL_STATE");
     private static final Map<String, Long> FORM_COUNTS = Map.of(
             "DROPOUT", 16L, "ONE_HOT", 8L, "INITIAL_STATE", 4L);

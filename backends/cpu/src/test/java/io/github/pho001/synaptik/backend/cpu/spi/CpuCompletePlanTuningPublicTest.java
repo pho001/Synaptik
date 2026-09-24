@@ -185,10 +185,7 @@ final class CpuCompletePlanTuningPublicTest {
                 return true;
             }
         };
-        return GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, List.of(output),
-                Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(),
-                PartitionScoringConfig.neutral(), List.of(captureProvider),
-                List.of(integration.availabilitySnapshot()));
+        return GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(output), Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(captureProvider), List.of(integration.availabilitySnapshot()));
     }
 
     private static CompileArtifacts pointwiseArtifacts(int identityOffset) {
@@ -237,9 +234,7 @@ final class CpuCompletePlanTuningPublicTest {
                 new Class<?>[] {List.class}, List.of());
         var derivativeOrders = new LinkedHashMap<NodeId, Integer>();
         nodes.forEach(node -> derivativeOrders.put(node.id(), 0));
-        return new CompileArtifacts(CompileMode.FORWARD_ONLY, graph, partitions,
-                LogicalMemoryPlanning.plan(graph, partitions), publication, constants,
-                diagnostics, new DerivativeGraphMetadata(graph, derivativeOrders));
+        return new CompileArtifacts(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, graph, partitions, LogicalMemoryPlanning.plan(graph, partitions), publication, constants, diagnostics, new DerivativeGraphMetadata(graph, derivativeOrders));
     }
 
     private static <T> T construct(Class<T> type, Class<?>[] parameterTypes,

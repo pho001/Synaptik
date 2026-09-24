@@ -350,17 +350,14 @@ class CpuPointwiseMaskPerformanceTest {
       }
       geometry = geometry(types.size(), count, offset);
       var s =
-          new CpuKernelSpecialization(
-              CpuLoweringFingerprint.fromHex(ir.structuralKey()),
-              CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-              row.strategy(),
-              types,
-              cs,
-              bits(row.type),
-              -1,
-              List.of(),
-              false,
-              61);
+          new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, row.strategy(),
+          types,
+          cs,
+          bits(row.type),
+          -1,
+          List.of(),
+          false,
+          61);
       var g = new CpuClassFileKernelGenerator();
       entry = g.defineClassBytes(s, g.generateClassBytes(s, ir)).entryPoint();
     }

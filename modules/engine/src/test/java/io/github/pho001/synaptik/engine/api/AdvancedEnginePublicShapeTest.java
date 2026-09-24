@@ -9,6 +9,7 @@ import io.github.pho001.synaptik.engine.AdvancedEngine;
 import io.github.pho001.synaptik.engine.AdvancedPreparedExecution;
 import io.github.pho001.synaptik.engine.AdvancedRunResult;
 import io.github.pho001.synaptik.engine.Engine;
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
@@ -46,13 +47,15 @@ final class AdvancedEnginePublicShapeTest {
         assertEquals(1, Engine.class.getDeclaredConstructors().length);
         var engineConstructor = Engine.class.getDeclaredConstructors()[0];
         assertEquals(0, engineConstructor.getModifiers());
-        assertEquals(List.of(AdvancedEngine.class),
+        assertEquals(List.of(AdvancedEngine.class, NumericalProfile.class),
                 Arrays.asList(engineConstructor.getParameterTypes()));
-        assertEquals(1, Engine.class.getDeclaredFields().length);
-        var field = Engine.class.getDeclaredFields()[0];
-        assertTrue(Modifier.isPrivate(field.getModifiers()));
-        assertTrue(Modifier.isFinal(field.getModifiers()));
-        assertEquals(AdvancedEngine.class, field.getType());
+        assertEquals(2, Engine.class.getDeclaredFields().length);
+        assertTrue(Arrays.stream(Engine.class.getDeclaredFields()).allMatch(field ->
+                Modifier.isPrivate(field.getModifiers())
+                        && Modifier.isFinal(field.getModifiers())));
+        assertEquals(List.of(AdvancedEngine.class, NumericalProfile.class),
+                Arrays.stream(Engine.class.getDeclaredFields()).map(field -> field.getType())
+                        .toList());
 
         for (Class<?> type : List.of(Engine.class, AdvancedEngine.class, AdvancedCompiledGraph.class,
                 AdvancedPreparedExecution.class, AdvancedRunResult.class)) {

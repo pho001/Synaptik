@@ -1,5 +1,6 @@
 package io.github.pho001.synaptik.backend.metal;
 
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
@@ -27,8 +28,8 @@ import java.util.Optional;
  */
 final class MetalNegRouteCandidateGenerator {
     private static final long UINT32_MAX = 0xffff_ffffL;
-    private static final int WORKLOAD_SIGNATURE_VERSION = 4;
-    private static final int EXACT_DEFAULT_POLICY = 4;
+    private static final int WORKLOAD_SIGNATURE_VERSION = 5;
+    private static final int EXACT_DEFAULT_POLICY = 5;
 
     /**
      * Generates every currently valid complete candidate up to a positive budget.
@@ -49,7 +50,8 @@ final class MetalNegRouteCandidateGenerator {
         Objects.requireNonNull(context, "context");
         Objects.requireNonNull(plan, "plan");
         if (budget <= 0) throw new IllegalArgumentException("budget must be positive");
-        if (plan.partition() != context.partition()
+        if (plan.numericalProfile() != context.numericalProfile()
+                || plan.partition() != context.partition()
                 || plan.partitionDag() != context.partitionDag()
                 || plan.context() != context.backendInputs().context()) {
             throw new IllegalArgumentException("Metal NEG candidate facts disagree");
@@ -68,6 +70,7 @@ final class MetalNegRouteCandidateGenerator {
                 MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION,
                 MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
                 MetalNegTuningBatch.ROUTE_POLICY_VERSION,
+                plan.numericalProfile(),
                 signature(context, plan),
                 new MetalNegTuningBatch.TargetCompatibility(
                         MetalNativeApi.ABI_VERSION, plan.context().sessionNonce()));
@@ -140,6 +143,7 @@ final class MetalNegRouteCandidateGenerator {
         MessageDigest digest = sha256();
         updateInt(digest, WORKLOAD_SIGNATURE_VERSION);
         updateInt(digest, EXACT_DEFAULT_POLICY);
+        updateInt(digest, numericalProfileWireValue(plan.numericalProfile()));
         updateInt(digest, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
         updateInt(digest, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
         updateInt(digest, MetalNativeApi.ABI_VERSION);
@@ -207,6 +211,13 @@ final class MetalNegRouteCandidateGenerator {
             }
         }
         return new MetalNegTuningBatch.WorkloadSignature(digest.digest());
+    }
+
+    private static int numericalProfileWireValue(NumericalProfile profile) {
+        return switch (profile) {
+            case STRICT_IEEE -> 0x53545249;
+            case ACCELERATOR -> 0x41434345;
+        };
     }
 
     private static MessageDigest sha256() {

@@ -884,9 +884,7 @@ class CpuLossGeneratedKernelTest {
                     TensorDescriptor output, List<CarrierAccess> carriers) {
         PrepareContext<CpuPartitionAnalysisInputs> base = CpuScatterLoweringTest.context(operation,
                 roles, inputs, output);
-        return new CpuPartitionPreparer().analyze(new PrepareContext<>(base.partition(),
-                base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
-                new CpuPartitionAnalysisInputs(false, carriers))).plan();
+        return new CpuPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers))).plan();
     }
 
     private static CpuLossIr loss(

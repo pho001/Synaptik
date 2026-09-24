@@ -78,10 +78,8 @@ public class CpuPartitionFinalizerTest {
                         new io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs(
                                 2,2,2,1,1,1,0,0,0,1,1,1,false),DataType.FLOAT64,
                         Shape.of(1,1,3,3,3),Shape.of(1,1,2,2,2));
-        var context=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(),
-                base.nodes(),base.values(),base.memoryRequirements(),base.constants(),
-                new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.DOUBLE_ARRAY,
-                        CarrierAccess.MEMORY_SEGMENT)));
+        var context=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.DOUBLE_ARRAY,
+                CarrierAccess.MEMORY_SEGMENT)));
         var analysis=new CpuPartitionPreparer().analyze(context);
         Path artifactRoot=root.resolve("pool3d");
         var executable=finalizeExecutable(analysis,Optional.of(artifactRoot));
@@ -97,9 +95,9 @@ public class CpuPartitionFinalizerTest {
 
     @Test void conv3dFinalizesExactBuffersNoWorkspaceAndOneSchema52Artifact() throws Exception {
         var base=CpuConv3dLoweringTest.context(List.of(DataType.FLOAT32,DataType.FLOAT32),Shape.of(1,2,4,3,3),Shape.of(2,2,2,2,2),Shape.of(1,2,3,2,2),Conv3dAttrs.defaults(),null);
-        var context=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(),base.nodes(),base.values(),base.memoryRequirements(),base.constants(),new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.MEMORY_SEGMENT,CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY)));
+        var context=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.MEMORY_SEGMENT,CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY)));
         var analysis=new CpuPartitionPreparer().analyze(context);Path artifactRoot=root.resolve("conv3d");var executable=finalizeExecutable(analysis,Optional.of(artifactRoot));
-        try(var files=Files.list(artifactRoot)){assertAll(()->assertEquals(3,executable.bufferSelectionCount()),()->assertTrue(executable.memoryPlan().workspaces().isEmpty()),()->assertEquals(52,executable.artifact().specialization().classIdentitySchema()),()->assertEquals(66,io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratorSchema.CURRENT_VERSION),()->assertEquals(1,files.filter(path->path.getFileName().toString().endsWith(".artifact")).count()));}
+        try(var files=Files.list(artifactRoot)){assertAll(()->assertEquals(3,executable.bufferSelectionCount()),()->assertTrue(executable.memoryPlan().workspaces().isEmpty()),()->assertEquals(52,executable.artifact().specialization().classIdentitySchema()),()->assertEquals(67, io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratorSchema.CURRENT_VERSION),()->assertEquals(1,files.filter(path->path.getFileName().toString().endsWith(".artifact")).count()));}
     }
 
     @Test void conv3dVectorRouteFinalizesAndPublishesOneSchema63Artifact() throws Exception {
@@ -110,9 +108,7 @@ public class CpuPartitionFinalizerTest {
                 List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.MEMORY_SEGMENT,
                         CarrierAccess.DOUBLE_ARRAY),
                 new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1));
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
-                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
-                base.constants(), inputs);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), inputs);
         var analysis = new CpuPartitionPreparer().analyze(context);
         Path artifactRoot = root.resolve("conv3d-vector");
         var executable = finalizeExecutable(analysis, Optional.of(artifactRoot));
@@ -136,18 +132,15 @@ public class CpuPartitionFinalizerTest {
                 io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.L2_NORM,
                 DataType.FLOAT64, Shape.of(2, 4), new MultiAxisReductionAttrs(List.of(1), false),
                 Shape.of(2));
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
-                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
-                base.constants(), new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
         var analysis = new CpuPartitionPreparer().analyze(context);
         Path artifactRoot = root.resolve("advanced-reduction");
         var executable = finalizeExecutable(analysis, Optional.of(artifactRoot));
         try (var files = Files.list(artifactRoot)) {
             assertAll(() -> assertEquals(2, executable.bufferSelectionCount()),
                     () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
-                    () -> assertEquals(66, io.github.pho001.synaptik.backend.cpu.internal.cache
-                            .CpuGeneratorSchema.CURRENT_VERSION),
+                    () -> assertEquals(67, io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratorSchema.CURRENT_VERSION),
                     () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
                             .endsWith(".artifact")).count()));
         }
@@ -158,11 +151,9 @@ public class CpuPartitionFinalizerTest {
         var base = CpuMaskedReductionLoweringTest.context(
                 io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.SUM,
                 DataType.FLOAT64, Shape.of(2, 4), Shape.of(4), 1);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
-                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
-                base.constants(), new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.BYTE_ARRAY,
-                                CarrierAccess.DOUBLE_ARRAY)));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.BYTE_ARRAY,
+                        CarrierAccess.DOUBLE_ARRAY)));
         var analysis = new CpuPartitionPreparer().analyze(context);
         Path artifactRoot = root.resolve("masked-reduction");
         var executable = finalizeExecutable(analysis, Optional.of(artifactRoot));
@@ -170,8 +161,7 @@ public class CpuPartitionFinalizerTest {
             assertAll(() -> assertEquals(3, executable.bufferSelectionCount()),
                     () -> assertEquals(3, executable.memoryPlan().buffers().size()),
                     () -> assertEquals(1, executable.memoryPlan().workspaces().size()),
-                    () -> assertEquals(66, io.github.pho001.synaptik.backend.cpu.internal.cache
-                            .CpuGeneratorSchema.CURRENT_VERSION),
+                    () -> assertEquals(67, io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratorSchema.CURRENT_VERSION),
                     () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
                             .endsWith(".artifact")).count()));
         }
@@ -201,9 +191,7 @@ public class CpuPartitionFinalizerTest {
         var inputs = new CpuPartitionAnalysisInputs(false,
                 CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
                 new PortableExecutionConfig(ComputePreference.SCALAR, 4, 2, 1));
-        var analysis = new CpuPartitionPreparer().analyze(new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
-                context.partition(), context.nodes(), context.values(), context.memoryRequirements(),
-                context.constants(), inputs));
+        var analysis = new CpuPartitionPreparer().analyze(new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, context.partition(), context.nodes(), context.values(), context.memoryRequirements(), context.constants(), inputs));
         assertThrows(IllegalArgumentException.class,
                 () -> finalizeExecutable(analysis, Optional.empty()));
         var undersized = new CpuWorkerGroup(1);
@@ -293,9 +281,7 @@ public class CpuPartitionFinalizerTest {
         var inputs = new CpuPartitionAnalysisInputs(false,
                 CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
                 new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1));
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
-                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
-                base.constants(), inputs);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), inputs);
         var analysis = new CpuPartitionPreparer().analyze(context);
         Path artifactRoot = root.resolve("indexing");
         assertAll(
@@ -328,11 +314,9 @@ public class CpuPartitionFinalizerTest {
                         CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(4)),
                         CpuScatterLoweringTest.desc(DataType.FLOAT64, Shape.of(4))),
                 CpuScatterLoweringTest.desc(DataType.FLOAT64, Shape.of(3)));
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
-                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
-                base.constants(), new CpuPartitionAnalysisInputs(false, List.of(
-                        CarrierAccess.DOUBLE_ARRAY, CarrierAccess.INT_ARRAY,
-                        CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, List.of(
+                CarrierAccess.DOUBLE_ARRAY, CarrierAccess.INT_ARRAY,
+                CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
         var analysis = new CpuPartitionPreparer().analyze(context);
         Path validRoot = root.resolve("scatter-valid");
         var executable = finalizeExecutable(analysis, Optional.of(validRoot));
@@ -356,10 +340,8 @@ public class CpuPartitionFinalizerTest {
     @Test void foldFinalizesExactlyTwoAssignedBuffersAndOneSchema17Artifact() throws Exception {
         var base = CpuFoldLoweringTest.context(new Operation(WindowTransformKind.FOLD_AXIS,
                 new FoldAxisAttrs(0, 5, 1)), DataType.FLOAT64, Shape.of(3, 3), Shape.of(5));
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
-                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
-                base.constants(), new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
         var analysis = new CpuPartitionPreparer().analyze(context);
         Path artifactRoot = root.resolve("fold");
         var executable = finalizeExecutable(analysis, Optional.of(artifactRoot));
@@ -367,8 +349,7 @@ public class CpuPartitionFinalizerTest {
             assertAll(() -> assertEquals(2, executable.bufferSelectionCount()),
                     () -> assertEquals(2, executable.memoryPlan().buffers().size()),
                     () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
-                    () -> assertEquals(66, io.github.pho001.synaptik.backend.cpu.internal.cache
-                            .CpuGeneratorSchema.CURRENT_VERSION),
+                    () -> assertEquals(67, io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratorSchema.CURRENT_VERSION),
                     () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
                             .endsWith(".artifact")).count()));
         }
@@ -379,11 +360,9 @@ public class CpuPartitionFinalizerTest {
                 io.github.pho001.synaptik.model.operation.ordering.TopKKind.TOP_K,
                 new io.github.pho001.synaptik.model.operation.ordering.TopKAttrs(1, 2, true, false)),
                 DataType.FLOAT32, Shape.of(3, 5), Shape.of(3, 2), true);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
-                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
-                base.constants(), new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY,
-                                CarrierAccess.LONG_ARRAY)));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY,
+                        CarrierAccess.LONG_ARRAY)));
         var analysis = new CpuPartitionPreparer().analyze(context);
         var executable = finalizeExecutable(analysis, Optional.of(root.resolve("ordering")));
         assertAll(() -> assertEquals(3, executable.bufferSelectionCount()),
@@ -399,10 +378,8 @@ public class CpuPartitionFinalizerTest {
                 io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.ARG_MIN,
                 DataType.FLOAT64, Shape.of(2, 3), 1, false,
                 io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy.FIRST_INDEX);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
-                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
-                base.constants(), new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.LONG_ARRAY)));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.LONG_ARRAY)));
         var analysis = new CpuPartitionPreparer().analyze(context);
         Path artifactRoot = root.resolve("arg-extrema");
         var executable = finalizeExecutable(analysis, Optional.of(artifactRoot));
@@ -410,8 +387,7 @@ public class CpuPartitionFinalizerTest {
             assertAll(() -> assertEquals(2, executable.bufferSelectionCount()),
                     () -> assertEquals(2, executable.memoryPlan().buffers().size()),
                     () -> assertTrue(executable.memoryPlan().workspaces().isEmpty()),
-                    () -> assertEquals(66, io.github.pho001.synaptik.backend.cpu.internal.cache
-                            .CpuGeneratorSchema.CURRENT_VERSION),
+                    () -> assertEquals(67, io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratorSchema.CURRENT_VERSION),
                     () -> assertEquals(1, files.filter(path -> path.getFileName().toString()
                             .endsWith(".artifact")).count()));
         }
@@ -533,9 +509,7 @@ public class CpuPartitionFinalizerTest {
                 CpuPartitionAnalysisInputs.PartialReductionEvidence.NONE, facts,
                 CpuPartitionAnalysisInputs.OpenBlasRouteConfig.qualifiedSingleThread(
                         qualificationFixture(), 100, 2, 10, 1, 1, 1, 1, 1));
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
-                base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
-                base.constants(), inputs);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), inputs);
         return new CpuPartitionPreparer().analyze(context);
     }
 

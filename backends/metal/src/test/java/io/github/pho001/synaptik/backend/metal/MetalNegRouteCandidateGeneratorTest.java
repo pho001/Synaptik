@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
@@ -256,6 +257,24 @@ class MetalNegRouteCandidateGeneratorTest {
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());
+            var strictCompatibility = current.batch().compatibility();
+            var acceleratorCompatibility = new MetalNegTuningBatch.Compatibility(
+                    MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION,
+                    MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
+                    MetalNegTuningBatch.ROUTE_POLICY_VERSION,
+                    NumericalProfile.ACCELERATOR,
+                    strictCompatibility.workload(),
+                    strictCompatibility.target());
+            var acceleratorBatch = new MetalNegTuningBatch(
+                    acceleratorCompatibility, current.batch().candidates());
+            var acceleratorDecision = new MetalNegTuningDecision(
+                    MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
+                    acceleratorCompatibility,
+                    MetalNegTuningBatch.Candidate.MPSGRAPH);
+            byte[] acceleratorBytes = codec.encodeDecision(acceleratorDecision);
+            assertFalse(Arrays.equals(first, acceleratorBytes));
+            assertTrue(codec.decodeDecision(acceleratorBytes, current.batch()).isEmpty());
+            assertTrue(codec.decodeDecision(first, acceleratorBatch).isEmpty());
 
             byte[] corrupt = first.clone();
             corrupt[20] ^= 1;
@@ -346,9 +365,18 @@ class MetalNegRouteCandidateGeneratorTest {
                     valid.context().nodes().getFirst().inputs(),
                     valid.context().nodes().getFirst().outputs());
             var invalidDag = new PartitionDag(valid.context().partition(), List.of(invalidNode));
-            var invalid = new PrepareContext<>(invalidDag, valid.context().values(),
-                    valid.context().memoryRequirements(), valid.context().constants(),
+            var accelerator = new PrepareContext<>(
+                    NumericalProfile.ACCELERATOR,
+                    valid.context().partitionDag(),
+                    valid.context().values(),
+                    valid.context().memoryRequirements(),
+                    valid.context().constants(),
                     new MetalNegAnalysisInputs(device));
+            assertEquals("Metal backend supports only STRICT_IEEE numerical profile",
+                    assertThrows(IllegalArgumentException.class,
+                            () -> new MetalNegPartitionPreparer().analyze(accelerator))
+                            .getMessage());
+            var invalid = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, invalidDag, valid.context().values(), valid.context().memoryRequirements(), valid.context().constants(), new MetalNegAnalysisInputs(device));
             assertThrows(IllegalArgumentException.class, () -> new MetalNegPartitionPreparer()
                     .analyze(invalid));
 
@@ -392,26 +420,25 @@ class MetalNegRouteCandidateGeneratorTest {
             List<TensorDescriptor> descriptors,
             MetalMpsGraphProgram graphProgram,
             long[] targetRequiredBytes) {
-        return new MetalNegPreparationPlan(
-                source.partition(),
-                source.partitionDag(),
-                source.context(),
-                source.route(),
-                source.valueIds(),
-                descriptors,
-                source.valueStates(),
-                source.valueRanks(),
-                source.valueDimensions(),
-                graphProgram,
-                source.feedValueIds(),
-                source.feedValueIndices(),
-                source.targetValueIds(),
-                source.targetValueIndices(),
-                source.declarations(),
-                source.feedSplats(),
-                source.addressWorkspace(),
-                source.feedRequiredBytes(),
-                targetRequiredBytes);
+        return new MetalNegPreparationPlan(source.numericalProfile(), source.partition(),
+        source.partitionDag(),
+        source.context(),
+        source.route(),
+        source.valueIds(),
+        descriptors,
+        source.valueStates(),
+        source.valueRanks(),
+        source.valueDimensions(),
+        graphProgram,
+        source.feedValueIds(),
+        source.feedValueIndices(),
+        source.targetValueIds(),
+        source.targetValueIndices(),
+        source.declarations(),
+        source.feedSplats(),
+        source.addressWorkspace(),
+        source.feedRequiredBytes(),
+        targetRequiredBytes);
     }
 
     private static Workload affineWorkload(
@@ -430,26 +457,21 @@ class MetalNegRouteCandidateGeneratorTest {
         PlannedPartition partition = new PlannedPartition(
                 MetalCapabilityProvider.METAL_BACKEND_ID,
                 List.of(node.id()));
-        var context = new PrepareContext<>(
-                new PartitionDag(partition, List.of(node)),
-                List.of(
-                        new GraphValue(feed, inputDescriptor),
-                        new GraphValue(target, outputDescriptor)),
-                List.of(
-                        new LogicalMemoryRequirement(
-                                feed,
-                                inputDescriptor,
-                                Optional.empty(),
-                                List.of(partition),
-                                false),
-                        new LogicalMemoryRequirement(
-                                target,
-                                outputDescriptor,
-                                Optional.of(partition),
-                                List.of(),
-                                true)),
-                Map.of(),
-                new MetalNegAnalysisInputs(device));
+        var context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new PartitionDag(partition, List.of(node)), List.of(
+                new GraphValue(feed, inputDescriptor),
+                new GraphValue(target, outputDescriptor)), List.of(
+                new LogicalMemoryRequirement(
+                        feed,
+                        inputDescriptor,
+                        Optional.empty(),
+                        List.of(partition),
+                        false),
+                new LogicalMemoryRequirement(
+                        target,
+                        outputDescriptor,
+                        Optional.of(partition),
+                        List.of(),
+                        true)), Map.of(), new MetalNegAnalysisInputs(device));
         return new Workload(context);
     }
 
@@ -481,40 +503,35 @@ class MetalNegRouteCandidateGeneratorTest {
         PlannedPartition partition = new PlannedPartition(
                 MetalCapabilityProvider.METAL_BACKEND_ID,
                 nodes.stream().map(CompiledNode::id).toList());
-        return new Workload(new PrepareContext<>(
-                new PartitionDag(partition, nodes),
-                List.of(
-                        new GraphValue(firstFeed, inputDescriptor),
-                        new GraphValue(firstTarget, outputDescriptor),
-                        new GraphValue(secondFeed, inputDescriptor),
-                        new GraphValue(secondTarget, outputDescriptor)),
-                List.of(
-                        new LogicalMemoryRequirement(
-                                firstFeed,
-                                inputDescriptor,
-                                Optional.empty(),
-                                List.of(partition),
-                                false),
-                        new LogicalMemoryRequirement(
-                                firstTarget,
-                                outputDescriptor,
-                                Optional.of(partition),
-                                List.of(),
-                                true),
-                        new LogicalMemoryRequirement(
-                                secondFeed,
-                                inputDescriptor,
-                                Optional.empty(),
-                                List.of(partition),
-                                false),
-                        new LogicalMemoryRequirement(
-                                secondTarget,
-                                outputDescriptor,
-                                Optional.of(partition),
-                                List.of(),
-                                true)),
-                Map.of(),
-                new MetalNegAnalysisInputs(device)));
+        return new Workload(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new PartitionDag(partition, nodes), List.of(
+                new GraphValue(firstFeed, inputDescriptor),
+                new GraphValue(firstTarget, outputDescriptor),
+                new GraphValue(secondFeed, inputDescriptor),
+                new GraphValue(secondTarget, outputDescriptor)), List.of(
+                new LogicalMemoryRequirement(
+                        firstFeed,
+                        inputDescriptor,
+                        Optional.empty(),
+                        List.of(partition),
+                        false),
+                new LogicalMemoryRequirement(
+                        firstTarget,
+                        outputDescriptor,
+                        Optional.of(partition),
+                        List.of(),
+                        true),
+                new LogicalMemoryRequirement(
+                        secondFeed,
+                        inputDescriptor,
+                        Optional.empty(),
+                        List.of(partition),
+                        false),
+                new LogicalMemoryRequirement(
+                        secondTarget,
+                        outputDescriptor,
+                        Optional.of(partition),
+                        List.of(),
+                        true)), Map.of(), new MetalNegAnalysisInputs(device)));
     }
 
     private static TensorDescriptor canonical(Shape shape) {
@@ -541,8 +558,7 @@ class MetalNegRouteCandidateGeneratorTest {
 
     private static Workload withInputs(Workload workload, MetalNegAnalysisInputs inputs) {
         PrepareContext<MetalNegAnalysisInputs> context = workload.context();
-        return new Workload(new PrepareContext<>(context.partitionDag(), context.values(),
-                context.memoryRequirements(), context.constants(), inputs));
+        return new Workload(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, context.partitionDag(), context.values(), context.memoryRequirements(), context.constants(), inputs));
     }
 
     private static Workload workload(
@@ -592,8 +608,7 @@ class MetalNegRouteCandidateGeneratorTest {
                 .<Map<ValueId, ScalarValue>>map(value -> Map.of(feed, value))
                 .orElseGet(Map::of);
         var dag = new PartitionDag(partition, nodes);
-        return new Workload(new PrepareContext<>(dag, values, requirements, constants,
-                new MetalNegAnalysisInputs(device)));
+        return new Workload(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, dag, values, requirements, constants, new MetalNegAnalysisInputs(device)));
     }
 
     private static byte[] rewriteInt(byte[] source, int offset, int value) {

@@ -118,6 +118,12 @@ class GraphPreparationTest {
                         events),
                 () -> assertEquals(1, assemblerCalls.get()),
                 () -> assertEquals(2, contexts.size()),
+                () -> assertSame(
+                        fixture.artifacts.numericalProfile(),
+                        contexts.get(0).numericalProfile()),
+                () -> assertSame(
+                        fixture.artifacts.numericalProfile(),
+                        contexts.get(1).numericalProfile()),
                 () -> assertSame(fixture.partitions.get(0), contexts.get(0).partition()),
                 () -> assertSame(fixture.partitions.get(1), contexts.get(1).partition()),
                 () -> assertSame(
@@ -950,15 +956,7 @@ class GraphPreparationTest {
         var derivativeOrders = new LinkedHashMap<NodeId, Integer>();
         derivativeOrders.put(first.id(), 0);
         derivativeOrders.put(second.id(), 0);
-        CompileArtifacts artifacts = new CompileArtifacts(
-                CompileMode.FORWARD_ONLY,
-                graph,
-                partitions,
-                memory,
-                publication,
-                constants,
-                diagnostics,
-                new DerivativeGraphMetadata(graph, derivativeOrders));
+        CompileArtifacts artifacts = new CompileArtifacts(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, graph, partitions, memory, publication, constants, diagnostics, new DerivativeGraphMetadata(graph, derivativeOrders));
         return new Fixture(artifacts, partitions, nodes, values, scalar);
     }
 
@@ -1007,15 +1005,7 @@ class GraphPreparationTest {
                 List.of());
         CompileDiagnostics diagnostics = construct(
                 CompileDiagnostics.class, new Class<?>[] {List.class}, List.of());
-        return new CompileArtifacts(
-                CompileMode.FORWARD_ONLY,
-                graph,
-                partitions,
-                LogicalMemoryPlanning.plan(graph, partitions),
-                publication,
-                constants,
-                diagnostics,
-                new DerivativeGraphMetadata(graph, Map.of()));
+        return new CompileArtifacts(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, graph, partitions, LogicalMemoryPlanning.plan(graph, partitions), publication, constants, diagnostics, new DerivativeGraphMetadata(graph, Map.of()));
     }
 
     private static ProducerlessFixture producerlessFixture(int constantCount) {
@@ -1073,15 +1063,7 @@ class GraphPreparationTest {
                 graph,
                 forwardBindings,
                 List.of());
-        CompileArtifacts artifacts = new CompileArtifacts(
-                CompileMode.FORWARD_ONLY,
-                graph,
-                partitions,
-                LogicalMemoryPlanning.plan(graph, partitions),
-                publication,
-                constantPlan,
-                construct(CompileDiagnostics.class, new Class<?>[] {List.class}, List.of()),
-                new DerivativeGraphMetadata(graph, Map.of(node.id(), 0)));
+        CompileArtifacts artifacts = new CompileArtifacts(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, graph, partitions, LogicalMemoryPlanning.plan(graph, partitions), publication, constantPlan, construct(CompileDiagnostics.class, new Class<?>[] {List.class}, List.of()), new DerivativeGraphMetadata(graph, Map.of(node.id(), 0)));
         return new ProducerlessFixture(artifacts, partition, input, output, constants);
     }
 
@@ -1117,15 +1099,7 @@ class GraphPreparationTest {
                 graph,
                 List.of(new ForwardPublicationBinding(new TensorId(9080), value.id())),
                 List.of());
-        return new CompileArtifacts(
-                CompileMode.FORWARD_ONLY,
-                graph,
-                List.of(),
-                LogicalMemoryPlanning.plan(graph, List.of()),
-                publication,
-                constants,
-                construct(CompileDiagnostics.class, new Class<?>[] {List.class}, List.of()),
-                new DerivativeGraphMetadata(graph, Map.of()));
+        return new CompileArtifacts(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, graph, List.of(), LogicalMemoryPlanning.plan(graph, List.of()), publication, constants, construct(CompileDiagnostics.class, new Class<?>[] {List.class}, List.of()), new DerivativeGraphMetadata(graph, Map.of()));
     }
 
     private static CompileArtifacts resolvedBindableZeroNodeArtifacts() {
@@ -1149,15 +1123,7 @@ class GraphPreparationTest {
                 graph,
                 List.of(new ForwardPublicationBinding(new TensorId(9181), value.id())),
                 List.of());
-        return new CompileArtifacts(
-                CompileMode.FORWARD_ONLY,
-                graph,
-                List.of(),
-                LogicalMemoryPlanning.plan(graph, List.of()),
-                publication,
-                constants,
-                construct(CompileDiagnostics.class, new Class<?>[] {List.class}, List.of()),
-                new DerivativeGraphMetadata(graph, Map.of()));
+        return new CompileArtifacts(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, graph, List.of(), LogicalMemoryPlanning.plan(graph, List.of()), publication, constants, construct(CompileDiagnostics.class, new Class<?>[] {List.class}, List.of()), new DerivativeGraphMetadata(graph, Map.of()));
     }
 
     private static CompileArtifacts withAliasedResults(CompileArtifacts source) {
@@ -1170,15 +1136,7 @@ class GraphPreparationTest {
                 List.of(
                         new GradientPublicationBinding(1, 0, new TensorId(301), output),
                         new GradientPublicationBinding(1, 1, new TensorId(302), output)));
-        return new CompileArtifacts(
-                CompileMode.FORWARD_AND_BACKWARD,
-                source.graph(),
-                source.partitions(),
-                source.memory(),
-                publication,
-                source.constants(),
-                source.diagnostics(),
-                source.derivatives());
+        return new CompileArtifacts(CompileMode.FORWARD_AND_BACKWARD, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, source.graph(), source.partitions(), source.memory(), publication, source.constants(), source.diagnostics(), source.derivatives());
     }
 
     private static <T extends Throwable> void assertFailure(

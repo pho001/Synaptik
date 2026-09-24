@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.backend.cpu.internal.lowering;
 
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuLoweringFingerprint;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr;
@@ -96,9 +97,10 @@ public final class CpuRepresentationPlanner {
         CpuAccessPlan.Binding dense = denseBinding(source.extents().stream()
                 .mapToLong(Long::longValue).toArray(), source.elementCount());
         var consumer = new CpuRepresentationDecision.ConsumerPosition(0, sourceBoundaryIndex, 1);
-        CpuMaterializationPlan copy = withWorkspace(materialization(sourceBoundaryIndex, type,
-                unit.carrierPattern().get(sourceBoundaryIndex), source, dense, List.of(consumer),
-                1, new CpuPartitionAnalysisInputs(false, unit.carrierPattern(),
+        CpuMaterializationPlan copy = withWorkspace(materialization(plan.numericalProfile(),
+                sourceBoundaryIndex, type, unit.carrierPattern().get(sourceBoundaryIndex), source,
+                dense, List.of(consumer), 1,
+                new CpuPartitionAnalysisInputs(false, unit.carrierPattern(),
                         CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT, policy)),
                 workspaceRequirementId);
         return copy.byteCount() <= policy.maximumAdditionalBytes()
@@ -135,7 +137,7 @@ public final class CpuRepresentationPlanner {
                 CpuAffineCopyIr.WriteDomain.LOGICAL_ELEMENTS);
         var specialization = new CpuKernelSpecialization(
                 CpuLoweringFingerprint.fromHex(copyIr.structuralKey()),
-                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
+                plan.numericalProfile(),
                 CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, List.of(type, type),
                 List.of(CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
                         unit.carrierPattern().get(2)), 0, -1, List.of(), false);
@@ -485,13 +487,14 @@ public final class CpuRepresentationPlanner {
             long uses = consumers.stream().mapToLong(
                     CpuRepresentationDecision.ConsumerPosition::instructionUseCount)
                     .reduce(0, Math::addExact);
-            result.add(new Eligible(materialization(boundary, type, carrier, sourceBinding, dense,
-                    consumers, uses, context.backendInputs())));
+            result.add(new Eligible(materialization(context.numericalProfile(), boundary, type,
+                    carrier, sourceBinding, dense, consumers, uses, context.backendInputs())));
         }
         return List.copyOf(result);
     }
 
-    private static CpuMaterializationPlan materialization(int boundary, DataType type,
+    private static CpuMaterializationPlan materialization(
+            NumericalProfile numericalProfile, int boundary, DataType type,
             CpuKernelSpecialization.CarrierAccess carrier, CpuAccessPlan.Binding source,
             CpuAccessPlan.Binding dense,
             List<CpuRepresentationDecision.ConsumerPosition> consumers, long uses,
@@ -520,7 +523,7 @@ public final class CpuRepresentationPlanner {
                 CpuAffineCopyIr.WriteDomain.LOGICAL_ELEMENTS);
         var specialization = new CpuKernelSpecialization(
                 CpuLoweringFingerprint.fromHex(copyIr.structuralKey()),
-                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
+                numericalProfile,
                 CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, List.of(type, type),
                 List.of(carrier, CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT), 0, -1,
                 List.of(), false);

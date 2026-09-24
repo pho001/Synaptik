@@ -204,16 +204,7 @@ final class Conv3dCompilerTest {
         BackendId backendId = new BackendId("recording-conv3d-test-backend");
         List<OperationCapabilityQuery> queries = new ArrayList<>();
 
-        CompileArtifacts artifacts = GraphCompiler.compile(
-                CompileMode.FORWARD_ONLY,
-                List.of(output),
-                Optional.empty(),
-                CompileTimeConstantGraph.Ingress.empty(),
-                GraphOptimizationConfig.standard(),
-                BackendIntent.unconstrained(),
-                PartitionScoringConfig.neutral(),
-                List.of(recordingProvider(backendId, queries)),
-                List.of(snapshot(backendId)));
+        CompileArtifacts artifacts = GraphCompiler.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.standard(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(recordingProvider(backendId, queries)), List.of(snapshot(backendId)));
 
         OperationCapabilityQuery query = queries.getFirst();
         CompiledNode node = artifacts.graph().nodes().getFirst();

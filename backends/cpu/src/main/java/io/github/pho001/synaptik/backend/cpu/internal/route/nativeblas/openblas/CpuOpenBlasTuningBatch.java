@@ -4,6 +4,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecializat
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan;
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -29,9 +30,9 @@ import java.util.Optional;
 public record CpuOpenBlasTuningBatch(int schemaVersion, WorkloadSignature workload,
         List<Candidate> candidates) implements BackendTuningCandidateBatch {
     /** Current meaning of the candidate and decision values in this package. */
-    public static final int SCHEMA_VERSION = 1;
+    public static final int SCHEMA_VERSION = 2;
     /** Current CPU OpenBLAS route-policy meaning. */
-    public static final int ROUTE_POLICY_VERSION = 1;
+    public static final int ROUTE_POLICY_VERSION = 2;
     /** Current checked whole-plan cost-policy meaning. */
     public static final int COST_POLICY_VERSION = 1;
 
@@ -42,8 +43,6 @@ public record CpuOpenBlasTuningBatch(int schemaVersion, WorkloadSignature worklo
     public enum OperationKind { /** Bare rank-two matrix multiplication. */ MATMUL }
     /** Locked fixed-attribute meaning for bare MATMUL. */
     public enum OperationAttributes { /** MATMUL has no configurable operation attributes. */ NONE }
-    /** Locked numerical contract for this first schema. */
-    public enum NumericalMode { /** Current exact/default Model and CPU semantics. */ EXACT_DEFAULT }
     /** Locked determinism request for this first schema. */
     public enum DeterminismMode { /** Current default execution determinism contract. */ DEFAULT }
 
@@ -201,7 +200,7 @@ public record CpuOpenBlasTuningBatch(int schemaVersion, WorkloadSignature worklo
      * @param accumulationType exact contraction accumulation type
      * @param outputType exact output type
      * @param boundaries exact left, right, output boundary signatures
-     * @param numericalMode exact/default numerical contract
+     * @param numericalProfile exact graph-wide numerical-profile identity
      * @param determinismMode default determinism contract
      * @param qualification exact provider target, binary/session, ABI, and numerical proof scope
      * @param hardware caller-supplied canonical CPU hardware identity
@@ -226,7 +225,7 @@ public record CpuOpenBlasTuningBatch(int schemaVersion, WorkloadSignature worklo
     public record WorkloadSignature(OperationKind operationKind,
             OperationAttributes operationAttributes,
             DataType leftType, DataType rightType, DataType accumulationType, DataType outputType,
-            List<BoundarySignature> boundaries, NumericalMode numericalMode,
+            List<BoundarySignature> boundaries, NumericalProfile numericalProfile,
             DeterminismMode determinismMode, QualificationScope qualification,
             HardwareIdentity hardware, int cpuConcurrencyCapacity,
             CpuPartitionAnalysisInputs.PortableExecutionConfig portableExecution,
@@ -257,7 +256,7 @@ public record CpuOpenBlasTuningBatch(int schemaVersion, WorkloadSignature worklo
             Objects.requireNonNull(accumulationType, "accumulationType");
             Objects.requireNonNull(outputType, "outputType");
             boundaries = List.copyOf(boundaries);
-            Objects.requireNonNull(numericalMode, "numericalMode");
+            Objects.requireNonNull(numericalProfile, "numericalProfile");
             Objects.requireNonNull(determinismMode, "determinismMode");
             Objects.requireNonNull(qualification, "qualification");
             Objects.requireNonNull(hardware, "hardware");

@@ -204,8 +204,9 @@ The implemented `modules:config` surface contains five standalone compile-config
 - `NumericalProfile` records immutable graph-wide numerical-profile identity vocabulary.
 
 `NumericalProfile` is identity only. Model remains the sole semantic owner of the profile-indexed
-allowed-result sets; no current compiler, Planning, Engine, or backend consumer propagates or
-realizes the identity, and no Config API selects a default.
+allowed-result sets. A fresh `Engine.Builder` selects `STRICT_IEEE`; callers may replace that
+selection with `numericalProfile(...)` before building, and the built Engine transports the exact
+identity through compile and preparation.
 
 They are immutable requests, not a runnable compiler configuration aggregate. For example:
 
@@ -268,10 +269,10 @@ rejects null with message `preferredDeviceClass`; `preferring(null)` rejects nul
 scores, contain profile measurements, choose ownership or a device, select a route or kernel, or
 perform compiler, prepare, runtime, or execution work. Current Planning interprets only its
 optional class preference through a cost-free provider-order baseline, and package-private
-Compiler supplies that value per final graph node. `NumericalProfile` is not consumed by any current
-layer. `CompileConfig`, immutable cost profiles, profile propagation, and public graph-wide
-planning remain planned; the current advanced Engine consumes the four operational standalone
-compile inputs directly.
+Compiler supplies that value per final graph node. Numerical-profile selection is a separate,
+graph-wide Engine construction choice. `CompileConfig`, immutable cost profiles, relaxed backend
+profile realization, and public graph-wide planning remain planned; the current Engine passes the
+selected profile alongside the four operational standalone compile inputs.
 
 The implemented `config.tuning` package contains one separate declarative facade,
 `ModelAutotuningConfig`. Possessing this value means that model autotuning was requested; there is

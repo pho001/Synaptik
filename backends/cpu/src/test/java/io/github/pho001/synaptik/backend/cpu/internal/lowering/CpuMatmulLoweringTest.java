@@ -210,7 +210,7 @@ public final class CpuMatmulLoweringTest {
             boolean consumed=nodes.stream().anyMatch(n->n.inputs().contains(id));boolean output=outputs.contains(id);
             values.add(new GraphValue(id,descriptor));memory.add(new LogicalMemoryRequirement(id,descriptor,
                     produced?Optional.of(partition):Optional.empty(),consumed&&!output?List.of(partition):List.of(),output));}
-        return new PrepareContext<>(partition,nodes,values,memory,Map.of(),CpuPartitionAnalysisInputs.DEFAULT);
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> materialized(
@@ -228,7 +228,7 @@ public final class CpuMatmulLoweringTest {
         for(int index=0;index<3;index++){ValueId id=new ValueId(index);var descriptor=descriptors.get(index);
             values.add(new GraphValue(id,descriptor));memory.add(new LogicalMemoryRequirement(id,descriptor,
                     index==2?Optional.of(partition):Optional.empty(),index<2?List.of(partition):List.of(),index==2));}
-        return new PrepareContext<>(partition,List.of(node),values,memory,Map.of(),inputs);
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, List.of(node), values, memory, Map.of(), inputs);
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> materializedRight(DataType type,
@@ -246,7 +246,7 @@ public final class CpuMatmulLoweringTest {
         for(int index=0;index<3;index++){ValueId id=new ValueId(index);var descriptor=descriptors.get(index);
             values.add(new GraphValue(id,descriptor));memory.add(new LogicalMemoryRequirement(id,descriptor,
                     index==2?Optional.of(partition):Optional.empty(),index<2?List.of(partition):List.of(),index==2));}
-        return new PrepareContext<>(partition,List.of(node),values,memory,Map.of(),inputs);
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, List.of(node), values, memory, Map.of(), inputs);
     }
 
     private static TensorDescriptor descriptor(DataType type, Shape shape) {

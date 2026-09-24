@@ -12,8 +12,9 @@
  * acquisition-ordered persistent resources with their executables. Shared Prepare owns successful
  * results transactionally, rolls resources back across later finalization and assembly failures,
  * and transfers ownership only to a successfully constructed Runtime prepared execution. The
- * stateless public facade does not physically allocate resources; constant initialization or
- * materialization, mutable per-run state, execution, backend discovery, and Engine composition
- * remain outside this package.</p>
+ * stateless public facade does not physically allocate resources. Every projected context retains
+ * the exact graph-wide numerical profile from Compiler artifacts; shared Prepare transports it
+ * without interpreting its semantics. Constant initialization or materialization, mutable per-run
+ * state, execution, backend discovery, and Engine composition remain outside this package.</p>
  */
 package io.github.pho001.synaptik.prepare;

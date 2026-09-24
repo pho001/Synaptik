@@ -76,6 +76,14 @@ It contains no caller Tensor storage reference and performs no execution.
 | A caller expects compilation to read input bytes | Compile operates on expression meaning and descriptors. | Keep storage live for `run(...)`, not for compilation itself. |
 | A caller expects `CompileConfig.auto()` | Config aggregate facades are not current. | Use ordinary fixed `Engine.compile(...)` or the explicitly advanced standalone settings. |
 
+
+## Numerical profile
+
+Compilation uses the profile captured by the Engine for every capability query and carries it into
+preparation. The default is `STRICT_IEEE`. An Engine built with `ACCELERATOR` currently fails
+closed because CPU and Metal do not yet advertise that profile; compilation does not silently
+change the request.
+
 ## Limitations
 
 Current public composition supports fixed CPU execution and explicit CPU/Metal mixed-owner

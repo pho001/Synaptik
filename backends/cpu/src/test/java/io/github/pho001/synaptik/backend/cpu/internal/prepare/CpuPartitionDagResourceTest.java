@@ -56,9 +56,8 @@ class CpuPartitionDagResourceTest {
                         new io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs(
                                 2,2,2,1,1,1,0,0,0,1,1,1,false),DataType.FLOAT32,
                         Shape.of(1,1,3,3,3),Shape.of(1,1,2,2,2));
-        var context=new PrepareContext<>(base.partition(),base.nodes(),base.values(),
-                base.memoryRequirements(),base.constants(),new CpuPartitionAnalysisInputs(false,
-                        List.of(CarrierAccess.FLOAT_ARRAY,CarrierAccess.MEMORY_SEGMENT)));
+        var context=new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.FLOAT_ARRAY,CarrierAccess.MEMORY_SEGMENT)));
         var analysis=new CpuPartitionPreparer().analyze(context);
         assertAll(()->assertEquals(2,analysis.requirements().size()),
                 ()->assertTrue(analysis.requirements().stream().allMatch(
@@ -384,7 +383,7 @@ class CpuPartitionDagResourceTest {
         var inputs = new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.MEMORY_SEGMENT,
                         CarrierAccess.MEMORY_SEGMENT, CarrierAccess.FLOAT_ARRAY), config);
-        return new PrepareContext<>(partition, nodes, values, memory, Map.of(), inputs);
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), inputs);
     }
 
     private static TensorDescriptor descriptor(Shape shape) {

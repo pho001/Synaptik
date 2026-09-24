@@ -630,3 +630,10 @@ An optional convenience layer for plugin discovery would require the architectur
 See [Lifecycle](lifecycle.md) for the complete stage flow, [Module Boundaries](module-boundaries.md) for ownership, and [Dependency Rules](dependency-rules.md) for prohibited dependency edges.
 See [Performance Evidence and Tuning](performance-evidence-and-tuning.md) for the optimization
 workflow boundaries that feed prepare without entering runtime.
+
+## Numerical profile at the boundary
+
+`PrepareContext` carries the exact selected `NumericalProfile` into backend analysis and preserves
+it across projections. A backend must reject an unsupported profile before route selection. A
+prepared schedule contains the resulting decision, so Runtime requires neither the profile nor a
+policy lookup.

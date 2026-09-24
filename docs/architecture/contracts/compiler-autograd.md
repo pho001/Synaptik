@@ -299,3 +299,9 @@ Compile must not create:
 - kernel routes
 - runtime workspaces
 - backend-specific DAGs
+
+## Numerical-profile compile identity
+
+The compile port accepts one exact non-null `NumericalProfile`. Compiler passes it unchanged to
+every capability query and stores it in `CompileArtifacts`; compilation does not interpret its
+semantics. The profile is cold compile identity, not a graph value or runtime input.

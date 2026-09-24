@@ -51,8 +51,8 @@ public class CpuScanLoweringTest {
         var operation = new Operation(CumulativeScanKind.CUM_SUM,
                 new CumulativeScanAttrs(1, false, false));
         var provider = new CpuCapabilityProvider();
-        var accepted = new OperationCapabilityQuery(operation, List.of(input), List.of(interleaved));
-        var rejected = new OperationCapabilityQuery(operation, List.of(input), List.of(colliding));
+        var accepted = new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, operation, List.of(input), List.of(interleaved));
+        var rejected = new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, operation, List.of(input), List.of(colliding));
 
         assertAll(
                 () -> assertTrue(provider.supports(accepted)),

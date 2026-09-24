@@ -823,17 +823,11 @@ class CpuScatterGeneratedKernelTest {
                         List.of(data, indices, updates),
                         outputDescriptor);
         var context =
-                new PrepareContext<>(
-                        base.partition(),
-                        base.nodes(),
-                        base.values(),
-                        base.memoryRequirements(),
-                        Map.of(),
-                        new CpuPartitionAnalysisInputs(
-                                false,
-                                List.of(
-                                        CarrierAccess.MEMORY_SEGMENT, CarrierAccess.INT_ARRAY,
-                                        CarrierAccess.MEMORY_SEGMENT, CarrierAccess.LONG_ARRAY)));
+                new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(
+                        false,
+                        List.of(
+                                CarrierAccess.MEMORY_SEGMENT, CarrierAccess.INT_ARRAY,
+                                CarrierAccess.MEMORY_SEGMENT, CarrierAccess.LONG_ARRAY)));
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment dataSegment = arena.allocate(10L * Long.BYTES, Long.BYTES);
             MemorySegment updateSegment = arena.allocate(8L * Long.BYTES, Long.BYTES);
@@ -1173,13 +1167,7 @@ class CpuScatterGeneratedKernelTest {
         for (var input : inputs)
             carriers.add(segments ? CarrierAccess.MEMORY_SEGMENT : heap(input.dataType()));
         carriers.add(segments ? CarrierAccess.MEMORY_SEGMENT : heap(output.dataType()));
-        return new PrepareContext<>(
-                base.partition(),
-                base.nodes(),
-                base.values(),
-                base.memoryRequirements(),
-                Map.of(),
-                new CpuPartitionAnalysisInputs(false, carriers));
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> context(
@@ -1188,13 +1176,7 @@ class CpuScatterGeneratedKernelTest {
             io.github.pho001.synaptik.model.tensor.TensorDescriptor output,
             List<CarrierAccess> carriers) {
         var base = CpuScatterLoweringTest.context(operation, List.of(0, 1, 2), inputs, output);
-        return new PrepareContext<>(
-                base.partition(),
-                base.nodes(),
-                base.values(),
-                base.memoryRequirements(),
-                Map.of(),
-                new CpuPartitionAnalysisInputs(false, carriers));
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
     }
 
     private static CarrierAccess heap(DataType t) {

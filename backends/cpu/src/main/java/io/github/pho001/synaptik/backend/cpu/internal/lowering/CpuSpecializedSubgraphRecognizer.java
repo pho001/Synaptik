@@ -182,7 +182,7 @@ public final class CpuSpecializedSubgraphRecognizer {
                     List.of(attrs.dilationDepth(), attrs.dilationHeight(), attrs.dilationWidth()),
                     attrs.groups(), anchor.inputs().size() == 3);
         }
-        if (!supportedOccurrence(anchor, values)) return null;
+        if (!supportedOccurrence(context, anchor, values)) return null;
         ValueId output = nodes.get(anchorEnd).outputs().getFirst();
         DataType resultType = require(values, output).descriptor().dataType();
         Suffix longest = floating(resultType) ? suffix(context, values, anchorEnd, output)
@@ -236,7 +236,7 @@ public final class CpuSpecializedSubgraphRecognizer {
         if (!floating(resultType)) return null;
         ReductionAttributes attributes = reductionAttributes(kind, node.operation().attrs(),
                 require(values, node.inputs().getFirst()).descriptor().shape().rank());
-        if (attributes == null || !supportedOccurrence(node, values)) return null;
+        if (attributes == null || !supportedOccurrence(context, node, values)) return null;
         Suffix suffix = selectSuffix(context, values, ordinal, ordinal,
                 suffix(context, values, ordinal, node.outputs().getFirst()), attempts);
         if (suffix == null) return null;
@@ -277,7 +277,7 @@ public final class CpuSpecializedSubgraphRecognizer {
                     ExplicitForm.BATCH_TRAINING, value.channelAxis(), Shape.scalar(),
                     Optional.of(value.momentum()), Optional.of(value.epsilon()));
         } else return null;
-        if (!supportedOccurrence(node, values) || !candidateEligible(context, values,
+        if (!supportedOccurrence(context, node, values) || !candidateEligible(context, values,
                 List.of(ordinal), Suffix.none(ordinal))) return null;
         return build(Family.EXPLICIT_SEMANTIC_KERNEL, form, attrs, List.of(ordinal), node.inputs(),
                 node.outputs(), values, Epilogue.none(), ExecutionDisposition.EXISTING_SPECIALIZED);
@@ -300,10 +300,11 @@ public final class CpuSpecializedSubgraphRecognizer {
                 disposition, identity);
     }
 
-    private boolean supportedOccurrence(CompiledNode node, Map<ValueId, GraphValue> values) {
-        var query = new OperationCapabilityQuery(node.operation(), node.inputs().stream()
+    private boolean supportedOccurrence(PrepareContext<CpuPartitionAnalysisInputs> context,
+            CompiledNode node, Map<ValueId, GraphValue> values) {
+        var query = new OperationCapabilityQuery(context.numericalProfile(), node.operation(), node.inputs().stream()
                 .map(id -> require(values, id).descriptor()).toList(), node.outputs().stream()
-                .map(id -> require(values, id).descriptor()).toList());
+        .map(id -> require(values, id).descriptor()).toList());
         return capabilities.supports(query);
     }
 

@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.contract.BackendId;
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
@@ -48,8 +49,8 @@ class BackendCapabilityContractTest {
         Class<OperationCapabilityQuery> type = OperationCapabilityQuery.class;
         RecordComponent[] components = type.getRecordComponents();
         Constructor<?>[] constructors = type.getDeclaredConstructors();
-        ParameterizedType inputsType = (ParameterizedType) components[1].getGenericType();
-        ParameterizedType outputsType = (ParameterizedType) components[2].getGenericType();
+        ParameterizedType inputsType = (ParameterizedType) components[2].getGenericType();
+        ParameterizedType outputsType = (ParameterizedType) components[3].getGenericType();
 
         assertAll(
                 () ->
@@ -61,13 +62,15 @@ class BackendCapabilityContractTest {
                 () -> assertTrue(type.isRecord()),
                 () ->
                         assertArrayEquals(
-                                new String[] {"operation", "inputs", "outputs"},
+                                new String[] {"numericalProfile", "operation", "inputs", "outputs"},
                                 Arrays.stream(components)
                                         .map(RecordComponent::getName)
                                         .toArray(String[]::new)),
                 () ->
                         assertArrayEquals(
-                                new Class<?>[] {Operation.class, List.class, List.class},
+                                new Class<?>[] {
+                                    NumericalProfile.class, Operation.class, List.class, List.class
+                                },
                                 Arrays.stream(components)
                                         .map(RecordComponent::getType)
                                         .toArray(Class<?>[]::new)),
@@ -81,10 +84,10 @@ class BackendCapabilityContractTest {
                         assertArrayEquals(
                                 new Type[] {TensorDescriptor.class},
                                 outputsType.getActualTypeArguments()),
-                () -> assertEquals(3, type.getDeclaredFields().length),
+                () -> assertEquals(4, type.getDeclaredFields().length),
                 () ->
                         assertArrayEquals(
-                                new String[] {"operation", "inputs", "outputs"},
+                                new String[] {"numericalProfile", "operation", "inputs", "outputs"},
                                 Arrays.stream(type.getDeclaredFields())
                                         .map(field -> field.getName())
                                         .toArray(String[]::new)),
@@ -92,15 +95,18 @@ class BackendCapabilityContractTest {
                 () -> assertTrue(Modifier.isPublic(constructors[0].getModifiers())),
                 () ->
                         assertArrayEquals(
-                                new Class<?>[] {Operation.class, List.class, List.class},
+                                new Class<?>[] {
+                                    NumericalProfile.class, Operation.class, List.class, List.class
+                                },
                                 constructors[0].getParameterTypes()),
                 () -> assertEquals(0, type.getInterfaces().length),
                 () -> assertEquals(0, type.getDeclaredClasses().length),
                 () -> assertFalse(Serializable.class.isAssignableFrom(type)),
-                () -> assertEquals(6, type.getDeclaredMethods().length),
+                () -> assertEquals(7, type.getDeclaredMethods().length),
                 () ->
                         assertEquals(
                                 Set.of(
+                                        "numericalProfile",
                                         "operation",
                                         "inputs",
                                         "outputs",
@@ -111,6 +117,10 @@ class BackendCapabilityContractTest {
                                         .filter(method -> Modifier.isPublic(method.getModifiers()))
                                         .map(Method::getName)
                                         .collect(Collectors.toSet())),
+                () ->
+                        assertEquals(
+                                NumericalProfile.class,
+                                type.getDeclaredMethod("numericalProfile").getReturnType()),
                 () ->
                         assertEquals(
                                 Operation.class,
@@ -131,22 +141,26 @@ class BackendCapabilityContractTest {
     void validatesTopLevelReferencesInExactOrderWithExactMessages() {
         Operation unary = unaryOperation();
 
+        NullPointerException profileFailure =
+                assertThrows(
+                        NullPointerException.class,
+                        () -> new OperationCapabilityQuery(null, null, null, null));
         NullPointerException operationFailure =
                 assertThrows(
                         NullPointerException.class,
-                        () -> new OperationCapabilityQuery(null, null, null));
+                        () -> new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, null, null, null));
         NullPointerException inputsFailure =
                 assertThrows(
                         NullPointerException.class,
-                        () -> new OperationCapabilityQuery(unary, null, null));
+                        () -> new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, unary, null, null));
         NullPointerException outputsFailure =
                 assertThrows(
                         NullPointerException.class,
                         () ->
-                                new OperationCapabilityQuery(
-                                        unary, Arrays.asList((TensorDescriptor) null), null));
+                                new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, unary, Arrays.asList((TensorDescriptor) null), null));
 
         assertAll(
+                () -> assertEquals("numericalProfile", profileFailure.getMessage()),
                 () -> assertEquals("operation", operationFailure.getMessage()),
                 () -> assertEquals("inputs", inputsFailure.getMessage()),
                 () -> assertEquals("outputs", outputsFailure.getMessage()));
@@ -160,18 +174,12 @@ class BackendCapabilityContractTest {
                 assertThrows(
                         NullPointerException.class,
                         () ->
-                                new OperationCapabilityQuery(
-                                        unary,
-                                        Arrays.asList(FLOAT_VECTOR, null, null),
-                                        List.of(FLOAT_VECTOR)));
+                                new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, unary, Arrays.asList(FLOAT_VECTOR, null, null), List.of(FLOAT_VECTOR)));
         NullPointerException outputFailure =
                 assertThrows(
                         NullPointerException.class,
                         () ->
-                                new OperationCapabilityQuery(
-                                        unary,
-                                        List.of(FLOAT_VECTOR),
-                                        Arrays.asList(FLOAT_VECTOR, null, null)));
+                                new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, unary, List.of(FLOAT_VECTOR), Arrays.asList(FLOAT_VECTOR, null, null)));
 
         assertAll(
                 () -> assertEquals("inputs[1]", inputFailure.getMessage()),
@@ -198,10 +206,7 @@ class BackendCapabilityContractTest {
                 assertThrows(
                         NullPointerException.class,
                         () ->
-                                new OperationCapabilityQuery(
-                                        unary,
-                                        Arrays.asList(FLOAT_VECTOR, null),
-                                        unreadableOutputs));
+                                new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, unary, Arrays.asList(FLOAT_VECTOR, null), unreadableOutputs));
 
         assertEquals("inputs[1]", failure.getMessage());
     }
@@ -214,7 +219,7 @@ class BackendCapabilityContractTest {
         List<TensorDescriptor> outputs = new ArrayList<>(List.of(FLOAT_MATRIX));
 
         OperationCapabilityQuery query =
-                new OperationCapabilityQuery(binary, inputs, outputs);
+                new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, binary, inputs, outputs);
         inputs.clear();
         inputs.add(FLOAT_MATRIX);
         outputs.clear();
@@ -261,17 +266,11 @@ class BackendCapabilityContractTest {
                         NoOperationAttrs.INSTANCE);
 
         OperationCapabilityQuery empty =
-                new OperationCapabilityQuery(zeroInput, List.of(), List.of(FLOAT_VECTOR));
+                new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, zeroInput, List.of(), List.of(FLOAT_VECTOR));
         OperationCapabilityQuery repeatedInputs =
-                new OperationCapabilityQuery(
-                        binary,
-                        List.of(FLOAT_VECTOR, FLOAT_VECTOR),
-                        List.of(FLOAT_MATRIX));
+                new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, binary, List.of(FLOAT_VECTOR, FLOAT_VECTOR), List.of(FLOAT_MATRIX));
         OperationCapabilityQuery repeatedOutputs =
-                new OperationCapabilityQuery(
-                        twoOutput,
-                        List.of(FLOAT_MATRIX),
-                        List.of(FLOAT_VECTOR, FLOAT_VECTOR));
+                new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, twoOutput, List.of(FLOAT_MATRIX), List.of(FLOAT_VECTOR, FLOAT_VECTOR));
 
         assertAll(
                 () -> assertTrue(empty.inputs().isEmpty()),
@@ -288,18 +287,12 @@ class BackendCapabilityContractTest {
                 assertThrows(
                         IllegalArgumentException.class,
                         () ->
-                                new OperationCapabilityQuery(
-                                        unary,
-                                        List.of(),
-                                        List.of(FLOAT_VECTOR, FLOAT_MATRIX)));
+                                new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, unary, List.of(), List.of(FLOAT_VECTOR, FLOAT_MATRIX)));
         IllegalArgumentException outputFailure =
                 assertThrows(
                         IllegalArgumentException.class,
                         () ->
-                                new OperationCapabilityQuery(
-                                        unary,
-                                        List.of(FLOAT_VECTOR),
-                                        List.of()));
+                                new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, unary, List.of(FLOAT_VECTOR), List.of()));
 
         assertAll(
                 () ->
@@ -316,22 +309,22 @@ class BackendCapabilityContractTest {
     void preservesOrdinaryRecordValueBehavior() {
         Operation operation = unaryOperation();
         OperationCapabilityQuery query =
-                new OperationCapabilityQuery(
-                        operation, List.of(FLOAT_VECTOR), List.of(FLOAT_MATRIX));
+                new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, operation, List.of(FLOAT_VECTOR), List.of(FLOAT_MATRIX));
         OperationCapabilityQuery equal =
-                new OperationCapabilityQuery(
-                        operation,
-                        new ArrayList<>(List.of(FLOAT_VECTOR)),
-                        new ArrayList<>(List.of(FLOAT_MATRIX)));
+                new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, operation, new ArrayList<>(List.of(FLOAT_VECTOR)), new ArrayList<>(List.of(FLOAT_MATRIX)));
         OperationCapabilityQuery different =
-                new OperationCapabilityQuery(
-                        operation, List.of(FLOAT_MATRIX), List.of(FLOAT_VECTOR));
+                new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, operation, List.of(FLOAT_MATRIX), List.of(FLOAT_VECTOR));
+        OperationCapabilityQuery differentProfile =
+                new OperationCapabilityQuery(NumericalProfile.ACCELERATOR, operation,
+                        List.of(FLOAT_VECTOR), List.of(FLOAT_MATRIX));
 
         assertAll(
                 () -> assertEquals(query, equal),
                 () -> assertEquals(query.hashCode(), equal.hashCode()),
                 () -> assertNotEquals(query, different),
+                () -> assertNotEquals(query, differentProfile),
                 () -> assertTrue(query.toString().startsWith("OperationCapabilityQuery[")),
+                () -> assertTrue(query.toString().contains("numericalProfile=STRICT_IEEE")),
                 () -> assertTrue(query.toString().contains("operation=")),
                 () -> assertTrue(query.toString().contains("inputs=[")),
                 () -> assertTrue(query.toString().contains("outputs=[")));
@@ -381,8 +374,7 @@ class BackendCapabilityContractTest {
         TestProvider supported = new TestProvider(cpu, true);
         TestProvider unsupported = new TestProvider(new BackendId("metal"), false);
         OperationCapabilityQuery query =
-                new OperationCapabilityQuery(
-                        unaryOperation(), List.of(FLOAT_VECTOR), List.of(FLOAT_VECTOR));
+                new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, unaryOperation(), List.of(FLOAT_VECTOR), List.of(FLOAT_VECTOR));
 
         NullPointerException failure =
                 assertThrows(NullPointerException.class, () -> supported.supports(null));

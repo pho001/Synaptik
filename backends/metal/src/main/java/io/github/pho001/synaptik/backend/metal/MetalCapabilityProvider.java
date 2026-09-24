@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.backend.metal;
 
 import io.github.pho001.synaptik.backend.contract.BackendId;
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
@@ -70,6 +71,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     @Override
     public boolean supports(OperationCapabilityQuery query) {
         Objects.requireNonNull(query, "query");
+        if (query.numericalProfile() == NumericalProfile.ACCELERATOR) {
+            return false;
+        }
         return supportsOccurrence(query.operation(), query.inputs(), query.outputs());
     }
 

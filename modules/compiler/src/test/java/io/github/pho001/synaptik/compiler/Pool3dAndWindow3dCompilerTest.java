@@ -155,18 +155,9 @@ final class Pool3dAndWindow3dCompilerTest {
         BackendId backendId = new BackendId("recording-window3d-test-backend");
         List<OperationCapabilityQuery> queries = new ArrayList<>();
 
-        CompileArtifacts artifacts = GraphCompiler.compile(
-                CompileMode.FORWARD_ONLY,
-                List.of(output),
-                Optional.empty(),
-                CompileTimeConstantGraph.Ingress.empty(),
-                GraphOptimizationConfig.standard(),
-                BackendIntent.unconstrained(),
-                PartitionScoringConfig.neutral(),
-                List.of(recordingProvider(backendId, queries)),
-                List.of(new BackendAvailabilitySnapshot(
-                        backendId,
-                        Map.of(new BackendDeviceId(backendId, "0"), DeviceClass.CPU))));
+        CompileArtifacts artifacts = GraphCompiler.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.standard(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(recordingProvider(backendId, queries)), List.of(new BackendAvailabilitySnapshot(
+                backendId,
+                Map.of(new BackendDeviceId(backendId, "0"), DeviceClass.CPU))));
 
         assertEquals(1, queries.size());
         assertSame(output.provenance().orElseThrow().operation(), queries.getFirst().operation());

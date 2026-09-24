@@ -204,9 +204,7 @@ class CpuMaskedReductionGeneratedKernelTest {
 
     private static io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan plan(
             PrepareContext<CpuPartitionAnalysisInputs> base, List<CarrierAccess> carriers) {
-        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(),
-                base.nodes(), base.values(), base.memoryRequirements(), Map.of(),
-                new CpuPartitionAnalysisInputs(false, carriers));
+        PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
         return new CpuPartitionPreparer().analyze(context).plan();
     }
 

@@ -185,7 +185,7 @@ class CpuPartialReductionExecutionTest {
             default -> throw new AssertionError(row.form);
         }
         var base=CpuAggregateLoweringTest.context(row.kind==CpuPartialReductionIr.Kind.SUM ? AggregateReductionKind.SUM : AggregateReductionKind.PROD,row.type,input,attributes,output);
-        PrepareContext<CpuPartitionAnalysisInputs> context=new PrepareContext<>(base.partitionDag(),base.values(),base.memoryRequirements(),base.constants(),new CpuPartitionAnalysisInputs(false,List.of(row.type==DataType.INT32?CarrierAccess.INT_ARRAY:CarrierAccess.LONG_ARRAY,row.type==DataType.INT32?CarrierAccess.INT_ARRAY:CarrierAccess.LONG_ARRAY)));
+        PrepareContext<CpuPartitionAnalysisInputs> context=new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partitionDag(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,List.of(row.type==DataType.INT32?CarrierAccess.INT_ARRAY:CarrierAccess.LONG_ARRAY,row.type==DataType.INT32?CarrierAccess.INT_ARRAY:CarrierAccess.LONG_ARRAY)));
         var plan=new CpuPartitionPreparer().analyze(context).plan();
         return new PreparedWhole(plan.units().getFirst().portablePlan(),plan.aggregateGeometry().orElseThrow());
     }

@@ -237,7 +237,7 @@ public final class CpuGeneratorSchema {
      * aggregate semantics and every generated class identity projection. Envelopes written for
      * earlier schemas are incompatible misses.
      */
-    public static final int CURRENT_VERSION = 66;
+    public static final int CURRENT_VERSION = 67;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

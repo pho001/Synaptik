@@ -1,5 +1,6 @@
 package io.github.pho001.synaptik.prepare.analysis;
 
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphValue;
@@ -17,12 +18,12 @@ import java.util.Objects;
 /**
  * Provides the complete validated projection for analyzing one planned partition.
  *
- * <p>The projection contains the partition's ordered semantic nodes, projected logical values,
- * matching logical-memory requirements, compile-time logical-splat constants, and one opaque
- * backend input object. It deliberately exposes no Compiler aggregate or implementation type.
- * Every collection is an immutable membership snapshot; list order and map encounter order are
- * deterministic from the supplied containers, while contained immutable references are retained
- * exactly.</p>
+ * <p>The projection contains the immutable graph-wide numerical-profile identity, the partition's
+ * ordered semantic nodes, projected logical values, matching logical-memory requirements,
+ * compile-time logical-splat constants, and one opaque backend input object. It deliberately
+ * exposes no Compiler aggregate or implementation type. Every collection is an immutable
+ * membership snapshot; list order and map encounter order are deterministic from the supplied
+ * containers, while contained immutable references are retained exactly.</p>
  *
  * <p>Construction fails closed unless node order matches the partition, every referenced value is
  * resolved by one unique projected-value entry, every projected value has one descriptor-matching
@@ -32,14 +33,14 @@ import java.util.Objects;
  * backend analysis. This value does not bind dynamic dimensions, select a route, assign a slot,
  * allocate storage, or contain executable state.</p>
  *
- * <p>The canonical record shape has five components: partition DAG, values, logical-memory
- * requirements, constants, and backend inputs. A six-argument constructor accepting a planned
- * partition and node list preserves the previous source-level call form by constructing one DAG
- * and delegating to the canonical constructor. This convenience does not promise binary
- * compatibility with the previous record descriptor, record-component reflection, equality,
- * hash code, or textual form.</p>
+ * <p>The canonical record shape has six components: numerical profile, partition DAG, values,
+ * logical-memory requirements, constants, and backend inputs. A seven-argument constructor
+ * accepting a profile, planned partition, and node list constructs one DAG and delegates to the
+ * canonical constructor. The profile is retained exactly and never interpreted.</p>
  *
  * @param <I> concrete backend-owned immutable analysis-input role
+ * @param numericalProfile non-null immutable graph-wide numerical-profile identity retained
+ *     exactly without interpretation
  * @param partitionDag non-null exact immutable partition topology retained by exact reference
  * @param values non-null ordered projected values to snapshot; elements must be non-null, unique
  *     by value ID, and have fully static descriptor shapes
@@ -50,6 +51,7 @@ import java.util.Objects;
  * @param backendInputs non-null backend-owned immutable input retained opaquely by exact reference
  */
 public record PrepareContext<I extends BackendAnalysisInputs>(
+        NumericalProfile numericalProfile,
         PartitionDag partitionDag,
         List<GraphValue> values,
         List<LogicalMemoryRequirement> memoryRequirements,
@@ -63,6 +65,8 @@ public record PrepareContext<I extends BackendAnalysisInputs>(
      * reference-closure, logical-requirement, and constant checks. No supplied collection
      * container is retained.</p>
      *
+     * @param numericalProfile non-null immutable graph-wide numerical-profile identity retained
+     *     exactly without interpretation
      * @param partitionDag non-null validated partition topology retained exactly
      * @param values non-null ordered projected values to snapshot
      * @param memoryRequirements non-null ordered projected logical requirements to snapshot
@@ -76,6 +80,7 @@ public record PrepareContext<I extends BackendAnalysisInputs>(
      *     exactly, or a constant is not an exact-typed projected graph input
      */
     public PrepareContext {
+        Objects.requireNonNull(numericalProfile, "numericalProfile");
         Objects.requireNonNull(partitionDag, "partitionDag");
         Objects.requireNonNull(values, "values");
         Objects.requireNonNull(memoryRequirements, "memoryRequirements");
@@ -211,6 +216,7 @@ public record PrepareContext<I extends BackendAnalysisInputs>(
     /**
      * Preserves the original source-level construction form while deriving one authoritative DAG.
      *
+     * @param numericalProfile non-null graph-wide numerical-profile identity retained exactly
      * @param partition non-null planned partition retained by the constructed projection
      * @param nodes non-null ordered nodes used to construct exactly one validated projection
      * @param values non-null ordered projected values to snapshot
@@ -223,6 +229,7 @@ public record PrepareContext<I extends BackendAnalysisInputs>(
      *     projected facts fail the canonical validation
      */
     public PrepareContext(
+            NumericalProfile numericalProfile,
             PlannedPartition partition,
             List<CompiledNode> nodes,
             List<GraphValue> values,
@@ -230,6 +237,7 @@ public record PrepareContext<I extends BackendAnalysisInputs>(
             Map<ValueId, ScalarValue> constants,
             I backendInputs) {
         this(
+                numericalProfile,
                 new PartitionDag(partition, nodes),
                 values,
                 memoryRequirements,

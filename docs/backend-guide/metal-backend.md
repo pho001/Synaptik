@@ -422,3 +422,10 @@ Related documentation:
 - [Metal task 0008](../planning/backends/metal/tasks/0008-mpsgraph-float32-affine-transforms.md)
 - [Metal task 0014](../planning/backends/metal/tasks/0014-mpsgraph-float32-affine-layout-composition.md)
 - [Native ABI and build guide](../../native/metal-macos-arm64/README.md)
+
+## Numerical profiles
+
+Metal capability and preparation currently accept only `STRICT_IEEE`; `ACCELERATOR` fails closed
+before route selection. The profile is retained in partition plans and is part of route-candidate,
+tuning-compatibility, decision-codec, and workload identity. Native ABI and MPSGraph schemas are
+unchanged because no relaxed Metal route is enabled.

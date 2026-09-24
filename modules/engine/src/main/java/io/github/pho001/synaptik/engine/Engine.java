@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.engine;
 
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
 import io.github.pho001.synaptik.backend.metal.MetalBackendIntegration;
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +38,7 @@ import java.util.Objects;
  */
 public final class Engine implements AutoCloseable {
     private final AdvancedEngine delegate;
+    private final NumericalProfile numericalProfile;
 
     /**
      * Creates an empty single-use construction owner.
@@ -62,9 +64,28 @@ public final class Engine implements AutoCloseable {
         private final ArrayList<EngineBackendRegistry.Registration> registrations =
                 new ArrayList<>();
         private State state = State.OPEN;
+        private NumericalProfile numericalProfile = NumericalProfile.STRICT_IEEE;
         private Throwable closeFailure;
 
         private Builder() {
+        }
+        /**
+         * Selects the immutable graph-wide numerical profile captured by the built Engine.
+         *
+         * <p>Null is rejected before builder-state validation. A non-null call on an open builder
+         * retains the exact enum singleton, returns this same builder, and replaces any previous
+         * selection. A non-null call on a spent or closed builder fails without mutation.</p>
+         *
+         * @param numericalProfile non-null graph-wide numerical-profile identity
+         * @return this same open builder
+         * @throws NullPointerException if {@code numericalProfile} is {@code null}
+         * @throws IllegalStateException if this builder is spent or closed
+         */
+        public synchronized Builder numericalProfile(NumericalProfile numericalProfile) {
+            Objects.requireNonNull(numericalProfile, "numericalProfile");
+            requireOpen();
+            this.numericalProfile = numericalProfile;
+            return this;
         }
 
         /**
@@ -126,7 +147,10 @@ public final class Engine implements AutoCloseable {
          * @throws Error if construction or rollback reports a fatal failure
          */
         public synchronized Engine build() {
-            return build(registry -> new Engine(new AdvancedEngine(registry)));
+            return build(registry -> {
+                NumericalProfile captured = numericalProfile;
+                return new Engine(new AdvancedEngine(registry, captured), captured);
+            });
         }
 
         /**
@@ -271,18 +295,30 @@ public final class Engine implements AutoCloseable {
     }
 
     /**
-     * Creates an ordinary Engine that takes cleanup ownership of one exact lifecycle owner.
+     * Creates an ordinary Engine that takes cleanup ownership of one exact lifecycle owner and
+     * captures one immutable numerical-profile identity.
      *
      * @param delegate non-null lifecycle owner whose cleanup ownership transfers on success;
      *     this constructor does not inspect its current lifecycle state
-     * @throws NullPointerException if {@code delegate} is null, with message {@code delegate}
+     * @param numericalProfile non-null graph-wide numerical-profile identity, which must be the
+     *     exact identity captured by {@code delegate}
+     * @throws NullPointerException if an argument is null, with its parameter name
+     * @throws IllegalArgumentException if the delegate captured another profile
      */
-    Engine(AdvancedEngine delegate) {
+    Engine(AdvancedEngine delegate, NumericalProfile numericalProfile) {
         this.delegate = Objects.requireNonNull(delegate, "delegate");
+        this.numericalProfile = Objects.requireNonNull(numericalProfile, "numericalProfile");
+        if (delegate.numericalProfile() != numericalProfile) {
+            throw new IllegalArgumentException("delegate numerical profile must match Engine");
+        }
     }
 
     AdvancedEngine lifecycleOwner() {
         return delegate;
+    }
+
+    NumericalProfile numericalProfile() {
+        return numericalProfile;
     }
 
     /**

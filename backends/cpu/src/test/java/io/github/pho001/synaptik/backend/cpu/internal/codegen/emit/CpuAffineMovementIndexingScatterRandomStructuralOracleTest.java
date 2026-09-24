@@ -56,7 +56,7 @@ import org.junit.jupiter.api.Test;
  */
 class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
     private static final String BASE = "/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/";
-    private static final String INVENTORY_SHA256 = "1dcb69796c00fe3793d86f3f4cc3e816176062a45312ddbbaadfba9f8036cf20";
+    private static final String INVENTORY_SHA256 = "6329ff2a28e423ea04873e06e780167361368becdecfb4a9d51a056c8b8216f2";
     private static final Set<String> AFFINE = Set.of("CONTIGUOUS", "EXPAND", "EXPAND_DIMS", "PERMUTE", "RESHAPE", "SELECT", "SLICE", "SQUEEZE");
     private static final Set<String> MOVEMENT = Set.of("PAD", "TILE", "CONCAT", "STACK", "SLICE_UPDATE", "UNFOLD_AXIS", "UNFOLD2D");
     private static final Set<String> INDEXING = Set.of("GATHER", "GATHER_ELEMENTS", "GATHER_ND", "ONE_HOT");

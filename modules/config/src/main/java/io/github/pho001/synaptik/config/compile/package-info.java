@@ -11,14 +11,14 @@
  * device-class preference for ranking after hard eligibility. {@link
  * io.github.pho001.synaptik.config.compile.NumericalProfile} records only the immutable graph-wide
  * numerical-profile identity. These values describe requests or identity only. Current
- * package-private compiler entries consume mode and optimization permission; the complete artifact
- * entry additionally passes backend intent and scoring preference to Planning once per final graph
- * node. No public compile aggregate or public compiler entry point consumes these values, and no
- * current compiler, Planning, Engine, or backend consumer uses {@code NumericalProfile}.</p>
+ * package-private compiler entries consume all five values; the complete artifact entry passes
+ * backend intent, scoring preference, and the exact profile to Planning once per final graph node.
+ * Engine construction supplies the current default of {@code STRICT_IEEE}; Config supplies no
+ * default.</p>
  *
  * <p>Config owns no profile semantics: Model remains the sole authority for profile-indexed
- * allowed-result sets. Numerical-profile propagation and realization remain planned. Later
- * configuration work may aggregate immutable inputs, but this package contains no compiler pass API,
+ * allowed-result sets. Planning, Compiler, Prepare, Engine, and concrete backends may transport or
+ * realize the identity without reinterpreting it. This package contains no compiler pass API,
  * profile evaluator, scoring evaluator, live service, runtime state, or concrete backend
  * implementation.</p>
  */

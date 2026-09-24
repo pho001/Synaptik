@@ -12,6 +12,7 @@ import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.backend.contract.DeviceClass;
 import io.github.pho001.synaptik.config.compile.BackendIntent;
 import io.github.pho001.synaptik.config.compile.CompileMode;
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -48,6 +49,7 @@ final class GraphCompilationPortTest {
         assertEquals(
                 List.of(
                         CompileMode.class,
+                        NumericalProfile.class,
                         List.class,
                         Optional.class,
                         GraphOptimizationConfig.class,
@@ -68,6 +70,7 @@ final class GraphCompilationPortTest {
         var completeEntry = GraphCompiler.class.getDeclaredMethod(
                 "compile",
                 CompileMode.class,
+                NumericalProfile.class,
                 List.class,
                 Optional.class,
                 CompileTimeConstantGraph.Ingress.class,
@@ -91,25 +94,8 @@ final class GraphCompilationPortTest {
         BackendCapabilityProvider provider = provider(backendId);
         BackendAvailabilitySnapshot snapshot = snapshot(backendId);
 
-        CompileArtifacts direct = GraphCompiler.compile(
-                CompileMode.FORWARD_ONLY,
-                List.of(output),
-                Optional.empty(),
-                CompileTimeConstantGraph.Ingress.empty(),
-                GraphOptimizationConfig.standard(),
-                BackendIntent.unconstrained(),
-                PartitionScoringConfig.neutral(),
-                List.of(provider),
-                List.of(snapshot));
-        CompileArtifacts throughPort = GraphCompilationPort.compile(
-                CompileMode.FORWARD_ONLY,
-                List.of(output),
-                Optional.empty(),
-                GraphOptimizationConfig.standard(),
-                BackendIntent.unconstrained(),
-                PartitionScoringConfig.neutral(),
-                List.of(provider),
-                List.of(snapshot));
+        CompileArtifacts direct = GraphCompiler.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(output), Optional.empty(), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.standard(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider), List.of(snapshot));
+        CompileArtifacts throughPort = GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(output), Optional.empty(), GraphOptimizationConfig.standard(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider), List.of(snapshot));
 
         assertArtifactEquivalent(direct, throughPort);
         assertEquals(List.of(throughPort.graph().inputs().getFirst()),
@@ -125,25 +111,8 @@ final class GraphCompilationPortTest {
         FunctionalGradientRequest request = FunctionalGradientTestSupport.request(
                 objective, List.of(target));
 
-        CompileArtifacts direct = GraphCompiler.compile(
-                CompileMode.FORWARD_AND_BACKWARD,
-                List.of(objective),
-                Optional.of(request),
-                CompileTimeConstantGraph.Ingress.empty(),
-                GraphOptimizationConfig.disabled(),
-                BackendIntent.unconstrained(),
-                PartitionScoringConfig.neutral(),
-                List.of(provider(backendId)),
-                List.of(snapshot(backendId)));
-        CompileArtifacts throughPort = GraphCompilationPort.compile(
-                CompileMode.FORWARD_AND_BACKWARD,
-                List.of(objective),
-                Optional.of(request),
-                GraphOptimizationConfig.disabled(),
-                BackendIntent.unconstrained(),
-                PartitionScoringConfig.neutral(),
-                List.of(provider(backendId)),
-                List.of(snapshot(backendId)));
+        CompileArtifacts direct = GraphCompiler.compile(CompileMode.FORWARD_AND_BACKWARD, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(objective), Optional.of(request), CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider(backendId)), List.of(snapshot(backendId)));
+        CompileArtifacts throughPort = GraphCompilationPort.compile(CompileMode.FORWARD_AND_BACKWARD, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(objective), Optional.of(request), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider(backendId)), List.of(snapshot(backendId)));
         assertArtifactEquivalent(direct, throughPort);
 
         RuntimeException providerFailure = new RuntimeException("provider failure");
@@ -161,15 +130,7 @@ final class GraphCompilationPortTest {
         };
         RuntimeException propagated = assertThrows(
                 RuntimeException.class,
-                () -> GraphCompilationPort.compile(
-                        CompileMode.FORWARD_ONLY,
-                        List.of(tensor(true).neg()),
-                        Optional.empty(),
-                        GraphOptimizationConfig.disabled(),
-                        BackendIntent.unconstrained(),
-                        PartitionScoringConfig.neutral(),
-                        List.of(failingProvider),
-                        List.of(snapshot(backendId))));
+                () -> GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, List.of(tensor(true).neg()), Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(failingProvider), List.of(snapshot(backendId))));
         assertSame(providerFailure, propagated);
     }
 
@@ -177,15 +138,7 @@ final class GraphCompilationPortTest {
     void preservesDeclarationOrderValidationFromTheCompleteEntry() {
         NullPointerException failure = assertThrows(
                 NullPointerException.class,
-                () -> GraphCompilationPort.compile(
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null));
+                () -> GraphCompilationPort.compile(null, io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, null, null, null, null, null, null, null));
 
         assertEquals("mode", failure.getMessage());
     }

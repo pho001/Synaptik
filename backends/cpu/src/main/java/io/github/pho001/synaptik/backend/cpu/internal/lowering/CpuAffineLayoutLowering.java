@@ -67,8 +67,7 @@ public final class CpuAffineLayoutLowering {
             }
             GraphValue input = require(values, node.inputs().getFirst());
             GraphValue output = require(values, node.outputs().getFirst());
-            if (!capabilities.supports(new OperationCapabilityQuery(node.operation(),
-                    List.of(input.descriptor()), List.of(output.descriptor())))) {
+            if (!capabilities.supports(new OperationCapabilityQuery(context.numericalProfile(), node.operation(), List.of(input.descriptor()), List.of(output.descriptor())))) {
                 throw new IllegalArgumentException("partition contains an unsupported CPU affine occurrence");
             }
             if (i == 0) source = node.inputs().getFirst();

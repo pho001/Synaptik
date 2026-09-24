@@ -239,7 +239,7 @@ final class CpuOpenBlasTuningBatchTest {
 
         assertRecordComponents(CpuOpenBlasTuningBatch.WorkloadSignature.class,
                 "operationKind", "operationAttributes", "leftType", "rightType",
-                "accumulationType", "outputType", "boundaries", "numericalMode",
+                "accumulationType", "outputType", "boundaries", "numericalProfile",
                 "determinismMode", "qualification", "hardware", "cpuConcurrencyCapacity",
                 "portableExecution", "portableStrategy", "portableRangeCount",
                 "portableVectorSpeciesBits", "openBlasThreadCounts", "cohort",
@@ -252,16 +252,20 @@ final class CpuOpenBlasTuningBatchTest {
         assertClosedEnum(CpuOpenBlasTuningBatch.OperationKind.values(), "operationKind");
         assertClosedEnum(CpuOpenBlasTuningBatch.OperationAttributes.values(),
                 "operationAttributes");
-        assertClosedEnum(CpuOpenBlasTuningBatch.NumericalMode.values(), "numericalMode");
+        assertSame(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE,
+                workload.numericalProfile());
+        var acceleratorWorkload = with(workload, "numericalProfile",
+                io.github.pho001.synaptik.config.compile.NumericalProfile.ACCELERATOR);
+        assertNotEquals(workload, acceleratorWorkload);
         assertClosedEnum(CpuOpenBlasTuningBatch.DeterminismMode.values(), "determinismMode");
-        for (String component : List.of("operationKind", "operationAttributes", "numericalMode",
+        for (String component : List.of("operationKind", "operationAttributes", "numericalProfile",
                 "determinismMode")) {
             assertThrows(NullPointerException.class, () -> with(workload, component, null),
                     component + " rejects null and has no second valid schema value");
         }
         for (String type : List.of("leftType", "rightType", "accumulationType", "outputType")) {
             assertConstructionRejected(workload, type, DataType.FLOAT64,
-                    type + " cannot differ independently because schema 1 requires one exact type");
+                    type + " cannot differ independently because schema 2 requires one exact type");
         }
         assertConstructionRejected(workload, "openBlasThreadCounts", List.of(2),
                 "thread counts cannot differ independently from thread-candidate identities");

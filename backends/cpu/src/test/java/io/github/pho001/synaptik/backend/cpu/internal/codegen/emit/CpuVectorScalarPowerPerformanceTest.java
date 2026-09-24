@@ -519,10 +519,8 @@ class CpuVectorScalarPowerPerformanceTest {
             List<CpuKernelSpecialization.CarrierAccess> carriers, CpuKernelIr ir) {
         int species = row.type == DataType.FLOAT32 ? FloatVector.SPECIES_PREFERRED.vectorBitSize()
                 : DoubleVector.SPECIES_PREFERRED.vectorBitSize();
-        return new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()),
-                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, List.of(row.type, row.type),
-                carriers, species, -1, List.of(row.realization), false, 52);
+        return new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, List.of(row.type, row.type),
+        carriers, species, -1, List.of(row.realization), false, 52);
     }
 
     private static CpuKernelIr ir(Row row) {

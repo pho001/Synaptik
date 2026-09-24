@@ -216,8 +216,7 @@ class CpuGeneratedDirectEvidenceClosureTest {
         assertEquals(169, fixtures.size());
         for (PointwiseFixture fixture : fixtures) {
             var context = fixture.context();
-            assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(
-                    fixture.operation(), fixture.inputDescriptors(), List.of(fixture.outputDescriptor()))),
+            assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, fixture.operation(), fixture.inputDescriptors(), List.of(fixture.outputDescriptor()))),
                     fixture.id());
             var plan = new CpuPartitionPreparer().analyze(context).plan();
             var route = plan.units().getFirst().portablePlan();
@@ -282,9 +281,7 @@ class CpuGeneratedDirectEvidenceClosureTest {
                     candidate.materializationPolicy());
             // The positive expectation is defined from the Model occurrence family and its
             // descriptor roles.  This real provider call is the evidence, never its definition.
-            assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(
-                    fixture.operation(), descriptors(context, context.nodes().getFirst().inputs()),
-                    descriptors(context, context.nodes().getFirst().outputs()))), candidate.id());
+            assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, fixture.operation(), descriptors(context, context.nodes().getFirst().inputs()), descriptors(context, context.nodes().getFirst().outputs()))), candidate.id());
             var plan = new CpuPartitionPreparer().analyze(context).plan();
             assertEquals(1, plan.units().size(), candidate.id());
             var route = plan.units().getFirst().portablePlan();
@@ -341,8 +338,7 @@ class CpuGeneratedDirectEvidenceClosureTest {
                 .map(PointwiseRejectedCandidate::reason).collect(java.util.stream.Collectors.toSet()));
         var provider = new CpuCapabilityProvider();
         for (PointwiseRejectedCandidate candidate : candidates) {
-            assertFalse(provider.supports(new OperationCapabilityQuery(candidate.operation(),
-                    candidate.inputs(), List.of(candidate.output()))), candidate.id() + ": " + candidate.reason());
+            assertFalse(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, candidate.operation(), candidate.inputs(), List.of(candidate.output()))), candidate.id() + ": " + candidate.reason());
         }
     }
 
@@ -433,8 +429,7 @@ class CpuGeneratedDirectEvidenceClosureTest {
         var context = conv1dCompositionContext();
         var conv2d = context.nodes().stream().filter(node -> node.operation().kind().name()
                 .equals("CONV2D")).findFirst().orElseThrow();
-        assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(conv2d.operation(),
-                descriptors(context, conv2d.inputs()), descriptors(context, conv2d.outputs()))));
+        assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, conv2d.operation(), descriptors(context, conv2d.inputs()), descriptors(context, conv2d.outputs()))));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         assertEquals(1, plan.units().size());
         var route = plan.units().getFirst().portablePlan();
@@ -459,8 +454,7 @@ class CpuGeneratedDirectEvidenceClosureTest {
                 DataType.FLOAT32), Shape.of(1, 2, 1, 4), Shape.of(2, 2, 1, 3),
                 Shape.of(1, 2, 1, 4), new Conv2dAttrs(1, 1, 0, 1, 1, 1, 1), null);
         // Carrier representation is bytecode-relevant, so compare the same cold carrier facts.
-        direct = new PrepareContext<>(direct.partition(), direct.nodes(), direct.values(),
-                direct.memoryRequirements(), direct.constants(), context.backendInputs());
+        direct = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, direct.partition(), direct.nodes(), direct.values(), direct.memoryRequirements(), direct.constants(), context.backendInputs());
         var directRoute = new CpuPartitionPreparer().analyze(direct).plan().units().getFirst()
                 .portablePlan();
         byte[] directBytes = new CpuClassFileKernelGenerator().generateClassBytes(
@@ -476,8 +470,7 @@ class CpuGeneratedDirectEvidenceClosureTest {
     @Test void initialRandomStateIsNotMetadataOnlyInTheCurrentProductionRoute() {
         var context = CpuRandomLoweringTest.initialContext(0x1234L, -7L);
         var node = context.nodes().getFirst();
-        assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(node.operation(),
-                descriptors(context, node.inputs()), descriptors(context, node.outputs()))));
+        assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, node.operation(), descriptors(context, node.inputs()), descriptors(context, node.outputs()))));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         assertEquals(0, plan.elementCount());
         assertTrue(plan.randomGeometry().isPresent());
@@ -504,8 +497,7 @@ class CpuGeneratedDirectEvidenceClosureTest {
         var node = context.nodes().getFirst();
         var inputDescriptors = descriptors(context, node.inputs());
         var outputDescriptors = descriptors(context, node.outputs());
-        assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(node.operation(),
-                inputDescriptors, outputDescriptors)), fixture.id());
+        assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, node.operation(), inputDescriptors, outputDescriptors)), fixture.id());
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         assertEquals(1, plan.units().size(), fixture.id());
         var unit = plan.units().getFirst();
@@ -599,9 +591,8 @@ class CpuGeneratedDirectEvidenceClosureTest {
                     produced ? Optional.of(partition) : Optional.empty(),
                     published ? List.of() : List.of(partition), published));
         }
-        return new PrepareContext<>(partition, nodes, values, memory, Map.of(),
-                new CpuPartitionAnalysisInputs(false, java.util.Collections.nCopies(4,
-                        CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY)));
+        return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, nodes, values, memory, Map.of(), new CpuPartitionAnalysisInputs(false, java.util.Collections.nCopies(4,
+                CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY)));
     }
 
     static List<NonPointwiseFixture> nonPointwiseFixtures() {
@@ -992,8 +983,7 @@ class CpuGeneratedDirectEvidenceClosureTest {
                 memory.add(new LogicalMemoryRequirement(id, descriptor, result ? Optional.of(partition)
                         : Optional.empty(), result ? List.of() : List.of(partition), result));
             }
-            return new PrepareContext<>(partition, List.of(node), values, memory, java.util.Map.of(),
-                    new CpuPartitionAnalysisInputs(false, carriers, execution, materializationPolicy));
+            return new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, partition, List.of(node), values, memory, java.util.Map.of(), new CpuPartitionAnalysisInputs(false, carriers, execution, materializationPolicy));
         }
         private static TensorDescriptor descriptor(DataType type, Shape shape) {
             return new TensorDescriptor(type, shape, Optional.of(LayoutDescriptor.contiguous(shape)), false);
@@ -1130,10 +1120,9 @@ class CpuGeneratedDirectEvidenceClosureTest {
                 : new MultiAxisReductionAttrs(List.of(1), false);
         var base = CpuAggregateLoweringTest.context(kind, DataType.FLOAT64,
                 Shape.of(4, 8), attrs, Shape.of(4));
-        return generated(new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
-                        List.of(CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY,
-                                CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY))));
+        return generated(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                List.of(CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY,
+                        CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY))));
     }
 
     private static byte[] pointwise(boolean vector, boolean segment) {
@@ -1148,19 +1137,16 @@ class CpuGeneratedDirectEvidenceClosureTest {
                 new CpuKernelIr.Value(1, DataType.FLOAT32, CpuKernelIr.Value.Kind.OUTPUT, denseWrite)),
                 List.of(new CpuKernelIr.Instruction(CpuPointwiseOpcode.TANH, List.of(0), 1)),
                 new CpuKernelIr.Loop("start", "end"), List.of(new CpuKernelIr.Store(1, 0)));
-        var specialization = new CpuKernelSpecialization(
-                io.github.pho001.synaptik.backend.cpu.internal.cache.CpuLoweringFingerprint
-                        .fromHex(ir.structuralKey()),
-                CpuKernelSpecialization.NumericalMode.EXACT_DEFAULT,
-                vector ? CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR
-                        : CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
-                List.of(DataType.FLOAT32, DataType.FLOAT32),
-                segment ? List.of(CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
-                        CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)
-                        : List.of(CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
-                                CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY),
-                vector ? jdk.incubator.vector.FloatVector.SPECIES_PREFERRED.vectorBitSize() : 0,
-                -1);
+        var specialization = new CpuKernelSpecialization(io.github.pho001.synaptik.backend.cpu.internal.cache.CpuLoweringFingerprint
+                .fromHex(ir.structuralKey()), io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, vector ? CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR
+                : CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+        List.of(DataType.FLOAT32, DataType.FLOAT32),
+        segment ? List.of(CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
+                CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)
+                : List.of(CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
+                        CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY),
+        vector ? jdk.incubator.vector.FloatVector.SPECIES_PREFERRED.vectorBitSize() : 0,
+        -1);
         return new CpuClassFileKernelGenerator().generateClassBytes(specialization, ir);
     }
 

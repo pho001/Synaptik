@@ -37,18 +37,15 @@ final class MetalNegCapabilityPartitionConformanceTest {
         var provider = new MetalCapabilityProvider();
         TensorDescriptor matrix = descriptor(Shape.of(2, 3));
         TensorDescriptor row = descriptor(Shape.of(3));
-        assertTrue(provider.supports(new OperationCapabilityQuery(
-                operation(UnaryElementwiseKind.NEG), List.of(matrix), List.of(matrix))));
+        assertTrue(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, operation(UnaryElementwiseKind.NEG), List.of(matrix), List.of(matrix))));
         for (BinaryArithmeticKind kind : List.of(
                 BinaryArithmeticKind.ADD,
                 BinaryArithmeticKind.SUB,
                 BinaryArithmeticKind.MUL,
                 BinaryArithmeticKind.DIV)) {
-            assertFalse(provider.supports(new OperationCapabilityQuery(
-                    operation(kind), List.of(matrix, row), List.of(matrix))));
+            assertFalse(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, operation(kind), List.of(matrix, row), List.of(matrix))));
         }
-        assertFalse(provider.supports(new OperationCapabilityQuery(
-                operation(UnaryElementwiseKind.ABS), List.of(matrix), List.of(matrix))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, operation(UnaryElementwiseKind.ABS), List.of(matrix), List.of(matrix))));
     }
 
     /** Proves an eligible NEG chain becomes one whole maximal Metal partition. */
