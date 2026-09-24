@@ -2,12 +2,15 @@
 
 ## Status
 
-Draft
+Ready
 
-Draft reason: Model 0028 is the sole Ready frontier and must complete its coordinated semantic,
-Javadoc, documentation, proof, and independent Class C gates first. After that integration, a
-planner must reverify this task's base and metadata and promote it explicitly; Metal 0017 remains a
-Blocked record under the old contract.
+Readiness verification: Model 0028 is Complete at `fc003ab8` after its bounded proof, 23-task
+validation, and independent Class C `APPROVE` with zero findings. Metal 0019, Model 0027, Config
+0006, and Engine 0018 are Complete; Metal 0016/0017 remain inactive Blocked records and Metal 0018
+remains Draft. Current source is still ABI v4 with exactly thirteen exports, node schema 6, and
+version-seven workload/candidate/compatibility/route/codec identities; strict reduction capability
+is false and rank zero remains local-only. The detailed contract, owner paths, conflicts, and the
+corrected full fresh pre-edit probe gate were reverified against clean base `fc003ab8`.
 
 ## Change class
 
@@ -17,7 +20,7 @@ fresh corrected pre-edit Apple M3 probe and independent review are mandatory.
 
 ## Goal
 
-After Model 0028 is Complete, add canonical `FLOAT32` full, single-axis, ordered multi-axis
+Add canonical `FLOAT32` full, single-axis, ordered multi-axis
 `SUM`/`MEAN`, and binding-resolved `SUM_TO_SHAPE` under `NumericalProfile.ACCELERATOR` only.
 Preserve every declared term and admit only the Model-owned binary-tree/per-step-rounding DAZ/FTZ
 set plus final exact-zero arithmetic-result sign freedom. Keep strict reductions false and every
@@ -121,7 +124,7 @@ and Model 0026 stays Draft.
 - [`ARCHITECTURE.md` — Core invariants](../../../../../ARCHITECTURE.md#core-invariants) — Model owns
   results; profile and route decisions remain cold.
 - [Foundational modules — Numerical profiles](../../../../architecture/contracts/foundational-modules.md#numerical-profiles)
-  — after Model 0028, the sole all-term/tree/rounding/DAZ/FTZ/root-zero/count/identity rules.
+  — the sole current all-term/tree/rounding/DAZ/FTZ/root-zero/count/identity rules.
 - [Backend execution — Concrete backend modules](../../../../architecture/contracts/backend-execution.md#concrete-backend-modules)
   and [Metal backend](../../../../architecture/contracts/backend-execution.md#metal-backend) —
   truthful capability, typed candidates, lowering, native state, and materialization.
@@ -139,7 +142,7 @@ fallback, reduced precision, wider transfer, or Runtime profile state, stop and 
 - Conflicts with: Metal 0018, any 0016 restart, and every Metal capability/preparation/native
   schema/candidate/codec/materialization/public Engine scope
 - Parallel group: None
-- Common base revision: N/A until Model 0028 is integrated
+- Common base revision: `fc003ab83d4d8c03c557aea867f5f4f3f388fa5d` plus this planning-only authorization
 - Integration order: Serial; after Model 0028 and Metal 0019, before Metal 0018
 - Integration validation: accelerator all-term Metal reduction checkpoint under Model 0028
 - Shared-document integration owner: task implementer, finalized by independent Class C review

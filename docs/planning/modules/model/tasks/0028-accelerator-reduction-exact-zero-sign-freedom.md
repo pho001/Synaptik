@@ -2,13 +2,13 @@
 
 ## Status
 
-Ready
+Complete
 
-Readiness verification: Model 0027, Config 0006, Engine 0018, CPU 0017, and Metal 0019 are
-Complete. The corrected mandatory Metal 0017 probe found one existing-contract mismatch before any
-production edit, so Metal 0017 is Blocked and no backend change is active. Model 0026 remains an
-independent FLOAT16 Draft. This task is the sole Ready frontier from clean base `92b4fffc` plus this
-planning-only authorization.
+Readiness was verified from Model 0027, Config 0006, Engine 0018, CPU 0017, and Metal 0019.
+The corrected mandatory Metal 0017 probe found one existing-contract mismatch before any production
+edit, so Metal 0017 stayed Blocked and no backend change was active. Model 0026 remained an
+independent FLOAT16 Draft. This task executed as the sole Ready frontier from clean base `92b4fffc`
+plus its planning-only authorization.
 
 ## Change class
 
@@ -157,8 +157,8 @@ capability.
 
 ## Follow-up
 
-- Metal 0020 remains Draft until this task is Complete and independently approved. A planner must
-  then reverify its base, dependency, conflicts, and full fresh corrected probe before promotion.
+- Metal 0020 is now Ready after this task completed, independent approval passed, and its base,
+  dependencies, conflicts, contract, and mandatory full fresh corrected probe were reverified.
 - Metal 0018 remains Draft after Metal 0020; Model 0026 remains an independent Draft.
 
 ## Documentation and review impact
@@ -171,4 +171,21 @@ glossary impact, and absence of backend implementation or capability drift.
 
 ## Result
 
-Empty until execution.
+Implemented the final-result-only exact-zero sign refinement at `fc003ab8`. The foundational
+contract, ADR 0019, `AggregateReductionKind` and `Tensor` Javadocs, Tensor API, module-boundary
+explanation, and targeted glossary entries now consistently preserve strict behavior, all terms,
+bit-preserving identity/copy forms, the positive-count MEAN divide, and every gross-error exclusion.
+No backend capability, native schema, cache identity, executable Java statement, test source,
+Gradle, Config, Planning, Compiler, Prepare, Runtime, Trace, Engine, CPU, or Metal file changed.
+
+The disposable raw-bit proof covered 2,427 one- through four-term multisets and 147,471 permitted
+ordered binary trees over signed zeros, cancellation, subnormals, infinities, and NaNs. Root-only
+exact-zero sign freedom and hypothetical per-step freedom produced identical final SUM and MEAN
+allowed-result sets, so no broader freedom was needed; the proof artifact was removed.
+
+The combined Model test, Model Javadoc, and architecture validation passed all 23 Gradle tasks.
+Markdown, exact-path, whitespace, and diff checks passed. Independent Class C review returned
+`APPROVE` with zero findings. Metal 0017 remains Blocked under its historical contract; Metal 0020
+is the sole Ready frontier, while Metal 0018 and Model 0026 remain Draft.
+
+Status: Complete

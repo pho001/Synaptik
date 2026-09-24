@@ -93,7 +93,7 @@ loss own no mode, session, or hidden mutable statistics.
 ## Task list
 
 The table is the ordered queue and status source. Evidence stays in linked briefs. Draft 0026 has
-no detailed brief. Task 0028 is the sole Ready frontier; dependent Metal work remains Draft.
+no detailed brief. Task 0028 is Complete; no Model task is Ready, and dependent Metal 0020 is Ready.
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
@@ -236,7 +236,7 @@ no detailed brief. Task 0028 is the sole Ready frontier; dependent Metal work re
 | 0025N | [Recurrent Engine status reconciliation](tasks/0025n-recurrent-engine-status-reconciliation.md) | Complete | 0025E–0025F; Compiler 0006A; current Engine lifecycle | Corrected the stale Engine status wording while preserving future recurrent execution and exception translation. |
 | 0026 | IEEE FLOAT16 and mixed-precision semantic contracts | Draft | 0001, 0018N, completed operation-family semantics; required before any backend advertises FLOAT16 | Preserve BFLOAT16, add distinct true IEEE-754 binary16 `FLOAT16`, and audit affected families for explicit input, accumulation/intermediate, and output types without adding backend support. |
 | 0027 | [Explicit numerical-profile semantic authority](tasks/0027-explicit-numerical-profile-semantic-authority.md) | Complete | Completed operation-family semantics through 0025L; Metal 0014 and retained numerical blocker evidence; accepted Variant B | Established root/foundational authority, ADR 0019, bounded Model-owned result sets, affected Javadocs, and gross-error exclusions; implementation `ff86a302`, independent validation, and Class C review passed with zero failures, skips, or findings. |
-| 0028 | [ACCELERATOR reduction exact-zero sign freedom](tasks/0028-accelerator-reduction-exact-zero-sign-freedom.md) | Ready | 0027; corrected Metal 0017 blocker evidence | Define final-result-only exact-zero sign freedom for arithmetic FLOAT32 SUM/MEAN/SUM_TO_SHAPE while preserving strict, terms, identities, copies, and count division. |
+| 0028 | [ACCELERATOR reduction exact-zero sign freedom](tasks/0028-accelerator-reduction-exact-zero-sign-freedom.md) | Complete | 0027; corrected Metal 0017 blocker evidence | Established final-result-only exact-zero sign freedom for arithmetic FLOAT32 SUM/MEAN/SUM_TO_SHAPE while preserving strict, terms, identities, copies, and count division; implementation `fc003ab8`, proof and 23-task validation passed, and Class C review approved with zero findings. |
 
 ## Milestones and current frontier
 
@@ -255,10 +255,11 @@ no detailed brief. Task 0028 is the sole Ready frontier; dependent Metal work re
   1,114 Model tests and nine architecture tests with zero failures or skips and Class C review
   returned `APPROVE` with zero findings. Config 0006, Engine 0018, CPU 0017, Metal 0015, and
   exact both-profile Metal 0019 are also Complete.
-- Corrected Metal 0017 probing exposed one narrow existing-contract mismatch before production
-  edits: SUM of `[-0,-0]` returned positive zero where the current accelerator reduction set allows
-  only negative zero. Task 0028 is the sole Ready frontier for the coordinated Model-owned
-  semantic decision. Metal 0017 is Blocked under its old contract; Metal 0020 is Draft after 0028.
+- Corrected Metal 0017 probing exposed one narrow old-contract mismatch before production edits:
+  SUM of `[-0,-0]` returned positive zero where the old accelerator reduction set allowed only
+  negative zero. Task 0028 is `Complete` at implementation `fc003ab8` after its bounded proof,
+  23-task validation, and independent Class C approval passed. Metal 0017 remains Blocked under its
+  historical contract; dependent Metal 0020 is the sole Ready frontier.
 - Task 0026 remains an independent `Draft` with no detailed brief and no dependency relationship
   to 0027 or 0028. It is selected only when IEEE-754 binary16 `FLOAT16` and mixed-precision
   semantics become current.
@@ -270,12 +271,11 @@ no detailed brief. Task 0028 is the sole Ready frontier; dependent Metal work re
   each current per-operation contract rather than universal bitwise `strictfp`; `ACCELERATOR` is
   only a bounded permission. Config 0006 identity, Engine 0018 propagation/cache isolation, CPU
   0017, Metal 0015, and exact both-profile Metal 0019 are Complete. Metal 0016 remains Blocked.
-  Corrected Metal 0017 probing found positive zero for `SUM([-0,-0])`, outside the old row because
-  zero is not subnormal. Ready 0028 owns the smallest coordinated decision: final exact-zero sign
-  freedom for arithmetic SUM/MEAN/SUM_TO_SHAPE results only, with strict behavior, all-and-only
-  terms, bit-preserving identity/equal-Shape forms, positive-count MEAN division, and every
-  no-tolerance/no-term-loss/no-added-identity exclusion retained. Metal 0020 must wait for 0028 and
-  a full fresh corrected probe; no backend task may reinterpret the result set.
+  Complete 0028 permits either zero sign only for a final exact-zero arithmetic
+  SUM/SUM_TO_SHAPE root or mandatory positive-count MEAN quotient, while preserving all-and-only
+  terms, bit-preserving identity/equal-Shape forms, and every no-tolerance/no-term-loss/
+  no-added-identity exclusion. Metal 0017 remains Blocked historically; Ready Metal 0020 must pass
+  a full fresh corrected probe before production and may not reinterpret the Model result set.
 - **FLOAT16 and mixed precision:** BFLOAT16 remains a distinct current type. Only 0026 may add true
   IEEE binary16 FLOAT16 and must audit each affected family’s input, accumulation/intermediate,
   and output types. A shared two-byte carrier does not imply arithmetic, Java Vector support, or a
