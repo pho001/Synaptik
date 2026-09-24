@@ -35,8 +35,8 @@ import java.util.Optional;
  * <p>The deterministic analysis assigns stable native value indices, retains every node kind and
  * ordered operand, and derives unique feeds and targets before selecting a closed private route.
  * Under {@code STRICT_IEEE}, it walks explicit unavailable/canonical/affine-view states in node
- * order for the retained NEG, affine, and CONTIGUOUS baseline. Under {@code ACCELERATOR}, it
- * accepts only binary nodes whose two inputs and output are canonical. Every graph feed is
+ * order for the retained NEG/ABS, affine, and CONTIGUOUS domain. Under {@code ACCELERATOR}, it
+ * accepts only ABS or binary nodes whose inputs and output are canonical. Every graph feed is
  * canonical. Analysis freshly regenerates the complete candidate batch; an absent decision
  * preserves the singleton-NEG heuristic, while a present decision must authenticate against
  * current schema, workload, profile, session target, and candidate identity. The selected route is
@@ -366,6 +366,9 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         OperationKind kind = operation.kind();
         if (kind == UnaryElementwiseKind.NEG) {
             return MetalMpsGraphProgram.Node.neg(inputs[0], output);
+        }
+        if (kind == UnaryElementwiseKind.ABS) {
+            return MetalMpsGraphProgram.Node.abs(inputs[0], output);
         }
         if (kind instanceof BinaryArithmeticKind binary) {
             MetalMpsGraphProgram.NodeKind nodeKind = switch (binary) {

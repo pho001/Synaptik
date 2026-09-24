@@ -182,10 +182,11 @@ The following invariants must remain true:
   path.
 - Engine construction captures one exact graph-wide profile, defaulting to `STRICT_IEEE`.
   Planning queries, Compiler artifacts, Prepare contexts, and backend plan/cache identities retain
-  it unchanged. CPU realizes both profiles with identical exact behavior. Metal retains strict
-  NEG/affine/`CONTIGUOUS` and realizes only tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV` under
-  `ACCELERATOR`; every other unsupported profile/operation pair fails closed. Runtime and Trace
-  remain profile-free.
+  it unchanged. CPU realizes both profiles with identical exact behavior. Metal realizes exact
+  canonical FLOAT32 `ABS` under both profiles, retains NEG/affine/`CONTIGUOUS` only under
+  `STRICT_IEEE`, and realizes tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV` only under `ACCELERATOR`;
+  every other unsupported profile/operation pair fails closed. Runtime and Trace remain
+  profile-free.
 - `CompiledGraphModel` is immutable compile-time graph state.
 - `CompileArtifacts` are immutable compile-time output.
 - `PreparedExecution`, its prepared memory/schedule/executable recipes, and immutable persistent

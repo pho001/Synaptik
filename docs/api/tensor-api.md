@@ -106,9 +106,10 @@ Tensor construction still performs no numerical evaluation and stores no profile
 `NumericalProfile` remains outside Tensor: Tensor has no profile method or stored selection. The
 ordinary Engine captures one profile for its lifetime and transports it through profile-qualified
 capability, compile artifacts, Prepare, and backend identity. CPU executes both profiles with the
-same exact current semantics. Metal keeps NEG/affine/`CONTIGUOUS` under `STRICT_IEEE` and admits
-only tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV` under `ACCELERATOR`; unsupported combinations fail
-closed rather than selecting a fallback. Model remains the sole semantic owner of profile meaning.
+same exact current semantics. Metal admits exact canonical `ABS` under both profiles, keeps
+NEG/affine/`CONTIGUOUS` under `STRICT_IEEE`, and admits tensor FLOAT32
+`ADD`/`SUB`/`MUL`/`DIV` only under `ACCELERATOR`; unsupported combinations fail closed rather than
+selecting a fallback. Model remains the sole semantic owner of profile meaning.
 
 The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
@@ -163,9 +164,10 @@ current. The closed first-order matrix also currently reverses `CONTIGUOUS`, `RE
 `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` through public Tensor metadata operations. Mandatory
 graph-local ID canonicalization and whole-graph DCE plus phase-local CSE are current internal
 behavior. CPU physical execution is current for its documented bounded affine units. Metal forward
-execution is also current for strict static positive-rank `FLOAT32` chains of the five affine
-views plus `CONTIGUOUS`, with graph-local view provenance and canonical NEG boundaries. Public
-gradient requests/publication and Metal backward execution are not introduced by that route.
+execution is current for exact canonical positive-rank `FLOAT32` ABS under both profiles and for
+strict chains of the five affine views plus `CONTIGUOUS`, with graph-local view provenance and
+canonical NEG/ABS boundaries. Public gradient requests/publication and Metal backward execution
+are not introduced by those routes.
 
 `AxisTransformKind.PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` are current semantic identities.
 `PermutationAttrs` stores a complete normalized output-to-input axis permutation, while

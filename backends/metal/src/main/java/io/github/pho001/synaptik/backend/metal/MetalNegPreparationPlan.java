@@ -17,15 +17,15 @@ import java.util.Optional;
  * partition.
  *
  * <p>The retained numerical profile closes the operation domain: strict partitions contain only
- * NEG, affine transforms, and CONTIGUOUS; accelerator partitions contain only tensor ADD, SUB,
- * MUL, and DIV. Value indices, explicit canonical/affine-view states, typed MPSGraph nodes, feeds,
- * targets, and declarations are already in their stable ABI order. The route is either the safe
- * heuristic or a freshly authenticated session-compatible decision, and is fixed before this
- * plan's declarations escape analysis. The plan contains no assigned slot, tuning value, native
- * executable, physical buffer, or per-run state. Strict affine targets retain exact logical view
- * descriptors alongside their full dense represented-order byte extents. The address workspace
- * is present only for MPSGraph. Primitive arrays are privately snapshotted and copied when
- * marshalled.</p>
+ * NEG, ABS, affine transforms, and CONTIGUOUS; accelerator partitions contain only ABS and tensor
+ * ADD, SUB, MUL, and DIV. Value indices, explicit canonical/affine-view states, typed MPSGraph
+ * nodes, feeds, targets, and declarations are already in their stable ABI order. The route is
+ * either the safe heuristic or a freshly authenticated session-compatible decision, and is fixed
+ * before this plan's declarations escape analysis. The plan contains no assigned slot, tuning
+ * value, native executable, physical buffer, or per-run state. Strict affine targets retain exact
+ * logical view descriptors alongside their full dense represented-order byte extents. The address
+ * workspace is present only for MPSGraph. Primitive arrays are privately snapshotted and copied
+ * when marshalled.</p>
  */
 final class MetalNegPreparationPlan implements BackendPreparationPlan {
     /** Closed private implementation choice made during analysis. */

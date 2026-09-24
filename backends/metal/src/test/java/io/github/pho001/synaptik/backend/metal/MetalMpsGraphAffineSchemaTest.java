@@ -11,11 +11,11 @@ import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphAffineSchemaTest {
     @Test
-    void schemaVersionFiveEncodesTypedDiscriminantsAndRequiredUnusedSentinels() {
+    void schemaVersionSixEncodesTypedDiscriminantsAndRequiredUnusedSentinels() {
         var reshape = MetalMpsGraphProgram.Node.targetShape(
                 MetalMpsGraphProgram.NodeKind.RESHAPE, 0, 1, new long[] {3, 2});
         byte[] encoded = new MetalMpsGraphProgram(List.of(reshape)).encodedNodeRecords();
-        assertEquals(5, MetalMpsGraphProgram.SCHEMA_VERSION);
+        assertEquals(6, MetalMpsGraphProgram.SCHEMA_VERSION);
         assertEquals(MetalMpsGraphProgram.NODE_RECORD_BYTES, encoded.length);
 
         ByteBuffer record = ByteBuffer.wrap(encoded).order(ByteOrder.BIG_ENDIAN);

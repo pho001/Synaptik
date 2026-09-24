@@ -36,11 +36,18 @@ class MetalCapabilityProviderTest {
         assertEquals("metal", provider.backendId().value());
         TensorDescriptor matrix = descriptor(Shape.of(2, 3), false);
         TensorDescriptor row = descriptor(Shape.of(3), false);
-        assertTrue(provider.supports(query(
-                NumericalProfile.STRICT_IEEE, matrix, matrix)));
+        assertTrue(provider.supports(unaryQuery(
+                NumericalProfile.STRICT_IEEE, UnaryElementwiseKind.NEG, matrix, matrix)));
+        assertTrue(provider.supports(unaryQuery(
+                NumericalProfile.STRICT_IEEE, UnaryElementwiseKind.ABS, matrix, matrix)));
+        assertTrue(provider.supports(unaryQuery(
+                NumericalProfile.ACCELERATOR, UnaryElementwiseKind.ABS, matrix, matrix)));
+        assertFalse(provider.supports(unaryQuery(
+                NumericalProfile.ACCELERATOR, UnaryElementwiseKind.NEG, matrix, matrix)));
         Shape rank16 = Shape.of(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
-        assertTrue(provider.supports(query(
+        assertTrue(provider.supports(unaryQuery(
                 NumericalProfile.STRICT_IEEE,
+                UnaryElementwiseKind.ABS,
                 descriptor(rank16, true),
                 descriptor(rank16, true))));
 
@@ -56,8 +63,16 @@ class MetalCapabilityProviderTest {
             assertEquals(supported, provider.supports(binaryQuery(
                     NumericalProfile.ACCELERATOR, kind, row, matrix, matrix)));
         }
-        assertFalse(provider.supports(query(
-                NumericalProfile.ACCELERATOR, matrix, matrix)));
+        for (UnaryElementwiseKind kind : UnaryElementwiseKind.values()) {
+            assertEquals(kind == UnaryElementwiseKind.NEG || kind == UnaryElementwiseKind.ABS,
+                    provider.supports(unaryQuery(
+                            NumericalProfile.STRICT_IEEE, kind, matrix, matrix)),
+                    "strict " + kind);
+            assertEquals(kind == UnaryElementwiseKind.ABS,
+                    provider.supports(unaryQuery(
+                            NumericalProfile.ACCELERATOR, kind, matrix, matrix)),
+                    "accelerator " + kind);
+        }
         TensorDescriptor reshapedView = new TensorDescriptor(
                 DataType.FLOAT32,
                 matrix.shape(),
@@ -104,8 +119,29 @@ class MetalCapabilityProviderTest {
                 Optional.of(LayoutDescriptor.of(Shape.of(2, 3), new long[] {1, 2}, 0, false)),
                 false);
 
-        assertFalse(provider.supports(new OperationCapabilityQuery(NumericalProfile.STRICT_IEEE, new Operation(UnaryElementwiseKind.ABS, NoOperationAttrs.INSTANCE), List.of(valid), List.of(valid))));
-        assertFalse(provider.supports(new OperationCapabilityQuery(NumericalProfile.ACCELERATOR, new Operation(UnaryElementwiseKind.ABS, NoOperationAttrs.INSTANCE), List.of(valid), List.of(valid))));
+        assertTrue(provider.supports(unaryQuery(
+                NumericalProfile.STRICT_IEEE, UnaryElementwiseKind.ABS, valid, valid)));
+        assertTrue(provider.supports(unaryQuery(
+                NumericalProfile.ACCELERATOR, UnaryElementwiseKind.ABS, valid, valid)));
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            assertFalse(provider.supports(unaryQuery(
+                    profile, UnaryElementwiseKind.ABS, typed(DataType.FLOAT64),
+                    typed(DataType.FLOAT64))));
+            assertFalse(provider.supports(unaryQuery(
+                    profile, UnaryElementwiseKind.ABS, valid,
+                    descriptor(Shape.of(3, 2), false))));
+            assertFalse(provider.supports(unaryQuery(
+                    profile, UnaryElementwiseKind.ABS, valid,
+                    descriptor(Shape.of(2, 3), true))));
+            assertFalse(provider.supports(unaryQuery(
+                    profile, UnaryElementwiseKind.ABS, view, valid)));
+            assertFalse(provider.supports(unaryQuery(
+                    profile, UnaryElementwiseKind.ABS, descriptor(Shape.of(), false),
+                    descriptor(Shape.of(), false))));
+            assertFalse(provider.supports(unaryQuery(
+                    profile, UnaryElementwiseKind.ABS, descriptor(rank17, false),
+                    descriptor(rank17, false))));
+        }
         assertFalse(provider.supports(new OperationCapabilityQuery(NumericalProfile.ACCELERATOR, new Operation(BinaryComparisonKind.GREATER_THAN, NoOperationAttrs.INSTANCE), List.of(valid, valid), List.of(valid))));
         assertFalse(provider.supports(new OperationCapabilityQuery(NumericalProfile.ACCELERATOR, new Operation(
                 ScalarElementwiseKind.ADD,
@@ -174,7 +210,19 @@ class MetalCapabilityProviderTest {
 
     private static OperationCapabilityQuery query(
             NumericalProfile profile, TensorDescriptor input, TensorDescriptor output) {
-        return new OperationCapabilityQuery(profile, neg(), List.of(input), List.of(output));
+        return unaryQuery(profile, UnaryElementwiseKind.NEG, input, output);
+    }
+
+    private static OperationCapabilityQuery unaryQuery(
+            NumericalProfile profile,
+            UnaryElementwiseKind kind,
+            TensorDescriptor input,
+            TensorDescriptor output) {
+        return new OperationCapabilityQuery(
+                profile,
+                new Operation(kind, NoOperationAttrs.INSTANCE),
+                List.of(input),
+                List.of(output));
     }
 
     private static OperationCapabilityQuery binaryQuery(

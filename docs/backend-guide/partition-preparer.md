@@ -532,6 +532,6 @@ See the [Runtime/Prepare/Backend boundary](../architecture/runtime-prepare-backe
 A preparer receives the exact graph-wide `NumericalProfile` in `PrepareContext`. It must reject an
 unsupported profile/operation combination before route analysis and retain the profile in every
 plan and compatibility identity that could otherwise be reused. CPU admits both profiles with
-identical exact routes and distinct identities. Metal admits only strict NEG/affine/`CONTIGUOUS`
-partitions or accelerator tensor-binary partitions and rejects profile-incompatible topology before
-native resource creation.
+identical exact routes and distinct identities. Metal admits exact canonical ABS in either
+profile, strict NEG/affine/`CONTIGUOUS`, or accelerator tensor-binary partitions and rejects
+profile-incompatible topology before native resource creation.

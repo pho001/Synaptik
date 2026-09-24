@@ -249,6 +249,7 @@ style](../developer-guide/documentation/backend-guide-style.md).
 Read `query.numericalProfile()` as part of the complete capability question. Return `false` for an
 unsupported profile/operation pair rather than ignoring the profile or inferring support from
 `DeviceClass`. The current CPU provider returns the same exact answer under `STRICT_IEEE` and
-`ACCELERATOR`. The current Metal provider has disjoint matrices: strict NEG/affine/`CONTIGUOUS`
-and accelerator tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`. Neither provider treats accelerator
-identity as generic fast math, and every other unsupported pair remains false.
+`ACCELERATOR`. The current Metal provider admits exact canonical FLOAT32 `ABS` under both
+profiles, strict NEG/affine/`CONTIGUOUS`, and accelerator tensor FLOAT32
+`ADD`/`SUB`/`MUL`/`DIV`. Neither provider treats accelerator identity as generic fast math, and
+every other unsupported pair remains false.

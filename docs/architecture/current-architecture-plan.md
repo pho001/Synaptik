@@ -55,10 +55,10 @@ lifecycle. Ordinary preparation composes non-empty plans across registered owner
 deterministic owner-indexed representations and explicit direct CPU-to-Metal and Metal-to-CPU
 transfers for fully static canonical contiguous `FLOAT32` values.
 CPU realizes both numerical profiles through identical exact behavior and routes. Metal execution
-is profile-qualified: strict admits static `FLOAT32` NEG, locally composed affine layouts, and
-explicit `CONTIGUOUS`; accelerator admits only canonical tensor `FLOAT32` `ADD`, `SUB`, `MUL`, and
-`DIV` under bounded DAZ/FTZ. The custom Metal route remains reserved for an eligible strict
-singleton NEG.
+is profile-qualified: both profiles admit exact canonical `FLOAT32` `ABS`; strict additionally
+admits `NEG`, locally composed affine layouts, and explicit `CONTIGUOUS`; accelerator additionally
+admits canonical tensor `FLOAT32` `ADD`, `SUB`, `MUL`, and `DIV` under bounded DAZ/FTZ. The custom
+Metal route remains reserved for an eligible strict singleton NEG.
 
 The Training extension now owns a public reusable
 Engine-backed scalar session with persistent SGD, accumulation, and detached in-memory state over

@@ -20,17 +20,18 @@ Public `GraphCompilationPort` exposes that complete constant-free pipeline as a 
 cross-module integration service-provider interface (SPI). The CPU backend exposes the supported
 `CpuBackendIntegration` lifecycle SPI, including bounded canonical host-byte materialization and
 identical exact execution under both numerical profiles. The Metal backend exposes
-`MetalBackendConfiguration`, `MetalBackendIntegration`, and two disjoint profile-qualified
-positive-rank `FLOAT32` domains. Strict Metal supports `NEG`, `RESHAPE`, `EXPAND`, `PERMUTE`,
-`EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`; accelerator Metal supports only canonical tensor
-`ADD`, `SUB`, `MUL`, and `DIV` under bounded DAZ/FTZ. Strict binary and accelerator baseline
-operations fail ownership selection before native preparation. Strict graph feeds and `NEG`
-operands are canonical contiguous non-views. Affine operations may consume exact zero-offset views
-produced earlier in the same maximal strict Metal partition, retain their exact logical view
-descriptors, and privately write dense represented-order targets. `CONTIGUOUS` converts available
-canonical or local affine-view state to canonical state before subsequent strict `NEG`. Exact
-authenticated affine publications may materialize to detached canonical host bytes, but cross-
-owner transfer remains canonical-non-view-only. `Engine.builder()` is the
+`MetalBackendConfiguration`, `MetalBackendIntegration`, and two profile-qualified positive-rank
+`FLOAT32` domains. Both admit exact canonical `ABS`. Strict Metal additionally supports `NEG`,
+`RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`; accelerator Metal
+additionally supports canonical tensor `ADD`, `SUB`, `MUL`, and `DIV` under bounded DAZ/FTZ.
+Strict binary and accelerator baseline operations fail ownership selection before native
+preparation. Every `ABS` operand and output, strict graph feed, and direct `NEG` operand is a
+canonical contiguous non-view. Affine operations may consume exact zero-offset views produced
+earlier in the same maximal strict Metal partition, retain their exact logical view descriptors,
+and privately write dense represented-order targets. `CONTIGUOUS` converts available canonical or
+local affine-view state to canonical state before subsequent strict `NEG` or `ABS`. Exact
+authenticated affine publications may materialize to detached canonical host bytes, but
+cross-owner transfer remains canonical-non-view-only. `Engine.builder()` is the
 public explicit composition root for
 opened CPU and Metal integrations. It freezes their Planning inputs in registration order and
 supports a complete non-empty plan only when every partition has one exact registered owner. The
@@ -1252,10 +1253,10 @@ path nor owns a duplicate Metal configuration. The integration supplies partitio
 physical creation contribution, exact transfer endpoints, host ingress, materialization, and
 close in addition to capability.
 
-Metal retains a custom route only for an eligible strict singleton `NEG`; every other supported
-strict NEG/affine/`CONTIGUOUS` partition and every accelerator tensor-binary partition uses one
-typed whole-partition MPSGraph executable. This private route and native ABI choice adds no public
-Java type or method.
+Metal retains a custom route only for an eligible strict singleton `NEG`; every `ABS` partition,
+every other supported strict NEG/affine/`CONTIGUOUS` partition, and every accelerator
+ABS/tensor-binary partition uses one typed whole-partition MPSGraph executable. This private route
+and native ABI choice adds no public Java type or method.
 
 `prepareTuned(...)` remains the bounded CPU-only workflow. It can tune a CPU-owned plan when Metal
 is also registered, but a Metal-owned plan fails with `IllegalStateException` before

@@ -120,6 +120,22 @@ class MetalNegRouteCandidateGeneratorTest {
                     workloadSignature(binaryAdd),
                     workloadSignature(binaryReversed),
                     "ordered binary operand edges participate in workload identity");
+            Workload unaryAbs = unaryWorkload(
+                    device, 40_000, NumericalProfile.STRICT_IEEE, UnaryElementwiseKind.ABS);
+            assertEquals(
+                    List.of(MetalNegTuningBatch.Candidate.MPSGRAPH),
+                    generated(unaryAbs, 2).batch().candidates(),
+                    "ABS must never enter the custom singleton NEG route");
+            assertNotEquals(
+                    workloadSignature(baseline),
+                    workloadSignature(unaryAbs),
+                    "ordered ABS topology participates in workload identity");
+            Workload acceleratorAbs = unaryWorkload(
+                    device, 50_000, NumericalProfile.ACCELERATOR, UnaryElementwiseKind.ABS);
+            assertNotEquals(
+                    workloadSignature(unaryAbs),
+                    workloadSignature(acceleratorAbs),
+                    "requested profile participates in ABS workload identity");
         }
     }
 
@@ -272,14 +288,14 @@ class MetalNegRouteCandidateGeneratorTest {
                     MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
                     current.batch().compatibility(), MetalNegTuningBatch.Candidate.MPSGRAPH);
             var codec = new MetalNegTuningCodec();
-            assertEquals(6, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
-            assertEquals(6, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
-            assertEquals(6, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
+            assertEquals(7, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
+            assertEquals(7, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
+            assertEquals(7, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
             byte[] first = codec.encodeDecision(decision);
-            assertEquals(6, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
-            assertEquals(6, current.batch().compatibility().schemaVersion());
-            assertEquals(6, current.batch().compatibility().candidateSchemaVersion());
-            assertEquals(6, current.batch().compatibility().routePolicyVersion());
+            assertEquals(7, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
+            assertEquals(7, current.batch().compatibility().schemaVersion());
+            assertEquals(7, current.batch().compatibility().candidateSchemaVersion());
+            assertEquals(7, current.batch().compatibility().routePolicyVersion());
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());
@@ -320,6 +336,9 @@ class MetalNegRouteCandidateGeneratorTest {
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, 4, 5), current.batch()).isEmpty(),
                     "checksummed codec-v5 decisions must fail closed");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, 4, 6), current.batch()).isEmpty(),
+                    "checksummed version-six decisions must fail closed");
             assertTrue(codec.decodeDecision(rewriteInt(first, 8, 99), current.batch()).isEmpty());
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, first.length - 8, 99), current.batch()).isEmpty());
@@ -390,7 +409,7 @@ class MetalNegRouteCandidateGeneratorTest {
             Workload valid = workload(device, 700, Shape.of(4), false,
                     Optional.empty(), true, false, 1);
             CompiledNode invalidNode = new CompiledNode(valid.context().nodes().getFirst().id(),
-                    new Operation(UnaryElementwiseKind.ABS, NoOperationAttrs.INSTANCE),
+                    new Operation(UnaryElementwiseKind.EXP, NoOperationAttrs.INSTANCE),
                     valid.context().nodes().getFirst().inputs(),
                     valid.context().nodes().getFirst().outputs());
             var invalidDag = new PartitionDag(valid.context().partition(), List.of(invalidNode));
@@ -639,6 +658,30 @@ class MetalNegRouteCandidateGeneratorTest {
     private static Workload withInputs(Workload workload, MetalNegAnalysisInputs inputs) {
         PrepareContext<MetalNegAnalysisInputs> context = workload.context();
         return new Workload(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, context.partitionDag(), context.values(), context.memoryRequirements(), context.constants(), inputs));
+    }
+
+    private static Workload unaryWorkload(
+            MetalDeviceContext device,
+            long identityBase,
+            NumericalProfile profile,
+            UnaryElementwiseKind kind) {
+        Workload source = workload(
+                device, identityBase, Shape.of(4), false,
+                Optional.empty(), true, false, 1);
+        PrepareContext<MetalNegAnalysisInputs> context = source.context();
+        CompiledNode original = context.nodes().getFirst();
+        CompiledNode unary = new CompiledNode(
+                original.id(),
+                new Operation(kind, NoOperationAttrs.INSTANCE),
+                original.inputs(),
+                original.outputs());
+        return new Workload(new PrepareContext<>(
+                profile,
+                new PartitionDag(context.partition(), List.of(unary)),
+                context.values(),
+                context.memoryRequirements(),
+                context.constants(),
+                context.backendInputs()));
     }
 
     private static Workload workload(

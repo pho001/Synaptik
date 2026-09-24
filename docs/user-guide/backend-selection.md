@@ -117,9 +117,10 @@ backend.
 `Engine.builder()` defaults to `NumericalProfile.STRICT_IEEE`. Call
 `numericalProfile(NumericalProfile.ACCELERATOR)` before `build()` to request the bounded Model
 profile explicitly. CPU executes either choice through the same exact capability and routes. Metal
-uses disjoint matrices: strict admits NEG/affine/`CONTIGUOUS`, while accelerator admits only tensor
-FLOAT32 `ADD`/`SUB`/`MUL`/`DIV` under bounded DAZ/FTZ. There is no fallback to strict or owner
-substitution after an accelerator request; every unsupported occurrence fails closed.
+admits exact canonical FLOAT32 `ABS` under both profiles. Strict Metal additionally admits
+NEG/affine/`CONTIGUOUS`; accelerator Metal additionally admits tensor FLOAT32
+`ADD`/`SUB`/`MUL`/`DIV` under bounded DAZ/FTZ. There is no fallback to strict or owner substitution
+after an accelerator request; every unsupported occurrence fails closed.
 
 ## Limitations
 

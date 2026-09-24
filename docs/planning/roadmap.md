@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0015; historical 0006–0007 and 0009–0013 plus 0016 Blocked; 0019 Ready; 0017–0018 Draft | [0019](backends/metal/tasks/0019-exact-profile-qualified-float32-abs.md) is the sole Ready serial frontier for exact both-profile `ABS`; failed 0016 remains unchanged. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0015; historical 0006–0007 and 0009–0013 plus 0016 Blocked; 0019 Ready with worker implementation complete and independent review pending; 0017–0018 Draft | [0019](backends/metal/tasks/0019-exact-profile-qualified-float32-abs.md) is the sole Ready serial frontier; exact both-profile `ABS` implementation and fresh worker proof await independent Class C review. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -69,15 +69,16 @@ instruction, reduced precision, route change, or Runtime/Trace state.
 
 [Metal 0015](backends/metal/tasks/0015-accelerator-float32-tensor-binary-arithmetic.md) is Complete
 at implementation `42c4cfbf` plus evidence-wording remediation `fb102a46`. Strict Metal retains
-exact NEG, five affine transforms, and `CONTIGUOUS`; accelerator Metal supports only canonical
-tensor `FLOAT32` `ADD`, `SUB`, `MUL`, and `DIV` under the bounded Model DAZ/FTZ result set. Strict
-binary, accelerator baseline operations, and every unproved family remain fail-closed.
+exact NEG, five affine transforms, and `CONTIGUOUS`; accelerator Metal retains canonical tensor
+`FLOAT32` `ADD`, `SUB`, `MUL`, and `DIV` under the bounded Model DAZ/FTZ result set. Ready
+[Metal 0019](backends/metal/tasks/0019-exact-profile-qualified-float32-abs.md) has a complete worker
+implementation adding exact canonical `ABS` to both profile matrices. Strict binary, accelerator
+NEG/layout operations, every other unary operation, and every unproved family remain fail-closed.
 
-Both independent Class C reviews returned final `APPROVE` with zero findings. The serial combined
-checkpoint passed the native arm64 build and exact thirteen exports; 1,025 CPU and 84 real-dylib
-Metal tests; 12 CPU and four Metal focused conformance tests; one CPU and seven real Metal Engine
-integration tests; nine architecture tests; the full 87-task build; Runtime/Trace profile-free
-inspection; and baseline-aware documentation, Javadoc, status, and diff checks.
+The 0015 independent Class C reviews returned final `APPROVE` with zero findings. Task 0019's
+worker checkpoint passed the fresh native, exact-export, backend, conformance, CPU-free Engine,
+Javadoc, architecture, Runtime/Trace, and documentation checks; its mandatory independent Class C
+review is still pending.
 
 The completed cross-area profile DAG is:
 
@@ -94,9 +95,10 @@ context, and form; `SIGMOID` also exceeded its one-ULP gate on ordinary finite i
 passed and the probe was removed. Historical 0006 remains Blocked under its own contract.
 
 [Metal 0019](backends/metal/tasks/0019-exact-profile-qualified-float32-abs.md) is the sole Ready
-Metal frontier. It may add only canonical exact `ABS` under both profiles, with no relaxed unary
-semantics. `EXP`, `SIGMOID`, and the six historically failing 0006 operations remain closed,
-including the forbidden `RELU(NaN) -> +0` and `TANH(NaN) -> +1` observations.
+Metal frontier pending independent Class C review. Its worker implementation adds only canonical
+exact `ABS` under both profiles, with no relaxed unary semantics. `EXP`, `SIGMOID`, and the six
+historically failing 0006 operations remain closed, including the forbidden
+`RELU(NaN) -> +0` and `TANH(NaN) -> +1` observations.
 
 Metal 0017 remains Draft for accelerator-only `SUM`, `MEAN`, and `SUM_TO_SHAPE`; every result must
 use all and only declared terms in a Model-permitted binary tree with per-step FLOAT32 rounding and
@@ -127,8 +129,9 @@ and unchanged canonical-only transfer.
 [0005](backends/metal/tasks/0005-mpsgraph-mixed-binary-whole-partition.md) remains a completed
 historical delivery whose strict binary claim was withdrawn after 12,096 subnormal-domain failures.
 Complete 0015 does not rewrite that history: it restored wires `2..5` only for `ACCELERATOR` after
-the fresh bounded oracle passed. ABI v4 still exposes exactly thirteen symbols; node schema 5 and
-version-six identities distinguish and reject profile-incompatible programs.
+the fresh bounded oracle passed. Ready 0019's worker implementation appends exact ABS wire `12`
+under both profiles. ABI v4 still exposes exactly thirteen symbols; node schema 6 and version-seven
+identities distinguish and reject profile-incompatible programs.
 
 [0006](backends/metal/tasks/0006-mpsgraph-float32-unary-algebra.md) remains `Blocked` by exact
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures. [0007](backends/metal/tasks/0007-mpsgraph-float32-reductions.md)
@@ -179,16 +182,18 @@ no production, native, test, or probe changes remain.
 is `Complete` at `42c4cfbf` plus `fb102a46` after the operation-by-operation DAZ/FTZ oracle, focused
 validation, combined serial checkpoint, and independent Class C approval all passed.
 
-Current Metal uses ABI v4 with exactly thirteen exports and node schema 5. Strict plans admit only
-NEG/affine/`CONTIGUOUS`; accelerator plans admit only tensor `FLOAT32` `ADD`/`SUB`/`MUL`/`DIV`.
-Java preflight rejects profile-incompatible node sets before native entry, version-six identities
-separate profile/topology compatibility, and Runtime/Trace remain profile-free.
+Current Metal uses ABI v4 with exactly thirteen exports and node schema 6. Both profile matrices
+admit exact canonical `FLOAT32` ABS; strict additionally admits NEG/affine/`CONTIGUOUS`, while
+accelerator additionally admits tensor `FLOAT32` `ADD`/`SUB`/`MUL`/`DIV`. Java preflight rejects
+profile-incompatible node sets before native entry, version-seven identities separate
+profile/topology compatibility, and Runtime/Trace remain profile-free.
 
 Strategic gate: historical blocker evidence is preserved, but separate new successors may consume
 only bounded results proved within current Model permissions. Blocked 0016 changes no contract;
-Ready 0019 owns exact both-profile `ABS` only. Draft 0017 owns all-term accelerator reductions, and
-Draft 0018 owns accelerator rank-two MATMUL under only DAZ/FTZ/FMA/reassociation. No task may infer
-generic fast math, relax unary semantics, or authorize gross special-value errors.
+Ready 0019 owns exact both-profile `ABS` only and remains pending independent review. Draft 0017
+owns all-term accelerator reductions, and Draft 0018 owns accelerator rank-two MATMUL under only
+DAZ/FTZ/FMA/reassociation. No task may infer generic fast math, relax unary semantics, or authorize
+gross special-value errors.
 
 ## Blocked, review-needed, and deferred work
 
@@ -231,8 +236,9 @@ generic fast math, relax unary semantics, or authorize gross special-value error
   group, and all existing fallbacks/thresholds. The report-only protocol is hardened; a future
   comparison still requires a separately reviewed, fully sealed matrix before measurement.
 - Model 0026 remains an independent FLOAT16 Draft. Model 0027, Config 0006, Engine 0018, CPU 0017,
-  and Metal 0015 are Complete. Metal 0016 is Blocked; Metal 0019 is the sole Ready successor;
-  Metal 0017–0018 remain serial Draft tasks, and every other blocked family remains unauthorized.
+  and Metal 0015 are Complete. Metal 0016 is Blocked; Metal 0019 is the sole Ready successor with
+  worker implementation complete and independent Class C review pending; Metal 0017–0018 remain
+  serial Draft tasks, and every other blocked family remains unauthorized.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -246,11 +252,11 @@ generic fast math, relax unary semantics, or authorize gross special-value error
 
 ## Nearest next step
 
-Launch [Metal 0019](backends/metal/tasks/0019-exact-profile-qualified-float32-abs.md) as the sole
-Ready Metal frontier. Reuse the recorded `ABS` selector gate only under its exact freshness policy,
-then produce fresh schema/identity, real-dylib, conformance, public Engine, and independent Class C
-review evidence. Do not launch blocked Metal 0016, Draft Metal 0017 or 0018, Model 0026, or any
-other blocked Metal successor.
+Run the independent Class C review for
+[Metal 0019](backends/metal/tasks/0019-exact-profile-qualified-float32-abs.md), the sole Ready Metal
+frontier. Inspect its recorded 0016 gate-reuse validity, fresh schema/identity, real-dylib,
+conformance, CPU-free public Engine, Runtime/Trace, and documentation evidence. Do not launch
+blocked Metal 0016, Draft Metal 0017 or 0018, Model 0026, or any other blocked Metal successor.
 
 ## History policy
 

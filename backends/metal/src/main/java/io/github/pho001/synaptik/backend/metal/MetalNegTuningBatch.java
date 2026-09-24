@@ -17,11 +17,11 @@ import java.util.Optional;
  */
 final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
     /** Current candidate and decision meaning. */
-    static final int CANDIDATE_SCHEMA_VERSION = 6;
+    static final int CANDIDATE_SCHEMA_VERSION = 7;
     /** Current canonical workload/target compatibility meaning. */
-    static final int COMPATIBILITY_SCHEMA_VERSION = 6;
+    static final int COMPATIBILITY_SCHEMA_VERSION = 7;
     /** Current exact profile-qualified Metal operation-composition policy meaning. */
-    static final int ROUTE_POLICY_VERSION = 6;
+    static final int ROUTE_POLICY_VERSION = 7;
 
     /** Stable complete private route configurations. */
     enum Candidate {

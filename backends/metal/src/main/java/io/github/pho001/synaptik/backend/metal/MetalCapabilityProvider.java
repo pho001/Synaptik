@@ -25,17 +25,17 @@ import java.util.Objects;
  * Reports the exact operation-occurrence capability of the current Metal backend.
  *
  * <p>This provider is immutable and performs no native loading, device discovery, allocation,
- * registration, or caching. Under {@link NumericalProfile#STRICT_IEEE}, support is
- * exactly unary {@code NEG}, five FLOAT32 affine transforms, and the explicit {@code CONTIGUOUS}
- * canonicalization barrier. Under {@link NumericalProfile#ACCELERATOR}, support is exactly tensor
- * {@code ADD}, {@code SUB}, {@code MUL}, and {@code DIV}; every strict baseline operation remains
- * closed. Binary inputs and outputs are canonical dense non-views with exact right-aligned
- * broadcasting. Strict {@code NEG} descriptors remain canonical. A strict affine or contiguous
- * input may be canonical or an exact resolved zero-offset logical view; complete-partition
- * analysis authenticates every admitted view as a prior local affine result. Affine outputs
- * retain the exact inferred view descriptor, while {@code CONTIGUOUS} outputs are canonical.
- * Every admitted occurrence is fully static, has positive rank-1..16 checked geometry, and
- * preserves one common gradient-eligibility flag.</p>
+ * registration, or caching. Under {@link NumericalProfile#STRICT_IEEE}, support is exactly unary
+ * {@code NEG} and {@code ABS}, five FLOAT32 affine transforms, and the explicit {@code CONTIGUOUS}
+ * canonicalization barrier. Under {@link NumericalProfile#ACCELERATOR}, support is exactly unary
+ * {@code ABS} plus tensor {@code ADD}, {@code SUB}, {@code MUL}, and {@code DIV}; every other
+ * strict baseline operation remains closed. Binary inputs and outputs are canonical dense
+ * non-views with exact right-aligned broadcasting. {@code ABS} and strict {@code NEG} descriptors
+ * remain canonical. A strict affine or contiguous input may be canonical or an exact resolved
+ * zero-offset logical view; complete-partition analysis authenticates every admitted view as a
+ * prior local affine result. Affine outputs retain the exact inferred view descriptor, while
+ * {@code CONTIGUOUS} outputs are canonical. Every admitted occurrence is fully static, has
+ * positive rank-1..16 checked geometry, and preserves one common gradient-eligibility flag.</p>
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
     /**
@@ -69,8 +69,8 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
      *
      * @param query the non-null immutable operation occurrence to classify without probing a
      *     device or native library
-     * @return {@code true} exactly for a retained strict baseline occurrence or one of the four
-     *     accelerator binary occurrences
+     * @return {@code true} exactly for one occurrence in the complete strict or accelerator
+     *     matrix
      * @throws NullPointerException if {@code query} is {@code null}, with message {@code query}
      */
     @Override
@@ -104,18 +104,14 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         }
         TensorDescriptor output = outputs.getFirst();
         try {
+            if (operation.kind() == UnaryElementwiseKind.ABS) {
+                return supportsCanonicalUnary(operation, inputs, output);
+            }
             if (numericalProfile == NumericalProfile.ACCELERATOR) {
                 return supportsBinary(operation, inputs, output);
             }
             if (operation.kind() == UnaryElementwiseKind.NEG) {
-                if (operation.attrs() != NoOperationAttrs.INSTANCE || inputs.size() != 1) {
-                    return false;
-                }
-                TensorDescriptor input = inputs.getFirst();
-                return canonical(input)
-                        && canonical(output)
-                        && input.shape().equals(output.shape())
-                        && input.requiresGrad() == output.requiresGrad();
+                return supportsCanonicalUnary(operation, inputs, output);
             }
             if (operation.kind() == ContiguousKind.CONTIGUOUS) {
                 return supportsContiguous(operation, inputs, output);
@@ -124,6 +120,18 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         } catch (IllegalArgumentException | ArithmeticException incompatible) {
             return false;
         }
+    }
+
+    private static boolean supportsCanonicalUnary(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        if (operation.attrs() != NoOperationAttrs.INSTANCE || inputs.size() != 1) {
+            return false;
+        }
+        TensorDescriptor input = inputs.getFirst();
+        return canonical(input)
+                && canonical(output)
+                && input.shape().equals(output.shape())
+                && input.requiresGrad() == output.requiresGrad();
     }
 
     private static boolean supportsBinary(

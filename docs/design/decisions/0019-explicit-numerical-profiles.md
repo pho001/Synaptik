@@ -97,8 +97,9 @@ prepared recipe without profile policy or a hot-path lookup.
 
 The selected profile is part of relevant backend route, specialization, generated-artifact,
 local-tuning, complete-plan-tuning, and cache-compatibility identity before a backend may advertise
-relaxed capability. CPU now advertises both profiles with identical exact behavior. Metal retains
-its strict NEG/affine/`CONTIGUOUS` matrix and separately advertises accelerator tensor-binary
+relaxed capability. CPU now advertises both profiles with identical exact behavior. Metal
+advertises exact canonical FLOAT32 `ABS` under both profiles, retains its strict
+NEG/affine/`CONTIGUOUS` matrix, and separately advertises accelerator tensor-binary
 `ADD`/`SUB`/`MUL`/`DIV` after bounded conformance. Unsupported pairs still fail closed; no backend
 may infer permission merely from the identity.
 

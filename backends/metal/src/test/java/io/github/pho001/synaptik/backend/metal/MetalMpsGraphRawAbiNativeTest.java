@@ -24,7 +24,7 @@ class MetalMpsGraphRawAbiNativeTest {
     private static final Consumer<MemorySegment> UNCHANGED = ignored -> { };
 
     @Test
-    void rawVersionFiveRecordRejectsEveryMalformedHeaderAndUnusedField() {
+    void rawVersionSixRecordRejectsEveryMalformedHeaderAndUnusedField() {
         try (RawAbi abi = RawAbi.open()) {
             MetalMpsGraphProgram reshape = new MetalMpsGraphProgram(List.of(
                     MetalMpsGraphProgram.Node.targetShape(
@@ -66,7 +66,9 @@ class MetalMpsGraphRawAbiNativeTest {
                     ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
             abi.assertRejected("stale schema version four", INVALID_ARGUMENT, 4,
                     ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
-            abi.assertRejected("unknown schema version six", INVALID_ARGUMENT, 6,
+            abi.assertRejected("stale schema version five", INVALID_ARGUMENT, 5,
+                    ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
+            abi.assertRejected("unknown schema version seven", INVALID_ARGUMENT, 7,
                     ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
         }
     }
@@ -265,7 +267,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void rawNegAndMalformedUnaryEncodingsOfCurrentBinaryOperationsRejectEveryField() {
+    void rawNegAbsAndMalformedUnaryEncodingsOfBinaryOperationsRejectEveryField() {
         try (RawAbi abi = RawAbi.open()) {
             int[] unaryRanks = {1, 1};
             long[] unaryDimensions = dimensions(new long[][] {{2}, {2}});
@@ -289,6 +291,18 @@ class MetalMpsGraphRawAbiNativeTest {
             abi.assertRejected("NEG second-input sentinel", unaryRanks, unaryDimensions,
                     neg, new int[] {0}, new int[] {1},
                     record -> record.set(JAVA_INT, 12L, 0));
+            MetalMpsGraphProgram abs = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.abs(0, 1)));
+            for (int operation : new int[] {13, 14, 99}) {
+                abi.assertRejected(
+                        "unknown post-ABS wire " + operation,
+                        unaryRanks,
+                        unaryDimensions,
+                        abs,
+                        new int[] {0},
+                        new int[] {1},
+                        record -> record.set(JAVA_INT, 0L, operation));
+            }
 
             for (int operation = 2; operation <= 5; operation++) {
                 int binaryOperation = operation;

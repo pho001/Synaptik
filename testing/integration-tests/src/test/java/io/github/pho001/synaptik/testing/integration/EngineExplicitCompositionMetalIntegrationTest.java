@@ -193,6 +193,89 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
+    void cpuFreeMetalEngineExecutesExactAbsLifecycleUnderBothProfiles() {
+        Path library = configuredMetalLibrary();
+        int[] inputBits = {
+            0x00000000, 0x80000000,
+            0x00000001, 0x80000001,
+            0x007fffff, 0x807fffff,
+            0x00800000, 0x80800000,
+            0x00800001, 0x80800001,
+            0x3f800000, 0xbf800000,
+            0x7f7fffff, 0xff7fffff,
+            0x7f800000, 0xff800000,
+            0x7fc12345, 0xffc54321,
+            0x7f812345, 0xff854321
+        };
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            try (Arena arena = Arena.ofShared();
+                    Engine.Builder builder = Engine.builder()) {
+                builder.numericalProfile(profile);
+                builder.takeOwnership(MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library)));
+                try (Engine engine = builder.build()) {
+                    Tensor input = nativeTensorBits(
+                            descriptor(Shape.of(inputBits.length)), arena, inputBits);
+                    Tensor direct = input.abs();
+                    Tensor intermediate;
+                    Tensor composed;
+                    List<Tensor> publications;
+                    List<Tensor> inputs;
+                    if (profile == NumericalProfile.STRICT_IEEE) {
+                        intermediate = direct;
+                        composed = input.reshape(2, inputBits.length / 2)
+                                .contiguous()
+                                .abs()
+                                .neg()
+                                .abs();
+                        publications = List.of(direct, composed);
+                        inputs = List.of(input);
+                    } else {
+                        Tensor zeros = nativeTensorBits(
+                                descriptor(Shape.of(inputBits.length)),
+                                arena,
+                                new int[inputBits.length]);
+                        intermediate = input.add(zeros);
+                        composed = intermediate.abs();
+                        publications = List.of(direct, intermediate, composed);
+                        inputs = List.of(input, zeros);
+                    }
+                    var compiled = engine.compile(publications);
+                    assertEquals(List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(compiled));
+
+                    InferenceSession reused = engine.session(compiled);
+                    try (InferenceSession independent = engine.session(compiled)) {
+                        Object firstPublication;
+                        try (var first = reused.run(inputs)) {
+                            assertAbsEngineResults(profile, first, inputBits);
+                            firstPublication = EngineMixedOwnerTestAccess
+                                    .runOwnedIdentities(first)
+                                    .publications()
+                                    .getFirst();
+                        }
+                        try (var second = reused.run(inputs)) {
+                            assertAbsEngineResults(profile, second, inputBits);
+                            assertNotSame(firstPublication, EngineMixedOwnerTestAccess
+                                    .runOwnedIdentities(second)
+                                    .publications()
+                                    .getFirst());
+                        }
+                        try (var separate = independent.run(inputs)) {
+                            assertAbsEngineResults(profile, separate, inputBits);
+                        }
+                        reused.close();
+                        assertTrue(reused.isClosed());
+                        assertThrows(IllegalStateException.class, () -> reused.run(inputs));
+                    } finally {
+                        reused.close();
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     void cpuFreeMetalEngineRunsConcurrentAffineCallsWithIsolatedRunOwnership()
             throws Exception {
         Path library = configuredMetalLibrary();
@@ -506,7 +589,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         Optional.empty(),
                         Optional.of(new MemorySegmentStorage(
                                 DataType.FLOAT32, 2, arena.allocate(8, Float.BYTES))));
-                var cpuCompiled = engine.compile(List.of(cpuInput.abs()));
+                var cpuCompiled = engine.compile(List.of(cpuInput.exp()));
                 ModelAutotuningRequest cpuRequest = tuningRequest(
                         directory,
                         cpuInput,
@@ -653,6 +736,47 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     private static boolean isNaN(int bits) {
         return (bits & 0x7f800000) == 0x7f800000
                 && (bits & 0x007fffff) != 0;
+    }
+
+    private static void assertAbsEngineResults(
+            NumericalProfile profile,
+            io.github.pho001.synaptik.engine.RunResult result,
+            int[] inputBits) {
+        int expectedPublications = profile == NumericalProfile.STRICT_IEEE ? 2 : 3;
+        assertEquals(expectedPublications, result.resultCount());
+        int[][] actual = new int[expectedPublications][];
+        for (int publication = 0; publication < expectedPublications; publication++) {
+            actual[publication] = rawBits(result.materialize(
+                    result.publications().get(publication),
+                    Math.multiplyExact((long) inputBits.length, Integer.BYTES)).bytes(),
+                    inputBits.length);
+        }
+        assertExactAbs(inputBits, actual[0], profile + " direct ABS");
+        if (profile == NumericalProfile.STRICT_IEEE) {
+            assertExactAbs(inputBits, actual[1], "strict affine/CONTIGUOUS/ABS/NEG/ABS");
+        } else {
+            for (int lane = 0; lane < inputBits.length; lane++) {
+                assertAcceleratorAllowed(
+                        BinaryArithmeticKind.ADD,
+                        inputBits[lane],
+                        0,
+                        actual[1][lane],
+                        "accelerator ABS composition lane=" + lane);
+            }
+            assertExactAbs(actual[1], actual[2], "accelerator binary-to-ABS");
+        }
+    }
+
+    private static void assertExactAbs(int[] inputs, int[] outputs, String label) {
+        assertEquals(inputs.length, outputs.length, label);
+        for (int lane = 0; lane < inputs.length; lane++) {
+            if (isNaN(inputs[lane])) {
+                assertTrue(isNaN(outputs[lane]), label + " NaN lane " + lane);
+            } else {
+                assertEquals(inputs[lane] & 0x7fffffff, outputs[lane],
+                        label + " lane " + lane);
+            }
+        }
     }
 
     private static int[] rawBits(ByteBuffer bytes, int count) {

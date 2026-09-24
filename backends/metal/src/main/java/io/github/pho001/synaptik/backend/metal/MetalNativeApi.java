@@ -122,7 +122,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * @param numericalProfile non-null cold plan profile used by Java fail-closed preflight
      * @param valueRanks non-null value-aligned ranks
      * @param valueDimensions non-null row-major value-count by sixteen dimension table
-     * @param graphProgram non-null version-five typed node table
+     * @param graphProgram non-null version-six typed node table
      * @param feedValueIndices non-null stable feed value indices
      * @param targetValueIndices non-null stable target value indices
      * @return a fresh non-null opaque executable handle owned by the caller
@@ -155,7 +155,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * @param context non-null live context whose ownership remains with the caller
      * @param valueRanks validated value-aligned ranks
      * @param valueDimensions validated padded dimension table
-     * @param graphProgram validated version-five typed topological node table
+     * @param graphProgram validated version-six typed topological node table
      * @param feedValueIndices validated unique feeds
      * @param targetValueIndices validated unique produced targets
      * @return non-null raw status/output-cell result for checked interpretation
@@ -482,7 +482,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
     }
 
-    /** Exact Java preflight for the version-five typed MPSGraph executable-create schema. */
+    /** Exact Java preflight for the version-six typed MPSGraph executable-create schema. */
     static final class MpsGraphExecutableAbi {
         private static final int MAX_RANK = 16;
 
@@ -590,7 +590,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                             "Metal MPSGraph node outputs must be unique and not feeds");
                 }
                 switch (node.kind()) {
-                    case NEG, CONTIGUOUS -> requireShape(
+                    case NEG, ABS, CONTIGUOUS -> requireShape(
                             sameShape(left, output, valueRanks, valueDimensions),
                             node.kind() + " input/output shapes must match exactly");
                     case ADD, SUB, MUL, DIV -> {
@@ -714,12 +714,14 @@ abstract class MetalNativeApi implements AutoCloseable {
                 NumericalProfile numericalProfile, MetalMpsGraphProgram.NodeKind kind) {
             return switch (numericalProfile) {
                 case STRICT_IEEE -> switch (kind) {
-                    case NEG, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, CONTIGUOUS -> true;
+                    case NEG, ABS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE,
+                            CONTIGUOUS -> true;
                     case ADD, SUB, MUL, DIV -> false;
                 };
                 case ACCELERATOR -> switch (kind) {
-                    case ADD, SUB, MUL, DIV -> true;
-                    case NEG, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, CONTIGUOUS -> false;
+                    case ABS, ADD, SUB, MUL, DIV -> true;
+                    case NEG, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE,
+                            CONTIGUOUS -> false;
                 };
             };
         }

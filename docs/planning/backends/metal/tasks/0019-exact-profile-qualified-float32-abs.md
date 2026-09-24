@@ -187,3 +187,13 @@ exact changed-path scope. The review reuses successful worker tests unless it ch
 behavior or identifies a concrete stale-evidence risk.
 
 ## Result
+
+Worker implementation is complete; the task remains `Ready` pending independent Class C review.
+Gate reuse was accepted after comparing `9f7ad2d3e3d0fbdd690f200c14887fd4a158b514` with clean implementation base `54ecd962`: only planning documents changed.
+The selector, oracle/corpus, native executable/build baseline, Apple M3 Max target, and SDK/toolchain remained unchanged, and 0016 retained its 108-executable/864-run raw ABS summary, so no disposable rerun was required.
+
+Both profile matrices now admit exact canonical FLOAT32 ABS through MPSGraph only. Schema 6 appends `ABS=12`; wires `1..11`, ABI v4, all statuses, and exactly thirteen exports remain unchanged.
+Workload, exact-policy, candidate, compatibility, route-policy, and codec identities are version seven; stale version-six, cross-profile, foreign-session, malformed, corrupt, and unknown-wire inputs fail closed.
+
+A fresh dylib passed 86 Metal tests with zero skips/failures plus Javadoc; four Metal conformance, eight real-dylib Engine integration, and nine architecture tests also passed.
+Raw-bit evidence covers both profiles, all required value buckets and compositions, reuse/concurrency/independent contexts, direct targets, session/context/close rejection, while Runtime/Trace remain untouched. Changed Markdown links, anchors, fences, final newlines, whitespace, and `git diff --check` passed; independent review remains the only open gate.

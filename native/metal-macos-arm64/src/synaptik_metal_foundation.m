@@ -35,21 +35,22 @@ typedef enum : uint32_t {
     SYNAPTIK_METAL_MPSGRAPH_PERMUTE = 8U,
     SYNAPTIK_METAL_MPSGRAPH_EXPAND_DIMS = 9U,
     SYNAPTIK_METAL_MPSGRAPH_SQUEEZE = 10U,
-    SYNAPTIK_METAL_MPSGRAPH_CONTIGUOUS = 11U
-} SynaptikMetalMpsGraphOperationV5;
+    SYNAPTIK_METAL_MPSGRAPH_CONTIGUOUS = 11U,
+    SYNAPTIK_METAL_MPSGRAPH_ABS = 12U
+} SynaptikMetalMpsGraphOperationV6;
 
 typedef enum : uint32_t {
     SYNAPTIK_METAL_MPSGRAPH_ATTR_NONE = 0U,
     SYNAPTIK_METAL_MPSGRAPH_ATTR_TARGET_SHAPE = 1U,
     SYNAPTIK_METAL_MPSGRAPH_ATTR_PERMUTATION = 2U,
     SYNAPTIK_METAL_MPSGRAPH_ATTR_AXIS = 3U
-} SynaptikMetalMpsGraphAttributeV5;
+} SynaptikMetalMpsGraphAttributeV6;
 
 typedef enum : uint8_t {
     SYNAPTIK_METAL_VALUE_UNAVAILABLE = 0U,
     SYNAPTIK_METAL_VALUE_CANONICAL = 1U,
     SYNAPTIK_METAL_VALUE_AFFINE_VIEW = 2U
-} SynaptikMetalValueStateV5;
+} SynaptikMetalValueStateV6;
 
 typedef struct {
     uint32_t operation;
@@ -61,12 +62,12 @@ typedef struct {
     uint32_t axis;
     uint32_t reserved;
     uint64_t attribute_values[SYNAPTIK_MAX_RANK];
-} SynaptikMetalMpsGraphNodeV5;
+} SynaptikMetalMpsGraphNodeV6;
 
-_Static_assert(sizeof(SynaptikMetalMpsGraphNodeV5) == 160U,
-        "MPSGraph v5 node record must be exactly 160 bytes");
-_Static_assert(offsetof(SynaptikMetalMpsGraphNodeV5, attribute_values) == 32U,
-        "MPSGraph v5 attribute payload must begin at byte 32");
+_Static_assert(sizeof(SynaptikMetalMpsGraphNodeV6) == 160U,
+        "MPSGraph v6 node record must be exactly 160 bytes");
+_Static_assert(offsetof(SynaptikMetalMpsGraphNodeV6, attribute_values) == 32U,
+        "MPSGraph v6 attribute payload must begin at byte 32");
 
 
 @interface SynaptikMetalContextBox : NSObject
@@ -225,13 +226,13 @@ static BOOL shape_broadcasts_exactly_to(
 }
 
 static BOOL node_values_are_zero_from(
-        SynaptikMetalMpsGraphNodeV5 node, uint32_t first) {
+        SynaptikMetalMpsGraphNodeV6 node, uint32_t first) {
     for (uint32_t index = first; index < SYNAPTIK_MAX_RANK; index++)
         if (node.attribute_values[index] != 0U) return NO;
     return YES;
 }
 
-static BOOL node_has_no_attributes(SynaptikMetalMpsGraphNodeV5 node) {
+static BOOL node_has_no_attributes(SynaptikMetalMpsGraphNodeV6 node) {
     return node.attribute_kind == SYNAPTIK_METAL_MPSGRAPH_ATTR_NONE
             && node.attribute_count == 0U
             && node.axis == UINT32_MAX
@@ -240,7 +241,7 @@ static BOOL node_has_no_attributes(SynaptikMetalMpsGraphNodeV5 node) {
 }
 
 static BOOL node_target_matches(
-        SynaptikMetalMpsGraphNodeV5 node, MPSShape *output) {
+        SynaptikMetalMpsGraphNodeV6 node, MPSShape *output) {
     if (node.attribute_kind != SYNAPTIK_METAL_MPSGRAPH_ATTR_TARGET_SHAPE
             || node.attribute_count != output.count
             || node.attribute_count == 0U
@@ -277,7 +278,7 @@ static uint64_t shape_element_count(MPSShape *shape) {
 }
 
 static BOOL node_permutation_matches(
-        SynaptikMetalMpsGraphNodeV5 node, MPSShape *input, MPSShape *output) {
+        SynaptikMetalMpsGraphNodeV6 node, MPSShape *input, MPSShape *output) {
     if (node.attribute_kind != SYNAPTIK_METAL_MPSGRAPH_ATTR_PERMUTATION
             || node.attribute_count != input.count
             || output.count != input.count
@@ -300,7 +301,7 @@ static BOOL node_permutation_matches(
     return YES;
 }
 
-static BOOL node_axis_header_is_valid(SynaptikMetalMpsGraphNodeV5 node) {
+static BOOL node_axis_header_is_valid(SynaptikMetalMpsGraphNodeV6 node) {
     return node.attribute_kind == SYNAPTIK_METAL_MPSGRAPH_ATTR_AXIS
             && node.attribute_count == 1U
             && node.axis < SYNAPTIK_MAX_RANK
@@ -309,7 +310,7 @@ static BOOL node_axis_header_is_valid(SynaptikMetalMpsGraphNodeV5 node) {
 }
 
 static BOOL node_expand_dims_matches(
-        SynaptikMetalMpsGraphNodeV5 node, MPSShape *input, MPSShape *output) {
+        SynaptikMetalMpsGraphNodeV6 node, MPSShape *input, MPSShape *output) {
     if (!node_axis_header_is_valid(node)
             || output.count != input.count + 1U
             || node.axis > input.count)
@@ -324,7 +325,7 @@ static BOOL node_expand_dims_matches(
 }
 
 static BOOL node_squeeze_matches(
-        SynaptikMetalMpsGraphNodeV5 node, MPSShape *input, MPSShape *output) {
+        SynaptikMetalMpsGraphNodeV6 node, MPSShape *input, MPSShape *output) {
     if (!node_axis_header_is_valid(node)
             || input.count != output.count + 1U
             || node.axis >= input.count
@@ -339,7 +340,7 @@ static BOOL node_squeeze_matches(
 }
 
 static NSArray<NSNumber *> *node_attribute_array(
-        SynaptikMetalMpsGraphNodeV5 node) {
+        SynaptikMetalMpsGraphNodeV6 node) {
     NSMutableArray<NSNumber *> *result =
             [NSMutableArray arrayWithCapacity:node.attribute_count];
     for (uint32_t index = 0; index < node.attribute_count; index++)
@@ -351,12 +352,12 @@ static NSArray<NSNumber *> *node_attribute_array(
 SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
         void *context, uint32_t node_schema_version, uint32_t value_count,
         const uint32_t *value_ranks, const uint64_t *value_dimensions,
-        uint32_t node_count, const SynaptikMetalMpsGraphNodeV5 *nodes,
+        uint32_t node_count, const SynaptikMetalMpsGraphNodeV6 *nodes,
         uint32_t feed_count, const uint32_t *feed_indices,
         uint32_t target_count, const uint32_t *target_indices, void **out_executable) {
     if (out_executable == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
     *out_executable = NULL;
-    if (context == NULL || node_schema_version != 5U || value_count == 0U
+    if (context == NULL || node_schema_version != 6U || value_count == 0U
             || node_count == 0U || feed_count == 0U || target_count == 0U
             || value_ranks == NULL || value_dimensions == NULL || nodes == NULL
             || feed_indices == NULL || target_indices == NULL)
@@ -407,15 +408,16 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
             used[value] = 1U;
         }
         for (uint32_t node_index = 0; node_index < node_count; node_index++) {
-            SynaptikMetalMpsGraphNodeV5 node = nodes[node_index];
+            SynaptikMetalMpsGraphNodeV6 node = nodes[node_index];
             if (node.first_input >= value_count
                     || node.output >= value_count
                     || states[node.first_input] == SYNAPTIK_METAL_VALUE_UNAVAILABLE
                     || states[node.output] != SYNAPTIK_METAL_VALUE_UNAVAILABLE)
                 return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
             BOOL affine_view = NO;
-            switch ((SynaptikMetalMpsGraphOperationV5)node.operation) {
+            switch ((SynaptikMetalMpsGraphOperationV6)node.operation) {
                 case SYNAPTIK_METAL_MPSGRAPH_NEG:
+                case SYNAPTIK_METAL_MPSGRAPH_ABS:
                     if (states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
                             || node.second_input != UINT32_MAX
                             || !node_has_no_attributes(node)
@@ -523,14 +525,17 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
             types[tensor] = type;
         }
         for (uint32_t node_index = 0; node_index < node_count; node_index++) {
-            SynaptikMetalMpsGraphNodeV5 node = nodes[node_index];
+            SynaptikMetalMpsGraphNodeV6 node = nodes[node_index];
             MPSGraphTensor *first = (MPSGraphTensor *)table[node.first_input];
             MPSGraphTensor *second = node.second_input == UINT32_MAX
                     ? nil : (MPSGraphTensor *)table[node.second_input];
             MPSGraphTensor *output = nil;
-            switch ((SynaptikMetalMpsGraphOperationV5)node.operation) {
+            switch ((SynaptikMetalMpsGraphOperationV6)node.operation) {
                 case SYNAPTIK_METAL_MPSGRAPH_NEG:
                     output = [graph negativeWithTensor:first name:nil];
+                    break;
+                case SYNAPTIK_METAL_MPSGRAPH_ABS:
+                    output = [graph absoluteWithTensor:first name:nil];
                     break;
                 case SYNAPTIK_METAL_MPSGRAPH_ADD:
                     output = [graph additionWithPrimaryTensor:first

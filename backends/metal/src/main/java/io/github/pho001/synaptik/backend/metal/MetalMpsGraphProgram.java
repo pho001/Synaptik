@@ -11,18 +11,19 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Immutable typed operation table for the version-five Metal MPSGraph node schema.
+ * Immutable typed operation table for the version-six Metal MPSGraph node schema.
  *
  * <p>ABI version four points at fixed 160-byte discriminated records. Each record contains a
  * closed operation identity, exact ordered value indices, one typed attribute discriminator, and
  * bounded target-shape, permutation, or normalized-axis state. Binary wires {@code 2..5} have two
- * ordered inputs and no attributes. Every unused scalar is a required zero or
- * {@code UINT32_MAX} sentinel and every unused attribute cell is zero. No operation name, generic
- * integer payload, object graph, map, or executable state crosses the ABI.</p>
+ * ordered inputs and no attributes; unary wires {@code 1} and {@code 12} have one input and no
+ * attributes. Every unused scalar is a required zero or {@code UINT32_MAX} sentinel and every
+ * unused attribute cell is zero. No operation name, generic integer payload, object graph, map, or
+ * executable state crosses the ABI.</p>
  */
 final class MetalMpsGraphProgram {
     /** Exact node schema carried across native ABI version four. */
-    static final int SCHEMA_VERSION = 5;
+    static final int SCHEMA_VERSION = 6;
     /** Maximum target rank or permutation length. */
     static final int MAX_RANK = 16;
     /** Exact fixed native record size. */
@@ -76,7 +77,8 @@ final class MetalMpsGraphProgram {
         PERMUTE(8, 1, AttributeKind.PERMUTATION, ValueState.AFFINE_VIEW, true),
         EXPAND_DIMS(9, 1, AttributeKind.AXIS, ValueState.AFFINE_VIEW, true),
         SQUEEZE(10, 1, AttributeKind.AXIS, ValueState.AFFINE_VIEW, true),
-        CONTIGUOUS(11, 1, AttributeKind.NONE, ValueState.CANONICAL, true);
+        CONTIGUOUS(11, 1, AttributeKind.NONE, ValueState.CANONICAL, true),
+        ABS(12, 1, AttributeKind.NONE, ValueState.CANONICAL, false);
 
         private final int wireIdentity;
         private final int inputCount;
@@ -123,7 +125,7 @@ final class MetalMpsGraphProgram {
         }
     }
 
-    /** One immutable typed version-five node record. */
+    /** One immutable typed version-six node record. */
     static final class Node {
         private final NodeKind kind;
         private final int firstInputIndex;
@@ -196,6 +198,10 @@ final class MetalMpsGraphProgram {
 
         static Node neg(int inputIndex, int outputIndex) {
             return noAttributes(NodeKind.NEG, inputIndex, NO_SECOND_INPUT, outputIndex);
+        }
+
+        static Node abs(int inputIndex, int outputIndex) {
+            return noAttributes(NodeKind.ABS, inputIndex, NO_SECOND_INPUT, outputIndex);
         }
 
         static Node binary(
@@ -302,7 +308,7 @@ final class MetalMpsGraphProgram {
         return encoded.array();
     }
 
-    /** Allocates and writes exact native-endian version-five records for one downcall. */
+    /** Allocates and writes exact native-endian version-six records for one downcall. */
     MemorySegment encodeNative(Arena arena) {
         Objects.requireNonNull(arena, "arena");
         long bytes = Math.multiplyExact((long) nodes.size(), NODE_RECORD_BYTES);

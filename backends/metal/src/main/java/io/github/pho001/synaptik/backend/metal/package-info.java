@@ -1,17 +1,18 @@
 /**
  * Supplies explicit capability, configuration, and lifecycle integration for the Metal backend.
  *
- * <p>{@link io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider} reports two disjoint
- * profile-qualified domains. {@code STRICT_IEEE} retains parameterless {@code NEG},
+ * <p>{@link io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider} reports two
+ * profile-qualified domains. {@code STRICT_IEEE} admits parameterless {@code NEG} and {@code ABS},
  * {@code RESHAPE}, {@code EXPAND}, {@code PERMUTE}, {@code EXPAND_DIMS}, {@code SQUEEZE}, and the
- * explicit {@code CONTIGUOUS} canonicalization barrier. {@code ACCELERATOR} admits only tensor
- * {@code ADD}, {@code SUB}, {@code MUL}, and {@code DIV}. Every descriptor is fully static,
- * positive rank {@code 1..16} {@code FLOAT32}. Accelerator binary inputs and outputs are canonical
- * dense non-views and use exact right-aligned broadcasting. Strict graph feeds and {@code NEG}
- * operands are canonical; strict affine inputs may also be exact resolved zero-offset views
- * produced earlier in the same maximal partition. Strict affine outputs retain their exact Model
- * view geometry, while {@code CONTIGUOUS} produces canonical geometry. Metal lowers one complete
- * profile-homogeneous partition as a typed whole-partition program during preparation.</p>
+ * explicit {@code CONTIGUOUS} canonicalization barrier. {@code ACCELERATOR} admits only exact
+ * {@code ABS} plus tensor {@code ADD}, {@code SUB}, {@code MUL}, and {@code DIV}. Every descriptor
+ * is fully static, positive rank {@code 1..16} {@code FLOAT32}. Accelerator binary inputs and
+ * outputs are canonical dense non-views and use exact right-aligned broadcasting. Every
+ * {@code ABS} operand/output and strict graph feed or {@code NEG} operand is canonical; strict
+ * affine inputs may also be exact resolved zero-offset views produced earlier in the same maximal
+ * partition. Strict affine outputs retain their exact Model view geometry, while
+ * {@code CONTIGUOUS} produces canonical geometry. Metal lowers one complete profile-homogeneous
+ * partition as a typed whole-partition program during preparation.</p>
  *
  * <p>{@link io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration} names one explicit
  * native bridge. {@link io.github.pho001.synaptik.backend.metal.MetalBackendIntegration} opens and
@@ -27,6 +28,6 @@
  *
  * <p>The selected numerical profile participates in partition-plan, route, tuning,
  * decision-codec, and workload identity. Java rejects profile/schema mismatches before native
- * entry. ABI version four remains stable; node schema version five adds ordered binary wires.</p>
+ * entry. ABI version four remains stable; node schema version six appends exact ABS wire 12.</p>
  */
 package io.github.pho001.synaptik.backend.metal;

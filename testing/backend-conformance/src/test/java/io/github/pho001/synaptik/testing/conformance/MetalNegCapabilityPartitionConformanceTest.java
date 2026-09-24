@@ -33,22 +33,30 @@ import org.junit.jupiter.api.Test;
 
 /** Conformance checks for public Metal capability truth and Planning maximal closure. */
 final class MetalNegCapabilityPartitionConformanceTest {
-    /** Proves the strict baseline and accelerator binary matrices remain disjoint and closed. */
+    /** Proves the strict and accelerator matrices admit only their complete listed domains. */
     @Test
     void advertisesExactProfileQualifiedDomain() {
         var provider = new MetalCapabilityProvider();
         TensorDescriptor matrix = descriptor(Shape.of(2, 3));
         TensorDescriptor row = descriptor(Shape.of(3));
-        assertTrue(provider.supports(query(
-                NumericalProfile.STRICT_IEEE,
-                operation(UnaryElementwiseKind.NEG),
-                List.of(matrix),
-                List.of(matrix))));
-        assertFalse(provider.supports(query(
-                NumericalProfile.ACCELERATOR,
-                operation(UnaryElementwiseKind.NEG),
-                List.of(matrix),
-                List.of(matrix))));
+        for (UnaryElementwiseKind kind : UnaryElementwiseKind.values()) {
+            assertEquals(
+                    kind == UnaryElementwiseKind.NEG || kind == UnaryElementwiseKind.ABS,
+                    provider.supports(query(
+                            NumericalProfile.STRICT_IEEE,
+                            operation(kind),
+                            List.of(matrix),
+                            List.of(matrix))),
+                    "strict " + kind);
+            assertEquals(
+                    kind == UnaryElementwiseKind.ABS,
+                    provider.supports(query(
+                            NumericalProfile.ACCELERATOR,
+                            operation(kind),
+                            List.of(matrix),
+                            List.of(matrix))),
+                    "accelerator " + kind);
+        }
         for (BinaryArithmeticKind kind : BinaryArithmeticKind.values()) {
             boolean supported = kind == BinaryArithmeticKind.ADD
                     || kind == BinaryArithmeticKind.SUB
@@ -65,11 +73,6 @@ final class MetalNegCapabilityPartitionConformanceTest {
                     List.of(matrix, row),
                     List.of(matrix))));
         }
-        assertFalse(provider.supports(query(
-                NumericalProfile.ACCELERATOR,
-                operation(UnaryElementwiseKind.ABS),
-                List.of(matrix),
-                List.of(matrix))));
         Operation contiguous = new Operation(
                 ContiguousKind.CONTIGUOUS, NoOperationAttrs.INSTANCE);
         assertTrue(provider.supports(query(
