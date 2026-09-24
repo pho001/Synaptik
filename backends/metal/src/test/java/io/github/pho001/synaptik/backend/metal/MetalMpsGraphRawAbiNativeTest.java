@@ -4,6 +4,7 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -164,6 +165,10 @@ class MetalMpsGraphRawAbiNativeTest {
 
     @Test
     void rawVersionElevenUnfoldAxisUsesWireNineteenAndRejectsMalformedWindowState() {
+        assertEquals(16, MetalMpsGraphProgram.MAX_SELECTOR_EXPANSION);
+        assertThrows(IllegalArgumentException.class,
+                () -> MetalMpsGraphProgram.Node.unfoldAxis(0, 1, 1, 17, 1),
+                "Java schema rejects selector expansion above the named cap");
         MetalMpsGraphProgram.Node unfold =
                 MetalMpsGraphProgram.Node.unfoldAxis(0, 1, 1, 3, 2);
         assertEquals(19, unfold.kind().wireIdentity());
@@ -192,6 +197,10 @@ class MetalMpsGraphRawAbiNativeTest {
         int[] ranks = {2, 3};
         long[] dimensions = dimensions(new long[][] {{2, 6}, {2, 2, 3}});
         MetalMpsGraphProgram program = new MetalMpsGraphProgram(List.of(unfold));
+        int[] capRanks = {2, 3};
+        long[] capDimensions = dimensions(new long[][] {{2, 17}, {2, 1, 17}});
+        MetalMpsGraphProgram capProgram = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.unfoldAxis(0, 1, 1, 16, 1)));
         try (RawAbi abi = RawAbi.open()) {
             abi.assertAccepted("canonical unfold axis", ranks, dimensions, program,
                     new int[] {0}, new int[] {1});
@@ -204,7 +213,11 @@ class MetalMpsGraphRawAbiNativeTest {
             abi.assertRejected("unfold axis out of range", ranks, dimensions, program,
                     new int[] {0}, new int[] {1},
                     record -> record.set(JAVA_INT, 24L, 2));
-            abi.assertRejected("unfold size exceeds native bound", ranks, dimensions, program,
+            abi.assertRejected("unfold zero size", ranks, dimensions, program,
+                    new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_LONG, 32L, 0L));
+            abi.assertRejected("unfold size seventeen exceeds only selector cap",
+                    capRanks, capDimensions, capProgram,
                     new int[] {0}, new int[] {1},
                     record -> record.set(JAVA_LONG, 32L, 17L));
             abi.assertRejected("unfold zero step", ranks, dimensions, program,

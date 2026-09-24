@@ -269,7 +269,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 || output.shape().rank() != rank + 1
                 || attrs.axis() >= rank
                 || attrs.size() < 1L
-                || attrs.size() > 16L
+                || attrs.size() > MetalMpsGraphProgram.MAX_SELECTOR_EXPANSION
                 || attrs.step() <= 0L) {
             return false;
         }

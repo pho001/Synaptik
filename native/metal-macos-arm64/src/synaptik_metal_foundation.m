@@ -8,6 +8,7 @@
 
 #define SYNAPTIK_EXPORT __attribute__((visibility("default")))
 #define SYNAPTIK_MAX_RANK 16U
+#define SYNAPTIK_MAX_SELECTOR_EXPANSION 16U
 
 enum {
     SYNAPTIK_METAL_STATUS_OK = 0,
@@ -498,7 +499,7 @@ static BOOL node_unfold_axis_matches(
             || output.count != input.count + 1U
             || node.axis >= input.count
             || node.attribute_values[0] == 0U
-            || node.attribute_values[0] > SYNAPTIK_MAX_RANK
+            || node.attribute_values[0] > SYNAPTIK_MAX_SELECTOR_EXPANSION
             || node.attribute_values[1] == 0U
             || node.attribute_values[1] > (uint64_t)NSIntegerMax
             || !node_values_are_zero_from(node, 2U))

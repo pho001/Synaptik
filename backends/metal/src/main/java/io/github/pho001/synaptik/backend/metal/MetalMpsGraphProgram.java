@@ -30,6 +30,8 @@ final class MetalMpsGraphProgram {
     static final int SCHEMA_VERSION = 11;
     /** Maximum target rank or permutation length. */
     static final int MAX_RANK = 16;
+    /** Maximum number of selectors materialized by one bounded expanding node. */
+    static final int MAX_SELECTOR_EXPANSION = 16;
     /** Exact fixed native record size. */
     static final int NODE_RECORD_BYTES = 160;
     /** Unsigned {@code UINT32_MAX} sentinel for an absent second input. */
@@ -232,7 +234,8 @@ final class MetalMpsGraphProgram {
                 if (kind != NodeKind.UNFOLD_AXIS || attributeCount != 3
                         || axis < 0 || axis >= MAX_RANK || auxiliary != 0
                         || attributeValues.length != 2
-                        || attributeValues[0] < 1L || attributeValues[0] > MAX_RANK
+                        || attributeValues[0] < 1L
+                        || attributeValues[0] > MAX_SELECTOR_EXPANSION
                         || attributeValues[1] <= 0L) {
                     throw new IllegalArgumentException(
                             "window-axis node attributes are malformed");

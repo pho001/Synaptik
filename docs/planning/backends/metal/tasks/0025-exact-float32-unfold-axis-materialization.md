@@ -313,6 +313,26 @@ Worker evidence passed:
 - the single final `./gradlew build` invocation: `BUILD SUCCESSFUL`, 87 actionable tasks, eight
   executed and 79 up-to-date.
 
+The first independent review returned `BLOCK` with two remediation findings. Remediation began from
+exact clean implementation checkpoint `44edd86092509348e1e72cf7f0f4c3b13d141fa8` and does not claim
+review approval. Java now owns a distinct fixed
+`MetalMpsGraphProgram.MAX_SELECTOR_EXPANSION=16` constant, native owns the matching fixed
+`SYNAPTIK_MAX_SELECTOR_EXPANSION=16U` constant, and capability, Java schema/preflight, and native
+preflight no longer reuse rank or an unnamed literal for the selector-expansion policy. Focused
+capability and raw/native proofs use selected extent 17 with exact size-17 output geometry, so size
+17 fails solely at that cap. The capability proof now independently covers the typed-attribute and
+occurrence-cardinality boundaries, both FLOAT32 positions, scalar and rank-16 input, exact Shape,
+input and output layout, `requiresGrad`, size/selected-extent, step-derived position count, and both
+profile states; layout and gradient mismatch cases do not mask one another. Raw validation also
+covers zero size and zero step.
+
+Remediation evidence passed without rerunning the already successful full build:
+
+- `native/metal-macos-arm64/build.sh`; and
+- the two named `MetalCapabilityProviderTest` and `MetalMpsGraphRawAbiNativeTest` remediation
+  methods plus `:backends:metal:javadoc` in one focused Gradle invocation: `BUILD SUCCESSFUL`, 20
+  actionable tasks, four executed and 16 up-to-date.
+
 The exact 32-path checkpoint is:
 
 - production under

@@ -207,29 +207,119 @@ class MetalCapabilityProviderTest {
                 WindowTransformKind.UNFOLD_AXIS, new UnfoldAxisAttrs(1, 3, 2));
         for (NumericalProfile profile : NumericalProfile.values()) {
             assertTrue(provider.supports(new OperationCapabilityQuery(
-                    profile, unfold, List.of(input), List.of(output))));
+                    profile, unfold, List.of(input), List.of(output))),
+                    profile + " admits the same exact occurrence");
         }
+
+        TensorDescriptor capInput = descriptor(Shape.of(2, 17), true);
+        TensorDescriptor capOutput = descriptor(Shape.of(2, 1, 17), true);
+        Operation capExceeded = new Operation(
+                WindowTransformKind.UNFOLD_AXIS, new UnfoldAxisAttrs(1, 17, 1));
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            assertFalse(provider.supports(new OperationCapabilityQuery(
+                    profile, capExceeded, List.of(capInput), List.of(capOutput))),
+                    profile + " rejects size 17 solely at the selector-expansion cap");
+        }
+
+        assertThrows(IllegalArgumentException.class, () ->
+                new Operation(WindowTransformKind.UNFOLD_AXIS, NoOperationAttrs.INSTANCE),
+                "the Model signature excludes wrong attributes before capability dispatch");
+        assertThrows(IllegalArgumentException.class, () ->
+                new OperationCapabilityQuery(
+                        NumericalProfile.STRICT_IEEE, unfold, List.of(input), List.of()),
+                "the occurrence signature excludes malformed output cardinality");
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                unfold,
+                List.of(typed(DataType.FLOAT64, Shape.of(2, 6), true)),
+                List.of(output))),
+                "input type must be FLOAT32");
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                unfold,
+                List.of(input),
+                List.of(typed(DataType.FLOAT64, Shape.of(2, 2, 3), true)))),
+                "output type must be FLOAT32");
+
+        Operation scalarUnfold = new Operation(
+                WindowTransformKind.UNFOLD_AXIS, new UnfoldAxisAttrs(0, 1, 1));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                scalarUnfold,
+                List.of(descriptor(Shape.scalar(), true)),
+                List.of(descriptor(Shape.of(1), true)))),
+                "scalar input is outside the non-scalar window contract");
+        long[] rank16Dimensions = new long[16];
+        java.util.Arrays.fill(rank16Dimensions, 1L);
+        rank16Dimensions[15] = 6L;
+        long[] rank17Dimensions = java.util.Arrays.copyOf(rank16Dimensions, 17);
+        rank17Dimensions[15] = 2L;
+        rank17Dimensions[16] = 3L;
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                new Operation(
+                        WindowTransformKind.UNFOLD_AXIS, new UnfoldAxisAttrs(15, 3, 2)),
+                List.of(descriptor(Shape.of(rank16Dimensions), true)),
+                List.of(descriptor(Shape.of(rank17Dimensions), true)))),
+                "rank-sixteen input cannot produce the required rank-seventeen output");
 
         assertFalse(provider.supports(new OperationCapabilityQuery(
                 NumericalProfile.STRICT_IEEE,
-                new Operation(WindowTransformKind.UNFOLD_AXIS, new UnfoldAxisAttrs(1, 17, 1)),
+                unfold,
                 List.of(input),
-                List.of(descriptor(Shape.of(2, 1, 17), true)))));
+                List.of(descriptor(Shape.of(2, 3, 3), true)))),
+                "output Shape must match exact window geometry");
+        TensorDescriptor inputView = new TensorDescriptor(
+                DataType.FLOAT32,
+                input.shape(),
+                Optional.of(LayoutDescriptor.of(
+                        input.shape(), new long[] {7, 1}, 0L, true)),
+                true);
         assertFalse(provider.supports(new OperationCapabilityQuery(
-                NumericalProfile.ACCELERATOR,
-                new Operation(WindowTransformKind.UNFOLD_AXIS, new UnfoldAxisAttrs(1, 7, 1)),
-                List.of(input),
-                List.of(descriptor(Shape.of(2, 1, 7), true)))));
+                NumericalProfile.STRICT_IEEE,
+                unfold,
+                List.of(inputView),
+                List.of(output))),
+                "input layout must be canonical independently of gradient state");
+        TensorDescriptor outputView = new TensorDescriptor(
+                DataType.FLOAT32,
+                output.shape(),
+                Optional.of(LayoutDescriptor.of(
+                        output.shape(), new long[] {12, 3, 1}, 0L, true)),
+                true);
         assertFalse(provider.supports(new OperationCapabilityQuery(
                 NumericalProfile.STRICT_IEEE,
                 unfold,
                 List.of(input),
-                List.of(descriptor(Shape.of(2, 3, 3), true)))));
+                List.of(outputView))),
+                "output layout must be canonical independently of gradient state");
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                unfold,
+                List.of(input),
+                List.of(descriptor(output.shape(), false)))),
+                "requiresGrad must agree independently of layout");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> new UnfoldAxisAttrs(1, 0, 1),
+                "zero window size is excluded by the typed attributes");
+        assertThrows(IllegalArgumentException.class,
+                () -> new UnfoldAxisAttrs(1, 3, 0),
+                "zero step is excluded by the typed attributes");
         assertFalse(provider.supports(new OperationCapabilityQuery(
                 NumericalProfile.ACCELERATOR,
-                unfold,
-                List.of(view(Shape.of(2, 6), 6, 1)),
-                List.of(descriptor(Shape.of(2, 2, 3), false)))));
+                new Operation(
+                        WindowTransformKind.UNFOLD_AXIS, new UnfoldAxisAttrs(1, 7, 1)),
+                List.of(input),
+                List.of(descriptor(Shape.of(2, 1, 7), true)))),
+                "window size cannot exceed the selected extent");
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                new Operation(
+                        WindowTransformKind.UNFOLD_AXIS, new UnfoldAxisAttrs(1, 3, 3)),
+                List.of(descriptor(Shape.of(2, 7), true)),
+                List.of(descriptor(Shape.of(2, 3, 3), true)))),
+                "step participates in the exact output-position count");
     }
 
     @Test

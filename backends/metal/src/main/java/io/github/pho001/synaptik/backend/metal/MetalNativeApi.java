@@ -964,7 +964,9 @@ abstract class MetalNativeApi implements AutoCloseable {
             }
             long size = attributes[0];
             long step = attributes[1];
-            if (size < 1L || size > 16L || step <= 0L) {
+            if (size < 1L
+                    || size > MetalMpsGraphProgram.MAX_SELECTOR_EXPANSION
+                    || step <= 0L) {
                 return false;
             }
             int inputRow = input * MAX_RANK;
