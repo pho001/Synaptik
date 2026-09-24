@@ -2,16 +2,18 @@
 
 ## Status
 
-Ready
+Complete
 
-Implementation checkpoint: the completely fresh disposable Apple M3 Max oracle passed before
-production edits and was removed. Metal remains ABI v4 with exactly thirteen exports; the
+Completed at implementation `ef2c6a1a`, worker-evidence remediation `be5543f9`, and final
+evidence-count remediation `5631d51f`. The completely fresh disposable Apple M3 Max oracle passed
+before production edits and was removed. Metal remains ABI v4 with exactly thirteen exports; the
 implementation advances the fixed node schema to 8 with `MATMUL=15` and advances
 workload/exact-policy/candidate/compatibility/route/codec identities to version nine. Historical
 Metal 0018 remains Blocked without active write scope; Metal 0016 has no restart. Model 0029 is
 Complete at `308267837a17c2fdbeb8b90ad381d1f899980786`, and Metal 0020, Model 0027, Config
-0006, and Engine 0018 remain Complete. This task remains Ready only because mandatory independent
-Class C review has not yet run; no earlier 0018 probe artifact or partial cell was reused.
+0006, and Engine 0018 remain Complete. Final independent Class C review returned `APPROVE` with
+zero findings after verifying the corrected 15-of-15 Markdown evidence and retained checkpoint,
+ABI/export, probe-removal, path-count, and status evidence without unnecessary broad reruns.
 
 ## Change class
 
@@ -186,8 +188,8 @@ real seeded Engine proof, Runtime/Trace absence, changed scope, and probe remova
 
 ## Result
 
-Implementation and worker validation are complete; status remains `Ready` pending one independent
-Class C review. Before production edits, a fresh disposable Objective-C probe passed:
+Implementation, worker validation, evidence remediation, and independent Class C review are
+complete. Before production edits, a fresh disposable Objective-C probe passed:
 
 ```text
 PASS device=Apple M3 Max smoke_executables=1 smoke_runs=1 full_executables=384
@@ -204,8 +206,7 @@ reassociation/FMA, exact-zero publication, all-term, and reduced-precision contr
 `K=1` witness retained product `-0` and passed only through Model 0029's final-publication
 either-zero-sign freedom. The source and binary were removed before production edits.
 
-Original implementation checkpoint evidence (recorded for this remediation; no review approval
-is implied and status remains `Ready`):
+The implementation checkpoint evidence later audited and accepted by independent review was:
 
 ```text
 Metal focused tests: 98/98 passed, 0 skipped
@@ -239,3 +240,13 @@ inspection proves `seed @ transpose(right)` and `transpose(left) @ seed` beneath
 shape-restoration boundaries; real runs publish raw-bit-checked forward and both operand gradients
 with no CPU owner. Strict MATMUL remains false. No Runtime, Trace, public API, ABI export,
 packaging, discovery, scalar-loss training, batched MATMUL, or broader backward scope was added.
+
+The final independent Class C review first identified missing worker-validation evidence, accepted
+its task-brief-only correction at `be5543f9`, then identified the Markdown count wording defect.
+Commit `5631d51f` corrected only that Task 0021 evidence: 14 changed Markdown files passed the
+ordinary validator and `docs/api/tensor-api.md` passed the baseline-aware comparison with the same
+172 pre-existing duplicate-heading diagnostics and no new or nonduplicate diagnostics. Re-review
+returned `APPROVE` with zero findings. The complete chain is implementation `ef2c6a1a`, evidence
+remediation `be5543f9`, final evidence correction `5631d51f`, and independent Class C approval.
+
+Status: Complete
