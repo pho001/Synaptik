@@ -92,9 +92,9 @@ loss own no mode, session, or hidden mutable statistics.
 
 ## Task list
 
-The table is the ordered queue and status source. Evidence stays in linked briefs. Task 0031 is the
-sole Ready Model/repository frontier; task 0026 remains an independent Draft. Task 0030 remains
-`Review needed`, but final review is blocked on 0031 and the resulting remediation.
+The table is the ordered queue and status source. Evidence stays in linked briefs. Task 0031 is
+Complete and Task 0030 remains `Review needed` pending remediation and independent rereview; no
+Model/repository task is Ready. Task 0026 remains an independent Draft.
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
@@ -240,7 +240,7 @@ sole Ready Model/repository frontier; task 0026 remains an independent Draft. Ta
 | 0028 | [ACCELERATOR reduction exact-zero sign freedom](tasks/0028-accelerator-reduction-exact-zero-sign-freedom.md) | Complete | 0027; corrected Metal 0017 blocker evidence | Established final-result-only exact-zero sign freedom for arithmetic FLOAT32 SUM/MEAN/SUM_TO_SHAPE while preserving strict, terms, identities, copies, and count division; implementation `fc003ab8`, proof and 23-task validation passed, and Class C review approved with zero findings. |
 | 0029 | [ACCELERATOR MATMUL exact-zero sign freedom](tasks/0029-accelerator-matmul-exact-zero-sign-freedom.md) | Complete | 0027; 0028; retained Metal 0018 blocker evidence | Split the contraction row and established only final-publication either-zero-sign freedom for a complete nonempty exact-zero FLOAT32 ACCELERATOR MATMUL result; implementation `30826783`, proof and 23-task validation passed, and Class C review approved with zero findings. |
 | 0030 | [Total recursive ACCELERATOR numerical floor](tasks/0030-total-recursive-accelerator-numerical-floor.md) | Review needed | 0027–0029; completed profile spine and backend realizations; retained Metal blocker evidence through 0040; approved minimal recursive redesign | Implemented the documentation-only cutover to total exact/discrete, primitive FLOAT32, all-contributors-once aggregate, and composite-inheritance floors across every current Model family and generated-gradient consequence; preserved the two-value API and all capability/identity behavior; Metal 0051 remains Draft. |
-| 0031 | [STRICT unary numerical baseline](tasks/0031-strict-unary-numerical-baseline.md) | Ready | 0018T1; 0019A; 0027–0029; completed CPU 0005H/0005I evidence | Close the previously deferred strict allowed-result set for all nineteen unary kinds through documentation/Javadoc only, preserve current CPU results, then make it the explicit Task 0030 prerequisite. |
+| 0031 | [STRICT unary numerical baseline](tasks/0031-strict-unary-numerical-baseline.md) | Complete | 0018T1; 0019A; 0027–0029; completed CPU 0005H/0005I evidence | Closed the previously deferred strict allowed-result set for all nineteen unary kinds through documentation/Javadoc only, preserving current CPU results and changing no executable behavior or capability. |
 
 ## Milestones and current frontier
 
@@ -268,24 +268,23 @@ sole Ready Model/repository frontier; task 0026 remains an independent Draft. Ta
   cutover from planning base `333f780d1acbe234a2231cbced78535895a23f7a`. Required Model tests,
   Model Javadocs, architecture tests, and affected Config/Compiler/Engine Javadocs passed.
   Independent review found that its unchanged-STRICT premise was not yet explicit.
-- Task 0031 is the sole `Ready` repository frontier. Its dependencies and retained CPU unary
-  evidence are complete at common base `4bd26e72a4f3aa71a6607269991f1b96b880812f`; it owns the
-  missing strict unary baseline as a documentation/Javadoc-only prerequisite. Task 0030 remains
-  review-blocked until 0031 is Complete and remediation rests the recursive contract on that
-  explicit baseline. Metal 0051 remains Draft.
+- Task 0031 is `Complete`. Its documentation/Javadoc-only decision closes the missing strict unary
+  baseline for all nineteen kinds from retained public and CPU evidence. The focused 23-task
+  Model test/Javadoc/architecture checkpoint passed; no executable statement or capability
+  changed. Task 0030 remains `Review needed` pending remediation that makes 0031 its explicit
+  prerequisite. Metal 0051 remains Draft and no repository task is Ready.
 - Task 0026 remains an independent `Draft` with no detailed brief or dependency relationship to
   0027–0030. It is selected only when IEEE-754 binary16 `FLOAT16` becomes current.
 
 ## Live gates, decisions, and risks
 
 - **Explicit numerical profiles:** completed 0027–0029 established the prior table and focused
-  zero-sign refinements. Review-needed 0030 implemented a proposed minimal recursive clean cutover,
-  but its claim that `STRICT_IEEE` stayed unchanged preceded a complete strict unary allowed-result
-  baseline. Ready Task 0031 now owns that missing decision for all nineteen unary kinds and must
-  complete before 0030 remediation and re-review. Current CPU/Metal capability and identities
-  remain unchanged. Draft Metal 0051 may add only accelerator FLOAT32 `EXP`/`SIGMOID` after 0030
-  is Complete and independently approved, with candidate certification and cold
-  route-adjudication evidence before capability becomes true.
+  zero-sign refinements. Complete 0031 now owns the explicit strict allowed-result baseline for
+  all nineteen unary kinds, including subnormal/special-class rules and selected fixed result
+  sets without promoting backend test tolerances to public envelopes. Review-needed 0030 must be
+  remediated to depend on that baseline and to correct its recursive metric, composite sites, and
+  reachability wording before rereview. Current CPU/Metal capability and identities remain
+  unchanged. Draft Metal 0051 remains gated on completed and independently approved 0030.
 - **FLOAT16 and mixed precision:** BFLOAT16 remains a distinct current type. Only 0026 may add true
   IEEE binary16 FLOAT16 and must audit each affected family’s input, accumulation/intermediate,
   and output types. A shared two-byte carrier does not imply arithmetic, Java Vector support, or a

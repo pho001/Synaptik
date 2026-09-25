@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Change class
 
@@ -34,11 +34,11 @@ special classes, signed zero, and subnormal behavior explicit enough for conform
   `max(x,+0)` for ReLU. `SQRT` uses its correctly rounded scalar reference and the retained vector
   result at distance at most one from that reference. NaN payload/sign are unspecified; NaN
   classification is mandatory.
-- `LOG`, `LOG1P`, `EXP`, and `EXPM1` use their selected scalar `StrictMath` result, with exact
-  widening and one final narrowing for binary32, or a retained vector result at distance at most
-  two from that scalar reference. `TANH` similarly uses its selected scalar result or a retained
-  vector result at distance at most five. These are inclusive scalar-relative route bounds, not
-  claims about the exact mathematical reference.
+- `LOG`, `LOG1P`, `EXP`, and `EXPM1` use their selected scalar or lane-wise Java operation.
+  The Java one-ULP exact-reference contract is at most ordered distance two at a binade boundary.
+  `TANH` uses the corresponding 2.5-ULP contract, which is at most ordered distance five at a
+  binade boundary. The retained five-step vector/scalar differential gate corroborates the lane
+  route; it is not another error term. All ceilings are inclusive.
 - Define `RSQRT` against the retained first-class `1 / sqrt(x)` scalar realization: exact widening
   of a represented binary32 input to binary64, binary64 `StrictMath.sqrt`, one binary64 division,
   and one final ties-to-even binary32 narrowing; the retained vector result may be at most two
@@ -110,8 +110,7 @@ blocked until this prerequisite completes and its remediation rests on the expli
   exclusions are unambiguous.
 - GELU, tanh GELU, and SiLU formulas enumerate their primitive exponent and constant sites; no
   whole-operation envelope is mistaken for Task 0030 accelerator recursion.
-- Task 0030 names completed 0031 as a prerequisite before its own remediation can remain
-  `Review needed`.
+- Completed Task 0031 is the explicit strict prerequisite for Task 0030 remediation and re-review.
 - No executable/API/capability/schema/cache/hot-path behavior changes.
 
 ## Validation
@@ -133,4 +132,14 @@ task changes no executable statement.
 
 ## Result
 
-Pending execution.
+Completed the documentation/Javadoc-only strict unary decision for all nineteen current kinds.
+The normative contract now defines the ordered-representation metric, inclusive finite bounds,
+selected scalar/typed-lane result sets, subnormal and special-class rules, and fixed first-class
+formula sites without treating backend test tolerances as public result envelopes. Unary kind,
+Tensor, public API, glossary, Model master, and roadmap wording are synchronized. No executable
+statement, API shape, capability, route, schema, cache, tuning, or hot-path behavior changed.
+
+`./gradlew :modules:model:test :modules:model:javadoc :testing:architecture-tests:test` passed
+with 23 actionable tasks, three executed and twenty up-to-date. Generated Model Javadocs, changed
+Markdown links/anchors/fences/newlines, and `git diff --check` passed. Task 0030 remains
+`Review needed` and its remediation now depends explicitly on this completed baseline.

@@ -25,14 +25,14 @@ import java.util.List;
  * #toString()} text is stable diagnostic vocabulary only, not a serialization token, registry
  * key, or string-dispatch contract.</p>
  *
- * <p>Under the Model-owned numerical-profile contract, {@code STRICT_IEEE} retains each formula
- * and its signed-zero, infinity, NaN, and domain rules below. For {@code ACCELERATOR FLOAT32},
- * named arithmetic sites may use DAZ/FTZ; logarithmic, exponential, error-function,
- * root/reciprocal-root, sigmoid/tanh, GELU, and SiLU elementary sites have the five-ULP
- * primitive-site ceiling. Composite activation formulas recurse through their named sites and
- * gain no final-output envelope. Ordinary finite values cannot change class except by actual
- * overflow or a domain path after DAZ, NaN cannot become ordinary, and non-FLOAT32 behavior stays
- * strict. See the
+ * <p>Under the Model-owned numerical-profile contract, {@code STRICT_IEEE} has an explicit
+ * allowed-result baseline for all nineteen kinds. It preserves normal and subnormal values,
+ * domains, special classes, and required zero signs. Exact/discrete kinds retain their represented
+ * result; selected Java elementary operations retain their documented accuracy; reciprocal square
+ * root, error function, sigmoid, and the three composite activations retain the fixed scalar or
+ * typed-lane realizations named below. Loose backend conformance tolerances are not public result
+ * envelopes. For {@code ACCELERATOR FLOAT32}, named primitive sites may additionally use the
+ * recursive accelerator floors; composite formulas gain no final-output envelope. See the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
  * numerical-profile contract</a>.</p>
  */
@@ -78,10 +78,11 @@ public enum UnaryElementwiseKind implements OperationKind {
     /**
      * Produces the natural logarithm of one plus each input value.
      *
-     * <p>This portable mathematical request preserves signed zero, produces negative infinity at
-     * negative one, produces NaN below negative one and for NaN input, and maps positive infinity
-     * to positive infinity. It does not select an algorithm or promise correct rounding, a
-     * bitwise result, an accuracy bound, a gradient rule, an execution route, or backend
+     * <p>The target is the first-class {@code log1p(x)} function. It preserves signed zero,
+     * produces negative infinity at negative one, produces NaN below negative one and for NaN
+     * input, and maps positive infinity to positive infinity. The strict result is the selected
+     * Java scalar or lane operation under the family baseline; it is not a stored addition
+     * followed by {@link #LOG}. It selects no gradient rule, execution route, or backend
      * availability.</p>
      */
     LOG1P,
@@ -98,10 +99,11 @@ public enum UnaryElementwiseKind implements OperationKind {
     /**
      * Produces the natural exponential of each input value minus one.
      *
-     * <p>This portable mathematical request preserves signed zero, maps negative infinity to
-     * negative one and positive infinity to positive infinity, and produces NaN for NaN input.
-     * It does not select an algorithm or promise correct rounding, a bitwise result, an accuracy
-     * bound, a gradient rule, an execution route, or backend availability.</p>
+     * <p>The target is the first-class {@code expm1(x)} function. It preserves signed zero, maps
+     * negative infinity to negative one and positive infinity to positive infinity, and produces
+     * NaN for NaN input. The strict result is the selected Java scalar or lane operation under the
+     * family baseline; it is not a stored {@link #EXP} followed by subtraction. It selects no
+     * gradient rule, execution route, or backend availability.</p>
      */
     EXPM1,
 
@@ -109,8 +111,10 @@ public enum UnaryElementwiseKind implements OperationKind {
      * Produces the Gaussian error function of each input value.
      *
      * <p>The mathematical target is odd, preserves signed zero, maps signed infinity to the
-     * same-signed unit value, and maps NaN to NaN. It selects no algorithm, gradient rule,
-     * execution route, or backend availability.</p>
+     * same-signed unit value, and maps NaN to NaN. Strict results are the selected scalar
+     * Cephes-derived piecewise realization or selected typed lane realization, including their
+     * fixed coefficients, branches, operation order, and special corrections. It selects no
+     * gradient rule, execution route, or backend availability.</p>
      */
     ERF,
 
@@ -126,12 +130,12 @@ public enum UnaryElementwiseKind implements OperationKind {
     /**
      * Produces the reciprocal of the principal square root of each input value.
      *
-     * <p>This is one first-class mathematical request. Positive and negative zero map to
+     * <p>This is one first-class {@code 1 / sqrt(x)} request. Positive and negative zero map to
      * same-signed infinity, positive infinity maps to positive zero, negative finite values and
-     * negative infinity produce NaN, and NaN produces NaN. It does not store a square-root
-     * operation followed by a reciprocal operation or promise correct rounding, a bitwise result,
-     * or an accuracy bound. Gradients, execution, and backend availability belong to later owning
-     * contracts.</p>
+     * negative infinity produce NaN, and NaN produces NaN. Strict results are the retained scalar
+     * or typed-lane square-root-then-division realization; FLOAT32 scalar execution widens the
+     * input, performs both binary64 operations, and narrows only the final result. The kind stores
+     * neither primitive operation and selects no gradient rule, route, or backend availability.</p>
      */
     RSQRT,
 
@@ -176,9 +180,11 @@ public enum UnaryElementwiseKind implements OperationKind {
     /**
      * Applies the logistic sigmoid activation to each input value.
      *
-     * <p>The mathematical target is {@code 1 / (1 + exp(-x))}: negative infinity maps to positive
-     * zero, positive infinity maps to one, and NaN maps to NaN. This identity selects no stability
-     * algorithm, gradient rule, execution route, or backend availability.</p>
+     * <p>The selected stable target is {@code 1 / (1 + exp(-x))} for nonnegative input and
+     * {@code exp(x) / (1 + exp(x))} for negative input. Negative infinity maps to positive zero,
+     * positive infinity maps to one, and NaN maps to NaN. The sign comparison and each negation,
+     * exponential, addition, and division are explicit formula sites; the kind selects no
+     * gradient rule, execution route, or backend availability.</p>
      */
     SIGMOID,
 
@@ -194,35 +200,38 @@ public enum UnaryElementwiseKind implements OperationKind {
     /**
      * Applies the exact Gaussian error linear unit to each input value.
      *
-     * <p>The selected mathematical target is {@code x * Phi(x)}, equivalently
-     * {@code 0.5 * x * (1 + erf(x / sqrt(2)))}. Its continuous extension maps negative infinity
+     * <p>The selected target is {@code 0.5 * x * (1 + erf(x / sqrt(2)))}. Its typed {@code 0.5},
+     * {@code 1}, and {@code 2} constants, square root, division, error-function, addition, and two
+     * multiplications are the complete primitive sites. Strict uses the fixed selected operation
+     * order and strict {@link #ERF} realization. The continuous extension maps negative infinity
      * to negative zero, preserves signed zero, maps positive infinity to positive infinity, and
-     * produces NaN for NaN input. This first-class request does not prescribe composition,
-     * rounding, an approximation algorithm, a gradient rule, execution, or backend support.</p>
+     * produces NaN for NaN input. The kind selects no gradient rule, route, or backend support.</p>
      */
     GELU,
 
     /**
      * Applies the fixed conventional hyperbolic-tangent GELU approximation to each input value.
      *
-     * <p>The selected mathematical target is
-     * {@code 0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * x^3)))}. Its continuous extension
-     * maps negative infinity to negative zero, preserves signed zero, maps positive infinity to
-     * positive infinity, and produces NaN for NaN input. This is a distinct parameterless
-     * semantic request, not configurable permission to choose another approximation. It does not
-     * prescribe composition, rounding, an evaluation algorithm, a gradient rule, execution, or
-     * backend support.</p>
+     * <p>The selected target is
+     * {@code 0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * x^3)))}. The typed
+     * {@code 0.5}, {@code 1}, {@code 2}, {@code pi}, and {@code 0.044715} constants; {@code x*x}
+     * and {@code x^2*x}; root, division, additions, remaining multiplications, and {@link #TANH}
+     * are the complete primitive sites in the fixed strict order. Its continuous extension maps
+     * negative infinity to negative zero, preserves signed zero, maps positive infinity to
+     * positive infinity, and produces NaN for NaN input. This is not permission to select another
+     * approximation, gradient rule, route, or backend.</p>
      */
     GELU_TANH_APPROXIMATION,
 
     /**
      * Applies the sigmoid linear unit activation to each input value.
      *
-     * <p>The selected mathematical target is {@code x * sigmoid(x)}, equivalently
-     * {@code x / (1 + exp(-x))}. Its continuous extension maps negative infinity to negative
-     * zero, preserves signed zero, maps positive infinity to positive infinity, and produces NaN
-     * for NaN input. This first-class request does not prescribe literal composition, rounding,
-     * an evaluation algorithm, a gradient rule, execution, or backend support.</p>
+     * <p>The selected stable target is {@code x / (1 + exp(-x))} for nonnegative input and
+     * {@code x * exp(x) / (1 + exp(x))} for negative input. The sign comparison, negation,
+     * exponential, additions, multiplication, and divisions are the complete formula sites.
+     * Its continuous extension maps negative infinity to negative zero, preserves signed zero,
+     * maps positive infinity to positive infinity, and produces NaN for NaN input. The kind
+     * selects no gradient rule, route, or backend support.</p>
      */
     SILU;
 

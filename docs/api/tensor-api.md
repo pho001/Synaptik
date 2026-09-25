@@ -3155,13 +3155,25 @@ data type, immutable `Shape` reference, and `requiresGrad` flag, while leaving l
 That flag is eligibility metadata; it does not assert that a derivative or backward rule exists.
 
 `rsqrt`, `log1p`, `expm1`, both GELU variants, and SiLU are first-class transforms, not stored
-compositions. Exact GELU selects
-`x * Phi(x) = 0.5 * x * (1 + erf(x / sqrt(2)))`. The explicitly named tanh approximation selects
-the fixed function
-`0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * x^3)))`; it is not configurable permission
-to substitute another approximation. SiLU selects `x * sigmoid(x) = x / (1 + exp(-x))`. The API
-uses canonical `silu` naming and provides no `swish` alias. Their selected special-value meanings
-are:
+compositions. Their `STRICT_IEEE` allowed-result sets are nevertheless explicit. Strict preserves
+normal and subnormal values and every required domain, infinity, NaN-class, and signed-zero rule;
+it permits no DAZ or FTZ. Exact kinds retain their represented operation. Java elementary kinds
+retain the selected scalar or typed-lane operation and its documented accuracy. `RSQRT`, `ERF`,
+`SIGMOID`, GELU, tanh GELU, and SiLU retain the fixed realizations named by the Model contract,
+rather than turning CPU qualification tolerances into public result envelopes.
+
+Exact GELU selects `0.5 * x * (1 + erf(x / sqrt(2)))`. Its typed constants, square root,
+division, `ERF`, addition, and two multiplications are its complete primitive sites. The explicitly
+named tanh approximation selects
+`0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * x^3)))`; its typed constants, `x*x`,
+`x^2*x`, root, division, additions, remaining multiplications, and `TANH` are complete. Sigmoid
+uses `1/(1+exp(-x))` for nonnegative input and `exp(x)/(1+exp(x))` for negative input. SiLU uses
+`x/(1+exp(-x))` and `x*exp(x)/(1+exp(x))` on the corresponding branches. Its comparison,
+negation, exponential, additions, multiplication, and divisions are explicit sites. The API uses
+canonical `silu` naming and provides no `swish` alias. None of these first-class operations gains
+a whole-result accelerator envelope.
+
+Their selected special-value meanings are:
 
 | Method | Selected special-value behavior |
 |---|---|
@@ -3172,12 +3184,9 @@ are:
 | `geluTanhApproximation` | Negative infinity becomes negative zero by continuous extension; signed zero is preserved; positive infinity remains positive infinity; NaN produces NaN. |
 | `silu` | Negative infinity becomes negative zero by continuous extension; signed zero is preserved; positive infinity remains positive infinity; NaN produces NaN. |
 
-These names select portable mathematical targets. The infinity entries for GELU and SiLU are
-function-level continuous extensions, not a required literal order of primitive floating
-operations. The names do not promise correct rounding, a fixed
-unit-in-the-last-place (ULP) or relative-error bound, a bitwise result, an algorithm, or a backend
-route. Compiler and backend work may preserve useful near-zero accuracy for `log1p` and `expm1`
-because the model records the transforms without decomposition.
+These meanings specify results, not Tensor construction-time evaluation or a backend capability.
+Compiler and backend work may preserve useful near-zero accuracy for `log1p` and `expm1` because
+the model records the transforms without decomposition.
 
 Three separate floating-classification methods describe BOOL values:
 
@@ -10540,12 +10549,13 @@ Operation exponential = new Operation(
 
 The enum does not store the input, infer a result descriptor, or create provenance. The current
 public unary Tensor methods own those expression-construction rules. `RSQRT`, `LOG1P`, `EXPM1`,
-`GELU`, `GELU_TANH_APPROXIMATION`, and `SILU` remain first-class operations rather than
-decompositions. The two GELU kinds select distinct exact functions; neither carries configurable
-attributes. Together with `EXP` and `TANH`, these are portable mathematical requests: no kind
-selects an algorithm, bitwise result, fixed accuracy bound, gradient rule, or backend route. The
-selected formulas and special-value semantics are documented in [Unary numeric
-transforms and floating classifications](#unary-numeric-transforms-and-floating-classifications).
+`GELU`, `GELU_TANH_APPROXIMATION`, and `SILU` remain first-class operations rather than graph
+decompositions. The two GELU kinds select distinct fixed functions; neither carries configurable
+attributes. Every kind now has an explicit strict result rule through the selected represented,
+Java elementary, or fixed-formula realization, together with exact domain, special-class, and
+signed-zero requirements. The kind itself still selects no gradient rule or backend route.
+Selected formulas and special-value semantics are documented in [Unary numeric transforms and
+floating classifications](#unary-numeric-transforms-and-floating-classifications).
 Inherited enum names are diagnostic text, not serialization or dispatch keys, and equally named
 kinds from another family remain different typed values.
 

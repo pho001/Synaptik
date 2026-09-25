@@ -140,6 +140,41 @@ and fused-multiply-add promise or freedom. The name does not promise universal b
 correct rounding, Java `strictfp`, a fixed instruction sequence, or cross-backend equality beyond
 each operation's existing contract.
 
+For unary semantics, the strict baseline is now explicit for all nineteen current kinds. It
+preserves represented normal and subnormal inputs and results: no denormals-are-zero (DAZ),
+flush-to-zero (FTZ), reduced precision, reciprocal estimate, or unlisted reassociation applies.
+NaN must remain NaN, although payload, quieting, and sign are not promised. The per-kind domain,
+infinity, and signed-zero rules in `UnaryElementwiseKind` remain mandatory.
+
+Finite same-format accuracy uses an ordered-representation distance only where stated. For a raw
+binary32 word `b`, define `key32(b)` as unsigned `~b` when its sign bit is set and unsigned
+`b ^ 0x80000000` otherwise; binary64 uses the analogous sign-bit transform. Distance is the
+unsigned absolute difference between keys. Thus the reference has distance zero and negative zero
+and positive zero are adjacent. Every ceiling is inclusive, while zero sign, NaN, infinity,
+overflow, underflow, and domain are checked separately.
+
+The current strict unary result set is:
+
+| Kinds | Strict ordinary-finite result rule |
+|---|---|
+| `ABS`, `NEG`, `RECIPROCAL`, `FLOOR`, `CEIL`, `SIGN`, `RELU` | Exact selected represented operation: sign edit, typed `+1 / x`, integral rounding, sign classification, or `max(x,+0)` respectively. |
+| `LOG`, `LOG1P`, `EXP`, `EXPM1` | The selected scalar or lane-wise Java operation. Its one-unit-in-the-last-place contract is at most ordered distance two from the correctly rounded exact same-format reference at a binade boundary. FLOAT32 lane operations use the specified exact widening to binary64 and one final narrowing. |
+| `SQRT` | Correctly rounded same-format principal square root. |
+| `TANH` | The selected scalar or lane-wise Java operation. Its 2.5-unit-in-the-last-place contract is at most ordered distance five from the correctly rounded exact same-format reference at a binade boundary. The retained five-step scalar differential gate is corroboration, not an additional error term. |
+| `RSQRT` | The exact union of the retained first-class scalar and lane realizations of typed `+1 / sqrt(x)`: FLOAT32 scalar widens once, performs binary64 square root and division, then narrows once; the FLOAT32 lane form performs typed square root then typed division. |
+| `ERF` | The exact union of the selected scalar Cephes-derived piecewise realization and selected typed lane realization, including their fixed coefficients, branches, operation order, and special corrections. |
+| `SIGMOID` | The selected stable branch: `1/(1+exp(-x))` for nonnegative input and `exp(x)/(1+exp(x))` for negative input, in the result format's retained scalar realization. |
+| `GELU` | The selected exact-GELU realization `0.5*x*(1+erf(x/sqrt(2)))`, using its selected strict `ERF` realization and fixed operation order. |
+| `GELU_TANH_APPROXIMATION` | The selected fixed formula `0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))` and fixed operation order. |
+| `SILU` | The selected stable branch: `x/(1+exp(-x))` for nonnegative input and `x*exp(x)/(1+exp(x))` for negative input. |
+
+The retained CPU relative-error checks for `ERF`, `SIGMOID`, both GELU kinds, and `SILU` qualify
+those fixed realizations; they are not public strict result envelopes. In particular, they cannot
+turn an FTZ result or a wrong zero, infinity, NaN, or domain class into a strict result. BFLOAT16
+has the same mathematical targets and mandatory special classes, but no current backend unary
+capability; its future finite realization requires separate qualification rather than inference
+from storage width.
+
 `ACCELERATOR` is an opt-in superset of the complete `STRICT_IEEE` allowed-result set. A backend may
 always produce a strict result. For `FLOAT32`, it may additionally evaluate any current operation
 through the three recursive floors below. Every other data type retains strict behavior. For one

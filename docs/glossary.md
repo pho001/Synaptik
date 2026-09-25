@@ -2892,10 +2892,16 @@ values, capture a graph, choose a backend, or execute. See
 ### Numerical profile
 
 A Model-owned graph-wide identity that indexes operation allowed-result sets. The current
-architecture contract defines two meanings: `STRICT_IEEE` preserves every operation's unchanged
-current family-specific promise and freedom, while `ACCELERATOR` is its total recursive
-`FLOAT32` superset under the
+architecture contract defines two meanings: `STRICT_IEEE` is each operation's explicit
+family-specific promise and freedom, while `ACCELERATOR` is its total recursive `FLOAT32`
+superset under the
 [normative contract](architecture/contracts/foundational-modules.md#numerical-profiles).
+All nineteen unary kinds now have an explicit strict baseline. It preserves represented
+subnormals, domains, special classes, and required zero signs; exact kinds retain the selected
+represented operation, Java elementary kinds retain the selected scalar or lane operation and its
+documented accuracy, and the remaining first-class functions retain named fixed realizations.
+Loose backend conformance tolerances are not strict public envelopes. BFLOAT16 has no current
+backend unary capability and receives no inferred finite realization from its storage width.
 The exact/discrete floor preserves kinds, attributes, descriptors, mapping, contributors, masks,
 indices, state, traversal, casts, ordering, guards, identities, divisors, and publication. The
 primitive floor permits DAZ/FTZ, one-round basic arithmetic, corresponding FMA only without an

@@ -135,17 +135,20 @@ import java.util.Optional;
  * log-sum-exp, corrected variance/standard deviation, and L1/L2 norm methods use ordered distinct
  * axes, preserve exact input metadata, and record their first-class numerical targets without
  * decomposition or evaluation. The graph numerical profile changes no construction behavior and
- * is not stored on a Tensor. {@code STRICT_IEEE} retains every current per-operation promise and
- * freedom. {@code ACCELERATOR} is its total recursive {@code FLOAT32} superset: exact/discrete
- * mapping, contributors, guards, selection, ordering, state, casts, identities, divisors, and
- * publication; DAZ/FTZ and one-round arithmetic at named primitive sites; at most five ordered
- * FLOAT32 representations at elementary-function sites; and all-declared-contributors-once
- * aggregate evaluation with reassociation and corresponding FMA. Composite Tensor formulas
- * recurse through those floors and gain no final-output tolerance. Stored selected payloads,
- * masks, indices, saved values, and state stay exact; non-FLOAT32 behavior stays strict. Existing
- * operation-local final exact-zero publication freedoms remain local to their qualifying final
- * results. These profile rules describe allowed results, not Model evaluation or backend support;
- * the
+ * is not stored on a Tensor. {@code STRICT_IEEE} now has an explicit allowed-result baseline for
+ * all nineteen unary kinds: represented subnormals and required special classes/zero signs remain,
+ * exact kinds keep exact selected results, and elementary or composite kinds keep their named
+ * selected scalar or typed-lane realizations. Backend qualification tolerances are not public
+ * strict result envelopes. {@code ACCELERATOR} is the strict set's total recursive
+ * {@code FLOAT32} superset: exact/discrete mapping, contributors, guards, selection, ordering,
+ * state, casts, identities, divisors, and publication; DAZ/FTZ and one-round arithmetic at named
+ * primitive sites; at most five ordered FLOAT32 representations at elementary-function sites;
+ * and all-declared-contributors-once aggregate evaluation with reassociation and corresponding
+ * FMA. Composite Tensor formulas recurse through those floors and gain no final-output tolerance.
+ * Stored selected payloads, masks, indices, saved values, and state stay exact; non-FLOAT32
+ * behavior stays strict. Existing operation-local final exact-zero publication freedoms remain
+ * local to their qualifying final results. These profile rules describe allowed results, not
+ * Model evaluation or backend support; the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">Model-owned
  * numerical-profile contract</a> is normative.
  * Statistical construction rejects a statically known domain count
@@ -2591,12 +2594,11 @@ public final class Tensor {
      * <p>The input must be floating. This is one first-class {@link UnaryElementwiseKind#RSQRT}
      * request rather than stored square-root and reciprocal operations. The fresh result preserves
      * the exact input type, shape reference, and gradient-eligibility request, leaves layout
-     * unresolved, and has no label or storage. Its mathematical target is {@code 1 / sqrt(x)}:
-     * signed zero maps to same-signed infinity, positive infinity maps to positive zero, and
-     * negative finite values and negative infinity map to NaN, and NaN maps to NaN. The elementary
-     * site uses the selected profile floor above without a method-level envelope. Model
-     * construction does not evaluate values or select a gradient rule, execution route, or
-     * backend.</p>
+     * unresolved, and has no label or storage. Its mathematical target is {@code 1 / sqrt(x)};
+     * its strict scalar and typed-lane sites and special classes are fixed by the kind and
+     * numerical-profile contract. The accelerator formula exposes square root and division as
+     * separate primitive sites without creating graph nodes. Model construction does not evaluate
+     * values or select a gradient rule, execution route, or backend.</p>
      *
      * @return a non-null fresh derived Tensor preserving type, shape, and gradient eligibility
      * @throws IllegalArgumentException if this Tensor's data type is not floating
@@ -2688,10 +2690,10 @@ public final class Tensor {
      * <p>The input must be floating. The fresh result retains the exact data type and shape
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and provenance containing {@link UnaryElementwiseKind#SIGMOID},
-     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The formula and special classes
-     * documented by {@link UnaryElementwiseKind#SIGMOID} are authoritative; its named sites use
-     * the selected profile floors above without a final-output envelope. Gradient rules,
-     * execution, and backend support remain outside Model construction.</p>
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The kind's nonnegative and
+     * negative stable branches define the strict result and enumerate comparison, negation,
+     * exponential, addition, and division sites for recursive accelerator evaluation. Gradient
+     * rules, execution, and backend support remain outside Model construction.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
      * @throws IllegalArgumentException if this tensor's data type is not floating
@@ -2724,15 +2726,15 @@ public final class Tensor {
     /**
      * Builds an elementwise exact Gaussian error linear unit (GELU) expression from this Tensor.
      *
-     * <p>The selected mathematical target is {@code x * Phi(x)}, equivalently
-     * {@code 0.5 * x * (1 + erf(x / sqrt(2)))}. Its continuous extension maps negative infinity
-     * to negative zero, preserves signed zero, maps positive infinity to positive infinity, and
+     * <p>The selected target is {@code 0.5 * x * (1 + erf(x / sqrt(2)))}. The typed constants,
+     * square root, division, error-function, addition, and multiplications are the complete
+     * primitive sites documented by {@link UnaryElementwiseKind#GELU}; the operation has no
+     * whole-result accelerator envelope. Its continuous extension maps negative infinity to
+     * negative zero, preserves signed zero, maps positive infinity to positive infinity, and
      * produces NaN for NaN input. The input must be floating. The fresh result retains the exact
-     * data type and Shape reference, has unresolved layout and unchanged gradient eligibility, no
-     * label or storage, and provenance containing {@link UnaryElementwiseKind#GELU},
-     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Construction does not inspect
-     * values, compose primitive operations, choose an evaluation algorithm, define a gradient,
-     * capture a graph, or promise execution or backend support.</p>
+     * data type and Shape reference, unresolved layout, unchanged gradient eligibility, and exact
+     * one-input provenance. Construction neither evaluates nor decomposes the operation and
+     * selects no gradient, execution route, or backend support.</p>
      *
      * @return a non-null fresh derived Tensor with preserved type, Shape, and gradient eligibility
      * @throws IllegalArgumentException if this Tensor's data type is not floating
@@ -2745,16 +2747,16 @@ public final class Tensor {
     /**
      * Builds an elementwise fixed hyperbolic-tangent GELU approximation from this Tensor.
      *
-     * <p>The selected mathematical target is
-     * {@code 0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * x^3)))}. Its continuous extension
-     * maps negative infinity to negative zero, preserves signed zero, maps positive infinity to
-     * positive infinity, and produces NaN for NaN input. The input must be floating. The fresh
-     * result retains the exact data type and Shape reference, has unresolved layout and unchanged
-     * gradient eligibility, no label or storage, and provenance containing {@link
-     * UnaryElementwiseKind#GELU_TANH_APPROXIMATION}, {@code NoOperationAttrs.INSTANCE}, and exactly
-     * this input. The fixed target is not permission to select another approximation.
-     * Construction does not inspect values, compose primitive operations, choose an evaluation
-     * algorithm, define a gradient, capture a graph, or promise execution or backend support.</p>
+     * <p>The selected target is
+     * {@code 0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * x^3)))}. The typed constants,
+     * {@code x*x}, {@code x^2*x}, root, division, additions, remaining multiplications, and tanh
+     * are the complete primitive sites documented by {@link
+     * UnaryElementwiseKind#GELU_TANH_APPROXIMATION}; the operation has no whole-result accelerator
+     * envelope. Its continuous extension maps negative infinity to negative zero, preserves signed
+     * zero, maps positive infinity to positive infinity, and produces NaN for NaN input. The fresh
+     * result retains the exact floating metadata and one-input provenance. The fixed target is not
+     * permission for another approximation. Construction neither evaluates nor decomposes it and
+     * selects no gradient, execution route, or backend support.</p>
      *
      * @return a non-null fresh derived Tensor with preserved type, Shape, and gradient eligibility
      * @throws IllegalArgumentException if this Tensor's data type is not floating
@@ -2767,15 +2769,15 @@ public final class Tensor {
     /**
      * Builds an elementwise sigmoid linear unit (SiLU) expression from this Tensor.
      *
-     * <p>The selected mathematical target is {@code x * sigmoid(x)}, equivalently
-     * {@code x / (1 + exp(-x))}. Its continuous extension maps negative infinity to negative
-     * zero, preserves signed zero, maps positive infinity to positive infinity, and produces NaN
-     * for NaN input. The input must be floating. The fresh result retains the exact data type and
-     * Shape reference, has unresolved layout and unchanged gradient eligibility, no label or
-     * storage, and provenance containing {@link UnaryElementwiseKind#SILU},
-     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Construction does not inspect
-     * values, compose primitive operations, add an alias, choose an evaluation algorithm, define
-     * a gradient, capture a graph, or promise execution or backend support.</p>
+     * <p>The selected stable target is {@code x / (1 + exp(-x))} for nonnegative input and
+     * {@code x * exp(x) / (1 + exp(x))} for negative input. The comparison, negation,
+     * exponential, additions, multiplication, and divisions are the complete primitive sites
+     * documented by {@link UnaryElementwiseKind#SILU}; the operation has no whole-result
+     * accelerator envelope. Its continuous extension maps negative infinity to negative zero,
+     * preserves signed zero, maps positive infinity to positive infinity, and produces NaN for
+     * NaN input. The fresh result retains the exact floating metadata and one-input provenance.
+     * Construction neither evaluates nor decomposes it, adds no alias, and selects no gradient,
+     * execution route, or backend support.</p>
      *
      * @return a non-null fresh derived Tensor with preserved type, Shape, and gradient eligibility
      * @throws IllegalArgumentException if this Tensor's data type is not floating
