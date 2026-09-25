@@ -4,10 +4,12 @@
 
 Blocked
 
-Planning is complete, but execution is not authorized while supported installed tooling cannot read
-actual GPU compute-dispatch and peak transient-resource facts. This task does not depend on Task
-0051's EXP/SIGMOID implementation, oracle verdict, or route choice. It shares only that external
-instrumentation prerequisite and must not edit, reinterpret, or resume Task 0051.
+Gate 1A/API, Gate 1B complete-domain proof, and the sole Gate-2 numerical oracle completed from
+clean revision `bd5c40d3f08487cddec4284ac1588ce276f1c979`. Every opaque direct candidate is
+`DOMAIN-BLOCKED`; every auditable custom candidate is `DOMAIN-PASS` and numerical `PASS`. Execution
+stopped before Gate 3 because supported installed tooling still cannot read actual GPU
+compute-dispatch and peak transient-resource facts. Capability, schema, identity, and production
+remain unchanged. This task is independent of Task 0051's candidates and route choices.
 
 ## Change class
 
@@ -16,9 +18,9 @@ publication, scalar-attribute and scan schema meaning, typed native lowering, ca
 prepared execution, and public Engine evidence. It must not change Model semantics, public API,
 Compiler generation, Runtime policy, native ABI exports, or the completed package contract.
 
-This planning slice changes only this task, the Metal master plan, and the roadmap. It runs no
-device oracle, timing workload, capture, native build, or production test and leaves every new
-capability false.
+This execution/evidence slice changes only this task, the Metal master plan, and the roadmap. It ran
+exactly one disposable real-device numerical process invocation after proof/audit, then no timing
+workload, capture, native production build, or production test. Every new capability remains false.
 
 ## Goal
 
@@ -156,8 +158,8 @@ complete-domain proof:
 
 ## Per-operation four-gate ledger
 
-No row advances by family analogy. `DOMAIN-PASS`, numerical verdict, cost facts, and the fixed route
-are recorded separately for every operation kind and candidate.
+No row advances by family analogy. The Result records structural/API, complete-domain, and numerical
+verdicts separately for every operation kind and candidate. Gate 3 and Gate 4 remain unexecuted.
 
 | Operation rows | Gate 1: structural/API plus complete-domain candidates | Gate 2: bounded regression rule | Gate 3: measured facts for every surviving candidate | Gate 4: fixed-route rule |
 |---|---|---|---|---|
@@ -256,9 +258,10 @@ candidate before launch. Run exactly one real-device process invocation using on
 context, production-default MPSGraph optimization, read-back
 `MPSGraphReducedPrecisionFastMathNone`, safe custom math, direct supplied targets, input identity
 controls, output canaries, and exact Shape/type checks. There is no retry, second context,
-optimization matrix, independent-executable matrix, per-failure rerun, or device-oracle execution
-in this planning commit. This bounded corpus is regression/device/toolchain evidence only; it does
-not authorize ranks, extents, broadcasts, axes, or modes absent from the sample.
+optimization matrix, independent-executable matrix, per-failure rerun, or additional device-oracle
+execution beyond the one recorded in Result. This bounded corpus is regression/device/toolchain
+evidence only; it does not authorize ranks, extents, broadcasts, axes, or modes absent from the
+sample.
 
 ### Frozen pointwise corpus
 
@@ -352,6 +355,12 @@ artifacts.
 
 ## Gate 3: one bounded cost-evidence group
 
+**Execution verdict:** `Blocked`; Gate 3 was not run. The retained Task-0051 tool evidence still
+shows that this Command Line Tools installation has neither a usable `xctrace` command nor another
+supported reader for actual framework-internal compute-dispatch records and peak transient Metal
+resource bytes. Per the predeclared stop rule, no timing, capture, inferred substitute, selection,
+or production work was attempted.
+
 Only `DOMAIN-PASS` plus numerical-`PASS` candidates enter this gate. Every surviving direct,
 custom, and composed candidate runs in the same bounded comparison; route family does not filter or
 preselect candidates. Run one process containing a predeclared standalone workload per operation
@@ -422,21 +431,22 @@ real public Engine forward scenario for each completed partition with no CPU own
   retained Metal 0010/0012/0013 evidence; current Compiler inference/autograd capture; Config 0006;
   Engine 0018.
 - External blocker: supported installed tooling that reads actual framework-internal GPU compute
-  dispatches and peak transient Metal resource bytes from each route capture.
-- Complete-domain blocker: no candidate yet has a recorded authoritative-selector or
-  auditable-custom/composition proof for the complete Task-0052 domain; sample execution cannot
-  substitute for it.
+  dispatches and peak transient Metal resource bytes from each route capture. This remained
+  unavailable, so Gate 3 did not run.
+- Complete-domain gate: closed for every auditable custom candidate and still `DOMAIN-BLOCKED` for
+  every opaque direct candidate; the per-candidate proof identities and verdicts are in Result.
 - Independent of: Task 0051 numerical candidates, timing, route, schema implementation, and result.
-- Common planning base: `f2debef31f382db77c8c2758e56d646858838d0f`.
+- Planning base: `f2debef31f382db77c8c2758e56d646858838d0f`; proof/oracle execution base:
+  `bd5c40d3f08487cddec4284ac1588ce276f1c979`.
 - Conflicts with: every concurrent Metal capability/schema/native-preflight/candidate/codec/tuning/
   lifecycle/public Engine edit and shared numerical-profile documentation.
 - Parallel group: none.
-- Integration order: this planning/remediation commit; instrumentation prerequisite; Gate 1A
-  structural proof and separate Gate 1B complete-domain proof with capability false; exactly one
-  Gate-2 regression process invocation; artifact removal/evidence record; one Gate-3 cost group over
-  every complete passing candidate; Gate-4 route freeze/loser deletion; production
-  schema/lifecycle/capability; focused proof; documentation; implementation commit; independent
-  Class C review.
+- Integration order reached: planning/remediation; capability-false custom-candidate staging; Gate
+  1A audit and separate Gate 1B proof; exactly one Gate-2 regression process invocation; offline
+  validation and artifact removal. Remaining order after the instrumentation prerequisite resolves:
+  one Gate-3 cost group over every complete passing custom candidate; Gate-4 route freeze/loser
+  deletion; production schema/lifecycle/capability; focused proof; documentation; implementation
+  commit; independent Class C review.
 - Shared-document integration owner: future task implementer. Task 0051 and 0052 may cross-link only
   in the Metal master/roadmap until one is explicitly authorized as the sole production frontier.
 
@@ -459,56 +469,150 @@ selects code as the production route; raw evidence is transcribed into this task
 
 ## Acceptance criteria
 
-1. This planning/remediation commit inventories the complete exact operation partition, current
-   Metal architecture/callers, all staged candidates, complete-domain prerequisite, corrected
-   frozen corpus, four gates, identity cutover, and blockers; it runs no device oracle and changes
-   no production file.
-2. Every candidate first receives an authoritative-selector or auditable-custom/composition
-   complete-domain proof over the full authorized ranks/extents/broadcasts/axes/modes. A bounded
-   sample is rejection/regression evidence only; no proof means `DOMAIN-BLOCKED`.
-3. Future execution then performs exactly one fresh real-device numerical process invocation over
-   the frozen bounded group with no retry or matrix, including dedicated opposite-zero and
-   singleton aggregate outputs plus ordered-prefix scan validation with abstract NaNs.
-4. Every operation kind receives its own structural, domain-proof, numerical,
-   actual-dispatch/transient cost, and fixed-route verdict; no family analogy or partial-domain
-   narrowing authorizes capability.
-5. Every complete numerical-pass direct/custom/composed candidate enters the same cost comparison;
-   measured median/dispatch/bytes decide before direct/custom/composed is used only as an exact tie
-   breaker. Production contains one fixed route with no runtime choice/fallback.
-6. Schema/identity cutover is single-version, Java/native exact, and revised before implementation
-   if Task 0051 consumes the current next values first.
-7. All explicit exclusions remain false, especially strict profile, gradients, BOOL consumers,
-   ARG_MIN/ARG_MAX/INT64, PROD reduction, affine inputs, and malformed rows.
-8. Focused native/backend/conformance/Engine/documentation validation and independent Class C
-   review pass before any operation status becomes Complete.
+1. Gate 1A/API and Gate 1B were recorded independently for every candidate. Opaque direct routes are
+   `DOMAIN-BLOCKED`; all auditable custom routes are `DOMAIN-PASS`.
+2. Exactly one fresh real-device numerical process invocation ran over the frozen bounded group
+   with no retry or matrix, including dedicated opposite-zero and singleton aggregate outputs plus
+   ordered-prefix scan validation with abstract NaNs.
+3. Every `DOMAIN-PASS` custom candidate compiled before command-buffer creation and passed its own
+   numerical verdict. The bounded sample remains regression evidence and does not establish the
+   complete-domain proof.
+4. Gate 3 did not run because required actual-dispatch/peak-transient trace evidence was
+   unavailable. No partial timing, opaque substitute, route choice, or family analogy authorized
+   capability.
+5. Capability, schema, wires, attributes, identities, Java/native production, tests, ABI, exports,
+   and packages remain unchanged. All explicit exclusions remain false.
+6. Raw corpus/output/verdict and proof/source/executable identities are recorded in Result; all
+   disposable source, binary, output, validator, cache, and generated artifacts are removed.
+7. Changed Markdown/link/status/path/diff validation passes, and the commit contains only this task,
+   the Metal master plan, and the roadmap.
 
 ## Planning validation
 
-Validate only planning scope:
+Validate the documentation/evidence closure only:
 
 ```bash
 git diff --check
 ```
 
-Also validate changed Markdown links, anchors, fences, final newlines, status consistency, exactly
-zero production/native/test/probe changes, and no device/native/build/test invocation. Do not run a
-full repository build.
+Also validate changed Markdown links, anchors, fences, final newlines, status consistency, exact
+evidence hashes, exactly three changed planning documents, zero production/native/test/probe
+artifacts, and removal of the disposable `/tmp` workspace. Do not run a repository build or test.
 
 ## Documentation and review impact
 
-This commit updates only the new task, Metal master frontier, and roadmap frontier. Future
-implementation synchronizes current capability, schema/identity, complete-domain proofs, route
-decisions, gradient exclusions, public Engine evidence, native guide, package Javadocs, master plan,
-and roadmap while preserving every historical blocked record. Independent Class C review must
-inspect every candidate's structural/domain/numerical/cost evidence, ordered-prefix/abstract-NaN
-oracle, fixed routes, false exclusions, stale-data rejection, lifecycle, real no-skip Engine proof,
-and removed artifacts.
+This commit updates only this task, the Metal master frontier, and the roadmap frontier. It records
+proof and numerical evidence but changes no capability, schema/identity, route, gradient behavior,
+public Engine behavior, native guide, or package Javadoc. A future instrumentation-enabled
+implementation must synchronize those surfaces while preserving every historical blocked record.
+Independent Class C review must inspect every surviving custom candidate's structural/domain/
+numerical/cost evidence, ordered-prefix/abstract-NaN oracle, fixed routes, false exclusions,
+stale-data rejection, lifecycle, real no-skip Engine proof, and removed artifacts.
 
 ## Result
 
-Planning-only and Blocked on supported readable GPU dispatch/transient-resource instrumentation;
-no candidate also has a recorded Task-0052 complete-domain proof verdict yet. No real-device
-oracle, timing, capture, native build, test, or production action ran. No schema, wire, attribute,
-identity, capability, route, Java/native source, package, or generated artifact changed. All
-comparison, extrema, and scan capability named here remains false pending future complete-domain
-proof and four-gate execution.
+Blocked before Gate-3 timing or capability. Gate 1A/API, Gate 1B complete-domain proof, and the sole
+Gate-2 numerical invocation completed from clean execution base
+`bd5c40d3f08487cddec4284ac1588ce276f1c979`. No Java, native production, schema, wire, attribute,
+identity, capability, route, test, ABI, export, package, or generated repository artifact changed.
+
+The installed SDK declarations gave API `PASS` to every opaque direct comparison, pointwise/scalar
+extrema, clamp, reduction-extrema, and cumulative SUM/PRODUCT candidate. They do not specify the
+complete Task-0052 raw-word domain: NaN class behavior at every site, signed-zero winner, DAZ/FTZ
+freedom, exact selected bits, reduction membership/order, or scan parenthesization. Every opaque
+direct candidate is therefore `DOMAIN-BLOCKED` and was not staged or numerically run. The MPSGraph
+CLAMP composition is also `DOMAIN-BLOCKED` because both opaque primitive dependencies are blocked.
+
+Every auditable custom candidate is `DOMAIN-PASS`. The disposable proof covered checked positive
+geometry, rank-`1..16` coordinate decoding, 64-bit right-aligned broadcast offsets, checked
+three-dimensional launch decomposition, total raw-bit predicate ordering, source-bit-preserving
+NaN/zero extrema, two exact CLAMP sites and intermediate materialization, exact reduction
+contributor mapping/traversal, and scan line/direction/prefix placement. The scan loop is one legal
+left-associated contiguous-split tree, compiles with `MTLMathModeSafe`, copies singleton
+contributors without an arithmetic site, and uses exact exclusive identities. The independent
+validator recursively enumerated every ordered contiguous interval split, independent operand DAZ,
+binary32 round-to-nearest-even, independent subnormal-result FTZ to either signed zero, and a single
+abstract NaN class. Thus the bounded run checked membership in the complete permitted set rather
+than one CPU fold. The proof artifact SHA-256 was
+`589cb804a00c35ea4589818eeedafcc238d4b91c2ec07961b561eabda9a69153`.
+
+Before the device run, the audited disposable package compiled cleanly with warnings as errors and
+proved one `MTLCreateSystemDefaultDevice`, one queue, one command buffer, one commit/wait, all 15
+custom entry points compiled before command-buffer creation, safe math, frozen-corpus agreement,
+checked indexing, input snapshots, and guarded outputs. Its identities were:
+
+| Artifact | SHA-256 |
+|---|---|
+| custom Metal source | `ff15f63c9d2e54d62fa2157e1c424cc00acb90d5355101b18a07175e789a40c0` |
+| Objective-C++ staging harness | `6db1c52113482753fcc96d3c14ffcee0479d9ca7b616e3a69f603d7ccb4c9683` |
+| exact offline validator | `94fd86bb6bf16b00195f990979ff892e22c8fac6cfe024173bae0bdf27f83e08` |
+| pre-run source/corpus/control audit | `0c522be1e4f93f82576ad674a07d411c0c68a1c181ea88ac0724f56cfefc1d14` |
+| audited single-invocation wrapper | `ec73cd5f6cef831f10fbd2300ca3bf6d3e0796920aa58e402dd56ac0b6481046` |
+| compiled oracle executable | `9840a0987391a8d7ddfb6a8fbd2ea9923681ca0e911d5f8bece129267e06fc51` |
+
+Exactly one fresh Apple M3 Max oracle process invocation then ran. It used one default-device
+context, one command buffer and compute encoder, safe custom math, 15 precompiled pipelines, 16
+snapshotted inputs, and 98 guarded raw outputs. It exited `0`; standard error was empty; all inputs
+were preserved; every canary passed; and there was no retry, second process, context, command
+buffer, optimization/capability/independent-executable matrix, timing, or capture. Corpus SHA-256
+was `8b44313d15bf054d2f05430383258f6f0b19ab03743810c071b0a9be54f7ea5f`;
+raw device-output SHA-256 was
+`f316906cd30cfb907b5a5005aaaea90e2f7b77381887e86ff7f62ee9af5a33d2`; the empty standard-error
+SHA-256 was `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`;
+and the exact raw offline-verdict SHA-256 was
+`7d551adbdcd149015921c9d5197111cb4cb2291c008fbed2af095ed5031ef5b4`.
+The custom comparison/extrema/CLAMP/reduction routes use no floating arithmetic sites and returned
+exact represented source/Boolean members, so DAZ/FTZ observation is not applicable to their
+implementation path. The scan validator admitted the frozen per-site DAZ/FTZ choices and observed
+maximum reachable-set sizes `9` for SUM and `2` for PRODUCT.
+
+The unedited offline verdict was:
+
+```text
+VALIDATOR=task0052-exact-v1
+CORPUS_SHA256=8b44313d15bf054d2f05430383258f6f0b19ab03743810c071b0a9be54f7ea5f
+RAW_OUTPUT_SHA256=f316906cd30cfb907b5a5005aaaea90e2f7b77381887e86ff7f62ee9af5a33d2
+RAW_OUTPUT_COUNT=98
+CANDIDATE=direct_cmp_gt API=PASS DOMAIN=BLOCKED NUMERICAL=NOT_RUN REASON=opaque_no_authoritative_complete_domain_contract
+CANDIDATE=direct_cmp_ge API=PASS DOMAIN=BLOCKED NUMERICAL=NOT_RUN REASON=opaque_no_authoritative_complete_domain_contract
+CANDIDATE=direct_cmp_lt API=PASS DOMAIN=BLOCKED NUMERICAL=NOT_RUN REASON=opaque_no_authoritative_complete_domain_contract
+CANDIDATE=direct_cmp_le API=PASS DOMAIN=BLOCKED NUMERICAL=NOT_RUN REASON=opaque_no_authoritative_complete_domain_contract
+CANDIDATE=direct_cmp_eq API=PASS DOMAIN=BLOCKED NUMERICAL=NOT_RUN REASON=opaque_no_authoritative_complete_domain_contract
+CANDIDATE=direct_cmp_ne API=PASS DOMAIN=BLOCKED NUMERICAL=NOT_RUN REASON=opaque_no_authoritative_complete_domain_contract
+CANDIDATE=direct_tensor_min API=PASS DOMAIN=BLOCKED NUMERICAL=NOT_RUN REASON=opaque_no_authoritative_complete_domain_contract
+CANDIDATE=direct_tensor_max API=PASS DOMAIN=BLOCKED NUMERICAL=NOT_RUN REASON=opaque_no_authoritative_complete_domain_contract
+CANDIDATE=direct_scalar_min API=PASS DOMAIN=BLOCKED NUMERICAL=NOT_RUN REASON=opaque_no_authoritative_complete_domain_contract
+CANDIDATE=direct_scalar_max API=PASS DOMAIN=BLOCKED NUMERICAL=NOT_RUN REASON=opaque_no_authoritative_complete_domain_contract
+CANDIDATE=direct_clamp API=PASS DOMAIN=BLOCKED NUMERICAL=NOT_RUN REASON=opaque_no_authoritative_complete_domain_contract
+CANDIDATE=composed_mpsgraph_clamp API=PASS DOMAIN=BLOCKED NUMERICAL=NOT_RUN REASON=opaque_no_authoritative_complete_domain_contract
+CANDIDATE=direct_reduction_min API=PASS DOMAIN=BLOCKED NUMERICAL=NOT_RUN REASON=opaque_no_authoritative_complete_domain_contract
+CANDIDATE=direct_reduction_max API=PASS DOMAIN=BLOCKED NUMERICAL=NOT_RUN REASON=opaque_no_authoritative_complete_domain_contract
+CANDIDATE=direct_scan_sum API=PASS DOMAIN=BLOCKED NUMERICAL=NOT_RUN REASON=opaque_no_authoritative_complete_domain_contract
+CANDIDATE=direct_scan_prod API=PASS DOMAIN=BLOCKED NUMERICAL=NOT_RUN REASON=opaque_no_authoritative_complete_domain_contract
+CANDIDATE=custom_cmp_gt API=PASS DOMAIN=PASS NUMERICAL=PASS OUTPUT_SHA256=e9ef9d3352b0f89e1d22b11f78c8dcbe61912f132bd3688a9f5a5e792db5025e CASE_OUTPUTS=2 FAILURES=0
+CANDIDATE=custom_cmp_ge API=PASS DOMAIN=PASS NUMERICAL=PASS OUTPUT_SHA256=40b8269968eb1f3f39c560181587c4ee3c52a072306c5cee3cb190cb1da11da4 CASE_OUTPUTS=2 FAILURES=0
+CANDIDATE=custom_cmp_lt API=PASS DOMAIN=PASS NUMERICAL=PASS OUTPUT_SHA256=1ba3a8d639b0cf8add279b98644d2e9cbd1c6d4f57a00c303a98dd8304941a56 CASE_OUTPUTS=2 FAILURES=0
+CANDIDATE=custom_cmp_le API=PASS DOMAIN=PASS NUMERICAL=PASS OUTPUT_SHA256=6fc3db8432839bd5735410188889d3350ca7701ea0ed97be3ea5d83f85dcd551 CASE_OUTPUTS=2 FAILURES=0
+CANDIDATE=custom_cmp_eq API=PASS DOMAIN=PASS NUMERICAL=PASS OUTPUT_SHA256=c766a88c1715ed358d7822bceba7c174448f9a320e1b7b2c261f1a5c9ce9f94d CASE_OUTPUTS=2 FAILURES=0
+CANDIDATE=custom_cmp_ne API=PASS DOMAIN=PASS NUMERICAL=PASS OUTPUT_SHA256=334a2e4459c07c670e2cab40a23adfe8fc715a108c76c1fee5feaa3008f3d52b CASE_OUTPUTS=2 FAILURES=0
+CANDIDATE=custom_tensor_min API=PASS DOMAIN=PASS NUMERICAL=PASS OUTPUT_SHA256=00091d91318e8d3afa00c51b114669b8d452421c6663717e29fd8a4c9eccf0a7 CASE_OUTPUTS=2 FAILURES=0
+CANDIDATE=custom_tensor_max API=PASS DOMAIN=PASS NUMERICAL=PASS OUTPUT_SHA256=06d221248d15a16bb69c35dde57d2f161bae3e4756f3cc493231b11eaf6a1ed5 CASE_OUTPUTS=2 FAILURES=0
+CANDIDATE=custom_scalar_min API=PASS DOMAIN=PASS NUMERICAL=PASS OUTPUT_SHA256=7ceb233e0015dc48a27dd7135d64449e533b76dd64bbed11a493783a5e9bcd1b CASE_OUTPUTS=8 FAILURES=0
+CANDIDATE=custom_scalar_max API=PASS DOMAIN=PASS NUMERICAL=PASS OUTPUT_SHA256=77efd14123cd6c7ead0b14ac83c36f400f6856354d2c6aada6a20d2d7363f85e CASE_OUTPUTS=8 FAILURES=0
+CANDIDATE=custom_clamp_fused API=PASS DOMAIN=PASS NUMERICAL=PASS OUTPUT_SHA256=2df4b16ad0a3a2ca8ca43c80bdace3f3ee87072219620a4f46eb79251c8896d7 CASE_OUTPUTS=8 FAILURES=0
+CANDIDATE=composed_custom_clamp API=PASS DOMAIN=PASS NUMERICAL=PASS OUTPUT_SHA256=c9457207006154d40137d743b453fb07dbccb4f3e8d993b7f13d5a36ed19b496 CASE_OUTPUTS=16 FAILURES=0
+CANDIDATE=custom_reduction_min API=PASS DOMAIN=PASS NUMERICAL=PASS OUTPUT_SHA256=8a50400a1a0e4b40b0341160f7bfa438209e2ba7ea8d3d1ed9108ca193f35229 CASE_OUTPUTS=16 FAILURES=0
+CANDIDATE=custom_reduction_max API=PASS DOMAIN=PASS NUMERICAL=PASS OUTPUT_SHA256=4650fb36d913d0adc983c75d06632611a2e22c49bc89bb5441e6678945bddb64 CASE_OUTPUTS=16 FAILURES=0
+CANDIDATE=custom_scan_sum API=PASS DOMAIN=PASS NUMERICAL=PASS OUTPUT_SHA256=8babefbff077ab0834eaef266d3c9c3202a4a154a81d3835ee6268494e9d80c7 CASE_OUTPUTS=5 MAX_REACHABLE_SET=9 FAILURES=0
+CANDIDATE=custom_scan_prod API=PASS DOMAIN=PASS NUMERICAL=PASS OUTPUT_SHA256=c87a30f1218d651fd7eb9d311ede39874e6188e1f6290cb49291e4453e6aa316 CASE_OUTPUTS=5 MAX_REACHABLE_SET=2 FAILURES=0
+ORACLE_VERDICT=PASS FAILURES=0
+```
+
+The required actual-dispatch/peak-transient trace reader remained unavailable. Gate 3 therefore did
+not run: there is no timing sample, capture, inferred backend-call or memory substitute, route
+winner, Gate-4 selection, or capability authorization. After the hashes and verdict above were
+recorded, all disposable custom source, host source, proof, audit, wrapper, executable, validator,
+raw output, verdict, bytecode cache, and generated workspace artifacts were removed. All comparison,
+extrema, and scan capability named here remains false pending supported trace instrumentation,
+complete Gate-3 facts for every surviving custom candidate, Gate 4, production implementation, and
+independent Class C review.
