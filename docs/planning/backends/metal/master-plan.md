@@ -87,7 +87,8 @@ Training-to-Metal optimizer bridge.
   shape-dependent contraction, while Pooling4D/stencil do not establish exact unrelaxed Pool3d
   structure and semantics. Task 0037 is Blocked before a probe: direct RNN lacks runtime INT64
   valid lengths, atomic validation, skipped padded work, and `finalHidden`, while recurrent
-  numerics are unrelaxed and underdocumented. No Metal task is Ready.
+  numerics are unrelaxed and underdocumented. Task 0038 is the sole Ready Metal frontier and owns
+  the documentation-only current capability-profile closure.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
   requirements. Metal 0017 remains Blocked under its old accelerator-reduction contract.
@@ -156,6 +157,9 @@ Training-to-Metal optimizer bridge.
   five-input/two-output/caller-INT64 schema and lifecycle.
 - Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
   0017, and Metal 0015/0019/0020/0021/0022/0023/0024/0025 are Complete.
+- Task 0038 is Ready from base `ec4499bd9e18ed863c9091baa9cfe82dbcf06a9b` to freeze the exact
+  implemented common/accelerator occurrence matrices, synchronize stale current summaries, and
+  close expansion without changing production, native, schema, identity, or test code.
 - Production dependencies may point to Model, Config, Planning, Runtime, Prepare,
   Backend Contract, and Trace, never Engine or Training. Task 0002's Compiler edge is test-only.
 
@@ -215,6 +219,7 @@ visibility.
 | 0035 | [Profile-common canonical FLOAT32 no-grad explicit-state dropout](tasks/0035-profile-common-canonical-float32-no-grad-explicit-state-dropout.md) | Blocked | 0025 Complete; Model 0019B/0019B1; Compiler 0003/0005C/0006B11; CPU 0006D precedent; Config 0006; Engine 0018; earlier blockers remain independent | Every concurrent Metal capability/schema/native-ABI/preflight/candidate/codec/local-type/materialization/public Engine scope; multi-output/INT64/random/gradient work; any 0016–0018 restart | None | Documentation-first state/API/schema review only; no device gate | Model/profile, installed-header, Compiler/CPU, current schema/type/lifecycle evidence; no production change | Direct dropout hides randomness and returns one output; opaque Philox state cannot implement exact Model INT64[2] initialization/transition or mandatory three-output dropout. Exact custom kernel plus multi-output/local-INT64 schema is prerequisite. |
 | 0036 | [Extended 3D inference](tasks/0036-extended-3d-inference.md) | Blocked | 0025 Complete; Model 0025H/0025J/0025K; Compiler 0006B/0006B1/0006B2; CPU 0008A/0008G1 precedent; Config 0006; Engine 0018; 0030/0031 evidence is independent | Every concurrent Metal capability/schema/native-preflight/candidate/codec/materialization/public Engine scope; biased/gradient convolution, pooling, 3D-window/custom-kernel work; any 0016–0018 restart | None | Documentation-first 3D selector, mapping, and numerical review only; no device gate | Model/profile, installed-header/runtime, Compiler/CPU, current schema, and 0030/0031 evidence; no production change | Direct Conv3d maps full grouped NCDHW/OIDHW geometry but inherits 0031's opaque shape-dependent contraction. Pooling4D/stencil do not establish exact unrelaxed Pool3d mapping/semantics, so no probe ran and all schema values remain conditional/unreserved. |
 | 0037 | [Profile-common canonical FLOAT32 no-grad FORWARD RNN_TANH](tasks/0037-profile-common-canonical-float32-no-grad-forward-rnn-tanh.md) | Blocked | 0025 Complete; Model 0025E/0025F; Compiler 0006A; Config 0006; Engine 0018; current CPU has no recurrent precedent; earlier blockers are independent | Every concurrent Metal capability/schema/native-ABI/preflight/candidate/codec/input-type/materialization/public Engine scope; recurrent, multi-input, multi-output, INT64, custom-kernel, or gradient work; any 0016–0018 restart | None | Documentation-first recurrent API, arity, type, and numerical review only; no device gate | Model/profile, installed-header/runtime, Compiler/CPU, current schema/type/lifecycle, and prior tanh evidence; no production change | Direct RNN lacks runtime valid lengths, atomic validation, skipped padding semantics, and final hidden; unrelaxed numeric gaps and current five-input/two-output/INT64 boundaries require an exact custom route. |
+| 0038 | [Current profile capability manifest closure](tasks/0038-current-profile-capability-manifest-closure.md) | Ready | 0022–0025 Complete; finalized Metal capability evidence through 0037; Model 0027–0029; Config 0006; Engine 0018 | Every concurrent Metal capability/schema/native/candidate/codec documentation scope and shared README/architecture/API/backend/user/master/roadmap edits | None | Planning authorization, then one documentation/audit closure commit from exact base `ec4499bd9e18ed863c9091baa9cfe82dbcf06a9b` | Focused existing capability/conformance tests, targeted architecture checks, Markdown/link/terminology validation, diff check, documentation-only scope; no device probe or full build | Freeze the exact current common and accelerator-only occurrence matrices, strict-subset monotonicity, fail-closed remainder, and ABI/schema/identity boundary; keep every Blocked row unsupported and add no manifest API. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -233,6 +238,8 @@ Completed profile spine and serial successors:
 `Model 0028 (Complete) -> 0020 (Complete) -> 0018 (Blocked)`
 
 `0018 blocker evidence -> Model 0029 (Complete) -> 0021 (Complete) -> 0022 (Complete) -> 0023 (Complete) -> 0024 (Complete) -> 0025 (Complete) -> {0026 (Blocked), 0027 (Blocked), 0030 (Blocked), 0031 (Blocked), 0032 (Blocked), 0033 (Blocked), 0034 (Blocked), 0035 (Blocked), 0036 (Blocked), 0037 (Blocked)}`
+
+`0022 (Complete) + 0023 (Complete) + 0024 (Complete) + 0025 (Complete) + finalized evidence through 0037 -> 0038 (Ready)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -267,17 +274,17 @@ revision `f88066e3ad0547987bb03b2d18ed2813f97de223`.
 [0035](tasks/0035-profile-common-canonical-float32-no-grad-explicit-state-dropout.md),
 [0036](tasks/0036-extended-3d-inference.md), and
 [0037](tasks/0037-profile-common-canonical-float32-no-grad-forward-rnn-tanh.md) are Blocked without
-production changes. Tasks 0031–0037 additionally ran no probe. There is no Ready Metal serial
-frontier.
+production changes. Tasks 0031–0037 additionally ran no probe. Task 0038 is the sole Ready Metal
+serial frontier and changes documentation/audit evidence only.
 These edges serialize shared Metal mutation; they do not claim that one operation family requires
 another.
 
 ## Integration ownership and shared documents
 
-- Integration owner: each serial task implementer, with mandatory independent Class C review.
-- Shared documents: the next separately authorized task owns synchronized planning,
-  architecture-status, API/user status, capability/preparer guides, and glossary updates after
-  executable behavior stabilizes.
+- Integration owner: Task 0038 owns the current documentation-only closure; executable serial tasks
+  retain their recorded integration owners and independent Class C reviews.
+- Shared documents: Task 0038 owns synchronized planning, architecture-status, API/user status,
+  capability-guide, and README corrections for the already-stable executable boundary.
 - Blocked Metal 0016–0018 and 0026–0027/0030–0037 have no active write or review scope. Complete
   Model 0028 owns the reduction semantic contract, Complete Model 0029 owns the MATMUL
   final-publication semantic contract, and Complete Metal 0021–0025 retain their reviewed
@@ -352,7 +359,8 @@ runtime INT64 valid lengths, atomic validation, skipped padded work, positive-ze
 `finalHidden`; its contraction/add/tanh/state-update ordering is unrelaxed and underdocumented.
 Only an exact custom recurrent kernel plus complete five-input/two-output/caller-INT64 schema can
 unblock it. Schema 12/wires beginning at 20/attribute 7, INT64, ABI/export, and version-thirteen
-identities remain conditional, unimplemented, and unreserved; no Metal task is Ready.
+identities remain conditional, unimplemented, and unreserved; Task 0038 is the sole Ready Metal
+frontier and is documentation/audit only.
 
 Metal 0006 remains `Blocked` after exact RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures.
 Metal 0007 remains independently `Blocked` after eight direct-output executions returned positive

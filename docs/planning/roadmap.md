@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through reviewed 0025; 0006–0007, 0009–0013, 0016–0018, 0026–0027, and 0030–0037 Blocked | Metal 0037 records the no-probe profile-common recurrent-forward blocker while preserving all earlier evidence. No Metal task is Ready. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through reviewed 0025; 0038 Ready; 0006–0007, 0009–0013, 0016–0018, 0026–0027, and 0030–0037 Blocked | Metal 0038 is the sole Ready frontier: freeze and synchronize the current capability-profile manifest without production, native, schema, identity, test, or probe changes. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -101,7 +101,8 @@ Blocked without a probe: direct Conv3d structurally maps NCDHW/OIDHW but inherit
 shape-dependent contraction, while Pooling4D/stencil do not establish exact unrelaxed Pool3d
 mapping and semantics. Metal 0037 is Blocked without a probe: direct RNN lacks runtime INT64 valid
 lengths, atomic validation, skipped padded work, and `finalHidden`; multiple recurrent numeric gaps
-remain unrelaxed. None changed production; no Metal task is Ready.
+remain unrelaxed. None changed production. Documentation/audit-only Metal 0038 is the sole Ready
+frontier.
 
 Task 0019 landed at implementation `a6d1796d` plus mixed-owner test remediation `bcb717a6`. Its
 native ABI/export, Metal, conformance, real Engine, architecture, full-build, documentation, and
@@ -118,6 +119,8 @@ The active semantic and Metal serial DAG is:
 `Model 0028 (Complete) -> Metal 0020 (Complete) -> Metal 0018 (Blocked)`
 
 `Metal 0018 blocker evidence -> Model 0029 (Complete) -> Metal 0021 (Complete) -> Metal 0022 (Complete) -> Metal 0023 (Complete) -> Metal 0024 (Complete) -> Metal 0025 (Complete) -> {Metal 0026 (Blocked), Metal 0027 (Blocked), Metal 0030 (Blocked), Metal 0031 (Blocked), Metal 0032 (Blocked), Metal 0033 (Blocked), Metal 0034 (Blocked), Metal 0035 (Blocked), Metal 0036 (Blocked), Metal 0037 (Blocked)}`
+
+`Metal 0022/0023/0024/0025 (Complete) + finalized evidence through Metal 0037 -> Metal 0038 (Ready)`
 
 [Metal 0016](backends/metal/tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) is Blocked
 without production changes. Its Apple M3 Max gate proved exact `ABS`, but `EXP` and `SIGMOID`
@@ -161,8 +164,8 @@ implementation `44edd86092509348e1e72cf7f0f4c3b13d141fa8`, first remediation
 `d0a947fa953bddb2714c1917c7114ac345c530b7`, and final remediation/reviewed revision
 `f88066e3ad0547987bb03b2d18ed2813f97de223`; final approval had zero findings. Metal 0026,
 Metal 0027, Metal 0030, Metal 0031, Metal 0032, Metal 0033, Metal 0034, Metal 0035, Metal 0036, and
-Metal 0037 are Blocked without production changes; 0031–0037 ran no probe and no Metal task is
-Ready.
+Metal 0037 are Blocked without production changes; 0031–0037 ran no probe. Metal 0038 is the sole
+Ready documentation/audit frontier.
 
 Engine
 [0017](modules/engine/tasks/0017-reusable-inference-session-api.md) is Complete from exact base
@@ -302,8 +305,8 @@ reduction and BOOL materialization remain local-only, FLOAT32-only transfer is u
 Runtime/Trace remain profile-free. Metal 0025 is Complete at final reviewed revision `f88066e3`.
 Metal 0026–0027/0030–0037 are Blocked and changed no executable capability; 0031–0037 ran no
 device probe. Schema 12/wires beginning at 20/attribute 7, INT64 type/ingress, ABI/export, and
-version-thirteen identities remain conditional, unimplemented, and unreserved; no Metal task is
-Ready.
+version-thirteen identities remain conditional, unimplemented, and unreserved. Metal 0038 is the
+sole Ready frontier and changes documentation/audit evidence only.
 
 Strategic gate: historical blocker evidence is preserved, and no backend task may define Model
 semantics. Complete Model 0028 owns bounded reduction exact-zero sign freedom; Complete Metal 0020
@@ -401,8 +404,9 @@ schema.
   comparison still requires a separately reviewed, fully sealed matrix before measurement.
 - Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
   0017, and Metal 0015/0019/0020/0021/0022/0023/0024/0025 are Complete. Metal 0016–0018,
-  0026–0027, and 0030–0037 remain Blocked under their recorded contracts. No Metal task is Ready;
-  every unfinished or blocked family remains unauthorized.
+  0026–0027, and 0030–0037 remain Blocked under their recorded contracts. Metal 0038 is the sole
+  Ready documentation/audit frontier; every unfinished or blocked operation family remains
+  unauthorized.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -485,8 +489,8 @@ output-role/order gaps. Unblocking requires an exact custom recurrent kernel and
 five-input/two-output/caller-INT64 schema, native lifecycle, and proof.
 
 Schema 12/wires beginning at 20/attribute 7, INT64 type/ingress, ABI/export, and identity 13 remain
-conditional, unimplemented, and unreserved. Metal 0026/0027 remain separately finalized Blocked,
-and no Metal task is Ready.
+conditional, unimplemented, and unreserved. Metal 0026/0027 remain separately finalized Blocked.
+Execute documentation/audit-only Metal 0038; it is the sole Ready Metal frontier.
 
 ## History policy
 
