@@ -44,6 +44,7 @@ Focused architecture documentation:
 - [ADR 0019: Explicit numerical profiles](../design/decisions/0019-explicit-numerical-profiles.md)
 - [ADR 0020: Synchronous single-default-device Metal execution](../design/decisions/0020-synchronous-single-default-device-metal-execution.md)
 - [ADR 0021: Total recursive ACCELERATOR numerical floor](../design/decisions/0021-total-recursive-accelerator-numerical-floor.md)
+- [ADR 0022: Auditable custom Metal route cost evidence](../design/decisions/0022-auditable-custom-metal-route-cost-evidence.md)
 
 ## Status
 

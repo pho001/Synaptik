@@ -123,6 +123,18 @@ Runtime profiling is passive observation of actual execution. `modules/runtime` 
 execution context and `modules/trace` owns typed diagnostic DTOs; neither profiling nor tracing
 selects settings.
 
+For Metal route qualification, supported observation of actual framework-internal dispatches and
+temporary resources remains mandatory for every opaque route, including MPSGraph. No graph-node
+count, command-buffer count, inferred fusion, framework estimate, or process memory substitutes for
+those facts. An explicit custom route may instead attest its compute-dispatch count and route-owned
+temporary bytes from an auditable declaration when retained source owns every command encoder
+dispatch and every resource used by the measured synchronous hot invocation. The declaration must
+enumerate each dispatch and each transient resource, exclude steady prepared inputs and outputs,
+and remain tied to the exact measured source identity. Any framework call or unowned encoder or
+resource makes that route opaque for this rule. Hot duration is still measured on the named target
+device. Qualification fixes one route before production preparation and adds no runtime timing,
+fallback, retry, or workload matrix.
+
 ## CPU backend routes
 
 CPU scalar, CPU Vector API, generated JVM-bytecode CPU computation kernels, and OpenBLAS are

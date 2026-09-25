@@ -221,6 +221,13 @@ The following invariants must remain true:
 - Planning may consume backend-neutral cost estimates, but it must not interpret backend route,
   vector, thread, tile, kernel, or other implementation parameters.
 - Backend prepare owns backend-specific lowering and kernel selection.
+- A Metal qualification may use an auditable route declaration for compute-dispatch count and
+  route-owned temporary bytes only for an explicit custom route whose retained source owns every
+  command encoder dispatch and every resource used by the measured synchronous hot invocation.
+  Opaque framework routes, including MPSGraph, must use supported observation of their actual
+  internals and must never substitute inferred dispatches or memory. Qualification timing runs on
+  the named target device; the selected route is fixed during cold preparation, with no hot-path
+  benchmark, retry, fallback, or matrix.
 - Backend preparation is staged: backend analysis and exact shared-resource declaration precede
   shared slot assignment, and backend finalization follows slot assignment.
 - Shared Prepare assigns one logical buffer slot per materialized graph value and one deterministic

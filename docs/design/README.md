@@ -33,6 +33,7 @@ acceptance date and considered alternatives.
 - [ADR 0019: Explicit graph numerical profiles](decisions/0019-explicit-numerical-profiles.md)
 - [ADR 0020: Synchronous single-default-device Metal execution](decisions/0020-synchronous-single-default-device-metal-execution.md)
 - [ADR 0021: Total Recursive ACCELERATOR Numerical Floor](decisions/0021-total-recursive-accelerator-numerical-floor.md)
+- [ADR 0022: Auditable Custom Metal Route Cost Evidence](decisions/0022-auditable-custom-metal-route-cost-evidence.md)
 
 ## Design notes
 

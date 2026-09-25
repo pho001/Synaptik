@@ -64,6 +64,15 @@ or changes later preparation; every report remains ineligible for a production d
 Shape, one process, and correlated within-process samples are not a substitute for a separately
 reviewed multi-target/fork statistical protocol.
 
+For Metal qualification outside production Runtime, an explicit custom route may declare its exact
+compute-dispatch count and route-owned temporary bytes when retained source owns every encoder
+dispatch and resource in the synchronous hot invocation. The declaration enumerates those facts,
+excludes steady inputs and outputs, and is bound to the measured source identity. MPSGraph and every
+other opaque route remain ineligible for this declaration: their actual framework-internal
+dispatches and peak transient resources require supported observation and are never inferred from
+graph nodes, command buffers, framework estimates, or process memory. Hot duration is still
+measured on the named device; route selection remains cold and fixed.
+
 ## One model-autotuning workflow
 
 `tools/tuning` coordinates one explicit workflow with two related phases. The phases share the

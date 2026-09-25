@@ -2,17 +2,19 @@
 
 ## Status
 
-Blocked
+In progress
 
 Gate 1A/API, Gate 1B complete-domain proof, and the sole Gate-2 numerical oracle completed from
 clean revision `bd5c40d3f08487cddec4284ac1588ce276f1c979`. Every opaque direct candidate is
 `DOMAIN-BLOCKED`; every auditable custom candidate is `DOMAIN-PASS` and numerical `PASS`. The exact
-custom source, validator, audit, wrapper, and proof have been recovered from the original execution
+custom source, validator, audit, wrapper, and proof were recovered from the original execution
 session, hash-revalidated against their pre-run identities, and retained as
-[permanent review evidence](../evidence/0052/README.md) without another device invocation.
-Execution stopped before Gate 3 because supported installed tooling still cannot read actual GPU
-compute-dispatch and peak transient-resource facts. Capability, schema, identity, and production
-remain unchanged. This task is independent of Task 0051's candidates and route choices.
+[permanent review evidence](../evidence/0052/README.md) without another numerical invocation.
+ADR 0022 now permits exact route-declared dispatch and route-owned temporary-byte facts for the
+surviving closed custom routes only. Task 0052 is the sole authorized Metal production frontier:
+run its predeclared custom-only Apple M3 Max Gate 3, freeze routes, then complete the atomic
+schema/identity/capability/native/preparation/execution/test/documentation cutover. Opaque MPSGraph
+candidates remain `DOMAIN-BLOCKED` and may not receive inferred cost facts.
 
 ## Change class
 
@@ -39,16 +41,18 @@ Add one bounded, forward-only, canonical `FLOAT32` operation slice under
 - `CumulativeScanKind.CUM_SUM` and `CUM_PROD`.
 
 Every operation must independently pass four gates in order: structural/API with a distinct
-complete-domain proof prerequisite, numerical regression evidence, cost with actual dispatch and
-transient-resource evidence, and fixed production route. Capability remains false for an operation
-until all four gates pass for its complete authorized domain. A failure does not authorize a
-narrower shape, attribute, mode, or edge-value subset.
+complete-domain proof prerequisite, numerical regression evidence, cost with measured Apple M3 Max
+hot runtime plus permitted exact dispatch and transient-resource evidence, and fixed production
+route. Capability remains false for an operation until all four gates pass for its complete
+authorized domain. A failure does not authorize a narrower shape, attribute, mode, or edge-value
+subset.
 
-Stage every predeclared direct, custom, and composed candidate needed for a real cost comparison
-before the sole numerical invocation. Every candidate must independently prove complete-domain
-coverage and pass the bounded regression corpus before cost. Route family is only the last cost
-tie-breaker: direct MPSGraph before exact custom before certified composition. It is never a
-preselection rule. Runtime selection, retry, fallback, and input-dependent routing are forbidden.
+Every candidate was predeclared before the sole numerical invocation. Every candidate must
+independently prove complete-domain coverage and pass the bounded regression corpus before cost.
+Opaque direct and MPSGraph-composed candidates remain `DOMAIN-BLOCKED` and do not enter Gate 3.
+Every surviving custom candidate does enter the custom-only comparison; route family is only the
+last cost tie-breaker. Runtime selection, retry, fallback, and input-dependent routing are
+forbidden.
 
 ## Exact operation inventory and partition
 
@@ -164,7 +168,8 @@ complete-domain proof:
 ## Per-operation four-gate ledger
 
 No row advances by family analogy. The Result records structural/API, complete-domain, and numerical
-verdicts separately for every operation kind and candidate. Gate 3 and Gate 4 remain unexecuted.
+verdicts separately for every operation kind and candidate. Gate 3 runs only the 16 custom survivors
+under ADR 0022; Gate 4 then freezes one production route per kind.
 
 | Operation rows | Gate 1: structural/API plus complete-domain candidates | Gate 2: bounded regression rule | Gate 3: measured facts for every surviving candidate | Gate 4: fixed-route rule |
 |---|---|---|---|---|
@@ -359,18 +364,25 @@ text and SHA-256 in this task. Preserve the exact custom source, host source, va
 wrapper, and proof as non-production review evidence; remove the compiled executable, raw output,
 bytecode/cache, and temporary workspace artifacts.
 
-## Gate 3: one bounded cost-evidence group
+## Gate 3: one bounded custom-only cost-evidence group
 
-**Execution verdict:** `Blocked`; Gate 3 was not run. The retained Task-0051 tool evidence still
-shows that this Command Line Tools installation has neither a usable `xctrace` command nor another
-supported reader for actual framework-internal compute-dispatch records and peak transient Metal
-resource bytes. Per the predeclared stop rule, no timing, capture, inferred substitute, selection,
-or production work was attempted.
+ADR 0022 resolves the former instrumentation blocker only for the surviving explicit custom
+routes. Their retained source owns every encoder dispatch and resource used by a synchronous hot
+invocation, so the exact source-bound route declarations below are admissible:
 
-Only `DOMAIN-PASS` plus numerical-`PASS` candidates enter this gate. Every surviving direct,
-custom, and composed candidate runs in the same bounded comparison; route family does not filter or
-preselect candidates. Run one process containing a predeclared standalone workload per operation
-kind/candidate, not an input-size, axis, mode, optimization, or device matrix:
+- every comparison, tensor/scalar-extrema, fused-CLAMP, reduction, and scan candidate declares one
+  compute dispatch and zero route-owned temporary bytes above steady prepared inputs/outputs;
+- composed-custom CLAMP declares two compute dispatches and one `FLOAT32` intermediate of exactly
+  `4 * elementCount` bytes; its frozen 1,048,576-element workload therefore declares `4,194,304`
+  route-owned temporary bytes.
+
+Any added framework call, unowned encoder, unowned resource, hidden allocation, or source mismatch
+invalidates the declaration and blocks that candidate. The declarations do not apply to an opaque
+MPSGraph route, and no direct selector, MPSGraph composition, graph-node count, command-buffer
+count, inferred fusion, heap estimate, or process resident memory enters this gate.
+
+Run one Apple M3 Max process containing a predeclared standalone workload for every custom
+candidate, not an input-size, axis, mode, optimization, or device matrix:
 
 - comparisons, tensor extrema, and scalar extrema/clamp: canonical 1,048,576-element inputs;
 - reductions: canonical `[64,128,128]`, ordered axes `[2,0]`, keep-dimensions false;
@@ -380,32 +392,28 @@ kind/candidate, not an input-size, axis, mode, optimization, or device matrix:
 
 Prepare every route first. Use four alternating-order warmup rounds and eight alternating-order
 retained rounds; each retained batch runs to a 25 ms floor with a 1,000,000-execution ceiling.
-Discard and retry nothing. The synchronous hot boundary is route execution plus result closure;
-exclude preparation, upload, download, validation, and reporting.
-
-After uncaptured timing, capture exactly one hot logical execution for every passing candidate and
-read the trace with supported installed tooling. Record raw batch durations/iterations, normalized
-medians, trace SHA-256, actual framework-internal compute-dispatch records, and peak transient Metal
-resource bytes above steady prepared inputs/outputs. A backend-call count, graph-node count,
-command-buffer count, inferred fusion, heap estimate, process RSS, or custom resource ledger is not
-a substitute. Missing actual dispatch or transient facts blocks that operation and leaves its
-capability false.
+Discard and retry nothing. The synchronous hot boundary is route execution plus completion; exclude
+preparation, upload, download, validation, and reporting. Record raw batch durations/iterations,
+normalized medians, exact device identity, source and executable SHA-256, result checks, dispatch
+declarations, and route-owned temporary-byte declarations. No numerical oracle is rerun.
 
 ## Gate 4: fixed production route
 
 Apply this predeclared rule independently to each operation kind:
 
 1. remove every candidate without structural/API `PASS`, `DOMAIN-PASS`, or numerical `PASS`;
-2. require complete timing, actual compute-dispatch, and peak transient-byte facts for every
-   remaining direct, custom, and composed candidate; missing facts block the operation;
-3. select lexicographically by lowest retained normalized-duration median, then fewer actual
-   compute dispatches, then fewer peak transient bytes;
-4. only when all three measured facts tie, prefer direct MPSGraph, then exact custom, then certified
-   composition, then lexical candidate ID;
+2. require complete Apple M3 Max timing plus an ADR-0022-valid exact dispatch and route-owned
+   temporary-byte declaration for every remaining custom candidate; missing facts block the
+   operation;
+3. select lexicographically by lowest retained normalized-duration median, then fewer compute
+   dispatches, then fewer route-owned temporary bytes;
+4. only when all three facts tie, prefer exact custom before certified composition, then lexical
+   candidate ID;
 5. no valid complete candidate, a partial-domain route, or any unmeasured survivor blocks that
    operation and leaves capability false; and
 6. encode the winner as one immutable production route and delete every unselected custom kernel,
-   composition, probe, benchmark, capture, and report artifact.
+   composition, probe, benchmark, and disposable report artifact after retaining the required raw
+   evidence.
 
 There is no direct-route baseline, coverage-only custom tier, 10% override, or family
 preselection. Every numerically complete survivor can win on measured cost; route family is only
@@ -436,44 +444,44 @@ real public Engine forward scenario for each completed partition with no CPU own
 - Depends on: completed and independently approved Model 0030/0031; Metal 0050 packaged baseline;
   retained Metal 0010/0012/0013 evidence; current Compiler inference/autograd capture; Config 0006;
   Engine 0018.
-- External blocker: supported installed tooling that reads actual framework-internal GPU compute
-  dispatches and peak transient Metal resource bytes from each route capture. This remained
-  unavailable, so Gate 3 did not run.
+- Gate-3 prerequisite: resolved by ADR 0022 for only the closed custom survivors. Full-Xcode trace
+  tooling remains required for opaque routes and is irrelevant to this custom-only adjudication.
 - Complete-domain gate: closed for every auditable custom candidate and still `DOMAIN-BLOCKED` for
   every opaque direct candidate; the per-candidate proof identities and verdicts are in Result.
-- Independent of: Task 0051 numerical candidates, timing, route, schema implementation, and result.
-- Planning base: `f2debef31f382db77c8c2758e56d646858838d0f`; proof/oracle execution base:
+- Independent of: Task 0051/0053 numerical candidates, timing, route, schema implementation, and
+  result. Task 0053 remains separately Blocked.
+- Planning base: `e9f5595f`; proof/oracle execution base:
   `bd5c40d3f08487cddec4284ac1588ce276f1c979`.
 - Conflicts with: every concurrent Metal capability/schema/native-preflight/candidate/codec/tuning/
   lifecycle/public Engine edit and shared numerical-profile documentation.
 - Parallel group: none.
-- Integration order reached: planning/remediation; capability-false custom-candidate staging; Gate
-  1A audit and separate Gate 1B proof; exactly one Gate-2 regression process invocation; offline
-  validation; initial temporary-artifact removal; exact transcript recovery, hash revalidation, and
-  permanent non-production evidence retention. Remaining order after the instrumentation
-  prerequisite resolves: one Gate-3 cost group over every complete passing custom candidate; Gate-4
-  route freeze/loser deletion; production schema/lifecycle/capability; focused proof;
-  documentation; implementation commit; independent Class C review.
-- Shared-document integration owner: future task implementer. Task 0051 and 0052 may cross-link only
-  in the Metal master/roadmap until one is explicitly authorized as the sole production frontier.
+- Integration order: architecture/authorization; one custom-only Gate-3 process and raw evidence;
+  Gate-4 route freeze/loser deletion; production schema/lifecycle/capability; focused proof;
+  documentation; logical commits; independent Class C review.
+- Integration validation: focused Metal tests, backend conformance, Compiler contract checks, and
+  no-skip real-dylib public Engine scenarios; do not run the final full repository build in this
+  task execution.
+- Shared-document integration owner: Task-0052 implementer.
 
 ## Expected future files and symbols
 
-After the blocker resolves and this task is revised/authorized from the then-current base:
+The authorized implementation may update:
 
 - `MetalCapabilityProvider`, `MetalMpsGraphProgram`, `MetalNativeApi`,
-  `MetalNegPartitionPreparer`, and affected package Javadocs;
+  `MetalNegPartitionPreparer`, preparation/finalization/execution types, and affected package
+  Javadocs;
 - `MetalNegRouteCandidateGenerator`, `MetalNegTuningBatch`, `MetalNegTuningCodec`, decisions, and
   complete-plan compatibility tests;
 - `native/metal-macos-arm64/src/synaptik_metal_foundation.m` and its README;
 - focused capability/schema/native/prepared/candidate/codec tests, backend conformance, Compiler
   contract checks, and real public Engine integration; and
-- current Metal/backend/API/glossary explanatory docs, this task, Metal master, and roadmap.
+- current architecture/Metal/backend/API/glossary explanatory docs, this task, Metal master, and
+  roadmap.
 
-No Task-0051 task file, oracle evidence, candidate source, or result is an implementation input.
-The exact Task-0052 custom source/proof/audit package remains under
-[`../evidence/0052/`](../evidence/0052/README.md) solely for review. No compiled probe, executable,
-raw oracle output, capture, benchmark artifact, cache, or temporary workspace remains.
+No Task-0051/0053 task file, oracle evidence, candidate source, or result is an implementation
+input. The exact Task-0052 Gate-1/Gate-2 source/proof package remains immutable under
+[`../evidence/0052/`](../evidence/0052/README.md). Gate-3 raw evidence is retained separately;
+compiled probes, executables, caches, and temporary workspaces are removed after adjudication.
 
 ## Acceptance criteria
 
@@ -485,30 +493,28 @@ raw oracle output, capture, benchmark artifact, cache, or temporary workspace re
 3. Every `DOMAIN-PASS` custom candidate compiled before command-buffer creation and passed its own
    numerical verdict. The bounded sample remains regression evidence and does not establish the
    complete-domain proof.
-4. Gate 3 did not run because required actual-dispatch/peak-transient trace evidence was
-   unavailable. No partial timing, opaque substitute, route choice, or family analogy authorized
-   capability.
-5. Capability, schema, wires, attributes, identities, Java/native production, tests, ABI, exports,
-   and packages remain unchanged. All explicit exclusions remain false.
-6. Raw corpus/output/verdict and proof/source/executable identities are recorded in Result. Exact
-   custom source, host source, validator, audit, wrapper, and proof are permanently reviewable and
-   hash-revalidated; the disposable executable, raw output, cache, and temporary workspace remain
-   removed.
-7. Changed Markdown/link/status/path/diff validation passes, and the commit contains only the three
-   planning records plus the Task-0052 evidence directory.
+4. The custom-only Gate 3 records actual M3 Max hot timings and exact source-owned dispatch and
+   route-owned temporary-byte declarations for every survivor, with no retry, fallback, numerical
+   rerun, or matrix. Opaque candidates receive no inferred facts.
+5. Gate 4 selects one immutable route per operation. Fused and composed custom CLAMP compete under
+   the same lexicographic rule; the loser is absent from production.
+6. Schema 12 appends operation wires `20..34` and attribute wires `7..9`; all workload, exact-policy,
+   candidate, compatibility, route-policy, and codec identities cut over together from 12 to 13.
+   ABI 4, the 160-byte record, thirteen exports, existing wires, value carriers/states, and
+   complete-plan wrapper 1 remain unchanged. Stale schema/identity bytes fail closed with no shim.
+7. Capability, Java/native preflight and lowering, cold preparation, persistent resources, exact
+   BOOL publication, scalar raw words, reductions, scans, and synchronous execution cover all 15
+   kinds over the exact domain. Every exclusion remains false.
+8. Focused Metal, conformance, Compiler-contract, and no-skip real-dylib public Engine scenarios
+   pass. The final full repository build is deliberately deferred.
+9. Javadocs and current architecture/Metal/backend/API/glossary/planning documents match the landed
+   behavior; required raw evidence is retained and disposable artifacts are removed.
 
 ## Planning validation
 
-Validate the documentation/evidence closure only:
-
-```bash
-git diff --check
-```
-
-Also validate changed Markdown links, anchors, fences, final newlines, status consistency, exact
-evidence hashes, the three planning records plus seven retained evidence files, zero
-production/native/test/compiled-probe artifacts, and absence of the disposable `/tmp` workspace.
-Do not run a repository build, test, or device oracle.
+Validate changed Markdown links, anchors, fences, final newlines, status consistency, exact
+retained evidence hashes, raw Gate-3 evidence identity, disposable-artifact absence, and
+`git diff --check`. Do not run the final full repository build.
 
 ## Documentation and review impact
 
