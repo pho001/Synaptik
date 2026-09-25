@@ -172,15 +172,22 @@ final class MetalNegPreparedScheduleAssembler
                 }
             }
             if (executable == null
-                    || executable.preparationPlan().route()
-                            != MetalNegPreparationPlan.Route.MPSGRAPH) {
+                    || (executable.preparationPlan().route()
+                                    != MetalNegPreparationPlan.Route.MPSGRAPH
+                            && executable.preparationPlan().route()
+                                    != MetalNegPreparationPlan.Route.CUSTOM_TASK0052)) {
                 throw new IllegalArgumentException(
-                        "Metal NEG workspace has no exact MPSGraph executable");
+                        "Metal workspace has no exact program executable");
             }
             MetalNegPreparationPlan executablePlan = executable.preparationPlan();
-            int pointerCount = Math.addExact(
-                    executablePlan.feedValueIds().size(),
-                    executablePlan.targetValueIds().size());
+            int pointerCount = executablePlan.route()
+                    == MetalNegPreparationPlan.Route.CUSTOM_TASK0052
+                    ? Math.addExact(
+                            executablePlan.valueIds().size(),
+                            executablePlan.targetValueIds().size())
+                    : Math.addExact(
+                            executablePlan.feedValueIds().size(),
+                            executablePlan.targetValueIds().size());
             workspaces.add(new PreparedScheduleContribution.Workspace(
                     assignment,
                     () -> new MetalNegPreparedExecutable.AddressWorkspace(
@@ -281,6 +288,7 @@ final class MetalNegPreparedScheduleAssembler
         }
         var feeds = new HashSet<>(plan.feedValueIds());
         var targets = new HashSet<>(plan.targetValueIds());
+        var internals = new HashSet<>(plan.internalValueIds());
         var preparations = new ArrayList<
                 List<PreparedRepresentationPlan.BufferPreparation>>(Collections.nCopies(
                 memoryPlan.buffers().size(), null));
@@ -308,9 +316,14 @@ final class MetalNegPreparedScheduleAssembler
                         () -> publication.isPresent()
                                 ? context.createBuffer(bytes, publication.orElseThrow())
                                 : context.createBuffer(bytes)));
+            } else if (internals.contains(assignment.valueId())) {
+                long bytes = memoryPlan.buffers()
+                        .get(assignment.planIndex()).byteSize();
+                preparation = List.of(new PreparedRepresentationPlan.CreatedBuffer(
+                        () -> context.createBuffer(bytes)));
             } else {
                 throw new IllegalArgumentException(
-                        "Metal NEG schedule contains an undeclared boundary buffer");
+                        "Metal schedule contains an undeclared buffer");
             }
             if (preparations.set(assignment.planIndex(), preparation) != null) {
                 throw new IllegalArgumentException(
@@ -319,11 +332,16 @@ final class MetalNegPreparedScheduleAssembler
         }
         for (ValueId feed : plan.feedValueIds()) requireAssignment(assignments, feed);
         for (ValueId target : plan.targetValueIds()) requireAssignment(assignments, target);
+        for (ValueId internal : plan.internalValueIds()) requireAssignment(assignments, internal);
 
         List<PreparedRepresentationPlan.WorkspaceCreator> workspaceCreators;
-        if (plan.route() == MetalNegPreparationPlan.Route.MPSGRAPH) {
-            int pointerCount = Math.addExact(
-                    plan.feedValueIds().size(), plan.targetValueIds().size());
+        if (plan.route() == MetalNegPreparationPlan.Route.MPSGRAPH
+                || plan.route() == MetalNegPreparationPlan.Route.CUSTOM_TASK0052) {
+            int pointerCount = plan.route()
+                    == MetalNegPreparationPlan.Route.CUSTOM_TASK0052
+                    ? Math.addExact(plan.valueIds().size(), plan.targetValueIds().size())
+                    : Math.addExact(
+                            plan.feedValueIds().size(), plan.targetValueIds().size());
             workspaceCreators = List.of(() ->
                     new MetalNegPreparedExecutable.AddressWorkspace(context, pointerCount));
         } else {

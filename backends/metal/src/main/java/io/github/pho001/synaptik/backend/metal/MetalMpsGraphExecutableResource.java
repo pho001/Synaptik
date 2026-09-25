@@ -18,6 +18,7 @@ final class MetalMpsGraphExecutableResource implements PreparedResource {
     private final MetalDeviceContext.ChildLease contextLease;
     private final long[] inputRequiredBytes;
     private final long[] outputRequiredBytes;
+    private final boolean materializedValueInputs;
     private boolean closed;
 
     /**
@@ -37,13 +38,15 @@ final class MetalMpsGraphExecutableResource implements PreparedResource {
             MetalNativeApi.Handle executable,
             MetalDeviceContext.ChildLease contextLease,
             long[] inputRequiredBytes,
-            long[] outputRequiredBytes) {
+            long[] outputRequiredBytes,
+            boolean materializedValueInputs) {
         this.context = Objects.requireNonNull(context, "context");
         this.api = Objects.requireNonNull(api, "api");
         this.executable = Objects.requireNonNull(executable, "executable");
         this.contextLease = Objects.requireNonNull(contextLease, "contextLease");
         this.inputRequiredBytes = inputRequiredBytes.clone();
         this.outputRequiredBytes = outputRequiredBytes.clone();
+        this.materializedValueInputs = materializedValueInputs;
     }
 
     /** @return the exact device context required by compatible bound buffers */
@@ -68,7 +71,8 @@ final class MetalMpsGraphExecutableResource implements PreparedResource {
         if (closed) throw new IllegalStateException("Metal MPSGraph executable is closed");
         MetalNativeApi.MpsGraphExecutableAbi.validateRun(
                 inputRequiredBytes.length, inputCount, inputHandles,
-                outputRequiredBytes.length, outputCount, outputHandles);
+                outputRequiredBytes.length, outputCount, outputHandles,
+                materializedValueInputs);
         api.runExecutable(executable, inputCount, inputHandles, outputCount, outputHandles);
     }
 

@@ -277,7 +277,7 @@ final class MetalTraceProducer {
 
     private static TraceRouteKind mapRoute(MetalNegPreparationPlan.Route route) {
         return switch (Objects.requireNonNull(route, "route")) {
-            case CUSTOM_SINGLE_NEG -> TraceRouteKind.CUSTOM_KERNEL;
+            case CUSTOM_SINGLE_NEG, CUSTOM_TASK0052 -> TraceRouteKind.CUSTOM_KERNEL;
             case MPSGRAPH -> TraceRouteKind.GRAPH_EXECUTABLE;
         };
     }

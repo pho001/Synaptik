@@ -42,10 +42,13 @@ final class MetalNegPartitionFinalizer
                     int[] feedRepresentationIndices,
                     int[] targetPlanIndices,
                     int[] targetRepresentationIndices,
+                    int[] internalPlanIndices,
+                    int[] internalRepresentationIndices,
                     MetalMpsGraphExecutableResource resource,
                     List<Optional<MetalPreparedSplatResource>> splatResources,
                     long[] feedRequiredBytes,
                     long[] targetRequiredBytes,
+                    long[] internalRequiredBytes,
                     int workspacePlanIndex) {
                 return new MetalNegPreparedExecutable(
                         plan,
@@ -54,10 +57,13 @@ final class MetalNegPartitionFinalizer
                         feedRepresentationIndices,
                         targetPlanIndices,
                         targetRepresentationIndices,
+                        internalPlanIndices,
+                        internalRepresentationIndices,
                         resource,
                         splatResources,
                         feedRequiredBytes,
                         targetRequiredBytes,
+                        internalRequiredBytes,
                         workspacePlanIndex);
             }
         });
@@ -143,6 +149,8 @@ final class MetalNegPartitionFinalizer
         int[] feedRepresentationIndices = new int[feedCount];
         int[] targetPlanIndices = new int[plan.targetValueIds().size()];
         int[] targetRepresentationIndices = new int[plan.targetValueIds().size()];
+        int[] internalPlanIndices = new int[plan.internalValueIds().size()];
+        int[] internalRepresentationIndices = new int[plan.internalValueIds().size()];
         boolean[] assignedPlanIndices = new boolean[finalization.memoryPlan().buffers().size()];
         var assignedSlots = Collections.newSetFromMap(
                 new IdentityHashMap<io.github.pho001.synaptik.runtime.memory.BufferSlot, Boolean>());
@@ -170,10 +178,15 @@ final class MetalNegPartitionFinalizer
             if (index < feedCount) {
                 feedPlanIndices[index] = assignment.planIndex();
                 feedRepresentationIndices[index] = assignment.representationIndex();
-            } else {
+            } else if (index < feedCount + targetPlanIndices.length) {
                 int targetIndex = index - feedCount;
                 targetPlanIndices[targetIndex] = assignment.planIndex();
                 targetRepresentationIndices[targetIndex] = assignment.representationIndex();
+            } else {
+                int internalIndex = index - feedCount - targetPlanIndices.length;
+                internalPlanIndices[internalIndex] = assignment.planIndex();
+                internalRepresentationIndices[internalIndex] =
+                        assignment.representationIndex();
             }
         }
         boolean[] splatSources = plan.feedSplatSources();
@@ -191,13 +204,15 @@ final class MetalNegPartitionFinalizer
                     feedRepresentationIndices,
                     targetPlanIndices,
                     targetRepresentationIndices);
-            case MPSGRAPH -> finalizeMpsGraph(
+            case MPSGRAPH, CUSTOM_TASK0052 -> finalizeMpsGraph(
                     finalization,
                     plan,
                     feedPlanIndices,
                     feedRepresentationIndices,
                     targetPlanIndices,
-                    targetRepresentationIndices);
+                    targetRepresentationIndices,
+                    internalPlanIndices,
+                    internalRepresentationIndices);
         };
     }
 
@@ -207,7 +222,9 @@ final class MetalNegPartitionFinalizer
             int[] feedPlanIndices,
             int[] feedRepresentationIndices,
             int[] targetPlanIndices,
-            int[] targetRepresentationIndices) {
+            int[] targetRepresentationIndices,
+            int[] internalPlanIndices,
+            int[] internalRepresentationIndices) {
         var workspaceRequirement = plan.addressWorkspace().orElseThrow();
         var last = finalization.assignments().getLast();
         if (!(last instanceof PreparationResourceAssignment.Workspace workspace)
@@ -233,10 +250,13 @@ final class MetalNegPartitionFinalizer
                     feedRepresentationIndices,
                     targetPlanIndices,
                     targetRepresentationIndices,
+                    internalPlanIndices,
+                    internalRepresentationIndices,
                     resource,
                     splats,
                     plan.feedRequiredBytes(),
                     plan.targetRequiredBytes(),
+                    plan.internalRequiredBytes(),
                     workspace.planIndex());
             return new BackendPartitionFinalizationResult(executable, resources);
         } catch (RuntimeException | Error failure) {
@@ -341,10 +361,14 @@ final class MetalNegPartitionFinalizer
          * @param feedRepresentationIndices owner representation positions aligned with feeds
          * @param targetPlanIndices stable target positions in {@code memoryPlan}
          * @param targetRepresentationIndices owner representation positions aligned with targets
+         * @param internalPlanIndices stable internal logical-value positions in {@code memoryPlan}
+         * @param internalRepresentationIndices owner representation positions aligned with internals
          * @param resource acquired executable resource borrowed by the recipe
          * @param splatResources source-owned immutable splat resources aligned with feeds
          * @param feedRequiredBytes feed byte extents aligned with {@code feedPlanIndices}
          * @param targetRequiredBytes target byte extents aligned with {@code targetPlanIndices}
+         * @param internalRequiredBytes internal byte extents aligned with {@code internalPlanIndices}
+         * @param workspacePlanIndex assigned native-address workspace position
          * @return non-null immutable executable recipe
          * @throws RuntimeException if recipe construction fails
          * @throws Error if construction reports an error
@@ -356,10 +380,13 @@ final class MetalNegPartitionFinalizer
                 int[] feedRepresentationIndices,
                 int[] targetPlanIndices,
                 int[] targetRepresentationIndices,
+                int[] internalPlanIndices,
+                int[] internalRepresentationIndices,
                 MetalMpsGraphExecutableResource resource,
                 List<Optional<MetalPreparedSplatResource>> splatResources,
                 long[] feedRequiredBytes,
                 long[] targetRequiredBytes,
+                long[] internalRequiredBytes,
                 int workspacePlanIndex);
 
         /**

@@ -11,23 +11,23 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Immutable typed operation table for the version-eleven Metal MPSGraph node schema.
+ * Immutable typed operation table for the version-twelve Metal program node schema.
  *
  * <p>ABI version four points at fixed 160-byte discriminated records. Each record contains a
  * closed operation identity, exact ordered value indices, one typed attribute discriminator, and
- * bounded target-shape, permutation, normalized-axis, reduction, one-hot depth, or general-axis
- * window state. Reduction records use a typed full/single/multi/sum-to-Shape form, ordered axes
- * (including an empty multi-axis list), exact keep-dimensions state, or the exact
- * scalar-or-positive-rank sum-to-Shape target. GATHER retains wire 16, ONE_HOT retains wire 17,
- * SCATTER_ELEMENTS retains wire 18 with its third input in the typed auxiliary cell, and
- * UNFOLD_AXIS appends wire 19 with typed normalized-axis, size, and step state. Every unused scalar
- * is a required zero or {@code UINT32_MAX} sentinel and every unused attribute cell is zero. No
+ * bounded target-shape, permutation, normalized-axis, reduction, exact FLOAT32 scalar/clamp, scan,
+ * one-hot depth, or general-axis window state. Reduction records use a typed
+ * full/single/multi/sum-to-Shape form and ordered axes (including an empty multi-axis list).
+ * Scalar and clamp records retain exact unsigned binary32 words. Scan records retain the normalized
+ * axis and exact exclusive/reverse bits. Wires 20 through 34 are the closed Task-0052 custom
+ * comparison, extrema, reduction-extrema, and cumulative-scan vocabulary. Every unused scalar is
+ * a required zero or {@code UINT32_MAX} sentinel and every unused attribute cell is zero. No
  * operation name, generic integer payload, object graph, map, or executable state crosses the
  * ABI.</p>
  */
 final class MetalMpsGraphProgram {
     /** Exact node schema carried across native ABI version four. */
-    static final int SCHEMA_VERSION = 11;
+    static final int SCHEMA_VERSION = 12;
     /** Maximum target rank or permutation length. */
     static final int MAX_RANK = 16;
     /** Maximum number of selectors materialized by one bounded expanding node. */
@@ -43,7 +43,16 @@ final class MetalMpsGraphProgram {
 
     /** Closed attribute vocabulary and stable schema-local wire identities. */
     enum AttributeKind {
-        NONE(0), TARGET_SHAPE(1), PERMUTATION(2), AXIS(3), REDUCTION(4), DEPTH(5), WINDOW_AXIS(6);
+        NONE(0),
+        TARGET_SHAPE(1),
+        PERMUTATION(2),
+        AXIS(3),
+        REDUCTION(4),
+        DEPTH(5),
+        WINDOW_AXIS(6),
+        SCALAR_VALUE(7),
+        CLAMP_RANGE(8),
+        SCAN(9);
         private final int wireIdentity;
 
         AttributeKind(int wireIdentity) {
@@ -112,7 +121,22 @@ final class MetalMpsGraphProgram {
         GATHER(16, 2, AttributeKind.AXIS, ValueState.CANONICAL, false),
         ONE_HOT(17, 1, AttributeKind.DEPTH, ValueState.CANONICAL, false),
         SCATTER_ELEMENTS(18, 3, AttributeKind.AXIS, ValueState.CANONICAL, false),
-        UNFOLD_AXIS(19, 1, AttributeKind.WINDOW_AXIS, ValueState.CANONICAL, false);
+        UNFOLD_AXIS(19, 1, AttributeKind.WINDOW_AXIS, ValueState.CANONICAL, false),
+        GT(20, 2, AttributeKind.NONE, ValueState.CANONICAL, false),
+        GE(21, 2, AttributeKind.NONE, ValueState.CANONICAL, false),
+        LT(22, 2, AttributeKind.NONE, ValueState.CANONICAL, false),
+        LE(23, 2, AttributeKind.NONE, ValueState.CANONICAL, false),
+        EQ(24, 2, AttributeKind.NONE, ValueState.CANONICAL, false),
+        NE(25, 2, AttributeKind.NONE, ValueState.CANONICAL, false),
+        TENSOR_MIN(26, 2, AttributeKind.NONE, ValueState.CANONICAL, false),
+        TENSOR_MAX(27, 2, AttributeKind.NONE, ValueState.CANONICAL, false),
+        SCALAR_MIN(28, 1, AttributeKind.SCALAR_VALUE, ValueState.CANONICAL, false),
+        SCALAR_MAX(29, 1, AttributeKind.SCALAR_VALUE, ValueState.CANONICAL, false),
+        CLAMP(30, 1, AttributeKind.CLAMP_RANGE, ValueState.CANONICAL, false),
+        REDUCTION_MIN(31, 1, AttributeKind.REDUCTION, ValueState.CANONICAL, false),
+        REDUCTION_MAX(32, 1, AttributeKind.REDUCTION, ValueState.CANONICAL, false),
+        CUM_SUM(33, 1, AttributeKind.SCAN, ValueState.CANONICAL, false),
+        CUM_PROD(34, 1, AttributeKind.SCAN, ValueState.CANONICAL, false);
 
         private final int wireIdentity;
         private final int inputCount;
@@ -137,6 +161,10 @@ final class MetalMpsGraphProgram {
             return wireIdentity;
         }
 
+        boolean isTask0052Custom() {
+            return wireIdentity >= 20 && wireIdentity <= 34;
+        }
+
         int inputCount() {
             return inputCount;
         }
@@ -159,7 +187,7 @@ final class MetalMpsGraphProgram {
         }
     }
 
-    /** One immutable typed version-eleven node record. */
+    /** One immutable typed version-twelve node record. */
     static final class Node {
         private final NodeKind kind;
         private final int firstInputIndex;
@@ -239,6 +267,28 @@ final class MetalMpsGraphProgram {
                         || attributeValues[1] <= 0L) {
                     throw new IllegalArgumentException(
                             "window-axis node attributes are malformed");
+                }
+            } else if (kind.attributeKind() == AttributeKind.SCALAR_VALUE) {
+                if ((kind != NodeKind.SCALAR_MIN && kind != NodeKind.SCALAR_MAX)
+                        || attributeCount != 1 || axis != NO_AXIS || auxiliary != 0
+                        || attributeValues.length != 1
+                        || (attributeValues[0] & ~0xffff_ffffL) != 0L) {
+                    throw new IllegalArgumentException("scalar-value node attributes are malformed");
+                }
+            } else if (kind.attributeKind() == AttributeKind.CLAMP_RANGE) {
+                if (kind != NodeKind.CLAMP || attributeCount != 2
+                        || axis != NO_AXIS || auxiliary != 0 || attributeValues.length != 2
+                        || (attributeValues[0] & ~0xffff_ffffL) != 0L
+                        || (attributeValues[1] & ~0xffff_ffffL) != 0L) {
+                    throw new IllegalArgumentException("clamp-range node attributes are malformed");
+                }
+            } else if (kind.attributeKind() == AttributeKind.SCAN) {
+                if ((kind != NodeKind.CUM_SUM && kind != NodeKind.CUM_PROD)
+                        || attributeCount != 2 || axis < 0 || axis >= MAX_RANK
+                        || auxiliary != 0 || attributeValues.length != 2
+                        || attributeValues[0] < 0L || attributeValues[0] > 1L
+                        || attributeValues[1] < 0L || attributeValues[1] > 1L) {
+                    throw new IllegalArgumentException("scan node attributes are malformed");
                 }
             } else {
                 ReductionForm form = ReductionForm.fromWireIdentity(axis);
@@ -371,8 +421,11 @@ final class MetalMpsGraphProgram {
             Objects.requireNonNull(kind, "kind");
             Objects.requireNonNull(form, "form");
             Objects.requireNonNull(axes, "axes");
-            if (kind != NodeKind.SUM && kind != NodeKind.MEAN) {
-                throw new IllegalArgumentException("reduction kind must be SUM or MEAN");
+            if (kind != NodeKind.SUM
+                    && kind != NodeKind.MEAN
+                    && kind != NodeKind.REDUCTION_MIN
+                    && kind != NodeKind.REDUCTION_MAX) {
+                throw new IllegalArgumentException("node kind is not an aggregate reduction");
             }
             if (form == ReductionForm.SUM_TO_SHAPE) {
                 throw new IllegalArgumentException("sum-to-Shape requires target dimensions");
@@ -422,6 +475,40 @@ final class MetalMpsGraphProgram {
                 int inputIndex, int outputIndex, int axis, long size, long step) {
             return new Node(NodeKind.UNFOLD_AXIS, inputIndex, NO_SECOND_INPUT, outputIndex,
                     3, axis, 0, new long[] {size, step});
+        }
+
+        static Node scalarExtreme(
+                NodeKind kind, int inputIndex, int outputIndex, int rawScalarBits) {
+            Objects.requireNonNull(kind, "kind");
+            if (kind != NodeKind.SCALAR_MIN && kind != NodeKind.SCALAR_MAX) {
+                throw new IllegalArgumentException("node kind is not a scalar extreme");
+            }
+            return new Node(kind, inputIndex, NO_SECOND_INPUT, outputIndex,
+                    1, NO_AXIS, 0, new long[] {Integer.toUnsignedLong(rawScalarBits)});
+        }
+
+        static Node clamp(
+                int inputIndex, int outputIndex, int rawLowerBits, int rawUpperBits) {
+            return new Node(NodeKind.CLAMP, inputIndex, NO_SECOND_INPUT, outputIndex,
+                    2, NO_AXIS, 0, new long[] {
+                            Integer.toUnsignedLong(rawLowerBits),
+                            Integer.toUnsignedLong(rawUpperBits)
+                    });
+        }
+
+        static Node scan(
+                NodeKind kind,
+                int inputIndex,
+                int outputIndex,
+                int axis,
+                boolean exclusive,
+                boolean reverse) {
+            Objects.requireNonNull(kind, "kind");
+            if (kind != NodeKind.CUM_SUM && kind != NodeKind.CUM_PROD) {
+                throw new IllegalArgumentException("node kind is not a cumulative scan");
+            }
+            return new Node(kind, inputIndex, NO_SECOND_INPUT, outputIndex,
+                    2, axis, 0, new long[] {exclusive ? 1L : 0L, reverse ? 1L : 0L});
         }
 
         private static long[] longValues(List<Integer> values) {
@@ -495,7 +582,7 @@ final class MetalMpsGraphProgram {
         return encoded.array();
     }
 
-    /** Allocates and writes exact native-endian version-eleven records for one downcall. */
+    /** Allocates and writes exact native-endian version-twelve records for one downcall. */
     MemorySegment encodeNative(Arena arena) {
         Objects.requireNonNull(arena, "arena");
         long bytes = Math.multiplyExact((long) nodes.size(), NODE_RECORD_BYTES);

@@ -116,13 +116,13 @@ abstract class MetalNativeApi implements AutoCloseable {
             Handle buffer, long bufferOffset, MemorySegment destination, long byteCount);
 
     /**
-     * Compiles one shape-specialized whole-partition typed MPSGraph executable.
+     * Compiles one shape-specialized whole-partition typed Metal program executable.
      *
      * @param context non-null live context whose ownership remains with the caller
      * @param numericalProfile non-null cold plan profile used by Java fail-closed preflight
      * @param valueRanks non-null value-aligned ranks
      * @param valueDimensions non-null row-major value-count by sixteen dimension table
-     * @param graphProgram non-null version-eleven typed node table
+     * @param graphProgram non-null version-twelve typed node table
      * @param feedValueIndices non-null stable feed value indices
      * @param targetValueIndices non-null stable target value indices
      * @return a fresh non-null opaque executable handle owned by the caller
@@ -155,7 +155,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * @param context non-null live context whose ownership remains with the caller
      * @param valueRanks validated value-aligned ranks
      * @param valueDimensions validated padded dimension table
-     * @param graphProgram validated version-eleven typed topological node table
+     * @param graphProgram validated version-twelve typed topological node table
      * @param feedValueIndices validated unique feeds
      * @param targetValueIndices validated unique produced targets
      * @return non-null raw status/output-cell result for checked interpretation
@@ -194,7 +194,8 @@ abstract class MetalNativeApi implements AutoCloseable {
      * Executes one compiled region with stable ordered direct buffer bindings.
      *
      * @param executable non-null live executable whose ownership remains with the caller
-     * @param inputBuffers non-null stable feed-ordered live buffer handles
+     * @param inputBuffers non-null stable input handles: feed order for MPSGraph, complete stable
+     *     value-table order for Task-0052 custom programs
      * @param outputBuffers non-null stable target-ordered live buffer handles
      * @throws RuntimeException if validation or synchronous execution fails
      */
@@ -212,8 +213,8 @@ abstract class MetalNativeApi implements AutoCloseable {
      * Returns the raw status from one already validated executable run invocation.
      *
      * @param executable non-null live executable whose ownership remains with the caller
-     * @param inputCount positive validated feed count
-     * @param inputBuffers exact readable feed-address segment
+     * @param inputCount positive validated input count
+     * @param inputBuffers exact readable input-address segment
      * @param outputCount positive validated target count
      * @param outputBuffers exact readable target-address segment
      * @return exact raw native status
@@ -482,7 +483,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
     }
 
-    /** Exact Java preflight for the version-eleven typed MPSGraph executable-create schema. */
+    /** Exact Java preflight for the version-twelve typed Metal program create schema. */
     static final class MpsGraphExecutableAbi {
         private static final int MAX_RANK = 16;
 
@@ -600,15 +601,17 @@ abstract class MetalNativeApi implements AutoCloseable {
                             "Metal MPSGraph node outputs must be unique and not feeds");
                 }
                 switch (node.kind()) {
-                    case NEG, ABS, CONTIGUOUS -> requireShape(
-                            sameShape(left, output, valueRanks, valueDimensions),
-                            node.kind() + " input/output shapes must match exactly");
-                    case ADD, SUB, MUL, DIV -> {
+                    case NEG, ABS, CONTIGUOUS, SCALAR_MIN, SCALAR_MAX, CLAMP, CUM_SUM, CUM_PROD ->
+                            requireShape(
+                                    sameShape(left, output, valueRanks, valueDimensions),
+                                    node.kind() + " input/output shapes must match exactly");
+                    case ADD, SUB, MUL, DIV, GT, GE, LT, LE, EQ, NE,
+                            TENSOR_MIN, TENSOR_MAX -> {
                         requireIndex(right, valueCount, "second node input");
                         if (valueRanks[right] == 0
                                 || !node.kind().accepts(states[right])) {
                             throw new IllegalArgumentException(
-                                    "Metal MPSGraph second node input must be positive-rank canonical");
+                                    "Metal second node input must be positive-rank canonical");
                         }
                         requireShape(
                                 broadcastsTo(left, right, output, valueRanks, valueDimensions),
@@ -651,7 +654,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                     case SQUEEZE -> requireShape(
                             squeezeMatches(node, left, output, valueRanks, valueDimensions),
                             "SQUEEZE axis and output shape disagree");
-                    case SUM, MEAN -> requireShape(
+                    case SUM, MEAN, REDUCTION_MIN, REDUCTION_MAX -> requireShape(
                             reductionMatches(node, left, output, valueRanks, valueDimensions),
                             "reduction attributes, count, and output shape disagree");
                     case MATMUL -> {
@@ -718,14 +721,20 @@ abstract class MetalNativeApi implements AutoCloseable {
                 }
                 switch (node.kind()) {
                     case NEG, ABS, CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS,
-                            SQUEEZE, SUM, MEAN, UNFOLD_AXIS -> {
+                            SQUEEZE, SUM, MEAN, REDUCTION_MIN, REDUCTION_MAX,
+                            SCALAR_MIN, SCALAR_MAX, CLAMP, CUM_SUM, CUM_PROD, UNFOLD_AXIS -> {
                         requireType(types, left, ValueType.FLOAT32);
                         requireType(types, output, ValueType.FLOAT32);
                     }
-                    case ADD, SUB, MUL, DIV, MATMUL -> {
+                    case ADD, SUB, MUL, DIV, TENSOR_MIN, TENSOR_MAX, MATMUL -> {
                         requireType(types, left, ValueType.FLOAT32);
                         requireType(types, right, ValueType.FLOAT32);
                         requireType(types, output, ValueType.FLOAT32);
+                    }
+                    case GT, GE, LT, LE, EQ, NE -> {
+                        requireType(types, left, ValueType.FLOAT32);
+                        requireType(types, right, ValueType.FLOAT32);
+                        requireType(types, output, ValueType.BOOL);
                     }
                     case GATHER -> {
                         requireType(types, left, ValueType.FLOAT32);
@@ -745,9 +754,11 @@ abstract class MetalNativeApi implements AutoCloseable {
                 }
                 if (valueRanks[output] == 0
                         && node.kind() != MetalMpsGraphProgram.NodeKind.SUM
-                        && node.kind() != MetalMpsGraphProgram.NodeKind.MEAN) {
+                        && node.kind() != MetalMpsGraphProgram.NodeKind.MEAN
+                        && node.kind() != MetalMpsGraphProgram.NodeKind.REDUCTION_MIN
+                        && node.kind() != MetalMpsGraphProgram.NodeKind.REDUCTION_MAX) {
                     throw new IllegalArgumentException(
-                            "Metal MPSGraph rank-zero values must be locally produced reductions");
+                            "Metal rank-zero values must be locally produced reductions");
                 }
                 states[output] = node.kind().outputState();
                 used[left] = true;
@@ -800,21 +811,24 @@ abstract class MetalNativeApi implements AutoCloseable {
                 MemorySegment inputBuffers,
                 int expectedOutputs,
                 int outputCount,
-                MemorySegment outputBuffers) {
+                MemorySegment outputBuffers,
+                boolean allowInputOutputAlias) {
             Objects.requireNonNull(inputBuffers, "inputBuffers");
             Objects.requireNonNull(outputBuffers, "outputBuffers");
             if (inputCount != expectedInputs || outputCount != expectedOutputs) {
                 throw new IllegalArgumentException(
-                        "Metal MPSGraph run counts must match the compiled feeds and targets");
+                        "Metal program run counts must match the compiled inputs and targets");
             }
             validateAddressSegment(inputBuffers, inputCount, "inputBuffers");
             validateAddressSegment(outputBuffers, outputCount, "outputBuffers");
-            for (int input = 0; input < inputCount; input++) {
-                long inputAddress = inputBuffers.getAtIndex(ADDRESS, input).address();
-                for (int output = 0; output < outputCount; output++) {
-                    if (inputAddress == outputBuffers.getAtIndex(ADDRESS, output).address()) {
-                        throw new IllegalArgumentException(
-                                "Metal MPSGraph input and output native buffers must not alias");
+            if (!allowInputOutputAlias) {
+                for (int input = 0; input < inputCount; input++) {
+                    long inputAddress = inputBuffers.getAtIndex(ADDRESS, input).address();
+                    for (int output = 0; output < outputCount; output++) {
+                        if (inputAddress == outputBuffers.getAtIndex(ADDRESS, output).address()) {
+                            throw new IllegalArgumentException(
+                                    "Metal MPSGraph input and output native buffers must not alias");
+                        }
                     }
                 }
             }
@@ -853,7 +867,10 @@ abstract class MetalNativeApi implements AutoCloseable {
                 case STRICT_IEEE -> switch (kind) {
                     case NEG, ABS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE,
                             CONTIGUOUS, GATHER, ONE_HOT, SCATTER_ELEMENTS, UNFOLD_AXIS -> true;
-                    case ADD, SUB, MUL, DIV, SUM, MEAN, MATMUL -> false;
+                    case ADD, SUB, MUL, DIV, SUM, MEAN, MATMUL,
+                            GT, GE, LT, LE, EQ, NE, TENSOR_MIN, TENSOR_MAX,
+                            SCALAR_MIN, SCALAR_MAX, CLAMP, REDUCTION_MIN, REDUCTION_MAX,
+                            CUM_SUM, CUM_PROD -> false;
                 };
                 case ACCELERATOR -> true;
             };

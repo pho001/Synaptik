@@ -35,7 +35,10 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
         /** Exact singleton NEG with one feed, one target, and {@code 1..UINT32_MAX} elements. */
         CUSTOM_SINGLE_NEG,
 
-        /** Every supported partition except an eligible custom singleton NEG. */
+        /** Whole-partition Task-0052 custom program, selected whenever a wire 20..34 node occurs. */
+        CUSTOM_TASK0052,
+
+        /** Whole-partition typed MPSGraph route for programs without a Task-0052 node. */
         MPSGRAPH
     }
 
@@ -54,6 +57,9 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     private final int[] feedValueIndices;
     private final List<ValueId> targetValueIds;
     private final int[] targetValueIndices;
+    private final List<ValueId> internalValueIds;
+    private final int[] internalValueIndices;
+    private final long[] internalRequiredBytes;
     private final List<PreparationResourceRequirement.Buffer> declarations;
     private final List<Optional<ScalarValue>> feedSplats;
     private final boolean[] feedSplatSources;
@@ -106,6 +112,9 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             int[] feedValueIndices,
             List<ValueId> targetValueIds,
             int[] targetValueIndices,
+            List<ValueId> internalValueIds,
+            int[] internalValueIndices,
+            long[] internalRequiredBytes,
             List<PreparationResourceRequirement.Buffer> declarations,
             List<Optional<ScalarValue>> feedSplats,
             boolean[] feedSplatSources,
@@ -128,6 +137,9 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
                 feedValueIndices,
                 targetValueIds,
                 targetValueIndices,
+                internalValueIds,
+                internalValueIndices,
+                internalRequiredBytes,
                 declarations,
                 feedSplats,
                 feedSplatSources,
@@ -153,6 +165,9 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             int[] feedValueIndices,
             List<ValueId> targetValueIds,
             int[] targetValueIndices,
+            List<ValueId> internalValueIds,
+            int[] internalValueIndices,
+            long[] internalRequiredBytes,
             List<PreparationResourceRequirement.Buffer> declarations,
             List<Optional<ScalarValue>> feedSplats,
             boolean[] feedSplatSources,
@@ -180,6 +195,9 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
         this.feedValueIndices = feedValueIndices.clone();
         this.targetValueIds = List.copyOf(targetValueIds);
         this.targetValueIndices = targetValueIndices.clone();
+        this.internalValueIds = List.copyOf(internalValueIds);
+        this.internalValueIndices = internalValueIndices.clone();
+        this.internalRequiredBytes = internalRequiredBytes.clone();
         this.declarations = List.copyOf(declarations);
         this.feedSplats = List.copyOf(feedSplats);
         this.feedSplatSources = feedSplatSources.clone();
@@ -193,14 +211,15 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
                 || this.valueDimensions.length != this.valueIds.size() * 16
                 || this.valueStates.contains(MetalMpsGraphProgram.ValueState.UNAVAILABLE)
                 || this.graphProgram.nodes().size() != partitionDag.nodes().size()
-                || this.feedValueIds.size() != this.feedValueIndices.length
                 || this.feedValueIds.size() != this.feedRequiredBytes.length
                 || this.feedValueIds.size() != this.feedSplats.size()
                 || this.feedValueIds.size() != this.feedSplatSources.length
                 || this.targetValueIds.size() != this.targetValueIndices.length
                 || this.targetValueIds.size() != this.targetRequiredBytes.length
-                || this.declarations.size()
-                        != this.feedValueIds.size() + this.targetValueIds.size()) {
+                || this.internalValueIds.size() != this.internalValueIndices.length
+                || this.internalValueIds.size() != this.internalRequiredBytes.length
+                || this.declarations.size() != this.feedValueIds.size()
+                        + this.targetValueIds.size() + this.internalValueIds.size()) {
             throw new IllegalArgumentException("Metal NEG preparation-plan cardinalities disagree");
         }
         for (int index = 0; index < this.feedSplatSources.length; index++) {
@@ -209,15 +228,35 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
                         "Metal source splat requires an exact scalar value");
             }
         }
+        boolean containsTask0052 = this.graphProgram.nodes().stream()
+                .anyMatch(node -> node.kind().isTask0052Custom());
         if ((this.route == Route.CUSTOM_SINGLE_NEG
                         && (partitionDag.nodes().size() != 1
                                 || this.graphProgram.nodes().getFirst().kind()
                                         != MetalMpsGraphProgram.NodeKind.NEG
                                 || this.feedValueIds.size() != 1
                                 || this.targetValueIds.size() != 1
+                                || !this.internalValueIds.isEmpty()
                                 || this.addressWorkspace.isPresent()))
-                || (this.route == Route.MPSGRAPH && this.addressWorkspace.isEmpty())) {
-            throw new IllegalArgumentException("Metal NEG route and workspace facts disagree");
+                || (this.route == Route.CUSTOM_TASK0052
+                        && (!containsTask0052 || this.addressWorkspace.isEmpty()))
+                || (this.route == Route.MPSGRAPH
+                        && (containsTask0052
+                                || !this.internalValueIds.isEmpty()
+                                || this.addressWorkspace.isEmpty()))) {
+            throw new IllegalArgumentException("Metal route and workspace facts disagree");
+        }
+        if (this.route == Route.CUSTOM_TASK0052) {
+            boolean[] covered = new boolean[this.valueIds.size()];
+            cover(covered, this.feedValueIndices);
+            cover(covered, this.targetValueIndices);
+            cover(covered, this.internalValueIndices);
+            for (boolean present : covered) {
+                if (!present) {
+                    throw new IllegalArgumentException(
+                            "Metal custom program must materialize every stable value");
+                }
+            }
         }
     }
     /** @return exact immutable graph-wide numerical-profile identity */
@@ -240,6 +279,19 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     int[] feedValueIndices() { return feedValueIndices.clone(); }
     List<ValueId> targetValueIds() { return targetValueIds; }
     int[] targetValueIndices() { return targetValueIndices.clone(); }
+    List<ValueId> internalValueIds() { return internalValueIds; }
+    int[] internalValueIndices() { return internalValueIndices.clone(); }
+    long[] internalRequiredBytes() { return internalRequiredBytes.clone(); }
+    long[] materializedValueRequiredBytes() {
+        if (route != Route.CUSTOM_TASK0052) {
+            throw new IllegalStateException("Metal plan is not a Task-0052 custom program");
+        }
+        long[] bytes = new long[valueIds.size()];
+        place(bytes, feedValueIndices, feedRequiredBytes);
+        place(bytes, targetValueIndices, targetRequiredBytes);
+        place(bytes, internalValueIndices, internalRequiredBytes);
+        return bytes;
+    }
     List<PreparationResourceRequirement.Buffer> declarations() { return declarations; }
     List<Optional<ScalarValue>> feedSplats() { return feedSplats; }
     boolean[] feedSplatSources() { return feedSplatSources.clone(); }
@@ -257,7 +309,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             long byteSize) {
         Objects.requireNonNull(valueId, "valueId");
         Objects.requireNonNull(descriptor, "descriptor");
-        if (route != Route.MPSGRAPH
+        if ((route != Route.MPSGRAPH && route != Route.CUSTOM_TASK0052)
                 || targetPosition < 0
                 || targetPosition >= targetValueIds.size()
                 || !targetValueIds.get(targetPosition).equals(valueId)
@@ -276,6 +328,22 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             }
         }
         return Optional.empty();
+    }
+
+    private static void place(long[] target, int[] indices, long[] values) {
+        for (int position = 0; position < indices.length; position++) {
+            target[indices[position]] = values[position];
+        }
+    }
+
+    private static void cover(boolean[] covered, int[] indices) {
+        for (int index : indices) {
+            if (index < 0 || index >= covered.length || covered[index]) {
+                throw new IllegalArgumentException(
+                        "Metal materialized value indices are malformed");
+            }
+            covered[index] = true;
+        }
     }
 
     /**

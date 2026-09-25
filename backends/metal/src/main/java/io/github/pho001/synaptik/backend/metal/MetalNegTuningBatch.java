@@ -17,18 +17,20 @@ import java.util.Optional;
  */
 final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
     /** Current candidate and decision meaning. */
-    static final int CANDIDATE_SCHEMA_VERSION = 12;
+    static final int CANDIDATE_SCHEMA_VERSION = 13;
     /** Current canonical workload/target compatibility meaning. */
-    static final int COMPATIBILITY_SCHEMA_VERSION = 12;
+    static final int COMPATIBILITY_SCHEMA_VERSION = 13;
     /** Current exact profile-qualified Metal operation-composition policy meaning. */
-    static final int ROUTE_POLICY_VERSION = 12;
+    static final int ROUTE_POLICY_VERSION = 13;
 
     /** Stable complete private route configurations. */
     enum Candidate {
         /** One-node, one-feed, one-target custom FLOAT32 NEG configuration. */
         CUSTOM_SINGLE_NEG(1, MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG),
         /** Whole-partition typed MPSGraph profile-qualified operation configuration. */
-        MPSGRAPH(2, MetalNegPreparationPlan.Route.MPSGRAPH);
+        MPSGRAPH(2, MetalNegPreparationPlan.Route.MPSGRAPH),
+        /** Fixed whole-partition Task-0052 custom-program configuration. */
+        CUSTOM_TASK0052(3, MetalNegPreparationPlan.Route.CUSTOM_TASK0052);
 
         private final int wireIdentity;
         private final MetalNegPreparationPlan.Route route;
@@ -67,7 +69,7 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
         private final byte[] bytes;
 
         /**
-         * Snapshots canonical schema-eleven workload-fingerprint bytes.
+         * Snapshots canonical schema-twelve workload-fingerprint bytes.
          *
          * <p>The bytes include the stable explicit numerical-profile wire identity, so otherwise
          * equal workloads under different profiles cannot share workload identity.</p>

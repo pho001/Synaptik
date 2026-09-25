@@ -9,6 +9,10 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ClampRangeAttrs;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
 import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
@@ -29,6 +33,8 @@ import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKin
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis;
@@ -49,23 +55,20 @@ import java.util.Optional;
  * ordered operand, and derives unique feeds and targets before selecting a closed private route.
  * For both profiles, it walks explicit unavailable/canonical/affine-view states in node order for
  * the retained NEG/ABS, affine, CONTIGUOUS, UNFOLD_AXIS, GATHER, ONE_HOT, and replacement
- * SCATTER_ELEMENTS domain. Under {@code ACCELERATOR}, it additionally accepts binary arithmetic,
- * the exact SUM/MEAN/SUM_TO_SHAPE reduction forms, and positive static rank-two FLOAT32 MATMUL. An
- * affine MATMUL operand is authenticated to the exact earlier local rank-two
- * {@code PERMUTE [1,0]} of a canonical source on that consuming edge; affine values otherwise
- * retain the same valid local consumers and boundary publication as strict execution. MATMUL
- * lowering retains both ordered operands in a schema-eleven wire-15 record; GATHER and ONE_HOT
- * retain wires 16 and 17, SCATTER_ELEMENTS retains wire 18 with updates in the typed auxiliary
- * cell, and UNFOLD_AXIS appends wire 19 with normalized axis, size, and step. Reduction lowering
- * retains the typed form, ordered normalized axes (including empty), exact keep-dimensions flag,
- * sum-to-Shape target, and shape-derived term geometry. Every graph feed is canonical
- * positive-rank and exactly FLOAT32 or INT32 as required by its typed uses. Analysis
- * freshly regenerates the complete candidate batch; an absent decision preserves the singleton-NEG
- * heuristic, while a present decision must authenticate against current schema, workload, profile,
- * session target, and candidate identity. The selected route is fixed before exact declarations.
- * Published affine views retain logical descriptors while declarations use full dense
- * represented-order byte geometry. Analysis allocates no physical resource and never changes
- * partition ownership or capability.</p>
+ * SCATTER_ELEMENTS domain. Under {@code ACCELERATOR}, it additionally accepts existing arithmetic,
+ * reduction, and rank-two MATMUL plus the exact Task-0052 comparisons, tensor/scalar extrema,
+ * clamp, reduction extrema, and cumulative scans. An affine MATMUL operand is authenticated to the
+ * exact earlier local rank-two {@code PERMUTE [1,0]} on that consuming edge. Schema-twelve
+ * lowering retains wires 1..19 and appends the Task-0052 operations 20..34 and typed attributes
+ * 7..9. Every graph feed is canonical positive-rank and exactly FLOAT32 or INT32 as required by
+ * its typed uses. BOOL comparison results are direct targets and cannot cross or feed another
+ * operation. Analysis freshly regenerates the complete candidate batch; an absent decision
+ * preserves the singleton-NEG heuristic, while a present decision must authenticate against the
+ * current schema, workload, profile, session target, and candidate identity. Any Task-0052 node
+ * fixes the whole partition to its custom program route before exact declarations, including a
+ * declared run-owned buffer for every internal logical value. Published affine views retain
+ * logical descriptors while declarations use full dense represented-order byte geometry.
+ * Analysis allocates no physical resource and never changes partition ownership or capability.</p>
  */
 final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         MetalNegAnalysisInputs, MetalNegPreparationPlan> {
@@ -220,6 +223,11 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 LogicalMemoryRequirement requirement = require(requirements, output);
                 boolean outsideConsumer = requirement.consumerPartitions().stream()
                         .anyMatch(partition -> partition != context.partition());
+                if (outsideConsumer
+                        && graphValues.get(output).descriptor().dataType() == DataType.BOOL) {
+                    throw new IllegalArgumentException(
+                            "Metal comparison BOOL cannot cross a partition boundary");
+                }
                 if ((requirement.graphOutput() || outsideConsumer) && !targets.contains(output)) {
                     targets.add(output);
                 }
@@ -260,8 +268,32 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         int[] targetIndices = indices(targets, valueIndexes);
         long[] feedBytes = requiredBytes(feeds, graphValues);
         long[] targetBytes = requiredBytes(targets, graphValues);
+        boolean containsTask0052 = graphProgram.nodes().stream()
+                .anyMatch(node -> node.kind().isTask0052Custom());
+        long singletonElements = feedBytes.length == 1 ? feedBytes[0] / Float.BYTES : 0L;
+        MetalNegPreparationPlan.Route route = containsTask0052
+                ? MetalNegPreparationPlan.Route.CUSTOM_TASK0052
+                : nodeCount == 1
+                        && graphProgram.nodes().getFirst().kind()
+                                == MetalMpsGraphProgram.NodeKind.NEG
+                        && feeds.size() == 1
+                        && targets.size() == 1
+                        && singletonElements >= 1L
+                        && singletonElements <= UINT32_MAX
+                        ? MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG
+                        : MetalNegPreparationPlan.Route.MPSGRAPH;
+        var internalValues = new ArrayList<ValueId>();
+        if (route == MetalNegPreparationPlan.Route.CUSTOM_TASK0052) {
+            for (ValueId valueId : valueIds) {
+                if (!feeds.contains(valueId) && !targets.contains(valueId)) {
+                    internalValues.add(valueId);
+                }
+            }
+        }
+        int[] internalIndices = indices(internalValues, valueIndexes);
+        long[] internalBytes = requiredBytes(internalValues, graphValues);
         var declarations = new ArrayList<PreparationResourceRequirement.Buffer>(
-                feeds.size() + targets.size());
+                feeds.size() + targets.size() + internalValues.size());
         for (int index = 0; index < feeds.size(); index++) {
             int alignment = graphValues.get(feeds.get(index)).descriptor().dataType().byteWidth();
             declarations.add(new PreparationResourceRequirement.Buffer(
@@ -272,24 +304,21 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             declarations.add(new PreparationResourceRequirement.Buffer(
                     targets.get(index), targetBytes[index], alignment));
         }
-        long singletonElements = feedBytes.length == 1 ? feedBytes[0] / Float.BYTES : 0L;
-        MetalNegPreparationPlan.Route route = nodeCount == 1
-                        && graphProgram.nodes().getFirst().kind()
-                                == MetalMpsGraphProgram.NodeKind.NEG
-                        && feeds.size() == 1
-                        && targets.size() == 1
-                        && singletonElements >= 1L
-                        && singletonElements <= UINT32_MAX
-                ? MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG
-                : MetalNegPreparationPlan.Route.MPSGRAPH;
+        for (int index = 0; index < internalValues.size(); index++) {
+            int alignment = graphValues.get(internalValues.get(index))
+                    .descriptor().dataType().byteWidth();
+            declarations.add(new PreparationResourceRequirement.Buffer(
+                    internalValues.get(index), internalBytes[index], alignment));
+        }
         Optional<PreparationResourceRequirement.Workspace> heuristicWorkspace = workspace(
-                route, feeds.size(), targets.size());
+                route, feeds.size(), targets.size(), valueIds.size());
         var heuristicPlan = new MetalNegPreparationPlan(
                 context.numericalProfile(),
                 context.partition(), context.partitionDag(), deviceContext,
                 route,
                 valueIds, descriptors, valueStates, ranks, dimensions, graphProgram,
-                feeds, feedIndices, targets, targetIndices, declarations, feedSplats,
+                feeds, feedIndices, targets, targetIndices,
+                internalValues, internalIndices, internalBytes, declarations, feedSplats,
                 feedSplatSources, heuristicWorkspace, feedBytes, targetBytes);
         MetalNegTuningBatch freshBatch = new MetalNegRouteCandidateGenerator()
                 .generate(context, heuristicPlan, MetalNegTuningBatch.Candidate.values().length);
@@ -312,7 +341,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         }
 
         Optional<PreparationResourceRequirement.Workspace> selectedWorkspace = workspace(
-                route, feeds.size(), targets.size());
+                route, feeds.size(), targets.size(), valueIds.size());
         MetalTraceProducer traceProducer = context.backendInputs().traceProducer();
         MetalTraceProducer.PreparedUnit traceUnit = traceProducer == null
                 ? null
@@ -324,7 +353,8 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         context.partition(), context.partitionDag(), deviceContext,
                         route,
                         valueIds, descriptors, valueStates, ranks, dimensions, graphProgram,
-                        feeds, feedIndices, targets, targetIndices, declarations, feedSplats,
+                        feeds, feedIndices, targets, targetIndices,
+                        internalValues, internalIndices, internalBytes, declarations, feedSplats,
                         feedSplatSources, selectedWorkspace, feedBytes, targetBytes, traceUnit);
         var allDeclarations = new ArrayList<PreparationResourceRequirement>(declarations);
         plan.addressWorkspace().ifPresent(allDeclarations::add);
@@ -332,10 +362,15 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
     }
 
     private static Optional<PreparationResourceRequirement.Workspace> workspace(
-            MetalNegPreparationPlan.Route route, int feedCount, int targetCount) {
-        if (route != MetalNegPreparationPlan.Route.MPSGRAPH) return Optional.empty();
-        long workspaceBytes = Math.multiplyExact(
-                Math.addExact((long) feedCount, targetCount), Long.BYTES);
+            MetalNegPreparationPlan.Route route,
+            int feedCount,
+            int targetCount,
+            int valueCount) {
+        if (route == MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG) return Optional.empty();
+        long pointerCount = route == MetalNegPreparationPlan.Route.CUSTOM_TASK0052
+                ? Math.addExact((long) valueCount, targetCount)
+                : Math.addExact((long) feedCount, targetCount);
+        long workspaceBytes = Math.multiplyExact(pointerCount, Long.BYTES);
         return Optional.of(new PreparationResourceRequirement.Workspace(
                 0L, workspaceBytes, Long.BYTES));
     }
@@ -449,25 +484,76 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         if (kind == UnaryElementwiseKind.ABS) {
             return MetalMpsGraphProgram.Node.abs(inputs[0], output);
         }
+        if (kind instanceof BinaryComparisonKind comparison) {
+            MetalMpsGraphProgram.NodeKind nodeKind = switch (comparison) {
+                case GREATER_THAN -> MetalMpsGraphProgram.NodeKind.GT;
+                case GREATER_OR_EQUAL -> MetalMpsGraphProgram.NodeKind.GE;
+                case LESS_THAN -> MetalMpsGraphProgram.NodeKind.LT;
+                case LESS_OR_EQUAL -> MetalMpsGraphProgram.NodeKind.LE;
+                case EQUAL -> MetalMpsGraphProgram.NodeKind.EQ;
+                case NOT_EQUAL -> MetalMpsGraphProgram.NodeKind.NE;
+            };
+            return MetalMpsGraphProgram.Node.binary(
+                    nodeKind, inputs[0], inputs[1], output);
+        }
         if (kind instanceof BinaryArithmeticKind binary) {
             MetalMpsGraphProgram.NodeKind nodeKind = switch (binary) {
                 case ADD -> MetalMpsGraphProgram.NodeKind.ADD;
                 case SUB -> MetalMpsGraphProgram.NodeKind.SUB;
                 case MUL -> MetalMpsGraphProgram.NodeKind.MUL;
                 case DIV -> MetalMpsGraphProgram.NodeKind.DIV;
+                case MIN -> MetalMpsGraphProgram.NodeKind.TENSOR_MIN;
+                case MAX -> MetalMpsGraphProgram.NodeKind.TENSOR_MAX;
                 default -> throw new IllegalArgumentException(
                         "unsupported Metal binary operation: " + binary);
             };
             return MetalMpsGraphProgram.Node.binary(
                     nodeKind, inputs[0], inputs[1], output);
         }
+        if (kind instanceof ScalarElementwiseKind scalar) {
+            if (scalar == ScalarElementwiseKind.CLAMP) {
+                ClampRangeAttrs attrs = (ClampRangeAttrs) operation.attrs();
+                return MetalMpsGraphProgram.Node.clamp(
+                        inputs[0],
+                        output,
+                        Float.floatToRawIntBits(attrs.minValue().float32Value()),
+                        Float.floatToRawIntBits(attrs.maxValue().float32Value()));
+            }
+            ScalarValueAttrs attrs = (ScalarValueAttrs) operation.attrs();
+            MetalMpsGraphProgram.NodeKind nodeKind = scalar == ScalarElementwiseKind.MIN
+                    ? MetalMpsGraphProgram.NodeKind.SCALAR_MIN
+                    : MetalMpsGraphProgram.NodeKind.SCALAR_MAX;
+            return MetalMpsGraphProgram.Node.scalarExtreme(
+                    nodeKind,
+                    inputs[0],
+                    output,
+                    Float.floatToRawIntBits(attrs.value().float32Value()));
+        }
+        if (kind instanceof CumulativeScanKind scan) {
+            CumulativeScanAttrs attrs = (CumulativeScanAttrs) operation.attrs();
+            MetalMpsGraphProgram.NodeKind nodeKind = scan == CumulativeScanKind.CUM_SUM
+                    ? MetalMpsGraphProgram.NodeKind.CUM_SUM
+                    : MetalMpsGraphProgram.NodeKind.CUM_PROD;
+            return MetalMpsGraphProgram.Node.scan(
+                    nodeKind,
+                    inputs[0],
+                    output,
+                    attrs.axis(),
+                    attrs.exclusive(),
+                    attrs.reverse());
+        }
         if (kind == MatmulKind.MATMUL) {
             return MetalMpsGraphProgram.Node.matmul(inputs[0], inputs[1], output);
         }
         if (kind instanceof AggregateReductionKind reduction) {
-            MetalMpsGraphProgram.NodeKind nodeKind = reduction == AggregateReductionKind.SUM
-                    ? MetalMpsGraphProgram.NodeKind.SUM
-                    : MetalMpsGraphProgram.NodeKind.MEAN;
+            MetalMpsGraphProgram.NodeKind nodeKind = switch (reduction) {
+                case SUM -> MetalMpsGraphProgram.NodeKind.SUM;
+                case MEAN -> MetalMpsGraphProgram.NodeKind.MEAN;
+                case MIN -> MetalMpsGraphProgram.NodeKind.REDUCTION_MIN;
+                case MAX -> MetalMpsGraphProgram.NodeKind.REDUCTION_MAX;
+                default -> throw new IllegalArgumentException(
+                        "unsupported Metal reduction: " + reduction);
+            };
             if (operation.attrs() == io.github.pho001.synaptik.model.operation.NoOperationAttrs.INSTANCE) {
                 return MetalMpsGraphProgram.Node.reduction(
                         nodeKind, inputs[0], output,

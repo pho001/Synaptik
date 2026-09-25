@@ -22,15 +22,15 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
 /**
  * Immutable Runtime recipe for one selected shape-specialized Metal supported-operation route.
  *
- * <p>Selections are feeds in stable order followed by targets in stable order. Cold binding
- * validates live context-local buffer representations and byte extents, then creates a
- * route-specific bound invocation. MPSGraph retains direct slices of its run-owned native-address
- * workspace and writes full dense represented-order targets, including authenticated composed
- * affine-view publications; canonical {@code CONTIGUOUS} targets use the ordinary path. The custom
- * singleton retains direct typed input and output references and
- * has no workspace. Hot execution makes exactly one matching native call and performs no lookup,
- * graph inspection, route selection, cast, address marshalling, or collection allocation. The
- * custom resource and MPSGraph resource are nominally distinct and cannot be interchanged.</p>
+ * <p>Selections are feeds, targets, and declared internal logical values in stable order. Cold
+ * binding validates context-local buffer representations and byte extents, then creates one
+ * route-specific bound invocation. Ordinary MPSGraph and the Task-0052 custom whole-program route
+ * retain direct slices of a run-owned native-address workspace and write direct assigned targets.
+ * The Task-0052 workspace carries the stable complete value table plus target aliases; every
+ * intermediate is a declared run-owned output selection. The dedicated singleton-NEG resource
+ * retains direct typed input/output references and has no workspace. Hot Java execution makes
+ * exactly one matching native call and performs no lookup, graph inspection, route selection,
+ * address marshalling, collection allocation, retry, or fallback.</p>
  */
 final class MetalNegPreparedExecutable extends PreparedExecutable {
     private static final ValueLayout.OfInt NATIVE_INT =
@@ -40,6 +40,8 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
     private final MetalNegKernelPipelineResource customResource;
     private final List<Optional<MetalPreparedSplatResource>> splatResources;
     private final int inputCount;
+    private final int targetCount;
+    private final int internalCount;
     private final long[] requiredBytes;
 
     /**
@@ -51,10 +53,13 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
      * @param feedRepresentationIndices non-null owner positions aligned with feed buffers
      * @param targetPlanIndices non-null stable target buffer positions
      * @param targetRepresentationIndices non-null owner positions aligned with target buffers
+     * @param internalPlanIndices non-null stable internal-value buffer positions
+     * @param internalRepresentationIndices non-null owner positions aligned with internal values
      * @param resource non-null borrowed persistent executable resource owned by PreparedExecution
      * @param splatResources immutable source-owned splat resources aligned with feeds
      * @param feedRequiredBytes non-null byte extents aligned with feeds
      * @param targetRequiredBytes non-null byte extents aligned with targets
+     * @param internalRequiredBytes non-null byte extents aligned with internal values
      * @param workspacePlanIndex dense position of the exact assigned address workspace
      * @throws NullPointerException if a required reference is {@code null}
      * @throws IllegalArgumentException if selection and geometry cardinalities disagree
@@ -66,10 +71,13 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             int[] feedRepresentationIndices,
             int[] targetPlanIndices,
             int[] targetRepresentationIndices,
+            int[] internalPlanIndices,
+            int[] internalRepresentationIndices,
             MetalMpsGraphExecutableResource resource,
             List<Optional<MetalPreparedSplatResource>> splatResources,
             long[] feedRequiredBytes,
             long[] targetRequiredBytes,
+            long[] internalRequiredBytes,
             int workspacePlanIndex) {
         super(
                 memoryPlan,
@@ -77,23 +85,38 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                         feedPlanIndices,
                         feedRepresentationIndices,
                         targetPlanIndices,
-                        targetRepresentationIndices),
+                        targetRepresentationIndices,
+                        internalPlanIndices,
+                        internalRepresentationIndices),
                 List.of(new WorkspaceSelection(workspacePlanIndex)),
-                accesses(feedPlanIndices.length, targetPlanIndices.length));
+                accesses(
+                        feedPlanIndices.length,
+                        targetPlanIndices.length,
+                        internalPlanIndices.length));
         this.preparationPlan = Objects.requireNonNull(preparationPlan, "preparationPlan");
         this.mpsGraphResource = Objects.requireNonNull(resource, "resource");
         this.customResource = null;
         this.splatResources = List.copyOf(splatResources);
         this.inputCount = feedPlanIndices.length;
-        this.requiredBytes = new long[feedRequiredBytes.length + targetRequiredBytes.length];
+        this.targetCount = targetPlanIndices.length;
+        this.internalCount = internalPlanIndices.length;
+        this.requiredBytes = new long[
+                feedRequiredBytes.length
+                        + targetRequiredBytes.length
+                        + internalRequiredBytes.length];
         System.arraycopy(feedRequiredBytes, 0, requiredBytes, 0, feedRequiredBytes.length);
         System.arraycopy(targetRequiredBytes, 0, requiredBytes,
                 feedRequiredBytes.length, targetRequiredBytes.length);
+        System.arraycopy(internalRequiredBytes, 0, requiredBytes,
+                feedRequiredBytes.length + targetRequiredBytes.length,
+                internalRequiredBytes.length);
         if (feedPlanIndices.length != feedRequiredBytes.length
                 || feedPlanIndices.length != feedRepresentationIndices.length
                 || feedPlanIndices.length != this.splatResources.size()
                 || targetPlanIndices.length != targetRequiredBytes.length
-                || targetPlanIndices.length != targetRepresentationIndices.length) {
+                || targetPlanIndices.length != targetRepresentationIndices.length
+                || internalPlanIndices.length != internalRequiredBytes.length
+                || internalPlanIndices.length != internalRepresentationIndices.length) {
             throw new IllegalArgumentException("Metal NEG selection geometry disagrees");
         }
         validateSplatResources();
@@ -134,6 +157,8 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         this.customResource = Objects.requireNonNull(resource, "resource");
         this.splatResources = List.copyOf(splatResources);
         this.inputCount = 1;
+        this.targetCount = 1;
+        this.internalCount = 0;
         this.requiredBytes = new long[] {resource.requiredBytes(), resource.requiredBytes()};
         if (this.splatResources.size() != 1) {
             throw new IllegalArgumentException("Metal custom splat-resource cardinality disagrees");
@@ -197,10 +222,14 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
     @Override
     protected boolean acceptsWorkspaceRepresentation(
             int selectionIndex, WorkspaceRepresentation representation) {
+        int pointerCount = preparationPlan.route()
+                == MetalNegPreparationPlan.Route.CUSTOM_TASK0052
+                ? Math.addExact(requiredBytes.length, targetCount)
+                : requiredBytes.length;
         return mpsGraphResource != null
                 && representation instanceof AddressWorkspace workspace
                 && workspace.belongsTo(mpsGraphResource.context())
-                && workspace.pointerCount() == requiredBytes.length;
+                && workspace.pointerCount() == pointerCount;
     }
 
     @Override
@@ -218,13 +247,16 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             return new CustomBoundInvocation(
                     runState, preparationPlan, customResource, input, output);
         }
+        if (preparationPlan.route() == MetalNegPreparationPlan.Route.CUSTOM_TASK0052) {
+            return bindTask0052Program(runState, bufferRepresentations, workspaceRepresentations);
+        }
         var workspace = (AddressWorkspace) workspaceRepresentations[0];
         var inputBuffers = new MetalBufferRepresentation[inputCount];
         for (int index = 0; index < inputCount; index++) {
             inputBuffers[index] = readInput(index, bufferRepresentations[index]);
             workspace.set(index, inputBuffers[index].executionHandle());
         }
-        int outputCount = bufferRepresentations.length - inputCount;
+        int outputCount = targetCount;
         for (int index = 0; index < outputCount; index++) {
             MetalBufferRepresentation output = (MetalBufferRepresentation)
                     bufferRepresentations[inputCount + index];
@@ -242,6 +274,62 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         return new MpsGraphBoundInvocation(
                 runState, preparationPlan, mpsGraphResource, inputBuffers,
                 inputCount, inputs, outputCount, outputs);
+    }
+
+    private BoundInvocation bindTask0052Program(
+            RunState runState,
+            BufferRepresentation[] bufferRepresentations,
+            WorkspaceRepresentation[] workspaceRepresentations) {
+        var workspace = (AddressWorkspace) workspaceRepresentations[0];
+        int valueCount = preparationPlan.valueIds().size();
+        var valueBuffers = new MetalBufferRepresentation[valueCount];
+        var feedBuffers = new MetalBufferRepresentation[inputCount];
+        int[] feedValues = preparationPlan.feedValueIndices();
+        for (int index = 0; index < inputCount; index++) {
+            MetalBufferRepresentation input = readInput(index, bufferRepresentations[index]);
+            feedBuffers[index] = input;
+            valueBuffers[feedValues[index]] = input;
+        }
+        int[] targetValues = preparationPlan.targetValueIndices();
+        for (int index = 0; index < targetCount; index++) {
+            valueBuffers[targetValues[index]] = (MetalBufferRepresentation)
+                    bufferRepresentations[inputCount + index];
+        }
+        int[] internalValues = preparationPlan.internalValueIndices();
+        for (int index = 0; index < internalCount; index++) {
+            valueBuffers[internalValues[index]] = (MetalBufferRepresentation)
+                    bufferRepresentations[inputCount + targetCount + index];
+        }
+        for (int value = 0; value < valueBuffers.length; value++) {
+            MetalBufferRepresentation buffer = Objects.requireNonNull(
+                    valueBuffers[value], "materialized value buffer");
+            long handle = buffer.executionHandle().carrier().address();
+            for (int previous = 0; previous < value; previous++) {
+                if (valueBuffers[previous].executionHandle().carrier().address() == handle) {
+                    throw new IllegalArgumentException(
+                            "Metal Task-0052 materialized value buffers must not alias");
+                }
+            }
+            workspace.set(value, buffer.executionHandle());
+        }
+        for (int target = 0; target < targetCount; target++) {
+            workspace.set(valueCount + target,
+                    valueBuffers[targetValues[target]].executionHandle());
+        }
+        MemorySegment values = workspace.segment().asSlice(
+                0L, (long) valueCount * ADDRESS.byteSize());
+        MemorySegment outputs = workspace.segment().asSlice(
+                (long) valueCount * ADDRESS.byteSize(),
+                (long) targetCount * ADDRESS.byteSize());
+        return new MpsGraphBoundInvocation(
+                runState,
+                preparationPlan,
+                mpsGraphResource,
+                feedBuffers,
+                valueCount,
+                values,
+                targetCount,
+                outputs);
     }
 
     private MetalBufferRepresentation readInput(
@@ -541,29 +629,39 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             int[] feeds,
             int[] feedRepresentations,
             int[] targets,
-            int[] targetRepresentations) {
+            int[] targetRepresentations,
+            int[] internals,
+            int[] internalRepresentations) {
         Objects.requireNonNull(feeds, "feedPlanIndices");
         Objects.requireNonNull(feedRepresentations, "feedRepresentationIndices");
         Objects.requireNonNull(targets, "targetPlanIndices");
         Objects.requireNonNull(targetRepresentations, "targetRepresentationIndices");
+        Objects.requireNonNull(internals, "internalPlanIndices");
+        Objects.requireNonNull(internalRepresentations, "internalRepresentationIndices");
         if (feeds.length != feedRepresentations.length
-                || targets.length != targetRepresentations.length) {
-            throw new IllegalArgumentException("Metal NEG selection positions disagree");
+                || targets.length != targetRepresentations.length
+                || internals.length != internalRepresentations.length) {
+            throw new IllegalArgumentException("Metal selection positions disagree");
         }
-        var result = new ArrayList<BufferSelection>(feeds.length + targets.length);
+        var result = new ArrayList<BufferSelection>(
+                feeds.length + targets.length + internals.length);
         for (int index = 0; index < feeds.length; index++) {
             result.add(new BufferSelection(feeds[index], feedRepresentations[index]));
         }
         for (int index = 0; index < targets.length; index++) {
             result.add(new BufferSelection(targets[index], targetRepresentations[index]));
         }
+        for (int index = 0; index < internals.length; index++) {
+            result.add(new BufferSelection(internals[index], internalRepresentations[index]));
+        }
         return result;
     }
 
-    private static List<BufferAccess> accesses(int inputs, int outputs) {
-        var result = new ArrayList<BufferAccess>(inputs + outputs);
+    private static List<BufferAccess> accesses(int inputs, int outputs, int internals) {
+        var result = new ArrayList<BufferAccess>(inputs + outputs + internals);
         for (int index = 0; index < inputs; index++) result.add(BufferAccess.READ_ONLY);
         for (int index = 0; index < outputs; index++) result.add(BufferAccess.WRITE_ONLY);
+        for (int index = 0; index < internals; index++) result.add(BufferAccess.WRITE_ONLY);
         return result;
     }
 }

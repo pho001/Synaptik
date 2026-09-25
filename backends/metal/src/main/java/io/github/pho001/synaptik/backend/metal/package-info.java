@@ -15,18 +15,26 @@
  * represented FLOAT32 bits. Scatter accepts only {@code ScatterReduction.NONE}, returns a
  * canonical data-shaped value, preserves exact represented bits, and validates complete bounds
  * then target uniqueness before dispatch. {@code ACCELERATOR} additionally admits tensor
- * {@code ADD}, {@code SUB}, {@code MUL}, and {@code DIV}, canonical {@code FLOAT32} {@code SUM},
- * {@code MEAN}, and binding-resolved {@code SUM_TO_SHAPE}, and positive static rank-two
+ * {@code ADD}, {@code SUB}, {@code MUL}, {@code DIV}, {@code MIN}, and {@code MAX}; all six
+ * binary comparisons with canonical one-byte {@code BOOL} output; exact FLOAT32 scalar
+ * {@code MIN}, {@code MAX}, and fused {@code CLAMP}; canonical {@code FLOAT32} {@code SUM},
+ * {@code MEAN}, {@code MIN}, {@code MAX}, and binding-resolved {@code SUM_TO_SHAPE}; all four
+ * exclusive/reverse modes of {@code CUM_SUM} and {@code CUM_PROD}; and positive static rank-two
  * {@code FLOAT32} {@code MATMUL}. Reductions support full, normalized single-axis, ordered
  * normalized multi-axis including empty, and exact keep-dimensions forms. Feeds and ordinary
  * outputs are fully static positive-rank {@code 1..16}; a locally produced reduction target may be
  * rank zero and materializes as exactly four canonical bytes. Caller ingress accepts only exact
  * canonical {@code FLOAT32} and {@code INT32}; local canonical {@code BOOL} results may publish as
- * exact one-byte elements. CPU/Metal transfer remains canonical non-view {@code FLOAT32} only.
+ * exact one-byte elements. BOOL feeds, consumers, and CPU/Metal transfer remain unsupported;
+ * CPU/Metal transfer remains canonical non-view {@code FLOAT32} only.
  * Accelerator binary inputs and outputs are canonical dense non-views and use exact right-aligned
  * broadcasting. Each MATMUL operand is canonical or the authenticated exact local rank-two
  * {@code PERMUTE [1,0]} of a canonical source; its output is canonical. Strict MATMUL remains
- * unsupported. Every direct {@code NEG} or {@code ABS} operand/output and graph feed is canonical;
+ * unsupported. A partition containing any Task-0052 node selects one fixed custom whole-program
+ * resource: fixed custom kernels and cold-compiled nested existing-node executables consume the
+ * stable declared value table in program order behind one Java/native run call. Every logical
+ * intermediate is an assigned run-owned buffer; targets remain the direct assigned buffers.
+ * Every direct {@code NEG} or {@code ABS} operand/output and graph feed is canonical;
  * affine inputs may also be exact resolved zero-offset views produced earlier in the same maximal
  * partition. Affine outputs retain their exact Model view geometry, while {@code CONTIGUOUS}
  * produces canonical geometry. Metal lowers one complete profile-homogeneous partition as a typed
@@ -63,9 +71,10 @@
  *
  * <p>The selected numerical profile participates in partition-plan, route, tuning,
  * decision-codec, and workload identity. Java rejects profile/schema mismatches before native
- * entry. ABI version four remains stable; node schema version eleven retains wires {@code 1..18}
- * and appends {@code UNFOLD_AXIS=19} with typed {@code WINDOW_AXIS=6} normalized-axis, size, and
- * step state. Backend-local workload, exact-policy, candidate, compatibility, route-policy, and
- * codec identities are version twelve.</p>
+ * entry. ABI version four and its thirteen exports remain stable; node schema version twelve
+ * retains operation wires {@code 1..19}, appends the Task-0052 operation wires {@code 20..34},
+ * retains attribute wires {@code 0..6}, and appends exact scalar/clamp/scan attributes
+ * {@code 7..9}. Backend-local workload, exact-policy, candidate, compatibility, route-policy, and
+ * codec identities are version thirteen.</p>
  */
 package io.github.pho001.synaptik.backend.metal;

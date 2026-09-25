@@ -200,7 +200,7 @@ trap cleanup EXIT
 
 EXPECTED_MANIFEST="${TEMP_DIR}/${MANIFEST_NAME}"
 printf '%s\n' \
-    "{\"schemaVersion\":1,\"artifact\":{\"file\":\"${LIBRARY_NAME}\",\"size\":${LIBRARY_SIZE},\"sha256\":\"${LIBRARY_SHA256}\"},\"platform\":\"macos\",\"architecture\":\"arm64\",\"minimumMacosVersion\":\"26.0\",\"installName\":\"${INSTALL_NAME}\",\"rpaths\":[],\"nativeAbiVersion\":4,\"nodeSchemaVersion\":11,\"linkedFrameworks\":[\"Foundation\",\"Metal\",\"MetalPerformanceShadersGraph\"],\"signature\":{\"kind\":\"adhoc\",\"identifier\":\"${SIGNATURE_IDENTIFIER}\"}}" \
+    "{\"schemaVersion\":1,\"artifact\":{\"file\":\"${LIBRARY_NAME}\",\"size\":${LIBRARY_SIZE},\"sha256\":\"${LIBRARY_SHA256}\"},\"platform\":\"macos\",\"architecture\":\"arm64\",\"minimumMacosVersion\":\"26.0\",\"installName\":\"${INSTALL_NAME}\",\"rpaths\":[],\"nativeAbiVersion\":4,\"nodeSchemaVersion\":12,\"linkedFrameworks\":[\"Foundation\",\"Metal\",\"MetalPerformanceShadersGraph\"],\"signature\":{\"kind\":\"adhoc\",\"identifier\":\"${SIGNATURE_IDENTIFIER}\"}}" \
     > "${EXPECTED_MANIFEST}"
 cmp -s "${EXPECTED_MANIFEST}" "${MANIFEST}" || fail "manifest is not canonical or does not match the dylib"
 

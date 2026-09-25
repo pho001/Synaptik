@@ -7,6 +7,10 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ClampRangeAttrs;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
 import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
@@ -28,6 +32,8 @@ import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKin
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
@@ -157,6 +163,15 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 return supportsAffine(operation, inputs, output);
             }
             if (numericalProfile == NumericalProfile.ACCELERATOR) {
+                if (operation.kind() instanceof BinaryComparisonKind comparison) {
+                    return supportsComparison(operation, inputs, output, comparison);
+                }
+                if (operation.kind() instanceof ScalarElementwiseKind scalar) {
+                    return supportsScalarExtreme(operation, inputs, output, scalar);
+                }
+                if (operation.kind() instanceof CumulativeScanKind scan) {
+                    return supportsScan(operation, inputs, output, scan);
+                }
                 if (operation.kind() instanceof AggregateReductionKind reduction) {
                     return supportsReduction(operation, inputs, output, reduction);
                 }
@@ -305,7 +320,33 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 || (binary != BinaryArithmeticKind.ADD
                         && binary != BinaryArithmeticKind.SUB
                         && binary != BinaryArithmeticKind.MUL
-                        && binary != BinaryArithmeticKind.DIV)
+                        && binary != BinaryArithmeticKind.DIV
+                        && binary != BinaryArithmeticKind.MIN
+                        && binary != BinaryArithmeticKind.MAX)
+                || inputs.size() != 2) {
+            return false;
+        }
+        TensorDescriptor left = inputs.get(0);
+        TensorDescriptor right = inputs.get(1);
+        boolean gradientsValid = binary == BinaryArithmeticKind.MIN
+                        || binary == BinaryArithmeticKind.MAX
+                ? !left.requiresGrad() && !right.requiresGrad() && !output.requiresGrad()
+                : left.requiresGrad() == right.requiresGrad()
+                        && left.requiresGrad() == output.requiresGrad();
+        return canonical(left)
+                && canonical(right)
+                && canonical(output)
+                && gradientsValid
+                && ShapeBroadcast.broadcast(left.shape(), right.shape()).equals(output.shape());
+    }
+
+    private static boolean supportsComparison(
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            TensorDescriptor output,
+            BinaryComparisonKind kind) {
+        if (operation.kind() != kind
+                || operation.attrs() != NoOperationAttrs.INSTANCE
                 || inputs.size() != 2) {
             return false;
         }
@@ -313,10 +354,59 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         TensorDescriptor right = inputs.get(1);
         return canonical(left)
                 && canonical(right)
-                && canonical(output)
-                && left.requiresGrad() == right.requiresGrad()
-                && left.requiresGrad() == output.requiresGrad()
+                && canonicalTyped(output, DataType.BOOL)
+                && !left.requiresGrad()
+                && !right.requiresGrad()
+                && !output.requiresGrad()
                 && ShapeBroadcast.broadcast(left.shape(), right.shape()).equals(output.shape());
+    }
+
+    private static boolean supportsScalarExtreme(
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            TensorDescriptor output,
+            ScalarElementwiseKind kind) {
+        if (inputs.size() != 1
+                || (kind != ScalarElementwiseKind.MIN
+                        && kind != ScalarElementwiseKind.MAX
+                        && kind != ScalarElementwiseKind.CLAMP)) {
+            return false;
+        }
+        if (kind == ScalarElementwiseKind.CLAMP) {
+            if (!(operation.attrs() instanceof ClampRangeAttrs attrs)
+                    || attrs.minValue().dataType() != DataType.FLOAT32
+                    || attrs.maxValue().dataType() != DataType.FLOAT32) {
+                return false;
+            }
+        } else if (!(operation.attrs() instanceof ScalarValueAttrs attrs)
+                || attrs.value().dataType() != DataType.FLOAT32) {
+            return false;
+        }
+        TensorDescriptor input = inputs.getFirst();
+        return canonical(input)
+                && canonical(output)
+                && !input.requiresGrad()
+                && !output.requiresGrad()
+                && input.shape().equals(output.shape());
+    }
+
+    private static boolean supportsScan(
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            TensorDescriptor output,
+            CumulativeScanKind kind) {
+        if (operation.kind() != kind
+                || !(operation.attrs() instanceof CumulativeScanAttrs attrs)
+                || inputs.size() != 1) {
+            return false;
+        }
+        TensorDescriptor input = inputs.getFirst();
+        return canonical(input)
+                && canonical(output)
+                && !input.requiresGrad()
+                && !output.requiresGrad()
+                && input.shape().equals(output.shape())
+                && attrs.axis() < input.shape().rank();
     }
 
     private static boolean supportsMatmul(
@@ -362,13 +452,19 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             List<TensorDescriptor> inputs,
             TensorDescriptor output,
             AggregateReductionKind kind) {
-        if ((kind != AggregateReductionKind.SUM && kind != AggregateReductionKind.MEAN)
+        if ((kind != AggregateReductionKind.SUM
+                        && kind != AggregateReductionKind.MEAN
+                        && kind != AggregateReductionKind.MIN
+                        && kind != AggregateReductionKind.MAX)
                 || inputs.size() != 1) {
             return false;
         }
         TensorDescriptor input = inputs.getFirst();
-        if (!canonical(input) || !canonicalReductionOutput(output)
-                || input.requiresGrad() != output.requiresGrad()) {
+        boolean gradientsValid = kind == AggregateReductionKind.MIN
+                        || kind == AggregateReductionKind.MAX
+                ? !input.requiresGrad() && !output.requiresGrad()
+                : input.requiresGrad() == output.requiresGrad();
+        if (!canonical(input) || !canonicalReductionOutput(output) || !gradientsValid) {
             return false;
         }
         long[] inputShape = input.shape().toLongArray();
