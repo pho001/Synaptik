@@ -2,11 +2,12 @@
 
 ## Status
 
-Ready
+Review needed
 
-Trace 0003 is Complete at `53dac29dd79702eb26e4595dd6b068d0fa1885db`. This task is rebased
-on that additive JDK-only DTO surface and is the sole authorized repository frontier. No Metal
-implementation has started.
+Trace 0003 completed its final independent public-API/documentation review with `APPROVE` after
+remediation at `0e796a82f18fbaaa1d5210638f41e0785e22094c`. This task was implemented from that
+exact clean common base. The implementation and validation are ready for the required independent
+Class C review; no task is Ready.
 
 ## Change class
 
@@ -131,13 +132,15 @@ ABI/schema/capability change, a generic map/string payload, or observer failure 
 
 ## Dependencies and integration
 
-- Depends on: Trace 0003 Complete at `53dac29dd79702eb26e4595dd6b068d0fa1885db`;
-  Metal 0001–0005/0008/0014–0015/0019–0025 Complete; Engine 0017–0018.
+- Depends on: Trace 0003 Complete and independently approved after remediation at
+  `0e796a82f18fbaaa1d5210638f41e0785e22094c`; Metal 0001–0005/0008/0014–0015/0019–0025
+  Complete; Engine 0017–0018.
 - Conflicts with: every concurrent Metal integration/preparation/executable/native-failure/
   hot-path/API scope and shared Trace/Metal/API/roadmap documents.
 - Parallel group: None.
-- Common base revision: `53dac29dd79702eb26e4595dd6b068d0fa1885db`.
-- Integration order: implement serially from the exact common base.
+- Common base revision: `0e796a82f18fbaaa1d5210638f41e0785e22094c`.
+- Integration order: implementation completed serially from the exact common base; independent
+  Class C review follows.
 - Integration validation: focused Metal trace tests, public Engine Metal integration trace scenario,
   affected architecture checks, Javadocs, Markdown/status/diff, then independent Class C review.
 - Shared-document integration owner: Metal 0041 executor.
@@ -199,4 +202,25 @@ library convention; add no disposable device probe or public testing hook.
 
 ## Result
 
-Empty until execution.
+Implemented the exact public `MetalTraceObserver` and two-argument
+`MetalBackendIntegration.open(configuration, observer)` surface. The existing one-argument open
+retains its producer-free path. One package-private integration-owned producer now allocates
+independent atomic event/prepared-unit/invocation IDs, reads `System.nanoTime()`, maps the exact
+native status vocabulary, and contains runtime trace failures by permanently disabling later
+events. Callback `Error` remains fatal. Immutable prepared facts flow through the selected plan and
+route-specific executable without an Engine production, dependency/build, capability, native
+source, ABI/export, or schema change.
+
+Metal finalization emits only its final `PREPARE` success/failure outcome, with truthful
+`NOT_QUERIED`; each custom or MPSGraph native invocation emits only one `RUN` outcome while tracing
+is enabled. MPSGraph range failure is recorded before the existing Java bounds rescan. Payloads
+contain only the authorized Trace 0003 components. Deterministic fake-native coverage proves
+successful and failed finalization, repeated invocation, observer-failure containment and disabled
+silence, range-status capture before outward translation, every exact status mapping, sequence
+exhaustion, and concurrent callback/ID behavior.
+
+Validation passed: nine focused Metal trace tests; all 14 actual public Engine Metal integration
+tests against a freshly built existing dylib, including compile/session/repeated-run collection and
+bounds failure; the focused Engine composition architecture test; Metal Javadocs; seven affected
+Markdown files; and `git diff --check`. The one required full repository build passed with 87
+actionable tasks. The implementation is ready for independent Class C review.

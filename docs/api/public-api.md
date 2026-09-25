@@ -20,8 +20,9 @@ Public `GraphCompilationPort` exposes that complete constant-free pipeline as a 
 cross-module integration service-provider interface (SPI). The CPU backend exposes the supported
 `CpuBackendIntegration` lifecycle SPI, including bounded canonical host-byte materialization and
 identical exact execution under both numerical profiles. The Metal backend exposes
-`MetalBackendConfiguration`, `MetalBackendIntegration`, and a common exact `FLOAT32` domain under
-both profiles. That domain contains canonical `NEG` and `ABS`, `RESHAPE`, `EXPAND`, `PERMUTE`,
+`MetalBackendConfiguration`, `MetalBackendIntegration`, `MetalTraceObserver`, and a common exact
+`FLOAT32` domain under both profiles. That domain contains canonical `NEG` and `ABS`, `RESHAPE`,
+`EXPAND`, `PERMUTE`,
 `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`; canonical bounded general-axis `UNFOLD_AXIS`
 materialization; canonical positive-rank FLOAT32+INT32 `GATHER`; INT32-to-BOOL `ONE_HOT`; and
 canonical positive-rank FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. UNFOLD_AXIS accepts
@@ -119,8 +120,9 @@ native success; failure permits no native status or a present non-success status
 records no cache lookup and is not a miss. The [tracing explanation](../architecture/tracing.md)
 documents exact component roles, correlation, and ownership boundaries. The producer owns
 correlation allocation, uniqueness, lifetime, mapping, timestamps, and emission. Broader payload
-families, partition/schedule/run IDs, typed backend attributes, serialization, sinks, and emission
-remain planned. Backend is a producer role, not another lifecycle phase.
+families, partition/schedule/run IDs, typed backend attributes, serialization, sinks, and shared or
+generic emission facilities remain planned. Backend is a producer role, not another lifecycle
+phase.
 
 The implemented `modules:backend-contract` surface contains:
 
@@ -1269,6 +1271,23 @@ native context before the integration is transferred. Engine neither parses the 
 path nor owns a duplicate Metal configuration. The integration supplies partition preparation,
 physical creation contribution, exact transfer endpoints, host ingress, materialization, and
 close in addition to capability.
+
+`MetalTraceObserver` is a public functional interface whose sole abstract method receives
+`TraceEvent<? extends TracePayload>`. Passing a non-null caller-owned thread-safe observer to
+`MetalBackendIntegration.open(configuration, observer)` enables one integration-local trace
+stream. Metal retains but never closes the observer; callbacks may be concurrent. The ordinary
+one-argument open overload remains the no-trace path and performs no trace allocation, ID, clock,
+or callback work.
+
+The traced path reports one final `PREPARE` outcome per enabled prepared unit and one `RUN` outcome
+per enabled native invocation. Stream-local event, prepared-unit, and invocation IDs use
+independent non-negative sequences; backend/device correlations are both zero. Preparation reports
+the fixed profile, neutral custom-kernel or graph-executable route, and `NOT_QUERIED`; invocation
+reports the same immutable facts and exact mapped native status when one exists. An observer
+`RuntimeException`, ID exhaustion, or trace-object construction failure disables later tracing
+without changing backend behavior or outward exceptions. An `Error` propagates normally. Events
+contain only the bounded trace DTO fields and expose no native path, handle, Tensor value, shape,
+exception, free-form string, or generic map.
 
 Metal retains a custom route for an eligible singleton `NEG` under either profile; every `ABS`
 partition and every other supported partition uses one typed whole-partition MPSGraph executable.

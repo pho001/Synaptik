@@ -44,6 +44,13 @@
  * internals remain package-private. There is no library discovery, CPU fallback, or backend-global
  * integration.</p>
  *
+ * <p>The optional
+ * {@link MetalBackendIntegration#open(MetalBackendConfiguration, MetalTraceObserver) traced open}
+ * overload retains but never closes one caller-owned thread-safe observer. It reports only final
+ * preparation and native-invocation outcomes with stream-local correlations. Observer runtime
+ * failures disable later tracing without changing backend outcomes; fatal errors propagate. The
+ * ordinary open overload creates no trace producer or trace work.</p>
+ *
  * <p>The selected numerical profile participates in partition-plan, route, tuning,
  * decision-codec, and workload identity. Java rejects profile/schema mismatches before native
  * entry. ABI version four remains stable; node schema version eleven retains wires {@code 1..18}

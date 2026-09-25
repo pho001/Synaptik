@@ -5,10 +5,10 @@ import io.github.pho001.synaptik.prepare.BackendPartitionFinalization;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalizationResult;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalizer;
 import io.github.pho001.synaptik.prepare.PreparationResourceAssignment;
-import java.util.List;
-import java.util.Objects;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * Validates assigned Metal supported-operation declarations and compiles the selected resource.
@@ -92,18 +92,42 @@ final class MetalNegPartitionFinalizer
     public BackendPartitionFinalizationResult finalizePartition(
             BackendPartitionFinalization<MetalNegPreparationPlan> finalization) {
         Objects.requireNonNull(finalization, "finalization");
-        if (!finalization.analysis().partition().owner()
-                .equals(MetalCapabilityProvider.METAL_BACKEND_ID)) {
-            throw new IllegalArgumentException("partition owner must be Metal");
-        }
         MetalNegPreparationPlan plan = finalization.analysis().plan();
-        if (plan.partition() != finalization.analysis().partition()) {
-            throw new IllegalArgumentException(
-                    "Metal NEG analyzed plan/finalized partition identity mismatch");
+        try {
+            if (!finalization.analysis().partition().owner()
+                    .equals(MetalCapabilityProvider.METAL_BACKEND_ID)) {
+                throw new IllegalArgumentException("partition owner must be Metal");
+            }
+            if (plan.partition() != finalization.analysis().partition()) {
+                throw new IllegalArgumentException(
+                        "Metal NEG analyzed plan/finalized partition identity mismatch");
+            }
+            if (plan.context() != context) {
+                throw new IllegalArgumentException(
+                        "Metal NEG analysis/finalization context mismatch");
+            }
+            BackendPartitionFinalizationResult result =
+                    finalizeSelectedPartition(finalization, plan);
+            try {
+                if (plan.traceUnit() != null) {
+                    plan.traceUnit().preparationSucceeded();
+                }
+            } catch (Error fatal) {
+                closeResultAfterTraceError(result, fatal);
+                throw fatal;
+            }
+            return result;
+        } catch (RuntimeException failure) {
+            if (plan.traceUnit() != null) {
+                plan.traceUnit().preparationFailed(failure);
+            }
+            throw failure;
         }
-        if (plan.context() != context) {
-            throw new IllegalArgumentException("Metal NEG analysis/finalization context mismatch");
-        }
+    }
+
+    private BackendPartitionFinalizationResult finalizeSelectedPartition(
+            BackendPartitionFinalization<MetalNegPreparationPlan> finalization,
+            MetalNegPreparationPlan plan) {
         int expectedAssignments = plan.declarations().size()
                 + (plan.addressWorkspace().isPresent() ? 1 : 0);
         if (finalization.assignments().size() != expectedAssignments) {
@@ -229,6 +253,21 @@ final class MetalNegPartitionFinalizer
         } catch (RuntimeException | Error failure) {
             closeAfterFailure(resource, failure);
             throw failure;
+        }
+    }
+
+    private static void closeResultAfterTraceError(
+            BackendPartitionFinalizationResult result, Error fatal) {
+        List<io.github.pho001.synaptik.runtime.resource.PreparedResource> resources =
+                result.resources();
+        for (int index = resources.size() - 1; index >= 0; index--) {
+            try {
+                resources.get(index).close();
+            } catch (RuntimeException | Error cleanup) {
+                if (cleanup != fatal) {
+                    fatal.addSuppressed(cleanup);
+                }
+            }
         }
     }
 

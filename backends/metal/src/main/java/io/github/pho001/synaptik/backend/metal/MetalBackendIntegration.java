@@ -8,8 +8,8 @@ import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
 import io.github.pho001.synaptik.prepare.PreparedScheduleContributor;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import java.lang.foreign.MemorySegment;
-import java.util.function.Consumer;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * Supported explicit lifecycle integration boundary for the Metal backend.
@@ -48,6 +48,32 @@ public final class MetalBackendIntegration implements AutoCloseable {
      */
     public static MetalBackendIntegration open(MetalBackendConfiguration configuration) {
         return open(configuration, MetalBackendRuntime::open, MetalBackendIntegration::new);
+    }
+
+    /**
+     * Opens one native Metal integration with a caller-owned typed diagnostic observer.
+     *
+     * <p>The observer is retained but never closed. Its callback may be invoked concurrently.
+     * Callback {@link RuntimeException RuntimeExceptions} disable later tracing without changing
+     * backend work or outcomes; callback {@link Error Errors} propagate normally.</p>
+     *
+     * @param configuration non-null validated configuration; its immutable value is snapshotted
+     * @param observer non-null caller-owned thread-safe observer retained for this integration
+     * @return a new non-null open traced Metal integration owner
+     * @throws NullPointerException if an argument is {@code null}
+     * @throws IllegalArgumentException if the native library path is not absolute
+     * @throws RuntimeException if library loading, ABI validation, or context creation fails
+     * @throws Error if opening, partial-construction rollback, or an observer reports a fatal error
+     */
+    public static MetalBackendIntegration open(
+            MetalBackendConfiguration configuration, MetalTraceObserver observer) {
+        Objects.requireNonNull(configuration, "configuration");
+        Objects.requireNonNull(observer, "observer");
+        MetalTraceProducer traceProducer = new MetalTraceProducer(observer);
+        return open(
+                configuration,
+                path -> MetalBackendRuntime.open(path, traceProducer),
+                MetalBackendIntegration::new);
     }
 
     static MetalBackendIntegration open(

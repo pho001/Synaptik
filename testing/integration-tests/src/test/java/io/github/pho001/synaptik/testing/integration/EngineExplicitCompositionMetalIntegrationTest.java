@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
 import io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration;
 import io.github.pho001.synaptik.backend.metal.MetalBackendIntegration;
+import io.github.pho001.synaptik.backend.metal.MetalTraceObserver;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.config.tuning.ModelAutotuningConfig;
@@ -38,13 +39,16 @@ import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.HashSet;
-import java.util.Set;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -54,6 +58,78 @@ import org.junit.jupiter.api.io.TempDir;
 
 /** Exercises real CPU-free Metal and mixed CPU/Metal public Engine composition. */
 final class EngineExplicitCompositionMetalIntegrationTest {
+    @Test
+    void publicEngineLifecycleCollectorObservesPreparationAndRepeatedInvocations() {
+        Path library = configuredMetalLibrary();
+        List<ObservedTrace> events = new CopyOnWriteArrayList<>();
+        try (Arena arena = Arena.ofShared();
+                Engine.Builder builder = Engine.builder()) {
+            builder.takeOwnership(MetalBackendIntegration.open(
+                    new MetalBackendConfiguration(library), traceCollector(events)));
+            try (Engine engine = builder.build()) {
+                Tensor input = nativeTensorBits(
+                        descriptor(Shape.of(2)),
+                        arena,
+                        Float.floatToRawIntBits(1.0f),
+                        Float.floatToRawIntBits(-2.0f));
+                var compiled = engine.compile(List.of(input.neg()));
+                assertTrue(events.isEmpty(), "compile emits no Metal preparation or run event");
+
+                try (InferenceSession session = engine.session(compiled)) {
+                    assertEquals(1, events.size());
+                    try (var first = session.run(List.of(input))) {
+                        assertRawBits(
+                                first.materialize(
+                                        first.publications().getFirst(), 2L * Float.BYTES).bytes(),
+                                new int[] {
+                                    Float.floatToRawIntBits(-1.0f),
+                                    Float.floatToRawIntBits(2.0f)
+                                });
+                    }
+                    try (var second = session.run(List.of(input))) {
+                        assertRawBits(
+                                second.materialize(
+                                        second.publications().getFirst(), 2L * Float.BYTES).bytes(),
+                                new int[] {
+                                    Float.floatToRawIntBits(-1.0f),
+                                    Float.floatToRawIntBits(2.0f)
+                                });
+                    }
+                }
+            }
+        }
+
+        assertEquals(3, events.size());
+        assertEquals(List.of(0L, 1L, 2L), events.stream()
+                .map(ObservedTrace::eventId)
+                .toList());
+        Object preparation = events.get(0).payload();
+        assertEquals("PREPARE", events.get(0).phase());
+        assertEquals("INFO", events.get(0).level());
+        assertEquals(0L, idValue(component(preparation, "backendId")));
+        assertEquals(0L, idValue(component(preparation, "deviceId")));
+        assertEquals(0L, idValue(component(preparation, "preparedUnitId")));
+        assertEquals("SUCCEEDED", enumName(component(preparation, "status")));
+        assertEquals("STRICT_IEEE", enumName(component(preparation, "profile")));
+        assertEquals("CUSTOM_KERNEL", enumName(component(preparation, "route")));
+        assertEquals("NOT_QUERIED", enumName(component(preparation, "cacheStatus")));
+        assertEquals("SUCCESS", nativeStatusKind(preparation));
+        assertEquals(0, nativeStatusCode(preparation));
+
+        for (int index = 1; index < events.size(); index++) {
+            Object invocation = events.get(index).payload();
+            assertEquals("RUN", events.get(index).phase());
+            assertEquals("INFO", events.get(index).level());
+            assertEquals(0L, idValue(component(invocation, "preparedUnitId")));
+            assertEquals(index - 1L, idValue(component(invocation, "invocationId")));
+            assertEquals("SUCCEEDED", enumName(component(invocation, "status")));
+            assertEquals("STRICT_IEEE", enumName(component(invocation, "profile")));
+            assertEquals("CUSTOM_KERNEL", enumName(component(invocation, "route")));
+            assertEquals("SUCCESS", nativeStatusKind(invocation));
+            assertEquals(0, nativeStatusCode(invocation));
+        }
+    }
+
     @Test
     void subnormalBinaryGraphIsCpuOwnedOrRejectedBeforeMetalPreparation() {
         Path library = configuredMetalLibrary();
@@ -399,6 +475,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     @Test
     void cpuFreeMetalEngineRunsExactInt32GatherAndBoolOneHotWithBoundsErrors() {
         Path library = configuredMetalLibrary();
+        List<ObservedTrace> events = new CopyOnWriteArrayList<>();
         int[] dataBits = {
             0x00000000, 0x80000000, 0x00000001, 0x7fc12345,
             0xffc54321, 0x7f800000, 0x80000001, 0x3f800000
@@ -406,7 +483,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         try (Arena arena = Arena.ofShared();
                 Engine.Builder builder = Engine.builder()) {
             builder.takeOwnership(MetalBackendIntegration.open(
-                    new MetalBackendConfiguration(library)));
+                    new MetalBackendConfiguration(library), traceCollector(events)));
             try (Engine engine = builder.build()) {
                 Tensor data = nativeTensorBits(
                         descriptor(Shape.of(2, 4)), arena, dataBits);
@@ -458,6 +535,13 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             "GATHER index at logical position 1 for data axis 1"
                                     + " is out of bounds: value=4, extent=4",
                             failure.getMessage());
+                    ObservedTrace event = events.getLast();
+                    Object outcome = event.payload();
+                    assertEquals("RUN", event.phase());
+                    assertEquals("ERROR", event.level());
+                    assertEquals("FAILED", enumName(component(outcome, "status")));
+                    assertEquals("RANGE_OUT_OF_BOUNDS", nativeStatusKind(outcome));
+                    assertEquals(5, nativeStatusCode(outcome));
                 }
 
                 gatherIndexBytes.setAtIndex(ValueLayout.JAVA_INT, 1, 0);
@@ -471,6 +555,13 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             "ONE_HOT index at logical position 1"
                                     + " is out of bounds: value=-1, depth=4",
                             failure.getMessage());
+                    ObservedTrace event = events.getLast();
+                    Object outcome = event.payload();
+                    assertEquals("RUN", event.phase());
+                    assertEquals("ERROR", event.level());
+                    assertEquals("FAILED", enumName(component(outcome, "status")));
+                    assertEquals("RANGE_OUT_OF_BOUNDS", nativeStatusKind(outcome));
+                    assertEquals(5, nativeStatusCode(outcome));
                 }
             }
         }
@@ -1547,6 +1638,63 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 new ModelAutotuningRequest.ModelIdentity(1, new byte[] {1}),
                 List.of(representative));
     }
+
+    private static MetalTraceObserver traceCollector(List<ObservedTrace> events) {
+        return (MetalTraceObserver) Proxy.newProxyInstance(
+                MetalTraceObserver.class.getClassLoader(),
+                new Class<?>[] {MetalTraceObserver.class},
+                (proxy, method, arguments) -> {
+                    if ("onEvent".equals(method.getName())) {
+                        Object event = arguments[0];
+                        events.add(new ObservedTrace(
+                                idValue(component(event, "id")),
+                                enumName(component(event, "phase")),
+                                enumName(component(event, "level")),
+                                component(event, "payload")));
+                        return null;
+                    }
+                    return switch (method.getName()) {
+                        case "equals" -> proxy == arguments[0];
+                        case "hashCode" -> System.identityHashCode(proxy);
+                        case "toString" -> "Metal trace collector";
+                        default -> throw new AssertionError(
+                                "unexpected observer method: " + method.getName());
+                    };
+                });
+    }
+
+    private static Object component(Object value, String name) {
+        try {
+            return value.getClass().getMethod(name).invoke(value);
+        } catch (InvocationTargetException exception) {
+            throw new AssertionError(
+                    "trace component invocation failed: " + name, exception.getCause());
+        } catch (ReflectiveOperationException exception) {
+            throw new AssertionError("trace component is unavailable: " + name, exception);
+        }
+    }
+
+    private static long idValue(Object id) {
+        return (long) component(id, "value");
+    }
+
+    private static String enumName(Object value) {
+        return ((Enum<?>) value).name();
+    }
+
+    private static String nativeStatusKind(Object outcome) {
+        return enumName(component(nativeStatus(outcome), "kind"));
+    }
+
+    private static int nativeStatusCode(Object outcome) {
+        return (int) component(nativeStatus(outcome), "code");
+    }
+
+    private static Object nativeStatus(Object outcome) {
+        return ((Optional<?>) component(outcome, "nativeStatus")).orElseThrow();
+    }
+
+    private record ObservedTrace(long eventId, String phase, String level, Object payload) {}
 
     private static Path configuredMetalLibrary() {
         String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");

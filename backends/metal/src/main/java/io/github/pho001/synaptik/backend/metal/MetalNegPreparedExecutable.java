@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.backend.metal;
 
 import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.trace.id.TraceInvocationId;
 import io.github.pho001.synaptik.runtime.execution.BoundInvocation;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
@@ -184,7 +185,8 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                 throw new IllegalArgumentException(
                         "Metal NEG input and output buffers must not alias");
             }
-            return new CustomBoundInvocation(runState, customResource, input, output);
+            return new CustomBoundInvocation(
+                    runState, preparationPlan, customResource, input, output);
         }
         var workspace = (AddressWorkspace) workspaceRepresentations[0];
         var inputBuffers = new MetalBufferRepresentation[inputCount];
@@ -243,9 +245,15 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
 
         @Override
         protected void executeBound() {
+            MetalTraceProducer.PreparedUnit traceUnit = preparationPlan.traceUnit();
+            TraceInvocationId invocationId =
+                    traceUnit == null ? null : traceUnit.beginInvocation();
             try {
                 resource.run(inputCount, inputs, outputCount, outputs);
             } catch (MetalNativeApi.NativeFailure failure) {
+                if (traceUnit != null) {
+                    traceUnit.invocationFailed(invocationId, failure);
+                }
                 if (failure.status() != MetalNativeApi.Status.RANGE_OUT_OF_BOUNDS) {
                     throw failure;
                 }
@@ -258,6 +266,14 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                 }
                 if (reproduced != null) throw reproduced;
                 throw failure;
+            } catch (RuntimeException failure) {
+                if (traceUnit != null) {
+                    traceUnit.invocationFailed(invocationId, failure);
+                }
+                throw failure;
+            }
+            if (traceUnit != null) {
+                traceUnit.invocationSucceeded(invocationId);
             }
         }
 
@@ -382,6 +398,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
     }
 
     private static final class CustomBoundInvocation extends BoundInvocation {
+        private final MetalNegPreparationPlan preparationPlan;
         private final MetalNegKernelPipelineResource resource;
         @SuppressWarnings("unused")
         private final MetalBufferRepresentation input;
@@ -392,10 +409,13 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
 
         private CustomBoundInvocation(
                 RunState runState,
+                MetalNegPreparationPlan preparationPlan,
                 MetalNegKernelPipelineResource resource,
                 MetalBufferRepresentation input,
                 MetalBufferRepresentation output) {
             super(runState);
+            this.preparationPlan =
+                    Objects.requireNonNull(preparationPlan, "preparationPlan");
             this.resource = resource;
             this.input = input;
             this.output = output;
@@ -405,7 +425,20 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
 
         @Override
         protected void executeBound() {
-            resource.run(inputHandle, outputHandle);
+            MetalTraceProducer.PreparedUnit traceUnit = preparationPlan.traceUnit();
+            TraceInvocationId invocationId =
+                    traceUnit == null ? null : traceUnit.beginInvocation();
+            try {
+                resource.run(inputHandle, outputHandle);
+            } catch (RuntimeException failure) {
+                if (traceUnit != null) {
+                    traceUnit.invocationFailed(invocationId, failure);
+                }
+                throw failure;
+            }
+            if (traceUnit != null) {
+                traceUnit.invocationSucceeded(invocationId);
+            }
         }
     }
 

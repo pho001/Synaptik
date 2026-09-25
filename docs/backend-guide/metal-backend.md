@@ -80,10 +80,11 @@ MetalPerformanceShadersGraph. Build and ABI instructions are in the
 
 Backend-local and public integration tests supply the dylib's absolute path directly. The backend
 does not discover, extract, package, sign, notarize, or cache the library.
-`MetalBackendConfiguration` snapshots that caller-selected absolute path, and
-`MetalBackendIntegration.open(configuration)` loads it, validates the ABI, opens the default
-device context, and rolls partial construction back before returning. Planning separately receives
-the captured Metal availability snapshot; the capability provider performs no native loading or
+`MetalBackendConfiguration` snapshots that caller-selected absolute path, and either
+`MetalBackendIntegration.open(configuration)` or the traced
+`open(configuration, observer)` overload loads it, validates the ABI, opens the default device
+context, and rolls partial construction back before returning. Planning separately receives the
+captured Metal availability snapshot; the capability provider performs no native loading or
 device discovery.
 
 ## Contracts and ownership
@@ -100,13 +101,48 @@ device discovery.
 | Persistent resource | One typed `PreparedResource` owns the selected native handle and context child lease; `PreparedExecution` becomes its sole owner. Custom-pipeline and MPSGraph handles are never interchangeable. |
 | Per-run state | Runtime borrows exact canonical FLOAT32/INT32 caller buffers and owns fresh initialized-constant buffers and typed output buffers. Only MPSGraph runs also own one native-address workspace. The scatter executable owns bounded primitive coordinate/uniqueness scratch rebuilt under its synchronized run. Affine targets receive full logical-byte buffers; a scalar reduction target receives four bytes and a BOOL target one byte per element. |
 | Hot invocation | A cold-bound route-specific invocation retains direct references, validates every resource and then every indexing element in stable node/ordinal order, completes each scatter's bounds before complete-coordinate uniqueness, and makes one synchronous typed native call into assigned output destinations only on success. |
+| Optional trace observation | A traced integration emits only final PREPARE and native RUN outcomes through a caller-owned `MetalTraceObserver`. The ordinary open overload creates no producer or trace work. Observation never selects a route, retries, falls back, or changes ownership or results. |
 | Publication | Runtime leases the already-resident output representation. Canonical FLOAT32 outputs, local rank-zero reduction outputs, local canonical BOOL outputs, and exact authenticated dense affine targets may be downloaded as detached canonical host bytes; ordinary CPU/Metal transfer remains positive-rank canonical FLOAT32 and rejects logical views. |
 
-The public Java surface contains `MetalCapabilityProvider`, `MetalBackendConfiguration`, and
-`MetalBackendIntegration`. Contexts, physical storage, preparers, finalizers, schedules, executable
-recipes, native handles, Objective-C objects, MPSGraph types, and the custom route remain internal.
+The public Java surface contains `MetalCapabilityProvider`, `MetalBackendConfiguration`,
+`MetalBackendIntegration`, and `MetalTraceObserver`. Contexts, physical storage, preparers,
+finalizers, schedules, executable recipes, native handles, Objective-C objects, MPSGraph types,
+and the custom route remain internal.
 
 ## Integration lifecycle
+
+### Optional typed tracing
+
+`MetalBackendIntegration.open(configuration, observer)` retains a non-null caller-owned observer
+for that integration without taking ownership of it. The callback may be concurrent and therefore
+must be thread-safe. Metal never closes the observer. The existing one-argument overload remains
+the exact no-trace fast path: it creates no producer or payload, allocates no trace ID, reads no
+clock, and makes no callback.
+
+One traced integration is one producer-defined stream. Backend and device correlations are fixed
+to zero; event, prepared-unit, and invocation IDs use independent thread-safe non-negative
+sequences beginning at zero. Each event uses `System.nanoTime()`. After analysis fixes a route and
+before finalization, Metal retains the prepared-unit ID, requested profile, and neutral route.
+Successful or failed executable/resource finalization emits one `PREPARE` event while tracing is
+enabled. Each custom-kernel or MPSGraph native invocation similarly emits one `RUN` event. There
+are no start, transfer, allocation, binding, materialization, publication, or close events.
+
+Preparation always reports `NOT_QUERIED`: Metal authenticates an optional outer tuning decision
+but performs no cache lookup and cannot claim an outer hit or miss. Native codes `0..12` map to
+`SUCCESS`, `INVALID_ARGUMENT`, `DEVICE_UNAVAILABLE`, `COMMAND_QUEUE_UNAVAILABLE`,
+`ALLOCATION_FAILED`, `RANGE_OUT_OF_BOUNDS`, `COPY_FAILED`, `INTERNAL_ERROR`,
+`UNSUPPORTED_SHAPE`, `COMPILATION_FAILED`, `INCOMPATIBLE_RESOURCE`, `EXECUTION_FAILED`, and
+`COMPILATION_FAILED`, respectively. Other signed codes map to `UNKNOWN` without losing the code;
+a Java-side failure before a native return has no native status. MPSGraph range status is captured
+before the existing Java indexing rescan translates the outward exception.
+
+ID exhaustion, trace-object construction failure, or an observer `RuntimeException` atomically
+disables later tracing without changing backend work, failure, rollback, suppression, or outward
+exception. An `Error` is not converted and propagates normally. Payloads include only Trace-owned
+IDs and closed facts; they never include the library path, device/session token, address, handle,
+Tensor/storage value, scalar, shape, byte extent, workload/candidate fingerprint, thread identity,
+exception, free-form string, or generic map. Tracing changes no capability, route, native call,
+native ABI/schema/export, result, lifecycle, or Engine production behavior.
 
 ### Capability, whole-partition analysis, and route selection
 
@@ -622,15 +658,16 @@ The integration is supplied explicitly to `Engine.Builder`; there is no `Service
 registry, or runtime service locator. `Engine.standard()` remains CPU-only, while an explicitly
 composed Engine may register Metal alone or beside CPU.
 
-`MetalBackendIntegration.open(MetalBackendConfiguration)` owns configuration validation, native
-library loading, context construction, availability production, host ingress and materialization,
-partition preparation, physical contribution, direct upload/download endpoints, and partial-open
-rollback. `Engine.Builder.takeOwnership(MetalBackendIntegration)` transfers that complete opened
-owner into Engine. Engine owns registration, duplicate-ID validation, compile-time inventory,
-complete owner/transfer preflight, shared preparation, global schedule composition, per-occurrence
-outer adapter capture, and closure. Metal host ingress and materialization occur outside Runtime
-without re-querying the registry. The dependency remains one-way: Engine may depend on Metal;
-Metal production never depends on Engine.
+`MetalBackendIntegration.open(MetalBackendConfiguration)` and its optional traced overload own
+configuration validation, native library loading, context construction, availability production,
+host ingress and materialization, partition preparation, physical contribution, direct
+upload/download endpoints, and partial-open rollback.
+`Engine.Builder.takeOwnership(MetalBackendIntegration)` transfers that complete opened owner into
+Engine. Engine owns registration, duplicate-ID validation, compile-time inventory, complete
+owner/transfer preflight, shared preparation, global schedule composition, per-occurrence outer
+adapter capture, and closure. Metal host ingress and materialization occur outside Runtime without
+re-querying the registry. The dependency remains one-way: Engine may depend on Metal; Metal
+production never depends on Engine.
 
 An explicitly composed Engine may mix CPU and Metal partitions. Shared Prepare assigns one
 representation position per participating owner; Metal contributes its exact buffer/workspace

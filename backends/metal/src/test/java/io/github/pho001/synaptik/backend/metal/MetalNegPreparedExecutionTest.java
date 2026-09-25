@@ -7,6 +7,7 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_INT_UNALIGNED;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -76,6 +77,14 @@ import io.github.pho001.synaptik.runtime.run.PreparedExecutionRunner;
 import io.github.pho001.synaptik.runtime.run.BufferRepresentationBinding;
 import io.github.pho001.synaptik.runtime.run.RunResourceOwnership;
 import io.github.pho001.synaptik.runtime.run.RunState;
+import io.github.pho001.synaptik.trace.TraceEvent;
+import io.github.pho001.synaptik.trace.TraceLevel;
+import io.github.pho001.synaptik.trace.TracePayload;
+import io.github.pho001.synaptik.trace.TracePhase;
+import io.github.pho001.synaptik.trace.payload.BackendInvocationOutcome;
+import io.github.pho001.synaptik.trace.payload.BackendPreparationOutcome;
+import io.github.pho001.synaptik.trace.payload.TraceNativeStatusKind;
+import io.github.pho001.synaptik.trace.payload.TraceOutcomeStatus;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.file.Path;
@@ -227,6 +236,88 @@ class MetalNegPreparedExecutionTest {
         }
         assertEquals(1, api.pipelineReleases.get());
         assertEquals(1, api.contextReleases.get());
+    }
+
+    @Test
+    void MetalTraceObserverRuntimeFailureDoesNotChangeOrRepeatBackendWork() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        AtomicInteger callbacks = new AtomicInteger();
+        MetalTraceProducer producer = new MetalTraceProducer(event -> {
+            if (callbacks.incrementAndGet() == 2) {
+                throw new IllegalStateException("observer failure");
+            }
+        });
+        SingleNegRoute route =
+                singleNegRoute(context, Shape.of(2), Optional.empty(), producer);
+        FinalizationFixture assignment = finalization(route.analysis());
+        BackendPartitionFinalizationResult finalized =
+                new MetalNegPartitionFinalizer(context)
+                        .finalizePartition(assignment.finalization());
+        var schedule = new MetalNegPreparedScheduleAssembler(
+                context, route.analysis().plan(), List.of(route.target()))
+                .assembleRoute(
+                        assignment.memoryPlan(),
+                        new PreparedPartition(route.partition(), finalized.executable()),
+                        assignment.preparedAssignments());
+        PreparedExecution execution = new PreparedExecution(
+                assignment.memoryPlan(), schedule, finalized.resources());
+        MetalBufferRepresentation input = context.createBuffer(2L * Float.BYTES);
+        try {
+            uploadBits(input, 0x3f800000, 0xc0000000);
+            var runner = new PreparedExecutionRunner();
+            try (var first = runner.run(execution, List.of(input));
+                    Arena arena = Arena.ofConfined()) {
+                assertNegated(
+                        (MetalBufferRepresentation) first.publicationRepresentation(0),
+                        new float[] {-1.0f, 2.0f},
+                        arena);
+            }
+            try (var ignored = runner.run(execution, List.of(input))) {
+                assertEquals(1, ignored.resultCount());
+            }
+            assertFalse(producer.enabled());
+            assertEquals(2, callbacks.get());
+            assertEquals(2, api.customRunCalls.get());
+        } finally {
+            execution.close();
+            input.close();
+            context.close();
+        }
+    }
+
+    @Test
+    void MetalTracePreparationFailureEmitsOneFinalOutcomeWithoutChangingFailure() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        api.pipelineCreateStatus = 12;
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        List<TraceEvent<? extends TracePayload>> events = new CopyOnWriteArrayList<>();
+        MetalTraceProducer producer = new MetalTraceProducer(events::add);
+        SingleNegRoute route =
+                singleNegRoute(context, Shape.of(2), Optional.empty(), producer);
+        FinalizationFixture assignment = finalization(route.analysis());
+        try {
+            MetalNativeApi.NativeFailure failure = assertThrows(
+                    MetalNativeApi.NativeFailure.class,
+                    () -> new MetalNegPartitionFinalizer(context)
+                            .finalizePartition(assignment.finalization()));
+            assertNativeFailure(
+                    failure, MetalNativeApi.NEG_KERNEL_PIPELINE_CREATE_OPERATION, 12);
+            assertEquals(1, events.size());
+            TraceEvent<? extends TracePayload> event = events.getFirst();
+            BackendPreparationOutcome outcome =
+                    (BackendPreparationOutcome) event.payload();
+            assertEquals(TracePhase.PREPARE, event.phase());
+            assertEquals(TraceLevel.ERROR, event.level());
+            assertEquals(TraceOutcomeStatus.FAILED, outcome.status());
+            assertEquals(
+                    TraceNativeStatusKind.COMPILATION_FAILED,
+                    outcome.nativeStatus().orElseThrow().kind());
+            assertEquals(12, outcome.nativeStatus().orElseThrow().code());
+            assertEquals(1, api.pipelineCreates.get());
+        } finally {
+            context.close();
+        }
     }
 
     @Test
@@ -576,10 +667,12 @@ class MetalNegPreparedExecutionTest {
     }
 
     @Test
-    void indexingPlanRetainsTypedBytesInt32SplatAndDeterministicJavaBoundsErrors() {
+    void MetalTraceMpsGraphRangeFailureIsCapturedBeforeDeterministicJavaBoundsRescan() {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
-        IndexingRoute route = indexingRoute(context, Map.of());
+        List<TraceEvent<? extends TracePayload>> events = new CopyOnWriteArrayList<>();
+        MetalTraceProducer producer = new MetalTraceProducer(events::add);
+        IndexingRoute route = indexingRoute(context, Map.of(), producer);
         IndexingRoute splatRoute =
                 indexingRoute(context, Map.of(route.oneHotIndices(), ScalarValue.int32(2)));
         MetalNegPreparationPlan plan = route.analysis().plan();
@@ -605,6 +698,12 @@ class MetalNegPreparedExecutionTest {
         BackendPartitionFinalizationResult finalized =
                 new MetalNegPartitionFinalizer(context)
                         .finalizePartition(finalization.finalization());
+        assertEquals(1, events.size());
+        assertEquals(TracePhase.PREPARE, events.getFirst().phase());
+        assertEquals(TraceLevel.INFO, events.getFirst().level());
+        assertEquals(
+                TraceOutcomeStatus.SUCCEEDED,
+                ((BackendPreparationOutcome) events.getFirst().payload()).status());
         var executable = (MetalNegPreparedExecutable) finalized.executable();
         var buffers = new ArrayList<MetalBufferRepresentation>();
         RunState state = null;
@@ -638,6 +737,23 @@ class MetalNegPreparedExecutionTest {
                             + " value=-1, extent=3",
                     gather.getMessage());
             assertEquals(2, api.runCalls.get());
+            assertEquals(3, events.size());
+            assertEquals(List.of(0L, 1L, 2L), events.stream()
+                    .map(event -> event.id().value())
+                    .toList());
+            for (int index = 1; index < events.size(); index++) {
+                TraceEvent<? extends TracePayload> event = events.get(index);
+                BackendInvocationOutcome outcome =
+                        (BackendInvocationOutcome) event.payload();
+                assertEquals(TracePhase.RUN, event.phase());
+                assertEquals(TraceLevel.ERROR, event.level());
+                assertEquals(TraceOutcomeStatus.FAILED, outcome.status());
+                assertEquals(index - 1L, outcome.invocationId().value());
+                assertEquals(
+                        TraceNativeStatusKind.RANGE_OUT_OF_BOUNDS,
+                        outcome.nativeStatus().orElseThrow().kind());
+                assertEquals(5, outcome.nativeStatus().orElseThrow().code());
+            }
         } finally {
             if (state != null) state.close();
             buffers.forEach(MetalBufferRepresentation::close);
@@ -2812,6 +2928,13 @@ class MetalNegPreparedExecutionTest {
 
     private static IndexingRoute indexingRoute(
             MetalDeviceContext context, Map<ValueId, ScalarValue> constants) {
+        return indexingRoute(context, constants, null);
+    }
+
+    private static IndexingRoute indexingRoute(
+            MetalDeviceContext context,
+            Map<ValueId, ScalarValue> constants,
+            MetalTraceProducer traceProducer) {
         ValueId data = new ValueId(40_000);
         ValueId gatherIndices = new ValueId(40_001);
         ValueId gatherOutput = new ValueId(40_002);
@@ -2864,7 +2987,7 @@ class MetalNegPreparedExecutionTest {
                         values,
                         requirements,
                         constants,
-                        new MetalNegAnalysisInputs(context)));
+                        new MetalNegAnalysisInputs(context, traceProducer)));
         return new IndexingRoute(partition, oneHotIndices, analysis);
     }
 
@@ -2919,6 +3042,14 @@ class MetalNegPreparedExecutionTest {
 
     private static SingleNegRoute singleNegRoute(
             MetalDeviceContext context, Shape shape, Optional<ScalarValue> splat) {
+        return singleNegRoute(context, shape, splat, null);
+    }
+
+    private static SingleNegRoute singleNegRoute(
+            MetalDeviceContext context,
+            Shape shape,
+            Optional<ScalarValue> splat,
+            MetalTraceProducer traceProducer) {
         TensorDescriptor descriptor = descriptor(shape);
         ValueId feed = new ValueId(10_000);
         ValueId target = new ValueId(10_001);
@@ -2936,7 +3067,13 @@ class MetalNegPreparedExecutionTest {
                 .<Map<ValueId, ScalarValue>>map(value -> Map.of(feed, value))
                 .orElseGet(Map::of);
         BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
-                new MetalNegPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, new PartitionDag(partition, List.of(node)), values, requirements, constants, new MetalNegAnalysisInputs(context)));
+                new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
+                        NumericalProfile.STRICT_IEEE,
+                        new PartitionDag(partition, List.of(node)),
+                        values,
+                        requirements,
+                        constants,
+                        new MetalNegAnalysisInputs(context, traceProducer)));
         return new SingleNegRoute(partition, feed, target, analysis);
     }
 

@@ -1154,7 +1154,8 @@ identity and nonblank backend-defined string references. Equal tokens under diff
 unequal device identities; equal component values have ordinary composite record equality. The
 record performs no normalization and proves no discovery, presence, availability, capability,
 resource access, or device-handle ownership. It is a producer-domain identity, not a trace-local
-device correlation; that trace translation remains planned.
+device correlation. The current Metal trace producer deliberately allocates its separate
+stream-local device correlation as zero rather than expose this token.
 
 ### Backend identity / `BackendId`
 
@@ -1163,8 +1164,9 @@ caller-supplied nonblank string reference without trimming, case folding, Unicod
 syntax validation, interning, or alias resolution, so examples such as `"cpu"`, `"metal"`, and
 `"cuda"` do not form a closed vocabulary. Ordinary record equality compares the stored string
 content. The value can name a compile-time owner but does not register, discover, locate, or prove
-the availability or capability of a [concrete backend](#concrete-backend). It is not a
-trace-local backend correlation; that trace translation remains planned.
+the availability or capability of a [concrete backend](#concrete-backend). It is not a trace-local
+backend correlation. The current Metal trace producer deliberately allocates its separate
+stream-local backend correlation as zero rather than expose the `"metal"` identity.
 
 ### Backend ownership
 
@@ -6594,6 +6596,24 @@ execution identities, and immutable backend preparation/invocation outcome paylo
 emit, store, filter, or serialize events. The trace module is a dependency leaf, so producers
 translate their identities and facts rather than make Trace import producer-layer domain objects.
 See [Tracing](architecture/tracing.md).
+
+### Metal trace observer / `MetalTraceObserver`
+
+The implemented public caller-owned callback for one explicitly traced
+`MetalBackendIntegration`. Its sole abstract method accepts
+`TraceEvent<? extends TracePayload>`. Metal retains but never closes the observer, and callbacks
+may be concurrent. One traced integration uses fixed zero backend/device correlations plus
+independent non-negative event, prepared-unit, and invocation sequences. It emits only final
+`PREPARE` and native-invocation `RUN` outcomes while enabled. The existing one-argument Metal open
+path creates no producer or trace work.
+
+An observer `RuntimeException`, trace-object construction failure, or ID exhaustion disables later
+events without changing backend work or outward exceptions; an `Error` propagates. Preparation
+reports `NOT_QUERIED`, the fixed profile, and the neutral selected route. Invocation reports the
+same immutable facts and the exact mapped native code when available. These events contain only
+the bounded Trace DTO fields and no path, device/session token, handle/address, Tensor or storage
+value, scalar, shape, byte extent, fingerprint, thread identity, exception, free-form string, or
+map.
 
 ### Trace event envelope
 

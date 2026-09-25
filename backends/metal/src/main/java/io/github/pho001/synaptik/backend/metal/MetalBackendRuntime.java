@@ -32,13 +32,18 @@ final class MetalBackendRuntime implements AutoCloseable {
     private final PreparedScheduleAssembler scheduleAssembler;
 
     MetalBackendRuntime(MetalDeviceContext context) {
+        this(context, null);
+    }
+
+    private MetalBackendRuntime(
+            MetalDeviceContext context, MetalTraceProducer traceProducer) {
         this.context = Objects.requireNonNull(context, "context");
         var backendId = MetalCapabilityProvider.METAL_BACKEND_ID;
         this.availabilitySnapshot = new BackendAvailabilitySnapshot(
                 backendId,
                 Map.of(new BackendDeviceId(backendId, "default"), DeviceClass.ACCELERATOR));
         this.partitionPreparation = new PartitionPreparation<>(
-                new MetalNegAnalysisInputs(context),
+                new MetalNegAnalysisInputs(context, traceProducer),
                 new MetalNegPartitionPreparer(),
                 new MetalNegPartitionFinalizer(context));
         this.scheduleAssembler = new MetalNegPreparedScheduleAssembler(context);
@@ -57,6 +62,21 @@ final class MetalBackendRuntime implements AutoCloseable {
     static MetalBackendRuntime open(Path absoluteLibraryPath) {
         MetalDeviceContext context = MetalDeviceContext.open(absoluteLibraryPath);
         return takeOwnership(context, MetalBackendRuntime::new);
+    }
+
+    /**
+     * Opens the exact caller-selected native bridge with one retained trace producer.
+     *
+     * @param absoluteLibraryPath non-null normalized absolute native bridge path
+     * @param traceProducer non-null producer retained by preparation plans and executables
+     * @return a new non-null traced runtime owner
+     */
+    static MetalBackendRuntime open(
+            Path absoluteLibraryPath, MetalTraceProducer traceProducer) {
+        Objects.requireNonNull(traceProducer, "traceProducer");
+        MetalDeviceContext context = MetalDeviceContext.open(absoluteLibraryPath);
+        return takeOwnership(
+                context, acquired -> new MetalBackendRuntime(acquired, traceProducer));
     }
 
     static MetalBackendRuntime takeOwnership(

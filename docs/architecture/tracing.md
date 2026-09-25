@@ -192,6 +192,29 @@ producer supplies the event ID, monotonic timestamp, correlations, and event del
 string such as `"backend failure"` would lose these typed facts and could incorrectly suggest that
 runtime changed a prepare-time decision.
 
+## Current Metal producer
+
+`MetalBackendIntegration.open(configuration, observer)` is the first concrete producer of the
+backend outcome DTOs. One traced integration defines one stream with fixed backend/device
+correlations `0`, independent non-negative event/prepared-unit/invocation sequences beginning at
+zero, and `System.nanoTime()` timestamps. The caller owns the `MetalTraceObserver`; callbacks may
+be concurrent and Metal never closes it. The existing one-argument `open(configuration)` path
+creates no producer, payload, ID, clock read, or callback.
+
+After Metal fixes a profile and route, finalization emits one `PREPARE` outcome while tracing
+remains enabled. Each route-specific native invocation emits one `RUN` outcome. Preparation always
+reports `NOT_QUERIED` because Metal performs no cache lookup, including when an outer owner supplied
+a decision. A returned native status is translated to the closed trace vocabulary while retaining
+its exact signed code; a Java-side failure before native status return leaves native status empty.
+
+ID exhaustion, event/DTO construction failure, or an observer `RuntimeException` permanently
+disables later events for that integration without changing backend work, results, rollback, or
+outward exceptions. An observer `Error` propagates normally. Events expose no library path,
+session/device token, address or handle, Tensor/storage value, scalar, shape, byte extent, cache or
+workload fingerprint, thread identity, exception, free-form string, or generic map. The producer
+adds no Engine production behavior, native ABI/schema/export, capability, route, or lifecycle
+change.
+
 ## Why trace stays a dependency leaf
 
 Trace producers exist throughout the architecture. If `modules/trace` depended on model,

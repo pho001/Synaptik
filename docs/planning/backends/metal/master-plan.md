@@ -88,8 +88,8 @@ Training-to-Metal optimizer bridge.
   structure and semantics. Task 0037 is Blocked before a probe: direct RNN lacks runtime INT64
   valid lengths, atomic validation, skipped padded work, and `finalHidden`, while recurrent
   numerics are unrelaxed and underdocumented. Documentation/audit-only Task 0038 is Complete.
-  Task 0040 failed its one BFLOAT16 raw-bit Gather gate. Task 0041 is Ready from completed Trace
-  0003 and is the sole Ready Metal/repository task.
+  Task 0040 failed its one BFLOAT16 raw-bit Gather gate. Task 0041 is implemented from the final
+  reviewed Trace 0003 revision and is awaiting independent Class C review; no task is Ready.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
   requirements. Metal 0017 remains Blocked under its old accelerator-reduction contract.
@@ -170,10 +170,10 @@ Training-to-Metal optimizer bridge.
   `c300582727ec568a7482dd974f9d1b2e2e13f82c`. Its sole direct BFLOAT16 Gather execution returned
   `0x7fc0` for required selected raw word `0xffa6`; inputs were unchanged, the later output/guard
   checks made no success claim, artifacts were removed, and no production/schema change exists.
-- Task 0041 has a detailed prepared-route/invocation-trace brief and is Ready from completed Trace
-  0003 at `53dac29dd79702eb26e4595dd6b068d0fa1885db`. It is the sole authorized frontier; no
-  implementation has started.
-- No other Metal task is Ready.
+- Task 0041 implemented its bounded prepared-route/invocation trace from exact clean common base
+  `0e796a82f18fbaaa1d5210638f41e0785e22094c`, after Trace 0003's final independent
+  public-API/documentation `APPROVE` and remediation at that revision. It is `Review needed`; no
+  task is Ready.
 - Production dependencies may point to Model, Config, Planning, Runtime, Prepare,
   Backend Contract, and Trace, never Engine or Training. Task 0002's Compiler edge is test-only.
 
@@ -181,17 +181,17 @@ Training-to-Metal optimizer bridge.
 
 ```text
 io.github.pho001.synaptik.backend.metal
-  public capability, explicit native-library configuration, and closeable Engine integration;
-  package-private native ABI, device/queue, storage/workspace, preparation, routes, binding,
-  and resources
+  public capability, explicit native-library configuration, typed trace observer, and closeable
+  Engine integration; package-private native ABI, device/queue, storage/workspace, preparation,
+  trace producer, routes, binding, and resources
 io.github.pho001.synaptik.backend.metal.prepare
   deferred extraction only after multiple preparation families prove the seam
 io.github.pho001.synaptik.backend.metal.route.mpsgraph
   deferred broader MPSGraph extraction; never a custom-kernel or CPU home
 ```
 
-The first two executable routes remain coupled package-private types beside the three public
-facade types. A later task must update this map before extracting a package or widening
+The first two executable routes and trace producer remain coupled package-private types beside the
+four public facade types. A later task must update this map before extracting a package or widening
 visibility.
 
 ## Task list
@@ -236,7 +236,7 @@ visibility.
 | 0038 | [Current profile capability manifest closure](tasks/0038-current-profile-capability-manifest-closure.md) | Complete | 0022–0025 Complete; finalized Metal capability evidence through 0037; Model 0027–0029; Config 0006; Engine 0018 | Every concurrent Metal capability/schema/native/candidate/codec documentation scope and shared README/architecture/API/backend/user/master/roadmap edits | None | Planning authorization `1bb2a0e5`, then one documentation/audit closure commit from exact base `ec4499bd9e18ed863c9091baa9cfe82dbcf06a9b` | Focused existing capability/conformance tests and targeted architecture checks passed; Markdown/link/terminology, diff, and documentation-only scope passed; no device probe or full build | Exact current common and accelerator-only occurrence matrices, strict-subset monotonicity, fail-closed remainder, and ABI/schema/identity boundary are synchronized; every Blocked row remains unsupported and no manifest API was added. |
 | 0039 | [Profile-common IEEE FLOAT16 prerequisite gate](tasks/0039-profile-common-ieee-float16-prerequisite-gate.md) | Blocked | Model 0026 Complete; reviewed public binary16 representation, promotion, conversion, family semantics, profile result sets, and downstream fail-closed enum adoption; Metal 0038 Complete | Every concurrent Model dtype/profile task and Metal capability/schema/native/type/ingress/publication/identity/transfer scope | None | Documentation-only prerequisite record; post-dependency implementation requires separate authorization and schema revalidation | Planning links/anchors/fences/final newlines, status consistency, documentation-only path scope, and `git diff --check`; no build, test, native compile, or device probe | No public FLOAT16 oracle exists. `MPSDataTypeFloat16` is representation evidence only; current Metal plumbing is closed. Task 0040 consumed no schema/type/identity values, so this candidate remains conditional and unreserved. |
 | 0040 | [Profile-common exact canonical BFLOAT16 Gather](tasks/0040-profile-common-exact-canonical-bfloat16-gather.md) | Blocked | 0023, 0025, and 0038 Complete; current Model BFLOAT16/Gather semantics; Compiler indexing capture; CPU 0006A2; Config 0006; Engine 0018 | Every concurrent Metal capability/schema/native/type/ingress/publication/identity/transfer scope and any restart consuming the same next values | None | Sole mandatory direct-selector gate only; no implementation authorized after failure | Exactly one graph/compile/execution over the 20-word reverse-permutation corpus; planning/status/Markdown/diff validation only | First output returned canonical quiet-NaN `0x7fc0` instead of selected negative signaling-NaN `0xffa6`. Inputs were unchanged; later output/guard checks made no success claim. Artifacts were removed, schema 12/wire 20/type 4/identities 13 remain unimplemented and unreserved, and production is unchanged. |
-| 0041 | [Prepared route and invocation trace](tasks/0041-prepared-route-and-invocation-trace.md) | Ready | Trace 0003 Complete at `53dac29dd79702eb26e4595dd6b068d0fa1885db`; Metal 0001–0005/0008/0014–0015/0019–0025; Engine 0017–0018 | Every concurrent Metal integration/preparation/executable/native-failure/hot-path/API scope and shared Trace/Metal/API/roadmap documents | None | Implement serially from exact common base `53dac29dd79702eb26e4595dd6b068d0fa1885db` | Focused Metal trace tests; actual public Engine session collector scenario; architecture/Javadoc/docs/diff checks; independent Class C review | Add an optional Metal observer overload, disabled fast path, stream-local producer IDs/events, typed PREPARE finalization and RUN native-invocation outcomes, truthful `NOT_QUERIED`, containment/redaction, and no native ABI change. |
+| 0041 | [Prepared route and invocation trace](tasks/0041-prepared-route-and-invocation-trace.md) | Review needed | Trace 0003 Complete and independently approved after remediation at `0e796a82f18fbaaa1d5210638f41e0785e22094c`; Metal 0001–0005/0008/0014–0015/0019–0025; Engine 0017–0018 | Every concurrent Metal integration/preparation/executable/native-failure/hot-path/API scope and shared Trace/Metal/API/roadmap documents | None | Implemented serially from exact common base `0e796a82f18fbaaa1d5210638f41e0785e22094c`; independent Class C review next | Focused Metal trace tests; actual public Engine session collector scenario; architecture/Javadoc/docs/diff checks; independent Class C review | Implemented the optional Metal observer overload, disabled fast path, stream-local producer IDs/events, typed PREPARE finalization and RUN native-invocation outcomes, truthful `NOT_QUERIED`, containment/redaction, and no native ABI change. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -262,7 +262,7 @@ Completed profile spine and serial successors:
 
 `0023 (Complete) + 0025 (Complete) + 0038 (Complete) + Model BFLOAT16/Gather + Config 0006 + Engine 0018 -> 0040 (Blocked)`
 
-`Trace 0003 (Complete) -> 0041 (Ready)`
+`Trace 0003 (Complete) -> 0041 (Review needed)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -300,19 +300,20 @@ revision `f88066e3ad0547987bb03b2d18ed2813f97de223`.
 [0039](tasks/0039-profile-common-ieee-float16-prerequisite-gate.md) and
 [0040](tasks/0040-profile-common-exact-canonical-bfloat16-gather.md) are Blocked without production
 changes. Tasks 0031–0037 and 0039 ran no probe; Task 0040 ran exactly its one failed gate.
-[0041](tasks/0041-prepared-route-and-invocation-trace.md) is Ready from completed Trace 0003 and
-has made no production change. It is the sole Ready Metal serial frontier. These edges serialize
-shared Metal mutation; they do not claim that one operation family requires another.
+[0041](tasks/0041-prepared-route-and-invocation-trace.md) is implemented from Trace 0003's final
+reviewed remediation revision and is awaiting independent Class C review. No Metal task is Ready.
+These edges serialize shared Metal mutation; they do not claim that one operation family requires
+another.
 
 ## Integration ownership and shared documents
 
-- Integration owner: Metal 0041 executor.
+- Integration owner: Metal 0041 executor through its implementation commit.
 - Shared documents: Metal 0041 owns its Metal/API/backend-guide/master/roadmap synchronization
-  during implementation.
+  through implementation.
 - Blocked Metal 0016–0018, 0026–0027, 0030–0037, and 0039–0040 have no active write or review
-  scope. Ready Metal 0041 owns the sole active Metal scope. Model 0028 owns the reduction semantic
-  contract, Complete Model 0029 owns the MATMUL final-publication semantic contract, and Complete
-  Metal 0021–0025 retain their reviewed implementations.
+  scope. Review-needed Metal 0041 owns the sole active Metal review scope. Model 0028 owns the
+  reduction semantic contract, Complete Model 0029 owns the MATMUL final-publication semantic
+  contract, and Complete Metal 0021–0025 retain their reviewed implementations.
 
 ## Milestones and current frontier
 
@@ -386,9 +387,9 @@ unblock it. Schema 12, wires beginning at 20, attribute 7, local value type 4, I
 changes, and version-thirteen identities remain unimplemented and unreserved. Planning-only Task
 0039 reserves no FLOAT16 value while Draft Model 0026 provides no public type or oracle. Task 0040
 is Blocked after its one direct BFLOAT16 Gather run canonicalized required `0xffa6` to `0x7fc0`;
-its artifacts were removed and production remains unchanged. Task 0041 is Ready from completed
-Trace 0003 and is the sole authorized frontier; it has not changed current Java/native behavior.
-Documentation/audit-only Task 0038 is Complete, and no other Metal task is Ready.
+its artifacts were removed and production remains unchanged. Task 0041 is implemented from the
+final reviewed Trace 0003 remediation revision and is awaiting independent Class C review.
+Documentation/audit-only Task 0038 is Complete, and no Metal task is Ready.
 
 Metal 0006 remains `Blocked` after exact RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures.
 Metal 0007 remains independently `Blocked` after eight direct-output executions returned positive

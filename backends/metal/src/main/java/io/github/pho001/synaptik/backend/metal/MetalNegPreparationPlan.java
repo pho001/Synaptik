@@ -59,6 +59,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     private final Optional<PreparationResourceRequirement.Workspace> addressWorkspace;
     private final long[] feedRequiredBytes;
     private final long[] targetRequiredBytes;
+    private final MetalTraceProducer.PreparedUnit traceUnit;
 
     /**
      * Creates one completely validated analysis result snapshot.
@@ -107,6 +108,52 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             Optional<PreparationResourceRequirement.Workspace> addressWorkspace,
             long[] feedRequiredBytes,
             long[] targetRequiredBytes) {
+        this(
+                numericalProfile,
+                partition,
+                partitionDag,
+                context,
+                route,
+                valueIds,
+                descriptors,
+                valueStates,
+                valueRanks,
+                valueDimensions,
+                graphProgram,
+                feedValueIds,
+                feedValueIndices,
+                targetValueIds,
+                targetValueIndices,
+                declarations,
+                feedSplats,
+                addressWorkspace,
+                feedRequiredBytes,
+                targetRequiredBytes,
+                null);
+    }
+
+    MetalNegPreparationPlan(
+            NumericalProfile numericalProfile,
+            PlannedPartition partition,
+            PartitionDag partitionDag,
+            MetalDeviceContext context,
+            Route route,
+            List<ValueId> valueIds,
+            List<TensorDescriptor> descriptors,
+            List<MetalMpsGraphProgram.ValueState> valueStates,
+            int[] valueRanks,
+            long[] valueDimensions,
+            MetalMpsGraphProgram graphProgram,
+            List<ValueId> feedValueIds,
+            int[] feedValueIndices,
+            List<ValueId> targetValueIds,
+            int[] targetValueIndices,
+            List<PreparationResourceRequirement.Buffer> declarations,
+            List<Optional<ScalarValue>> feedSplats,
+            Optional<PreparationResourceRequirement.Workspace> addressWorkspace,
+            long[] feedRequiredBytes,
+            long[] targetRequiredBytes,
+            MetalTraceProducer.PreparedUnit traceUnit) {
         this.partition = Objects.requireNonNull(partition, "partition");
         this.numericalProfile =
                 Objects.requireNonNull(numericalProfile, "numericalProfile");
@@ -132,6 +179,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
         this.addressWorkspace = Objects.requireNonNull(addressWorkspace, "addressWorkspace");
         this.feedRequiredBytes = feedRequiredBytes.clone();
         this.targetRequiredBytes = targetRequiredBytes.clone();
+        this.traceUnit = traceUnit;
         if (this.valueIds.size() != this.descriptors.size()
                 || this.valueIds.size() != this.valueStates.size()
                 || this.valueIds.size() != this.valueRanks.length
@@ -166,6 +214,8 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     MetalDeviceContext context() { return context; }
     /** @return the deterministic backend-private route selected before shared declarations */
     Route route() { return route; }
+    /** @return immutable trace facts, or {@code null} on the no-trace/disabled path */
+    MetalTraceProducer.PreparedUnit traceUnit() { return traceUnit; }
     List<ValueId> valueIds() { return valueIds; }
     List<TensorDescriptor> descriptors() { return descriptors; }
     List<MetalMpsGraphProgram.ValueState> valueStates() { return valueStates; }
