@@ -25,17 +25,18 @@ constants**. Under `NumericalProfile.ACCELERATOR`:
 |---|---:|---|
 | at least one current bounded Metal domain | **19** | some occurrences `true`; every unlisted dtype/shape/layout/attribute/gradient topology remains false |
 | Task 0051 historical / Task 0053 successor | **2** | `EXP` and `SIGMOID` remain false; no Task-0053 candidate is `DOMAIN-PASS` |
-| Task 0052 | **15** | all remain false in production despite reviewed custom `DOMAIN-PASS` and numerical `PASS`; Gate 3/4/implementation did not run |
+| Task 0052 | **15** | all were false in production at the exact audit base; the then-current record had stopped after reviewed custom `DOMAIN-PASS` and numerical `PASS` |
 | every other operation-kind constant | **79** | false for every occurrence |
 | **total** | **115** | `19 + 2 + 15 + 79 = 115` |
 
 Task 0052 has **15 operation-kind constants but 16 custom candidates** because `CLAMP` has both
 fused-custom and two-step-custom candidates. Candidate count is not operation-kind count.
 
-There is no Metal task Ready. Task 0053 is blocked on concrete source/constants plus pinned
-machine-checkable complete-domain proof and independent review, and on supported full-Xcode tooling
-for actual dispatch/peak-transient evidence. Task 0052 is blocked after Gate 2 on the same trace
-facts, then Gate 4 and production implementation.
+At the exact audited base there was no Metal task Ready. Task 0053 was blocked on concrete
+source/constants plus pinned machine-checkable complete-domain proof and independent review, and on
+supported full-Xcode tooling for actual dispatch/peak-transient evidence. Task 0052 had stopped after
+Gate 2. That Task-0052 status is historical: ADR 0022 subsequently authorized its auditable custom
+route-cost method, and retained Gate-3 evidence then passed and selected fused custom `CLAMP`.
 
 ## Authority and counting method
 
@@ -168,7 +169,7 @@ checker, read-only approval, and the full-Xcode trace prerequisite. Both operati
 remain false; schema/wires/identities remain unreserved; non-FLOAT32, excluded geometry, and
 gradient topologies remain false even if its future no-grad canonical slice completes.
 
-## Task 0052: 15 false constants with reviewed Gate-1/Gate-2 evidence
+## Task 0052: 15 false constants at the audit base; Gate-3 result now supersedes the stop reason
 
 Task 0052 owns exactly:
 
@@ -178,13 +179,16 @@ Task 0052 owns exactly:
 - `AggregateReductionKind.MIN` and `MAX`; and
 - `CumulativeScanKind.CUM_SUM` and `CUM_PROD`.
 
-This corrects the old inventory: Task 0052 is not merely planned and it is not missing complete-domain
-verdicts. Every opaque direct candidate is `DOMAIN-BLOCKED`; all **16** auditable custom candidates
-are reviewed `DOMAIN-PASS` and numerical `PASS`, with exact source/validator/audit/proof retained
-under [`../evidence/0052/`](../evidence/0052/README.md). Gate 3 did not run because supported tooling
-cannot read actual GPU dispatch and peak transient facts. There is no cost result, Gate-4 route,
-schema/identity cutover, production implementation, or capability change. Therefore all 15 kinds
-remain production false.
+This corrects the old inventory as of the exact audit base: Task 0052 was not merely planned and it
+was not missing complete-domain verdicts. Every opaque direct candidate was `DOMAIN-BLOCKED`; all
+**16** auditable custom candidates were reviewed `DOMAIN-PASS` and numerical `PASS`, with exact
+source/validator/audit/proof retained under [`../evidence/0052/`](../evidence/0052/README.md). At
+that base Gate 3 had not run, so there was then no cost result, Gate-4 route, schema/identity
+cutover, production implementation, or capability change, and all 15 kinds were production false.
+ADR 0022 and [`../evidence/0052-gate3/`](../evidence/0052-gate3/README.md) now supersede only that
+historical stop reason: the one authorized actual-M3 Gate-3 run passed, selected fused custom
+`CLAMP`, and left Task 0052 in production implementation. This read-only audit's base, 115-kind
+partition, and counts are intentionally unchanged.
 
 Task 0052's future authorized domain is canonical positive-static rank-`1..16` `FLOAT32`, forward and
 no-grad, with its exact broadcast/axis/scan forms and terminal comparison BOOL publication. Integer,
