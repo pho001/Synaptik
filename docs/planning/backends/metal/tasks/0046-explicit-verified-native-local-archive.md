@@ -2,7 +2,7 @@
 
 ## Status
 
-Review needed
+Complete
 
 ## Change class
 
@@ -181,14 +181,15 @@ blocked.
 
 ## Documentation and review impact
 
-The native README and release guide change a durable developer workflow and security terminology.
-Independent Class C review must inspect Provider laziness, exact raw path forwarding, task graph
+The native README and release guide changed a durable developer workflow and security terminology.
+Independent Class C review inspected Provider laziness, exact raw path forwarding, task graph
 isolation, verifier ordering, archive members/modes/reproducibility, absence of path/version/legal
 leaks, manual extraction/loading, and absence of authentication or release claims.
 
 ## Result
 
-Implemented from planning commit `35b222be` and clean reviewed Task 0045 base `26c6c911`.
+Implemented at `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5` from planning commit `35b222be`
+and clean reviewed Task 0045 base `26c6c911`.
 `backends/metal` now lazily registers only `verifyMetalNativePackage` and
 `metalNativeLocalZip`. The exact raw absolute property reaches the existing verifier; the verifier
 has no outputs and executes on every selection. The ZIP task depends only on it, copies the exact
@@ -211,5 +212,5 @@ unchanged verifier passed. The extracted absolute dylib path passed the existing
 
 The native README and release guide document manual caller-owned extraction, reverification,
 retention, and explicit absolute-path loading while retaining the unauthenticated ad-hoc local
-boundary. Six-path scope, Markdown, and diff checks passed; no full repository build ran. Status:
-Review needed for mandatory independent Class C review.
+boundary. Six-path scope, Markdown, and diff checks passed; no full repository build ran. The
+independent Class C review returned `APPROVE` with zero findings. Status: Complete.
