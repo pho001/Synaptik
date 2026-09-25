@@ -4,24 +4,32 @@
 
 Blocked
 
+The completed 83-word invocation is regression/rejection evidence only, not complete-domain proof.
+Gate 1B now leaves every previously sampled route ineligible: opaque direct EXP and any composition
+inheriting it are `DOMAIN-BLOCKED`, while direct/custom SIGMOID and the original custom EXP retain
+their numerical failures. This remediation is planning/evidence only. Capability, schema, identity,
+routes, and production remain unchanged, and the consumed one-shot oracle must not be rerun.
+
 ## Change class
 
-Class C — this is the first executable Metal consumer of the completed recursive numerical-profile
-contract. It changes profile-qualified capability, typed native schema/lowering, workload and tuning
-identity, prepared execution, generated-gradient reachability, and public Engine evidence without
-changing Model semantics, public API, Runtime policy, or native ABI exports.
+Class C — an eventual implementation would be the first executable Metal consumer of the completed
+recursive numerical-profile contract. This planning/evidence remediation changes no
+profile-qualified capability, typed native schema/lowering, workload or tuning identity, prepared
+execution, generated-gradient reachability, public Engine behavior, Model semantics, public API,
+Runtime policy, or native ABI export.
 
 ## Goal
 
-Add exactly canonical `FLOAT32` `UnaryElementwiseKind.EXP` and `SIGMOID` under
-`NumericalProfile.ACCELERATOR`. `STRICT_IEEE` remains false for both. Select the production
-realization only after one fresh real-device recursive-floor oracle certifies every staged candidate
-and one bounded, predeclared route adjudication records hot-run time, route dispatch count, and
-temporary memory.
+Define the gates for eventually adding exactly canonical `FLOAT32` `UnaryElementwiseKind.EXP` and
+`SIGMOID` under `NumericalProfile.ACCELERATOR`; `STRICT_IEEE` remains false for both.
 
-The expected production route is direct MPSGraph only if the evidence and decision rule select it.
-Disposable fused custom candidates and the stable composed sigmoid candidate exist solely for the
-cold decision and must be removed unless selected.
+No current candidate is eligible for timing or production. Direct MPSGraph EXP passed the bounded
+sample but lacks an authoritative all-binary32/rank-`1..16` contract and is `DOMAIN-BLOCKED`; the
+sampled MPSGraph stable SIGMOID composition inherits that blocker. Direct/custom SIGMOID and the
+original custom EXP also retain their recorded numerical failures. A future successor may stage the
+auditable integer custom EXP and stable SIGMOID designs below only after their complete-domain
+proof artifacts pass independent review, then run a newly authorized one-shot oracle under that
+successor's own contract.
 
 ## Authorized capability domain
 
@@ -69,10 +77,105 @@ whole-sigmoid distance ceiling.
 Ordered distance uses the Model key: unsigned `~bits` for a sign-set word and unsigned
 `bits ^ 0x80000000` otherwise, followed by mathematical absolute key difference.
 
-## Candidate staging and exactly one fresh oracle
+## Gate 1B: complete-domain proof prerequisite
 
-Before any capability can become true, stage these implementations with production capability
-still false:
+Gate 1B is independent of the bounded numerical oracle. A numerical pass can reject an incorrect
+proof, but cannot prove that a candidate's outputs are a subset of the Model set for all
+`2^32` input words, every positive canonical rank `1..16` Shape, and every checked extent. An opaque
+route requires an authoritative, deployment-version-applicable contract covering raw-word special
+classes, DAZ, correctly rounded reference/distance, underflow/overflow, shape-dependent algorithms,
+and exact output publication. Selector names, SDK declarations, samples, and final-output agreement
+are insufficient.
+
+| Candidate from the consumed invocation | Gate 1A/API | Gate 1B | Bounded numerical verdict | Consequence |
+|---|---|---|---|---|
+| direct MPSGraph EXP | `PASS` | `DOMAIN-BLOCKED` — no authoritative all-binary32/rank-`1..16` selector contract | `PASS` on 83 words | regression evidence only; not eligible for timing or production |
+| original custom EXP | `PASS` | `DOMAIN-BLOCKED` — no reviewed complete source/constant/error proof | `FAIL` | rejected; remains removed |
+| direct MPSGraph SIGMOID | `PASS` | `DOMAIN-BLOCKED` — opaque direct formula/algorithm | `FAIL` | rejected; remains removed |
+| original custom stable SIGMOID | `PASS` | `DOMAIN-BLOCKED` — no complete primitive/formula proof | `FAIL` | rejected; remains removed |
+| MPSGraph stable SIGMOID composition | `PASS` | `DOMAIN-BLOCKED` — inherits direct MPSGraph EXP's blocker | `PASS` on 83 words | regression evidence only; not eligible for timing or production |
+
+No candidate from the consumed invocation is `DOMAIN-PASS`. Consequently the prior timing stop is
+not only an instrumentation stop: even with trace tooling installed, Gate 3 cannot begin until a
+new candidate passes Gate 1B and a separately authorized fresh numerical gate.
+
+### Successor-only auditable custom candidate design
+
+`CUSTOM_EXP_CR_U32_V1` is a fixed typed pointwise kernel over raw `uint32` words, not a generalized
+transcendental framework. It calls no MPSGraph selector, Metal transcendental, native `float`
+operation, or opaque library routine:
+
+1. Decode sign/exponent/fraction bits and handle every NaN, both infinities, and both zeros by
+   explicit raw-word branches. Emit one fixed quiet NaN for every NaN, `+0` for negative infinity,
+   `+infinity` for positive infinity, and `+1` for either zero.
+2. Choose the represented finite input, never the optional DAZ alternative. This is one allowed
+   Model input path, including represented subnormal inputs.
+3. Convert that exact binary rational into a frozen signed multi-limb fixed-point representation.
+   Use only explicitly implemented `uint32` add/subtract/multiply/shift/compare operations with
+   checked shift counts, proved carry bounds, and no signed overflow or implementation-defined
+   behavior.
+4. Select `k` with certified outward rational bounds for `ln(2)/256`, then enclose
+   `r = x - k * ln(2)/256` without treating the irrational constant as exactly represented. Frozen
+   outward-rounded bounds, a 256-entry `2^(j/256)` interval table, and a fixed polynomial for
+   `exp(r)` produce a directed lower/upper result interval. The proof generator selects and freezes
+   limb width, polynomial degree, coefficients, evaluation order, and every truncation direction;
+   the kernel may not substitute compiler floating arithmetic.
+5. If the interval identifies one correctly rounded binary32 result, pack that raw word directly.
+   Every unresolved rounding-boundary input uses a frozen sorted exception table keyed by the exact
+   input word. Table generation must prove exhaustiveness and uniqueness; an unbounded or
+   unexplained exception set rejects the candidate.
+6. Handle overflow and gradual underflow through proved exact raw thresholds and integer packing.
+   Emit the correctly rounded normal/subnormal/zero/infinity word directly, so the chosen route uses
+   no output FTZ. Correct rounding is ordered distance `0`, a strict subset of the Model's inclusive
+   five-step ordinary-result allowance; exact subnormal `r` is one allowed subnormal result.
+
+`CUSTOM_SIGMOID_STABLE_U32_V1` composes only reviewed raw-word primitives. It handles NaN explicitly,
+uses the raw sign guard, and evaluates the negative branch
+`EXP(x) -> ADD_RNE(1,e) -> DIV_RNE(e,d)` or nonnegative branch
+`NEG_BITS(x) -> EXP -> ADD_RNE(1,e) -> DIV_RNE(1,d)`. `EXP` is exactly
+`CUSTOM_EXP_CR_U32_V1`; `ADD_RNE` and `DIV_RNE` are fixed total software-binary32 integer
+algorithms with explicit NaN/infinity/zero rules, normalization, guard/round/sticky bits, and
+ties-to-even packing. They choose represented operands and exact non-FTZ results, one legal
+DAZ/RNE/FTZ path at each Model site. Every intermediate is materialized as a raw binary32 word in a
+guarded buffer; the proof never relies on opaque fusion or excess precision.
+
+The reviewable proof package for these two candidates has mandatory, independently checked
+obligations:
+
+1. freeze source, generator, coefficient/table/exception bytes, proof checker, compiler options,
+   resource ledger, and SHA-256 identities before any device process;
+2. prove raw classification and all special outputs, including both zeros, both infinities, every
+   NaN word, overflow, underflow, and exact subnormal publication;
+3. prove every multi-limb primitive, carry bound, shift precondition, table index, and buffer offset;
+   for element count $N=\prod_{i=0}^{rank-1}d_i$, prove checked positive multiplication and the
+   launch map $\ell=gid_x+W(gid_y+Hgid_z)$ covers every integer $0\le\ell<N$ exactly once and no
+   other thread writes, for every resource-feasible positive rank-`1..16` Shape;
+4. prove range-reduction uniqueness and coverage, outward interval validity, approximation and
+   truncation error, exception-table exhaustiveness, and final round-to-nearest-even packing;
+5. independently enumerate all `2^32` raw inputs with a separate at-least-256-bit reference/checker,
+   recording class counts, maximum ordered distance and witness, unresolved interval count,
+   exception count, and a certificate digest; EXP must have zero failures and maximum distance
+   `<=5`;
+6. prove `ADD_RNE` and `DIV_RNE` against their complete raw-word truth tables or equivalent checked
+   partitions, then prove stable SIGMOID site-by-site recursive membership for all `2^32` inputs,
+   including exact branch selection and materialized intermediate words;
+7. establish that the Metal source uses only the proved unsigned operations, fixed constants, and
+   safe compile settings, with no optimizer-enabled floating reassociation or hidden intrinsic;
+8. independently review the source-to-certificate correspondence and rerun the proof checker from a
+   clean environment before assigning `DOMAIN-PASS`; and
+9. keep capability false and stage both candidates outside the repository until all obligations
+   pass.
+
+This document can statically prove the current direct/inherited routes are domain-blocked, preserve
+the recorded numerical failures, and define a sufficient auditable proof shape. It cannot claim the
+new designs are `DOMAIN-PASS` until concrete source/constants/certificates exist and are reviewed.
+That work requires a new explicitly authorized successor task. Because Task 0051's sole device
+invocation is consumed, the successor must own any fresh compiled-device regression oracle; it must
+not rerun, amend, or relabel the Task-0051 invocation.
+
+## Consumed candidate staging and exactly one oracle
+
+The completed capability-false invocation staged these historical implementations:
 
 1. direct MPSGraph `exponentWithTensor` for `EXP`;
 2. one disposable custom Metal `float` EXP kernel;
@@ -81,12 +184,12 @@ still false:
 5. one MPSGraph stable sigmoid composition using explicit negation/exponential/addition/division
    sites and graph constants.
 
-The disposable oracle is outside the repository and exports no ABI. It must compile all five
-candidates first, then perform exactly one real-device process invocation. That one invocation uses
-one default-device context, direct supplied targets, optimization/fast-math state recorded in the
-raw report, input-preservation and target-canary checks, and the same frozen corpus for every
-candidate. There is no retry, second context, optimization-level matrix, route fallback, or repeated
-oracle after a failure.
+The disposable oracle was outside the repository and exported no ABI. It compiled all five
+candidates first, then performed exactly one real-device process invocation with one default-device
+context, direct supplied targets, recorded optimization/fast-math state, input-preservation and
+target-canary checks, and the same frozen corpus for every candidate. There was no retry, second
+context, optimization-level matrix, route fallback, or repeated oracle. That invocation is now
+consumed permanently.
 
 The frozen corpus is the ordered de-duplicated union of:
 
@@ -114,14 +217,19 @@ signs/payloads. The reference evaluates the exact represented binary32 value wit
 significant decimal digits, performs stable-branch sigmoid, and resolves final binary32
 round-to-nearest-even by comparing adjacent exact binary32 values rather than by double rounding.
 
-The raw oracle report must name every candidate, corpus SHA-256, output SHA-256, maximum ordered
-distance and its input, FTZ count, class/sign/range verdicts, canary/input/Shape verdicts, and final
-`PASS`/`FAIL`. Only `PASS` candidates proceed to timing. The task Result records the unedited raw
-verdict text and its SHA-256; probe source/binary/output are then removed.
+The raw oracle report names every historical candidate, corpus SHA-256, output SHA-256, maximum
+ordered distance and its input, FTZ count, class/sign/range verdicts, canary/input/Shape verdicts,
+and bounded `PASS`/`FAIL`. A candidate could proceed only with both `DOMAIN-PASS` and numerical
+`PASS`; none did. The task Result retains the unedited raw verdict text and SHA-256; all disposable
+artifacts were removed.
 
 ## One bounded route adjudication
 
-Run exactly one post-oracle adjudication workload on the same real device:
+**Not authorized:** no current candidate is `DOMAIN-PASS`, the Task-0051 oracle is consumed, and
+supported trace tooling is also unavailable. This workload did not run and must not run under Task
+0051.
+
+The unexecuted historical adjudication specification was:
 
 ```text
 profile = ACCELERATOR
@@ -132,35 +240,31 @@ reducedPrecisionFastMath = None with readback
 corpus = frozen edge prefix, then Float.floatToRawIntBits((((i * 17) % 257) - 128) / 16.0f)
 ```
 
-Every surviving route is prepared before timing and exact-checked against the recursive-floor gate.
-Use four alternating-order warmup rounds and eight alternating-order retained rounds in one process;
-each retained batch runs to a 25 ms floor with a 1,000,000-execution ceiling. Discard and retry
-nothing. The hot boundary is synchronous route execution plus result closure only; preparation,
-upload, download, oracle checks, and reporting are excluded.
+It would have prepared every surviving route before timing and exact-checked it against the
+recursive-floor gate.
+It would have used four alternating-order warmup rounds and eight alternating-order retained rounds
+in one process; each retained batch would run to a 25 ms floor with a 1,000,000-execution ceiling.
+Nothing would be discarded or retried. The hot boundary would be synchronous route execution plus
+result closure only, excluding preparation, upload, download, oracle checks, and reporting.
 
-Record every raw batch duration, iteration count, normalized duration, and the descriptive median.
-After uncaptured timing, use `MTLCaptureManager` queue capture for exactly one hot logical execution
-of each passing route in the same workload. Read each resulting GPU trace with supported installed
-tooling and record its SHA-256, actual compute-dispatch records, and peak transient/temporary Metal
-resource bytes above the route's steady prepared input/output baseline. The custom route's explicit
-resource ledger is a cross-check, not a substitute for the trace. Framework-internal work must not
-be relabeled as a single backend call or reported only as opaque. If a trace cannot be emitted or
-the actual dispatch and peak temporary facts cannot be read for every passing route, adjudication
-is incomplete: Task 0051 becomes `Blocked` with capability still false.
+It would have recorded every raw batch duration, iteration count, normalized duration, and
+descriptive median. After uncaptured timing, `MTLCaptureManager` queue capture would cover exactly
+one hot logical execution of each passing route in the same workload. Supported installed tooling
+would have to read each trace's SHA-256, actual compute-dispatch records, and peak
+transient/temporary Metal resource bytes above steady prepared inputs/outputs. A custom resource
+ledger is only a cross-check; framework-internal work cannot be relabeled as a single backend call
+or reported only as opaque. Missing actual dispatch or peak temporary facts blocks capability.
 
-The predeclared selection rule is:
+The corrected Task-0051 selection result is empty:
 
-1. remove every numerical-gate failure;
-2. direct MPSGraph is the maintenance-safe baseline for each operation;
-3. another route replaces it only if its retained median is at least 10% lower, its actual compute
-   dispatch count is no greater, and its peak temporary bytes are no greater;
-4. if more than one alternative qualifies, choose the lowest median, then fewer actual compute
-   dispatches, then fewer peak temporary bytes, then direct/composed MPSGraph before custom code;
-   and
-5. exact ties select direct MPSGraph; missing dispatch or temporary-memory facts block the task.
+1. remove every candidate without both Gate-1B `DOMAIN-PASS` and numerical `PASS`;
+2. all five historical candidates are removed at step 1, so Task 0051 has no baseline, alternative,
+   timing population, tie, route winner, or production decision; and
+3. a new explicitly authorized successor must predeclare its own complete-domain candidates,
+   one-shot numerical gate, all-survivor cost rule, and deterministic tie-break before measurement.
 
-The decision is fixed in production; it is not a runtime threshold, tuning matrix, retry, fallback,
-or input-dependent choice. Remove every unselected disposable kernel/composition/probe.
+Any future decision is fixed in production, never a runtime threshold, tuning matrix, retry,
+fallback, or input-dependent choice, and removes every unselected disposable candidate artifact.
 
 ## Typed schema and identity cutover
 
@@ -214,13 +318,16 @@ custom-unary framework; retained unselected kernel; or final repository-wide bui
 - Depends on: completed and independently approved Model 0030/0031 at remediation
   `97cb9d116bd85ee6a0dfbf2e9b70d32604633c85`; Metal 0050 packaged baseline; retained Metal 0016
   device evidence; Compiler unary gradients; Config 0006; Engine 0018.
-- Common base revision: `621555a500355d4f0a4b32a54bf7d828331e12f0`.
+- Original execution base revision: `621555a500355d4f0a4b32a54bf7d828331e12f0`; Gate-1B
+  remediation base: `6efe3b859ebcb84ffdc05e8925d7bbb9da52782d`.
 - Conflicts with: every concurrent Metal capability/schema/native-preflight/candidate/codec/tuning/
   lifecycle/public Engine edit and shared numerical-profile documentation.
 - Parallel group: None.
-- Integration order: this planning commit; capability-false candidate staging; exactly one oracle;
-  exactly one adjudication; delete losers; production schema/lifecycle/capability; focused proof;
-  documentation; implementation commit; independent Class C review.
+- Integration order reached: original planning; capability-false historical staging; exactly one
+  consumed oracle; artifact removal; Gate-1B evidence correction. A new explicitly authorized
+  successor must own concrete custom source/certificates, independent complete-domain review, its
+  own one-shot oracle, instrumentation-enabled adjudication, route freeze, production work, and
+  independent Class C review.
 - Shared-document integration owner: task implementer.
 
 ## Files and symbols
@@ -241,63 +348,49 @@ selection rule chooses it as production.
 
 ## Acceptance criteria
 
-1. Exactly one fresh real-device oracle invocation certifies EXP candidates against the elementary
-   result set and SIGMOID candidates by recursive stable-formula membership while capability is
-   false; raw verdict and hashes are recorded and artifacts removed.
-2. Exactly one bounded adjudication workload times only passing routes and records raw hot-run
-   evidence plus captured actual compute dispatches and peak temporary bytes; production matches the
-   predeclared rule or the task blocks with capability false.
-3. Capability admits exactly accelerator canonical FLOAT32 EXP/SIGMOID and rejects strict plus all
-   malformed/excluded rows before native creation.
-4. Schema 12 wires 20/21 and every version-13 identity fail closed against stale/malformed data;
-   ABI 4, thirteen exports, 160-byte records, and complete-plan wrapper 1 remain exact.
-5. Production direct/custom/composed lowering is only the selected route, preserves the complete
-   existing lifecycle, and performs no runtime checking, retry, fallback, or matrix selection.
-6. Focused tests prove native numerical results, composed partitions, stale identity rejection,
-   seeded EXP all-Metal execution, honest SIGMOID gradient ownership, and a CPU-free public Engine
-   forward scenario through the real dylib with no skip.
-7. Javadocs/docs/Markdown/diff pass; no final full repository build runs. Status becomes
-   `Review needed` for independent Class C review.
+1. The consumed 83-word oracle remains exact regression/rejection evidence with unchanged raw
+   hashes/verdicts; it is not complete-domain certification and is never rerun.
+2. Every historical candidate has a separate Gate-1B verdict. Direct EXP and its MPSGraph stable
+   SIGMOID composition are `DOMAIN-BLOCKED`; the original custom EXP and both failed SIGMOID
+   candidates retain their numerical failures.
+3. The successor-only custom EXP and stable SIGMOID designs name all source, fixed-point,
+   special-value, approximation, exception, arithmetic-site, full-raw-domain, rank/launch,
+   certificate, and independent-review obligations without claiming those unbuilt candidates pass.
+4. No timing, trace capture, route decision, production staging, build, native invocation, or test
+   runs in this remediation.
+5. Capability, schema 11, wires `1..19`, version-twelve identities, ABI 4, thirteen exports,
+   production code, and every strict/excluded row remain unchanged.
+6. Task/master/roadmap wording, Markdown, path scope, artifact absence, and `git diff --check` pass;
+   the remediation is committed for independent planning/evidence review.
 
 ## Validation
 
-Build and inspect the actual native library once after production stabilization:
+Validate only the planning/evidence remediation:
 
 ```bash
-./native/metal-macos-arm64/build.sh
-nm -gU native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib
-otool -L native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib
+git diff --check
 ```
 
-Run focused suites only, with the freshly built dylib supplied explicitly:
-
-```bash
-SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" \
-  ./gradlew :backends:metal:test --tests '*Metal*'
-./gradlew :testing:backend-conformance:test --tests '*Metal*'
-SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" \
-  ./gradlew :testing:integration-tests:test --tests '*EngineExplicitCompositionMetalIntegrationTest*'
-./gradlew :backends:metal:javadoc :testing:architecture-tests:test
-```
-
-Inspect the actual test report for zero failures/errors/skips in the mandatory native scenario.
-Validate changed Markdown links, anchors, fences, final newlines, exact evidence text, path scope,
-artifact removal, and `git diff --check`. Do not run a full repository build.
+Also validate the three changed Markdown files for links, anchors, fences, final newlines, trailing
+whitespace, status consistency, exact retained oracle hashes, no Task-0052 task-file edit, and zero
+production/native/test/generated artifacts. Do not run a build, test, native process, timing
+workload, trace capture, or device oracle.
 
 ## Documentation and review impact
 
-Synchronize current Metal capability, ABI/schema/identity, lifecycle, route decision, gradient,
-public Engine, native guide, package Javadocs, master-plan, and roadmap wording. Preserve historical
-blocked task evidence. Independent Class C review must inspect raw oracle/adjudication evidence,
-production selection, strict false gates, schema/stale rejection, lifecycle, gradients, real no-skip
-Engine proof, removed artifacts, and absence of runtime checks/fallback.
+Synchronize only this task's Gate-1B correction and the Task-0051 summaries in the Metal master plan
+and roadmap. Preserve the original raw oracle evidence, every historical blocked record, and
+Task-0052 content under independent review. A future successor's independent Class C review must
+inspect concrete custom source/constants/certificates, complete-domain proofs, its newly authorized
+one-shot numerical evidence, instrumentation-backed cost evidence, fixed route, false exclusions,
+stale-data rejection, lifecycle, and removed artifacts.
 
 ## Result
 
-Blocked before route timing or capability. Planning completed at
-`3a81874528b9a3cbcca4a5643c121bc164c2f75a`. Production capability remained false throughout, and
-no Java, native, schema, identity, test, guide, Javadoc, ABI, export, package, or generated artifact
-changed.
+Blocked before complete-domain authorization, route timing, or capability. Planning completed at
+`3a81874528b9a3cbcca4a5643c121bc164c2f75a`; this Gate-1B remediation corrects the interpretation of
+its evidence. Production capability remained false throughout, and no Java, native, schema,
+identity, test, guide, Javadoc, ABI, export, package, or generated artifact changed.
 
 Exactly one fresh Apple M3 Max numerical-oracle process invocation ran with the frozen 83-word
 corpus, MPSGraph's production-default optimization level `1`,
@@ -337,11 +430,13 @@ PASSING_CANDIDATES=direct_exp,composed_sigmoid
 ORACLE_VERDICT=PASS
 ```
 
-The composed SIGMOID verdict selects captured device results from the negative or nonnegative
-stable branch with the exact raw-bit sign guard, then checks membership in the full recursive
-site-by-site union. Direct SIGMOID was not given a final elementary distance envelope. Thus the
-only numerically passing candidates were direct MPSGraph EXP and certified MPSGraph composed
-SIGMOID; the custom EXP/SIGMOID and direct SIGMOID candidates were excluded from timing.
+The composed SIGMOID numerical validator selected captured device results from the negative or
+nonnegative stable branch with the exact raw-bit sign guard, then checked membership in the sampled
+recursive site-by-site union. Direct SIGMOID was not given a final elementary distance envelope.
+These are bounded numerical facts only: direct EXP and composed SIGMOID passed 83 words, while the
+original custom EXP/custom SIGMOID/direct SIGMOID failed. Direct EXP remains `DOMAIN-BLOCKED`, so
+the composition inheriting it is also `DOMAIN-BLOCKED`; neither sampled pass is certified for all
+binary32 inputs, ranks `1..16`, or positive checked extents.
 
 The required actual GPU dispatch and peak transient-memory instrumentation was unavailable before
 timing. The installed command-line tools produced these raw results:
@@ -365,3 +460,11 @@ compiled successfully (source SHA-256
 run, so there is no timing, inferred backend-call count, opaque-memory substitute, route winner, or
 capability authorization. All disposable oracle, validator, raw-output, verdict, adjudicator source,
 and executable artifacts were removed after this evidence was recorded.
+
+The static remediation adds no candidate source and consumes no device action. It proves only the
+current Gate-1B blocker/failure classification and freezes the proof obligations for
+`CUSTOM_EXP_CR_U32_V1` and `CUSTOM_SIGMOID_STABLE_U32_V1`. Concrete generation, exhaustive
+certificate production, independent proof review, and any compiled-device regression require a new
+explicitly authorized successor task with its own one-shot rule. Even after such a successor obtains
+`DOMAIN-PASS` and numerical `PASS`, actual GPU dispatch and peak transient-memory facts remain
+mandatory before timing can select a route or capability can change.
