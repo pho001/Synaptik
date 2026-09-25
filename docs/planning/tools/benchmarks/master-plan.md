@@ -48,6 +48,10 @@ commits, models, and environments.
 | 0002 | Operation and operation-family suites | Draft | 0001, stable workload classification | Add fixed representative workloads without inventing a production `OperationFamily` contract. |
 | 0003 | Model and end-to-end suites | Draft | 0001, operational engine paths | Compare complete model and lifecycle behavior with the same report-only boundary. |
 
+Cross-area [Metal Task 0043](../../backends/metal/tasks/0043-reproducible-metal-route-benchmark.md)
+is the sole Ready benchmark delivery. Metal owns its fixed two-route scope and lifecycle facts;
+this tools plan owns the report-only boundary and has no duplicate local task.
+
 
 ## Milestones
 
@@ -57,10 +61,11 @@ commits, models, and environments.
 
 ## Current status
 
-Complete through benchmark task 0001 and CPU 0010M's evidence hardening: the report-only CPU
-lifecycle harness emits reproducible JSON observations for pointwise, MATMUL, reduction,
-normalization, Conv2d, and Conv3d through public Engine compile, reusable-session, repeated-run,
-one-shot, and host-materialization boundaries. Tasks 0002 and 0003 remain Draft.
+Complete through benchmark task 0001 and CPU 0010M's evidence hardening. Cross-area Metal 0043 is
+Ready to add one fixed `[1_048_576]` singleton FLOAT32 `NEG` report over both current opaque Metal
+candidates, with separate traced route attestation, ordinary untraced timing, exact raw-bit checks,
+paired smoke/baseline sampling, and no winner, cache I/O, threshold, or retained result artifact.
+Local tasks 0002 and 0003 remain Draft.
 
 The directly runnable non-evidence profiles are:
 
