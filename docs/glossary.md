@@ -453,10 +453,11 @@ For `ACCELERATOR FLOAT32`, every arithmetic reduction uses the recursive aggrega
 axes, masks, contributor sets, identities, counts, and divisors remain, and every selected term
 participates exactly once under any binary tree with per-step FLOAT32 rounding, DAZ/FTZ, and only
 corresponding multiply/add fusion. Masked-out positions remain excluded before arithmetic.
-Elementary sites in statistics and norms use the five-ULP primitive-site rule, never a final
-reduction envelope; extrema, arg-extrema, and Boolean reductions retain exact selection/index/
-truth rules. Existing qualifying final exact-zero SUM/MEAN freedoms remain local to their final
-results. Non-FLOAT32 behavior stays strict.
+Irreducible elementary sites in statistics and norms use the inclusive ordered-binary32
+distance-at-most-five primitive-site rule, never a final reduction envelope; extrema,
+arg-extrema, and Boolean reductions retain exact selection/index/truth rules. Existing qualifying
+final exact-zero SUM/MEAN freedoms remain local to their final results. Non-FLOAT32 behavior stays
+strict.
 
 Public `argMin` and `argMax` accept floating or integral input, normalize one selected axis, and
 produce exact INT64 with false gradient eligibility. They use shared `ArgExtremaAttrs` because the
@@ -2905,11 +2906,13 @@ backend unary capability and receives no inferred finite realization from its st
 The exact/discrete floor preserves kinds, attributes, descriptors, mapping, contributors, masks,
 indices, state, traversal, casts, ordering, guards, identities, divisors, and publication. The
 primitive floor permits DAZ/FTZ, one-round basic arithmetic, corresponding FMA only without an
-observable intermediate, and at most five ordered FLOAT32 representations at a named
-elementary-function site. The aggregate floor permits any binary tree only while every declared
-contributor participates exactly once. Composite and Compiler-generated gradient formulas recurse
-through those sites and gain no final-output envelope. Special classes and domains remain
-formula-derived; NaN cannot become ordinary, predicate and selection gain no tolerance, and
+observable intermediate, and an inclusive ordered-binary32 distance of at most five from the
+correctly rounded exact result only at an irreducible elementary-function site. The normative
+contract defines that distance through a monotonic raw-bit key. The aggregate floor permits any
+binary tree only while every declared contributor participates exactly once. Composite and
+Compiler-generated gradient formulas recurse through those sites and gain no final-output
+envelope. Special classes and domains remain formula-derived; NaN cannot become ordinary,
+predicate and selection gain no tolerance, and
 non-FLOAT32 behavior remains strict. Existing operation-local final exact-zero publication
 freedoms remain local to their named final results. Neither profile newly permits reduced
 precision, reciprocal substitution, algebraic identities absent from the formula, cross-node

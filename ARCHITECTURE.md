@@ -182,9 +182,10 @@ The following invariants must remain true:
   path.
 - `STRICT_IEEE` retains every current per-operation promise and freedom. `ACCELERATOR` is its
   total recursive `FLOAT32` superset: exact mapping/selection/state, DAZ/FTZ and one-round
-  primitives, a five-ULP elementary-function-site ceiling, and all-declared-contributors-once
-  aggregate freedom. Composite Model and generated-gradient formulas inherit those floors at
-  their sites and gain no final-output tolerance; non-FLOAT32 behavior remains strict.
+  primitives, an inclusive ordered-binary32 distance-at-most-five ceiling only at irreducible
+  elementary-function sites, and all-declared-contributors-once aggregate freedom. Composite
+  Model and generated-gradient formulas inherit those floors at their sites and gain no
+  final-output tolerance; non-FLOAT32 behavior remains strict.
 - Engine construction captures one exact graph-wide profile, defaulting to `STRICT_IEEE`.
   Planning queries, Compiler artifacts, Prepare contexts, and backend plan/cache identities retain
   it unchanged. For a fixed occurrence domain, every backend's `STRICT_IEEE` capability and allowed

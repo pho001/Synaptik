@@ -20,7 +20,8 @@ import java.util.List;
  *
  * <p>Under the Model-owned graph numerical-profile contract, {@code STRICT_IEEE} retains these
  * scalar formulas. For {@code ACCELERATOR FLOAT32}, each named arithmetic site may use DAZ/FTZ
- * and one-round basic arithmetic; scalar {@code POW} is a five-ULP elementary-function site.
+ * and one-round basic arithmetic; scalar {@code POW} is an irreducible elementary site with the
+ * inclusive ordered-binary32 distance ceiling of five.
  * Scalar extrema and clamp still select an original candidate under their exact NaN, signed-zero,
  * bound, and tie rules, except that DAZ-normalized candidates may tie. Attribute values and
  * guards remain exact, no final-output tolerance is added, and non-FLOAT32 behavior stays strict.

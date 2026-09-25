@@ -102,11 +102,13 @@ freedoms; it is not a universal bitwise or fixed-instruction guarantee. `ACCELER
 recursive `FLOAT32` superset under the
 [normative exact/discrete, primitive, aggregate, and composite-inheritance floors](../architecture/contracts/foundational-modules.md#numerical-profiles).
 Kinds, attributes, mapping, contributors, masks, indices, state, traversal, casts, ordering,
-guards, identities, divisors, and publication stay exact. Named primitive sites may use DAZ/FTZ,
-one-round basic arithmetic, and at most five ordered FLOAT32 representations for an
-elementary-function site. Aggregate sites may use any binary tree only while including every
-declared contributor exactly once. Composite and Compiler-generated gradient formulas recurse
-through those sites and gain no final-output tolerance. Non-FLOAT32 behavior stays strict.
+guards, identities, divisors, and publication stay exact. Named primitive sites may use DAZ/FTZ
+and one-round basic arithmetic; only irreducible elementary-function sites admit an inclusive
+ordered-binary32 distance of at most five from the correctly rounded exact result. The normative
+contract defines that distance through a monotonic raw-bit key. Aggregate sites may use any binary
+tree only while including every declared contributor exactly once. Composite and
+Compiler-generated gradient formulas recurse through those sites and gain no final-output
+tolerance. Non-FLOAT32 behavior stays strict.
 Existing operation-local final exact-zero publication choices remain local to their named final
 results. Tensor construction still performs no numerical evaluation and stores no profile choice.
 
@@ -3870,11 +3872,12 @@ is signed infinity. NaN payload/sign and signaling preservation are unspecified.
 Under `ACCELERATOR FLOAT32`, every arithmetic aggregate in this section inherits the recursive
 floors. Exact axes, mappings, contributor sets, identities, counts, correction, and divisors remain
 mandatory. Every selected contributor participates exactly once under any binary tree with
-per-step FLOAT32 rounding, DAZ/FTZ, and only corresponding multiply/add fusion. Elementary sites
-inside log-sum-exp, standard deviation, and L2 norm use the five-ULP primitive-site ceiling, not a
-final aggregate envelope. Extrema, arg-extrema, and Boolean reductions preserve their exact
-selection/index/truth rules. No reciprocal substitution, term loss, invented identity, or
-classification change is allowed; non-FLOAT32 reductions stay strict.
+per-step FLOAT32 rounding, DAZ/FTZ, and only corresponding multiply/add fusion. Irreducible
+elementary sites inside log-sum-exp, standard deviation, and L2 norm use the inclusive
+ordered-binary32 distance-at-most-five primitive-site ceiling, not a final aggregate envelope.
+Extrema, arg-extrema, and Boolean reductions preserve their exact selection/index/truth rules. No
+reciprocal substitution, term loss, invented identity, or classification change is allowed;
+non-FLOAT32 reductions stay strict.
 
 Integral ordinary reductions retain task 0018U1's exact-width modular sum/product, signed extrema,
 and bounded empty identities. No algorithm, pass count, compensation scheme, traversal, vector

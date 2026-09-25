@@ -42,6 +42,7 @@ Focused architecture documentation:
 - [ADR 0017: Reusable inference session facade](../design/decisions/0017-reusable-inference-session-facade.md)
 - [ADR 0018: Public Training Session and SGD lifecycle](../design/decisions/0018-public-training-session-and-sgd-lifecycle.md)
 - [ADR 0019: Explicit numerical profiles](../design/decisions/0019-explicit-numerical-profiles.md)
+- [ADR 0020: Synchronous single-default-device Metal execution](../design/decisions/0020-synchronous-single-default-device-metal-execution.md)
 - [ADR 0021: Total recursive ACCELERATOR numerical floor](../design/decisions/0021-total-recursive-accelerator-numerical-floor.md)
 
 ## Status

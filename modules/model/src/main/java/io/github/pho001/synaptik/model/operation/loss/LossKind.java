@@ -19,11 +19,14 @@ import java.util.List;
  * classes follow those guards and named formula sites.</p>
  *
  * <p>Under the Model-owned numerical-profile contract, {@code STRICT_IEEE} retains those
- * formulas. For {@code ACCELERATOR FLOAT32}, every reduction/contraction contributor participates
- * exactly once, arithmetic sites use DAZ/FTZ and one-round operations, and logarithmic and
- * exponential sites use the five-ULP elementary ceiling. Exact guards run before arithmetic,
- * ignored or zero-weighted values stay excluded, and the composite gains no final-output
- * envelope. Non-FLOAT32 behavior stays strict. See the
+ * formulas. For {@code ACCELERATOR FLOAT32}, MSE recurses through subtraction,
+ * {@code delta*delta}, aggregation, and any exact reduction divisor. Categorical losses recurse
+ * through exact max/target/ignore guards, score subtraction, exponential, class sum, logarithm,
+ * max addition, logit subtraction, optional target multiplication, aggregation, negation, and any
+ * exact divisor. Every contributor participates once; arithmetic sites use DAZ/FTZ and one-round
+ * operations, and each irreducible logarithmic or exponential site uses the inclusive
+ * ordered-binary32 distance ceiling of five. The composites gain no final-output envelope and
+ * non-FLOAT32 behavior stays strict. See the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
  * numerical-profile contract</a>.</p>
  */

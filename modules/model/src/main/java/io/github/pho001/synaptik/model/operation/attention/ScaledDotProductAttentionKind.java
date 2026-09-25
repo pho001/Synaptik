@@ -23,10 +23,11 @@ import java.util.List;
  *
  * <p>Under the Model-owned numerical-profile contract, those guards, masks, scale, contributor
  * sets, special classes, output/weight slots, and saved weights remain exact. For
- * {@code ACCELERATOR FLOAT32}, score/output contractions and softmax reductions use the
- * all-contributors-once floor while primitive exponential, division, and arithmetic sites use
- * their recursive floors. The composite gains no final-output envelope and non-FLOAT32 behavior
- * stays strict. See the
+ * {@code ACCELERATOR FLOAT32}, scores use query/key multiply-contractions then scale
+ * multiplication; an absent scale adds exact embedding-extent conversion, square root, and
+ * typed-one division. Exact guards precede exponential/sum/division softmax sites, and outputs use
+ * value/weight multiply-contractions. Each site uses its recursive floor; the composite gains no
+ * final-output envelope and non-FLOAT32 behavior stays strict. See the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
  * numerical-profile contract</a>.</p>
  */

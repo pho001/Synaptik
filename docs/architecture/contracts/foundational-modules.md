@@ -203,20 +203,28 @@ observable value. Basic `ADD`, `SUB`, `MUL`, and `DIV` still perform one `FLOAT3
 round-to-nearest-even operation. A multiply and corresponding add with no Model-observable
 intermediate may use one `FLOAT32` fused multiply-add; contraction never crosses graph nodes.
 
-An elementary-function site — `POW`, logarithmic, exponential, error-function,
-root/reciprocal-root, sigmoid/tanh, or a formula-named activation site — may return an ordinary
-finite value at most five monotonically ordered `FLOAT32` representations from the correctly
-rounded exact mathematical result after DAZ and before FTZ. Five ULP is the smallest single
-ceiling covering current direct-route evidence: certified CPU primitive gates are one or two ULP
-except `TANH` at five, while retained Metal `EXP` and `SIGMOID` evidence is one and two ULP. It is
-not the historical four-ULP softmax output oracle or the looser composite ERF/GELU test tolerance.
-The bound is a primitive-site construction rule, never a final-output `allclose` envelope.
+Only an irreducible elementary-function site — `POW`, `LOG`, `LOG1P`, `EXP`, `EXPM1`, `ERF`,
+`SQRT`, or `TANH` — receives an elementary allowance. Let `r` be the correctly rounded exact
+binary32 result after DAZ and before FTZ, and let `a` be the site's result. For an ordinary finite
+non-subnormal `r`, the ordered-representation distance defined above must satisfy
+`distance(a,r) <= 5`; the ceiling is inclusive. A subnormal `r` is either exact or FTZ.
+
+An ordered-representation distance ceiling of five is conservative, not “five ULP” and not a
+claim of an observed or globally minimal error. Java's scalar and Vector `TANH` operations carry
+the equivalent Java method's at-most-2.5-ULP exact-result contract; FLOAT32 lanes use the specified
+widen-to-binary64, evaluate, narrow-to-binary32 adaptation. At a power-of-two binade boundary the
+spacing on the smaller side is half the Java ULP at the boundary, so 2.5 Java ULP can span an
+ordered distance of five adjacent-representation steps; away from that boundary the distance is
+at most four. The Java one-ULP logarithmic/exponential contract converts to ordered distance at
+most two, and
+retained Metal `EXP`/`SIGMOID` observations are also within two, so they do not raise the uniform
+ceiling. No claim that five is minimal is made.
 
 Domain and special classes remain formula-derived. NaN cannot become ordinary. An ordinary finite
 result cannot become NaN or infinity except through genuine overflow or a domain path after DAZ.
 Required infinity and zero signs remain intact except for explicit DAZ/FTZ, the established
-extrema tie rule, or an operation's existing final exact-zero publication freedom. Five ULP
-applies only to an ordinary finite non-subnormal reference; a subnormal reference is exact or FTZ.
+extrema tie rule, or an operation's existing final exact-zero publication freedom. Distance never
+substitutes for those class and sign checks.
 
 #### Aggregate floor
 
@@ -241,6 +249,26 @@ error envelope. Their exact guards run first, and their authoritative Model form
 through the exact/discrete, primitive, and aggregate floors. Saved outputs, statistics, masks, and
 indices are exact stored values. An opaque vendor selector is eligible only when its complete
 output set is proved to be a subset of this recursive set.
+
+The recursive sites for every current first-class composite formula are closed as follows. An
+exact typed attribute or stored input is an exact leaf. A formula-named real constant is rounded
+once to nearest-even `FLOAT32` before its first use and is not an approximation site.
+
+| Formula family | Complete recursive sites |
+|---|---|
+| Unary composites | `RSQRT` is `SQRT` then typed `+1 / root`. `SIGMOID` first applies its exact sign guard; the nonnegative branch has negation, `EXP`, typed-one addition, and division, while the negative branch has `EXP`, typed-one addition, and division. Exact GELU has typed `0.5`, `1`, and `2`, `SQRT(2)`, `x / sqrt(2)`, `ERF`, addition, and two multiplications. Tanh GELU has typed `0.5`, `1`, `2`, `pi`, and `0.044715`, `x*x`, `x^2*x`, `2/pi`, `SQRT`, the inner multiply/adds, `TANH`, and the outer add/multiplies. SiLU uses the exact sign guard and the corresponding sigmoid branch plus the final multiplication; equivalently its nonnegative branch is `x/(1+EXP(-x))` and its negative branch is `x*EXP(x)/(1+EXP(x))`. None of `RSQRT`, `SIGMOID`, GELU, tanh GELU, or SiLU is one elementary site. |
+| Aggregate/statistical composites | `MEAN` is an all-terms-once sum then mandatory count division. `VARIANCE` is mean, one subtraction and `x*x` per contributor, aggregate sum, then `N-correction` division; standard deviation adds `SQRT`. L1 norm applies `ABS` then sum. L2 norm applies `x*x`, sum, then `SQRT`. `LOG_SUM_EXP` applies `EXP` once per contributor, aggregate sum, then `LOG`; a stable replacement is valid only by complete-subset proof. Cumulative and overlap/scatter arithmetic use their declared per-contributor operation and aggregate tree. |
+| Softmax and normalization | Literal softmax applies `EXP` per slice value, aggregate sum, then division per output; literal log-softmax applies the same `EXP`/sum, then `LOG` and output subtraction. Layer norm uses sum/count mean, per-value subtraction and `x*x`, sum/count variance, epsilon addition, `SQRT`, division, and optional scale multiply/bias add. RMS norm uses `x*x`, sum/count, epsilon addition, `SQRT`, division, and optional scale multiply. BatchNorm inference uses subtraction, variance/epsilon addition, `SQRT`, division, scale multiply, and bias add. Training additionally uses sum/count mean, centered `x*x` sums with the exact `N` and `N-1` divisors, epsilon addition, `SQRT`, typed-one division, and the fixed multiply/add running-statistic transitions. |
+| Losses | MSE uses one subtraction and `delta*delta` per position, then its exact reduction and optional divisor. Categorical cross-entropy uses exact max selection, score-minus-max subtraction, `EXP`, class sum, `LOG`, max addition, logit subtraction, exact zero-target/ignore guards, target multiplication where declared, loss sum, negation, and optional reduction divisor. |
+| Linear, convolution, pooling, and attention | MATMUL and Conv2d/Conv3d use one multiply per exact mapped pair and an all-terms-once contraction; Conv2d/Conv3d then apply their optional bias addition, while visible linear/Conv1d composition adds only its documented bias or rank edits. Average Pool2d/Pool3d sums every declared kernel position then divides by the exact fixed divisor; max pooling is exact winner selection. Attention scores use query/key multiply-contractions and scale multiplication; an absent scale uses exact positive embedding extent conversion, `SQRT`, and typed-one division. Exact mask/causal guards precede the literal softmax sites above, and output rows use value-weight multiply-contractions. |
+| Random and recurrent | A kept dropout value uses typed-one-minus-probability, typed-one division, then input multiplication; the draw, mask, dropped positive zero, and state transition are exact. RNN uses two multiply-contractions, optional bias addition, addition, and `TANH`. GRU uses the documented packed contractions/bias adds, gate additions and sigmoid branches, reset multiplication, candidate `TANH`, `h-n`, update multiplication, and final addition. LSTM uses its packed contractions/bias adds, gate additions and sigmoid/tanh branches, cell multiplications/addition, final `TANH`, and hidden multiplication. Traversal, valid-length guards, skipped work, outputs, and state publication remain exact. |
+
+Visible convenience compositions recurse through the actual public Tensor operations they create.
+Compiler-generated gradients likewise recurse through every captured arithmetic, elementary,
+aggregate, comparison, `WHERE`, cast, layout, index, and saved-value site. A first-class or opaque
+selector may use another internal algorithm only after its complete output set, for the complete
+descriptor domain, is proved to be a subset of the results generated by this ledger and the three
+floors; a passing sample, operation name, or final-output tolerance is insufficient.
 
 Neither profile permits reduced precision, reciprocal substitution for division, algebraic
 identities absent from the Model formula, cross-node contraction, term loss, hidden state changes,

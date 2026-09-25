@@ -14,11 +14,16 @@ had direct evidence, but it does not compose. Every new primitive, composite, ge
 or backend route would need another exceptional row, and the same formula could receive different
 meaning depending on whether it was visible or nested inside another operation.
 
-The current Model already owns complete formulas, exact guards, contributor sets, masks, mappings,
-state transitions, special-value behavior, and saved values. CPU primitive gates show one- or
-two-ULP behavior except `TANH` at five ULP. Retained Metal direct-route evidence shows one ULP for
-`EXP` and two for `SIGMOID`. Historical four-ULP softmax and looser ERF/GELU test tolerances are
-composite-output test oracles rather than evidence for a primitive elementary-function ceiling.
+The current Model owns formulas, guards, contributor sets, masks, mappings, state transitions,
+special-value behavior, and saved values. Completed Model 0031 separately closes the strict unary
+baseline; this decision adds only the recursive accelerator superset. Java's scalar and Vector
+`TANH` contract is at most 2.5 ULP from the exact result, while FLOAT32 Vector lanes use the
+specified widen/evaluate/narrow adaptation. A power-of-two binade boundary converts that guarantee
+to an ordered distance of five adjacent binary32 representation steps. The one-ULP Java
+logarithmic/exponential contract and retained Metal `EXP`/`SIGMOID` observations fit within
+ordered distance two.
+Historical softmax and ERF/GELU test tolerances are composite or fixed-algorithm qualification
+oracles, not primitive-site permissions.
 
 A durable accelerator profile therefore needs a small construction rule that applies at every
 named formula site, without a runtime policy read, a profile evaluator, a tolerance matrix, or an
@@ -59,7 +64,8 @@ floors. Accepted.
 
 ## Decision
 
-`STRICT_IEEE` remains the exact union of every current per-operation allowed-result set.
+`STRICT_IEEE` is the explicit union of every current per-operation allowed-result set, including
+the completed Model 0031 unary baseline.
 
 `ACCELERATOR` is the union of that strict set and the results constructible for `FLOAT32` by the
 following recursive floors. Non-`FLOAT32` behavior remains strict.
@@ -85,17 +91,24 @@ subtraction, multiplication, and division perform one round-to-nearest-even `FLO
 corresponding multiply/add with no Model-observable intermediate may use one `FLOAT32` fused
 multiply-add. Fusion never crosses graph nodes.
 
-Each `POW`, logarithmic, exponential, error-function, root/reciprocal-root, sigmoid/tanh, or
-formula-named activation site may return an ordinary finite result at most five monotonically
-ordered `FLOAT32` representations from the correctly rounded exact mathematical result after DAZ
-and before FTZ. Five is the smallest single ceiling supported by current direct-route evidence. It
-is a site rule, not a final-output envelope.
+Only an irreducible `POW`, `LOG`, `LOG1P`, `EXP`, `EXPM1`, `ERF`, `SQRT`, or `TANH` site receives
+an elementary allowance. Ordered binary32 distance uses the monotonic raw-bit key defined by the
+normative contract: sign-set words map through unsigned complement and nonnegative words through
+sign-bit flip. Distance zero is the correctly rounded exact reference, negative and positive zero
+are adjacent, and the bound is inclusive.
+
+After DAZ and before FTZ, an ordinary finite non-subnormal reference admits only
+`distance(actual, reference) <= 5`; a subnormal reference is exact or FTZ. Five is a conservative
+ordered-representation distance ceiling, not five ULP and not a minimality claim. It follows from
+the 2.5-ULP Java scalar/Vector `TANH` guarantee: at a power-of-two binade boundary the smaller-side
+spacing is half the Java ULP, so the guarantee can span an ordered distance of five adjacent
+representation steps. The one-ULP logarithmic/exponential and retained Metal evidence fit within
+ordered distance two.
 
 Domain and special classes remain formula-derived. NaN cannot become ordinary. Ordinary finite
 cannot become NaN or infinity except by genuine overflow or a domain path after DAZ. Required
 infinity and zero signs remain except for DAZ/FTZ, the established extrema tie rule, or an existing
-operation-specific final exact-zero publication freedom. Five ULP applies only to ordinary finite
-non-subnormal references; a subnormal reference is exact or FTZ.
+operation-specific final exact-zero publication freedom. Distance does not replace those checks.
 
 ### Aggregate floor
 
@@ -114,10 +127,22 @@ exact-zero publication freedoms remain local to their named final results.
 
 Normalization, activation, loss, attention, pooling, convolution, random/dropout, recurrent,
 visible convenience composition, and Compiler-generated gradient formulas receive no separate
-error envelope. Exact guards run first. Their authoritative Model formulas recurse through the
-three floors at named sites. Saved outputs, masks, indices, statistics, and state are exact stored
-values. An opaque vendor selector is eligible only when its complete output set is proved to be a
-subset of the recursive set.
+error envelope. Exact guards run first. Every Model formula recurses through all named primitive
+and aggregate sites, including constants and exponent construction:
+
+- `RSQRT` is `SQRT` plus division; sigmoid is its exact sign guard plus the selected `EXP`, add,
+  negation, and division branch.
+- Exact GELU names its typed constants, root, division, `ERF`, addition, and two multiplications.
+  Tanh GELU additionally builds `x^2` and `x^3` through two multiplications and names `pi`,
+  `0.044715`, root/division, additions, remaining multiplications, and `TANH`. SiLU recurses
+  through its stable sigmoid branch and final multiplication. None is one elementary site.
+- Statistics/norms, softmax/normalization, losses, contractions, pooling, attention, dropout, and
+  recurrent cells recurse through the complete primitive-site ledger in the normative contract.
+
+Saved outputs, masks, indices, statistics, and state are exact stored values. An opaque vendor or
+first-class selector is eligible only when its complete output set over its complete advertised
+domain is proved to be a subset of the recursive set; names, samples, and final-output tolerances
+are insufficient.
 
 Neither profile newly permits reduced precision, reciprocal substitution for division, algebraic
 identities absent from the Model formula, cross-node contraction, term loss, hidden state changes,
@@ -153,4 +178,10 @@ persistent tolerance matrix.
 - [Compiler and automatic-differentiation contract](../../architecture/contracts/compiler-autograd.md)
 - [Backend execution contract](../../architecture/contracts/backend-execution.md)
 - [ADR 0019](0019-explicit-numerical-profiles.md)
+- [Model task 0031 strict unary baseline](../../planning/modules/model/tasks/0031-strict-unary-numerical-baseline.md)
 - [Model task 0030](../../planning/modules/model/tasks/0030-total-recursive-accelerator-numerical-floor.md)
+- [JDK 26 `Math` elementary-function contracts](https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/lang/Math.html)
+- [JDK 26 `StrictMath` elementary-function contracts](https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/lang/StrictMath.html)
+- [JDK 26 `VectorOperators` lane contracts](https://docs.oracle.com/en/java/javase/26/docs/api/jdk.incubator.vector/jdk/incubator/vector/VectorOperators.html)
+- [Retained CPU unary scalar evidence](../../planning/backends/cpu/tasks/0005h-portable-unary-transcendental-and-activation-closure.md)
+- [Retained CPU FLOAT32 vector evidence](../../planning/backends/cpu/tasks/0005i-float32-vector-parity-and-vector-emission-boundary.md)

@@ -20,10 +20,11 @@ import java.util.List;
  * follow those named sites; an empty result evaluates no divisor.</p>
  *
  * <p>Under the Model-owned numerical-profile contract, exact slice membership, {@code N},
- * epsilon, guards, and scale mapping remain unchanged. For {@code ACCELERATOR FLOAT32}, every
- * contributor participates once under the aggregate floor, arithmetic sites use DAZ/FTZ and
- * one-round FLOAT32 operations, and square root is a five-ULP elementary-function site. The
- * composite gains no final-output envelope; non-FLOAT32 behavior stays strict. See the
+ * epsilon, guards, and scale mapping remain unchanged. For {@code ACCELERATOR FLOAT32}, the
+ * formula recurses through {@code x*x}, sum/count, epsilon addition, square root, division, and
+ * optional scale multiplication. Every contributor participates once under the aggregate floor,
+ * and the irreducible square-root site uses the inclusive ordered-binary32 distance ceiling of
+ * five. The composite gains no final-output envelope; non-FLOAT32 behavior stays strict. See the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
  * numerical-profile contract</a>.</p>
  */

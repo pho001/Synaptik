@@ -33,10 +33,11 @@ import java.util.List;
  * use any binary tree, FLOAT32 rounding at every step, DAZ/FTZ, and only corresponding
  * multiply/add fusion. They may not drop, duplicate, invent, pretruncate, or replace a term.
  * Extrema and arg-extrema preserve exact winner/index policy and return original candidates;
- * Boolean aggregates remain exact. Elementary sites inside {@code LOG_SUM_EXP}, variance,
- * standard deviation, and norms use the same five-ULP primitive-site ceiling, never a final
- * aggregate envelope. Existing qualifying final exact-zero SUM/MEAN freedoms remain local to the
- * final cell; non-FLOAT32 behavior stays strict. See the
+ * Boolean aggregates remain exact. Irreducible exponent/log sites in {@code LOG_SUM_EXP} and
+ * square-root sites in standard deviation and L2 norm use the inclusive ordered-binary32
+ * distance-at-most-five primitive-site ceiling, never a final aggregate envelope. Existing
+ * qualifying final exact-zero SUM/MEAN freedoms remain local to the final cell; non-FLOAT32
+ * behavior stays strict. See the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
  * numerical-profile contract</a>.</p>
  *

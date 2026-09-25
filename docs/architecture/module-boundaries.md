@@ -43,10 +43,11 @@ each operation's unchanged current contract rather than universal bitwise strict
 [normative exact/discrete, primitive, aggregate, and composite-inheritance floors](contracts/foundational-modules.md#numerical-profiles).
 It preserves exact kind/attributes, mapping, contributors, masks, indices, state, traversal,
 casts, ordering, guards, identities, divisors, and publication; permits DAZ/FTZ, one-round basic
-arithmetic, and a five-ULP ceiling only at named elementary-function sites; and lets aggregates
-use any all-contributors-once binary tree with corresponding FMA. Composite and generated-gradient
-formulas recurse through those sites and gain no final-output tolerance. Non-FLOAT32 behavior
-remains strict. This is neither generic fast math nor permission for reduced precision, algebraic
+arithmetic, and an inclusive ordered-binary32 distance-at-most-five ceiling only at irreducible
+elementary-function sites; and lets aggregates use any all-contributors-once binary tree with
+corresponding FMA. Composite and generated-gradient formulas recurse through those sites and gain
+no final-output tolerance. Non-FLOAT32 behavior remains strict. This is neither generic fast math
+nor permission for reduced precision, algebraic
 substitution, cross-node contraction, predicate tolerance, term loss, or hidden state change.
 Existing operation-local final exact-zero publication freedoms remain local to their named final
 results. The semantic contract, Config identity, and cold propagation spine are current.

@@ -23,11 +23,12 @@ import java.util.List;
  *
  * <p>Under the Model-owned numerical-profile contract, {@code STRICT_IEEE} retains those formulas
  * and current freedoms. For {@code ACCELERATOR FLOAT32}, exact axis, slice membership, position,
- * and contributor sets are unchanged. Exponential and logarithmic sites use DAZ/FTZ and the
- * five-ULP elementary-site ceiling; sums use the all-contributors-once aggregate floor and the
- * final division/subtraction uses one FLOAT32 operation. Stable algorithms are valid only when
- * their complete results remain inside that recursive set. There is no four-ULP softmax-output
- * oracle or other final-output envelope, and non-FLOAT32 behavior stays strict. See the
+ * and contributor sets are unchanged. Irreducible exponential and logarithmic sites use DAZ/FTZ
+ * and the inclusive ordered-binary32 distance ceiling of five; sums use the
+ * all-contributors-once aggregate floor and the final division/subtraction uses one FLOAT32
+ * operation. Stable algorithms are valid only when their complete results remain inside that
+ * recursive set. There is no four-ULP softmax-output oracle or other final-output envelope, and
+ * non-FLOAT32 behavior stays strict. See the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
  * numerical-profile contract</a>.</p>
  *

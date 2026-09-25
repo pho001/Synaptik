@@ -30,6 +30,9 @@ acceptance date and considered alternatives.
 - [ADR 0016: CPU/Metal mixed-owner prepared schedule](decisions/0016-cpu-metal-mixed-owner-schedule.md)
 - [ADR 0017: Reusable inference session facade](decisions/0017-reusable-inference-session-facade.md)
 - [ADR 0018: Public Training Session and SGD lifecycle](decisions/0018-public-training-session-and-sgd-lifecycle.md)
+- [ADR 0019: Explicit graph numerical profiles](decisions/0019-explicit-numerical-profiles.md)
+- [ADR 0020: Synchronous single-default-device Metal execution](decisions/0020-synchronous-single-default-device-metal-execution.md)
+- [ADR 0021: Total Recursive ACCELERATOR Numerical Floor](decisions/0021-total-recursive-accelerator-numerical-floor.md)
 
 ## Design notes
 

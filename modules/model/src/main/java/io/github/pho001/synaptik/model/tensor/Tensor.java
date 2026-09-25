@@ -142,12 +142,14 @@ import java.util.Optional;
  * strict result envelopes. {@code ACCELERATOR} is the strict set's total recursive
  * {@code FLOAT32} superset: exact/discrete mapping, contributors, guards, selection, ordering,
  * state, casts, identities, divisors, and publication; DAZ/FTZ and one-round arithmetic at named
- * primitive sites; at most five ordered FLOAT32 representations at elementary-function sites;
- * and all-declared-contributors-once aggregate evaluation with reassociation and corresponding
- * FMA. Composite Tensor formulas recurse through those floors and gain no final-output tolerance.
- * Stored selected payloads, masks, indices, saved values, and state stay exact; non-FLOAT32
- * behavior stays strict. Existing operation-local final exact-zero publication freedoms remain
- * local to their qualifying final results. These profile rules describe allowed results, not
+ * primitive sites; an inclusive distance of at most five ordered binary32 representations only at
+ * irreducible elementary-function sites; and all-declared-contributors-once aggregate evaluation
+ * with reassociation and corresponding FMA. Composite Tensor formulas recurse through those
+ * floors and gain no final-output tolerance. Stored selected payloads, masks, indices, saved
+ * values, exact typed attributes, and state stay exact; each formula-named real constant rounds
+ * once to nearest-even FLOAT32 before its first use. Non-FLOAT32 behavior stays strict.
+ * Existing operation-local final exact-zero publication freedoms remain local to their qualifying
+ * final results. These profile rules describe allowed results, not
  * Model evaluation or backend support; the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">Model-owned
  * numerical-profile contract</a> is normative.

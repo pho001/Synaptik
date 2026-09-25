@@ -20,9 +20,10 @@ import java.util.List;
  *
  * <p>Under the Model-owned numerical-profile contract, sampling membership, mask, state
  * transition, probability, guards, traversal, and dropped value remain exact in both profiles.
- * For {@code ACCELERATOR FLOAT32}, only the kept-value arithmetic sites may use DAZ/FTZ and
- * one-round FLOAT32 operations. The mask and next state cannot inherit arithmetic tolerance, and
- * the composite gains no final-output envelope. Non-FLOAT32 behavior stays strict. See the
+ * For {@code ACCELERATOR FLOAT32}, only a kept value's typed-one-minus-probability, typed-one
+ * division, and input multiplication sites use DAZ/FTZ and one-round FLOAT32 operations. The mask
+ * and next state cannot inherit arithmetic tolerance, and the composite gains no final-output
+ * envelope. Non-FLOAT32 behavior stays strict. See the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
  * numerical-profile contract</a>.</p>
  */

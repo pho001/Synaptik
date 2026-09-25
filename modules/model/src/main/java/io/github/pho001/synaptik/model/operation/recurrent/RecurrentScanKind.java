@@ -36,12 +36,14 @@ import java.util.List;
  *
  * <p>Under the Model-owned numerical-profile contract, direction, sequence traversal, valid-
  * length guards, packing, initial/final state mapping, output placement, and every declared
- * recurrence term remain exact. For {@code ACCELERATOR FLOAT32}, each contraction includes every
- * contributor exactly once under the aggregate floor; arithmetic sites use DAZ/FTZ and one-round
- * FLOAT32 operations; sigmoid/tanh sites use the five-ULP elementary ceiling. Exact guards run
- * before arithmetic, skipped timesteps do not participate, stored states are the exact published
- * recurrence results, and the composite gains no final-output envelope. Non-FLOAT32 behavior
- * stays strict. See the
+ * recurrence term remain exact. For {@code ACCELERATOR FLOAT32}, RNN recurses through its two
+ * contractions, bias/addition, and tanh; GRU and LSTM recurse through all packed contractions,
+ * optional biases, gate additions, sigmoid/tanh branches, state multiplications/additions, and
+ * published-state sites. Each contraction includes every contributor once; each sigmoid expands
+ * through its exact guard and selected exponential branch, and each irreducible tanh site uses
+ * the inclusive ordered-binary32 distance ceiling of five. Exact guards run before arithmetic,
+ * skipped timesteps do not participate, stored states are exact published recurrence results, and
+ * the composite gains no final-output envelope. Non-FLOAT32 behavior stays strict. See the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
  * numerical-profile contract</a>.</p>
  */

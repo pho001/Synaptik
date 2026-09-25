@@ -12,10 +12,10 @@ recursive contract without changing the public profile vocabulary or backend cap
 
 ## Goal
 
-Keep public `NumericalProfile` exactly `STRICT_IEEE` and `ACCELERATOR`, leave `STRICT_IEEE`
-unchanged, and make `ACCELERATOR` a total `FLOAT32` superset through three small recursive floors:
-exact/discrete behavior, primitive floating evaluation, and all-terms-once aggregation. Composite
-operations inherit their existing Model formula. Add no policy object, placement selector,
+Keep public `NumericalProfile` exactly `STRICT_IEEE` and `ACCELERATOR`, rest on completed Model
+0031's explicit strict unary baseline, and make `ACCELERATOR` a total `FLOAT32` superset through
+three recursive floors: exact/discrete behavior, primitive floating evaluation, and
+all-terms-once aggregation. Composite operations inherit their existing Model formula. Add no
 determinism mode, conformance-envelope registry, or per-operation backend exception layer.
 
 ## Scope
@@ -32,8 +32,9 @@ determinism mode, conformance-envelope registry, or per-operation backend except
 
 ### Normative recursive contract
 
-1. `STRICT_IEEE` remains the current per-operation allowed-result set. `ACCELERATOR` is that set
-   union results constructed by these `FLOAT32` rules. Other data types remain strict.
+1. `STRICT_IEEE` is the explicit current per-operation allowed-result set, including completed
+   Model 0031's strict unary baseline. `ACCELERATOR` is that set union results constructed by these
+   `FLOAT32` rules. Other data types remain strict.
 2. **Exact/discrete floor.** Preserve kind/attributes, arity/descriptors, shape/layout/axis mapping,
    contributor membership, mask/index/state/RNG transition, traversal, selected stored payload,
    cast/conversion, ordering, stability, tie, empty-domain, identity, divisor, and publication.
@@ -44,28 +45,51 @@ determinism mode, conformance-envelope registry, or per-operation backend except
    operand may be read as same-signed zero (DAZ), and a finite subnormal site result may become
    either signed zero (FTZ); stored inputs are unchanged. `ADD/SUB/MUL/DIV` still perform one
    round-to-nearest-even operation. A corresponding multiply/add with no observable intermediate
-   may use one FMA, never across graph nodes. An elementary site (`POW`, logarithmic, exponential,
-   error-function, root/reciprocal-root, sigmoid/tanh, or formula-named activation) may return an
-   ordinary finite value at most five monotonically ordered `FLOAT32` representations from the
-   correctly rounded exact result after DAZ and before FTZ. Five ULP is the smallest single ceiling
-   covering current direct-route evidence: certified CPU primitives are one/two ULP except
-   `TANH` at five; retained MPSGraph `EXP`/`SIGMOID` are one/two. It does not copy the unrelated
-   four-ULP softmax oracle or loose composite ERF/GELU tolerance. A strict realization remains valid.
-4. Domain and special classes remain formula-derived: NaN cannot become ordinary; finite cannot
+   may use one FMA, never across graph nodes.
+4. Only an irreducible `POW`, `LOG`, `LOG1P`, `EXP`, `EXPM1`, `ERF`, `SQRT`, or `TANH` site has
+   an elementary allowance. For raw binary32 word `b`, the monotonic unsigned key is `~b` when the
+   sign bit is set and `b ^ 0x80000000` otherwise. Distance is the unsigned absolute key
+   difference; reference distance is zero, `-0` and `+0` are adjacent, and every ceiling is
+   inclusive. After DAZ and before FTZ, an ordinary finite non-subnormal correctly rounded exact
+   reference `r` admits only `distance(actual,r) <= 5`; a subnormal `r` is exact or FTZ.
+5. An ordered-representation distance ceiling of five is conservative, not five ULP and not a
+   minimality claim. Java scalar and Vector `TANH` inherit the at-most-2.5-ULP exact-result
+   contract, and FLOAT32 lanes use the documented widen/evaluate/narrow adaptation. At a
+   power-of-two binade boundary, smaller-side spacing is half the Java ULP, so that guarantee can
+   span an ordered distance of five adjacent-representation steps; elsewhere the distance is at
+   most four. Java one-ULP log/exp contracts and retained Metal `EXP`/`SIGMOID` evidence fit within
+   ordered distance two and do not raise the ceiling.
+6. Domain and special classes remain formula-derived: NaN cannot become ordinary; finite cannot
    become NaN/infinity except through genuine overflow/domain after DAZ; required infinity/zero
-   signs remain except explicit DAZ/FTZ, current extrema ties, or current final-zero freedom. Five
-   ULP applies only to ordinary finite non-subnormal references; a subnormal reference is exact or
-   FTZ. This is a primitive construction rule, not a final-output `allclose` envelope.
-5. **Aggregate floor.** After exact mapping, masking, padding, bounds, and selection, use every
+   signs remain except explicit DAZ/FTZ, current extrema ties, or current final-zero freedom.
+   Ordered distance never substitutes for class, domain, or sign checks and is a primitive-site
+   construction rule, not a final-output `allclose` envelope.
+7. **Aggregate floor.** After exact mapping, masking, padding, bounds, and selection, use every
    declared contributor exactly once. Any binary tree may reassociate with per-step `FLOAT32`
    rounding, primitive DAZ/FTZ, and corresponding FMA while retaining exact empty/point identities
    and mandatory divisors. Never drop, duplicate, invent, pretruncate, or replace a term. This
    covers reductions, scans, overlap/scatter reductions, statistics/norms/losses, contractions,
    recurrent cells, and average pooling; extrema/winners remain exact/discrete.
-6. **Composite inheritance.** Normalization, activation, loss, attention, pooling, convolution,
+8. **Composite inheritance.** Normalization, activation, loss, attention, pooling, convolution,
    random/dropout, recurrent, convenience composition, and generated gradients get no envelope.
-   Evaluate exact guards and the current Model formula through the floors. An opaque selector is
-   eligible only when its complete output set is proved inside the recursive set.
+   Evaluate exact guards and every site in the current Model formula through the floors. An opaque
+   or first-class selector is eligible only when its complete output set over its complete
+   advertised domain is proved inside the recursive set; a sample or operation name is insufficient.
+
+### Closed primitive-site ledger
+
+| First-class composite | Primitive and aggregate sites |
+|---|---|
+| Unary | `RSQRT` is `SQRT` then division. Sigmoid uses the exact sign guard and its `EXP`/negation/add/divide branch. Exact GELU names typed `0.5`, `1`, `2`, `SQRT`, division, `ERF`, addition, and two multiplications. Tanh GELU names typed `0.5`, `1`, `2`, `pi`, `0.044715`, `x*x`, `x^2*x`, division/root, additions, remaining multiplications, and `TANH`. SiLU uses the exact sign guard, stable sigmoid branch, and final multiplication. None is one elementary site. |
+| Reductions/statistics | Mean is sum then exact divisor. Variance is mean, subtraction, `x*x`, sum, and `N-correction` division; standard deviation adds `SQRT`. L1 is `ABS` plus sum; L2 is `x*x`, sum, and `SQRT`; log-sum-exp is `EXP` per contributor, sum, then `LOG`. Scans and overlap/scatter reductions retain each declared contributor. |
+| Softmax/normalization | Softmax is per-value `EXP`, sum, then division; log-softmax is per-value `EXP`, sum, `LOG`, then subtraction. Layer/RMS/BatchNorm enumerate their documented sums/divisors, centered or uncentered `x*x`, epsilon/momentum constants, additions/subtractions, `SQRT`, typed-one division, affine multiply/adds, saved outputs, and state transitions. |
+| Loss | MSE is subtraction then `delta*delta`, reduction, and optional divisor. Categorical losses use exact max/target/ignore guards, score subtraction, `EXP`, sum, `LOG`, max addition, logit subtraction, target multiplication where declared, loss sum/negation, and optional divisor. |
+| Linear/spatial/attention | MATMUL and convolution use mapped multiplies plus all-terms-once contractions; convolution then applies its optional bias addition. Average pooling sums every fixed-divisor position then divides; max pooling is exact selection. Attention has query/key multiply-contraction, explicit or default typed-one/`SQRT(E)` scale, exact guards, literal softmax sites, and value-weight multiply-contraction. |
+| Dropout/recurrent | Kept dropout uses typed-one-minus-probability, typed-one division, and input multiplication; mask/state/drop result are exact. RNN/GRU/LSTM use their documented contractions, optional biases, gate additions, sigmoid branches, tanh sites, state multiplies/adds, exact traversal/valid-length guards, and exact published outputs/states. |
+
+Formula-named constants are rounded once to nearest-even `FLOAT32` before first use; exact typed
+attributes and stored inputs remain exact leaves. Visible compositions and generated gradients
+recurse through the actual Tensor operations they contain.
 
 Still excluded: reduced precision, reciprocal substitution for division, algebraic identities not
 in the Model formula, cross-node contraction, term loss, hidden-state changes, tolerance-based
@@ -75,8 +99,8 @@ predicate/selection changes, and backend-specific semantics.
 
 | Family | Required floor assignment |
 |---|---|
-| `BinaryArithmeticKind`, `ScalarElementwiseKind` | `ADD/SUB/MUL/DIV/POW`, `MIN/MAX`, and `CLAMP`: primitive arithmetic plus exact selection/ties. |
-| `UnaryElementwiseKind` | `ABS/NEG/RECIPROCAL`, log/exp/erf/root, floor/ceil/sign/ReLU, sigmoid/tanh/GELU/SiLU: primitive sites; formula-defined activations recurse. |
+| `BinaryArithmeticKind`, `ScalarElementwiseKind` | `ADD/SUB/MUL/DIV` use the primitive arithmetic floor, `POW` is an irreducible elementary site, and `MIN/MAX/CLAMP` retain exact candidate selection and ties. |
+| `UnaryElementwiseKind` | Exact/discrete rows plus irreducible log/exp/erf/sqrt/tanh sites; `RSQRT`, sigmoid, GELU, tanh GELU, and SiLU recurse through the complete ledger above. |
 | `BinaryComparisonKind`, `BooleanLogicalKind`, `FloatingClassificationKind`, `WhereSelectionKind`, `CastKind` | Comparisons may DAZ operands; Boolean logic, classification, `WHERE`, and all 36 `CAST` pairs remain exact/discrete. |
 | `AggregateReductionKind`, `CumulativeScanKind` | Ordinary/masked/sum-to-Shape reductions, extrema/arg-extrema, statistics/norms, Boolean folds, and cumulative sum/product use exact membership plus the applicable aggregate or selection floor. |
 | `ContiguousKind`, `ShapeTransformKind`, `AxisTransformKind`, `SliceKind`, `PadKind`, `TileKind`, `TensorCompositionKind`, `WindowTransformKind` | Preserve mapping/payload; overlap folds use the aggregate floor. |
@@ -98,15 +122,18 @@ predicate/selection changes, and backend-specific semantics.
 ### Metal reachability and migration ledger
 
 - This task removes semantic incompleteness, not implementation blockers. The recursive set can
-  admit retained `EXP`/`SIGMOID` FTZ plus one/two-ULP results, comparison DAZ, extrema ties, scan
-  FTZ, softmax/BatchNorm FTZ, and contractions only after complete route proof.
+  reach retained `EXP`/`SIGMOID` FTZ results, comparison DAZ, extrema ties, scan FTZ,
+  softmax/BatchNorm FTZ, composite MSE/attention/recurrent arithmetic, and contractions only after
+  proof for the complete route and advertised domain.
 - Direct-route numerical failures still outside it include ordinary finite/infinity scalar
   division, `RELU(NaN)`, `TANH(NaN)` and tanh negative-zero loss, max-pool NaN/winner loss, and
-  BFLOAT16 Gather payload canonicalization. They need conforming composition/custom kernels.
+  BFLOAT16 Gather payload canonicalization. Such selectors remain unusable; conforming
+  custom/composed routes still need structural and complete-subset proof.
 - Structural blockers include the one-output/FLOAT32-INT32-BOOL schema, no zero-input/general
   multi-output/state or INT64-local route, limited wires/ranks/layouts/transfers, hidden vendor
   RNG, recurrent valid-length/atomic validation, and absent Conv3d/recurrent gradient owners.
-  Full Model-op Metal coverage is specifiable, but not one current task or direct-MPSGraph-only.
+  Full Model-op Metal coverage is semantically specifiable, but not one current task or a
+  direct-MPSGraph-only assumption.
 - Public enum/wire vocabulary, cold transport, Runtime/Trace, CPU schema 67/tuning schema 2, and
   current Metal versions do not change: existing realizations remain valid strict subsets. The
   first new Metal route must bump node schema 11→12, append unary wires 20/21, bump workload/
@@ -132,7 +159,9 @@ stop and report that named gap; do not add a backend-local envelope.
 
 ## Dependencies and integration
 
-- Depends on: Model 0027–0029; Config 0006; Engine 0018; CPU 0017; Metal 0015/0019–0025 and retained blocker evidence through 0040; explicit approval of this minimal recursive redesign.
+- Depends on: completed Model 0031 strict unary baseline; Model 0027–0029; Config 0006; Engine
+  0018; CPU 0017; Metal 0015/0019–0025 and retained blocker evidence through 0040; explicit
+  approval of this minimal recursive redesign.
 - Conflicts with: every concurrent edit to root/scoped architecture, numerical-profile ADRs, affected Model/config Javadocs, Compiler gradient wording, current API/glossary/backend guides, Model/Metal planning frontiers, or roadmap.
 - Parallel group: None.
 - Common base revision: `6535c0ffdebeb38945050497bbe1c0fe261950ca`
@@ -150,11 +179,13 @@ stop and report that named gap; do not add a backend-local envelope.
 
 ## Acceptance criteria
 
-- The two-value public profile remains unchanged; `STRICT_IEEE` is unchanged; `ACCELERATOR` is a
-  total recursive `FLOAT32` superset with no unassigned current family and no new policy layer.
-- The five-ULP elementary-site rule is defined exactly and justified by current CPU/Metal evidence;
-  special classes, domain, exact/discrete state, all contributors, and non-FLOAT32 behavior cannot
-  be relaxed by that bound.
+- The two-value public profile remains unchanged; completed Model 0031 explicitly owns strict
+  unary semantics; `ACCELERATOR` is a total recursive `FLOAT32` superset with no unassigned
+  current family and no new policy layer.
+- The inclusive ordered-binary32 distance ceiling is defined exactly and conservatively derived
+  from current Java scalar/Vector and retained Metal evidence without a minimality claim; special
+  classes, domain, exact/discrete state, all contributors, and non-FLOAT32 behavior cannot be
+  relaxed by that bound.
 - Every current operation family and generated-gradient consequence is covered; Model formulas,
   guards, identities, divisors, selections, states, and special values are sufficiently explicit
   for backend conformance without per-backend invention.
@@ -195,22 +226,30 @@ review; no backend/device execution because capability is unchanged.
 
 - Coordinated architecture, ADR, public numerical contract, Javadoc, API, glossary, backend-guide,
   and planning updates are mandatory; completed historical briefs remain unchanged.
-- Independent Class C review must verify family coverage, recursion, five-ULP evidence, exact/
-  aggregate invariants, gradients, identity conclusions, Metal blocker split, and no drift.
+- Independent Class C rereview must verify the completed Model 0031 prerequisite, family/site
+  coverage, ordered-distance derivation, exact/aggregate invariants, gradients, identity
+  conclusions, Metal reachability/blocker split, and no executable drift.
 
 ## Result
 
-Implemented the documentation-only clean cutover to the total recursive `ACCELERATOR` contract.
-The foundational authority and accepted ADR 0021 now define exact/discrete, primitive FLOAT32,
-all-contributors-once aggregate, and composite-inheritance floors; ADR 0019 is cleanly superseded.
+Implemented the documentation-only clean cutover to the total recursive `ACCELERATOR` contract,
+now explicitly based on completed Model 0031's strict unary allowed-result baseline. The
+foundational authority and accepted ADR 0021 define exact/discrete, primitive FLOAT32,
+all-contributors-once aggregate, and composite-inheritance floors. Ordered binary32 distance is
+defined by a monotonic raw-bit key and an inclusive `distance <= 5` exact-reference ceiling;
+the retained Java 2.5-ULP `TANH` contract supplies the conservative binade-boundary rationale,
+without calling the bound five ULP or claiming empirical minimality.
+
 All forty concrete Model kinds, public Tensor profile/composition wording, `NumericalProfile`,
 Compiler gradient transport, Engine package status, current API/architecture/glossary/backend
-guides, and planning frontiers are reconciled without changing executable statements, enum shape,
-capability, schema, ABI, native export, cache, tuning, or Runtime/Trace behavior.
+guides, and planning frontiers remain reconciled without changing executable statements, enum
+shape, capability, schema, ABI, native export, cache, tuning, or Runtime/Trace behavior. The
+closed ledger now enumerates constants, `x*x`/`x^2*x`, irreducible elementary sites, arithmetic,
+aggregates, guards, selections, and state for every first-class composite formula. Opaque routes
+require complete-domain recursive-subset proof.
 
-The required Model tests, Model Javadocs, and architecture tests passed as 23 actionable Gradle
-tasks with zero failures. Affected Config, Compiler, and Engine Javadocs also passed. Generated
-Javadocs contain all forty concrete kind pages plus the recursive Tensor and `NumericalProfile`
-wording. `git diff --check` passed. Metal 0051 remains Draft and now carries the required
-candidate-certification and cold route-adjudication evidence rule; no runtime check or matrix was
-added.
+The required Model tests, Model Javadocs, architecture tests, affected Config/Compiler/Engine
+Javadocs, Markdown validation, and `git diff --check` pass after remediation. Historical Metal
+tasks retain their recorded statuses/evidence; current wording distinguishes recursively reachable
+arithmetic from remaining exact-selection, structural, schema, gradient, and route-proof blockers.
+Metal 0051 remains Draft. Status remains `Review needed` for independent Class C rereview.

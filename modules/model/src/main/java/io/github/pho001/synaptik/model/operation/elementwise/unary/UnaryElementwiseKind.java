@@ -31,8 +31,13 @@ import java.util.List;
  * result; selected Java elementary operations retain their documented accuracy; reciprocal square
  * root, error function, sigmoid, and the three composite activations retain the fixed scalar or
  * typed-lane realizations named below. Loose backend conformance tolerances are not public result
- * envelopes. For {@code ACCELERATOR FLOAT32}, named primitive sites may additionally use the
- * recursive accelerator floors; composite formulas gain no final-output envelope. See the
+ * envelopes. For {@code ACCELERATOR FLOAT32}, only {@code LOG}, {@code LOG1P}, {@code EXP},
+ * {@code EXPM1}, {@code ERF}, {@code SQRT}, and {@code TANH} are irreducible elementary sites.
+ * {@code RSQRT} expands through square root and division; sigmoid expands through its exact sign
+ * guard and selected exponential/add/divide branch. The GELU and SiLU formulas recurse through
+ * every named constant, {@code x*x}, {@code xSquared*x}, root, division, exponential/error-function/
+ * tanh, addition, and multiplication site in their fixed formula and gain no final-output
+ * envelope. See the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
  * numerical-profile contract</a>.</p>
  */

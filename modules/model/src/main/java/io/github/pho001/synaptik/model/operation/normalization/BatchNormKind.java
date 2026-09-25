@@ -24,10 +24,13 @@ import java.util.List;
  *
  * <p>Under the Model-owned numerical-profile contract, exact axes, memberships, {@code N},
  * epsilon, momentum, guards, output slots, saved statistics, and state transition remain
- * unchanged. For {@code ACCELERATOR FLOAT32}, aggregates include every contributor once,
- * arithmetic sites use DAZ/FTZ and one-round operations, and square root/reciprocal-root sites
- * use the five-ULP elementary ceiling. The composite gains no final-output envelope and saved
- * outputs are exact stored results; non-FLOAT32 behavior stays strict. See the
+ * unchanged. For {@code ACCELERATOR FLOAT32}, inference recurses through subtraction,
+ * variance/epsilon addition, square root, division, scale multiplication, and bias addition.
+ * Training additionally recurses through sum/count mean, centered {@code x*x}, the exact
+ * {@code N}/{@code N-1} divisors, and fixed running-statistic multiply/add transitions. Aggregates
+ * include every contributor once; the irreducible square-root site uses the inclusive
+ * ordered-binary32 distance ceiling of five. The composite gains no final-output envelope and
+ * saved outputs are exact stored results; non-FLOAT32 behavior stays strict. See the
  * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
  * numerical-profile contract</a>.</p>
  */
