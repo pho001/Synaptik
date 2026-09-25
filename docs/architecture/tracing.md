@@ -3,10 +3,10 @@
 This document explains the typed trace model required by
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract remains authoritative.
 
-The current `modules/trace` implementation provides the common event envelope and trace-local
-node, logical-value, and public-Tensor correlation identifiers. Concrete compile, prepare, run,
-and backend payload families, other correlation domains, typed backend attributes, serialization,
-and event emission remain planned.
+The current `modules/trace` implementation provides the common event envelope, trace-local model
+and backend-execution correlation identifiers, and neutral backend preparation/invocation outcome
+payloads. Other compile, prepare, run, and backend payload families, typed backend attributes,
+serialization, and event emission remain planned.
 
 ## Mental model
 
@@ -16,9 +16,9 @@ producer-owned fact
   -> TraceEvent adds event ID, lifecycle phase, level, and monotonic time
   -> a later diagnostic consumer inspects the typed DTO
 
-producer-owned node / value / Tensor identity
+producer-owned node / value / Tensor / backend / device / prepared-unit / invocation identity
   -> producer assigns the corresponding trace-local correlation value
-  -> later typed payloads can carry that value without importing model types
+  -> typed payloads carry that value without importing producer types
 ```
 
 The producer owns the fact, identity assignment, clock, and eventual emission. The trace module
@@ -37,8 +37,10 @@ The implemented public foundation consists of:
   the producer;
 - `TracePhase`, with exactly `COMPILE`, `PREPARE`, and `RUN`;
 - `TraceLevel`, with `TRACE`, `DEBUG`, `INFO`, `WARN`, and `ERROR` classification values;
-- `TracePayload`, an open method-free marker for immutable typed diagnostic DTOs; and
-- `TraceEvent<T extends TracePayload>`, the immutable generic envelope.
+- `TracePayload`, an open method-free marker for immutable typed diagnostic DTOs;
+- `TraceEvent<T extends TracePayload>`, the immutable generic envelope;
+- the trace-local correlation identifiers described below; and
+- `BackendPreparationOutcome` and `BackendInvocationOutcome`, the first concrete payloads.
 
 The current envelope has this exact component shape:
 
@@ -87,6 +89,46 @@ translator, registry, mapping table, or producer-object reference.
 The records are correlation vocabulary for later typed payloads. They do not themselves carry a
 diagnostic fact, implement `TracePayload`, emit an event, or define serialization.
 
+## Current backend-execution diagnostics
+
+Four additional one-component, non-negative `long` records correlate backend execution facts:
+
+| Trace-owned type | Correlates |
+|---|---|
+| `TraceBackendId` | one backend within a producer-defined trace stream |
+| `TraceDeviceId` | one device within that stream |
+| `TracePreparedUnitId` | one finalized backend prepared unit |
+| `TraceInvocationId` | one invocation of a prepared unit |
+
+These are nominally distinct from one another and from the model-correlation IDs. The producer
+owns allocation and the association with its backend objects; no ID contains a backend name,
+device token, path, pointer, handle, or producer object.
+
+The `io.github.pho001.synaptik.trace.payload` package contains two immutable `TracePayload`
+records:
+
+- `BackendPreparationOutcome` correlates backend, device, and prepared unit; it carries a final
+  outcome, numerical profile, neutral route kind, cache fact, and optional native status.
+- `BackendInvocationOutcome` additionally correlates one invocation and carries the same outcome,
+  profile, route, and optional native status, without a cache claim.
+
+The closed vocabulary is deliberately narrow. Outcomes are `SUCCEEDED` or `FAILED`; profiles are
+`STRICT_IEEE` or `ACCELERATOR`; routes are `CUSTOM_KERNEL` or `GRAPH_EXECUTABLE`; and the only
+current cache fact is `NOT_QUERIED`. `NOT_QUERIED` means the producer performed no cache lookup and
+must not be read as a cache miss. Route kinds describe the first producer's stable mechanisms, not
+a universal registry for every backend.
+
+`TraceNativeStatus` retains an exact signed native code with a trace-owned neutral kind. Code
+`0` is valid exactly with `SUCCESS`; every nonzero signed code is retained unchanged with a
+non-success kind. Codes remain meaningful only in their producing backend stream, so Trace
+defines no global numeric mapping. A successful outcome requires present native success. A failed
+outcome permits an empty native status when failure occurs before a native status return, or a
+present non-success status.
+
+These records contain no free-form text, generic map, `Throwable`, path, pointer, handle, tensor
+value, shape, byte extent, fingerprint, or producer object. Trace defines the immutable data only;
+it does not allocate these IDs or produce, emit, store, or consume the events.
+
 ## Lifecycle phase and backend diagnostics
 
 `TracePhase` answers when a fact occurred:
@@ -105,28 +147,27 @@ event describes.
 `TraceLevel` classifies detail or severity only. Its order does not define a filtering threshold,
 sink policy, logging integration, failure response, or process-exit behavior.
 
-## Planned payload families
+## Remaining planned payload families
 
-The following payload families remain conceptual; no concrete payload record is implemented yet:
+The implemented backend preparation and invocation outcomes are intentionally bounded. The
+following broader payload families remain conceptual:
 
 - **Compile payloads** for graph capture, transformations, ownership scoring, partition creation,
   logical memory, and publication planning.
-- **Prepare payloads** for backend preparation, selected routes, prepared partitions and units,
-  prepared memory, and prepared schedules.
-- **Run payloads** for invocation, execution, transfers, materialization, step boundaries, and
-  publication.
-- **Backend payloads** for availability, capability, routes, kernels, storage, and other
+- **Broader prepare payloads** beyond one backend prepared-unit finalization outcome.
+- **Broader run payloads** beyond one backend invocation outcome, including transfers,
+  materialization, step boundaries, and publication.
+- **Broader backend payloads** for availability, capability, kernels, storage, and other
   backend-owned diagnostic facts during the applicable lifecycle phase.
 
-These families will use trace-owned DTOs rather than expose producer objects. Their exact fields
-must follow the later producer-layer contracts and are deliberately not selected by the current
-envelope task.
+These families must continue to use trace-owned DTOs rather than expose producer objects. Their
+exact fields remain deferred until the relevant producer-layer contracts are stable.
 
 ## Planned correlation and attributes
 
-`TraceEventId`, `TraceNodeId`, `TraceValueId`, and `TraceTensorId` are current. Trace-local
-identifiers for partitions, backends, devices, prepared units, schedules, runs, and any other
-later domain remain planned until their producer contracts are stable. Like the current model
+`TraceEventId`, the three model-correlation IDs, and the backend, device, prepared-unit, and
+invocation IDs are current. Trace-local identifiers for partitions, schedules, runs, and any other
+later domain remain planned until their producer contracts are stable. Like the current
 correlations, later IDs must avoid importing identities or object references from planning,
 runtime, backend-contract, or backend modules.
 
@@ -141,14 +182,15 @@ validate. Typed payloads preserve meaning and let consumers handle known diagnos
 explicitly. A later typed attribute escape hatch will complement those payloads without replacing
 them.
 
-## Conceptual diagnostic scenario
+## Diagnostic scenario
 
-The following sequence is conceptual because its concrete payload records and emission APIs are
-not implemented. A compile payload could record that a trace-local node was assigned to CPU. A
-later CPU prepare payload could record the selected route with phase `PREPARE`, and a run payload
-could record execution of the prepared unit with phase `RUN`. This sequence preserves which
-lifecycle stage made each decision. A single string such as `"cpu fallback"` would lose those
-typed facts and could incorrectly suggest that runtime changed compile-time ownership.
+A producer can wrap `BackendPreparationOutcome` in a `TraceEvent` with phase `PREPARE` after a
+prepared unit is finalized, then wrap each `BackendInvocationOutcome` with phase `RUN`. The shared
+DTOs preserve the prepared-unit and invocation correlations, selected profile and neutral route,
+and exact native outcome without exposing producer state. Trace itself still emits nothing: the
+producer supplies the event ID, monotonic timestamp, correlations, and event delivery. A single
+string such as `"backend failure"` would lose these typed facts and could incorrectly suggest that
+runtime changed a prepare-time decision.
 
 ## Why trace stays a dependency leaf
 

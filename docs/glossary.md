@@ -6585,10 +6585,11 @@ normalized attributes](api/tensor-api.md#pad-and-tile-semantic-kinds-and-normali
 
 Structured diagnostic information about compile, prepare, run, and backend activity. A trace
 helps people and tools understand what happened without becoming business logic or execution
-state. The implemented module currently defines the common event envelope and trace-local event,
-node, logical-value, and public-Tensor identities; it does not emit, store, filter, or serialize
-events. The trace module is a dependency leaf, so producers translate their identities rather than
-make trace import producer-layer domain objects. See [Tracing](architecture/tracing.md).
+state. The implemented module defines the common event envelope, trace-local event/model/backend-
+execution identities, and immutable backend preparation/invocation outcome payloads; it does not
+emit, store, filter, or serialize events. The trace module is a dependency leaf, so producers
+translate their identities and facts rather than make Trace import producer-layer domain objects.
+See [Tracing](architecture/tracing.md).
 
 ### Trace event envelope
 
@@ -6619,7 +6620,8 @@ threshold, sink behavior, logging integration, failure response, or process-exit
 The implemented open method-free marker for a typed diagnostic DTO carried by a
 [`TraceEvent`](#trace-event-envelope). Implementations are required to be immutable and to
 describe producer facts in trace-owned terms, but the open marker cannot enforce those properties
-at runtime. Concrete compile, prepare, run, and backend payload records remain planned.
+at runtime. `BackendPreparationOutcome` and `BackendInvocationOutcome` are the first concrete
+implementations; broader compile, prepare, run, and backend payload families remain planned.
 
 ### Trace-local correlation identifier
 
@@ -6627,10 +6629,14 @@ An immutable trace-owned value used to relate diagnostic facts without storing o
 producer-domain identity. The producer defines the trace stream or correlation domain, assigns
 the value, and owns allocation, uniqueness, lifetime, and any mapping from its own identity. A
 trace-local numeric value is not required to equal the producer ID's numeric value and has no
-process-wide or cross-stream guarantee. The implemented model-correlation domains are
+process-wide or cross-stream guarantee. Implemented domains are
 [`TraceNodeId`](#trace-node-correlation-identity--tracenodeid),
-[`TraceValueId`](#trace-value-correlation-identity--tracevalueid), and
-[`TraceTensorId`](#trace-tensor-correlation-identity--tracetensorid).
+[`TraceValueId`](#trace-value-correlation-identity--tracevalueid),
+[`TraceTensorId`](#trace-tensor-correlation-identity--tracetensorid),
+[`TraceBackendId`](#trace-backend-correlation-identity--tracebackendid),
+[`TraceDeviceId`](#trace-device-correlation-identity--tracedeviceid),
+[`TracePreparedUnitId`](#trace-prepared-unit-correlation-identity--tracepreparedunitid), and
+[`TraceInvocationId`](#trace-invocation-correlation-identity--traceinvocationid).
 
 ### Trace node correlation identity / `TraceNodeId`
 
@@ -6652,6 +6658,56 @@ The implemented non-negative one-`long` trace-local identity for public Tensor s
 nominally distinct from graph node and logical-value correlations and does not identify a storage
 address, device allocation, or runtime residency. Zero is valid, no sentinel is reserved, and
 ordinary record equality applies only within the `TraceTensorId` domain.
+
+### Trace backend correlation identity / `TraceBackendId`
+
+The implemented non-negative one-`long` trace-local identity for one backend within a
+producer-defined trace stream. It is not a backend name, global registry key, configuration, or
+implementation object. Zero is valid and no sentinel is reserved.
+
+### Trace device correlation identity / `TraceDeviceId`
+
+The implemented non-negative one-`long` trace-local identity for one device within a
+producer-defined trace stream. It contains no producer device token or capability claim and is
+nominally distinct from backend and prepared-unit correlations.
+
+### Trace prepared-unit correlation identity / `TracePreparedUnitId`
+
+The implemented non-negative one-`long` trace-local identity for one finalized backend prepared
+unit. It contains no executable, route object, resource, or backend handle and is nominally
+distinct from an invocation.
+
+### Trace invocation correlation identity / `TraceInvocationId`
+
+The implemented non-negative one-`long` trace-local identity for one invocation of a prepared
+unit. The producing stream owns allocation and uniqueness; the value carries no timing, ordering,
+thread, or process-wide uniqueness claim.
+
+### Trace backend outcome payloads
+
+The implemented immutable `BackendPreparationOutcome` and `BackendInvocationOutcome` records.
+The preparation payload correlates a backend, device, and prepared unit with final outcome,
+numerical profile, neutral route, cache fact, and optional exact native status. The invocation
+payload additionally correlates one invocation and omits the cache component. Both implement
+`TracePayload`, retain immutable references, and carry no producer object, free-form text,
+generic map, exception, path, pointer, handle, tensor value, shape, or byte extent.
+
+### Trace native status / `TraceNativeStatus`
+
+An implemented pair of one neutral `TraceNativeStatusKind` and the exact signed native status code
+returned in its backend stream. Kind `SUCCESS` is valid exactly with code `0`; every nonzero code
+uses a non-success kind, including `UNKNOWN` for an unrecognized value. Trace defines no global
+numeric-code mapping. A successful backend outcome requires present native success; a failed
+outcome permits empty native status or present non-success.
+
+### Trace backend outcome vocabulary
+
+The closed neutral classifications used by the first backend outcome payloads:
+`TraceOutcomeStatus` is exactly `SUCCEEDED` or `FAILED`; `TraceNumericalProfile` is exactly
+`STRICT_IEEE` or `ACCELERATOR`; `TraceRouteKind` is exactly `CUSTOM_KERNEL` or
+`GRAPH_EXECUTABLE`; and `TraceCacheStatus` currently has only `NOT_QUERIED`. `NOT_QUERIED` records
+that the producer performed no cache lookup and must not be interpreted as a miss. Route kinds
+describe the current mechanisms, not a universal backend registry.
 
 ### Trace phase / `TracePhase`
 

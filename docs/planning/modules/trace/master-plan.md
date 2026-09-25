@@ -43,8 +43,8 @@ Define typed, serializable diagnostic DTOs shared by compile, prepare, run, and 
 ```text
 io.github.pho001.synaptik.trace/
   <root>       shared public event envelope, event identity, lifecycle phase, level, and payload marker
-  id/          current model-correlation identifiers and later trace-local identity domains
-  payload/     later typed compile, prepare, run, and backend diagnostic DTO families
+  id/          current model and backend-execution trace-local identity domains
+  payload/     current backend preparation/invocation outcomes and later typed DTO families
   attribute/   later typed backend-specific attribute escape hatch
 ```
 
@@ -58,7 +58,7 @@ or import producer-domain types.
 |---|---|---|---|---|
 | 0001 | [Core trace event envelope](tasks/0001-core-trace-event-envelope.md) | Complete | Model milestone complete | Replaced the placeholder with the caller-supplied event identity, lifecycle phase, diagnostic level, open typed-payload marker, and immutable generic event envelope. |
 | 0002 | [Model correlation identifiers](tasks/0002-model-correlation-identifiers.md) | Complete | 0001, completed model milestone | Added trace-local node, value, and tensor identities for stable model correlations without importing or duplicating producer objects. |
-| 0003 | [Backend preparation and invocation diagnostic DTOs](tasks/0003-backend-preparation-and-invocation-diagnostic-dtos.md) | Ready | 0001–0002; stable Metal prepare/run producer facts | Add four trace-local producer IDs and the closed neutral profile/route/cache/native-status preparation and invocation outcome DTOs required by Metal 0041, without emission behavior. |
+| 0003 | [Backend preparation and invocation diagnostic DTOs](tasks/0003-backend-preparation-and-invocation-diagnostic-dtos.md) | Complete | 0001–0002; stable Metal prepare/run producer facts | Added four trace-local producer IDs and the closed neutral profile/route/cache/native-status preparation and invocation outcome DTOs required by Metal 0041, without emission behavior. |
 | 0004 | Compile payload family | Draft | 0001–0002 | Define typed capture, transformation, ownership, partition, logical-memory, and publication diagnostic payloads after compiler/planning facts stabilize. |
 | 0005 | Broader prepare payload family | Draft | 0003 | Extend beyond the bounded prepared-unit finalization outcome only after additional prepare producer contracts stabilize. |
 | 0006 | Broader run payload family | Draft | 0003 | Extend beyond the bounded native-invocation outcome only after additional Runtime producer contracts stabilize. |
@@ -67,18 +67,17 @@ or import producer-domain types.
 
 ## Dependency DAG and authorized frontier
 
-`0001 (Complete) -> 0002 (Complete) -> 0003 (Ready) -> Metal 0041 (Blocked)`
+`0001 (Complete) -> 0002 (Complete) -> 0003 (Complete) -> Metal 0041 (Blocked pending separate promotion)`
 
-Tasks 0004–0008 remain Draft and are not parallel frontiers. Trace 0003 is the sole authorized
-repository frontier. It serializes every Trace ID/payload/API write; Metal 0041 must rebase after
-0003 completes before it may become Ready.
+Tasks 0004–0008 remain Draft and are not parallel frontiers. No Trace task is Ready. Trace 0003 is
+complete; Metal 0041 remains blocked until its separate planning-only rebase and Ready promotion.
 
 ## Integration ownership and shared documents
 
-- Integration owner: Trace 0003 executor.
-- Shared documents: Trace 0003 exclusively owns current Trace API/explanation/glossary status,
-  this master plan, and the roadmap during implementation.
-- Common base revision: `790454309df60b44e805c8552549e935611fd4c2`.
+- Integration owner: Trace 0003 executor through its completion commit.
+- Shared documents: Trace 0003 owns current Trace API/explanation/glossary status, this master plan,
+  and the roadmap through its completion commit.
+- Common base revision: `c734f0bb52cd35b94cd794cc580326dca09ec62b`.
 - Integration validation: Trace module tests/Javadocs, public-shape/import checks, Markdown/link
   validation, exact scope, and `git diff --check`.
 
@@ -91,16 +90,15 @@ repository frontier. It serializes every Trace ID/payload/API write; Metal 0041 
 
 ## Current status
 
-Tasks 0001 and 0002 are Complete. Stable Metal preparation and native-invocation facts now justify
-the bounded additive DTO foundation in detailed Task 0003. It is Ready and is the sole authorized
-frontier. The task adds only trace-local backend/device/prepared-unit/invocation IDs, closed neutral
-profile/route/cache/native-status vocabulary, and two immutable outcome payloads. It
-preserves every existing Trace type and adds no emitter, observer, consumer, allocator, clock,
-mutable state, producer dependency, generic map, or serialization behavior.
+Tasks 0001–0003 are Complete. Task 0003 added only trace-local backend/device/prepared-unit/
+invocation IDs, closed neutral profile/route/cache/native-status vocabulary, and two immutable
+outcome payloads. It preserved every pre-existing Trace public source file and added no emitter,
+observer, consumer, allocator, clock, mutable state, producer dependency, generic map, or
+serialization behavior. No Trace task is Ready.
 
-Metal 0041 is the immediate coordinated successor and remains Blocked until Trace 0003 completes.
-Broader compile, prepare, run, backend-detail, typed-attribute, and serialization work remains Draft
-under 0004–0008.
+Metal 0041 is the immediate coordinated successor and remains Blocked until its separate
+planning-only rebase and Ready promotion. Broader compile, prepare, run, backend-detail,
+typed-attribute, and serialization work remains Draft under 0004–0008.
 
 ## Open questions
 
@@ -158,9 +156,10 @@ documentation pass finalized the correlation Javadocs and explanations and passe
 repository Markdown, exact eleven-path, status, and whitespace validation without rerunning Java
 tests.
 
-The producer contracts required by Task 0003 are now stable: the current lifecycle fixes route and
-profile during Prepare, constructs the executable during finalization, invokes the prepared route
-during Run, and retains a closed native-status taxonomy. The detailed Task 0003 brief therefore
-replaces the former speculative typed-attributes row and is Ready from clean revision
-`790454309df60b44e805c8552549e935611fd4c2`. Metal 0041 is deliberately Blocked on that contract-
-first cutover; no concurrent Trace or Metal implementation is authorized.
+Task 0003 completed from clean planning revision
+`c734f0bb52cd35b94cd794cc580326dca09ec62b`. The current lifecycle fixes route and profile during
+Prepare, constructs the executable during finalization, invokes the prepared route during Run,
+and retains a closed native-status taxonomy. The implementation added only the matching neutral
+JDK-only DTO vocabulary and documentation; focused/full Trace tests, Javadoc, Markdown, scope, and
+diff validation passed. Metal 0041 remains blocked pending its separate planning-only rebase and
+Ready promotion.

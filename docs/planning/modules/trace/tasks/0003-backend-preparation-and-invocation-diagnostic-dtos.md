@@ -2,12 +2,11 @@
 
 ## Status
 
-Ready
+Complete
 
-Readiness is verified from Trace 0001–0002 Complete, the current `PREPARE`/`RUN` lifecycle,
-completed profile contracts, stable Metal route/finalization/invocation facts, and the existing
-native-status taxonomy. This is the sole authorized repository frontier. It defines data only;
-Metal 0041 remains blocked until this task is Complete.
+Implemented from clean planning HEAD `c734f0bb52cd35b94cd794cc580326dca09ec62b`.
+The bounded JDK-only ID and DTO surface, documentation, and executable validation are complete.
+Metal 0041 remains blocked until its separate planning-only rebase and Ready promotion.
 
 ## Change class
 
@@ -122,7 +121,7 @@ map, architecture/dependency change, or modification of an existing Trace public
 - Conflicts with: every concurrent Trace ID/payload/API task and Metal 0041 until this task is
   integrated.
 - Parallel group: None.
-- Common base revision: `790454309df60b44e805c8552549e935611fd4c2`.
+- Common base revision: `c734f0bb52cd35b94cd794cc580326dca09ec62b`.
 - Integration order: Trace 0003 first; rebase and unblock Metal 0041 only after 0003 is Complete.
 - Integration validation: `:modules:trace:test`, `:modules:trace:javadoc`, Markdown/link validation,
   public-shape/import checks, and `git diff --check`.
@@ -185,4 +184,10 @@ unless Java changes.
 
 ## Result
 
-Empty until execution.
+Implemented the four nominal backend-execution correlation IDs, five exact closed enums,
+`TraceNativeStatus`, and the two exact outcome payload records. The implementation preserves every
+pre-existing Trace public source file, adds no dependency or behavior owner, and keeps
+`modules:trace` a JDK-only immutable DTO leaf. Focused and full Trace tests, Trace Javadoc,
+targeted Markdown/link validation, exact scope inspection, and `git diff --check` passed.
+Independent public-API/documentation review follows separately as requested before any Metal
+implementation.

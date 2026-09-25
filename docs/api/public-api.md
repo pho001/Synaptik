@@ -103,18 +103,24 @@ The implemented `modules:trace` surface contains:
 - producer-assigned non-negative `TraceEventId` values;
 - `TracePhase` lifecycle classification for `COMPILE`, `PREPARE`, and `RUN`;
 - `TraceLevel` detail and severity classification;
-- the open method-free `TracePayload` marker; and
+- the open method-free `TracePayload` marker;
 - the generic `TraceEvent<T extends TracePayload>` envelope with a producer-supplied monotonic
-  nanosecond reading; and
-- the nominal `TraceNodeId`, `TraceValueId`, and `TraceTensorId` records for trace-local
-  correlation with producer-owned model identities.
+  nanosecond reading;
+- nominal non-negative `TraceNodeId`, `TraceValueId`, and `TraceTensorId` records for trace-local
+  correlation with producer-owned model identities;
+- nominal non-negative `TraceBackendId`, `TraceDeviceId`, `TracePreparedUnitId`, and
+  `TraceInvocationId` records for producer-stream backend execution correlations;
+- the closed `TraceOutcomeStatus`, `TraceNumericalProfile`, `TraceRouteKind`, `TraceCacheStatus`,
+  and `TraceNativeStatusKind` vocabulary plus exact-code `TraceNativeStatus`; and
+- immutable `BackendPreparationOutcome` and `BackendInvocationOutcome` payloads.
 
-The [tracing explanation](../architecture/tracing.md) documents the envelope, correlation, and
-ownership boundaries. The producer owns correlation-value allocation, uniqueness, lifetime, and
-mapping; a trace-local numeric value need not equal the corresponding model ID. Concrete payload
-families, partition/backend/device/unit/run and other later correlation domains, typed backend
-attributes, serialization, sinks, and emission remain planned. Backend is a payload family and
-producer role, not another lifecycle phase.
+The outcome payloads carry only trace-owned IDs and closed neutral facts. Success requires present
+native success; failure permits no native status or a present non-success status. `NOT_QUERIED`
+records no cache lookup and is not a miss. The [tracing explanation](../architecture/tracing.md)
+documents exact component roles, correlation, and ownership boundaries. The producer owns
+correlation allocation, uniqueness, lifetime, mapping, timestamps, and emission. Broader payload
+families, partition/schedule/run IDs, typed backend attributes, serialization, sinks, and emission
+remain planned. Backend is a producer role, not another lifecycle phase.
 
 The implemented `modules:backend-contract` surface contains:
 
