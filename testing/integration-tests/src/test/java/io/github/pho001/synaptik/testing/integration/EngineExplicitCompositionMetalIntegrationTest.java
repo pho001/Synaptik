@@ -19,6 +19,7 @@ import io.github.pho001.synaptik.engine.EngineMixedOwnerTestAccess;
 import io.github.pho001.synaptik.engine.InferenceSession;
 import io.github.pho001.synaptik.engine.ModelAutotuningPreparation;
 import io.github.pho001.synaptik.engine.ModelAutotuningRequest;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
@@ -1540,6 +1541,113 @@ final class EngineExplicitCompositionMetalIntegrationTest {
 
     private static float strictExp(float value) {
         return (float) StrictMath.exp(value);
+    }
+
+    @Test
+    void cpuFreeAcceleratorMetalRunsTask0052CustomPartitionsThroughPublicEngine()
+            throws Exception {
+        Path library = configuredMetalLibrary();
+        try (Arena arena = Arena.ofShared();
+                Engine.Builder builder = Engine.builder()) {
+            builder.numericalProfile(NumericalProfile.ACCELERATOR);
+            builder.takeOwnership(MetalBackendIntegration.open(
+                    new MetalBackendConfiguration(library)));
+            try (Engine engine = builder.build()) {
+                Tensor left = nativeTensor(
+                        descriptor(Shape.of(2, 3)), arena,
+                        1.0f, -2.0f, 3.0f, 4.0f, 0.0f, -1.0f);
+                Tensor right = nativeTensor(
+                        descriptor(Shape.of(2, 3)), arena,
+                        0.0f, -2.0f, 5.0f, 3.0f, 0.0f, -2.0f);
+                List<Tensor> publications = List.of(
+                        left.greaterThan(right),
+                        left.greaterOrEqual(right),
+                        left.lessThan(right),
+                        left.lessOrEqual(right),
+                        left.equalTo(right),
+                        left.notEqualTo(right),
+                        left.minimum(right),
+                        left.maximum(right),
+                        left.minimum(ScalarValue.float32(0.5f)),
+                        left.maximum(ScalarValue.float32(-0.5f)),
+                        left.clamp(ScalarValue.float32(-1.0f), ScalarValue.float32(2.0f)),
+                        left.min(),
+                        left.max(1),
+                        left.min(new int[] {1, 0}, false),
+                        left.max(new int[0], false),
+                        left.cumSum(1, false, false),
+                        left.cumSum(1, true, false),
+                        left.cumSum(1, false, true),
+                        left.cumSum(1, true, true),
+                        left.cumProd(1, false, false),
+                        left.cumProd(1, true, false),
+                        left.cumProd(1, false, true),
+                        left.cumProd(1, true, true),
+                        left.neg().maximum(right).abs());
+                var compiled = engine.compile(publications);
+                assertEquals(List.of("metal"),
+                        EngineMixedOwnerTestAccess.partitionOwners(compiled));
+                try (InferenceSession session = engine.session(compiled);
+                        InferenceSession independent = engine.session(compiled)) {
+                    for (int repetition = 0; repetition < 2; repetition++) {
+                        try (var result = session.run(List.of(left, right))) {
+                            assertTask0052Results(result);
+                        }
+                    }
+                    try (var executor = Executors.newFixedThreadPool(2)) {
+                        var first = executor.submit(() -> {
+                            try (var result = session.run(List.of(left, right))) {
+                                assertTask0052Results(result);
+                            }
+                        });
+                        var second = executor.submit(() -> {
+                            try (var result = independent.run(List.of(left, right))) {
+                                assertTask0052Results(result);
+                            }
+                        });
+                        first.get(10, TimeUnit.SECONDS);
+                        second.get(10, TimeUnit.SECONDS);
+                    }
+                }
+            }
+        }
+    }
+
+    private static void assertTask0052Results(
+            io.github.pho001.synaptik.engine.RunResult result) {
+        int[][] booleans = {
+            {1, 0, 0, 1, 0, 1},
+            {1, 1, 0, 1, 1, 1},
+            {0, 0, 1, 0, 0, 0},
+            {0, 1, 1, 0, 1, 0},
+            {0, 1, 0, 0, 1, 0},
+            {1, 0, 1, 1, 0, 1}
+        };
+        for (int publication = 0; publication < booleans.length; publication++) {
+            ByteBuffer bytes = result.materialize(
+                    result.publications().get(publication), 6L).bytes();
+            for (int expected : booleans[publication]) {
+                assertEquals(expected, Byte.toUnsignedInt(bytes.get()));
+            }
+        }
+        assertPublication(result, 6, 0.0f, -2.0f, 3.0f, 3.0f, 0.0f, -2.0f);
+        assertPublication(result, 7, 1.0f, -2.0f, 5.0f, 4.0f, 0.0f, -1.0f);
+        assertPublication(result, 8, 0.5f, -2.0f, 0.5f, 0.5f, 0.0f, -1.0f);
+        assertPublication(result, 9, 1.0f, -0.5f, 3.0f, 4.0f, 0.0f, -0.5f);
+        assertPublication(result, 10, 1.0f, -1.0f, 2.0f, 2.0f, 0.0f, -1.0f);
+        assertPublication(result, 11, -2.0f);
+        assertPublication(result, 12, 3.0f, 4.0f);
+        assertPublication(result, 13, -2.0f);
+        assertPublication(result, 14, 1.0f, -2.0f, 3.0f, 4.0f, 0.0f, -1.0f);
+        assertPublication(result, 15, 1.0f, -1.0f, 2.0f, 4.0f, 4.0f, 3.0f);
+        assertPublication(result, 16, 0.0f, 1.0f, -1.0f, 0.0f, 4.0f, 4.0f);
+        assertPublication(result, 17, 2.0f, 1.0f, 3.0f, 3.0f, -1.0f, -1.0f);
+        assertPublication(result, 18, 1.0f, 3.0f, 0.0f, -1.0f, -1.0f, 0.0f);
+        assertPublication(result, 19, 1.0f, -2.0f, -6.0f, 4.0f, 0.0f, -0.0f);
+        assertPublication(result, 20, 1.0f, 1.0f, -2.0f, 1.0f, 4.0f, 0.0f);
+        assertPublication(result, 21, -6.0f, -6.0f, 3.0f, -0.0f, -0.0f, -1.0f);
+        assertPublication(result, 22, -6.0f, 3.0f, 1.0f, -0.0f, -1.0f, 1.0f);
+        assertPublication(result, 23, 0.0f, 2.0f, 5.0f, 3.0f, 0.0f, 1.0f);
     }
 
     private static void assertReductionResults(

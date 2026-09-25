@@ -784,10 +784,13 @@ class MetalNegPreparedExecutionTest {
                             int[] feedRepresentations,
                             int[] targets,
                             int[] targetRepresentations,
+                            int[] internalPlanIndices,
+                            int[] internalRepresentationIndices,
                             MetalMpsGraphExecutableResource resource,
                             List<Optional<MetalPreparedSplatResource>> splats,
                             long[] feedBytes,
                             long[] targetBytes,
+                            long[] internalBytes,
                             int workspace) {
                         throw new AssertionError("MPSGraph factory must not be called");
                     }
@@ -854,6 +857,52 @@ class MetalNegPreparedExecutionTest {
             good.close();
             finalized.resources().forEach(resource -> resource.close());
             other.close();
+            context.close();
+        }
+    }
+
+    @Test
+    void task0052ColdBindingRejectsDistinctLiveValuesSharingOnePhysicalBuffer() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        BackendPartitionAnalysis<MetalNegPreparationPlan> analysis = task0052MinRoute(context);
+        FinalizationFixture fixture = finalization(analysis);
+        BackendPartitionFinalizationResult finalized = new MetalNegPartitionFinalizer(context)
+                .finalizePartition(fixture.finalization());
+        var executable = (MetalNegPreparedExecutable) finalized.executable();
+        MetalBufferRepresentation left = context.createBuffer(8);
+        MetalBufferRepresentation right = context.createBuffer(8);
+        MetalBufferRepresentation targetAlias = new MetalBufferRepresentation(
+                context, api, left.executionHandle(), 8);
+        RunState state = null;
+        try {
+            var leftBinding = new BufferRepresentationBinding(
+                    left, RunResourceOwnership.BORROWED);
+            var rightBinding = new BufferRepresentationBinding(
+                    right, RunResourceOwnership.BORROWED);
+            var targetBinding = new BufferRepresentationBinding(
+                    targetAlias, RunResourceOwnership.BORROWED);
+            var workspace = new MetalNegPreparedExecutable.AddressWorkspace(
+                    context, analysis.plan().valueIds().size()
+                            + analysis.plan().targetValueIds().size());
+            state = new RunState(
+                    fixture.memoryPlan(),
+                    List.of(List.of(leftBinding), List.of(rightBinding), List.of(targetBinding)),
+                    List.of(workspace));
+            RunState boundState = state;
+
+            IllegalArgumentException failure = assertThrows(
+                    IllegalArgumentException.class, () -> executable.bind(boundState));
+
+            assertEquals(
+                    "Metal Task-0052 materialized value buffers must not alias",
+                    failure.getMessage());
+            assertEquals(0, api.runCalls.get());
+        } finally {
+            if (state != null) state.close();
+            right.close();
+            left.close();
+            finalized.resources().forEach(resource -> resource.close());
             context.close();
         }
     }
@@ -1764,10 +1813,13 @@ class MetalNegPreparedExecutionTest {
                         feedRepresentations,
                         targets,
                         targetRepresentations,
+                        internalPlanIndices,
+                        internalRepresentationIndices,
                         resource,
                         splats,
                         feedBytes,
                         targetBytes,
+                        internalBytes,
                         workspace) -> {
                     throw primary;
                 });
@@ -2520,10 +2572,13 @@ class MetalNegPreparedExecutionTest {
                         feedRepresentations,
                         targets,
                         targetRepresentations,
+                        internalPlanIndices,
+                        internalRepresentationIndices,
                         resource,
                         splats,
                         feedBytes,
                         targetBytes,
+                        internalBytes,
                         workspace) -> {
                     assertEquals(5, plan.graphProgram().nodes().size());
                     throw primary;
@@ -3424,6 +3479,34 @@ class MetalNegPreparedExecutionTest {
                         Map.of(),
                         new MetalNegAnalysisInputs(context)));
         return new ScatterRoute(partition, indices, analysis);
+    }
+
+    private static BackendPartitionAnalysis<MetalNegPreparationPlan> task0052MinRoute(
+            MetalDeviceContext context) {
+        TensorDescriptor descriptor = descriptor(Shape.of(2));
+        ValueId left = new ValueId(10_010);
+        ValueId right = new ValueId(10_011);
+        ValueId target = new ValueId(10_012);
+        CompiledNode node = new CompiledNode(
+                new NodeId(10_010),
+                new Operation(BinaryArithmeticKind.MIN, NoOperationAttrs.INSTANCE),
+                List.of(left, right),
+                List.of(target));
+        PlannedPartition partition = new PlannedPartition(
+                MetalCapabilityProvider.METAL_BACKEND_ID, List.of(node.id()));
+        return new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
+                NumericalProfile.ACCELERATOR,
+                new PartitionDag(partition, List.of(node)),
+                List.of(
+                        new GraphValue(left, descriptor),
+                        new GraphValue(right, descriptor),
+                        new GraphValue(target, descriptor)),
+                List.of(
+                        requirement(left, descriptor, Optional.empty(), List.of(partition), false),
+                        requirement(right, descriptor, Optional.empty(), List.of(partition), false),
+                        requirement(target, descriptor, Optional.of(partition), List.of(), true)),
+                Map.of(),
+                new MetalNegAnalysisInputs(context)));
     }
 
     private static TensorDescriptor typedDescriptor(DataType dataType, Shape shape) {

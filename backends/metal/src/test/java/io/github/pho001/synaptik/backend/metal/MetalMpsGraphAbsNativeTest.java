@@ -36,10 +36,10 @@ class MetalMpsGraphAbsNativeTest {
     };
 
     @Test
-    void schemaElevenRetainsCanonicalAbsWireAndClosesProfileStateTransitions() {
+    void schemaTwelveRetainsCanonicalAbsWireAndClosesProfileStateTransitions() {
         MetalMpsGraphProgram.Node abs = MetalMpsGraphProgram.Node.abs(7, 9);
         byte[] encoded = new MetalMpsGraphProgram(List.of(abs)).encodedNodeRecords();
-        assertEquals(11, MetalMpsGraphProgram.SCHEMA_VERSION);
+        assertEquals(12, MetalMpsGraphProgram.SCHEMA_VERSION);
         assertEquals(MetalMpsGraphProgram.NODE_RECORD_BYTES, encoded.length);
         ByteBuffer record = ByteBuffer.wrap(encoded).order(ByteOrder.BIG_ENDIAN);
         assertEquals(12, record.getInt());

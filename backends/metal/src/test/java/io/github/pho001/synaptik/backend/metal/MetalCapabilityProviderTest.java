@@ -15,6 +15,7 @@ import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ClampRangeAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
@@ -39,6 +40,8 @@ import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MaskedReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -75,7 +78,9 @@ class MetalCapabilityProviderTest {
             boolean supported = kind == BinaryArithmeticKind.ADD
                     || kind == BinaryArithmeticKind.SUB
                     || kind == BinaryArithmeticKind.MUL
-                    || kind == BinaryArithmeticKind.DIV;
+                    || kind == BinaryArithmeticKind.DIV
+                    || kind == BinaryArithmeticKind.MIN
+                    || kind == BinaryArithmeticKind.MAX;
             assertFalse(provider.supports(binaryQuery(
                     NumericalProfile.STRICT_IEEE, kind, matrix, row, matrix)));
             assertEquals(supported, provider.supports(binaryQuery(
@@ -692,6 +697,103 @@ class MetalCapabilityProviderTest {
                 matmul,
                 List.of(float64, right),
                 List.of(output))));
+    }
+
+    @Test
+    void admitsExactTask0052AcceleratorDomainAndKeepsEveryExclusionClosed() {
+        TensorDescriptor left = descriptor(Shape.of(2, 1, 3), false);
+        TensorDescriptor right = descriptor(Shape.of(1, 4, 3), false);
+        TensorDescriptor broadcast = descriptor(Shape.of(2, 4, 3), false);
+        TensorDescriptor boolBroadcast = typed(DataType.BOOL, Shape.of(2, 4, 3), false);
+        for (BinaryComparisonKind kind : BinaryComparisonKind.values()) {
+            var query = new OperationCapabilityQuery(
+                    NumericalProfile.ACCELERATOR,
+                    new Operation(kind, NoOperationAttrs.INSTANCE),
+                    List.of(left, right),
+                    List.of(boolBroadcast));
+            assertTrue(provider.supports(query), kind.name());
+            assertFalse(provider.supports(new OperationCapabilityQuery(
+                    NumericalProfile.STRICT_IEEE,
+                    query.operation(),
+                    query.inputs(),
+                    query.outputs())));
+        }
+        for (BinaryArithmeticKind kind : List.of(
+                BinaryArithmeticKind.MIN, BinaryArithmeticKind.MAX)) {
+            assertTrue(provider.supports(binaryQuery(
+                    NumericalProfile.ACCELERATOR, kind, left, right, broadcast)));
+        }
+        TensorDescriptor matrix = descriptor(Shape.of(2, 3), false);
+        for (ScalarElementwiseKind kind : List.of(
+                ScalarElementwiseKind.MIN, ScalarElementwiseKind.MAX)) {
+            assertTrue(provider.supports(new OperationCapabilityQuery(
+                    NumericalProfile.ACCELERATOR,
+                    new Operation(kind, new ScalarValueAttrs(ScalarValue.float32(-0.0f))),
+                    List.of(matrix),
+                    List.of(matrix))));
+        }
+        assertTrue(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                new Operation(ScalarElementwiseKind.CLAMP, new ClampRangeAttrs(
+                        ScalarValue.float32(-1.0f), ScalarValue.float32(1.0f))),
+                List.of(matrix),
+                List.of(matrix))));
+        for (AggregateReductionKind kind : List.of(
+                AggregateReductionKind.MIN, AggregateReductionKind.MAX)) {
+            assertTrue(provider.supports(reductionQuery(
+                    NumericalProfile.ACCELERATOR,
+                    kind,
+                    NoOperationAttrs.INSTANCE,
+                    matrix,
+                    descriptor(Shape.scalar(), false))));
+            assertTrue(provider.supports(reductionQuery(
+                    NumericalProfile.ACCELERATOR,
+                    kind,
+                    new AxisReductionAttrs(1, false),
+                    matrix,
+                    descriptor(Shape.of(2), false))));
+            assertTrue(provider.supports(reductionQuery(
+                    NumericalProfile.ACCELERATOR,
+                    kind,
+                    new MultiAxisReductionAttrs(List.of(1, 0), false),
+                    matrix,
+                    descriptor(Shape.scalar(), false))));
+            assertTrue(provider.supports(reductionQuery(
+                    NumericalProfile.ACCELERATOR,
+                    kind,
+                    new MultiAxisReductionAttrs(List.of(), false),
+                    matrix,
+                    matrix)));
+        }
+        for (CumulativeScanKind kind : CumulativeScanKind.values()) {
+            for (boolean exclusive : List.of(false, true)) {
+                for (boolean reverse : List.of(false, true)) {
+                    assertTrue(provider.supports(new OperationCapabilityQuery(
+                            NumericalProfile.ACCELERATOR,
+                            new Operation(kind, new CumulativeScanAttrs(
+                                    1, exclusive, reverse)),
+                            List.of(matrix),
+                            List.of(matrix))));
+                }
+            }
+        }
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                new Operation(BinaryComparisonKind.EQUAL, NoOperationAttrs.INSTANCE),
+                List.of(left, right),
+                List.of(broadcast))), "comparison output must be BOOL");
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                new Operation(CumulativeScanKind.CUM_SUM,
+                        new CumulativeScanAttrs(0, false, false)),
+                List.of(descriptor(Shape.scalar(), false)),
+                List.of(descriptor(Shape.scalar(), false)))), "scan input must have positive rank");
+        assertFalse(provider.supports(binaryQuery(
+                NumericalProfile.ACCELERATOR,
+                BinaryArithmeticKind.MIN,
+                descriptor(Shape.of(2, 3), true),
+                matrix,
+                matrix)), "requiresGrad stays excluded");
     }
 
     @Test

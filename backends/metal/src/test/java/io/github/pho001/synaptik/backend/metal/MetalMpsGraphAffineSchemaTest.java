@@ -11,11 +11,11 @@ import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphAffineSchemaTest {
     @Test
-    void schemaVersionElevenRetainsTypedDiscriminantsAndRequiredUnusedSentinels() {
+    void schemaVersionTwelveRetainsTypedDiscriminantsAndRequiredUnusedSentinels() {
         var reshape = MetalMpsGraphProgram.Node.targetShape(
                 MetalMpsGraphProgram.NodeKind.RESHAPE, 0, 1, new long[] {3, 2});
         byte[] encoded = new MetalMpsGraphProgram(List.of(reshape)).encodedNodeRecords();
-        assertEquals(11, MetalMpsGraphProgram.SCHEMA_VERSION);
+        assertEquals(12, MetalMpsGraphProgram.SCHEMA_VERSION);
         assertEquals(MetalMpsGraphProgram.NODE_RECORD_BYTES, encoded.length);
 
         ByteBuffer record = ByteBuffer.wrap(encoded).order(ByteOrder.BIG_ENDIAN);
@@ -86,7 +86,7 @@ class MetalMpsGraphAffineSchemaTest {
     }
 
     @Test
-    void schemaElevenRetainsMatmulWireAndAuthenticatesOnlyLocalRankTwoTransposes() {
+    void schemaTwelveRetainsMatmulWireAndAuthenticatesOnlyLocalRankTwoTransposes() {
         var direct = MetalMpsGraphProgram.Node.matmul(0, 1, 2);
         ByteBuffer record = ByteBuffer.wrap(
                 new MetalMpsGraphProgram(List.of(direct)).encodedNodeRecords())
@@ -165,7 +165,7 @@ class MetalMpsGraphAffineSchemaTest {
     }
 
     @Test
-    void schemaElevenRetainsGatherAndOneHotWithExactTypedAttributes() {
+    void schemaTwelveRetainsGatherAndOneHotWithExactTypedAttributes() {
         var gather = MetalMpsGraphProgram.Node.gather(0, 1, 2, 1);
         var oneHot = MetalMpsGraphProgram.Node.oneHot(3, 4, 5);
         ByteBuffer records = ByteBuffer.wrap(
@@ -222,6 +222,70 @@ class MetalMpsGraphAffineSchemaTest {
                                 MetalMpsGraphProgram.Node.neg(1, 2))),
                         new int[] {0},
                         new int[] {2}));
+    }
+
+    @Test
+    void schemaTwelveAppendsTask0052WiresAndRetainsExactScalarAndScanWords() {
+        List<MetalMpsGraphProgram.NodeKind> kinds = List.of(
+                MetalMpsGraphProgram.NodeKind.GT,
+                MetalMpsGraphProgram.NodeKind.GE,
+                MetalMpsGraphProgram.NodeKind.LT,
+                MetalMpsGraphProgram.NodeKind.LE,
+                MetalMpsGraphProgram.NodeKind.EQ,
+                MetalMpsGraphProgram.NodeKind.NE,
+                MetalMpsGraphProgram.NodeKind.TENSOR_MIN,
+                MetalMpsGraphProgram.NodeKind.TENSOR_MAX,
+                MetalMpsGraphProgram.NodeKind.SCALAR_MIN,
+                MetalMpsGraphProgram.NodeKind.SCALAR_MAX,
+                MetalMpsGraphProgram.NodeKind.CLAMP,
+                MetalMpsGraphProgram.NodeKind.REDUCTION_MIN,
+                MetalMpsGraphProgram.NodeKind.REDUCTION_MAX,
+                MetalMpsGraphProgram.NodeKind.CUM_SUM,
+                MetalMpsGraphProgram.NodeKind.CUM_PROD);
+        for (int index = 0; index < kinds.size(); index++) {
+            assertEquals(20 + index, kinds.get(index).wireIdentity());
+        }
+        var scalar = MetalMpsGraphProgram.Node.scalarExtreme(
+                MetalMpsGraphProgram.NodeKind.SCALAR_MIN,
+                0,
+                1,
+                0xffc1_2345);
+        ByteBuffer scalarRecord = ByteBuffer.wrap(
+                new MetalMpsGraphProgram(List.of(scalar)).encodedNodeRecords())
+                .order(ByteOrder.BIG_ENDIAN);
+        assertEquals(28, scalarRecord.getInt());
+        assertEquals(7, scalarRecord.getInt());
+        scalarRecord.position(32);
+        assertEquals(0x0000_0000_ffc1_2345L, scalarRecord.getLong());
+
+        var scan = MetalMpsGraphProgram.Node.scan(
+                MetalMpsGraphProgram.NodeKind.CUM_PROD,
+                3,
+                4,
+                2,
+                true,
+                false);
+        ByteBuffer scanRecord = ByteBuffer.wrap(
+                new MetalMpsGraphProgram(List.of(scan)).encodedNodeRecords())
+                .order(ByteOrder.BIG_ENDIAN);
+        assertEquals(34, scanRecord.getInt());
+        assertEquals(9, scanRecord.getInt());
+        assertEquals(3, scanRecord.getInt());
+        assertEquals(-1, scanRecord.getInt());
+        assertEquals(4, scanRecord.getInt());
+        assertEquals(2, scanRecord.getInt());
+        assertEquals(2, scanRecord.getInt());
+        assertEquals(0, scanRecord.getInt());
+        assertEquals(1L, scanRecord.getLong());
+        assertEquals(0L, scanRecord.getLong());
+        while (scanRecord.hasRemaining()) assertEquals(0L, scanRecord.getLong());
+
+        assertThrows(IllegalArgumentException.class, () ->
+                MetalMpsGraphProgram.Node.scalarExtreme(
+                        MetalMpsGraphProgram.NodeKind.CLAMP, 0, 1, 0));
+        assertThrows(IllegalArgumentException.class, () ->
+                MetalMpsGraphProgram.Node.scan(
+                        MetalMpsGraphProgram.NodeKind.NEG, 0, 1, 0, false, false));
     }
 
     @Test

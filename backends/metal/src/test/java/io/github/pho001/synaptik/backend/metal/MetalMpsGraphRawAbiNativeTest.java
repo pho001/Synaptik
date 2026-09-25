@@ -27,7 +27,7 @@ class MetalMpsGraphRawAbiNativeTest {
     private static final Consumer<MemorySegment> UNCHANGED = ignored -> { };
 
     @Test
-    void rawVersionElevenRecordRejectsEveryMalformedHeaderAndUnusedField() {
+    void rawVersionTwelveRecordRejectsEveryMalformedHeaderAndUnusedField() {
         try (RawAbi abi = RawAbi.open()) {
             MetalMpsGraphProgram reshape = new MetalMpsGraphProgram(List.of(
                     MetalMpsGraphProgram.Node.targetShape(
@@ -81,14 +81,16 @@ class MetalMpsGraphRawAbiNativeTest {
                     ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
             abi.assertRejected("stale schema version ten", INVALID_ARGUMENT, 10,
                     ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
+            abi.assertRejected("stale schema version eleven", INVALID_ARGUMENT, 11,
+                    ranks, dimensions, reshape, new int[] {0}, new int[] {1}, UNCHANGED);
         }
     }
 
     @Test
-    void rawVersionElevenScatterUsesWireEighteenAndTypedAuxiliaryInput() {
+    void rawVersionTwelveScatterUsesWireEighteenAndTypedAuxiliaryInput() {
         MetalMpsGraphProgram.Node scatter =
                 MetalMpsGraphProgram.Node.scatterElements(0, 1, 2, 3, 1);
-        assertEquals(11, MetalMpsGraphProgram.SCHEMA_VERSION);
+        assertEquals(12, MetalMpsGraphProgram.SCHEMA_VERSION);
         assertEquals(18, scatter.kind().wireIdentity());
         assertEquals(3, scatter.kind().inputCount());
         assertEquals(0, scatter.firstInputIndex());
@@ -164,7 +166,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void rawVersionElevenUnfoldAxisUsesWireNineteenAndRejectsMalformedWindowState() {
+    void rawVersionTwelveUnfoldAxisUsesWireNineteenAndRejectsMalformedWindowState() {
         assertEquals(16, MetalMpsGraphProgram.MAX_SELECTOR_EXPANSION);
         assertThrows(IllegalArgumentException.class,
                 () -> MetalMpsGraphProgram.Node.unfoldAxis(0, 1, 1, 17, 1),
@@ -232,6 +234,83 @@ class MetalMpsGraphRawAbiNativeTest {
             abi.assertRejected("stale schema ten cannot reinterpret unfold",
                     INVALID_ARGUMENT, 10, ranks, dimensions, program,
                     new int[] {0}, new int[] {1}, UNCHANGED);
+        }
+    }
+
+    @Test
+    void rawTask0052ScanRejectsMalformedTypedAttributesAndStaleSchema() {
+        int[] ranks = {2, 2};
+        long[] dimensions = dimensions(new long[][] {{2, 3}, {2, 3}});
+        MetalMpsGraphProgram scan = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.scan(
+                        MetalMpsGraphProgram.NodeKind.CUM_SUM,
+                        0,
+                        1,
+                        1,
+                        true,
+                        true)));
+        try (RawAbi abi = RawAbi.open()) {
+            abi.assertAccepted("canonical cumulative scan", ranks, dimensions, scan,
+                    new int[] {0}, new int[] {1});
+            abi.assertRejected("scan attribute discriminator", ranks, dimensions, scan,
+                    new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_INT, 4L, 0));
+            abi.assertRejected("scan attribute count", ranks, dimensions, scan,
+                    new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_INT, 20L, 1));
+            abi.assertRejected("scan axis", ranks, dimensions, scan,
+                    new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_INT, 24L, 2));
+            abi.assertRejected("scan exclusive flag", ranks, dimensions, scan,
+                    new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_LONG, 32L, 2L));
+            abi.assertRejected("scan reverse flag", ranks, dimensions, scan,
+                    new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_LONG, 40L, 2L));
+            abi.assertRejected("scan unused payload", ranks, dimensions, scan,
+                    new int[] {0}, new int[] {1},
+                    record -> record.set(JAVA_LONG, 48L, 1L));
+            abi.assertRejected("stale schema eleven cannot reinterpret scan",
+                    INVALID_ARGUMENT, 11, ranks, dimensions, scan,
+                    new int[] {0}, new int[] {1}, UNCHANGED);
+        }
+    }
+
+    @Test
+    void rawTask0052RunRejectsDistinctLiveValuesSharingOnePhysicalBuffer() {
+        try (RawAbi abi = RawAbi.open();
+                Arena arena = Arena.ofConfined()) {
+            MetalMpsGraphProgram program = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.binary(
+                            MetalMpsGraphProgram.NodeKind.TENSOR_MIN, 0, 1, 2)));
+            MetalNativeApi.Handle executable = abi.api.createMpsGraphExecutable(
+                    abi.context,
+                    io.github.pho001.synaptik.config.compile.NumericalProfile.ACCELERATOR,
+                    new int[] {1, 1, 1},
+                    dimensions(new long[][] {{2}, {2}, {2}}),
+                    program,
+                    new int[] {0, 1},
+                    new int[] {2});
+            MetalNativeApi.Handle left = abi.api.createBuffer(abi.context, 8);
+            MetalNativeApi.Handle right = abi.api.createBuffer(abi.context, 8);
+            try {
+                MemorySegment values = arena.allocate(ADDRESS, 3);
+                values.setAtIndex(ADDRESS, 0, left.carrier());
+                values.setAtIndex(ADDRESS, 1, right.carrier());
+                values.setAtIndex(ADDRESS, 2, left.carrier());
+                MemorySegment target = arena.allocate(ADDRESS);
+                target.set(ADDRESS, 0L, left.carrier());
+
+                MetalNativeApi.NativeFailure failure = assertThrows(
+                        MetalNativeApi.NativeFailure.class,
+                        () -> abi.api.runExecutable(executable, 3, values, 1, target));
+
+                assertEquals(MetalNativeApi.Status.INCOMPATIBLE_RESOURCE, failure.status());
+            } finally {
+                abi.api.releaseBuffer(right);
+                abi.api.releaseBuffer(left);
+                abi.api.releaseExecutable(executable);
+            }
         }
     }
 
