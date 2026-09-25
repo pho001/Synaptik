@@ -123,7 +123,11 @@ Training-to-Metal optimizer bridge.
   run. Task 0052 independently completed Gate 1A/API, Gate 1B custom-route proof, and exactly one
   capability-false Apple M3 Max oracle; every opaque direct candidate is `DOMAIN-BLOCKED` and every
   custom candidate passed. Its exact custom source, validator, audit, wrapper, and proof remain
-  permanently reviewable under [`evidence/0052/`](evidence/0052/README.md). No Metal task is Ready.
+  permanently reviewable under [`evidence/0052/`](evidence/0052/README.md). Documentation/audit-only
+  Task 0054 is Complete from post-0053 base `93b3d379`: the current ACCELERATOR ledger is exactly
+  115 operation-kind constants partitioned as 19 with at least one bounded true domain, 2 owned by
+  0051/0053, 15 owned by 0052, and 79 remaining false. No capability changed and no Metal task is
+  Ready.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
   requirements. Metal 0017 remains Blocked under its old accelerator-reduction contract.
@@ -311,6 +315,7 @@ before extracting a package or widening another type.
 | 0051 | [ACCELERATOR FLOAT32 EXP/SIGMOID recursive-floor realization](tasks/0051-accelerator-float32-exp-sigmoid-recursive-floor-realization.md) | Blocked | Model 0030/0031 Complete and independently approved; 0050 current packaged baseline; retained 0016 device evidence | Every concurrent Metal capability/schema/native-preflight/candidate/codec/tuning/public Engine scope and shared numerical-profile documentation | None | Planned at `3a818745`; one capability-false 83-word regression oracle consumed; Gate-1B evidence correction; superseded by 0053 for all future candidate/proof/oracle/cost/production work | Retained oracle hashes/verdicts; Gate-1B per-candidate ledger; successor obligations transferred to 0053; no new device, native, timing, build, test, schema, identity, capability, or production action | Historical record only: direct EXP and its composed SIGMOID are `DOMAIN-BLOCKED` despite bounded numerical passes; original custom EXP/custom SIGMOID/direct SIGMOID retain failures; its oracle is never rerun. |
 | 0052 | [ACCELERATOR FLOAT32 comparisons, extrema, and scans](tasks/0052-accelerator-float32-comparisons-extrema-scans.md) | Blocked | Model 0030/0031 Complete and independently approved; 0050 current packaged baseline; retained 0010/0012/0013 evidence; current Compiler capture | Every concurrent Metal capability/schema/native-preflight/candidate/codec/tuning/public Engine scope and shared numerical-profile documentation; no Task-0051/0053 production overlap | None | Planned/remediated from `f2debef3`; Gate 1A/API plus distinct complete-domain proof and sole capability-false oracle from `bd5c40d3`; exact custom proof package recovered and retained under [evidence/0052](evidence/0052/README.md); stop before cost on missing trace instrumentation; future one bounded all-survivor cost group and fixed per-operation routes | Hash-revalidated proof/source/validator/audit/wrapper; exactly one 98-output Apple M3 Max process invocation; offline exact verdict; Markdown/status/diff/path/disposable-artifact checks; no rerun, timing, capture, build, test, native production, or capability action | All opaque direct candidates are `DOMAIN-BLOCKED`; all 16 custom candidates are `DOMAIN-PASS` and numerical `PASS`; bounded evidence cannot replace domain proof; no route was selected because actual dispatch/peak-transient trace facts remain unavailable. |
 | 0053 | [Certified ACCELERATOR FLOAT32 custom EXP and stable SIGMOID](tasks/0053-certified-accelerator-float32-custom-exp-stable-sigmoid.md) | Blocked | Model 0030/0031 Complete and independently approved; 0051 preserved consumed evidence; 0050 packaged baseline; concrete pinned proof toolchain; supported full-Xcode dispatch/peak-transient trace reader | Every concurrent Metal capability/schema/native-preflight/candidate/codec/tuning/public Engine scope and shared numerical-profile documentation; Task-0052 task/evidence | None | Concrete source/constants/manifests and kernel-checked complete-domain proof → independent read-only approval → exactly one new successor oracle → all-survivor instrumented cost → fixed routes → separately reviewed production cutover | Planning links/fences/status/path/diff only now; future proof/source hash and complete-domain review, then one frozen-corpus oracle and actual dispatch/peak-transient evidence; never rerun 0051 | Supersedes 0051 for future work; custom EXP and recursively proved stable SIGMOID are `DOMAIN-PENDING`, current opaque direct/inherited routes remain `DOMAIN-BLOCKED`, and no device/schema/capability action is authorized while either prerequisite is absent. |
+| 0054 | [Current ACCELERATOR 115-kind completeness audit](tasks/0054-current-accelerator-115-kind-completeness-audit.md) | Complete | 0051–0053 current records and reviewed 0052 evidence; current Model enums, Metal capability/private schema, and Compiler gradient capture at `93b3d379` | Every production, capability, schema, identity, native, test, evidence, proof, device, timing, trace, or build scope | None | Documentation/read-only audit only; no successor task made Ready | Enum/ledger recomputation; exact `19+2+15+79=115` and 79-kind blocker-partition sums; Markdown links/fences/newlines/status and diff checks | Records every current Model operation-kind constant exactly once, corrects stale Task-0052/0053 claims, documents bounded true rows plus false dtype/shape/layout/gradient rows, private schema/type/cardinality blockers, and the serial dependency partition. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -347,6 +352,8 @@ Completed profile spine and serial successors:
 `0049 (Complete) -> 0050 (Complete final program verification)`
 
 `Model 0031 (Complete) -> Model 0030 (Complete) -> {0051 (historical Blocked after its consumed oracle) -> 0053 (Blocked on concrete machine-checked complete-domain proof plus full-Xcode GPU-trace instrumentation before its newly authorized oracle), 0052 (Blocked after its sole oracle on GPU-trace instrumentation)}`
+
+`0051 (historical Blocked) + 0052 (Blocked with reviewed Gate-1/Gate-2 evidence) + 0053 (Blocked successor) + current Model/Metal/Compiler source -> 0054 (Complete read-only 115-kind audit)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -411,8 +418,11 @@ supported full-Xcode actual-dispatch/peak-transient trace tooling before its one
 oracle. [0052](tasks/0052-accelerator-float32-comparisons-extrema-scans.md) is independently
 Blocked after Gate 1A/API, Gate 1B custom-route proof, and its sole numerical oracle, before timing
 on the same trace prerequisite. Its exact Gate-1 custom source and proof package remains retained
-under [`evidence/0052/`](evidence/0052/README.md). No Metal task is Ready. Every other Metal task
-retains its recorded status.
+under [`evidence/0052/`](evidence/0052/README.md).
+[0054](tasks/0054-current-accelerator-115-kind-completeness-audit.md) is Complete as a read-only
+post-0053 inventory: exactly `19 + 2 + 15 + 79 = 115`, with all unlisted dtype/shape/layout/
+gradient rows still false and no schema/capability change. No Metal task is Ready. Every other Metal
+task retains its recorded status.
 These edges serialize shared Metal mutation; they do not claim that one operation family requires
 another.
 
@@ -433,6 +443,9 @@ another.
   roadmap; neither may consume schema/wire/identity values or edit the other's task/evidence while
   both remain Blocked. No overlapping CI, distribution, benchmark-protocol,
   async/device-selection, or shared-document work is authorized while no Metal task is Ready.
+- Complete Task 0054 owns only the current 115-kind audit and serial blocker partition. It grants no
+  production scope, does not mutate retained evidence, and must be regenerated after any Model enum,
+  Metal capability/schema, Compiler gradient-registry, or 0051–0053 status change.
 - Complete Metal 0044 owns its documentation/audit no-change record; no active owner may reinterpret
   its bounded report as a winner or production decision.
 - Complete Metal 0043 retains its reviewed benchmark implementation and evidence; Complete Metal
@@ -529,7 +542,8 @@ runner. Task 0048 is Complete at independently approved implementation `89f9fbb9
 only Task 0049 is Complete after approved P1 remediation `6d4246f7`. Evidence-only Task 0050
 completed the final packaged/extracted-Metal 87-task repository build; Task 0051 is the preserved
 Blocked consumed-oracle record, Task 0053 is Blocked before proof approval/new oracle/trace-backed
-cost, Task 0052 is Blocked after its proof/oracle and before timing, and no Metal task is Ready.
+cost, Task 0052 is Blocked after its proof/oracle and before timing, Task 0054 is the Complete
+read-only `19+2+15+79=115` inventory, and no Metal task is Ready.
 
 Metal 0006 remains historically `Blocked` after its frozen direct-selector
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH special-class and sign gate failures. Complete Model 0030
@@ -617,6 +631,16 @@ evidence recovery. The bounded sample remains regression evidence only. Every cu
 enter one future measured cost comparison, with custom/composed used only as the final tie-break
 order. Missing actual-dispatch/peak-transient trace tooling blocked that comparison, so no route or
 capability was selected.
+
+[0054](tasks/0054-current-accelerator-115-kind-completeness-audit.md) completes the read-only
+post-0053 completeness audit. Current source has 40 `OperationKind` enums and exactly 115 constants:
+19 have at least one bounded ACCELERATOR capability-true occurrence, EXP/SIGMOID are the two false
+0051/0053 kinds, 0052 owns 15 false kinds despite its 16 passing custom candidates, and the other 79
+false kinds are partitioned exactly across 12 serial blocker workstreams. The audit records current
+schema-11/wire-1..19/attribute-0..6, FLOAT32/INT32/BOOL, one-output and one-to-three-input private
+boundaries; the 38/111 Compiler gradient-registry text drift; and explicit false dtype/shape/layout/
+generated-gradient rows. It ran no device, build, test, proof, timing, or trace and changed no
+capability, schema, identity, production source, or retained evidence.
 Gross class/sign-failing direct selectors for `RECIPROCAL`, `LOG`, `SQRT`, `RSQRT`, `RELU`, and
 `TANH` remain unusable; a conforming custom or
 composed route would still require complete formula, schema, capability, and route proof.
