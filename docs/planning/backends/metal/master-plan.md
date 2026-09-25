@@ -94,10 +94,10 @@ Training-to-Metal optimizer bridge.
   review returned `APPROVE` with zero findings. Task 0043 is Complete at remediation
   `77e6091b2a452faa04fa2b674bc295ddc7be88b7` after same-reviewer Class C approval with zero
   remaining findings. Task 0044 is Complete as a documentation/audit no-change evaluation from
-  planning revision `3d458b7a1d356f32fcd2c04de408ae9aa22355b0`. Task 0045 is the sole Ready
-  frontier for an ad-hoc-signed, independently verified local macOS arm64 package; it adds no
+  planning revision `3d458b7a1d356f32fcd2c04de408ae9aa22355b0`. Task 0045 is Review needed
+  after implementing and validating its ad-hoc-signed local macOS arm64 package; it adds no
   Developer ID, notarization, authentication, publication, archive, Gradle, loader, ABI, or native
-  source change.
+  source change. No Metal task is Ready.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
   requirements. Metal 0017 remains Blocked under its old accelerator-reduction contract.
@@ -193,10 +193,11 @@ Training-to-Metal optimizer bridge.
 - Task 0044 is Complete from planning revision `3d458b7a1d356f32fcd2c04de408ae9aa22355b0`.
   It records the bounded report-only facts and retains both singleton-`NEG` routes plus the existing
   no-selected-decision safe heuristic without a performance endorsement or production change.
-- Task 0045 is Ready from clean base `7dc4cfec2a051b5ca9c0734f91d0fdc96ad7405b`.
-  It owns only the native build/package/verifier scripts, native README, and synchronized planning
-  needed for one ad-hoc-signed local package. Developer ID, notarization, distribution
-  configuration, archive, publication, and loader discovery remain outside its scope.
+- Task 0045 is Review needed from clean base `7dc4cfec2a051b5ca9c0734f91d0fdc96ad7405b`
+  after its package/Mach-O/signature/tamper and packaged-dylib Metal/Engine checks passed. It owns
+  only the native build/package/verifier scripts, native README, and synchronized planning.
+  Developer ID, notarization, distribution configuration, archive, publication, and loader
+  discovery remain outside its scope.
 - Production dependencies may point to Model, Config, Planning, Runtime, Prepare,
   Backend Contract, and Trace, never Engine or Training. Task 0002's Compiler edge is test-only.
 
@@ -265,7 +266,7 @@ before extracting a package or widening another type.
 | 0042 | [Metal route tuning workflow](tasks/0042-metal-route-tuning-workflow.md) | Complete | Metal 0004/0041; Prepare 0004/0008; tools/tuning 0001–0002/0004; Config 0006A–0006B; CPU 0010I–0010J precedent; Engine 0006A–0009/0011/0015–0018; Runtime 0016 | Every concurrent Metal integration/preparation/candidate/codec/trace/API scope; Engine tuning/composition/lifecycle/fallback; CPU tuning identities; tools/tuning/API/architecture/master/roadmap documents | None | Implemented at `9feb2505705263b6efb417d606678c606c2b9598` from exact base `31ab01a65ff1e4842a43471a54e74544fb603760`; final independent Class C review approved with zero findings | Lean fake-native Metal collaboration tests; focused Engine and CPU identity/behavior regressions; one actual public `prepareTuned`→run singleton-NEG scenario; architecture/Javadocs/docs/diff; one full build; independent review | Completed retained opaque Metal local and fixed complete-plan collaborations, session-only two-route tuning, and the minimum private Engine adapter/backend-neutral fallback while preserving public Config/result, CPU identity bytes, native ABI/schema/capability, and all excluded ownership domains. |
 | 0043 | [Reproducible Metal route benchmark](tasks/0043-reproducible-metal-route-benchmark.md) | Complete | 0042 Complete and independently approved; benchmark 0001/CPU 0010M protocol precedent; current public Compiler/Prepare/Runtime/Trace/Metal collaborations | Every concurrent benchmark build/report/schema/documentation scope and Metal candidate/trace/API/master/roadmap documents | None | Implemented from planning base `1d8f8cb03cb631ab59c25bbfa025369f4d2547e9`; P2 remediation at `77e6091b2a452faa04fa2b674bc295ddc7be88b7`; same-reviewer Class C rereview approved with zero remaining findings | Focused benchmark build/Javadocs; updated actual smoke and metadata-complete baseline; parsed JSON/failure/docs/diff checks; no full build or matrix | Completed schema-1 report-only `[1_048_576]` singleton FLOAT32 NEG benchmark over both opaque candidates with thread-safe snapshot attestation, reconstructible generator schema 2, exact raw-bit checks, paired alternating samples, and no winner/cache/threshold or retained result artifact. |
 | 0044 | [Custom singleton-NEG benchmark evaluation and no-change closure](tasks/0044-custom-singleton-neg-benchmark-evaluation.md) | Complete | 0043 Complete and same-reviewer approved at `77e6091b2a452faa04fa2b674bc295ddc7be88b7`; updated reviewed Task 0043 baseline facts | Every concurrent Metal route/default/candidate/benchmark-evaluation scope and the same task/master/roadmap planning documents | None | Executed from exact planning revision `3d458b7a1d356f32fcd2c04de408ae9aa22355b0`; direct Class A completion after documentation validation | Exact report-fact audit and changed-Markdown/link/fence/newline/trailing-whitespace/forbidden-claim/path/diff checks passed; no build, test, native action, or measurement | Completed the no-change closure: both routes are exact only for the frozen case; both and the existing CUSTOM_SINGLE_NEG no-selected-decision safe heuristic remain; no winner, performance endorsement, default/order/policy/cache/removal/threshold/Shape-special-case change is authorized. |
-| 0045 | [Verified local macOS arm64 native package](tasks/0045-verified-local-native-package.md) | Ready | 0025 Complete for ABI v4/schema 11; 0044 Complete as the serialized frontier | Native Metal build/package/README and master/roadmap edits; every Gradle distribution, native discovery, release-signing, or publication scope | None | Serial before any native distribution-configuration task | Atomic build/package; exact Mach-O/dependency/export/signature/manifest/checksum checks; repeated/copy/tamper proofs; packaged-dylib Metal and Engine integration; docs/diff review | Produce an ad-hoc-signed verified local package only, with no Developer ID, notarization, authentication, archive, publication, Gradle, Java, ABI, or native-source change. |
+| 0045 | [Verified local macOS arm64 native package](tasks/0045-verified-local-native-package.md) | Review needed | 0025 Complete for ABI v4/schema 11; 0044 Complete as the serialized frontier | Native Metal build/package/README and master/roadmap edits; every Gradle distribution, native discovery, release-signing, or publication scope | None | Serial before any native distribution-configuration task | Atomic build/package, exact Mach-O/dependency/export/signature/manifest/checksum, repeat/copy/eight tamper proofs, 126 packaged-dylib Metal tests, and 15 Engine integration tests passed; Class C review pending | Implemented an ad-hoc-signed verified local package only, with no Developer ID, notarization, authentication, archive, publication, Gradle, Java, ABI, or native-source change. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -293,7 +294,7 @@ Completed profile spine and serial successors:
 
 `Trace 0003 (Complete) -> 0041 (Complete)`
 
-`0004 (Complete) + 0041 (Complete) + Engine 0009/0015–0018 (Complete) + tools/tuning 0001–0002 (Complete) -> 0042 (Complete) -> 0043 (Complete) -> 0044 (Complete) -> 0045 (Ready)`
+`0004 (Complete) + 0041 (Complete) + Engine 0009/0015–0018 (Complete) + tools/tuning 0001–0002 (Complete) -> 0042 (Complete) -> 0043 (Complete) -> 0044 (Complete) -> 0045 (Review needed)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -338,17 +339,18 @@ plus remediation `386705ca` after final independent Class C approval with zero f
 `APPROVE` with zero findings. [0043](tasks/0043-reproducible-metal-route-benchmark.md) is Complete
 at remediation `77e6091b2a452faa04fa2b674bc295ddc7be88b7` after same-reviewer Class C approval with zero
 remaining findings. [0044](tasks/0044-custom-singleton-neg-benchmark-evaluation.md) is Complete.
-[0045](tasks/0045-verified-local-native-package.md) is the sole Ready Metal frontier from clean base
-`7dc4cfec2a051b5ca9c0734f91d0fdc96ad7405b`. Every other Metal task retains its recorded status.
+[0045](tasks/0045-verified-local-native-package.md) is Review needed after its implementation and
+validation from clean base `7dc4cfec2a051b5ca9c0734f91d0fdc96ad7405b`; no Metal task is Ready.
+Every other Metal task retains its recorded status.
 These edges serialize shared Metal mutation; they do not claim that one operation family requires
 another.
 
 ## Integration ownership and shared documents
 
-- Ready Task 0045 exclusively owns the native build/package/verifier scripts, native README, and
-  its Metal master/roadmap status until independent Class C review. No concurrent Gradle
-  distribution, native discovery, release-signing, notarization, publication, or shared-document
-  work is authorized.
+- Review-needed Task 0045 exclusively owns the native build/package/verifier scripts, native
+  README, and its Metal master/roadmap status until independent Class C review. No concurrent
+  Gradle distribution, native discovery, release-signing, notarization, publication, or
+  shared-document work is authorized.
 - Complete Metal 0044 owns its documentation/audit no-change record; no active owner may reinterpret
   its bounded report as a winner or production decision.
 - Complete Metal 0043 retains its reviewed benchmark implementation and evidence; Complete Metal
@@ -435,9 +437,9 @@ its artifacts were removed and production remains unchanged. Task 0041 is Comple
 implementation `ba16d942` plus remediation `386705ca` after final independent Class C approval
 with zero findings. Documentation/audit-only Task 0038 is Complete. Task 0042 is Complete at
 `9feb2505705263b6efb417d606678c606c2b9598` after final independent Class C approval with zero
-findings. Tasks 0043–0044 are Complete. Task 0045 is the sole Ready Metal frontier for a verified
-ad-hoc local native package; it is not a Developer-ID-signed, notarized, authenticated, archived,
-published, or public release artifact.
+findings. Tasks 0043–0044 are Complete. Task 0045 is Review needed after its verified ad-hoc local
+native package implementation and validation; it is not a Developer-ID-signed, notarized,
+authenticated, archived, published, or public release artifact. No Metal task is Ready.
 
 Metal 0006 remains `Blocked` after exact RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures.
 Metal 0007 remains independently `Blocked` after eight direct-output executions returned positive

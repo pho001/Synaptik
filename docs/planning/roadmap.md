@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through documentation/audit-only 0044; 0045 Ready; recorded blockers retained | [Metal 0045](backends/metal/tasks/0045-verified-local-native-package.md) is the sole Ready frontier for an ad-hoc-signed verified local macOS arm64 package; it is not Developer-ID-signed, notarized, authenticated, archived, published, or a public release. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through documentation/audit-only 0044; 0045 Review needed; recorded blockers retained | [Metal 0045](backends/metal/tasks/0045-verified-local-native-package.md) implemented and validated the ad-hoc-signed local macOS arm64 package; independent Class C review is pending, no Metal task is Ready, and the artifact is not Developer-ID-signed, notarized, authenticated, archived, published, or a public release. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -100,14 +100,15 @@ bounded descriptive evidence and a no-change conclusion: retain both routes and 
 `CUSTOM_SINGLE_NEG` no-selected-decision safe heuristic without a winner, performance endorsement,
 or production change.
 
-[Metal 0045](backends/metal/tasks/0045-verified-local-native-package.md) is the sole Ready Metal
-frontier from clean base `7dc4cfec2a051b5ca9c0734f91d0fdc96ad7405b`. It owns only an atomic
-macOS-arm64 build, explicit ad-hoc signing input, independently verified schema-1 local package,
-checksums, native README, and synchronized planning. It preserves the ABI, native source, Java,
-Gradle, absolute-path loader, and public release boundary. Developer ID, notarization,
-authentication, archive, publication, CI, and distribution configuration are excluded.
+[Metal 0045](backends/metal/tasks/0045-verified-local-native-package.md) is Review needed after
+implementation and validation from clean base `7dc4cfec2a051b5ca9c0734f91d0fdc96ad7405b`.
+Its atomic macOS-arm64 build, explicitly ad-hoc-signed schema-1 local package, independent
+verification, repeat/copy/tamper proofs, and packaged-dylib Metal/Engine tests passed. It preserves
+the ABI, native source, Java, Gradle, absolute-path loader, and public release boundary. Developer
+ID, notarization, authentication, archive, publication, CI, and distribution configuration are
+excluded; no Metal task is Ready.
 
-`Metal 0004 (Complete) + Metal 0041 (Complete) + Engine 0009/0015–0018 (Complete) + tools/tuning 0001–0002 (Complete) -> Metal 0042 (Complete) -> Metal 0043 (Complete) -> Metal 0044 (Complete) -> Metal 0045 (Ready)`
+`Metal 0004 (Complete) + Metal 0041 (Complete) + Engine 0009/0015–0018 (Complete) + tools/tuning 0001–0002 (Complete) -> Metal 0042 (Complete) -> Metal 0043 (Complete) -> Metal 0044 (Complete) -> Metal 0045 (Review needed)`
 
 Numerical profiles
 
@@ -156,8 +157,8 @@ remain unrelaxed. None changed production. Documentation/audit-only Metal 0038 i
 0040 is Blocked after its one BFLOAT16 Gather gate canonicalized the first selected signaling NaN.
 Metal 0041 is Complete at implementation `ba16d942` plus remediation `386705ca` after final Class C
 approval with zero findings. Metal 0042 is Complete at `9feb2505`; Metal 0043 is Complete at
-`77e6091b`; Metal 0044 is Complete from planning revision `3d458b7a`; Metal 0045 is Ready from
-clean base `7dc4cfec`.
+`77e6091b`; Metal 0044 is Complete from planning revision `3d458b7a`; Metal 0045 is Review needed
+after implementation and validation from clean base `7dc4cfec`.
 
 Task 0019 landed at implementation `a6d1796d` plus mixed-owner test remediation `bcb717a6`. Its
 native ABI/export, Metal, conformance, real Engine, architecture, full-build, documentation, and
@@ -371,7 +372,7 @@ production behavior. Metal 0042 now consumes only the existing version-twelve si
 tuning foundation through public retained collaborations and private Engine composition. Schema
 12/wires beginning at 20/attribute 7, local type 4, INT64 type/ingress, ABI/export changes, and
 version-thirteen identities remain unimplemented and unreserved. Documentation/audit-only Metal
-0038 and Metal 0042–0044 are Complete; Metal 0045 is the sole Ready frontier.
+0038 and Metal 0042–0044 are Complete; Metal 0045 is Review needed and no Metal task is Ready.
 
 Strategic gate: historical blocker evidence is preserved, and no backend task may define Model
 semantics. Complete Model 0028 owns bounded reduction exact-zero sign freedom; Complete Metal 0020
@@ -471,8 +472,8 @@ schema.
   0017, Trace 0003, and Metal
   0015/0019/0020/0021/0022/0023/0024/0025/0038/0041/0042/0043/0044 are Complete.
   Metal 0016–0018, 0026–0027, 0030–0037, planning-only 0039, and failed-gate 0040 remain Blocked
-  under their recorded contracts. Metal 0045 is the sole Ready frontier; every blocked operation
-  family remains unauthorized.
+  under their recorded contracts. Metal 0045 is Review needed; every blocked operation family
+  remains unauthorized, and no Metal task is Ready.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -486,13 +487,13 @@ schema.
 
 ## Nearest next step
 
-Metal 0045 is the sole Ready frontier from clean base
-`7dc4cfec2a051b5ca9c0734f91d0fdc96ad7405b`. It produces one atomic, ad-hoc-signed, independently
-verified schema-1 local macOS arm64 package and updates only its native build/package/verifier
-scripts, native README, task, Metal master, and roadmap. It preserves native source, ABI v4,
-schema 11, Java, Gradle, and the caller-selected absolute-path loader. Developer ID, notarization,
-authentication, archive, publication, CI, public release, and distribution configuration remain
-outside its scope.
+Metal 0045 is Review needed after implementing and validating the exact seven-path scope from clean
+base `7dc4cfec2a051b5ca9c0734f91d0fdc96ad7405b`. Its atomic macOS-arm64 build, explicit ad-hoc
+signing input, independently verified schema-1 package, repeat/copy/eight tamper proofs, 126 Metal
+tests, and 15 Engine integration tests passed. It preserves native source, ABI v4, schema 11, Java,
+Gradle, and the caller-selected absolute-path loader. Developer ID, notarization, authentication,
+archive, publication, CI, public release, and distribution configuration remain outside scope.
+Independent Class C review is pending; no Metal task is Ready.
 
 Metal 0040 is Blocked from exact clean planning revision
 `c300582727ec568a7482dd974f9d1b2e2e13f82c`. Its sole disposable direct BFLOAT16 Gather program
@@ -577,8 +578,8 @@ finalized Blocked. Documentation/audit-only Metal 0038 is Complete. Planning-onl
 Blocked on Draft Model 0026. Metal 0040 is Blocked by its failed one-execution BFLOAT16 raw-bit
 gate. Metal 0041 is Complete at implementation `ba16d942` plus remediation `386705ca` after final
 approval with zero findings. Metal 0042 is Complete at `9feb2505705263b6efb417d606678c606c2b9598`;
-Metal 0043 is Complete at remediation `77e6091b`; Metal 0044 is Complete; Metal 0045 is the sole
-Ready frontier.
+Metal 0043 is Complete at remediation `77e6091b`; Metal 0044 is Complete; Metal 0045 is Review
+needed after implementation and validation, and no Metal task is Ready.
 
 ## History policy
 

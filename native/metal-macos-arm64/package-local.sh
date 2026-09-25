@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export LC_ALL=C
+umask 022
+
+readonly LIBRARY_NAME="libsynaptik_metal_foundation.dylib"
+readonly INSTALL_NAME="@rpath/libsynaptik_metal_foundation.dylib"
+readonly SIGNATURE_IDENTIFIER="io.github.pho001.synaptik.metal.foundation"
+readonly MANIFEST_NAME="manifest.json"
+readonly CHECKSUM_NAME="SHA256SUMS"
+
+fail() {
+    printf 'package-local: %s\n' "$*" >&2
+    exit 1
+}
+
+if [[ "$#" -ne 1 ]]; then
+    fail "usage: $0 AD_HOC_SIGNED_DYLIB"
+fi
+
+INPUT="$1"
+[[ ! -L "${INPUT}" ]] || fail "input dylib must not be a symlink"
+[[ -f "${INPUT}" ]] || fail "input dylib must be a regular file"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+VERIFY_SCRIPT="${SCRIPT_DIR}/verify-package.sh"
+BUILD_DIR="${SCRIPT_DIR}/build"
+PACKAGE_PARENT="${BUILD_DIR}/package-v1"
+FINAL_PACKAGE="${PACKAGE_PARENT}/macos-arm64"
+STAGING_DIR=""
+BACKUP_ROOT=""
+OLD_PACKAGE_MOVED=0
+PUBLISHED=0
+
+cleanup() {
+    if [[ -n "${STAGING_DIR}" && -d "${STAGING_DIR}" ]]; then
+        rm -rf -- "${STAGING_DIR}"
+    fi
+    if [[ "${OLD_PACKAGE_MOVED}" -eq 1 && "${PUBLISHED}" -eq 0 \
+            && -n "${BACKUP_ROOT}" && -d "${BACKUP_ROOT}/macos-arm64" \
+            && ! -e "${FINAL_PACKAGE}" && ! -L "${FINAL_PACKAGE}" ]]; then
+        if mv -- "${BACKUP_ROOT}/macos-arm64" "${FINAL_PACKAGE}"; then
+            OLD_PACKAGE_MOVED=0
+        else
+            printf 'package-local: failed to restore previous package from %s\n' \
+                "${BACKUP_ROOT}/macos-arm64" >&2
+        fi
+    fi
+    if [[ -n "${BACKUP_ROOT}" && -d "${BACKUP_ROOT}" \
+            && ! -e "${BACKUP_ROOT}/macos-arm64" && ! -L "${BACKUP_ROOT}/macos-arm64" ]]; then
+        rmdir "${BACKUP_ROOT}" 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT
+
+mkdir -p -- "${PACKAGE_PARENT}"
+[[ ! -L "${PACKAGE_PARENT}" && -d "${PACKAGE_PARENT}" ]] \
+    || fail "package parent must be a real directory"
+[[ -f "${VERIFY_SCRIPT}" && -x "${VERIFY_SCRIPT}" && ! -L "${VERIFY_SCRIPT}" ]] \
+    || fail "package verifier must be an executable regular repository file"
+
+STAGING_DIR="$(mktemp -d "${PACKAGE_PARENT}/.macos-arm64.stage.XXXXXX")"
+STAGED_LIBRARY="${STAGING_DIR}/${LIBRARY_NAME}"
+STAGED_MANIFEST="${STAGING_DIR}/${MANIFEST_NAME}"
+STAGED_CHECKSUMS="${STAGING_DIR}/${CHECKSUM_NAME}"
+
+install -m 0755 "${INPUT}" "${STAGED_LIBRARY}"
+LIBRARY_SIZE="$(stat -f '%z' "${STAGED_LIBRARY}")"
+LIBRARY_SHA256="$(shasum -a 256 "${STAGED_LIBRARY}" | awk '{ print $1 }')"
+[[ "${LIBRARY_SHA256}" =~ ^[0-9a-f]{64}$ ]] || fail "library SHA-256 is malformed"
+
+printf '%s\n' \
+    "{\"schemaVersion\":1,\"artifact\":{\"file\":\"${LIBRARY_NAME}\",\"size\":${LIBRARY_SIZE},\"sha256\":\"${LIBRARY_SHA256}\"},\"platform\":\"macos\",\"architecture\":\"arm64\",\"minimumMacosVersion\":\"26.0\",\"installName\":\"${INSTALL_NAME}\",\"rpaths\":[],\"nativeAbiVersion\":4,\"nodeSchemaVersion\":11,\"linkedFrameworks\":[\"Foundation\",\"Metal\",\"MetalPerformanceShadersGraph\"],\"signature\":{\"kind\":\"adhoc\",\"identifier\":\"${SIGNATURE_IDENTIFIER}\"}}" \
+    > "${STAGED_MANIFEST}"
+chmod 0644 "${STAGED_MANIFEST}"
+
+MANIFEST_SHA256="$(shasum -a 256 "${STAGED_MANIFEST}" | awk '{ print $1 }')"
+[[ "${MANIFEST_SHA256}" =~ ^[0-9a-f]{64}$ ]] || fail "manifest SHA-256 is malformed"
+printf '%s  %s\n%s  %s\n' \
+    "${LIBRARY_SHA256}" "${LIBRARY_NAME}" \
+    "${MANIFEST_SHA256}" "${MANIFEST_NAME}" \
+    > "${STAGED_CHECKSUMS}"
+chmod 0644 "${STAGED_CHECKSUMS}"
+
+"${VERIFY_SCRIPT}" "${STAGING_DIR}"
+
+if [[ -L "${FINAL_PACKAGE}" ]]; then
+    fail "refusing to replace a symlink package path"
+fi
+if [[ -e "${FINAL_PACKAGE}" ]]; then
+    [[ -d "${FINAL_PACKAGE}" ]] || fail "existing package path is not a directory"
+    BACKUP_ROOT="$(mktemp -d "${PACKAGE_PARENT}/.macos-arm64.previous.XXXXXX")"
+    mv -- "${FINAL_PACKAGE}" "${BACKUP_ROOT}/macos-arm64"
+    OLD_PACKAGE_MOVED=1
+fi
+
+mv -- "${STAGING_DIR}" "${FINAL_PACKAGE}"
+STAGING_DIR=""
+PUBLISHED=1
+
+if [[ "${OLD_PACKAGE_MOVED}" -eq 1 ]]; then
+    rm -rf -- "${BACKUP_ROOT}/macos-arm64"
+    OLD_PACKAGE_MOVED=0
+fi
+if [[ -n "${BACKUP_ROOT}" ]]; then
+    rmdir "${BACKUP_ROOT}"
+    BACKUP_ROOT=""
+fi
+
+printf 'Published verified local Metal package: %s\n' "${FINAL_PACKAGE}"

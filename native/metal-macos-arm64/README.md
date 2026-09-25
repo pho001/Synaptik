@@ -26,7 +26,7 @@ Java close    -> release persistent/run resources, context, and FFM lookup
 The bridge is backend-private. Its handles are process-local ownership tokens, not caller-visible
 addresses or serialization values.
 
-## Build prerequisites and output
+## Build prerequisites and local package
 
 Build on an Apple-silicon macOS host with Xcode Command Line Tools:
 
@@ -34,10 +34,40 @@ Build on an Apple-silicon macOS host with Xcode Command Line Tools:
 ./native/metal-macos-arm64/build.sh
 ```
 
-The script targets arm64, enables automatic reference counting (ARC), and links Foundation,
-Metal, and MetalPerformanceShadersGraph. It writes only
-`native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib`. The ignored binary is not a
-packaged, signed, notarized, or published artifact; Java callers supply its absolute path.
+The script targets exactly arm64 and macOS 26.0, enables automatic reference counting (ARC), sets
+the install name to `@rpath/libsynaptik_metal_foundation.dylib`, adds no rpath, and links
+Foundation, Metal, and MetalPerformanceShadersGraph. It compiles in a private directory and
+atomically replaces only
+`native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib` after success.
+
+Explicitly replace the linker's incidental signature with the fixed local ad-hoc identity, then
+package and independently verify the final signed bytes:
+
+```bash
+/usr/bin/codesign --force --sign - --timestamp=none \
+  --identifier io.github.pho001.synaptik.metal.foundation \
+  native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib
+./native/metal-macos-arm64/package-local.sh \
+  native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib
+./native/metal-macos-arm64/verify-package.sh \
+  native/metal-macos-arm64/build/package-v1/macos-arm64
+```
+
+The ignored `build/package-v1/macos-arm64/` directory contains exactly the signed dylib,
+`manifest.json`, and `SHA256SUMS`. The canonical schema-1 manifest records the final dylib's
+relative name, size, SHA-256, platform, architecture, macOS 26.0 minimum, install name, empty
+rpath set, ABI 4, node schema 11, required frameworks, and fixed ad-hoc identifier. It contains no
+time, host, absolute path, source revision, product version, SDK version, Team ID, notarization,
+provenance, or release field. Packaging the same exact signed input produces byte-identical
+manifest and checksum files.
+
+The checksums detect corruption; because they travel with the artifact, they do not authenticate a
+hostile replacement. The ad-hoc signature verifies internal Mach-O integrity but supplies no
+publisher identity or Apple trust. This package is a verified local development artifact, not a
+Developer-ID-signed, notarized, authenticated, archived, published, or public release artifact.
+Developer ID signing, secure credentials/keychain handling, a notarizable distribution container,
+Gradle distribution configuration, versioning, provenance, and publication require separate
+release planning and real externally supplied credentials.
 
 ## ABI version 4
 
@@ -260,24 +290,37 @@ cancellation, timeout, or event-chaining contract is claimed.
 
 ## Validation
 
-Build and inspect the local library with:
+After the build, explicit ad-hoc signing, and package commands above, inspect the packaged dylib:
 
 ```bash
-./native/metal-macos-arm64/build.sh
-file native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib
-nm -gU native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib
-otool -L native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib
+LIB=native/metal-macos-arm64/build/package-v1/macos-arm64/libsynaptik_metal_foundation.dylib
+file "$LIB"
+xcrun lipo -archs "$LIB"
+xcrun vtool -show-build "$LIB"
+otool -hv "$LIB"
+otool -D "$LIB"
+otool -l "$LIB"
+otool -L "$LIB"
+nm -gUj "$LIB"
+/usr/bin/codesign --verify --strict --verbose=4 "$LIB"
+/usr/bin/codesign --display --verbose=4 "$LIB"
+(cd native/metal-macos-arm64/build/package-v1/macos-arm64 && \
+  /usr/bin/shasum -a 256 -c SHA256SUMS)
 ```
 
-The symbol list must contain exactly the thirteen names above, and the link list must contain
-Foundation, Metal, and MetalPerformanceShadersGraph.
+The verifier requires exactly one arm64 Mach-O 64-bit `DYLIB`, minimum macOS 26.0, install name
+`@rpath/libsynaptik_metal_foundation.dylib`, no `LC_RPATH`, only Apple system dependencies, all
+three required framework links, and exactly the thirteen exports above. It also requires a strict
+valid ad-hoc signature with identifier `io.github.pho001.synaptik.metal.foundation` and no Team ID,
+plus the exact three-file schema-1 package, modes, canonical manifest, and checksums. It fails
+closed rather than signing, repairing, normalizing, or accepting an ambiguous package.
 
-Run the opt-in real-device cases against the freshly built dylib:
+Run the opt-in real-device cases against the packaged dylib:
 
 ```bash
-SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" \
+SYNAPTIK_METAL_TEST_LIBRARY="$PWD/$LIB" \
   ./gradlew :backends:metal:test --tests '*Metal*' --rerun-tasks
-SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" \
+SYNAPTIK_METAL_TEST_LIBRARY="$PWD/$LIB" \
   ./gradlew :testing:integration-tests:test \
   --tests '*EngineExplicitCompositionMetalIntegrationTest' --rerun-tasks
 ```
@@ -307,8 +350,9 @@ right transpose, and explicitly seeded gradients for both operands without a CPU
 
 ## Boundaries
 
-The bridge itself implements no library discovery, packaging, Engine composition, mixed-owner
-schedule, CPU fallback, general custom-kernel framework, asynchronous API, buffer pool,
+The bridge itself implements no library discovery, package selection or extraction, Engine
+composition, mixed-owner schedule, CPU fallback, general custom-kernel framework, asynchronous
+API, buffer pool,
 persistent constant buffer, executable serialization, FLOAT16, BFLOAT16, masked/extrema/product
 reductions, unary algebra beyond exact profile-independent `NEG` and `ABS`, binary
 comparison/logical/scalar forms, strict/vector/batched/broadcast MATMUL, general backward

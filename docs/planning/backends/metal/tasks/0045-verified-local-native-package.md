@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Review needed
 
 ## Change class
 
@@ -180,4 +180,19 @@ identity, notarization, distribution, or release claims.
 
 ## Result
 
-Empty until execution and independent review.
+Implemented from planning commit `86553466` and clean base
+`7dc4cfec2a051b5ca9c0734f91d0fdc96ad7405b`. The atomic build now pins arm64, macOS 26.0, the
+exact install name, and no rpath. New local package/verifier scripts emit and independently verify
+the exact three-file ad-hoc schema-1 package without changing native source, ABI, Java, Gradle, or
+loader behavior.
+
+The native build, explicit ad-hoc `codesign`, repeated byte-identity package proof, copied/moved
+package proof, exact checksum and Mach-O checks, and eight corrupt/extra/symlink/manifest/checksum/
+missing-signature/wrong-identifier rejection cases passed. The packaged dylib passed 126 Metal
+tests in 19 suites and 15 explicit Engine composition integration tests with zero failures, errors,
+or skips. Shell syntax, seven-path scope, Markdown, and diff checks passed; no full repository
+build ran.
+
+The result remains a verified local development package only. Developer ID, notarization,
+authentication, archive, distribution, publication, CI, and public release remain excluded.
+Status: Review needed for the mandatory independent Class C review.
