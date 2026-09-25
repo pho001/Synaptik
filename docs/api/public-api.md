@@ -708,6 +708,11 @@ storage, a Tensor value, or guaranteed to be host-accessible. The ordinary Engin
 continues to expose metadata only, and `AdvancedRunResult` continues to expose only result count
 and lifecycle. Neither Engine result exposes the inward representation.
 
+Completion and lifetime are separate: a successful synchronous run has finished its work before
+returning, while the returned Engine/Runtime result may keep completed output resources and
+publication state alive until close. Engine serializes materialization against outward result
+close; Runtime `RunResult` and `RunState` remain non-thread-safe.
+
 One `PreparedExecution` now supplies the current reusable Runtime root and unique persistent-
 resource owner. It retains the exact memory-plan and same-plan schedule references. The
 two-argument constructor remains resource-free; the three-argument constructor privately
@@ -729,6 +734,13 @@ schedule order, and either returns the whole-state result lease or closes the st
 The runner is stateless and may serve concurrent calls; each call remains synchronous and owns
 distinct mutable state. Existing run failure remains primary over lease-cleanup failure. A
 cleanup failure after successful execution closes the new result and prevents its return.
+
+Successful public or Runtime run return is a synchronous completion barrier: all actions and native
+work for that invocation have completed, or no result is returned. `RunResult` is therefore a
+completed-state resource/publication lease, not a future, event, fence, or in-flight completion
+handle. Concurrent callers receive isolated mutable state but gain no promise of device overlap,
+cross-run order, fairness, queue topology, or throughput. The current APIs expose no asynchronous
+run, cancellation, timeout, polling, callback, or completion-stage surface.
 
 These contracts contain no concrete backend implementation and do not provide physical access,
 host/Tensor value access, or Engine behavior. Creator callbacks leave physical allocation mechanics to
@@ -1274,12 +1286,20 @@ already returned result; an already leased Runtime run may finish, and its final
 performs deferred prepared-resource cleanup.
 
 `MetalBackendConfiguration` and `MetalBackendIntegration` are public Metal-owned types. Metal
-validates and snapshots the explicit absolute native-library path and acquires its default-device
-native context before the integration is transferred. Engine neither parses the native-library
-path nor owns a duplicate Metal configuration. The integration supplies partition preparation,
-retained `localWorkloadTuning()` and `completePlanTuning()` collaborations, physical creation
-contribution, exact transfer endpoints, host ingress, materialization, and close in addition to
-capability.
+validates and snapshots the explicit absolute native-library path and acquires one system-default-
+device native context and command queue before the integration is transferred. The configuration
+has no physical-device selector. Engine neither parses the native-library path nor owns a duplicate
+Metal configuration. The integration supplies partition preparation, retained
+`localWorkloadTuning()` and `completePlanTuning()` collaborations, physical creation contribution,
+exact transfer endpoints, host ingress, materialization, execution, and close for that exact
+context in addition to capability.
+
+One Engine can own at most one Metal integration because its registry rejects a duplicate Metal
+`BackendId`. `BackendDeviceId(metal, "default")` is the sole abstract availability slot, not a
+stable physical-device fingerprint or selector; Planning proves eligibility and retains the
+backend owner rather than a selected Metal device. Separate Engines may open separate default
+contexts, but the API provides no enumeration, explicit selection, multi-device scheduling,
+cross-device migration/coherence, failover, or hot-plug behavior.
 
 `MetalTraceObserver` is a public functional interface whose sole abstract method receives
 `TraceEvent<? extends TracePayload>`. Passing a non-null caller-owned thread-safe observer to

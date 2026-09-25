@@ -243,6 +243,18 @@ PreparedExecutionRunner.run(PreparedExecution, callerInputs)
   -> release the prepared-execution run lease before the synchronous call returns
 ```
 
+Successful return is the completion barrier for that invocation: every schedule action and native
+operation has completed, and the published destinations are usable. A failed invocation returns no
+`RunResult`. The returned result is a lease over completed run-state resources and publication
+lifetime, not a future, event, fence, or in-flight command handle. It may remain open after the run
+call; its later close releases run-owned resources independently of the already-released prepared-
+execution lease. Materialization and transfers retain their own synchronous call boundaries.
+
+The Runtime surface has no asynchronous run, cancellation, timeout, polling, callback, or explicit
+completion-event contract. Concurrent calls create isolated state but make no promise of device
+overlap, submission/completion order, fairness, queue behavior, or throughput. Schedule order is
+defined within one invocation only.
+
 One logical value has at most one representation per participating backend owner. A transfer
 copies from the producing owner's representation, or from the first consuming owner's caller-input
 representation when the value has no producer, to one distinct consuming owner's representation.
@@ -360,6 +372,13 @@ using the previously accepted integration. Equality is `BackendId.equals`, not o
 normalized text. The previous entry remains owned and unchanged; the rejected newly transferred
 integration is closed. The registry is private Engine construction state, not a public lookup API,
 global registry, service locator, or discovery mechanism.
+
+For Metal, the equal-`BackendId` rule means one Engine can own at most one
+`MetalBackendIntegration`. That integration has one system-default-device context and queue; its
+`BackendDeviceId(metal, "default")` snapshot entry is an abstract eligibility slot, not a retained
+physical-device selection. Planning retains the owning `BackendId`. Resources stay authenticated
+to the integration's exact context. Separate Engines may open separate contexts, but they are not
+coordinated multi-device execution and may resolve to the same default device.
 
 `Engine.standard()` remains the ordinary CPU convenience. Every call opens one fresh default CPU
 integration and transfers it through the same builder ownership path. It performs no discovery

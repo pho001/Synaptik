@@ -190,6 +190,22 @@ Engine may take ownership of a successfully opened Metal integration, but it mus
 or interpret Metal configuration, discover a library, select a Metal device, or construct native
 Metal state itself. Metal must not depend on Engine.
 
+One `MetalBackendIntegration` owns one `MetalDeviceContext` created through the system-default-
+device path and one associated command queue. Its configuration selects only the caller-supplied
+native library. The availability token `BackendDeviceId(metal, "default")` is the sole abstract
+Metal slot, not a stable hardware fingerprint or public selector. Engine registration is keyed by
+`BackendId`, so one Engine can own at most one Metal integration. Every Metal buffer, workspace,
+route resource, and native handle remains authenticated against its exact context; foreign-context
+and foreign-`MTLDevice` use fails closed.
+
+The current Metal invocation boundary is synchronous: native routes commit and wait for completion
+before successful return. A completed invocation may publish resources into a `RunResult` whose
+ownership outlives that call, so device completion does not imply resource release or authorize a
+general output/workspace pool. Concurrent callers do not imply GPU overlap, cross-run ordering,
+fairness, queue multiplicity, or throughput. There is no async/cancel/timeout API, physical-device
+enumeration or selection, multi-device scheduling, cross-device migration/coherence, failover, or
+hot-plug contract. See [ADR 0020](../../design/decisions/0020-synchronous-single-default-device-metal-execution.md).
+
 The current cross-owner transfer capability is deliberately exact: positive rank-1..16 fully
 static canonical contiguous `FLOAT32` buffers with checked element and byte geometry may move CPU
 to Metal by uploading from a live CPU native representation, or Metal to CPU by downloading into

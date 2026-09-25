@@ -116,6 +116,18 @@ an explicit second operation: while both result and Engine remain open, the call
 exact occurrence object to `materialize(publication, maximumBytes)` and receives a fresh detached
 `HostTensorValue`.
 
+A successful `run(...)` return is the completion barrier for that invocation: every scheduled
+action and native operation has completed and published destinations are usable. Failure returns no
+`RunResult`. The result is a completed-state resource/publication lease, not a future, event, fence,
+or in-flight completion handle; it may remain open after return to own output resources. Engine
+synchronizes materialization against outward result close, while inward Runtime `RunResult` and
+`RunState` remain non-thread-safe.
+
+Repeated or concurrent session calls receive isolated mutable state. They do not promise device
+overlap, submission or completion order, fairness, queue topology, or throughput. The current API
+has no asynchronous run, cancellation, timeout, polling, callback, completion stage, explicit
+event, device enumeration, physical-device selector, or multi-device scheduler.
+
 Closing a result releases its inward Runtime lease and Engine-created wrappers but never caller
 storage. Closing an inference session or standalone prepared handle rejects later run admission
 without closing an already returned result. Delegate retrieval is synchronized with the inward
@@ -1224,6 +1236,11 @@ RunResult result = runner.run(execution, callerInputs);
 - A run failure remains primary if deferred persistent-resource cleanup also fails. If execution
   succeeded but lease cleanup fails, the new result is closed and is not returned; any distinct
   result-cleanup failure is suppressed on the persistent-resource failure.
+
+Successful runner return therefore exposes completed state, not pending device work. The result
+may outlive the call because completion does not release its run-owned output/publication resources.
+Concurrent calls remain independent without any overlap, order, fairness, queue, or throughput
+guarantee. Materialization and transfers remain synchronous at their existing boundaries.
 
 Current ownership distinguishes borrowed inputs from run-owned internal resources, and current
 per-copy validity is explicit within `RunState`. Current publication leases the complete state to

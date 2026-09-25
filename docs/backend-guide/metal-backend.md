@@ -109,6 +109,48 @@ The public Java surface contains `MetalCapabilityProvider`, `MetalBackendConfigu
 finalizers, schedules, executable recipes, native handles, Objective-C objects, MPSGraph types,
 and the custom route remain internal.
 
+### Completion and device topology
+
+Each `MetalBackendIntegration` owns exactly one `MetalDeviceContext` created with the system-
+default Metal device and one associated command queue. `MetalBackendConfiguration` selects only the
+native library; it exposes no physical-device selector. One Engine can own at most one Metal
+integration because its registry rejects a duplicate Metal `BackendId`. Planning may prove an
+exact-device requirement against `BackendDeviceId(metal, "default")`, but it retains only the
+owning backend. The `"default"` token is an abstract availability slot, not a stable device
+fingerprint or selection handle.
+
+Both native routes commit work and wait for completion before returning successfully. Public and
+Runtime `run(...)` therefore form a synchronous completion barrier: every schedule action and
+native operation for that invocation has completed, and the returned `RunResult` leases completed
+publication/resources rather than representing in-flight work. Failure publishes no result.
+Transfers and materialization remain synchronous at their existing call boundaries. Each route
+resource currently serializes its native run method; this implementation detail and the one queue
+do not promise device overlap, submission or completion order, fairness, queue multiplicity, or
+throughput to concurrent callers. Their mutable run state remains isolated.
+
+Every Metal buffer, workspace, executable, splat, and route resource is authenticated against its
+exact context, and native code rejects a foreign `MTLDevice`. Separate Engines may open separate
+contexts, but those contexts may select the same default device and do not form a coordinated
+multi-device system. There is no async/cancel/timeout API, enumeration, explicit selection, cross-
+device transfer, migration, replication, coherence, sharding, scheduling, failover, or hot-plug
+refresh.
+
+`BackendDeviceId(metal, "default")`, fixed `TraceDeviceId(0)`, and the tuning `SessionNonce` are
+distinct non-physical identities. The first is an abstract availability slot, the second a Metal
+trace correlation token, and the third a session-compatibility identity that makes no stable-device
+claim. No mapping among them is implied. ABI v4, the thirteen native exports, schema 11, and every
+version-12 workload/exact-policy/candidate/compatibility/route/codec identity remain unchanged;
+tuning remains session-scoped and non-persistent.
+
+Future asynchronous execution requires a separate cross-module contract for completion/failure,
+cancellation/timeout, input borrowing, result/workspace ownership, prepared leases through device
+completion, close races, cross-action dependencies, trace/tuning timing, and only then pooling.
+Future explicit-device or multi-device work requires a real supported environment and workflow,
+stable selection/enumeration, truthful ABI and availability, planner-retained device identity,
+device-qualified resources, cross-device transfer/coherence/topology/lifetime, trace/tuning
+identity, and real-device evidence. Selecting one device per integration should precede any
+scheduler. See [ADR 0020](../design/decisions/0020-synchronous-single-default-device-metal-execution.md).
+
 ## Integration lifecycle
 
 ### Optional typed tracing

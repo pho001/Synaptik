@@ -2,11 +2,12 @@
 
 ## Status
 
-Ready
+Review needed
 
-Planning-only brief from clean Task 0048 finalization revision
-`a4ff40c2b4fc328926c15722241f7359744ff4ba`. No implementation or contract documentation has been
-changed yet. This task is the sole Ready Metal task.
+Executed from planning commit `e32ad68dbb24b3c9bec9a2bdb09159f0db56ee6a` on clean Task 0048
+finalization revision `a4ff40c2b4fc328926c15722241f7359744ff4ba`. The exact nine researched
+Markdown paths now record the current contract. Independent Class C documentation review is
+pending; Task 0049 must not be marked Complete before approval.
 
 ## Change class
 
@@ -171,11 +172,11 @@ available. Multiple independent default-device contexts are not evidence of mult
   cache, tuning, route, capability, or pooling decision
 - Parallel group: None
 - Common base revision: `a4ff40c2b4fc328926c15722241f7359744ff4ba`
-- Integration order: planning commit first; documentation execution second; independent Class C
+- Integration order: planning commit `e32ad68d`; documentation execution; independent Class C
   review before Complete
-- Integration validation: exact nine-path scope, local links, balanced fences, final newlines,
-  `git diff --check`, clean commits, and independent Class C documentation review; no code, tests,
-  builds, benchmarks, or probes
+- Integration validation: exact nine-path scope, local links, balanced fences, final newlines, and
+  `git diff --check` passed; clean committed status is required for handoff; no code, tests, Javadocs,
+  builds, benchmarks, or probes ran
 - Shared-document integration owner: Task 0049 implementation owner
 
 ## Exact file scope
@@ -212,14 +213,15 @@ path is in scope.
 
 ## Validation
 
-Planning validation is Markdown-only: exact three-path planning scope, local links, balanced fences,
-final newlines, `git diff --check`, and a clean planning commit. Execution validation is also
-Markdown-only over the exact nine paths relative to the Task 0048 finalization base. The task must
-not run code, tests, Javadocs, builds, benchmarks, or device probes.
+Planning commit `e32ad68dbb24b3c9bec9a2bdb09159f0db56ee6a` passed exact three-path scope,
+local-link, balanced-fence, final-newline, diff, and clean-commit checks. Execution changed exactly
+the nine authorized Markdown paths relative to Task 0048 finalization revision `a4ff40c2`, and
+passed local-link, anchor, fence, final-newline, trailing-whitespace, and `git diff --check`
+validation. No code, tests, Javadocs, builds, benchmarks, or device probes ran.
 
-Independent Class C review must verify that the final documentation describes only current behavior,
-preserves every identity and compatibility boundary listed above, retains Task 0048's no-general-
-pool decision, and does not imply asynchronous or multi-device capability.
+Independent Class C review must verify that the final documentation describes only current
+behavior, preserves every identity and compatibility boundary listed above, retains Task 0048's
+no-general-pool decision, and does not imply asynchronous or multi-device capability.
 
 ## Acceptance criteria
 
@@ -245,4 +247,15 @@ pool decision, and does not imply asynchronous or multi-device capability.
 
 ## Result
 
-Pending documentation execution from this planning commit.
+Executed from planning commit `e32ad68dbb24b3c9bec9a2bdb09159f0db56ee6a`. ADR 0020 and the
+Backend, Runtime/Prepare/Engine, public API, Runtime API, and Metal guide contracts now state that
+successful execution is a synchronous completion barrier while `RunResult` remains a completed-
+state resource/publication lease. They record one system-default-device context/queue per Metal
+integration, at most one Metal integration per Engine, exact context-bound resources, and no
+overlap/order/fairness, async, selection, multi-device, or cross-device promise.
+
+`BackendDeviceId(metal, "default")`, `TraceDeviceId(0)`, and `SessionNonce` remain distinct non-
+physical identities. Every API/ABI/version/capability/route/trace/cache/tuning identity is
+unchanged. Immutable source-owned splats still persist per `PreparedExecution`, and no general
+mutable output/workspace pool is authorized. Concrete async and explicit-device/multi-device
+successor gates are recorded. Status is Review needed pending independent Class C approval.
