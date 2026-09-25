@@ -6,8 +6,11 @@ Blocked
 
 Gate 1A/API, Gate 1B complete-domain proof, and the sole Gate-2 numerical oracle completed from
 clean revision `bd5c40d3f08487cddec4284ac1588ce276f1c979`. Every opaque direct candidate is
-`DOMAIN-BLOCKED`; every auditable custom candidate is `DOMAIN-PASS` and numerical `PASS`. Execution
-stopped before Gate 3 because supported installed tooling still cannot read actual GPU
+`DOMAIN-BLOCKED`; every auditable custom candidate is `DOMAIN-PASS` and numerical `PASS`. The exact
+custom source, validator, audit, wrapper, and proof have been recovered from the original execution
+session, hash-revalidated against their pre-run identities, and retained as
+[permanent review evidence](../evidence/0052/README.md) without another device invocation.
+Execution stopped before Gate 3 because supported installed tooling still cannot read actual GPU
 compute-dispatch and peak transient-resource facts. Capability, schema, identity, and production
 remain unchanged. This task is independent of Task 0051's candidates and route choices.
 
@@ -18,9 +21,11 @@ publication, scalar-attribute and scan schema meaning, typed native lowering, ca
 prepared execution, and public Engine evidence. It must not change Model semantics, public API,
 Compiler generation, Runtime policy, native ABI exports, or the completed package contract.
 
-This execution/evidence slice changes only this task, the Metal master plan, and the roadmap. It ran
-exactly one disposable real-device numerical process invocation after proof/audit, then no timing
-workload, capture, native production build, or production test. Every new capability remains false.
+This execution/evidence slice changes only planning documents and the non-production review
+evidence under [`../evidence/0052/`](../evidence/0052/README.md). It ran exactly one disposable
+real-device numerical process invocation after proof/audit, then no timing workload, capture, native
+production build, or production test. Every new capability remains false. The later P1 remediation
+performed transcript recovery and hash validation only; it did not rerun or rebuild the oracle.
 
 ## Goal
 
@@ -350,8 +355,9 @@ native host fast math.
 The raw report must name each operation and candidate, complete-domain proof identity/verdict,
 corpus and output SHA-256, structural/control verdicts, maximum reachable-set size, DAZ/FTZ
 observations where applicable, first exact failure, and `PASS`/`FAIL`. Record the unedited report
-text and SHA-256 in this task, then remove probe source, binary, raw output, validator, and generated
-artifacts.
+text and SHA-256 in this task. Preserve the exact custom source, host source, validator, audit,
+wrapper, and proof as non-production review evidence; remove the compiled executable, raw output,
+bytecode/cache, and temporary workspace artifacts.
 
 ## Gate 3: one bounded cost-evidence group
 
@@ -443,10 +449,11 @@ real public Engine forward scenario for each completed partition with no CPU own
 - Parallel group: none.
 - Integration order reached: planning/remediation; capability-false custom-candidate staging; Gate
   1A audit and separate Gate 1B proof; exactly one Gate-2 regression process invocation; offline
-  validation and artifact removal. Remaining order after the instrumentation prerequisite resolves:
-  one Gate-3 cost group over every complete passing custom candidate; Gate-4 route freeze/loser
-  deletion; production schema/lifecycle/capability; focused proof; documentation; implementation
-  commit; independent Class C review.
+  validation; initial temporary-artifact removal; exact transcript recovery, hash revalidation, and
+  permanent non-production evidence retention. Remaining order after the instrumentation
+  prerequisite resolves: one Gate-3 cost group over every complete passing custom candidate; Gate-4
+  route freeze/loser deletion; production schema/lifecycle/capability; focused proof;
+  documentation; implementation commit; independent Class C review.
 - Shared-document integration owner: future task implementer. Task 0051 and 0052 may cross-link only
   in the Metal master/roadmap until one is explicitly authorized as the sole production frontier.
 
@@ -464,8 +471,9 @@ After the blocker resolves and this task is revised/authorized from the then-cur
 - current Metal/backend/API/glossary explanatory docs, this task, Metal master, and roadmap.
 
 No Task-0051 task file, oracle evidence, candidate source, or result is an implementation input.
-No probe, oracle output, capture, custom kernel, benchmark artifact, or cache remains unless Gate 4
-selects code as the production route; raw evidence is transcribed into this task before deletion.
+The exact Task-0052 custom source/proof/audit package remains under
+[`../evidence/0052/`](../evidence/0052/README.md) solely for review. No compiled probe, executable,
+raw oracle output, capture, benchmark artifact, cache, or temporary workspace remains.
 
 ## Acceptance criteria
 
@@ -482,10 +490,12 @@ selects code as the production route; raw evidence is transcribed into this task
    capability.
 5. Capability, schema, wires, attributes, identities, Java/native production, tests, ABI, exports,
    and packages remain unchanged. All explicit exclusions remain false.
-6. Raw corpus/output/verdict and proof/source/executable identities are recorded in Result; all
-   disposable source, binary, output, validator, cache, and generated artifacts are removed.
-7. Changed Markdown/link/status/path/diff validation passes, and the commit contains only this task,
-   the Metal master plan, and the roadmap.
+6. Raw corpus/output/verdict and proof/source/executable identities are recorded in Result. Exact
+   custom source, host source, validator, audit, wrapper, and proof are permanently reviewable and
+   hash-revalidated; the disposable executable, raw output, cache, and temporary workspace remain
+   removed.
+7. Changed Markdown/link/status/path/diff validation passes, and the commit contains only the three
+   planning records plus the Task-0052 evidence directory.
 
 ## Planning validation
 
@@ -496,18 +506,20 @@ git diff --check
 ```
 
 Also validate changed Markdown links, anchors, fences, final newlines, status consistency, exact
-evidence hashes, exactly three changed planning documents, zero production/native/test/probe
-artifacts, and removal of the disposable `/tmp` workspace. Do not run a repository build or test.
+evidence hashes, the three planning records plus seven retained evidence files, zero
+production/native/test/compiled-probe artifacts, and absence of the disposable `/tmp` workspace.
+Do not run a repository build, test, or device oracle.
 
 ## Documentation and review impact
 
-This commit updates only this task, the Metal master frontier, and the roadmap frontier. It records
-proof and numerical evidence but changes no capability, schema/identity, route, gradient behavior,
-public Engine behavior, native guide, or package Javadoc. A future instrumentation-enabled
-implementation must synchronize those surfaces while preserving every historical blocked record.
-Independent Class C review must inspect every surviving custom candidate's structural/domain/
-numerical/cost evidence, ordered-prefix/abstract-NaN oracle, fixed routes, false exclusions,
-stale-data rejection, lifecycle, real no-skip Engine proof, and removed artifacts.
+This commit updates this task, the Metal master frontier, the roadmap frontier, and the
+non-production Task-0052 review evidence. It changes no capability, schema/identity, route, gradient
+behavior, public Engine behavior, native guide, or package Javadoc. A future
+instrumentation-enabled implementation must synchronize those surfaces while preserving every
+historical blocked record. Independent Class C review must inspect every surviving custom
+candidate's structural/domain/numerical/cost evidence, retained indexing and numerical invariants,
+ordered-prefix/abstract-NaN oracle, fixed routes, false exclusions, stale-data rejection,
+lifecycle, real no-skip Engine proof, and disposable-artifact boundaries.
 
 ## Result
 
@@ -523,32 +535,38 @@ freedom, exact selected bits, reduction membership/order, or scan parenthesizati
 direct candidate is therefore `DOMAIN-BLOCKED` and was not staged or numerically run. The MPSGraph
 CLAMP composition is also `DOMAIN-BLOCKED` because both opaque primitive dependencies are blocked.
 
-Every auditable custom candidate is `DOMAIN-PASS`. The disposable proof covered checked positive
+Every auditable custom candidate is `DOMAIN-PASS`. The retained proof covers checked positive
 geometry, rank-`1..16` coordinate decoding, 64-bit right-aligned broadcast offsets, checked
 three-dimensional launch decomposition, total raw-bit predicate ordering, source-bit-preserving
 NaN/zero extrema, two exact CLAMP sites and intermediate materialization, exact reduction
 contributor mapping/traversal, and scan line/direction/prefix placement. The scan loop is one legal
 left-associated contiguous-split tree, compiles with `MTLMathModeSafe`, copies singleton
 contributors without an arithmetic site, and uses exact exclusive identities. The independent
-validator recursively enumerated every ordered contiguous interval split, independent operand DAZ,
+validator recursively enumerates every ordered contiguous interval split, independent operand DAZ,
 binary32 round-to-nearest-even, independent subnormal-result FTZ to either signed zero, and a single
 abstract NaN class. Thus the bounded run checked membership in the complete permitted set rather
-than one CPU fold. The proof artifact SHA-256 was
-`589cb804a00c35ea4589818eeedafcc238d4b91c2ec07961b561eabda9a69153`.
+than one CPU fold. The exact proof artifact is
+[`domain-proof.txt`](../evidence/0052/domain-proof.txt), SHA-256
+`589cb804a00c35ea4589818eeedafcc238d4b91c2ec07961b561eabda9a69153`; the
+[review guide](../evidence/0052/README.md) makes the aggregate/scan formulas,
+one-to-one/bounds/contributor-order arguments, and ordered-prefix DAZ/RNE/FTZ/NaN invariants
+explicit.
 
-Before the device run, the audited disposable package compiled cleanly with warnings as errors and
-proved one `MTLCreateSystemDefaultDevice`, one queue, one command buffer, one commit/wait, all 15
-custom entry points compiled before command-buffer creation, safe math, frozen-corpus agreement,
-checked indexing, input snapshots, and guarded outputs. Its identities were:
+Before the device run, the audited package compiled cleanly with warnings as errors and proved one
+`MTLCreateSystemDefaultDevice`, one queue, one command buffer, one commit/wait, all 15 custom entry
+points compiled before command-buffer creation, safe math, frozen-corpus agreement, checked
+indexing, input snapshots, and guarded outputs. The exact review artifacts were later recovered
+from the original execution-session writes/edits and every recomputed hash matched its recorded
+pre-run identity:
 
 | Artifact | SHA-256 |
 |---|---|
-| custom Metal source | `ff15f63c9d2e54d62fa2157e1c424cc00acb90d5355101b18a07175e789a40c0` |
-| Objective-C++ staging harness | `6db1c52113482753fcc96d3c14ffcee0479d9ca7b616e3a69f603d7ccb4c9683` |
-| exact offline validator | `94fd86bb6bf16b00195f990979ff892e22c8fac6cfe024173bae0bdf27f83e08` |
-| pre-run source/corpus/control audit | `0c522be1e4f93f82576ad674a07d411c0c68a1c181ea88ac0724f56cfefc1d14` |
-| audited single-invocation wrapper | `ec73cd5f6cef831f10fbd2300ca3bf6d3e0796920aa58e402dd56ac0b6481046` |
-| compiled oracle executable | `9840a0987391a8d7ddfb6a8fbd2ea9923681ca0e911d5f8bece129267e06fc51` |
+| [custom Metal source](../evidence/0052/oracle.metal) | `ff15f63c9d2e54d62fa2157e1c424cc00acb90d5355101b18a07175e789a40c0` |
+| [Objective-C++ staging harness](../evidence/0052/oracle.mm) | `6db1c52113482753fcc96d3c14ffcee0479d9ca7b616e3a69f603d7ccb4c9683` |
+| [exact offline validator](../evidence/0052/validate.py) | `94fd86bb6bf16b00195f990979ff892e22c8fac6cfe024173bae0bdf27f83e08` |
+| [pre-run source/corpus/control audit](../evidence/0052/audit.py) | `0c522be1e4f93f82576ad674a07d411c0c68a1c181ea88ac0724f56cfefc1d14` |
+| [audited single-invocation wrapper](../evidence/0052/run-once.py) | `ec73cd5f6cef831f10fbd2300ca3bf6d3e0796920aa58e402dd56ac0b6481046` |
+| compiled oracle executable (identity only; not retained) | `9840a0987391a8d7ddfb6a8fbd2ea9923681ca0e911d5f8bece129267e06fc51` |
 
 Exactly one fresh Apple M3 Max oracle process invocation then ran. It used one default-device
 context, one command buffer and compute encoder, safe custom math, 15 precompiled pipelines, 16
@@ -611,8 +629,10 @@ ORACLE_VERDICT=PASS FAILURES=0
 The required actual-dispatch/peak-transient trace reader remained unavailable. Gate 3 therefore did
 not run: there is no timing sample, capture, inferred backend-call or memory substitute, route
 winner, Gate-4 selection, or capability authorization. After the hashes and verdict above were
-recorded, all disposable custom source, host source, proof, audit, wrapper, executable, validator,
-raw output, verdict, bytecode cache, and generated workspace artifacts were removed. All comparison,
-extrema, and scan capability named here remains false pending supported trace instrumentation,
-complete Gate-3 facts for every surviving custom candidate, Gate 4, production implementation, and
-independent Class C review.
+recorded, the disposable compiled executable, raw output, verdict file, bytecode cache, and
+temporary workspace were removed. The exact custom source, host source, validator, audit, wrapper,
+and proof were subsequently recovered from the original execution session, matched all recorded
+hashes, and are permanently retained as non-production review evidence; no oracle rerun occurred.
+All comparison, extrema, and scan capability named here remains false pending supported trace
+instrumentation, complete Gate-3 facts for every surviving custom candidate, Gate 4, production
+implementation, and independent Class C review.

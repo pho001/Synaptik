@@ -1,0 +1,38 @@
+TASK 0052 GATE 1 / GATE 1B PRE-RUN PROOF
+
+Scope invariant
+- Candidate behavior is FP32 only, ranks 1...16, strictly positive checked shapes, row-major contiguous tensors, canonical one-byte BOOL comparison output, axis sets already normalized, and the frozen Task 0052 DAZ/RNE/FTZ + NaN-class numerical model.
+- The disposable custom source is oracle.metal; oracle.mm is only its auditable staging harness. No candidate is production-enabled by this proof.
+
+Opaque direct candidates
+- API PASS: the installed macOS SDK declares equal/notEqual/lessThan/lessThanOrEqualTo/greaterThan/greaterThanOrEqualTo, minimum/maximum and NaN-propagating extrema, clamp, reduction minimum/maximum (including NaN-propagating variants), and cumulative sum/product selectors.
+- DOMAIN BLOCKED for all direct candidates: those public declarations describe operation and broadcasting/axis controls, but do not authoritatively specify the complete Task 0052 contract over every FP32 raw word: NaN class behavior at every site, signed-zero selection, subnormal DAZ/FTZ freedom, exact non-NaN bits, reduction contributor behavior, or all legal scan parenthesizations. Selector availability and sample agreement cannot prove the missing complete-domain contract.
+- The MPSGraph clamp composition is DOMAIN BLOCKED because both opaque min/max dependencies remain DOMAIN BLOCKED.
+
+Custom comparison family: DOMAIN PASS
+- binary_offsets decodes every validated flattened output index into rank <= 16 coordinates using uint64 dimensions and maps each operand through explicit broadcast strides (zero stride on a broadcast dimension).
+- exact_compare is a total raw-bit algorithm: NaNs make ordered/equality predicates false (and not-equal true), both zeros compare equal, and ordered_key implements the exact total order for all remaining represented finite/infinite values. It writes exactly uchar 0 or 1.
+- linear_id and checked 3-D grid decomposition cover every resource-feasible validated element count without truncating the flattened index.
+
+Custom tensor/scalar extrema family: DOMAIN PASS
+- exact_extreme explicitly propagates either NaN source, selects +0 for maximum and -0 for minimum for mixed zeros, and otherwise returns one input word selected by exact raw-bit ordering. It performs no floating arithmetic, so every non-NaN result is the exact required source word.
+- Tensor extrema use the proved binary broadcast mapper. Scalar extrema use a flat validated contiguous domain and an embedded raw-word scalar.
+
+Custom clamp family: DOMAIN PASS
+- clamp_fused is exactly exact_extreme(x, lower, max) followed by exact_extreme(intermediate, upper, min).
+- The custom composition dispatches scalar_max into a guarded intermediate buffer and scalar_min from that exact buffer. Each primitive and the intermediate visibility are separately proved/audited; no opaque dependency remains.
+
+Custom reduction family: DOMAIN PASS
+- reduction_offset partitions a validated flattened output coordinate and flattened contributor coordinate across the normalized axes mask, reconstructing the unique row-major input offset for every output/contributor pair.
+- Each nonempty reduction starts from contributor zero and folds contributors 1...N-1 with exact_extreme. Extrema are source-word selection with explicit NaN and signed-zero rules, so this deterministic fold covers the full validated domain. An empty axes set has one contributor per output and is an exact identity.
+- Keep/drop dimensions change only the public descriptor shape; both have the same correct row-major output order, represented by the harness witnesses.
+
+Custom scan family: DOMAIN PASS
+- Scan line mapping decomposes line into outer/inner and maps every logical axis position uniquely. reverse chooses the traversal sequence before prefix formation. inclusive writes after consuming the current value; exclusive writes the exact additive +0 or multiplicative +1 identity before consuming it.
+- A singleton prefix copies its raw contributor without an arithmetic site. Every longer prefix uses an explicit loop-carried FP32 add/multiply compiled with MTLMathModeSafe, giving a legal ordered left-associated contiguous parenthesization. The frozen contract permits any ordered contiguous parenthesization, independent DAZ at arithmetic operands, RNE, independent FTZ for nonzero subnormal results, and an abstract NaN class at every NaN-producing/consuming site.
+- The offline validator independently enumerates every contiguous interval split recursively, applies independent DAZ choices at each primitive operand and FTZ choices at each subnormal result, rounds exact rational finite arithmetic to binary32 ties-to-even, and uses one abstract NaN token. Thus numerical acceptance is membership in the complete permitted set, not comparison to one CPU evaluation order.
+
+Staging controls
+- All 15 custom entry points are compiled before command-buffer creation with MTLMathModeSafe.
+- A single device, queue, command buffer, and compute encoder contain the entire corpus. Every output has before/after canaries; every input is snapshotted and compared after completion. The process prints every raw result for offline validation.
+- The numerical corpus is regression evidence only. The proofs above, source audit, and successful compile establish Gate 1/API plus Gate 1B for custom candidates.

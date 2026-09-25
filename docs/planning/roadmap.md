@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0050; 0047 and 0051–0052 Blocked | [Metal 0051](backends/metal/tasks/0051-accelerator-float32-exp-sigmoid-recursive-floor-realization.md) consumed its sole 83-word regression oracle; direct EXP and inherited composed SIGMOID are domain-blocked, the other candidates failed, and a new authorized successor plus trace evidence is required. [Metal 0052](backends/metal/tasks/0052-accelerator-float32-comparisons-extrema-scans.md) completed its custom complete-domain proofs and sole 98-output Apple M3 Max oracle, then stopped before timing on the same evidence prerequisite; every direct candidate remains domain-blocked and every custom candidate passed. No Metal task is Ready. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0050; 0047 and 0051–0052 Blocked | [Metal 0051](backends/metal/tasks/0051-accelerator-float32-exp-sigmoid-recursive-floor-realization.md) consumed its sole 83-word regression oracle; direct EXP and inherited composed SIGMOID are domain-blocked, the other candidates failed, and a new authorized successor plus trace evidence is required. [Metal 0052](backends/metal/tasks/0052-accelerator-float32-comparisons-extrema-scans.md) completed its custom complete-domain proofs and sole 98-output Apple M3 Max oracle, then stopped before timing on the same evidence prerequisite; every direct candidate remains domain-blocked and every custom candidate passed. Its exact custom source/proof package is permanently retained and hash-revalidated under [`backends/metal/evidence/0052/`](backends/metal/evidence/0052/README.md); recovery consumed no new oracle. No Metal task is Ready. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -179,11 +179,16 @@ set.
 [Metal 0052](backends/metal/tasks/0052-accelerator-float32-comparisons-extrema-scans.md)
 is an independent broad-rollout record for six FLOAT32 comparisons, tensor/scalar/clamp/reduction
 extrema, and CUM_SUM/CUM_PROD. Gate 1 found every opaque direct candidate API-present but
-`DOMAIN-BLOCKED`, while all 16 auditable custom candidates proved `DOMAIN-PASS`. Its sole 98-output
-Apple M3 Max process invocation passed every custom candidate, including corrected opposite-zero/
-singleton extrema and ordered-prefix/abstract-NaN scans. The bounded corpus remains regression
-evidence only. Missing actual-dispatch/peak-transient trace tooling blocked timing and selection;
-capability, schema, identities, routes, and production remain unchanged.
+`DOMAIN-BLOCKED`, while all 16 auditable custom candidates proved `DOMAIN-PASS`. Its exact custom
+source, validator, audit, wrapper, and proof were recovered byte-for-byte from the original
+execution session; every recomputed hash matched the recorded pre-run identity. The permanent
+[review evidence](backends/metal/evidence/0052/README.md) states the aggregate/scan index,
+one-to-one/bounds/contributor-order, and ordered-prefix DAZ/RNE/FTZ/NaN invariants. Its sole
+98-output Apple M3 Max process invocation passed every custom candidate, including corrected
+opposite-zero/singleton extrema and ordered-prefix/abstract-NaN scans; evidence recovery did not
+rerun it. The bounded corpus remains regression evidence only. Missing
+actual-dispatch/peak-transient trace tooling blocked timing and selection; capability, schema,
+identities, routes, and production remain unchanged.
 
 [CPU 0017](backends/cpu/tasks/0017-explicit-accelerator-numerical-profile-realization.md) is
 Complete at implementation `372a8b98`. For every backend, capability/behavior under
@@ -270,10 +275,11 @@ only canonical exact `ABS` under both profiles. Complete Model 0030 makes recurs
 EXP and composed SIGMOID, but both are `DOMAIN-BLOCKED` because the opaque EXP selector lacks an
 authoritative full-domain contract. Its other candidates failed; a new successor proof/oracle and
 readable actual GPU dispatch/peak-transient evidence are required before timing or capability.
-Metal 0052's independent comparison/extrema/scan
-custom proofs and sole regression oracle passed, but its opaque direct routes remain domain-blocked
-and the same missing trace evidence stopped execution before timing or capability. Its bounded
-corpus cannot substitute for complete-domain proof. Gross class/sign-failing 0006 selectors remain
+Metal 0052's independent comparison/extrema/scan custom proofs and sole regression oracle passed,
+and its exact source/proof/audit package is permanently reviewable with every recorded hash
+revalidated. Its opaque direct routes remain domain-blocked and the same missing trace evidence
+stopped execution before timing or capability. Recovery consumed no new oracle; the bounded corpus
+cannot substitute for complete-domain proof. Gross class/sign-failing 0006 selectors remain
 unusable.
 
 [Metal 0017](backends/metal/tasks/0017-accelerator-float32-sum-mean-sum-to-shape-reductions.md)
