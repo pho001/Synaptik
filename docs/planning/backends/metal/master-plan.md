@@ -91,8 +91,8 @@ Training-to-Metal optimizer bridge.
   Task 0040 failed its one BFLOAT16 raw-bit Gather gate. Task 0041 is Complete at implementation
   `ba16d942` plus remediation `386705ca` after final Class C approval with zero findings. Task 0042
   is Complete at `9feb2505705263b6efb417d606678c606c2b9598` after final independent Class C
-  review returned `APPROVE` with zero findings. Ready Task 0043 owns only the fixed report-only
-  singleton-`NEG` two-route benchmark.
+  review returned `APPROVE` with zero findings. Task 0043 is `Review needed` after implementing only
+  the fixed report-only singleton-`NEG` two-route benchmark from planning base `1d8f8cb0`.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
   requirements. Metal 0017 remains Blocked under its old accelerator-reduction contract.
@@ -183,9 +183,9 @@ Training-to-Metal optimizer bridge.
   Metal tuning collaborations and the minimum private Engine adapter/fallback generalization for
   exactly one eligible singleton-`NEG` partition, with session-only reuse and no native/capability
   change.
-- Task 0043 is Ready for one fixed `[1_048_576]` singleton FLOAT32 `NEG` report-only benchmark
-  covering both current local candidates without winner selection, cache I/O, or a performance
-  threshold.
+- Task 0043 is `Review needed` after its one fixed `[1_048_576]` singleton FLOAT32 `NEG`
+  report-only smoke and baseline covered both current local candidates without winner selection,
+  cache I/O, or a performance threshold. Fresh independent Class C review remains.
 - Production dependencies may point to Model, Config, Planning, Runtime, Prepare,
   Backend Contract, and Trace, never Engine or Training. Task 0002's Compiler edge is test-only.
 
@@ -252,7 +252,7 @@ before extracting a package or widening another type.
 | 0040 | [Profile-common exact canonical BFLOAT16 Gather](tasks/0040-profile-common-exact-canonical-bfloat16-gather.md) | Blocked | 0023, 0025, and 0038 Complete; current Model BFLOAT16/Gather semantics; Compiler indexing capture; CPU 0006A2; Config 0006; Engine 0018 | Every concurrent Metal capability/schema/native/type/ingress/publication/identity/transfer scope and any restart consuming the same next values | None | Sole mandatory direct-selector gate only; no implementation authorized after failure | Exactly one graph/compile/execution over the 20-word reverse-permutation corpus; planning/status/Markdown/diff validation only | First output returned canonical quiet-NaN `0x7fc0` instead of selected negative signaling-NaN `0xffa6`. Inputs were unchanged; later output/guard checks made no success claim. Artifacts were removed, schema 12/wire 20/type 4/identities 13 remain unimplemented and unreserved, and production is unchanged. |
 | 0041 | [Prepared route and invocation trace](tasks/0041-prepared-route-and-invocation-trace.md) | Complete | Trace 0003 Complete and independently approved after remediation at `0e796a82f18fbaaa1d5210638f41e0785e22094c`; Metal 0001–0005/0008/0014–0015/0019–0025; Engine 0017–0018 | Every concurrent Metal integration/preparation/executable/native-failure/hot-path/API scope and shared Trace/Metal/API/roadmap documents | None | Implemented at `ba16d942`; remediated at `386705ca`; final independent Class C rereview approved with zero findings | Focused Metal trace tests; actual public Engine session collector scenario; architecture/Javadoc/docs/diff checks; independent Class C review | Completed the optional Metal observer overload, disabled fast path, stream-local producer IDs/events, typed PREPARE finalization and RUN native-invocation outcomes, truthful `NOT_QUERIED`, containment/redaction, failure precedence, and no native ABI change. |
 | 0042 | [Metal route tuning workflow](tasks/0042-metal-route-tuning-workflow.md) | Complete | Metal 0004/0041; Prepare 0004/0008; tools/tuning 0001–0002/0004; Config 0006A–0006B; CPU 0010I–0010J precedent; Engine 0006A–0009/0011/0015–0018; Runtime 0016 | Every concurrent Metal integration/preparation/candidate/codec/trace/API scope; Engine tuning/composition/lifecycle/fallback; CPU tuning identities; tools/tuning/API/architecture/master/roadmap documents | None | Implemented at `9feb2505705263b6efb417d606678c606c2b9598` from exact base `31ab01a65ff1e4842a43471a54e74544fb603760`; final independent Class C review approved with zero findings | Lean fake-native Metal collaboration tests; focused Engine and CPU identity/behavior regressions; one actual public `prepareTuned`→run singleton-NEG scenario; architecture/Javadocs/docs/diff; one full build; independent review | Completed retained opaque Metal local and fixed complete-plan collaborations, session-only two-route tuning, and the minimum private Engine adapter/backend-neutral fallback while preserving public Config/result, CPU identity bytes, native ABI/schema/capability, and all excluded ownership domains. |
-| 0043 | [Reproducible Metal route benchmark](tasks/0043-reproducible-metal-route-benchmark.md) | Ready | 0042 Complete and independently approved; benchmark 0001/CPU 0010M protocol precedent; current public Compiler/Prepare/Runtime/Trace/Metal collaborations | Every concurrent benchmark build/report/schema/documentation scope and Metal candidate/trace/API/master/roadmap documents | None | One clean serial implementation; fixed workload and separate traced attestation before ordinary timed integration | Focused benchmark build/Javadocs; one actual smoke and one metadata-complete baseline; JSON/failure/docs/diff checks; no full build or matrix; independent Class C review | Add one schema-1 report-only `[1_048_576]` singleton FLOAT32 NEG benchmark over both opaque candidates with exact raw-bit checks, paired alternating sampling, no winner/cache/threshold, and no retained result artifact. |
+| 0043 | [Reproducible Metal route benchmark](tasks/0043-reproducible-metal-route-benchmark.md) | Review needed | 0042 Complete and independently approved; benchmark 0001/CPU 0010M protocol precedent; current public Compiler/Prepare/Runtime/Trace/Metal collaborations | Every concurrent benchmark build/report/schema/documentation scope and Metal candidate/trace/API/master/roadmap documents | None | Implemented serially from exact clean planning base `1d8f8cb03cb631ab59c25bbfa025369f4d2547e9`; separate traced attestation before ordinary timed integration; independent Class C review remains | Focused benchmark build/Javadocs passed; one actual smoke and one metadata-complete baseline emitted and passed JSON checks; missing-metadata failure and docs/diff checks passed; no full build or matrix | Schema-1 report-only `[1_048_576]` singleton FLOAT32 NEG benchmark covers both opaque candidates with exact raw-bit checks and paired alternating samples; no winner/cache/threshold or retained result artifact. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -280,7 +280,7 @@ Completed profile spine and serial successors:
 
 `Trace 0003 (Complete) -> 0041 (Complete)`
 
-`0004 (Complete) + 0041 (Complete) + Engine 0009/0015–0018 (Complete) + tools/tuning 0001–0002 (Complete) -> 0042 (Complete) -> 0043 (Ready)`
+`0004 (Complete) + 0041 (Complete) + Engine 0009/0015–0018 (Complete) + tools/tuning 0001–0002 (Complete) -> 0042 (Complete) -> 0043 (Review needed)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -322,17 +322,18 @@ changes. Tasks 0031–0037 and 0039 ran no probe; Task 0040 ran exactly its one 
 plus remediation `386705ca` after final independent Class C approval with zero findings.
 [0042](tasks/0042-metal-route-tuning-workflow.md) is Complete at
 `9feb2505705263b6efb417d606678c606c2b9598` after final independent Class C review returned
-`APPROVE` with zero findings. [0043](tasks/0043-reproducible-metal-route-benchmark.md) is the sole
-Ready Metal frontier. Every other Metal task retains its recorded status.
+`APPROVE` with zero findings. [0043](tasks/0043-reproducible-metal-route-benchmark.md) is
+`Review needed`; fresh independent Class C review is its only remaining gate. Every other Metal
+task retains its recorded status.
 These edges serialize shared Metal mutation; they do not claim that one operation family requires
 another.
 
 ## Integration ownership and shared documents
 
-- Metal 0043 owns the active report-only benchmark frontier and affected benchmark/Metal planning,
-  guide, explanatory architecture, master, and roadmap documents.
+- Metal 0043 owns its pending independent review and any bounded review remediation across the
+  benchmark/Metal planning, guide, explanatory architecture, master, and roadmap documents.
 - Complete Metal 0042 retains its reviewed tuning collaborations and Engine integration; no
-  concurrent owner may change those production surfaces during 0043.
+  concurrent owner may change those production surfaces during 0043 review.
 - Blocked Metal 0016–0018, 0026–0027, 0030–0037, and 0039–0040 have no active write or review
   scope. Complete Metal 0041 retains its reviewed implementation. Model 0028 owns the reduction
   semantic contract, Complete Model 0029 owns the MATMUL final-publication semantic contract, and
@@ -414,7 +415,7 @@ its artifacts were removed and production remains unchanged. Task 0041 is Comple
 implementation `ba16d942` plus remediation `386705ca` after final independent Class C approval
 with zero findings. Documentation/audit-only Task 0038 is Complete. Task 0042 is Complete at
 `9feb2505705263b6efb417d606678c606c2b9598` after final independent Class C approval with zero
-findings. Task 0043 is the sole Ready Metal frontier.
+findings. Task 0043 is `Review needed`; fresh independent Class C review remains.
 
 Metal 0006 remains `Blocked` after exact RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures.
 Metal 0007 remains independently `Blocked` after eight direct-output executions returned positive

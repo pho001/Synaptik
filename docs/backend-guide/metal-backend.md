@@ -335,6 +335,37 @@ objects before crossing the C ABI. Success additionally requires no completion e
 ordered usable result count. Synaptik performs no explicit output copy and does not request hidden
 result materialization; this is not a claim that MPSGraph uses no internal temporary storage.
 
+### Fixed report-only route benchmark
+
+`tools/benchmarks` contains one fixed Metal route benchmark for canonical no-grad `FLOAT32 NEG`
+with Shape `[1_048_576]` under `STRICT_IEEE`. It uses the public
+`MetalLocalWorkloadTuning` collaboration to enumerate and pin the complete current ordered pair,
+but it never invokes `prepareTuned(...)`, chooses a winner, uses complete-plan tuning, accesses a
+cache, changes production preparation, or applies a performance threshold.
+
+An untimed integration with a `MetalTraceObserver` first attests successful
+`CUSTOM_KERNEL`/`GRAPH_EXECUTABLE` PREPARE and RUN outcomes with `NOT_QUERIED` and exact raw-bit
+outputs. Timed work opens a fresh ordinary integration, requires the same opaque candidate
+identities, and therefore pays no trace producer, event, clock, or callback cost. The retained hot
+boundary is `PreparedExecutionRunner.run(...) + RunResult.close()`; input upload, preparation,
+materialization, and checksums stay outside it.
+
+Run the bounded smoke profile after building the explicit bridge:
+
+```bash
+./native/metal-macos-arm64/build.sh
+SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" \
+  ./gradlew -q :tools:benchmarks:metalBenchmark -Pprofile=smoke
+```
+
+The schema-1 report retains all raw samples and exact correctness hashes and is always marked
+ineligible for a production decision and not autotuning evidence. The controlled-host `baseline`
+profile adds fixed JVM flags, required source/machine/device/native-build/power/thermal/fork
+metadata, paired alternating route order, and a 25 ms floor for each of eight retained batches per
+route. The harness creates no result artifact. Default `build`/`check` never run the Metal task;
+see the [benchmarking guide](../developer-guide/benchmarking.md) for the full protocol and CI
+boundary.
+
 ## Examples
 
 ### Exact singleton custom route

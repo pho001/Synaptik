@@ -2,11 +2,12 @@
 
 ## Status
 
-Ready
+Review needed
 
-Metal 0042 is Complete at `9feb2505705263b6efb417d606678c606c2b9598` after final independent
-Class C review returned `APPROVE` with zero findings. Implementation must start from the exact clean
-planning revision containing this brief and record that revision before changing this status.
+Implemented from exact clean planning base `1d8f8cb03cb631ab59c25bbfa025369f4d2547e9`.
+The focused implementation, actual-device smoke/baseline, JSON/failure, documentation, and diff
+evidence below are complete. Fresh independent Class C review is the only remaining gate; the
+repository-wide build remains deliberately reserved for the final program checkpoint.
 
 ## Change class
 
@@ -255,6 +256,39 @@ commands exercise the supported surface and their JSON/failure validation is the
   JSON validation, failure validation, docs/diff checks, and a clean implementation commit, set
   status to `Review needed` for fresh independent Class C review.
 
+## Implementation evidence
+
+- `./native/metal-macos-arm64/build.sh` passed and produced the explicitly configured dylib.
+  Its observed SHA-256 was
+  `8aebd8773d33e12b0348cf07b5d3789fc3631ab1d3bbf522691e8b97eb329190`.
+- `./gradlew :tools:benchmarks:build :tools:benchmarks:javadoc` passed with 31 actionable tasks:
+  two executed and 29 up to date. Javadoc emitted only the existing incubating Vector-module
+  warnings. No native library was loaded by that command.
+- The exact smoke command below passed on Apple M3 Max and emitted one parsed schema-1 JSON
+  document. It contained only Shape `[1_048_576]`, routes `CUSTOM_KERNEL` and
+  `GRAPH_EXECUTABLE`, two samples per route, `SESSION`, `NOT_QUERIED`, and exact raw-bit SHA-256
+  `d95c57cdfc2aca246e868f7f050233768417ba2c1e5967c799afa05ea6c8bb02` for both prechecks and all
+  four post-batch checks.
+- The one metadata-complete baseline command below passed on MacBook Pro `Mac15,9`, Apple M3 Max
+  40-core GPU/Metal 4, macOS 26.6.2 build 25G83, AC power, with no thermal or performance warning
+  recorded. The native build used Apple clang 21.0.0 (`clang-2100.3.34.2`) and macOS SDK 27.0.
+- Baseline parsed as eight samples for each attested route and retained every execution. Custom
+  sample iterations were `[55,69,69,69,69,69,69,69]`; graph iterations were
+  `[60,60,60,60,60,75,75,75]`. The minimum raw route-batch durations were respectively
+  `26,996,416` ns and `25,030,583` ns, so all 16 retained batches met the 25 ms floor. Every
+  precheck and post-batch checksum matched the same fixed expected SHA-256.
+- Baseline reported the required heap/JIT/native-access arguments, staged executable tree OID
+  `dae4024586f3dd0bb4ca0b335f407df0f7350dce`, harness-source SHA-256
+  `2f166b98360a4689abdbe8334793d55944762e9dd0ae1b0d2d8ded0e19a7e4a7`, base revision above,
+  fork `1`, and every required caller-labeled machine/native fact.
+- The focused baseline command with no metadata failed during Gradle task creation on missing
+  `benchmarkBaseRevision`, before the Java process or native work, and emitted no successful
+  report. Both successful JSON documents were validated in memory and were not retained in the
+  repository.
+- Markdown/link/fence/newline/trailing-whitespace validation and `git diff --check` passed for the
+  affected documentation. No full build, additional fork, Shape, operation, route, or performance
+  matrix ran.
+
 ## Commands
 
 From repository root:
@@ -265,6 +299,23 @@ SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_met
   ./gradlew -q :tools:benchmarks:metalBenchmark -Pprofile=smoke
 ```
 
-The baseline command uses the same environment/task with `-Pprofile=baseline` and all required
-`-Pbenchmark...` metadata properties named above. Exact observed values and the focused failure
-command are recorded only after implementation; generated JSON remains untracked.
+The exact baseline invocation used:
+
+```bash
+SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" \
+  ./gradlew -q :tools:benchmarks:metalBenchmark -Pprofile=baseline \
+  -PbenchmarkBaseRevision=1d8f8cb03cb631ab59c25bbfa025369f4d2547e9 \
+  "-PbenchmarkSourceIdentity=Task0043 staged implementation tree before evidence-only status update" \
+  -PbenchmarkGitTreeObjectSha1=dae4024586f3dd0bb4ca0b335f407df0f7350dce \
+  -PbenchmarkHarnessSourceSha256=2f166b98360a4689abdbe8334793d55944762e9dd0ae1b0d2d8ded0e19a7e4a7 \
+  "-PbenchmarkHostIdentity=MacBook Pro Mac15,9; Apple M3 Max; 64 GB; 16 cores" \
+  "-PbenchmarkMetalDeviceIdentity=Apple M3 Max; 40-core GPU; Metal 4" \
+  "-PbenchmarkOsBuild=macOS 26.6.2; build 25G83" \
+  "-PbenchmarkNativeBuildIdentity=Apple clang 21.0.0 clang-2100.3.34.2; macOS SDK 27.0" \
+  "-PbenchmarkPowerState=AC power; battery 100% charged" \
+  "-PbenchmarkThermalState=no thermal or performance warning recorded" \
+  -PbenchmarkFork=1
+```
+
+The focused failure invocation omitted all `-Pbenchmark...` values from that command. Generated
+JSON remained standard output only and is untracked.

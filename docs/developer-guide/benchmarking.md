@@ -4,8 +4,8 @@
 
 This guide defines evidence expected from Synaptik benchmarks and separates benchmarking from
 generic tuning transactions, bounded Engine composition, planning cost, and runtime profiling.
-The `tools/benchmarks` project now contains a report-only CPU Engine lifecycle harness and no
-benchmark result changes production settings.
+The `tools/benchmarks` project contains the report-only CPU Engine lifecycle harness and a fixed
+Metal singleton-`NEG` two-route harness. No benchmark result changes production settings.
 
 ## Prerequisites and terms
 
@@ -254,7 +254,9 @@ generator may return complete valid species/strategy, unroll, tile, parallelism,
 thread configurations. It cannot promise an arbitrary lane count or expose private knobs through
 a generic parameter map.
 
-## Current validation
+## Current benchmark commands
+
+### CPU lifecycle
 
 ```bash
 ./gradlew :tools:benchmarks:build
@@ -302,6 +304,81 @@ why the earlier reports and pooled aggregates were invalidated.
 The `evidence` profile remains report-only. A reviewed backend task may cite only reports that
 satisfy its predeclared protocol and complete policy scope; running the benchmark never changes a
 route, threshold, cache, or later preparation.
+
+### Metal singleton-NEG routes
+
+The Metal benchmark is deliberately one workload rather than an operation or Shape matrix. It
+compiles canonical no-grad `FLOAT32 NEG` at Shape `[1_048_576]` under `STRICT_IEEE`, enumerates the
+complete current `MetalLocalWorkloadTuning` pair, and prepares both opaque candidates. It records
+both routes and never selects a winner, calls `prepareTuned(...)`, uses complete-plan tuning, reads
+or writes a cache, applies a threshold, or changes a later preparation.
+
+Build the native bridge, then run the bounded smoke profile:
+
+```bash
+./native/metal-macos-arm64/build.sh
+SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" \
+  ./gradlew -q :tools:benchmarks:metalBenchmark -Pprofile=smoke
+```
+
+The environment variable must contain an absolute regular-file path. The benchmark neither
+discovers nor packages the dylib. It first opens a separate traced integration, prepares and runs
+both candidates, exact-byte-checks their outputs, and requires successful
+`CUSTOM_KERNEL`/`GRAPH_EXECUTABLE` PREPARE and RUN facts with `NOT_QUERIED`. It closes that
+integration before opening the ordinary no-trace integration used for every retained timing.
+Candidate identity bytes must match across the two integrations.
+
+Timed execution is exactly `PreparedExecutionRunner.run(...) + RunResult.close()`. It includes
+fresh Runtime output/workspace allocation, synchronous native invocation/wait, and run-owned
+cleanup. It excludes compile, candidate enumeration, prepare, caller upload, trace work, host
+download, checksum, JSON construction, and integration cleanup. Before warmup and after every
+retained batch, an untimed run downloads all 1,048,576 results and compares their raw words with
+the fixed input words XOR `0x80000000`. The report retains all iteration counts, raw batch
+durations, normalized run durations, checksums, and min/median/max summaries.
+
+`smoke` uses two paired warmup and two paired measurement rounds with orders `A,B` then `B,A`.
+`baseline` uses four paired warmup and eight paired measurement rounds, alternating the same
+orders. Every baseline route batch accumulates all executions until it reaches 25 ms, subject to
+the fixed 1,000,000-execution ceiling; no sample, retry, outlier, or failure is discarded or
+replaced. One fresh JVM invocation is the independent unit. Its within-process samples and paired
+rounds are correlated.
+
+Baseline uses and validates
+`-Xms1g -Xmx1g -XX:-TieredCompilation -Xbatch --enable-native-access=ALL-UNNAMED`. Supply every
+required fact explicitly:
+
+```bash
+SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" \
+  ./gradlew -q :tools:benchmarks:metalBenchmark -Pprofile=baseline \
+  -PbenchmarkBaseRevision=<revision> \
+  -PbenchmarkSourceIdentity=<identity> \
+  -PbenchmarkGitTreeObjectSha1=<tree-oid> \
+  -PbenchmarkHarnessSourceSha256=<sha256> \
+  -PbenchmarkHostIdentity=<host-and-model> \
+  -PbenchmarkMetalDeviceIdentity=<device> \
+  -PbenchmarkOsBuild=<product-and-build> \
+  -PbenchmarkNativeBuildIdentity=<xcode-clang-sdk> \
+  -PbenchmarkPowerState=<state> \
+  -PbenchmarkThermalState=<state-or-explicit-unknown> \
+  -PbenchmarkFork=<positive-integer>
+```
+
+Schema 1 labels caller-supplied host facts, hashes the loaded benchmark class and exact dylib,
+records the real library path, JVM and OS facts, fixed workload, protocol, compile/enumeration/
+prepare durations, and two complete route rows. It always reports
+`eligibleForProductionDecision=false`, `autotuningEvidence=false`, and
+`selectionMode=fixed-candidate-enumeration-no-winner`. It writes one JSON document only to
+standard output; the harness creates no report, baseline, manifest, cache, or other retained
+artifact. Missing metadata/JVM flags, wrong host/library, candidate or trace changes, raw-bit
+mismatch, iteration ceiling, and floor violation fail nonzero rather than producing a successful
+partial or `unavailable` report.
+
+Default and portable CI may run `:tools:benchmarks:build` and Javadocs without a dylib.
+`metalBenchmark` is not wired into `build` or `check`. An opt-in dedicated Apple-silicon runner may
+use `smoke` only as a functional schema/route/correctness check and must not gate on timing.
+`baseline` belongs on a controlled local or dedicated host. Any route/default decision requires a
+separately reviewed multi-fork, multi-target statistical protocol; this fixed report is not that
+protocol.
 
 ## Typical mistakes
 

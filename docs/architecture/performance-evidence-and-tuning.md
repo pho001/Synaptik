@@ -55,6 +55,15 @@ behavior. Its hardened schema-3 reports explicitly become ineligible for product
 when the public lifecycle cannot record actual selected-plan facts. This conservative no-change
 adds no runtime search, persistent profile, automatic mutation, or user-facing tuning knob.
 
+The fixed Metal singleton-`NEG` benchmark is the bounded exception that can record actual route
+facts: it separately attests the current two opaque local candidates through typed Trace outcomes,
+then closes that integration and times freshly enumerated matching candidate identities through the
+ordinary no-trace integration. Enumerating and measuring both fixed candidates is observation, not
+selection. The harness never calls the model-autotuning workflow, creates a winner or cache entry,
+or changes later preparation; every report remains ineligible for a production decision. Its one
+Shape, one process, and correlated within-process samples are not a substitute for a separately
+reviewed multi-target/fork statistical protocol.
+
 ## One model-autotuning workflow
 
 `tools/tuning` coordinates one explicit workflow with two related phases. The phases share the
