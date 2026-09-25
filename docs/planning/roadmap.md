@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through documentation/audit-only 0038; 0006–0007, 0009–0013, 0016–0018, 0026–0027, and 0030–0037 Blocked | Metal 0038 synchronized the exact current capability-profile manifest without production, native, schema, identity, test, or probe changes. No Metal task is Ready. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through documentation/audit-only 0038; 0006–0007, 0009–0013, 0016–0018, 0026–0027, 0030–0037, and planning-only 0039 Blocked | Metal 0039 records the Draft Model 0026 FLOAT16 prerequisite, closed Metal plumbing, and an unreserved conditional candidate without production, schema, identity, test, or probe changes. No Metal task is Ready. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -404,8 +404,10 @@ schema.
   comparison still requires a separately reviewed, fully sealed matrix before measurement.
 - Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
   0017, and Metal 0015/0019/0020/0021/0022/0023/0024/0025/0038 are Complete. Metal 0016–0018,
-  0026–0027, and 0030–0037 remain Blocked under their recorded contracts. No Metal task is Ready;
-  every unfinished or blocked operation family remains unauthorized.
+  0026–0027, and 0030–0037 remain Blocked under their recorded contracts. Planning-only Metal 0039
+  is Blocked on Model 0026 with no probe or production change; its bounded profile-common
+  candidate and possible FLOAT16 schema/type/identity values remain conditional and unreserved. No
+  Metal task is Ready; every unfinished or blocked operation family remains unauthorized.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -489,7 +491,9 @@ five-input/two-output/caller-INT64 schema, native lifecycle, and proof.
 
 Schema 12/wires beginning at 20/attribute 7, INT64 type/ingress, ABI/export, and identity 13 remain
 conditional, unimplemented, and unreserved. Metal 0026/0027 remain separately finalized Blocked.
-Documentation/audit-only Metal 0038 is Complete; no Metal task is Ready.
+Documentation/audit-only Metal 0038 is Complete. Planning-only Metal 0039 is Blocked on Draft Model
+0026 without a probe or production change; no Metal task is Ready and no FLOAT16 schema/type/
+identity value is reserved.
 
 ## History policy
 

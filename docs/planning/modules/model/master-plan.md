@@ -264,9 +264,8 @@ Complete; task 0026 remains an independent Draft, and no Model task is Ready.
   the 23-task Model/Javadoc/architecture validation, documentation/diff scope, and independent
   Class C `APPROVE` with zero findings passed.
 - Metal 0018 remains Blocked under its unchanged historical contract and has no production change.
-  Reverified Metal 0021 is the sole Ready frontier from clean base `30826783` and must run a
-  completely fresh full real-M3 oracle from the beginning before any production edit. No Model
-  task is Ready.
+  Reverified Metal 0021 completed its fresh full real-M3 oracle gate, and subsequent Metal work is
+  recorded in the Metal plan. No Model task is Ready.
 - Task 0026 remains an independent `Draft` with no detailed brief and no dependency relationship
   to 0027–0029. It is selected only when IEEE-754 binary16 `FLOAT16` and mixed-precision semantics
   become current.
@@ -282,8 +281,8 @@ Complete; task 0026 remains an independent Draft, and no Model task is Ready.
   FLOAT32 ACCELERATOR MATMUL result that is exact zero after an otherwise-permitted evaluation may
   publish either sign. Convolution, strict, products, intermediates, empty contractions, nonzero
   values, classifications, all terms, FMA/reassociation, DAZ/FTZ, reduced precision, identities,
-  and tolerance remain unchanged. Metal 0021 is now the sole Ready frontier under a completely
-  fresh full-oracle gate.
+  and tolerance remain unchanged. Metal 0021 completed its fresh full-oracle gate; no Model task
+  is Ready.
 - **FLOAT16 and mixed precision:** BFLOAT16 remains a distinct current type. Only 0026 may add true
   IEEE binary16 FLOAT16 and must audit each affected family’s input, accumulation/intermediate,
   and output types. A shared two-byte carrier does not imply arithmetic, Java Vector support, or a
