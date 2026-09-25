@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Blocked
 
 ## Change class
 
@@ -294,4 +294,74 @@ Engine proof, removed artifacts, and absence of runtime checks/fallback.
 
 ## Result
 
-Pending implementation.
+Blocked before route timing or capability. Planning completed at
+`3a81874528b9a3cbcca4a5643c121bc164c2f75a`. Production capability remained false throughout, and
+no Java, native, schema, identity, test, guide, Javadoc, ABI, export, package, or generated artifact
+changed.
+
+Exactly one fresh Apple M3 Max numerical-oracle process invocation ran with the frozen 83-word
+corpus, MPSGraph's production-default optimization level `1`,
+`MPSGraphReducedPrecisionFastMathNone` (`0`), custom `MTLMathModeSafe` (`0`), direct supplied
+targets, input preservation, and target canaries. Oracle source SHA-256 was
+`b25723c322d9a3078272ea0e79d090d296312186b0e1563b8021f6b7c67e865a`; executable SHA-256 was
+`35432d9124478d01a1729ab01d4d2a10778fbf6a8bc87a79b02b0c8b6b881e8f`; raw device-output SHA-256
+was `3b762b96b3a1a57aecb97384362069ac2cc9187d271103bc333e841be4274e01`. The 200-digit exact
+reference/recursive-membership validator SHA-256 was
+`e851ad5c9feabec8282052d458cd40b1efeacddada7723f1292dd2025060794f`; its raw verdict SHA-256 was
+`6ac29b44e9a1a693f0e4822ddf6165ef690151f16b63b7f1110434b007be17db`.
+
+The raw recursive verdict was:
+
+```text
+REFERENCE_PRECISION_DIGITS=200
+CORPUS_COUNT=83
+CORPUS_SHA256=06e9137c3b6a9ba147f0a0b73c7face1f5b8cf15ef150964040b64f9be2cad25
+RAW_OUTPUT_SHA256=3b762b96b3a1a57aecb97384362069ac2cc9187d271103bc333e841be4274e01
+CANDIDATE=direct_exp VERDICT=PASS MAX_ORDERED_DISTANCE=1 MAX_INPUT=3f800000 FTZ_COUNT=16 CLASS_SIGN_RANGE=PASS FAILURES=0
+CANDIDATE=custom_exp VERDICT=FAIL MAX_ORDERED_DISTANCE=53 MAX_INPUT=42b17217 FTZ_COUNT=16 CLASS_SIGN_RANGE=PASS FAILURES=9
+FAIL name=custom_exp input=c19fffff actual=310da44b allowed={822977600, 822977601, 822977602, 822977603, 822977604, 822977605, 822977606, 822977607, 822977608, 822977609, 822977599}
+FAIL name=custom_exp input=419fffff actual=4de7581e allowed={1307007010, 1307007011, 1307007012, 1307007013, 1307007014, 1307007015, 1307007016, 1307007017, 1307007018, 1307007019, 1307007020}
+FAIL name=custom_exp input=41a00001 actual=4de7585a allowed={1307007072, 1307007073, 1307007074, 1307007075, 1307007076, 1307007077, 1307007078, 1307007068, 1307007069, 1307007070, 1307007071}
+FAIL name=custom_exp input=429fffff actual=792abb5b allowed={2032843635, 2032843636, 2032843637, 2032843638, 2032843639, 2032843640, 2032843641, 2032843642, 2032843643, 2032843644, 2032843645}
+FAIL name=custom_exp input=42a00001 actual=792abc0c allowed={2032843808, 2032843809, 2032843810, 2032843811, 2032843812, 2032843813, 2032843814, 2032843815, 2032843816, 2032843806, 2032843807}
+FAIL name=custom_exp input=42afffff actual=7ef88243 allowed={2130215488, 2130215478, 2130215479, 2130215480, 2130215481, 2130215482, 2130215483, 2130215484, 2130215485, 2130215486, 2130215487}
+FAIL name=custom_exp input=42b00000 actual=7ef88299 allowed={2130215602, 2130215603, 2130215604, 2130215605, 2130215606, 2130215607, 2130215608, 2130215609, 2130215610, 2130215611, 2130215612}
+FAIL name=custom_exp input=42b00001 actual=7ef88346 allowed={2130215726, 2130215727, 2130215728, 2130215729, 2130215730, 2130215731, 2130215732, 2130215733, 2130215734, 2130215735, 2130215736}
+CANDIDATE=direct_sigmoid VERDICT=FAIL RECURSIVE_MEMBERSHIP=FAIL MAX_SET_SIZE=11 MAX_SET_INPUT=c0000000 FTZ_COUNT=16 CLASS_SIGN_RANGE=PASS FAILURES=2
+FAIL name=direct_sigmoid input=bf900000 actual=3e7af78f allowed=3e7af78b,3e7af78c,3e7af78e,3e7af790,3e7af791,3e7af793,3e7af794,3e7af796
+FAIL name=direct_sigmoid input=bf900001 actual=3e7af78f allowed=3e7af789,3e7af78b,3e7af78c,3e7af78e,3e7af790,3e7af791,3e7af793,3e7af794,3e7af796
+CANDIDATE=custom_sigmoid VERDICT=FAIL RECURSIVE_MEMBERSHIP=FAIL MAX_SET_SIZE=11 MAX_SET_INPUT=c0000000 FTZ_COUNT=16 CLASS_SIGN_RANGE=PASS FAILURES=1
+FAIL name=custom_sigmoid input=c19fffff actual=310da44b allowed=310da43f,310da440,310da441,310da442,310da443,310da444,310da445,310da446,310da447,310da448,310da449
+CANDIDATE=composed_sigmoid VERDICT=PASS RECURSIVE_MEMBERSHIP=PASS MAX_SET_SIZE=11 MAX_SET_INPUT=c0000000 FTZ_COUNT=16 CLASS_SIGN_RANGE=PASS FAILURES=0
+PASSING_CANDIDATES=direct_exp,composed_sigmoid
+ORACLE_VERDICT=PASS
+```
+
+The composed SIGMOID verdict selects captured device results from the negative or nonnegative
+stable branch with the exact raw-bit sign guard, then checks membership in the full recursive
+site-by-site union. Direct SIGMOID was not given a final elementary distance envelope. Thus the
+only numerically passing candidates were direct MPSGraph EXP and certified MPSGraph composed
+SIGMOID; the custom EXP/SIGMOID and direct SIGMOID candidates were excluded from timing.
+
+The required actual GPU dispatch and peak transient-memory instrumentation was unavailable before
+timing. The installed command-line tools produced these raw results:
+
+```text
+$ xcrun --sdk macosx xctrace list templates
+xcrun: error: unable to find utility \"xctrace\", not a developer tool or in PATH
+exit=72
+
+$ /usr/bin/xctrace list templates
+xcode-select: error: tool 'xctrace' requires Xcode, but active developer directory '/Library/Developer/CommandLineTools' is a command line tools instance
+exit=1
+```
+
+`MTLCaptureManager` can describe a GPU-trace destination, but this workstation has no supported
+installed trace reader capable of extracting actual framework-internal compute dispatches and peak
+transient resource bytes. A production-equivalent Level-1/fast-math-none adjudication harness
+compiled successfully (source SHA-256
+`0ad83c650d00c24c74e225c7d7502fee2c293f521d68747f538ceecd859d3b12`, executable SHA-256
+`4fb094ec5ea9472af53adca8272bb5aafcdbe6d08e59f32c52f4f8768503a762`) but was deliberately never
+run, so there is no timing, inferred backend-call count, opaque-memory substitute, route winner, or
+capability authorization. All disposable oracle, validator, raw-output, verdict, adjudicator source,
+and executable artifacts were removed after this evidence was recorded.
