@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through independently approved 0048; 0047 Blocked; 0049 Review needed | [Metal 0049](backends/metal/tasks/0049-synchronous-single-default-device-contract.md) documents current synchronous completion and one system-default device context per integration without adding async, selection, multi-device, identity, or pooling behavior. Independent Class C review is pending; no Metal task is Ready. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through final-approved 0049; 0047 Blocked | [Metal 0049](backends/metal/tasks/0049-synchronous-single-default-device-contract.md) completed the synchronous/single-default-device contract after P1 status-drift remediation `6d4246f7` and final cumulative independent Class C `APPROVE` with zero findings. No Metal task is Ready. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -123,17 +123,17 @@ splats per prepared execution with fresh read-only run bindings and exact deferr
 deliberately does not pool mutable outputs or MPSGraph address workspaces because `RunResult` and
 concurrent-run ownership lack a safe exclusive return/reset/eviction contract.
 
-[Metal 0049](backends/metal/tasks/0049-synchronous-single-default-device-contract.md) is Review
-needed after a documentation-only Class C execution from planning commit `e32ad68d`. It codifies
-synchronous completed-state result semantics, one system-default Metal context per integration,
-context-bound resources, distinct non-physical device/trace/tuning identities, no cross-device
-behavior, concrete successor gates, and retention of the no-general-pool decision.
+[Metal 0049](backends/metal/tasks/0049-synchronous-single-default-device-contract.md) is Complete
+after P1 status-drift remediation `6d4246f7` and final cumulative independent Class C `APPROVE`
+with zero findings. It codifies synchronous completed-state result semantics, one system-default
+Metal context per integration, context-bound resources, distinct non-physical device/trace/tuning
+identities, no cross-device behavior, concrete successor gates, and the no-general-pool decision.
 
 `Metal 0004 (Complete) + Metal 0041 (Complete) + Engine 0009/0015–0018 (Complete) + tools/tuning 0001–0002 (Complete) -> Metal 0042 (Complete) -> Metal 0043 (Complete) -> Metal 0044 (Complete) -> Metal 0045 (Complete) -> Metal 0046 (Complete) -> Metal 0047 (Blocked)`
 
 `Metal 0046 (Complete) + Runtime 0016 (Complete) + Prepare 0006 (Complete) + Engine 0010 (Complete) -> Metal 0048 (Complete)`
 
-`Metal 0048 (Complete) + Runtime 0016 (Complete) + Prepare 0006 (Complete) + Engine 0010 (Complete) + Planning device eligibility + Trace 0003 + Metal 0041–0042 (Complete) -> Metal 0049 (Review needed)`
+`Metal 0048 (Complete) + Runtime 0016 (Complete) + Prepare 0006 (Complete) + Engine 0010 (Complete) + Planning device eligibility + Trace 0003 + Metal 0041–0042 (Complete) -> Metal 0049 (Complete)`
 
 Numerical profiles
 
@@ -185,7 +185,7 @@ approval with zero findings. Metal 0042 is Complete at `9feb2505`; Metal 0043 is
 `77e6091b`; Metal 0044 is Complete from planning revision `3d458b7a`; Metal 0045 is Complete at
 same-reviewer-approved remediation `26c6c911`; Metal 0046 is Complete at independently approved
 implementation `4aad1ab6`; Metal 0047 is Blocked; Metal 0048 is Complete at `89f9fbb9`; Metal 0049
-is Review needed.
+is Complete after approved remediation `6d4246f7`.
 
 Task 0019 landed at implementation `a6d1796d` plus mixed-owner test remediation `bcb717a6`. Its
 native ABI/export, Metal, conformance, real Engine, architecture, full-build, documentation, and
@@ -399,8 +399,7 @@ production behavior. Metal 0042 now consumes only the existing version-twelve si
 tuning foundation through public retained collaborations and private Engine composition. Schema
 12/wires beginning at 20/attribute 7, local type 4, INT64 type/ingress, ABI/export changes, and
 version-thirteen identities remain unimplemented and unreserved. Documentation/audit-only Metal
-0038 and Metal 0042–0046 are Complete; Metal 0047 is Blocked; Metal 0048 is Complete; Metal 0049 is
-Review needed.
+0038 and Metal 0042–0046 are Complete; Metal 0047 is Blocked; Metal 0048–0049 are Complete.
 
 Strategic gate: historical blocker evidence is preserved, and no backend task may define Model
 semantics. Complete Model 0028 owns bounded reduction exact-zero sign freedom; Complete Metal 0020
@@ -498,10 +497,10 @@ schema.
   comparison still requires a separately reviewed, fully sealed matrix before measurement.
 - Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
   0017, Trace 0003, and Metal
-  0015/0019/0020/0021/0022/0023/0024/0025/0038/0041/0042/0043/0044/0045/0046/0048 are Complete.
-  Metal 0016–0018, 0026–0027, 0030–0037, planning-only 0039, failed-gate 0040, and provider-gated
-  0047 remain Blocked under their recorded contracts. Every blocked operation family remains
-  unauthorized. Documentation-only Metal 0049 is Review needed; no Metal task is Ready.
+  0015/0019/0020/0021/0022/0023/0024/0025/0038/0041/0042/0043/0044/0045/0046/0048/0049 are
+  Complete. Metal 0016–0018, 0026–0027, 0030–0037, planning-only 0039, failed-gate 0040, and
+  provider-gated 0047 remain Blocked under their recorded contracts. Every blocked operation family
+  remains unauthorized. No Metal task is Ready.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -535,11 +534,11 @@ deterministic per-run splat allocation/fill/upload while preserving fresh run bi
 result-lifetime cleanup, and explicitly rejects a general mutable output/workspace pool under the
 current ownership contract.
 
-Metal 0049 is Review needed after documentation execution from planning commit `e32ad68d`. Its
-Class C scope records the current synchronous completion barrier, completed-state `RunResult`
-resource/publication lease, and one system-default Metal device context per integration. It adds no
-asynchronous API, physical-device selector, multi-device execution, identity change, cross-device
-behavior, or general pool. Independent review is pending; no Metal task is Ready.
+Metal 0049 is Complete after P1 status-drift remediation `6d4246f7` and final cumulative
+independent Class C `APPROVE` with zero findings. Its contract records the synchronous completion
+barrier, completed-state `RunResult` resource/publication lease, and one system-default Metal device
+context per integration without adding an asynchronous API, physical-device selector, multi-device
+execution, identity change, cross-device behavior, or general pool. No Metal task is Ready.
 
 Metal 0040 is Blocked from exact clean planning revision
 `c300582727ec568a7482dd974f9d1b2e2e13f82c`. Its sole disposable direct BFLOAT16 Gather program
@@ -627,8 +626,8 @@ approval with zero findings. Metal 0042 is Complete at `9feb2505705263b6efb417d6
 Metal 0043 is Complete at remediation `77e6091b`; Metal 0044 is Complete; Metal 0045 is Complete at
 same-reviewer-approved remediation `26c6c911`; Metal 0046 is Complete at independently approved
 implementation `4aad1ab6`; Metal 0047 is Blocked; Metal 0048 is Complete at independently approved
-implementation `89f9fbb9`; documentation-only Metal 0049 is Review needed, and no Metal task is
-Ready.
+implementation `89f9fbb9`; documentation-only Metal 0049 is Complete after final-approved
+remediation `6d4246f7`, and no Metal task is Ready.
 
 ## History policy
 
