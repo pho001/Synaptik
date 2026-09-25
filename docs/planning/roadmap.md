@@ -31,7 +31,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 
 | Order | Project area | Current status | Entry or next gate |
 |---:|---|---|---|
-| 1 | [`modules/model`](modules/model/master-plan.md) | Complete through reviewed 0029; 0026 Draft; 0030 Review needed | [Model 0030](modules/model/tasks/0030-total-recursive-accelerator-numerical-floor.md) implemented the documentation-only total recursive ACCELERATOR cutover and awaits independent Class C review; no repository task is Ready. |
+| 1 | [`modules/model`](modules/model/master-plan.md) | Complete through reviewed 0029; 0026 Draft; 0030 Review needed; 0031 Ready | [Model 0031](modules/model/tasks/0031-strict-unary-numerical-baseline.md) is the sole authorized repository frontier and must close the missing strict unary baseline before Task 0030 remediation and re-review. |
 | 2 | [`modules/trace`](modules/trace/master-plan.md) | Complete through 0003; 0004–0008 Draft | [Trace 0003](modules/trace/tasks/0003-backend-preparation-and-invocation-diagnostic-dtos.md) completed its JDK-only DTO/ID surface and validation; no Trace task is Ready. |
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete through 0004 | Reopen only for a concrete shared-contract need. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress, interleaved; 0001–0003, 0006, and 0006A–0006B Complete; 0004–0005 and 0007–0008 Draft | 0006 completed at `314e049` plus `37e9e9db`; no Config task is Ready. |
@@ -57,6 +57,14 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 23 | [`tools/cli`](tools/cli/master-plan.md) | Draft | Define commands only after their Engine and diagnostic contracts are stable. |
 
 ## Authorized frontiers
+
+Model strict unary baseline
+
+[Model 0031](modules/model/tasks/0031-strict-unary-numerical-baseline.md) is `Ready` from common
+base `4bd26e72a4f3aa71a6607269991f1b96b880812f`. Its Model/public documentation and Javadoc-only
+decision closes the strict allowed-result set for all nineteen unary kinds from retained public
+and CPU 0005H/0005I evidence. It changes no executable behavior or capability. Task 0030 remains
+`Review needed`, but remediation and final review depend on completed 0031.
 
 Trace and Metal diagnostics
 
@@ -145,15 +153,13 @@ skips; the two real-Metal public `prepareTuned` cases are included in the integr
 
 Numerical profiles
 
-[Model 0030](modules/model/tasks/0030-total-recursive-accelerator-numerical-floor.md) is
-`Review needed` after implementing the documentation-only clean cutover from planning base
-`333f780d1acbe234a2231cbced78535895a23f7a`. It keeps the public profile enum and
-`STRICT_IEEE` unchanged, replaces the closed operation table with recursive exact/discrete,
-FLOAT32 primitive DAZ/FTZ/FMA plus an evidence-backed five-ULP elementary-site rule, and
-all-contributors-once aggregate reassociation/FMA. Every Model family and generated Tensor
-gradient formula is assigned; no policy/placement/determinism/envelope layer or backend capability
-change is authorized. Required Model tests/Javadocs, architecture tests, and affected
-Config/Compiler/Engine Javadocs passed. No repository task is Ready.
+[Model 0030](modules/model/tasks/0030-total-recursive-accelerator-numerical-floor.md) remains
+`Review needed` after implementing the documentation-only recursive cutover from planning base
+`333f780d1acbe234a2231cbced78535895a23f7a`. Independent review found that its unchanged-STRICT
+premise preceded a complete public strict unary allowed-result set. Ready
+[Model 0031](modules/model/tasks/0031-strict-unary-numerical-baseline.md) now owns that missing
+documentation/Javadoc-only decision for all nineteen unary kinds. No executable behavior or
+backend capability changes. Task 0030 remediation and re-review follow completed 0031.
 
 Metal 0051 remains Draft as the first serial implementation successor: accelerator-only canonical
 FLOAT32 `EXP`/`SIGMOID` and complete seeded-gradient topologies, node schema 12 with wires 20/21,
