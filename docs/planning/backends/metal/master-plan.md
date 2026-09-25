@@ -71,7 +71,10 @@ Training-to-Metal optimizer bridge.
   is Blocked after its mandatory run flushed a reference subnormal. Profile-common canonical
   FLOAT32 BatchNorm inference Task 0027 is Blocked after its sole run flushed signed minimum
   subnormals. Task 0030 is also Blocked: its sole direct `MAX_POOL2D` run returned negative zero
-  for `[+0,-0]` and finite `3.0f` for all four qNaN/sNaN windows. No Metal task is Ready.
+  for `[+0,-0]` and finite `3.0f` for all four qNaN/sNaN windows. Task 0031 is Blocked before a
+  probe: direct MPSGraph structurally maps full Conv2d geometry, but its shape-dependent contraction
+  algorithm is undocumented and one lean execution cannot authorize that full domain. No Metal
+  task is Ready.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
   requirements. Metal 0017 remains Blocked under its old accelerator-reduction contract.
@@ -99,6 +102,10 @@ Training-to-Metal optimizer bridge.
 - Metal 0030 is Blocked without production changes. Its one raw-winner execution passed ordinary
   and signed-subnormal preservation plus shape/input/guard controls, but failed signed-zero order
   and every NaN-class cell; schema 12/wire 20/POOL2D 7 and identities 13 remain unimplemented.
+- Metal 0031 is Blocked without a device probe or production change. Its accelerator-only
+  unbiased no-grad canonical FLOAT32 Conv2d candidate has an exact documented NCHW/OIHW mapping,
+  but full-geometry numerical authorization requires either an exact custom kernel or preceding
+  Model/architecture broadening; a prohibited matrix or one-geometry narrowing is not a route.
 - Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
   0017, and Metal 0015/0019/0020/0021/0022/0023/0024/0025 are Complete.
 - Production dependencies may point to Model, Config, Planning, Runtime, Prepare,
@@ -153,6 +160,7 @@ visibility.
 | 0026 | [Profile-common canonical FLOAT32 SOFTMAX](tasks/0026-profile-common-float32-softmax.md) | Blocked | 0025 Complete; Model 0016I–0016J; Compiler 0005B/0005C; CPU 0007E precedent; Config 0006; Engine 0018 | Any 0016–0018 restart; every concurrent Metal capability/schema/candidate/materialization scope; LOG_SOFTMAX, other normalization/loss/attention/fusion, profile-semantic, or shared production work | None | Mandatory one-run direct-selector numerical gate only | One `[4,8]` production-settings execution; no production change | Flattened index 18 returned positive zero `0x00000000` for the `-90.0f` input in the zero-max slice; StrictMath reference `0x0008ec28` differs by 584,744 ULPs. Probe removed; schema/identity/capability/gradient implementation did not begin. |
 | 0027 | [Profile-common FLOAT32 batch-normalization inference](tasks/0027-profile-common-float32-batch-normalization-inference.md) | Blocked | 0025 Complete; Model 0021B; Compiler 0005B/0005C; CPU 0007F1 precedent; Config 0006; Engine 0018; 0026 is not a functional dependency | Every concurrent Metal capability/schema/native-preflight/candidate/codec/materialization/public Engine scope; training, multi-output, backward closure, and any 0016–0018 restart | None | Mandatory one-run direct-selector numerical gate only | One `[2,8,2]` production-settings execution; no production change | Channel 6 returned `0x00000000`/`0x80000000` where exact positive/negative minimum subnormals `0x00000001`/`0x80000001` were required. Other 30 cells and all five unchanged feeds passed; probe removed; implementation did not begin. |
 | 0030 | [Profile-common exact canonical FLOAT32 MAX_POOL2D forward](tasks/0030-profile-common-exact-canonical-float32-max-pool2d-forward.md) | Blocked | 0025 Complete; Model 0020A; Compiler 0005D/0006B11; CPU 0008G precedent; Config 0006; Engine 0018 | Every concurrent Metal capability/schema/native-preflight/candidate/codec/materialization/public Engine scope; convolution, average/1D/3D pooling, backward, multi-output, and any 0016–0018 restart | None | Mandatory one-execution raw-winner gate only | One `[1,1,1,18]` disjoint-window execution; no production change | `[+0,-0]` returned negative zero, and first/later qNaN/sNaN windows returned finite `3.0f`; ordinary/subnormal/shape/input/guard controls passed, artifacts were removed, and implementation did not begin. |
+| 0031 | [ACCELERATOR canonical FLOAT32 unbiased CONV2D forward](tasks/0031-accelerator-canonical-float32-unbiased-conv2d-forward.md) | Blocked | 0025 Complete; Model 0020; Compiler 0005D/0006B11; Config 0006; Engine 0018; 0030 blocker evidence is independent | Every concurrent Metal capability/schema/native-preflight/candidate/codec/materialization/public Engine scope; biased/gradient/Conv1d/Conv3d/pooling work; any 0016–0018 restart | None | Documentation-first structural review only; no device gate | Header/API mapping and exact candidate/schema research; no production change | Direct MPSGraph maps the full grouped NCHW/OIHW geometry, but its shape-dependent contraction algorithm is undocumented. One allowed-set execution cannot authorize all geometry, a matrix is prohibited, and narrowing to one probe shape is unsound. Unblocking requires an exact custom kernel or preceding Model/architecture broadening. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -170,7 +178,7 @@ Completed profile spine and serial successors:
 
 `Model 0028 (Complete) -> 0020 (Complete) -> 0018 (Blocked)`
 
-`0018 blocker evidence -> Model 0029 (Complete) -> 0021 (Complete) -> 0022 (Complete) -> 0023 (Complete) -> 0024 (Complete) -> 0025 (Complete) -> {0026 (Blocked), 0027 (Blocked), 0030 (Blocked)}`
+`0018 blocker evidence -> Model 0029 (Complete) -> 0021 (Complete) -> 0022 (Complete) -> 0023 (Complete) -> 0024 (Complete) -> 0025 (Complete) -> {0026 (Blocked), 0027 (Blocked), 0030 (Blocked), 0031 (Blocked)}`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -196,10 +204,12 @@ independent Class C review with zero findings. Complete
 [0025](tasks/0025-exact-float32-unfold-axis-materialization.md) is Complete at final reviewed
 revision `f88066e3ad0547987bb03b2d18ed2813f97de223`.
 [0026](tasks/0026-profile-common-float32-softmax.md),
-[0027](tasks/0027-profile-common-float32-batch-normalization-inference.md), and
-[0030](tasks/0030-profile-common-exact-canonical-float32-max-pool2d-forward.md) are Blocked without
-production changes. There is no Ready Metal serial frontier. These edges serialize shared Metal
-mutation; they do not claim that one operation family requires another.
+[0027](tasks/0027-profile-common-float32-batch-normalization-inference.md),
+[0030](tasks/0030-profile-common-exact-canonical-float32-max-pool2d-forward.md), and
+[0031](tasks/0031-accelerator-canonical-float32-unbiased-conv2d-forward.md) are Blocked without
+production changes. Task 0031 additionally ran no probe. There is no Ready Metal serial frontier.
+These edges serialize shared Metal mutation; they do not claim that one operation family requires
+another.
 
 ## Integration ownership and shared documents
 
@@ -207,9 +217,10 @@ mutation; they do not claim that one operation family requires another.
 - Shared documents: the next separately authorized task owns synchronized planning,
   architecture-status, API/user status, capability/preparer guides, and glossary updates after
   executable behavior stabilizes.
-- Blocked Metal 0016–0018 and 0026–0027/0030 have no active write or review scope. Complete Model
-  0028 owns the reduction semantic contract, Complete Model 0029 owns the MATMUL final-publication
-  semantic contract, and Complete Metal 0021–0025 retain their reviewed implementations.
+- Blocked Metal 0016–0018 and 0026–0027/0030–0031 have no active write or review scope. Complete
+  Model 0028 owns the reduction semantic contract, Complete Model 0029 owns the MATMUL
+  final-publication semantic contract, and Complete Metal 0021–0025 retain their reviewed
+  implementations.
 
 ## Milestones and current frontier
 
@@ -252,8 +263,12 @@ Metal 0027 is also Blocked: its only `[2,8,2]` direct BatchNorm inference execut
 zero for both signed minimum-subnormal channel-6 outputs. Metal 0030 is independently Blocked: its
 sole `[1,1,1,18]` direct `MAX_POOL2D` execution returned negative zero for `[+0,-0]` and finite
 `3.0f` for each first/later qNaN/sNaN window. Its ordinary/subnormal/shape/input/guard controls
-passed and artifacts were removed. Schema 12/wire 20/POOL2D 7 and version-thirteen identities were
-not implemented; no Metal task is Ready.
+passed and artifacts were removed. Metal 0031 is Blocked without a probe: MPSGraph's descriptor
+structurally maps full grouped NCHW/OIHW Conv2d geometry, but the selector gives no contraction-
+algorithm contract, so one allowed-set execution cannot authorize every shape and lean policy
+prohibits the needed matrix. Exact custom-kernel proof or preceding Model/architecture broadening
+is required; one-geometry narrowing is forbidden. Schema 12/wire 20/attribute 7 and
+version-thirteen identities remain unimplemented; no Metal task is Ready.
 
 Metal 0006 remains `Blocked` after exact RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures.
 Metal 0007 remains independently `Blocked` after eight direct-output executions returned positive
