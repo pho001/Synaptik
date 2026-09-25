@@ -36,8 +36,9 @@ Build on an Apple-silicon macOS host with Xcode Command Line Tools:
 
 The script targets exactly arm64 and macOS 26.0, enables automatic reference counting (ARC), sets
 the install name to `@rpath/libsynaptik_metal_foundation.dylib`, adds no rpath, and links
-Foundation, Metal, and MetalPerformanceShadersGraph. It compiles in a private directory and
-atomically replaces only
+Foundation, Metal, and MetalPerformanceShadersGraph. It requires a real local `build/` directory,
+rejects symlink or non-directory destinations and any existing non-regular output, compiles in a
+private directory, and atomically replaces only
 `native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib` after success.
 
 Explicitly replace the linker's incidental signature with the fixed local ad-hoc identity, then
@@ -60,6 +61,12 @@ rpath set, ABI 4, node schema 11, required frameworks, and fixed ad-hoc identifi
 time, host, absolute path, source revision, product version, SDK version, Team ID, notarization,
 provenance, or release field. Packaging the same exact signed input produces byte-identical
 manifest and checksum files.
+
+The packager applies the same real-directory checks to `build/` and its package staging parent.
+The verifier rejects redundant terminal separators or components before checking the package root
+without following a symlink. It parses every raw `otool -L` dependency line as one complete path
+plus the exact compatibility/current-version suffix and rejects malformed, control-bearing, or
+ambiguous records before applying the system-dependency allowlist.
 
 The checksums detect corruption; because they travel with the artifact, they do not authenticate a
 hostile replacement. The ad-hoc signature verifies internal Mach-O integrity but supplies no

@@ -180,19 +180,28 @@ identity, notarization, distribution, or release claims.
 
 ## Result
 
-Implemented from planning commit `86553466` and clean base
-`7dc4cfec2a051b5ca9c0734f91d0fdc96ad7405b`. The atomic build now pins arm64, macOS 26.0, the
-exact install name, and no rpath. New local package/verifier scripts emit and independently verify
-the exact three-file ad-hoc schema-1 package without changing native source, ABI, Java, Gradle, or
-loader behavior.
+Implemented at `07174014` from planning commit `86553466` and clean base
+`7dc4cfec2a051b5ca9c0734f91d0fdc96ad7405b`. The first independent Class C review found three P1
+fail-open/containment defects: a trailing-separator package-root symlink bypass, incomplete raw
+`otool -L` parsing, and native build/package destinations that could traverse symlinks or accept
+non-regular outputs.
 
-The native build, explicit ad-hoc `codesign`, repeated byte-identity package proof, copied/moved
-package proof, exact checksum and Mach-O checks, and eight corrupt/extra/symlink/manifest/checksum/
-missing-signature/wrong-identifier rejection cases passed. The packaged dylib passed 126 Metal
-tests in 19 suites and 15 explicit Engine composition integration tests with zero failures, errors,
-or skips. Shell syntax, seven-path scope, Markdown, and diff checks passed; no full repository
-build ran.
+Remediation rejects redundant path separators/components before the non-following package-root
+symlink check; validates every complete raw dependency record, its version suffix, and the
+Mach-O-record count before extracting paths; and confines build, staging, backup, output, and
+cleanup paths to real directories and regular non-symlink files. Native source, ABI v4, schema 11,
+Java, Gradle, and loader behavior remain unchanged.
 
-The result remains a verified local development package only. Developer ID, notarization,
-authentication, archive, distribution, publication, CI, and public release remain excluded.
-Status: Review needed for the mandatory independent Class C review.
+Shell syntax; a fresh build, explicit ad-hoc signing, two byte-identical package publications, and
+copy/move verification passed. The original eight corrupt/extra/root-or-member-symlink/manifest/
+checksum/missing-signature/wrong-identifier cases still fail. Exact symlink-root spellings with
+plain, trailing `/`, terminal `/.`, and repeated `/` forms fail; a re-signed malformed Foundation
+load command with an embedded newline and hostile `/usr/lib` record fails after regenerated
+manifest/checksums. External build/staging symlinks, non-directory build paths, and output symlink,
+directory, symlink-to-directory, and FIFO cases fail without an outside write; the prior valid
+build tree remains byte- and mode-identical. The regenerated packaged dylib passed 126 Metal tests
+in 19 suites and 15 Engine integration tests with zero skips, failures, or errors. Markdown,
+seven-path scope, shell syntax, and diff checks passed; no full repository build ran.
+
+The artifact remains local and unauthenticated; every release-only exclusion remains. Status:
+Review needed for the same independent Class C reviewer after P1 remediation.

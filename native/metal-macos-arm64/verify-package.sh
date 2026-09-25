@@ -9,10 +9,24 @@ readonly SIGNATURE_IDENTIFIER="io.github.pho001.synaptik.metal.foundation"
 readonly MANIFEST_NAME="manifest.json"
 readonly CHECKSUM_NAME="SHA256SUMS"
 readonly EXPECTED_FILE_DESCRIPTION="Mach-O 64-bit dynamically linked shared library arm64"
+readonly DEPENDENCY_RECORD_PATTERN='^[[:blank:]]+([^[:blank:][:cntrl:]()]+)[[:blank:]]+\(compatibility version [0-9]+\.[0-9]+\.[0-9]+, current version [0-9]+\.[0-9]+\.[0-9]+\)$'
 
 fail() {
     printf 'verify-package: %s\n' "$*" >&2
     exit 1
+}
+
+require_normalized_path_spelling() {
+    local path="$1"
+    local label="$2"
+
+    [[ -n "${path}" ]] || fail "${label} path must not be empty"
+    [[ ! "${path}" =~ [[:cntrl:]] ]] || fail "${label} path must not contain control characters"
+    case "${path}" in
+        /|.|..|*/|*/.|*/..|./*|../*|*/./*|*/../*|*//*)
+            fail "${label} path must not contain redundant separators or components"
+            ;;
+    esac
 }
 
 if [[ "$#" -ne 1 ]]; then
@@ -20,6 +34,7 @@ if [[ "$#" -ne 1 ]]; then
 fi
 
 PACKAGE_DIR="$1"
+require_normalized_path_spelling "${PACKAGE_DIR}" "package directory"
 [[ ! -L "${PACKAGE_DIR}" ]] || fail "package directory must not be a symlink"
 [[ -d "${PACKAGE_DIR}" ]] || fail "package directory does not exist"
 
@@ -72,15 +87,45 @@ if printf '%s\n' "${LOAD_COMMANDS}" \
         | grep -Eq '^[[:space:]]*cmd LC_VERSION_MIN_MACOSX[[:space:]]*$'; then
     fail "legacy LC_VERSION_MIN_MACOSX is forbidden"
 fi
+EXPECTED_DYLIB_RECORDS="$(printf '%s\n' "${LOAD_COMMANDS}" | awk '
+    $1 == "cmd" && $2 ~ /^(LC_ID_DYLIB|LC_LOAD_DYLIB|LC_LOAD_WEAK_DYLIB|LC_REEXPORT_DYLIB|LC_LOAD_UPWARD_DYLIB|LC_LAZY_LOAD_DYLIB)$/ {
+        count++
+    }
+    END {
+        print count + 0
+    }
+')"
+[[ "${EXPECTED_DYLIB_RECORDS}" =~ ^[0-9]+$ && "${EXPECTED_DYLIB_RECORDS}" -gt 1 ]] \
+    || fail "Mach-O dylib command inventory is incomplete"
 
 LINK_OUTPUT="$(otool -L "${LIBRARY}")"
-LINK_PATHS="$(printf '%s\n' "${LINK_OUTPUT}" | awk 'NR > 1 { print $1 }')"
+LINK_RECORD_LINES=()
+LINK_LINE_INDEX=0
+while IFS= read -r raw_line; do
+    LINK_LINE_INDEX=$((LINK_LINE_INDEX + 1))
+    if [[ "${LINK_LINE_INDEX}" -eq 1 ]]; then
+        [[ "${raw_line}" == "${LIBRARY}:" ]] || fail "otool dependency header is not exact"
+        continue
+    fi
+    [[ "${raw_line}" =~ ${DEPENDENCY_RECORD_PATTERN} ]] \
+        || fail "malformed or ambiguous otool dependency record"
+    LINK_RECORD_LINES[${#LINK_RECORD_LINES[@]}]="${raw_line}"
+done <<< "${LINK_OUTPUT}"
+[[ "${#LINK_RECORD_LINES[@]}" -eq "${EXPECTED_DYLIB_RECORDS}" ]] \
+    || fail "otool dependency record count does not match Mach-O load commands"
+
+LINK_PATHS=()
+for raw_line in "${LINK_RECORD_LINES[@]}"; do
+    [[ "${raw_line}" =~ ${DEPENDENCY_RECORD_PATTERN} ]] \
+        || fail "validated otool dependency record changed unexpectedly"
+    LINK_PATHS[${#LINK_PATHS[@]}]="${BASH_REMATCH[1]}"
+done
+
 FOUNDATION_COUNT=0
 METAL_COUNT=0
 MPSGRAPH_COUNT=0
 LINK_INDEX=0
-while IFS= read -r dependency; do
-    [[ -n "${dependency}" ]] || fail "empty dependency record"
+for dependency in "${LINK_PATHS[@]}"; do
     LINK_INDEX=$((LINK_INDEX + 1))
     if [[ "${LINK_INDEX}" -eq 1 ]]; then
         [[ "${dependency}" == "${INSTALL_NAME}" ]] || fail "otool install-name record is not exact"
@@ -107,8 +152,7 @@ while IFS= read -r dependency; do
             fail "non-system or tokenized dependency is forbidden: ${dependency}"
             ;;
     esac
-done <<< "${LINK_PATHS}"
-[[ "${LINK_INDEX}" -gt 1 ]] || fail "dependency list is incomplete"
+done
 [[ "${FOUNDATION_COUNT}" -eq 1 ]] || fail "Foundation must be linked exactly once"
 [[ "${METAL_COUNT}" -eq 1 ]] || fail "Metal must be linked exactly once"
 [[ "${MPSGRAPH_COUNT}" -eq 1 ]] \
