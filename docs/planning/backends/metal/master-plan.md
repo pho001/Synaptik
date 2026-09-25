@@ -96,8 +96,8 @@ Training-to-Metal optimizer bridge.
   remaining findings. Task 0044 is Complete as a documentation/audit no-change evaluation from
   planning revision `3d458b7a1d356f32fcd2c04de408ae9aa22355b0`. Task 0045 is Complete at
   same-reviewer-approved P1 remediation `26c6c911`: it owns the exact ad-hoc-signed local macOS
-  arm64 package contract without Developer ID, notarization, authentication, publication, archive,
-  Gradle, loader, ABI, or native source change. Task 0046 is the sole Ready Metal frontier.
+  arm64 package contract. Task 0046 is Review needed after implementing and validating its
+  verifier-backed reproducible local ZIP; no Metal task is Ready.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
   requirements. Metal 0017 remains Blocked under its old accelerator-reduction contract.
@@ -196,8 +196,9 @@ Training-to-Metal optimizer bridge.
 - Task 0045 is Complete at remediation `26c6c911` after the same independent Class C reviewer
   returned `APPROVE` with zero remaining findings. Its exact schema-1 ad-hoc local package and
   fail-closed verifier are the only native inputs Task 0046 may consume.
-- Task 0046 is Ready to add one opt-in verifier-backed reproducible local ZIP without build,
-  signing, install, discovery, publication, versioning, or loader behavior.
+- Task 0046 is Review needed after implementing and validating one opt-in verifier-backed
+  reproducible local ZIP without build, signing, install, discovery, publication, versioning, or
+  loader behavior.
 - Production dependencies may point to Model, Config, Planning, Runtime, Prepare,
   Backend Contract, and Trace, never Engine or Training. Task 0002's Compiler edge is test-only.
 
@@ -267,7 +268,7 @@ before extracting a package or widening another type.
 | 0043 | [Reproducible Metal route benchmark](tasks/0043-reproducible-metal-route-benchmark.md) | Complete | 0042 Complete and independently approved; benchmark 0001/CPU 0010M protocol precedent; current public Compiler/Prepare/Runtime/Trace/Metal collaborations | Every concurrent benchmark build/report/schema/documentation scope and Metal candidate/trace/API/master/roadmap documents | None | Implemented from planning base `1d8f8cb03cb631ab59c25bbfa025369f4d2547e9`; P2 remediation at `77e6091b2a452faa04fa2b674bc295ddc7be88b7`; same-reviewer Class C rereview approved with zero remaining findings | Focused benchmark build/Javadocs; updated actual smoke and metadata-complete baseline; parsed JSON/failure/docs/diff checks; no full build or matrix | Completed schema-1 report-only `[1_048_576]` singleton FLOAT32 NEG benchmark over both opaque candidates with thread-safe snapshot attestation, reconstructible generator schema 2, exact raw-bit checks, paired alternating samples, and no winner/cache/threshold or retained result artifact. |
 | 0044 | [Custom singleton-NEG benchmark evaluation and no-change closure](tasks/0044-custom-singleton-neg-benchmark-evaluation.md) | Complete | 0043 Complete and same-reviewer approved at `77e6091b2a452faa04fa2b674bc295ddc7be88b7`; updated reviewed Task 0043 baseline facts | Every concurrent Metal route/default/candidate/benchmark-evaluation scope and the same task/master/roadmap planning documents | None | Executed from exact planning revision `3d458b7a1d356f32fcd2c04de408ae9aa22355b0`; direct Class A completion after documentation validation | Exact report-fact audit and changed-Markdown/link/fence/newline/trailing-whitespace/forbidden-claim/path/diff checks passed; no build, test, native action, or measurement | Completed the no-change closure: both routes are exact only for the frozen case; both and the existing CUSTOM_SINGLE_NEG no-selected-decision safe heuristic remain; no winner, performance endorsement, default/order/policy/cache/removal/threshold/Shape-special-case change is authorized. |
 | 0045 | [Verified local macOS arm64 native package](tasks/0045-verified-local-native-package.md) | Complete | 0025 Complete for ABI v4/schema 11; 0044 Complete as the serialized frontier | Native Metal build/package/README and master/roadmap edits; every Gradle distribution, native discovery, release-signing, or publication scope | None | Implemented at `07174014`; three P1 findings remediated at `26c6c911`; same-reviewer Class C rereview approved with zero remaining findings | Atomic build/package, exact Mach-O/dependency/export/signature/manifest/checksum, repeat/copy/original-and-P1 regression proofs, 126 packaged-dylib Metal tests, and 15 Engine integration tests passed | Completed the exact ad-hoc-signed verified local package only; no Developer ID, notarization, authentication, archive, publication, Gradle, Java, ABI, schema, or loader change |
-| 0046 | [Explicit verified Metal native local archive](tasks/0046-explicit-verified-native-local-archive.md) | Ready | 0045 Complete at same-reviewer-approved remediation `26c6c911` | Every concurrent Metal Gradle/native distribution, native README, release-process, master, or roadmap edit; native discovery, release-signing, notarization, publication, or install work | None | Sole Metal frontier after 0045; one clean implementation then independent Class C review | Ordinary-build isolation; missing/invalid/symlink path failures; direct verifier reuse; two byte-identical ZIPs; exact entries/modes/timestamps/path/version checks; extracted verification and focused real-device load | Add one explicit, opt-in, unversioned local Gradle ZIP over only the reviewed Task 0045 package; preserve manual extraction and absolute-path loading |
+| 0046 | [Explicit verified Metal native local archive](tasks/0046-explicit-verified-native-local-archive.md) | Review needed | 0045 Complete at same-reviewer-approved remediation `26c6c911` | Every concurrent Metal Gradle/native distribution, native README, release-process, master, or roadmap edit; native discovery, release-signing, notarization, publication, or install work | None | Implemented from planning commit `35b222be`; independent Class C review pending | Ordinary-build isolation; missing/invalid/symlink path failures; direct verifier reuse; two byte-identical ZIPs; exact entries/modes/timestamps/path/version checks; extracted verification and focused real-device load passed | Added one explicit, opt-in, unversioned local Gradle ZIP over only the reviewed Task 0045 package; manual extraction and absolute-path loading remain |
 
 ## Dependency DAG and authorized frontiers
 
@@ -295,7 +296,7 @@ Completed profile spine and serial successors:
 
 `Trace 0003 (Complete) -> 0041 (Complete)`
 
-`0004 (Complete) + 0041 (Complete) + Engine 0009/0015–0018 (Complete) + tools/tuning 0001–0002 (Complete) -> 0042 (Complete) -> 0043 (Complete) -> 0044 (Complete) -> 0045 (Complete) -> 0046 (Ready)`
+`0004 (Complete) + 0041 (Complete) + Engine 0009/0015–0018 (Complete) + tools/tuning 0001–0002 (Complete) -> 0042 (Complete) -> 0043 (Complete) -> 0044 (Complete) -> 0045 (Complete) -> 0046 (Review needed)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -341,17 +342,18 @@ plus remediation `386705ca` after final independent Class C approval with zero f
 at remediation `77e6091b2a452faa04fa2b674bc295ddc7be88b7` after same-reviewer Class C approval with zero
 remaining findings. [0044](tasks/0044-custom-singleton-neg-benchmark-evaluation.md) is Complete.
 [0045](tasks/0045-verified-local-native-package.md) is Complete at same-reviewer-approved
-remediation `26c6c911`. [0046](tasks/0046-explicit-verified-native-local-archive.md) is the sole
-Ready Metal task. Every other Metal task retains its recorded status.
+remediation `26c6c911`. [0046](tasks/0046-explicit-verified-native-local-archive.md) is Review
+needed after implementation and validation; no Metal task is Ready. Every other Metal task
+retains its recorded status.
 These edges serialize shared Metal mutation; they do not claim that one operation family requires
 another.
 
 ## Integration ownership and shared documents
 
-- Ready Task 0046 exclusively owns `backends/metal/build.gradle.kts`, the native README,
-  release-process guide, and its task/master/roadmap status. No concurrent Gradle/native
-  distribution, discovery, release-signing, notarization, publication, install, or shared-document
-  work is authorized.
+- Review-needed Task 0046 exclusively owns `backends/metal/build.gradle.kts`, the native README,
+  release-process guide, and its task/master/roadmap status until independent Class C review. No
+  concurrent Gradle/native distribution, discovery, release-signing, notarization, publication,
+  install, or shared-document work is authorized.
 - Complete Metal 0044 owns its documentation/audit no-change record; no active owner may reinterpret
   its bounded report as a winner or production decision.
 - Complete Metal 0043 retains its reviewed benchmark implementation and evidence; Complete Metal
@@ -439,8 +441,8 @@ implementation `ba16d942` plus remediation `386705ca` after final independent Cl
 with zero findings. Documentation/audit-only Task 0038 is Complete. Task 0042 is Complete at
 `9feb2505705263b6efb417d606678c606c2b9598` after final independent Class C approval with zero
 findings. Tasks 0043–0044 are Complete. Task 0045 is Complete at same-reviewer-approved remediation
-`26c6c911`; its artifact is not Developer-ID-signed, notarized, authenticated, archived,
-published, or a public release. Task 0046 is the sole Ready Metal frontier.
+`26c6c911`. Task 0046 is Review needed after its verified local ZIP implementation and validation;
+the artifact remains unauthenticated and local, and no Metal task is Ready.
 
 Metal 0006 remains `Blocked` after exact RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures.
 Metal 0007 remains independently `Blocked` after eight direct-output executions returned positive

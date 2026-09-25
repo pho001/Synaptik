@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Review needed
 
 ## Change class
 
@@ -188,4 +188,28 @@ leaks, manual extraction/loading, and absence of authentication or release claim
 
 ## Result
 
-Empty until execution.
+Implemented from planning commit `35b222be` and clean reviewed Task 0045 base `26c6c911`.
+`backends/metal` now lazily registers only `verifyMetalNativePackage` and
+`metalNativeLocalZip`. The exact raw absolute property reaches the existing verifier; the verifier
+has no outputs and executes on every selection. The ZIP task depends only on it, copies the exact
+three members under `macos-arm64`, and has no ordinary lifecycle, build, signing, install,
+discovery, configuration, publication, coordinate, version, Java, or native-source effect.
+
+Task listing and ordinary `:backends:metal:build` passed without the property. Missing-property
+selection of both tasks and blank, relative, symlink-root, trailing-`/`, terminal-`/.`, and
+repeated-`/` inputs failed while the prior archive stayed unchanged. The explicit ZIP dry-run
+contained only the verifier and ZIP tasks. Valid verifier executions ran under both stored and
+reused configuration cache entries.
+
+Two forced archives were byte-identical at SHA-256
+`82e569f96772addeaf661b6d9d6fb2651926d727d7dd16ab3ae299d9f6dd5655`.
+The 37,426-byte ZIP has exactly the `macos-arm64/` directory plus the three package members, fixed
+`0755` directory/dylib and `0644` metadata modes, one `1980-02-01 00:00:00` timestamp, and no
+source path or `0.1.0-SNAPSHOT` text. Permission-preserving `ditto` extraction followed by the
+unchanged verifier passed. The extracted absolute dylib path passed the existing real-device
+`MetalMpsGraphMatmulNativeTest`: one test, zero skips, failures, or errors.
+
+The native README and release guide document manual caller-owned extraction, reverification,
+retention, and explicit absolute-path loading while retaining the unauthenticated ad-hoc local
+boundary. Six-path scope, Markdown, and diff checks passed; no full repository build ran. Status:
+Review needed for mandatory independent Class C review.

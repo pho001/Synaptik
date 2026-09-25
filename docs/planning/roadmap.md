@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through reviewed local package 0045; 0046 Ready; recorded blockers retained | [Metal 0046](backends/metal/tasks/0046-explicit-verified-native-local-archive.md) is the sole Ready frontier for one opt-in verifier-backed local ZIP; 0045 completed at same-reviewer-approved remediation `26c6c911`. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through reviewed local package 0045; 0046 Review needed; recorded blockers retained | [Metal 0046](backends/metal/tasks/0046-explicit-verified-native-local-archive.md) implemented and validated one opt-in verifier-backed reproducible local ZIP; independent Class C review is pending and no Metal task is Ready. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -107,12 +107,12 @@ independent verifier, original/P1 rejection proofs, and packaged-dylib Metal/Eng
 It preserves the ABI, native source, Java, Gradle, absolute-path loader, and public-release
 boundary.
 
-[Metal 0046](backends/metal/tasks/0046-explicit-verified-native-local-archive.md) is the sole Ready
-Metal task. It may add only an explicit opt-in reproducible local ZIP over that reviewed package;
-Developer ID, notarization, authentication, publication, CI, versioning, coordinates, install,
-discovery, and public release remain excluded.
+[Metal 0046](backends/metal/tasks/0046-explicit-verified-native-local-archive.md) is Review needed
+after implementing and validating the explicit opt-in reproducible local ZIP over that reviewed
+package. Developer ID, notarization, authentication, publication, CI, versioning, coordinates,
+install, discovery, and public release remain excluded; no Metal task is Ready.
 
-`Metal 0004 (Complete) + Metal 0041 (Complete) + Engine 0009/0015–0018 (Complete) + tools/tuning 0001–0002 (Complete) -> Metal 0042 (Complete) -> Metal 0043 (Complete) -> Metal 0044 (Complete) -> Metal 0045 (Complete) -> Metal 0046 (Ready)`
+`Metal 0004 (Complete) + Metal 0041 (Complete) + Engine 0009/0015–0018 (Complete) + tools/tuning 0001–0002 (Complete) -> Metal 0042 (Complete) -> Metal 0043 (Complete) -> Metal 0044 (Complete) -> Metal 0045 (Complete) -> Metal 0046 (Review needed)`
 
 Numerical profiles
 
@@ -162,7 +162,7 @@ remain unrelaxed. None changed production. Documentation/audit-only Metal 0038 i
 Metal 0041 is Complete at implementation `ba16d942` plus remediation `386705ca` after final Class C
 approval with zero findings. Metal 0042 is Complete at `9feb2505`; Metal 0043 is Complete at
 `77e6091b`; Metal 0044 is Complete from planning revision `3d458b7a`; Metal 0045 is Complete at
-same-reviewer-approved remediation `26c6c911`; Metal 0046 is Ready.
+same-reviewer-approved remediation `26c6c911`; Metal 0046 is Review needed.
 
 Task 0019 landed at implementation `a6d1796d` plus mixed-owner test remediation `bcb717a6`. Its
 native ABI/export, Metal, conformance, real Engine, architecture, full-build, documentation, and
@@ -376,7 +376,7 @@ production behavior. Metal 0042 now consumes only the existing version-twelve si
 tuning foundation through public retained collaborations and private Engine composition. Schema
 12/wires beginning at 20/attribute 7, local type 4, INT64 type/ingress, ABI/export changes, and
 version-thirteen identities remain unimplemented and unreserved. Documentation/audit-only Metal
-0038 and Metal 0042–0045 are Complete; Metal 0046 is the sole Ready Metal task.
+0038 and Metal 0042–0045 are Complete; Metal 0046 is Review needed and no Metal task is Ready.
 
 Strategic gate: historical blocker evidence is preserved, and no backend task may define Model
 semantics. Complete Model 0028 owns bounded reduction exact-zero sign freedom; Complete Metal 0020
@@ -477,7 +477,7 @@ schema.
   0015/0019/0020/0021/0022/0023/0024/0025/0038/0041/0042/0043/0044/0045 are Complete.
   Metal 0016–0018, 0026–0027, 0030–0037, planning-only 0039, and failed-gate 0040 remain Blocked
   under their recorded contracts. Every blocked operation family remains unauthorized; Metal 0046
-  is the sole Ready Metal task.
+  is Review needed and no Metal task is Ready.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -496,11 +496,11 @@ fail-closed verifier, original/P1 rejection matrix, 126 Metal tests, and 15 Engi
 tests passed. It preserves native source, ABI v4, schema 11, Java, Gradle, and the caller-selected
 absolute-path loader.
 
-Metal 0046 is Ready as the sole Metal frontier. It may add only two opt-in module-local Gradle
+Metal 0046 is Review needed after implementing and validating only two opt-in module-local Gradle
 tasks: direct verification of an explicitly supplied absolute Task 0045 package and one
 reproducible unversioned local ZIP. Ordinary build, native build/signing, installation, extraction,
 discovery, cache, Java/runtime behavior, publication, coordinates, Developer ID, notarization,
-provenance, and public release remain outside scope.
+provenance, and public release remain outside scope. No Metal task is Ready.
 
 Metal 0040 is Blocked from exact clean planning revision
 `c300582727ec568a7482dd974f9d1b2e2e13f82c`. Its sole disposable direct BFLOAT16 Gather program
@@ -586,7 +586,8 @@ Blocked on Draft Model 0026. Metal 0040 is Blocked by its failed one-execution B
 gate. Metal 0041 is Complete at implementation `ba16d942` plus remediation `386705ca` after final
 approval with zero findings. Metal 0042 is Complete at `9feb2505705263b6efb417d606678c606c2b9598`;
 Metal 0043 is Complete at remediation `77e6091b`; Metal 0044 is Complete; Metal 0045 is Complete at
-same-reviewer-approved remediation `26c6c911`; Metal 0046 is the sole Ready Metal task.
+same-reviewer-approved remediation `26c6c911`; Metal 0046 is Review needed and no Metal task is
+Ready.
 
 ## History policy
 

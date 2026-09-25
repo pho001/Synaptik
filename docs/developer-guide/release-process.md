@@ -22,6 +22,20 @@ For a Java module with public API changes, also generate that module's Javadoc; 
 
 These commands verify the checkout and documentation formatting. They do not assign a version, publish artifacts, create a tag, generate a changelog, sign output, or establish compatibility.
 
+## Opt-in Metal local archive
+
+`:backends:metal:metalNativeLocalZip` accepts only an explicitly supplied absolute path to the
+reviewed macOS-arm64 local package, reruns its verifier, and writes the fixed unversioned
+`synaptik-metal-macos-arm64-local.zip` below that module's ignored `build/distributions/`
+directory. The task is not connected to ordinary Gradle lifecycle work and performs no native
+build, signing, installation, extraction, discovery, publication, or upload.
+
+This ZIP remains an unauthenticated local development transport. Its self-contained hashes detect
+corruption but not hostile replacement, and its ad-hoc signature establishes no publisher identity
+or Apple trust. Callers own permission-preserving extraction, reverification, retention, and the
+explicit absolute dylib path supplied to Metal. The archive defines no release version,
+coordinates, provenance, redistribution rights, or legal notice policy.
+
 ## Not yet defined
 
 Versioning policy, compatibility guarantees, artifact coordinates, repositories, signing, provenance, release notes, CI promotion, rollback, and support policy require explicit future planning. Contributors must not infer them from Gradle project names or create ad hoc publication credentials and workflows.

@@ -70,11 +70,53 @@ ambiguous records before applying the system-dependency allowlist.
 
 The checksums detect corruption; because they travel with the artifact, they do not authenticate a
 hostile replacement. The ad-hoc signature verifies internal Mach-O integrity but supplies no
-publisher identity or Apple trust. This package is a verified local development artifact, not a
-Developer-ID-signed, notarized, authenticated, archived, published, or public release artifact.
-Developer ID signing, secure credentials/keychain handling, a notarizable distribution container,
-Gradle distribution configuration, versioning, provenance, and publication require separate
-release planning and real externally supplied credentials.
+publisher identity or Apple trust. This package and its optional local ZIP remain verified local
+development artifacts, not Developer-ID-signed, notarized, authenticated, published, or public
+release artifacts. Developer ID signing, secure credentials/keychain handling, a notarizable
+distribution container, versioning, provenance, and publication require separate release planning
+and real externally supplied credentials.
+
+## Optional verified local Gradle archive
+
+Supply the canonical package directory explicitly as an absolute path. The property has no
+default, environment fallback, or discovery:
+
+```bash
+PACKAGE="$PWD/native/metal-macos-arm64/build/package-v1/macos-arm64"
+./gradlew :backends:metal:verifyMetalNativePackage \
+  -PsynaptikMetalNativePackage="$PACKAGE"
+./gradlew :backends:metal:metalNativeLocalZip \
+  -PsynaptikMetalNativePackage="$PACKAGE"
+```
+
+Both tasks are opt-in. Ordinary `build`, `assemble`, `check`, `jar`, and `test` do not evaluate the
+property or run native verification. The ZIP task first runs the existing verifier every time; it
+never builds, signs, repairs, installs, extracts, discovers, or caches a library. Blank, relative,
+redundantly terminated, and symlink-root package paths fail closed.
+
+The fixed output is
+`backends/metal/build/distributions/synaptik-metal-macos-arm64-local.zip`. It is unversioned and
+contains only the exact verified package beneath `macos-arm64/`, with reproducible order and
+timestamps and modes `0755` for the directory/dylib and `0644` for the metadata. It contains no
+source path, product version, provenance, license placeholder, or publication coordinates.
+
+Extraction and lifetime remain caller-owned. Use a permission-preserving extractor, rerun the
+same verifier, and pass the extracted dylib's explicit absolute path to
+`MetalBackendConfiguration`:
+
+```bash
+DEST="$(mktemp -d)"
+/usr/bin/ditto -x -k \
+  backends/metal/build/distributions/synaptik-metal-macos-arm64-local.zip \
+  "$DEST"
+./native/metal-macos-arm64/verify-package.sh "$DEST/macos-arm64"
+LIB="$DEST/macos-arm64/libsynaptik_metal_foundation.dylib"
+```
+
+Keep or remove `DEST` under the caller's own lifecycle; Synaptik performs no automatic install,
+extraction, cleanup, classpath lookup, or runtime discovery. `SYNAPTIK_METAL_TEST_LIBRARY` remains
+test-only. The archive does not add authentication or redistribution rights, and it deliberately
+does not copy the CPU-only `THIRD_PARTY_NOTICES.md`.
 
 ## ABI version 4
 
