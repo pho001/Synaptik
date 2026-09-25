@@ -167,21 +167,23 @@ available. Multiple independent default-device contexts are not evidence of mult
 - Depends on: Task 0048 Complete at independently approved implementation `89f9fbb9` plus
   documentation finalization `a4ff40c2`; Runtime 0016; Prepare 0006; Engine 0010; Planning's current
   device eligibility model; Trace 0003; Metal 0041–0042
-- Conflicts with: every concurrent edit to the nine files below, or any asynchronous execution,
-  result/resource lifetime, Metal device/context, planner device-selection, native ABI, trace,
-  cache, tuning, route, capability, or pooling decision
+- Conflicts with: every concurrent edit to the original nine execution files below or the
+  review-remediation Trace master path, and any asynchronous execution, result/resource lifetime,
+  Metal device/context, planner device-selection, native ABI, trace, cache, tuning, route,
+  capability, or pooling decision
 - Parallel group: None
 - Common base revision: `a4ff40c2b4fc328926c15722241f7359744ff4ba`
 - Integration order: planning commit `e32ad68d`; documentation execution; independent Class C
   review before Complete
-- Integration validation: exact nine-path scope, local links, balanced fences, final newlines, and
-  `git diff --check` passed; clean committed status is required for handoff; no code, tests, Javadocs,
-  builds, benchmarks, or probes ran
+- Integration validation: the original exact nine-path execution passed local-link/anchor, fence,
+  final-newline, trailing-whitespace, and `git diff --check`; the review remediation validates its
+  exact two-document commit and the cumulative ten-path scope; clean committed status is required
+  for handoff; no code, tests, Javadocs, builds, benchmarks, or probes ran
 - Shared-document integration owner: Task 0049 implementation owner
 
-## Exact file scope
+## Original execution file scope and review remediation
 
-Task 0049 may change exactly these nine researched Markdown paths:
+The original Task 0049 execution changed exactly these nine researched Markdown paths:
 
 1. `docs/planning/backends/metal/tasks/0049-synchronous-single-default-device-contract.md`
 2. `docs/planning/backends/metal/master-plan.md`
@@ -192,6 +194,15 @@ Task 0049 may change exactly these nine researched Markdown paths:
 7. `docs/api/public-api.md`
 8. `docs/api/runtime-api.md`
 9. `docs/backend-guide/metal-backend.md`
+
+Final cumulative Class C review authorized one P1 documentation-only remediation outside that
+original execution scope:
+
+10. `docs/planning/modules/trace/master-plan.md`
+
+The cumulative Task 0049 change set is therefore ten Markdown paths relative to Task 0048
+finalization revision `a4ff40c2`; this remediation commit changes only the Task 0049 brief and the
+Trace master plan.
 
 No Java, Objective-C, Gradle, workflow, test, benchmark, generated, native, package, cache, or probe
 path is in scope.
@@ -214,10 +225,18 @@ path is in scope.
 ## Validation
 
 Planning commit `e32ad68dbb24b3c9bec9a2bdb09159f0db56ee6a` passed exact three-path scope,
-local-link, balanced-fence, final-newline, diff, and clean-commit checks. Execution changed exactly
-the nine authorized Markdown paths relative to Task 0048 finalization revision `a4ff40c2`, and
-passed local-link, anchor, fence, final-newline, trailing-whitespace, and `git diff --check`
-validation. No code, tests, Javadocs, builds, benchmarks, or device probes ran.
+local-link, balanced-fence, final-newline, diff, and clean-commit checks. Original execution commit
+`6e95d523d5bfdd01638a9e6c159e35afc438c9eb` changed exactly the nine researched Markdown paths and
+passed local-link, anchor, fence, final-newline, trailing-whitespace, and `git diff --check`.
+
+Final cumulative Class C review found one P1 status drift in
+`docs/planning/modules/trace/master-plan.md`: it still named completed Metal 0041 as the sole Ready
+repository frontier. This remediation changes only that Trace master and this brief, updates Metal
+0041 to Complete with no Ready repository frontier, and makes the cumulative Task 0049 scope ten
+Markdown paths relative to Task 0048 finalization `a4ff40c2`. Both remediation documents, planning-
+wide Ready/status consistency, cumulative scope, links, anchors, fences, final newlines, trailing
+whitespace, `git diff --check`, and clean commit are required for same-reviewer handoff. No code,
+tests, Javadocs, builds, benchmarks, or device probes ran.
 
 Independent Class C review must verify that the final documentation describes only current
 behavior, preserves every identity and compatibility boundary listed above, retains Task 0048's
@@ -241,8 +260,10 @@ no-general-pool decision, and does not imply asynchronous or multi-device capabi
    identity/planning/ABI/trace/tuning/coherence requirements.
 8. Every API/ABI/version/capability/route/trace/cache/tuning identity and Task 0048's persistent-
    splat/no-general-pool decision remains unchanged.
-9. Exactly the nine researched Markdown paths change for Task 0049; Markdown/link/fence/newline/diff
-   checks pass; no code, tests, builds, benchmarks, or probes run.
+9. The original execution changes exactly nine researched Markdown paths; the sole review
+   remediation adds the Trace master as the cumulative tenth path and changes only it plus this
+   brief. Markdown/link/anchor/fence/newline/whitespace/diff checks pass; no code, tests, builds,
+   benchmarks, or probes run.
 10. Status is `Review needed` after execution and remains so until independent Class C review.
 
 ## Result
@@ -259,3 +280,9 @@ physical identities. Every API/ABI/version/capability/route/trace/cache/tuning i
 unchanged. Immutable source-owned splats still persist per `PreparedExecution`, and no general
 mutable output/workspace pool is authorized. Concrete async and explicit-device/multi-device
 successor gates are recorded. Status is Review needed pending independent Class C approval.
+
+Final cumulative Class C review found one P1 documentation drift: the Trace master still called
+completed Metal 0041 the sole Ready repository frontier. This remediation records Metal 0041 as
+Complete and no repository task as Ready. The original execution remains the exact nine-path
+commit `6e95d523`; cumulative Task 0049 scope is ten Markdown paths, with only the Trace master and
+this brief changed for remediation. Task 0049 remains Review needed for the same final reviewer.

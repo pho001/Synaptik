@@ -67,10 +67,10 @@ or import producer-domain types.
 
 ## Dependency DAG and authorized frontier
 
-`0001 (Complete) -> 0002 (Complete) -> 0003 (Complete) -> Metal 0041 (Ready)`
+`0001 (Complete) -> 0002 (Complete) -> 0003 (Complete) -> Metal 0041 (Complete)`
 
-Tasks 0004–0008 remain Draft and are not parallel frontiers. No Trace task is Ready. Trace 0003 is
-complete, and Metal 0041 is the sole Ready repository frontier.
+Tasks 0004–0008 remain Draft and are not parallel frontiers. No Trace task is Ready. Trace 0003 and
+Metal 0041 are Complete, and there is no Ready repository frontier.
 
 ## Integration ownership and shared documents
 
@@ -96,9 +96,9 @@ outcome payloads. It preserved every pre-existing public Trace type source uncha
 emitter, observer, consumer, allocator, clock, mutable state, producer dependency, generic map, or
 serialization behavior. No Trace task is Ready.
 
-Metal 0041 is the immediate coordinated successor and is Ready from the completed Trace surface.
-Broader compile, prepare, run, backend-detail, typed-attribute, and serialization work remains
-Draft under 0004–0008.
+Metal 0041 is Complete at implementation `ba16d942` plus remediation `386705ca` after independent
+Class C approval. No repository task is Ready. Broader compile, prepare, run, backend-detail,
+typed-attribute, and serialization work remains Draft under 0004–0008.
 
 ## Open questions
 
@@ -161,5 +161,6 @@ Task 0003 completed from clean planning revision
 Prepare, constructs the executable during finalization, invokes the prepared route during Run,
 and retains a closed native-status taxonomy. The implementation added only the matching neutral
 JDK-only DTO vocabulary and documentation; focused/full Trace tests, Javadoc, Markdown, scope, and
-diff validation passed. Metal 0041 was separately rebased on the completion revision and promoted
-to the sole Ready repository frontier without broadening its scope.
+diff validation passed. Metal 0041 was separately rebased on the Trace completion revision and
+subsequently completed at `ba16d942` plus approved remediation `386705ca`. No repository task is
+Ready.
