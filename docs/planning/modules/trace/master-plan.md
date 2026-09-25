@@ -70,7 +70,7 @@ or import producer-domain types.
 `0001 (Complete) -> 0002 (Complete) -> 0003 (Complete) -> Metal 0041 (Complete)`
 
 Tasks 0004–0008 remain Draft and are not parallel frontiers. No Trace task is Ready. Trace 0003 and
-Metal 0041 are Complete, and there is no Ready repository frontier.
+Metal 0041 are Complete; Model 0030 is the sole Ready repository frontier.
 
 ## Integration ownership and shared documents
 
@@ -97,8 +97,8 @@ emitter, observer, consumer, allocator, clock, mutable state, producer dependenc
 serialization behavior. No Trace task is Ready.
 
 Metal 0041 is Complete at implementation `ba16d942` plus remediation `386705ca` after independent
-Class C approval. No repository task is Ready. Broader compile, prepare, run, backend-detail,
-typed-attribute, and serialization work remains Draft under 0004–0008.
+Class C approval. Model 0030 is the sole Ready repository frontier. Broader Trace compile, prepare,
+run, backend-detail, typed-attribute, and serialization work remains Draft under 0004–0008.
 
 ## Open questions
 

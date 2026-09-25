@@ -152,11 +152,11 @@ not a catch-all service registry.
   composition does not expose or interpret them.
 - Preserve 0011's repaired boundary: Engine/Prepare own Compiler aggregates and the single
   projection, while concrete CPU production remains Compiler-free.
-- Numerical-profile selection is graph-wide and cold. Complete 0018 retains one immutable profile
-  through Planning, compile, Prepare, and backend plan/cache identity, while Runtime/session hot
-  paths execute only the prepared recipe. CPU 0017, Metal 0015, Metal 0019, and Model 0028 are
-  Complete; Engine owns none of their backend or semantic behavior. Metal 0016/0017 are Blocked,
-  Metal 0020 is the sole Ready frontier, and following MATMUL 0018 remains Draft.
+- Numerical-profile selection is graph-wide and cold. Complete 0018 retains one profile through
+  Planning, compile, Prepare, and backend plan/cache identity while Runtime executes the prepared
+  recipe. CPU 0017 and current Metal realizations are Complete; Engine owns none of their semantic
+  or backend behavior. Model 0030 is the sole Ready repository frontier, and Metal 0051 remains its
+  Draft serial successor.
 - Metal configuration, native open, and partial-open rollback remain Metal-owned; Engine may take
   an opened integration but must not duplicate or interpret Metal policy.
 

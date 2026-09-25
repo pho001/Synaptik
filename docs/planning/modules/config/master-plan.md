@@ -87,10 +87,10 @@ plus remediation `37e9e9db`; its fresh test/Javadoc run passed 33 tests with zer
 or skips, generated enum/package pages and baseline-aware Markdown evidence passed inspection, and
 independent Class B review returned final `APPROVE` with zero findings. Engine 0018 is Complete at
 implementation `ce7a7dfa` plus remediation `07a01b9c`; CPU 0017, Metal 0015, and Metal 0019 are
-Complete after independent Class C approval and their checkpoints. Model 0028 is Complete at
-`fc003ab8`; Metal 0016/0017 remain Blocked, and dependent Metal 0020 is the sole Ready frontier.
-Config 0004 still waits for a concrete cost-bearing Planning consumer; 0005 follows 0004. Config
-0007 still follows 0005, and 0008 closes the full ledger.
+Complete after independent Class C approval and their checkpoints. Model 0028–0029 and Metal
+0020–0025 are Complete; Metal 0016/0017 remain historical Blocked records. Model 0030 is the sole
+Ready repository frontier; Config 0004 still waits for a concrete cost-bearing Planning consumer,
+0005 follows 0004, 0007 follows 0005, and 0008 closes the ledger.
 
 ## Live gates, risks, and open decisions
 

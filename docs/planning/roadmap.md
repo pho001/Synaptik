@@ -31,7 +31,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 
 | Order | Project area | Current status | Entry or next gate |
 |---:|---|---|---|
-| 1 | [`modules/model`](modules/model/master-plan.md) | Complete through reviewed 0029; 0026 Draft | Model 0029 completed at `30826783` after proof, validation, synchronized documentation, and independent Class C approval; no Model task is Ready. |
+| 1 | [`modules/model`](modules/model/master-plan.md) | Complete through reviewed 0029; 0026 Draft; 0030 Ready | [Model 0030](modules/model/tasks/0030-total-recursive-accelerator-numerical-floor.md) is the sole Ready repository frontier: the approved clean cutover to total recursive ACCELERATOR floors. |
 | 2 | [`modules/trace`](modules/trace/master-plan.md) | Complete through 0003; 0004–0008 Draft | [Trace 0003](modules/trace/tasks/0003-backend-preparation-and-invocation-diagnostic-dtos.md) completed its JDK-only DTO/ID surface and validation; no Trace task is Ready. |
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete through 0004 | Reopen only for a concrete shared-contract need. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress, interleaved; 0001–0003, 0006, and 0006A–0006B Complete; 0004–0005 and 0007–0008 Draft | 0006 completed at `314e049` plus `37e9e9db`; no Config task is Ready. |
@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through final verification 0050; 0047 Blocked | [Metal 0050](backends/metal/tasks/0050-final-packaged-metal-repository-verification.md) completed the sole final full repository build against the freshly built, signed, packaged, archived, extracted, and reverified dylib from exact Task 0049 completion revision `2c6326a9`. No Metal task is Ready. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through 0050; 0047 Blocked; 0051 Draft | Metal 0051 is the bounded accelerator FLOAT32 EXP/SIGMOID successor and remains Draft until Model 0030 is Complete and independently approved. No Metal task is Ready. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -145,6 +145,21 @@ skips; the two real-Metal public `prepareTuned` cases are included in the integr
 
 Numerical profiles
 
+[Model 0030](modules/model/tasks/0030-total-recursive-accelerator-numerical-floor.md) is the sole
+Ready frontier from clean base `6535c0ffdebeb38945050497bbe1c0fe261950ca`. It keeps the public
+profile enum and `STRICT_IEEE` unchanged, replaces the closed operation table with recursive
+exact/discrete, FLOAT32 primitive DAZ/FTZ/FMA plus an evidence-backed five-ULP elementary-site
+rule, and all-terms-once aggregate reassociation/FMA. Every Model family and generated Tensor
+gradient formula is assigned; no policy/placement/determinism/envelope layer or backend capability
+change is authorized. Full Metal coverage becomes numerically specifiable but remains structurally
+and route-conformance blocked, so no omnibus backend task is authorized.
+
+Metal 0051 remains Draft as the first serial implementation successor: accelerator-only canonical
+FLOAT32 `EXP`/`SIGMOID` and complete seeded-gradient topologies, one fresh real-device recursive-
+floor gate, node schema 12 with wires 20/21, relevant Metal identity versions 13 with stale
+rejection, and unchanged ABI 4. CPU requires no migration because its exact realizations remain
+valid members of the widened result set.
+
 [CPU 0017](backends/cpu/tasks/0017-explicit-accelerator-numerical-profile-realization.md) is
 Complete at implementation `372a8b98`. For every backend, capability/behavior under
 `STRICT_IEEE` is a subset of capability/behavior under `ACCELERATOR` for the same occurrence
@@ -210,6 +225,8 @@ The active semantic and Metal serial DAG is:
 `Model 0028 (Complete) -> Metal 0020 (Complete) -> Metal 0018 (Blocked)`
 
 `Metal 0018 blocker evidence -> Model 0029 (Complete) -> Metal 0021 (Complete) -> Metal 0022 (Complete) -> Metal 0023 (Complete) -> Metal 0024 (Complete) -> Metal 0025 (Complete) -> {Metal 0026 (Blocked), Metal 0027 (Blocked), Metal 0030 (Blocked), Metal 0031 (Blocked), Metal 0032 (Blocked), Metal 0033 (Blocked), Metal 0034 (Blocked), Metal 0035 (Blocked), Metal 0036 (Blocked), Metal 0037 (Blocked)}`
+
+`Model 0030 (Ready) -> Metal 0051 (Draft)`
 
 `Metal 0022/0023/0024/0025 (Complete) + finalized evidence through Metal 0037 -> Metal 0038 (Complete)`
 

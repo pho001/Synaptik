@@ -280,8 +280,8 @@ evidence. It finalized the logical-memory Javadocs, architecture/API/guide/gloss
 current-versus-planned boundaries, task evidence, master plans, and roadmap. Planning Javadoc,
 repository Markdown, generated public/internal page, exact eighteen-path, status, later-spec,
 dependency, forbidden-surface, newline, whitespace, and `git diff --check` validation passed.
-Planning 0006, Config 0004+, Trace 0003+, and Compiler work remain Draft without another detailed
-specification, and no global task is Ready pending a separate frontier reassessment.
+At that completion point, Planning 0006, Config 0004+, Trace 0003+, and Compiler work remained
+Draft without another detailed specification; no global task was Ready pending reassessment.
 
 A separate frontier reassessment in planning context `/root/plan_planning_0006` found no missing
 planning semantic or architecture prerequisite after task 0005. It created only the detailed

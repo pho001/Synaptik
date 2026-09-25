@@ -102,7 +102,7 @@ currently declared. Dependencies on `modules/engine` and every concrete backend 
   historical `BLOCKING_GAP` result, not a live blocker.
 - Leased publication access and persistent prepared-resource ownership are Complete through 0016.
 - No Runtime task is `Ready` or `In progress`. The [roadmap](../../roadmap.md) owns the repository
-  frontier and currently selects Draft Metal 0004 for reassessment.
+  frontier and selects Ready Model 0030; Runtime remains profile-free.
 
 ## Live risks and gates
 
@@ -118,8 +118,8 @@ currently declared. Dependencies on `modules/engine` and every concrete backend 
 ## Status normalization
 
 The task table and linked task status/results are controlling. The former downstream-frontier
-wording is normalized to the current state: Prepare 0006, Engine 0010, Metal 0002, and Metal 0003
-are Complete; Metal 0004 is the current Draft planning frontier. No task status, order,
+wording is normalized to the current state: Prepare 0006, Engine 0010, and current Metal lifecycle
+work are Complete; Model 0030 is the sole Ready repository frontier. No Runtime task status, order,
 dependency, ownership rule, API, or executable behavior changes here.
 
 ## History and update policy

@@ -144,9 +144,9 @@ operation. No hidden cache, shared mutable reader, or global registry is introdu
 | 0006 | Vision capability checkpoint | Draft | 0003–0005 | Validate representative/corrupt/adversarial inputs, resource bounds, metadata semantics, Tensor values/layout, batch geometry, documentation, optional decoder dependency, and architecture enforcement. |
 
 No detailed Vision task exists. No Vision, Checkpoint, or NN task is `Ready`. The repository's
-current planning frontier is Draft [Metal 0004](../../backends/metal/master-plan.md), which is not
-implementation authorization. Vision 0001 remains gated by the coordinated architecture decision
-owned by [Data 0001](../data/master-plan.md).
+sole Ready frontier is [Model 0030](../../modules/model/tasks/0030-total-recursive-accelerator-numerical-floor.md).
+Vision 0001 remains gated by the coordinated architecture decision owned by
+[Data 0001](../data/master-plan.md).
 
 ## Planned image-batch flow
 
