@@ -2,10 +2,11 @@
 
 ## Status
 
-Blocked
+Ready
 
-Blocked only on Trace 0003. No Metal implementation is authorized until its additive IDs/DTOs are
-Complete and 0041 is rebased and promoted to Ready. Trace 0003 is the sole authorized frontier.
+Trace 0003 is Complete at `53dac29dd79702eb26e4595dd6b068d0fa1885db`. This task is rebased
+on that additive JDK-only DTO surface and is the sole authorized repository frontier. No Metal
+implementation has started.
 
 ## Change class
 
@@ -130,15 +131,16 @@ ABI/schema/capability change, a generic map/string payload, or observer failure 
 
 ## Dependencies and integration
 
-- Depends on: Trace 0003 Complete; Metal 0001–0005/0008/0014–0015/0019–0025 Complete; Engine 0017–0018.
-- Conflicts with: Trace 0003 until integrated; every concurrent Metal integration/preparation/
-  executable/native-failure/hot-path/API scope and shared Trace/Metal/API/roadmap documents.
+- Depends on: Trace 0003 Complete at `53dac29dd79702eb26e4595dd6b068d0fa1885db`;
+  Metal 0001–0005/0008/0014–0015/0019–0025 Complete; Engine 0017–0018.
+- Conflicts with: every concurrent Metal integration/preparation/executable/native-failure/
+  hot-path/API scope and shared Trace/Metal/API/roadmap documents.
 - Parallel group: None.
-- Common base revision: N/A until Trace 0003 is integrated.
-- Integration order: complete Trace 0003, rebase, promote 0041 to Ready, then implement serially.
+- Common base revision: `53dac29dd79702eb26e4595dd6b068d0fa1885db`.
+- Integration order: implement serially from the exact common base.
 - Integration validation: focused Metal trace tests, public Engine Metal integration trace scenario,
   affected architecture checks, Javadocs, Markdown/status/diff, then independent Class C review.
-- Shared-document integration owner: Metal 0041 executor after unblocking.
+- Shared-document integration owner: Metal 0041 executor.
 
 ## Files and symbols
 
@@ -197,4 +199,4 @@ library convention; add no disposable device probe or public testing hook.
 
 ## Result
 
-Empty while Blocked.
+Empty until execution.

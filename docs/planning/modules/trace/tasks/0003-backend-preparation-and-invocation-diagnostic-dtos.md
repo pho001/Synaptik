@@ -6,7 +6,7 @@ Complete
 
 Implemented from clean planning HEAD `c734f0bb52cd35b94cd794cc580326dca09ec62b`.
 The bounded JDK-only ID and DTO surface, documentation, and executable validation are complete.
-Metal 0041 remains blocked until its separate planning-only rebase and Ready promotion.
+Metal 0041 was rebased and promoted to Ready in a separate planning-only commit.
 
 ## Change class
 
@@ -173,7 +173,7 @@ unless Java changes.
 
 ## Follow-up
 
-- After completion, rebase and set Metal 0041 Ready without broadening its scope.
+- Metal 0041 was rebased and set Ready without broadening its scope.
 - Broader compile/prepare/run/backend payload families, typed attributes, and serialization remain
   Draft work under Trace 0004–0008.
 

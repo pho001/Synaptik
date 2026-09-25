@@ -67,10 +67,10 @@ or import producer-domain types.
 
 ## Dependency DAG and authorized frontier
 
-`0001 (Complete) -> 0002 (Complete) -> 0003 (Complete) -> Metal 0041 (Blocked pending separate promotion)`
+`0001 (Complete) -> 0002 (Complete) -> 0003 (Complete) -> Metal 0041 (Ready)`
 
 Tasks 0004–0008 remain Draft and are not parallel frontiers. No Trace task is Ready. Trace 0003 is
-complete; Metal 0041 remains blocked until its separate planning-only rebase and Ready promotion.
+complete, and Metal 0041 is the sole Ready repository frontier.
 
 ## Integration ownership and shared documents
 
@@ -96,9 +96,9 @@ outcome payloads. It preserved every pre-existing Trace public source file and a
 observer, consumer, allocator, clock, mutable state, producer dependency, generic map, or
 serialization behavior. No Trace task is Ready.
 
-Metal 0041 is the immediate coordinated successor and remains Blocked until its separate
-planning-only rebase and Ready promotion. Broader compile, prepare, run, backend-detail,
-typed-attribute, and serialization work remains Draft under 0004–0008.
+Metal 0041 is the immediate coordinated successor and is Ready from the completed Trace surface.
+Broader compile, prepare, run, backend-detail, typed-attribute, and serialization work remains
+Draft under 0004–0008.
 
 ## Open questions
 
@@ -161,5 +161,5 @@ Task 0003 completed from clean planning revision
 Prepare, constructs the executable during finalization, invokes the prepared route during Run,
 and retains a closed native-status taxonomy. The implementation added only the matching neutral
 JDK-only DTO vocabulary and documentation; focused/full Trace tests, Javadoc, Markdown, scope, and
-diff validation passed. Metal 0041 remains blocked pending its separate planning-only rebase and
-Ready promotion.
+diff validation passed. Metal 0041 was separately rebased on the completion revision and promoted
+to the sole Ready repository frontier without broadening its scope.

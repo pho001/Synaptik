@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through documentation/audit-only 0038; recorded blockers through 0041 | Trace 0003 is Complete; Metal 0041 remains Blocked only until its separate planning-only rebase and Ready promotion. No Metal implementation is authorized yet. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | In progress; 0041 Ready, recorded blockers retained | [Metal 0041](backends/metal/tasks/0041-prepared-route-and-invocation-trace.md) is the sole Ready repository frontier from completed Trace 0003; no Metal implementation has started. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -66,13 +66,14 @@ trace-local backend, device, prepared-unit, and invocation IDs plus closed neutr
 preparation/invocation DTOs. It preserved the existing event envelope/phase/level/payload marker
 and added no emitter, observer, consumer, state, dependency, string map, or serialization behavior.
 
-[Metal 0041](backends/metal/tasks/0041-prepared-route-and-invocation-trace.md) remains Blocked until
-its separate planning-only rebase and Ready promotion. Its later bounded implementation adds the
-optional Metal observer overload, disabled fast path, producer-local IDs/events, PREPARE
-finalization and RUN native-invocation outcomes, truthful `NOT_QUERIED`, containment/redaction,
-and public Engine lifecycle observability without an Engine production or native ABI change.
+[Metal 0041](backends/metal/tasks/0041-prepared-route-and-invocation-trace.md) is Ready from exact
+common base `53dac29dd79702eb26e4595dd6b068d0fa1885db` and is the sole authorized repository
+frontier. Its bounded implementation adds the optional Metal observer overload, disabled fast
+path, producer-local IDs/events, PREPARE finalization and RUN native-invocation outcomes, truthful
+`NOT_QUERIED`, containment/redaction, and public Engine lifecycle observability without an Engine
+production or native ABI change.
 
-`Trace 0003 (Complete) -> Metal 0041 (Blocked pending separate promotion)`
+`Trace 0003 (Complete) -> Metal 0041 (Ready)`
 
 Numerical profiles
 
@@ -119,7 +120,7 @@ mapping and semantics. Metal 0037 is Blocked without a probe: direct RNN lacks r
 lengths, atomic validation, skipped padded work, and `finalHidden`; multiple recurrent numeric gaps
 remain unrelaxed. None changed production. Documentation/audit-only Metal 0038 is Complete. Metal
 0040 is Blocked after its one BFLOAT16 Gather gate canonicalized the first selected signaling NaN.
-Metal 0041 remains Blocked pending its separate planning-only promotion; no Metal task is Ready.
+Metal 0041 is the sole Ready Metal/repository task from completed Trace 0003.
 
 Task 0019 landed at implementation `a6d1796d` plus mixed-owner test remediation `bcb717a6`. Its
 native ABI/export, Metal, conformance, real Engine, architecture, full-build, documentation, and
@@ -183,7 +184,7 @@ implementation `44edd86092509348e1e72cf7f0f4c3b13d141fa8`, first remediation
 Metal 0027, Metal 0030, Metal 0031, Metal 0032, Metal 0033, Metal 0034, Metal 0035, Metal 0036, and
 Metal 0037 are Blocked without production changes; 0031–0037 ran no probe. Documentation/audit-only
 Metal 0038 is Complete. Planning-only Metal 0039 and failed-gate Metal 0040 remain Blocked; Metal
-0041 is Blocked pending its separate planning-only Ready promotion. No Metal task is Ready.
+0041 is the sole Ready repository frontier.
 
 Engine
 [0017](modules/engine/tasks/0017-reusable-inference-session-api.md) is Complete from exact base
@@ -324,12 +325,12 @@ operand only on its consuming edge; general affine publication and valid local c
 available. Version-twelve identities separate profile/type/topology compatibility, scalar
 reduction and BOOL materialization remain local-only, FLOAT32-only transfer is unchanged, and
 Runtime/Trace remain profile-free. Metal 0025 is Complete at final reviewed revision `f88066e3`.
-Metal 0026–0027/0030–0037/0039–0041 are Blocked and changed no executable capability; 0031–0037
-and 0039 ran no device probe, 0040 ran exactly its one failed BFLOAT16 Gather gate, and 0041 awaits
-its separate planning-only Ready promotion after completed Trace 0003. Schema 12/wires beginning
-at 20/attribute 7, local type 4, INT64 type/ingress, ABI/export changes, and version-thirteen
-identities remain unimplemented and unreserved. Documentation/audit-only Metal 0038 is Complete,
-and no Metal task is Ready.
+Metal 0026–0027/0030–0037/0039–0040 are Blocked and changed no executable capability; 0031–0037
+and 0039 ran no device probe, and 0040 ran exactly its one failed BFLOAT16 Gather gate. Ready 0041
+has not started implementation. Schema 12/wires beginning at 20/attribute 7, local type 4, INT64
+type/ingress, ABI/export changes, and version-thirteen identities remain unimplemented and
+unreserved. Documentation/audit-only Metal 0038 is Complete, and 0041 is the sole Ready Metal/
+repository task.
 
 Strategic gate: historical blocker evidence is preserved, and no backend task may define Model
 semantics. Complete Model 0028 owns bounded reduction exact-zero sign freedom; Complete Metal 0020
@@ -428,9 +429,8 @@ schema.
 - Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
   0017, Trace 0003, and Metal 0015/0019/0020/0021/0022/0023/0024/0025/0038 are Complete. Metal
   0016–0018, 0026–0027, 0030–0037, planning-only 0039, and failed-gate 0040 remain Blocked under
-  their recorded contracts. Metal 0041 remains Blocked pending its separate planning-only Ready
-  promotion and makes no current Metal Java/native change. No Metal task is Ready; every unfinished
-  or blocked operation family remains unauthorized.
+  their recorded contracts. Metal 0041 is Ready and is the sole authorized frontier; it has made
+  no current Metal Java/native change. Every blocked operation family remains unauthorized.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -444,9 +444,9 @@ schema.
 
 ## Nearest next step
 
-Trace 0003 is Complete. The next planning action is the separate rebase and Ready promotion for
-Metal 0041; no Metal implementation starts before that planning commit establishes its current
-base, ownership, and sole authorized frontier.
+Metal 0041 is the nearest executable step and the sole Ready repository task from exact common
+base `53dac29dd79702eb26e4595dd6b068d0fa1885db`. It must implement its detailed bounded observer,
+containment, and typed outcome scope serially; no other Metal work is authorized.
 
 Metal 0040 is Blocked from exact clean planning revision
 `c300582727ec568a7482dd974f9d1b2e2e13f82c`. Its sole disposable direct BFLOAT16 Gather program
@@ -529,8 +529,7 @@ Schema 12, wires beginning at 20, attribute 7, local value type 4, INT64 type/in
 changes, and identity 13 remain unimplemented and unreserved. Metal 0026/0027 remain separately
 finalized Blocked. Documentation/audit-only Metal 0038 is Complete. Planning-only Metal 0039 is
 Blocked on Draft Model 0026. Metal 0040 is Blocked by its failed one-execution BFLOAT16 raw-bit
-gate. Metal 0041 remains Blocked pending its separate planning-only Ready promotion; no Metal task
-is Ready.
+gate. Metal 0041 is Ready from completed Trace 0003 and is the sole Ready repository frontier.
 
 ## History policy
 
