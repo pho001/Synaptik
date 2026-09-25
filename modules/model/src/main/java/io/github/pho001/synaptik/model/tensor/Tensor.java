@@ -135,20 +135,19 @@ import java.util.Optional;
  * log-sum-exp, corrected variance/standard deviation, and L1/L2 norm methods use ordered distinct
  * axes, preserve exact input metadata, and record their first-class numerical targets without
  * decomposition or evaluation. The graph numerical profile changes no construction behavior and
- * is not stored on a Tensor. For {@code FLOAT32} SUM, MEAN, and sum-to-Shape under
- * {@code ACCELERATOR}, all and only the terms declared by axes, masking, mapping, and count remain
- * mandatory with per-step FLOAT32 rounding and row-scoped DAZ/FTZ. Only an exact-zero final
- * addition of a SUM cell with at least two terms, or the mandatory exact-zero positive-count MEAN
- * quotient, may publish either zero sign. Intermediate exact-zero additions gain no such freedom.
- * One-term, empty-axis point, and equal-Shape SUM copies preserve input bits; empty SUM remains
- * positive zero and zero-count MEAN remains NaN. For a nonempty {@code FLOAT32} MATMUL under
- * {@code ACCELERATOR}, only an otherwise-permitted exact-zero result after the complete contraction
- * gains the publication choice; every pairwise term, product/intermediate sign, reassociation/FMA
- * constraint, and DAZ/FTZ rule remains unchanged. Empty MATMUL remains positive zero. Convolution
- * retains only its existing reassociation/FMA plus DAZ/FTZ rule and gains no MATMUL publication
- * choice. {@code STRICT_IEEE}, non-FLOAT32 types, finite nonzero results, and NaN/infinity
- * classifications retain their existing contracts. These profile rules describe allowed results,
- * not Model evaluation or backend support.
+ * is not stored on a Tensor. {@code STRICT_IEEE} retains every current per-operation promise and
+ * freedom. {@code ACCELERATOR} is its total recursive {@code FLOAT32} superset: exact/discrete
+ * mapping, contributors, guards, selection, ordering, state, casts, identities, divisors, and
+ * publication; DAZ/FTZ and one-round arithmetic at named primitive sites; at most five ordered
+ * FLOAT32 representations at elementary-function sites; and all-declared-contributors-once
+ * aggregate evaluation with reassociation and corresponding FMA. Composite Tensor formulas
+ * recurse through those floors and gain no final-output tolerance. Stored selected payloads,
+ * masks, indices, saved values, and state stay exact; non-FLOAT32 behavior stays strict. Existing
+ * operation-local final exact-zero publication freedoms remain local to their qualifying final
+ * results. These profile rules describe allowed results, not Model evaluation or backend support;
+ * the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">Model-owned
+ * numerical-profile contract</a> is normative.
  * Statistical construction rejects a statically known domain count
  * at most correction and defers dynamic proof. Arg-min and arg-max
  * accept one non-empty selected axis of a floating or integral input, use an explicit first- or
@@ -645,9 +644,10 @@ public final class Tensor {
      * in ordinary IEEE-754 multiplication, including with infinity. NaN, infinity, and signed zero
      * otherwise follow ordinary multiplication and addition. An empty channel contraction starts
      * at positive zero. Reassociation and fused multiply-add are permitted without a fixed-order
-     * or bitwise cross-backend guarantee. Under {@code ACCELERATOR}, FLOAT32 CONV2D gains only the
-     * convolution row's DAZ/FTZ and no MATMUL final-publication exact-zero sign choice; product,
-     * intermediate, and published exact-zero signs retain the current convolution rules.</p>
+     * or bitwise cross-backend guarantee. Under {@code ACCELERATOR FLOAT32}, exact geometry,
+     * padding, and contributors remain unchanged while the contraction recurses through the
+     * primitive and aggregate floors above. Every term participates once; convolution gains no
+     * MATMUL-specific final-zero freedom or final-output tolerance.</p>
      *
      * <p>The fresh result has promoted type, exact derived Shape, unresolved layout, gradient
      * request equal to the input/weight logical OR, no label or storage, and exact ordered
@@ -734,9 +734,10 @@ public final class Tensor {
      * multiplication, including with infinity. NaN, infinity, and signed zero otherwise follow
      * ordinary multiplication and addition. An empty channel contraction starts at positive
      * zero. Reassociation and fused multiply-add are permitted without a fixed-order or bitwise
-     * cross-backend guarantee. Under {@code ACCELERATOR}, FLOAT32 CONV3D gains only the
-     * convolution row's DAZ/FTZ and no MATMUL final-publication exact-zero sign choice; product,
-     * intermediate, and published exact-zero signs retain the current convolution rules.</p>
+     * cross-backend guarantee. Under {@code ACCELERATOR FLOAT32}, exact geometry, padding, and
+     * contributors remain unchanged while the contraction recurses through the primitive and
+     * aggregate floors above. Every term participates once; convolution gains no MATMUL-specific
+     * final-zero freedom or final-output tolerance.</p>
      *
      * <p>The fresh canonical result has promoted type, exact derived Shape, unresolved layout,
      * gradient request equal to the input/weight logical OR, no label or storage, and ordered
@@ -1080,15 +1081,13 @@ public final class Tensor {
      * provenance containing {@link MatmulKind#MATMUL}, {@code NoOperationAttrs.INSTANCE}, ordered
      * exact inputs {@code [this, right]}, and output index zero. FLOAT64 results accumulate in
      * FLOAT64; FLOAT32 and BFLOAT16 results accumulate in FLOAT32, with BFLOAT16 conversion at
-     * output. Floating reassociation and corresponding multiply-add FMA are permitted without a
-     * bitwise-order guarantee. Under {@code ACCELERATOR}, a nonempty FLOAT32 MATMUL may publish
-     * either zero sign only when one complete otherwise-permitted contraction result is exact zero.
-     * Every pairwise product still participates exactly once, and every standalone product and
-     * pre-publication addition/FMA sign retains its existing rule. This includes a one-term
-     * contraction without an added positive-zero accumulator or new FMA. Signed-integral
-     * accumulation remains modular in the promoted width, and an empty contraction remains
-     * positive floating zero or integral zero. Finite nonzero values and NaN/infinity
-     * classification do not widen. This method does not evaluate values, guarantee gradient
+     * output. Under {@code ACCELERATOR FLOAT32}, exact broadcast and contraction membership stay
+     * unchanged; every pairwise product participates once, and the cell recurses through the
+     * primitive and aggregate floors above. The existing qualifying nonempty final exact-zero
+     * publication choice remains local to the complete MATMUL result; no intermediate gains that
+     * choice, a one-term contraction gains no identity or new FMA, and an empty contraction stays
+     * positive zero. Signed-integral accumulation remains modular in the promoted width. This is
+     * not a final-output tolerance. This method does not evaluate values, guarantee gradient
      * support, capture or compile a graph, choose a backend, allocate result storage, or execute.</p>
      *
      * @param right non-null ordered right operand retained by exact reference in result provenance
@@ -1281,9 +1280,9 @@ public final class Tensor {
      * no label or storage, and MATMUL provenance at output index zero. The transposed weight may
      * retain a resolved logical view layout when the original weight layout is resolved.</p>
      *
-     * <p>The produced MATMUL inherits the profile-indexed numerical result set documented by
-     * {@link #matmul(Tensor)}, including the narrow nonempty FLOAT32 ACCELERATOR
-     * final-publication exact-zero sign choice. This convenience adds no numerical freedom.</p>
+     * <p>The produced MATMUL inherits the total recursive profile-indexed result set documented by
+     * {@link #matmul(Tensor)}. This convenience adds no numerical site, guard, contributor, or
+     * final-output freedom.</p>
      *
      * <p>Null, promotion, rank, and locally provable contraction validation completes before the
      * first intermediate is created, so those failures consume no Tensor identifier. Identifier
@@ -1329,9 +1328,10 @@ public final class Tensor {
      * object. Its type is product/bias promotion, layout is unresolved, gradient eligibility is
      * the logical OR of input, weight, and bias requests, and label and storage are absent.
      * Floating and signed-integral composition inherits current MATMUL and ADD numerical policy.
-     * For ACCELERATOR FLOAT32, any MATMUL final-publication exact-zero sign choice applies only to
-     * the inner product; the following ADD has its separate operation-row semantics. This
-     * convenience defines no additional numeric or execution semantics.</p>
+     * Under {@code ACCELERATOR FLOAT32}, each visible operation recurses through its own formula
+     * sites: MATMUL's publication rule stays local to the inner product and the following ADD uses
+     * its ordinary primitive floor. The convenience adds no cross-node fusion, algebraic rewrite,
+     * or final-output envelope.</p>
      *
      * <p>Null, promotion, rank, contraction, and exact bias validation completes before PERMUTE,
      * so every caller-controlled local failure consumes no identifier and leaves no partial chain.
@@ -2417,8 +2417,10 @@ public final class Tensor {
      * <p>The input must be floating. The fresh result retains the exact data type and shape
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and provenance containing {@link UnaryElementwiseKind#ABS},
-     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Numerical and special-value
-     * behavior, gradient rules, execution, and backend support are deferred.</p>
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The formula and special classes
+     * documented by {@link UnaryElementwiseKind#ABS} are authoritative and recurse through the
+     * profile floors above without a method-level envelope. Gradient rules, execution, and backend
+     * support remain outside Model construction.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
      * @throws IllegalArgumentException if this tensor's data type is not floating
@@ -2434,8 +2436,10 @@ public final class Tensor {
      * <p>The input must be floating. The fresh result retains the exact data type and shape
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and provenance containing {@link UnaryElementwiseKind#NEG},
-     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Numerical and special-value
-     * behavior, canonicalization, gradient rules, execution, and backend support are deferred.</p>
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The formula and special classes
+     * documented by {@link UnaryElementwiseKind#NEG} are authoritative and recurse through the
+     * profile floors above without cross-node canonicalization. Gradient rules, execution, and
+     * backend support remain outside Model construction.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
      * @throws IllegalArgumentException if this tensor's data type is not floating
@@ -2451,9 +2455,10 @@ public final class Tensor {
      * <p>The input must be floating. The fresh result retains the exact data type and shape
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and provenance containing {@link UnaryElementwiseKind#RECIPROCAL},
-     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Zero handling, numerical domain,
-     * special-value policy, canonicalization, gradient rules, execution, and backend support are
-     * deferred.</p>
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The zero, domain, and special
+     * classes documented by {@link UnaryElementwiseKind#RECIPROCAL} are authoritative and recurse
+     * through the profile floors above without a method-level envelope. Gradient rules, execution,
+     * and backend support remain outside Model construction.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
      * @throws IllegalArgumentException if this tensor's data type is not floating
@@ -2469,9 +2474,10 @@ public final class Tensor {
      * <p>The input must be floating. The fresh result retains the exact data type and shape
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and provenance containing {@link UnaryElementwiseKind#LOG},
-     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Mathematical-domain and
-     * special-value handling, accuracy, gradient rules, execution, and backend support are
-     * deferred.</p>
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The domain and special classes
+     * documented by {@link UnaryElementwiseKind#LOG} are authoritative; the elementary site uses
+     * the selected profile floor above without a final-output envelope. Gradient rules, execution,
+     * and backend support remain outside Model construction.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
      * @throws IllegalArgumentException if this tensor's data type is not floating
@@ -2489,8 +2495,9 @@ public final class Tensor {
      * the exact input type, shape reference, and gradient-eligibility request, leaves layout
      * unresolved, and has no label or storage. The mathematical target preserves signed zero,
      * produces negative infinity at negative one, NaN below negative one or for NaN input, and
-     * positive infinity for positive infinity. Model construction does not evaluate those values or select an
-     * accuracy policy, gradient rule, execution route, or backend.</p>
+     * positive infinity for positive infinity. Its named sites recurse through the selected
+     * profile floors above without a method-level envelope. Model construction does not evaluate
+     * those values or select a gradient rule, execution route, or backend.</p>
      *
      * @return a non-null fresh derived Tensor preserving type, shape, and gradient eligibility
      * @throws IllegalArgumentException if this Tensor's data type is not floating
@@ -2507,9 +2514,10 @@ public final class Tensor {
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and provenance containing the portable mathematical request {@link
      * UnaryElementwiseKind#EXP}, {@code NoOperationAttrs.INSTANCE}, and exactly this input. The
-     * request selects no algorithm and promises no bitwise result, approximation bound, or
-     * backend route. Numerical accuracy, overflow, special values, gradients, execution, and
-     * backend support are deferred.</p>
+     * request selects no algorithm or backend route. The formula and special classes documented by
+     * {@link UnaryElementwiseKind#EXP} are authoritative; the elementary site uses the selected
+     * profile floor above without a final-output envelope. Gradient rules, execution, and backend
+     * support remain outside Model construction.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
      * @throws IllegalArgumentException if this tensor's data type is not floating
@@ -2527,8 +2535,9 @@ public final class Tensor {
      * preserves the exact input type, shape reference, and gradient-eligibility request, leaves
      * layout unresolved, and has no label or storage. The mathematical target preserves signed
      * zero, maps negative infinity to negative one, maps positive infinity to positive infinity,
-     * and produces NaN for NaN input. Model construction does not evaluate those values or select an accuracy policy,
-     * gradient rule, execution route, or backend.</p>
+     * and produces NaN for NaN input. Its named sites recurse through the selected profile floors
+     * above without a method-level envelope. Model construction does not evaluate those values or
+     * select a gradient rule, execution route, or backend.</p>
      *
      * @return a non-null fresh derived Tensor preserving type, shape, and gradient eligibility
      * @throws IllegalArgumentException if this Tensor's data type is not floating
@@ -2544,8 +2553,10 @@ public final class Tensor {
      * <p>The input must be floating. The fresh result retains the exact data type and shape
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and provenance containing {@link UnaryElementwiseKind#ERF},
-     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Accuracy, special-value behavior,
-     * gradient rules, execution, and backend support are deferred.</p>
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The special classes documented by
+     * {@link UnaryElementwiseKind#ERF} are authoritative; the elementary site uses the selected
+     * profile floor above without a final-output envelope. Gradient rules, execution, and backend
+     * support remain outside Model construction.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
      * @throws IllegalArgumentException if this tensor's data type is not floating
@@ -2561,9 +2572,10 @@ public final class Tensor {
      * <p>The input must be floating. The fresh result retains the exact data type and shape
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and provenance containing {@link UnaryElementwiseKind#SQRT},
-     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Mathematical-domain and
-     * special-value handling, accuracy, gradient rules, execution, and backend support are
-     * deferred.</p>
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The domain and special classes
+     * documented by {@link UnaryElementwiseKind#SQRT} are authoritative; the elementary site uses
+     * the selected profile floor above without a final-output envelope. Gradient rules, execution,
+     * and backend support remain outside Model construction.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
      * @throws IllegalArgumentException if this tensor's data type is not floating
@@ -2581,9 +2593,10 @@ public final class Tensor {
      * the exact input type, shape reference, and gradient-eligibility request, leaves layout
      * unresolved, and has no label or storage. Its mathematical target is {@code 1 / sqrt(x)}:
      * signed zero maps to same-signed infinity, positive infinity maps to positive zero, and
-     * negative finite values and negative infinity map to NaN, and NaN maps to NaN. Model
-     * construction does not evaluate values or select an accuracy policy, gradient rule,
-     * execution route, or backend.</p>
+     * negative finite values and negative infinity map to NaN, and NaN maps to NaN. The elementary
+     * site uses the selected profile floor above without a method-level envelope. Model
+     * construction does not evaluate values or select a gradient rule, execution route, or
+     * backend.</p>
      *
      * @return a non-null fresh derived Tensor preserving type, shape, and gradient eligibility
      * @throws IllegalArgumentException if this Tensor's data type is not floating
@@ -2599,9 +2612,10 @@ public final class Tensor {
      * <p>The input must be floating. The fresh result retains the exact data type and shape
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and provenance containing {@link UnaryElementwiseKind#FLOOR},
-     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Representation, special values,
-     * gradient policy, execution, and backend support are deferred; preserving
-     * {@code requiresGrad} does not define a derivative.</p>
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The representation and special
+     * classes documented by {@link UnaryElementwiseKind#FLOOR} are authoritative and use the
+     * selected profile floors above. Gradient policy, execution, and backend support remain
+     * outside Model construction; preserving {@code requiresGrad} does not define a derivative.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
      * @throws IllegalArgumentException if this tensor's data type is not floating
@@ -2617,9 +2631,10 @@ public final class Tensor {
      * <p>The input must be floating. The fresh result retains the exact data type and shape
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and provenance containing {@link UnaryElementwiseKind#CEIL},
-     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Representation, special values,
-     * gradient policy, execution, and backend support are deferred; preserving
-     * {@code requiresGrad} does not define a derivative.</p>
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The representation and special
+     * classes documented by {@link UnaryElementwiseKind#CEIL} are authoritative and use the
+     * selected profile floors above. Gradient policy, execution, and backend support remain
+     * outside Model construction; preserving {@code requiresGrad} does not define a derivative.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
      * @throws IllegalArgumentException if this tensor's data type is not floating
@@ -2635,9 +2650,10 @@ public final class Tensor {
      * <p>The input must be floating. The fresh result retains the exact data type and shape
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and provenance containing {@link UnaryElementwiseKind#SIGN},
-     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Exact representation, signed-zero
-     * and NaN behavior, gradient policy, execution, and backend support are deferred; preserving
-     * {@code requiresGrad} does not define a derivative.</p>
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The exact representation,
+     * signed-zero, and NaN rules documented by {@link UnaryElementwiseKind#SIGN} are authoritative
+     * and use the selected profile floors above. Gradient policy, execution, and backend support
+     * remain outside Model construction; preserving {@code requiresGrad} defines no derivative.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
      * @throws IllegalArgumentException if this tensor's data type is not floating
@@ -2653,8 +2669,10 @@ public final class Tensor {
      * <p>The input must be floating. The fresh result retains the exact data type and shape
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and provenance containing {@link UnaryElementwiseKind#RELU},
-     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Zero and special-value behavior,
-     * gradient convention, execution, and backend support are deferred.</p>
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The zero and special classes
+     * documented by {@link UnaryElementwiseKind#RELU} are authoritative and recurse through the
+     * profile floors above without a method-level envelope. Gradient convention, execution, and
+     * backend support remain outside Model construction.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
      * @throws IllegalArgumentException if this tensor's data type is not floating
@@ -2670,8 +2688,10 @@ public final class Tensor {
      * <p>The input must be floating. The fresh result retains the exact data type and shape
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and provenance containing {@link UnaryElementwiseKind#SIGMOID},
-     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Numerical stability, accuracy,
-     * special values, gradient rules, execution, and backend support are deferred.</p>
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. The formula and special classes
+     * documented by {@link UnaryElementwiseKind#SIGMOID} are authoritative; its named sites use
+     * the selected profile floors above without a final-output envelope. Gradient rules,
+     * execution, and backend support remain outside Model construction.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
      * @throws IllegalArgumentException if this tensor's data type is not floating
@@ -2688,9 +2708,10 @@ public final class Tensor {
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and provenance containing the portable mathematical request {@link
      * UnaryElementwiseKind#TANH}, {@code NoOperationAttrs.INSTANCE}, and exactly this input. The
-     * request selects no algorithm and promises no bitwise result, approximation bound, or
-     * backend route. Accuracy, special values, gradient rules, execution, and backend support are
-     * deferred.</p>
+     * request selects no algorithm or backend route. The special classes documented by {@link
+     * UnaryElementwiseKind#TANH} are authoritative; the elementary site uses the selected profile
+     * floor above without a final-output envelope. Gradient rules, execution, and backend support
+     * remain outside Model construction.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
      * @throws IllegalArgumentException if this tensor's data type is not floating
@@ -2906,8 +2927,9 @@ public final class Tensor {
      * <p>For INT32 and INT64 input, addition occurs in the exact result type modulo
      * {@code 2^32} or {@code 2^64}; reassociation is permitted, and an empty domain produces zero.
      * Under {@code STRICT_IEEE}, floating sum follows the documented NaN, infinity, signed-zero,
-     * and positive-zero empty-domain policy. The type-level contract above describes the bounded
-     * {@code ACCELERATOR} result set. Scalar, static, zero-extent, and dynamic Shapes are accepted
+     * and positive-zero empty-domain policy. Under {@code ACCELERATOR FLOAT32}, exact contributor
+     * membership and identity remain mandatory while all contributors participate once under the
+     * aggregate floor above. Scalar, static, zero-extent, and dynamic Shapes are accepted
      * structurally. This method records semantics only: it does not read storage, sum values,
      * implement an algorithm, create a gradient rule, capture a graph, lower an operation, or
      * execute work.</p>
@@ -3055,9 +3077,10 @@ public final class Tensor {
      *
      * <p>Under {@code STRICT_IEEE}, mean is exact sum divided by count: NaN and opposite
      * infinities produce NaN, a sole infinity sign is preserved, an empty domain produces NaN, and
-     * zero sign follows SUM. The type-level contract above describes the mandatory quotient and
-     * bounded {@code ACCELERATOR} result set. This method reads no values and selects no execution
-     * algorithm, gradient, compiler, or backend behavior.</p>
+     * zero sign follows SUM. Under {@code ACCELERATOR FLOAT32}, exact contributor membership,
+     * empty behavior, count, and mandatory quotient remain; the sum uses the aggregate floor and
+     * division uses the primitive floor above. This method reads no values and selects no
+     * execution algorithm, gradient, compiler, or backend behavior.</p>
      *
      * @return a non-null fresh storage-free scalar tensor with unchanged floating data type and
      *     gradient eligibility, unresolved layout, and exact one-input provenance
@@ -3643,9 +3666,10 @@ public final class Tensor {
      * <p>Axes are normalized once in caller order; normalized duplicates are rejected. An empty
      * array selects a point domain and returns the exact point bits, unlike {@link #sum()} full
      * reduction. Under {@code STRICT_IEEE}, floating sum uses the documented NaN, infinity,
-     * signed-zero, positive-zero empty, and result-format rounding policy; the type-level contract
-     * above describes the bounded {@code ACCELERATOR} result set. Integral sum retains exact type
-     * and modular semantics.</p>
+     * signed-zero, positive-zero empty, and result-format rounding policy. Under
+     * {@code ACCELERATOR FLOAT32}, exact axes, point behavior, contributor membership, and
+     * identity remain while arithmetic uses the aggregate floor above. Integral sum retains exact
+     * type and modular semantics.</p>
      *
      * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
      * @return a non-null fresh unlabeled, storage-free result with selected axes removed, exact
@@ -3701,13 +3725,13 @@ public final class Tensor {
      *
      * <p>The operation inherits ordinary SUM semantics. INT32 and INT64 use fixed-width modular
      * addition. Under {@code STRICT_IEEE}, floating NaN, infinity, signed-zero, reassociation, and
-     * rounding follow ordinary SUM. Under {@code ACCELERATOR}, a FLOAT32 cell with at least two
-     * mapped terms may use either zero sign only when the selected tree's root addition is exact
-     * zero. An actually reduced empty domain remains numeric positive zero; an equal-Shape or
-     * otherwise unreduced coordinate preserves the corresponding input bits without adding an
-     * identity. This method reads no value, storage, or element count and does not bind dimensions,
-     * resolve an axis set, define a gradient rule, capture a graph, lower an operation, choose a
-     * backend, or execute work.</p>
+     * rounding follow ordinary SUM. Under {@code ACCELERATOR FLOAT32}, exact target mapping and
+     * contributors remain while each actually reduced cell uses the aggregate floor above.
+     * Existing qualifying final exact-zero publication freedom remains local to the final cell.
+     * An actually reduced empty domain remains numeric positive zero; an equal-Shape or otherwise
+     * unreduced coordinate preserves input bits without adding an identity. This method reads no
+     * value, storage, or element count and does not bind dimensions, resolve an axis set, define a
+     * gradient rule, capture a graph, lower an operation, choose a backend, or execute work.</p>
      *
      * @param targetShape non-null exact result Shape; its rank must not exceed this Tensor's rank,
      *     and every fully static aligned extent must be one or equal the input extent
@@ -3732,9 +3756,10 @@ public final class Tensor {
      * <p>The result preserves exact floating type/eligibility. Under {@code STRICT_IEEE}, mean is
      * exact sum divided by count: NaN and opposite infinities produce NaN, a sole infinity sign is
      * preserved, empty domains produce NaN, and zero sign follows SUM. Under
-     * {@code ACCELERATOR}, the positive-count FLOAT32 quotient remains mandatory and may publish
-     * either zero sign only when it is exact zero. Empty axes select one point, still perform the
-     * mandatory divide by one, and return its value except for the permitted exact-zero sign.</p>
+     * {@code ACCELERATOR FLOAT32}, exact axes, contributors, empty behavior, count, and mandatory
+     * quotient remain; aggregation and division recurse through the floors above. Empty axes
+     * select one point and still divide by one. Existing qualifying final exact-zero publication
+     * freedom remains local to the final quotient.</p>
      *
      * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
      * @return a non-null fresh storage-free reduced-Shape mean with unresolved layout and exact

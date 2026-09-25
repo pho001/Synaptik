@@ -61,6 +61,16 @@ import java.util.List;
  * and from {@link AxisScatterKind axis scatter}, whose indices address one selected axis rather
  * than multi-axis coordinate tuples. Its inherited enum name is diagnostic text rather than a
  * serialization, dispatch, registry, route, or kernel identifier.</p>
+ *
+ * <p>Under the Model-owned numerical-profile contract, coordinate tuples, bounds, target/suffix
+ * mapping, base participation, duplicate membership, and unaddressed payloads remain exact in
+ * both profiles. {@code NONE} replacement preserves the selected original update. For
+ * {@code ACCELERATOR FLOAT32}, ADD/MUL reductions combine the base and every addressed update
+ * exactly once using any binary tree, per-step FLOAT32 rounding, DAZ/FTZ, and only corresponding
+ * multiply/add fusion; MIN/MAX retain exact original-candidate selection under their documented
+ * NaN, signed-zero, and tie rules. Non-FLOAT32 behavior stays strict. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  */
 public enum ScatterNdKind implements OperationKind {
     /**

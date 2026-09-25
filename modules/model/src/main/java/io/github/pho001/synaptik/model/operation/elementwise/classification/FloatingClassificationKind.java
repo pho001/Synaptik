@@ -18,6 +18,13 @@ import java.util.List;
  * unary transforms whose result preserves the input data type. An {@link
  * io.github.pho001.synaptik.model.operation.Operation Operation} represents each kind with {@link
  * NoOperationAttrs#INSTANCE}.</p>
+ *
+ * <p>The Model-owned numerical-profile contract leaves this exact/discrete family unchanged:
+ * {@code STRICT_IEEE} and {@code ACCELERATOR} classify the stored floating representation under
+ * the same NaN, infinity, and finite rules. Classification does not apply DAZ or FTZ, neighboring
+ * arithmetic cannot rewrite its input, and the Boolean result is exact. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  */
 public enum FloatingClassificationKind implements OperationKind {
     /**

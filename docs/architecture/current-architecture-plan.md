@@ -42,6 +42,7 @@ Focused architecture documentation:
 - [ADR 0017: Reusable inference session facade](../design/decisions/0017-reusable-inference-session-facade.md)
 - [ADR 0018: Public Training Session and SGD lifecycle](../design/decisions/0018-public-training-session-and-sgd-lifecycle.md)
 - [ADR 0019: Explicit numerical profiles](../design/decisions/0019-explicit-numerical-profiles.md)
+- [ADR 0021: Total recursive ACCELERATOR numerical floor](../design/decisions/0021-total-recursive-accelerator-numerical-floor.md)
 
 ## Status
 
@@ -54,15 +55,18 @@ exposes repeated or concurrent runs through the same prepared execution and exis
 lifecycle. Ordinary preparation composes non-empty plans across registered owners, with
 deterministic owner-indexed representations and explicit direct CPU-to-Metal and Metal-to-CPU
 transfers for fully static canonical contiguous `FLOAT32` values.
-CPU realizes both numerical profiles through identical exact behavior and routes. Metal execution
-is occurrence- and profile-qualified. Both profiles admit only exact canonical FLOAT32
-`NEG`/`ABS`; `RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`; `CONTIGUOUS`; bounded
-`UNFOLD_AXIS`; exact FLOAT32-data/INT32-index `GATHER`; INT32-to-BOOL `ONE_HOT`; and
-FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. Accelerator additionally admits only canonical
-tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static
-rank-two MATMUL under the Model-owned bounded profile. Strict capability is an accelerator subset;
-every other occurrence fails closed before route selection. Locally produced scalar reduction
-targets materialize as four bytes, while caller ingress and CPU/Metal transfer remain positive-rank.
+CPU realizes both numerical profiles through identical exact behavior and routes. Model defines
+`STRICT_IEEE` as the unchanged current contract and `ACCELERATOR` as its total recursive
+`FLOAT32` superset; that semantic reach does not imply backend support. Metal execution remains
+occurrence- and profile-qualified. Both profiles admit only exact canonical FLOAT32 `NEG`/`ABS`;
+`RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`; `CONTIGUOUS`; bounded `UNFOLD_AXIS`; exact
+FLOAT32-data/INT32-index `GATHER`; INT32-to-BOOL `ONE_HOT`; and FLOAT32/INT32/FLOAT32
+`SCATTER_ELEMENTS/NONE`. Accelerator additionally admits only canonical tensor FLOAT32
+`ADD`/`SUB`/`MUL`/`DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two
+MATMUL. Strict capability is an accelerator subset; every other occurrence fails closed before
+route selection.
+Locally produced scalar reduction targets materialize as four bytes, while caller ingress and
+CPU/Metal transfer remain positive-rank.
 The custom Metal route is available to an eligible singleton NEG under either profile. Current
 Metal remains ABI v4 with thirteen exports, node schema 11, operation wires `1..19`, attribute
 wires `0..6`, and version-twelve identities; no Blocked operation has a row.

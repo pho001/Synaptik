@@ -38,19 +38,18 @@ remain distinct compile-time state.
 The model does not know backend support, device residency, kernel selection, backend-specific storage, prepared execution, or runtime state. `Operation` expresses semantics and never exposes `supportedBackends()`. Runtime device storage belongs outside this module.
 
 Model is also the sole owner of the two graph numerical-profile result sets. `STRICT_IEEE` means
-each operation's current family-specific contract rather than universal bitwise strictness.
-`ACCELERATOR` is an opt-in, operation-specific `FLOAT32` superset bounded by the
-[sole normative table](contracts/foundational-modules.md#numerical-profiles); it is not generic
-fast math or tolerance. For SUM and arithmetic SUM-to-Shape, the only added exact-zero sign choice
-is at the root of a cell with at least two terms; for MEAN it is at the mandatory positive-count
-quotient. For nonempty MATMUL, the only added choice is the published sign after one complete
-otherwise-permitted contraction produces exact zero. A one-term product needs no inserted
-positive-zero accumulator or FMA. Every declared MATMUL term, standalone product, and
-pre-publication addition/FMA sign remains governed by its existing rule; empty MATMUL remains
-positive zero. CONV2D and CONV3D retain only their existing reassociation/FMA plus DAZ/FTZ profile
-rule. Intermediate values, reduction copies and identities, declared terms, mapping, count,
-classification, and finite nonzero results otherwise retain their contracts. The semantic
-contract, Config identity, cold propagation spine, and first backend realizations are current.
+each operation's unchanged current contract rather than universal bitwise strictness.
+`ACCELERATOR` is its total recursive `FLOAT32` superset under the
+[normative exact/discrete, primitive, aggregate, and composite-inheritance floors](contracts/foundational-modules.md#numerical-profiles).
+It preserves exact kind/attributes, mapping, contributors, masks, indices, state, traversal,
+casts, ordering, guards, identities, divisors, and publication; permits DAZ/FTZ, one-round basic
+arithmetic, and a five-ULP ceiling only at named elementary-function sites; and lets aggregates
+use any all-contributors-once binary tree with corresponding FMA. Composite and generated-gradient
+formulas recurse through those sites and gain no final-output tolerance. Non-FLOAT32 behavior
+remains strict. This is neither generic fast math nor permission for reduced precision, algebraic
+substitution, cross-node contraction, predicate tolerance, term loss, or hidden state change.
+Existing operation-local final exact-zero publication freedoms remain local to their named final
+results. The semantic contract, Config identity, and cold propagation spine are current.
 For any backend and occurrence domain, strict capability and behavior are an accelerator subset.
 CPU supports both profiles identically with exact current behavior. Metal supports exact canonical
 NEG/ABS/affine/`CONTIGUOUS`, bounded canonical FLOAT32 `UNFOLD_AXIS`, FLOAT32+INT32 GATHER,

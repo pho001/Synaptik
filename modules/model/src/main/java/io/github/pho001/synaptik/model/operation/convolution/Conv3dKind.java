@@ -13,16 +13,16 @@ import java.util.List;
  * selected numerical meaning, not a reversed mathematical kernel, algorithm, decomposition,
  * gradient rule, compiler support, backend capability, lowering, storage, or execution route.</p>
  *
- * <p>The graph numerical profile indexes this family's allowed {@code FLOAT32} results as defined
- * by the <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">sole normative numerical-profile table</a>.
- * {@code STRICT_IEEE} retains the reassociation and FMA permissions below. {@code ACCELERATOR}
- * additionally permits only the convolution row's DAZ/FTZ; it does not gain MATMUL's
- * final-publication exact-zero sign choice. Product, intermediate, and published exact-zero signs
- * retain the current convolution rules. An FMA may contract only a corresponding multiply and add
- * in the declared convolution contraction; it may not fuse arbitrary graph nodes or erase an
- * observable intermediate. FLOAT64, BFLOAT16, and future FLOAT16 results receive no relaxation.
- * This vocabulary describes result sets; it does not evaluate a convolution or choose a
- * backend.</p>
+ * <p>Under the Model-owned graph numerical-profile contract, {@code STRICT_IEEE} retains this
+ * exact convolution formula. For {@code ACCELERATOR FLOAT32}, groups, stride, dilation, padding,
+ * layout mapping, padding values, contributor membership, and output placement remain exact.
+ * Every declared term participates exactly once; each cell may use any binary tree, per-step
+ * FLOAT32 rounding, DAZ/FTZ, and corresponding product/add fusion. It may not drop, duplicate,
+ * invent, pretruncate, or replace a term, and convolution gains no MATMUL-specific final-zero
+ * freedom. This is recursive construction freedom, not a final-output tolerance; non-FLOAT32
+ * behavior stays strict. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  */
 public enum Conv3dKind implements OperationKind {
     /**

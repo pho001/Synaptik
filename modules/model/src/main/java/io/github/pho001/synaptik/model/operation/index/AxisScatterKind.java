@@ -50,6 +50,16 @@ import java.util.List;
  * behavior, backend support, numerical algorithm, or execution state. The portable represented-
  * value rules for configurable reductions are defined by {@link ScatterReduction}; they are
  * independent of encounter, layout, atomic, tree, and backend order.</p>
+ *
+ * <p>Under the Model-owned numerical-profile contract, indices, bounds, target mapping, base
+ * participation, duplicate membership, and unaddressed payloads remain exact in both profiles.
+ * {@code NONE} replacement preserves the selected original update. For
+ * {@code ACCELERATOR FLOAT32}, ADD/MUL reductions combine the base and every addressed update
+ * exactly once using any binary tree, per-step FLOAT32 rounding, DAZ/FTZ, and only corresponding
+ * multiply/add fusion; MIN/MAX retain exact original-candidate selection under their documented
+ * NaN, signed-zero, and tie rules. Non-FLOAT32 behavior stays strict. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  */
 public enum AxisScatterKind implements OperationKind {
     /**

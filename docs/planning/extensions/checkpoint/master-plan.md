@@ -221,9 +221,9 @@ lambda or added as a generic reflective registry.
 | 0006 | Optional Training Checkpoint adapter | Draft | Architecture authorization for the optional project; 0002, 0004–0005 | Persist and restore the model plus optimizer/groups/progress/scheduler/RNG/sampler/scaler state without making model-only Checkpoint depend on Training. |
 | 0007 | Checkpoint capability and recovery checkpoint | Draft | 0004; 0006 when exact training resume is selected; Text 0003 for text integration | Validate corruption/resource bounds, atomic publication and interruption recovery, strict no-partial-install behavior, text fingerprint mismatch, model-only load, exact training resume, documentation, and dependency enforcement. |
 
-No detailed Checkpoint task exists. No Vision, Checkpoint, or NN task is `Ready`. The repository's
-sole Ready frontier is [Model 0030](../../modules/model/tasks/0030-total-recursive-accelerator-numerical-floor.md);
-Checkpoint 0001 remains gated by its explicit architecture decision.
+No detailed Checkpoint task exists. No Vision, Checkpoint, NN, or repository task is `Ready`.
+[Model 0030](../../modules/model/tasks/0030-total-recursive-accelerator-numerical-floor.md) is
+`Review needed`; Checkpoint 0001 remains gated by its explicit architecture decision.
 
 ## Planned end-to-end flows
 

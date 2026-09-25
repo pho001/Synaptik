@@ -25,6 +25,12 @@ import java.util.Optional;
  * provenance-free forward leaf remains caller-bindable and is associated with its immutable
  * logical Tensor identity. Constants that the Compiler creates internally for a functional
  * gradient request retain their existing Compiler-owned treatment.</p>
+ *
+ * <p>The selected numerical profile is one cold graph-wide identity. Compiler passes it unchanged
+ * to Planning and stores it in artifacts; it never evaluates Model's recursive floors.
+ * Compiler-generated derivative formulas consist of ordinary public Tensor operations and
+ * therefore inherit that same profile at every generated primitive, aggregate, guard, and saved-
+ * value site. There is no gradient-only numerical profile or final-output tolerance.</p>
  */
 public final class GraphCompilationPort {
     private GraphCompilationPort() {}
@@ -39,8 +45,9 @@ public final class GraphCompilationPort {
      * list is retained in the result.</p>
      *
      * @param mode non-null graph-scope mode
-     * @param numericalProfile non-null immutable graph-wide numerical-profile identity retained
-     *     in the result and supplied unchanged to every capability query
+     * @param numericalProfile non-null immutable cold graph-wide identity retained in the result
+     *     and supplied unchanged to every capability query; generated gradient operations inherit
+     *     it without Compiler interpretation
      * @param forwardOutputs non-null, non-empty ordered forward boundary; exact Tensor references
      *     and resolved logical values must be unique, and the list is not mutated
      * @param functionalGradientRequest non-null optional functional request, absent exactly for

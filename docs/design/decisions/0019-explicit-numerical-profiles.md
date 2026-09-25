@@ -2,7 +2,11 @@
 
 ## Status
 
-Accepted — 2026-09-24
+Superseded by [ADR 0021](0021-total-recursive-accelerator-numerical-floor.md) — 2026-09-25
+
+ADR 0019 remains historical context for the two graph-wide identities, monotonicity, ownership,
+and fail-closed capability decisions. Its closed operation-row table and rejection of a generic
+bounded primitive rule no longer govern.
 
 ## Context
 

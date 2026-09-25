@@ -34,10 +34,13 @@ or runtime representation.
 The current config module provides five immutable standalone values that a later compile
 configuration aggregate can contain: `BackendIntent`, `CompileMode`,
 `GraphOptimizationConfig`, `PartitionScoringConfig`, and `NumericalProfile`. Model remains the sole
-authority for profile semantics. `Engine.Builder` defaults the graph-wide selection to
-`STRICT_IEEE`; an explicit selection is captured once and passed to Planning capability queries,
-Compiler artifacts, Prepare projections, and backend plan/cache identities. Config itself supplies
-no default. The current planning module provides the immutable profile-qualified
+authority for the unchanged strict set and total recursive `FLOAT32` accelerator superset.
+`Engine.Builder` defaults the graph-wide selection to `STRICT_IEEE`; an explicit selection is
+captured once and passed to Planning capability queries, Compiler artifacts, Prepare projections,
+and backend plan/cache identities. Config itself supplies no default. Compiler interprets none of
+the floors: every generated gradient formula is made from ordinary public Tensor operations in
+the same graph-wide profile, with exact guards/saved values and no gradient-only output envelope.
+The current planning module provides the immutable profile-qualified
 `OperationCapabilityQuery` and the explicitly supplied `BackendCapabilityProvider` collaboration.
 It keeps per-query hard eligibility and baseline comparison package-private and exposes one public
 `BackendOwnerPlanning.selectOwner(...)` collaboration that composes them without exposing the

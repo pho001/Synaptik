@@ -28,6 +28,15 @@ import java.util.List;
  * {@code [1, 1, 3, 3]} output: the center receives four contributions while each corner receives
  * one, with no overlap averaging.</p>
  *
+ * <p>Under the Model-owned numerical-profile contract, every unfold preserves exact addressed
+ * mapping and payload representations in both profiles. Every fold preserves exact geometry,
+ * contributor membership, and empty behavior; for {@code ACCELERATOR FLOAT32} overlapping
+ * additions include every addressed contributor exactly once and may use any binary tree,
+ * per-step FLOAT32 rounding, DAZ/FTZ, and only corresponding multiply/add fusion. Nonoverlapping
+ * copies stay exact and non-FLOAT32 behavior stays strict. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
+ *
  * <p>The exact kind-to-attributes pairings are UNFOLD_AXIS with {@link UnfoldAxisAttrs}, FOLD_AXIS
  * with {@link FoldAxisAttrs}, UNFOLD2D with either {@link Window2dAttrs} for conceptual
  * positive-zero padding or {@link Unfold2dAttrs} for one exact typed padding value, and FOLD2D

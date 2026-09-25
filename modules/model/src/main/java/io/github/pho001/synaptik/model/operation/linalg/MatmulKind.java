@@ -19,18 +19,17 @@ import java.util.List;
  * logical output. Enum identity is the semantic identity; inherited text is diagnostic only and
  * is not a registry, serialization, dispatch, route, or kernel contract.</p>
  *
- * <p>The graph numerical profile indexes this family's allowed {@code FLOAT32} results as defined
- * by the <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">sole normative numerical-profile table</a>.
- * {@code STRICT_IEEE} retains the reassociation and FMA permissions below. {@code ACCELERATOR}
- * additionally permits row-scoped DAZ/FTZ and, only after one complete nonempty contraction has
- * an otherwise-permitted exact-zero result, either sign for the published MATMUL cell. Every
- * pairwise multiplication term still participates exactly once. Standalone product signs and
- * addition/FMA result signs before publication retain their existing rules. A one-term
- * contraction gains the publication choice without an added positive-zero accumulator or FMA;
- * an empty contraction remains positive zero. Finite nonzero results and NaN/infinity
- * classification do not widen. FLOAT64, BFLOAT16, integral, and future FLOAT16 results receive no
- * relaxation. This vocabulary describes result sets; it does not evaluate a contraction or
- * choose a backend.</p>
+ * <p>Under the Model-owned graph numerical-profile contract, {@code STRICT_IEEE} retains this
+ * contraction. For {@code ACCELERATOR FLOAT32}, exact broadcast mapping, contraction extent,
+ * contributor membership, empty identity, and output placement are unchanged. Every pairwise
+ * product participates exactly once; evaluation may use any binary tree, per-step FLOAT32
+ * rounding, DAZ/FTZ, and corresponding product/add fusion. It may not drop, duplicate, invent,
+ * pretruncate, or replace a term. The existing qualifying nonempty final exact-zero publication
+ * freedom remains local to the final MATMUL cell; an empty contraction stays positive zero. This
+ * is recursive construction freedom, not a final-output tolerance, and non-FLOAT32 behavior
+ * remains strict. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  */
 public enum MatmulKind implements OperationKind {
     /**

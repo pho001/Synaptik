@@ -24,6 +24,13 @@ import java.util.List;
  * grouping identity, gradient, compiler policy, backend or ONNX behavior, or execution state.
  * Its inherited enum name is diagnostic text rather than a serialization, parsing, dispatch, or
  * kernel identifier.</p>
+ *
+ * <p>The Model-owned numerical-profile contract leaves composition exact under
+ * {@code STRICT_IEEE} and {@code ACCELERATOR}: input order, axis mapping, output placement, and
+ * each copied stored payload representation remain exact. Concatenation and stacking apply no
+ * DAZ, FTZ, or arithmetic tolerance. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  */
 public enum TensorCompositionKind implements OperationKind {
     /**

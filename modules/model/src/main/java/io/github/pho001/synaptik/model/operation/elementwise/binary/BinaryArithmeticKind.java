@@ -20,16 +20,16 @@ import java.util.List;
  * NoOperationAttrs.INSTANCE}. Broadcast geometry is derived from operand shapes and is not stored
  * as an attribute or as mutable state on the kind.</p>
  *
- * <p>The graph numerical profile indexes this family's allowed {@code FLOAT32} results as defined
- * by the <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">sole normative numerical-profile table</a>.
- * {@code STRICT_IEEE} retains the per-kind rules below. {@code ACCELERATOR} additionally permits
- * row-scoped DAZ/FTZ for {@link #ADD}, {@link #SUB}, {@link #MUL}, and {@link #DIV}, including
- * either sign for an FTZ zero and for an exact-zero ADD/SUB result; MUL/DIV otherwise retain the
- * selected operands' required sign. For {@link #MIN} and {@link #MAX}, NaN still propagates,
- * opposite-zero ties may use either sign, and values equal after DAZ normalization may return
- * either original operand bit pattern. {@link #POW} and every non-FLOAT32 type receive no
- * relaxation. This vocabulary describes result sets; it does not evaluate an operation or choose
- * a backend.</p>
+ * <p>Under the Model-owned graph numerical-profile contract, {@code STRICT_IEEE} retains every
+ * rule above. For {@code ACCELERATOR FLOAT32}, each named arithmetic site may use DAZ/FTZ,
+ * one-round basic arithmetic, and a corresponding fused multiply-add only where no intermediate
+ * is observable; {@code POW} is additionally a five-ULP elementary-function site. {@code MIN}
+ * and {@code MAX} preserve their exact NaN, signed-zero, and original-candidate selection rules,
+ * except that DAZ-normalized values may tie. Existing final exact-zero publication freedoms
+ * remain local to their named final results. This is a site rule, not a final-output tolerance;
+ * every non-FLOAT32 type remains strict. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  *
  * <p>Enum identity supplies typed equality and hashing, so an equally named constant in another
  * operation family remains a different semantic value. The inherited {@link #name()} and

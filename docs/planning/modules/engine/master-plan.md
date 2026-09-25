@@ -18,6 +18,7 @@ Focused explanations and decisions:
 - [ADR 0016: CPU/Metal mixed-owner prepared schedule](../../../design/decisions/0016-cpu-metal-mixed-owner-schedule.md)
 - [ADR 0017: Reusable inference session facade](../../../design/decisions/0017-reusable-inference-session-facade.md)
 - [ADR 0019: Explicit numerical profiles](../../../design/decisions/0019-explicit-numerical-profiles.md)
+- [ADR 0021: Total recursive ACCELERATOR numerical floor](../../../design/decisions/0021-total-recursive-accelerator-numerical-floor.md)
 
 ## Lifecycle position
 
@@ -155,8 +156,8 @@ not a catch-all service registry.
 - Numerical-profile selection is graph-wide and cold. Complete 0018 retains one profile through
   Planning, compile, Prepare, and backend plan/cache identity while Runtime executes the prepared
   recipe. CPU 0017 and current Metal realizations are Complete; Engine owns none of their semantic
-  or backend behavior. Model 0030 is the sole Ready repository frontier, and Metal 0051 remains its
-  Draft serial successor.
+  or backend behavior. Model 0030 is `Review needed`, no repository task is Ready, and Metal 0051
+  remains its Draft serial successor after completion and independent approval.
 - Metal configuration, native open, and partial-open rollback remain Metal-owned; Engine may take
   an opened integration but must not duplicate or interpret Metal policy.
 

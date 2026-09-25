@@ -101,8 +101,8 @@ currently declared. Dependencies on `modules/engine` and every concrete backend 
 - The 0011 audit findings are resolved by Complete tasks 0012–0014; 0011 remains a completed
   historical `BLOCKING_GAP` result, not a live blocker.
 - Leased publication access and persistent prepared-resource ownership are Complete through 0016.
-- No Runtime task is `Ready` or `In progress`. The [roadmap](../../roadmap.md) owns the repository
-  frontier and selects Ready Model 0030; Runtime remains profile-free.
+- No Runtime or repository task is `Ready`. The [roadmap](../../roadmap.md) owns the repository
+  frontier and records Model 0030 as `Review needed`; Runtime remains profile-free.
 
 ## Live risks and gates
 
@@ -119,8 +119,8 @@ currently declared. Dependencies on `modules/engine` and every concrete backend 
 
 The task table and linked task status/results are controlling. The former downstream-frontier
 wording is normalized to the current state: Prepare 0006, Engine 0010, and current Metal lifecycle
-work are Complete; Model 0030 is the sole Ready repository frontier. No Runtime task status, order,
-dependency, ownership rule, API, or executable behavior changes here.
+work are Complete; Model 0030 is `Review needed` and no repository task is Ready. No Runtime task
+status, order, dependency, ownership rule, API, or executable behavior changes here.
 
 ## History and update policy
 

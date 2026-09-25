@@ -3950,7 +3950,8 @@ See the [CPU master plan](../planning/backends/cpu/master-plan.md), [kernel rout
 CPU capability and preparation admit both `STRICT_IEEE` and `ACCELERATOR` through the identical
 current operation matrix, portable/generated routes, exact arithmetic, OpenBLAS qualification,
 fusion, decomposition, materialization, thresholds, worker policy, vector species, constants, and
-fallbacks. `ACCELERATOR` grants no CPU fast math, reassociation, reduced precision, approximate
+fallbacks. Model's accelerator profile is semantically broader, but CPU deliberately realizes only
+the common strict subset: it enables no extra reassociation, reduced precision, approximate
 instruction, denormals-are-zero (DAZ), or flush-to-zero (FTZ) behavior.
 
 The requested profile is retained unchanged in partition plans, generated-kernel specialization

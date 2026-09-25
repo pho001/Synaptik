@@ -29,13 +29,13 @@ import java.util.List;
  * every value, including itself, and opposite signed zeros are equal. Inequality is its logical
  * complement. Integral operands retain exact signed comparison after promotion.</p>
  *
- * <p>The graph numerical profile indexes this family's allowed {@code FLOAT32} results as defined
- * by the <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">sole normative numerical-profile table</a>.
- * {@code STRICT_IEEE} retains the truth tables above. {@code ACCELERATOR} compares operands after
- * row-scoped DAZ normalization but retains the same NaN and signed-zero truth tables and canonical
- * {@code BOOL} result. It grants no tolerance equality and no relaxation for classification or a
- * non-FLOAT32 type. This vocabulary describes result sets; it does not evaluate a comparison or
- * choose a backend.</p>
+ * <p>Under the Model-owned graph numerical-profile contract, {@code STRICT_IEEE} retains these
+ * exact predicates. {@code ACCELERATOR} changes no category, broadcasting, promotion, NaN, or
+ * output rule and adds no comparison epsilon. A FLOAT32 comparison may observe each subnormal
+ * operand as same-signed zero, but still returns the exact Boolean predicate result. No stored
+ * input is rewritten and non-FLOAT32 comparisons remain strict. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  *
  * <p>Enum identity supplies typed equality and hashing, so an equally named constant in another
  * operation family remains a different semantic value. The inherited {@link #name()} and

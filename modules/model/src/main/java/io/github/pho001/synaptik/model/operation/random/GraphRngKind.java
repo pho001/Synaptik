@@ -10,6 +10,13 @@ import java.util.List;
  * <p>This family records state in Tensor-expression provenance. It does not select a random
  * algorithm, allocate state or storage, sample values, find a service, initialize runtime state,
  * identify a kernel, or promise a stable serialized token.</p>
+ *
+ * <p>The Model-owned numerical-profile contract leaves graph RNG state exact under
+ * {@code STRICT_IEEE} and {@code ACCELERATOR}: raw words, key/counter meaning, occurrence
+ * identity, and every explicit state transition remain unchanged. Numerical approximation cannot
+ * alter state, draws, masks, or traversal. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  */
 public enum GraphRngKind implements OperationKind {
     /**

@@ -238,7 +238,7 @@ sole Ready Model/repository frontier; task 0026 remains an independent Draft.
 | 0027 | [Explicit numerical-profile semantic authority](tasks/0027-explicit-numerical-profile-semantic-authority.md) | Complete | Completed operation-family semantics through 0025L; Metal 0014 and retained numerical blocker evidence; accepted Variant B | Established root/foundational authority, ADR 0019, bounded Model-owned result sets, affected Javadocs, and gross-error exclusions; implementation `ff86a302`, independent validation, and Class C review passed with zero failures, skips, or findings. |
 | 0028 | [ACCELERATOR reduction exact-zero sign freedom](tasks/0028-accelerator-reduction-exact-zero-sign-freedom.md) | Complete | 0027; corrected Metal 0017 blocker evidence | Established final-result-only exact-zero sign freedom for arithmetic FLOAT32 SUM/MEAN/SUM_TO_SHAPE while preserving strict, terms, identities, copies, and count division; implementation `fc003ab8`, proof and 23-task validation passed, and Class C review approved with zero findings. |
 | 0029 | [ACCELERATOR MATMUL exact-zero sign freedom](tasks/0029-accelerator-matmul-exact-zero-sign-freedom.md) | Complete | 0027; 0028; retained Metal 0018 blocker evidence | Split the contraction row and established only final-publication either-zero-sign freedom for a complete nonempty exact-zero FLOAT32 ACCELERATOR MATMUL result; implementation `30826783`, proof and 23-task validation passed, and Class C review approved with zero findings. |
-| 0030 | [Total recursive ACCELERATOR numerical floor](tasks/0030-total-recursive-accelerator-numerical-floor.md) | Ready | 0027–0029; completed profile spine and backend realizations; retained Metal blocker evidence through 0040; approved minimal recursive redesign | Replace the operation-row table with total exact/discrete, primitive FLOAT32, and all-terms-once aggregate floors; inventory every Model family and generated-gradient consequence; preserve the two-value API and current capability; define bounded Metal 0051 as the first Draft successor. |
+| 0030 | [Total recursive ACCELERATOR numerical floor](tasks/0030-total-recursive-accelerator-numerical-floor.md) | Review needed | 0027–0029; completed profile spine and backend realizations; retained Metal blocker evidence through 0040; approved minimal recursive redesign | Implemented the documentation-only cutover to total exact/discrete, primitive FLOAT32, all-contributors-once aggregate, and composite-inheritance floors across every current Model family and generated-gradient consequence; preserved the two-value API and all capability/identity behavior; Metal 0051 remains Draft. |
 
 ## Milestones and current frontier
 
@@ -262,24 +262,27 @@ sole Ready Model/repository frontier; task 0026 remains an independent Draft.
   historical reduction contract.
 - Task 0029 is `Complete` at implementation `30826783`; its bounded proof, 23-task validation, and
   independent Class C review passed.
-- Task 0030 is the sole `Ready` frontier from common base
-  `6535c0ffdebeb38945050497bbe1c0fe261950ca`. It replaces the closed operation-row table with
-  recursive exact/discrete, primitive FLOAT32, and all-terms-once aggregate floors while preserving
-  `STRICT_IEEE`, the two-value public identity, and current backend capability. Metal 0051 remains
-  a Draft serial successor until 0030 is Complete and independently approved.
+- Task 0030 is `Review needed` after implementing the documentation-only recursive-contract
+  cutover from planning base `333f780d1acbe234a2231cbced78535895a23f7a`. Required Model tests,
+  Model Javadocs, architecture tests, and affected Config/Compiler/Engine Javadocs passed. It
+  preserves `STRICT_IEEE`, the two-value public identity, and current backend capability. No
+  repository task is Ready; Metal 0051 remains a Draft serial successor until 0030 is Complete and
+  independently approved.
 - Task 0026 remains an independent `Draft` with no detailed brief or dependency relationship to
   0027–0030. It is selected only when IEEE-754 binary16 `FLOAT16` becomes current.
 
 ## Live gates, decisions, and risks
 
-- **Explicit numerical profiles:** completed 0027–0029 established the current table and focused
-  zero-sign refinements. Ready 0030 is the clean-cutover owner for the approved minimal redesign:
-  `STRICT_IEEE` remains current per-operation semantics; `ACCELERATOR` becomes a total `FLOAT32`
-  superset through exact/discrete, primitive DAZ/FTZ/FMA plus an evidence-backed five-ULP
-  elementary-site rule, and all-terms-once aggregate reassociation/FMA. Composite Model formulas
-  and generated Tensor gradients inherit those floors; no policy, placement, determinism, or
-  envelope layer is added. Current CPU/Metal capability and identities remain unchanged. Draft
-  Metal 0051 may add only accelerator FLOAT32 `EXP`/`SIGMOID` after 0030 completes.
+- **Explicit numerical profiles:** completed 0027–0029 established the prior table and focused
+  zero-sign refinements. Review-needed 0030 implements the approved minimal recursive clean
+  cutover: `STRICT_IEEE` remains current per-operation semantics; `ACCELERATOR` is a total
+  `FLOAT32` superset through exact/discrete, primitive DAZ/FTZ/FMA plus an evidence-backed five-ULP
+  elementary-site rule, and all-contributors-once aggregate reassociation/FMA. Composite Model
+  formulas and generated Tensor gradients inherit those floors; no policy, placement,
+  determinism, or envelope layer is added. Current CPU/Metal capability and identities remain
+  unchanged. Draft Metal 0051 may add only accelerator FLOAT32 `EXP`/`SIGMOID` after 0030 is
+  Complete and independently approved, with candidate certification and cold route-adjudication
+  evidence before capability becomes true.
 - **FLOAT16 and mixed precision:** BFLOAT16 remains a distinct current type. Only 0026 may add true
   IEEE binary16 FLOAT16 and must audit each affected family’s input, accumulation/intermediate,
   and output types. A shared two-byte carrier does not imply arithmetic, Java Vector support, or a

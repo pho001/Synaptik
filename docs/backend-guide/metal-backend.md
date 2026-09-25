@@ -642,12 +642,14 @@ permuted bindings, and exact input/canary controls. All control and bounded-prof
 oracle comparisons passed for `ADD`, `SUB`, `MUL`, and `DIV`, enabling only the explicit
 `ACCELERATOR` route.
 
-The accelerator contract is a bounded result set, not IEEE equality or a performance claim. Each
-subnormal input may be consumed either exactly or as signed zero; a finite subnormal result may be
-returned exactly or as either signed zero; exact-zero `ADD`/`SUB` may use either sign; and NaN
-payload/sign are unspecified while NaN classification is preserved. No tolerance-based comparison
-is used. Ordinary exact finite, infinity, and required signed-zero outcomes outside those freedoms
-remain exact.
+The current accelerator contract is Model's total recursive `FLOAT32` result set, not IEEE
+equality, an `allclose` oracle, or a performance claim. For the implemented binary routes, each
+subnormal input may be consumed exactly or as same-signed zero, a finite subnormal result may be
+exact or FTZ, and each basic arithmetic site performs one FLOAT32 round-to-nearest-even operation.
+NaN remains NaN and ordinary finite, infinity, and required signed-zero classes remain governed by
+the Model formula and existing publication freedoms. Reduced precision, reciprocal substitution,
+cross-node contraction, algebraic rewrites, and tolerance acceptance remain forbidden. The
+historical 0015 probe evidence certifies these current routes as a subset of that recursive set.
 
 Task 0019 reused the still-current 0016 exact ABS selector gate because only planning documents
 changed after the recorded executable baseline and the same Apple M3 Max, SDK/toolchain, selector,
@@ -853,10 +855,11 @@ bounded canonical FLOAT32 `UNFOLD_AXIS`, FLOAT32+INT32 GATHER, INT32-to-BOOL ONE
 FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE` common to both profile matrices. `ACCELERATOR`
 additionally admits tensor `FLOAT32` `ADD`/`SUB`/`MUL`/`DIV` with exact broadcasting, canonical
 `FLOAT32` `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two `FLOAT32` MATMUL with
-authenticated local transposes. Accelerator arithmetic uses only its operation-specific
-Model-owned bounded DAZ/FTZ, reassociation/FMA, NaN, and final-result exact-zero sign contracts.
-UNFOLD_AXIS and scatter receive no profile relaxation. The profile is retained in partition plans
-and participates in route-candidate, tuning-compatibility, decision-codec, and workload identity.
+authenticated local transposes. Those arithmetic routes must remain inside Model's recursive
+primitive and all-contributors-once aggregate floors; they gain no generic final-output tolerance.
+UNFOLD_AXIS and scatter receive no profile relaxation. Broader Model semantic reach creates no
+capability row. The profile is retained in partition plans and participates in route-candidate,
+tuning-compatibility, decision-codec, and workload identity.
 Java enforces the profile boundary before native entry. Native ABI version `4` remains unchanged;
 MPSGraph node schema `11` retains wires `1..18` and appends `UNFOLD_AXIS=19` with
 `WINDOW_AXIS=6`. Route, candidate, compatibility, workload, exact-policy, and codec identities are

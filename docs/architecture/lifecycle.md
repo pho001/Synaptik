@@ -399,14 +399,16 @@ specific optimizer execution belongs to backend prepare and kernels.
 Engine selection -> Planning query -> CompileArtifacts -> PrepareContext -> backend plan/cache
 ```
 
-The same graph-wide `NumericalProfile` crosses these cold stages unchanged. CPU realizes both
-profiles identically. Metal's common exact occurrence domain under both profiles contains only
-canonical FLOAT32 `NEG`/`ABS`; `RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`;
-`CONTIGUOUS`; bounded `UNFOLD_AXIS`; exact FLOAT32-data/INT32-index `GATHER`; INT32-to-BOOL
-`ONE_HOT`; and FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. `ACCELERATOR` additionally admits
-only tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive
-static rank-two MATMUL with authenticated local transpose operands. Strict capability is an
-accelerator subset; every other occurrence fails closed before route selection. No Blocked
-operation has a capability/schema row: ABI v4, thirteen exports, node schema 11, operation wires
-`1..19`, attribute wires `0..6`, and version-twelve identities remain frozen. Runtime executes the
-prepared result with no profile branch.
+The same graph-wide `NumericalProfile` crosses these cold stages unchanged. Model owns the
+unchanged strict set and total recursive `FLOAT32` accelerator superset; every downstream stage
+transports, queries, or realizes that meaning without reinterpreting it. CPU realizes both profiles
+identically. Metal's common exact occurrence domain under both profiles contains only canonical
+FLOAT32 `NEG`/`ABS`; `RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`; `CONTIGUOUS`; bounded
+`UNFOLD_AXIS`; exact FLOAT32-data/INT32-index `GATHER`; INT32-to-BOOL `ONE_HOT`; and
+FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. `ACCELERATOR` additionally admits only tensor
+FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static
+rank-two MATMUL with authenticated local transpose operands. Strict capability is an accelerator
+subset; every other occurrence fails closed before route selection. No Blocked operation has a
+capability/schema row: ABI v4, thirteen exports, node schema 11, operation wires `1..19`,
+attribute wires `0..6`, and version-twelve identities remain frozen. Runtime executes the prepared
+result with no profile branch.

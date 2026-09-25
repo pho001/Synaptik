@@ -26,24 +26,19 @@ import java.util.List;
  * signatures enforce one input for ordinary, target-Shape, and advanced forms or two ordered
  * inputs for masked forms.</p>
  *
- * <p>The graph numerical profile indexes this family's allowed {@code FLOAT32} results as defined
- * by the <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">sole normative numerical-profile table</a>.
- * {@code STRICT_IEEE} retains every per-kind rule below. Under {@code ACCELERATOR}, {@link #SUM},
- * {@link #MEAN}, and the SUM-to-Shape form use all and only the terms declared by axes, masking,
- * target-Shape mapping, and selected count in a reassociable binary tree with FLOAT32 per-step
- * rounding and row-scoped DAZ/FTZ. A SUM or arithmetic SUM-to-Shape cell with at least two terms
- * may publish either zero sign only when the tree's root addition is exact zero; intermediate
- * exact-zero additions gain no such freedom. MEAN still divides by the declared positive count in
- * FLOAT32 and may publish either sign only when that quotient is exact zero. Point-domain,
- * equal-Shape, and other one-term SUM copies preserve the selected input bits, empty SUM remains
- * positive zero, and zero-count MEAN remains NaN; no identity may be added to create arithmetic.
- * For {@link #MIN} and {@link #MAX}, NaN still propagates, opposite-zero ties may use either sign,
- * values equal after DAZ normalization may return either original candidate bit pattern, and
- * unequal normalized values retain numeric ordering. Every other reduction kind and every
- * non-FLOAT32 type receive no relaxation. No profile permits dropping, duplicating, or inventing
- * a term, changing a finite nonzero result or classification outside a permitted evaluation,
- * tolerance acceptance, or reciprocal substitution. This vocabulary describes result sets; it
- * does not evaluate a reduction or choose a backend.</p>
+ * <p>Under the Model-owned graph numerical-profile contract, {@code STRICT_IEEE} retains every
+ * formula, identity, divisor, tie, and special-value rule above. For {@code ACCELERATOR FLOAT32},
+ * exact axes, masks, mappings, contributors, empty/point identities, and mandatory divisors are
+ * unchanged. Every selected contributor participates exactly once; arithmetic aggregates may
+ * use any binary tree, FLOAT32 rounding at every step, DAZ/FTZ, and only corresponding
+ * multiply/add fusion. They may not drop, duplicate, invent, pretruncate, or replace a term.
+ * Extrema and arg-extrema preserve exact winner/index policy and return original candidates;
+ * Boolean aggregates remain exact. Elementary sites inside {@code LOG_SUM_EXP}, variance,
+ * standard deviation, and norms use the same five-ULP primitive-site ceiling, never a final
+ * aggregate envelope. Existing qualifying final exact-zero SUM/MEAN freedoms remain local to the
+ * final cell; non-FLOAT32 behavior stays strict. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  *
  * <p>Each constant identifies requested mathematics only. The ordinary Tensor-construction
  * contract accepts floating input for all five numeric kinds and signed-integral input for

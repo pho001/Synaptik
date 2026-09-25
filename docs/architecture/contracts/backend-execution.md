@@ -307,11 +307,13 @@ geometry and canonical or authenticated local rank-two-transpose operands. Stric
 subset because every common occurrence has the same answer under accelerator; strict rejects every
 accelerator-only addition.
 
-Accelerator operations use only their operation-specific Model-owned bounded DAZ/FTZ,
-reassociation/FMA, NaN, reduction-root, and MATMUL final-publication exact-zero freedoms. Every
-other profile/operation occurrence fails closed before route selection; transporting profile
-identity never authorizes a result outside the Model-owned set. No Blocked Metal operation has a
-capability or schema row. The package remains ABI v4 with thirteen exports, node schema 11,
+Accelerator operations must produce only results admitted by Model's total recursive `FLOAT32`
+exact/discrete, primitive, aggregate, and composite-inheritance floors. The five-ULP ceiling is
+per named elementary-function site, not a final-output comparison rule. Every other
+profile/operation occurrence fails closed before route selection; transporting profile identity
+never authorizes a result outside the Model-owned set. No Blocked Metal operation has a capability
+or schema row.
+The package remains ABI v4 with thirteen exports, node schema 11,
 operation wires `1..19`, attribute wires `0..6`, and version-twelve workload/policy/candidate/
 compatibility/route-policy/codec identities. Schema 12, wire 20, attribute 7, INT64, ABI/export
 changes, and version-thirteen identities remain conditional, unimplemented, and unreserved.

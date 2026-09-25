@@ -13,6 +13,19 @@ import java.util.List;
  * {@code [input, scale]} operands and produces exactly one output. This semantic identity does
  * not evaluate values, select an algorithm, create saved statistics or gradients, or claim
  * compiler, backend, runtime, or execution support.</p>
+ *
+ * <p>The exact formula is
+ * {@code normalized = x / sqrt(sum(x * x) / N + epsilon)}, followed when present by
+ * {@code normalized * scale}. NaN, infinity, signed-zero, overflow, and empty-result behavior
+ * follow those named sites; an empty result evaluates no divisor.</p>
+ *
+ * <p>Under the Model-owned numerical-profile contract, exact slice membership, {@code N},
+ * epsilon, guards, and scale mapping remain unchanged. For {@code ACCELERATOR FLOAT32}, every
+ * contributor participates once under the aggregate floor, arithmetic sites use DAZ/FTZ and
+ * one-round FLOAT32 operations, and square root is a five-ULP elementary-function site. The
+ * composite gains no final-output envelope; non-FLOAT32 behavior stays strict. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  */
 public enum RmsNormKind implements OperationKind {
     /**

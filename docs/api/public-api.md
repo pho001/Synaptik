@@ -224,11 +224,13 @@ The implemented `modules:config` surface contains five standalone compile-config
   already eligible ownership candidates; and
 - `NumericalProfile` records immutable graph-wide numerical-profile identity vocabulary.
 
-`NumericalProfile` is identity only. Model remains the sole semantic owner of the profile-indexed
-allowed-result sets. A fresh `Engine.Builder` selects `STRICT_IEEE`; callers may replace that
-selection with `numericalProfile(...)` before building, and the built Engine transports the exact
-identity through compile and preparation. CPU supports both values identically; Metal applies the
-closed profile-specific matrices described above.
+`NumericalProfile` is identity only. Model remains the sole semantic owner: `STRICT_IEEE` retains
+the current per-operation sets and `ACCELERATOR` adds the total recursive `FLOAT32` floors without
+changing non-FLOAT32 behavior. A fresh `Engine.Builder` selects `STRICT_IEEE`; callers may replace
+that selection with `numericalProfile(...)` before building, and the built Engine transports the
+exact cold identity through compile and preparation. CPU supports both values identically; Metal
+applies the fail-closed profile-specific capability matrices described above. No runtime API reads
+the profile.
 
 They are immutable requests, not a runnable compiler configuration aggregate. For example:
 

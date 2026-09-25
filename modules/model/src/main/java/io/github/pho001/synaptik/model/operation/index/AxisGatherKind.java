@@ -37,6 +37,13 @@ import java.util.List;
  * provenance. It reads no index values and therefore performs no index-value bounds check. The
  * inherited enum name is diagnostic text rather than a serialization, dispatch, registry, route,
  * or kernel identifier.</p>
+ *
+ * <p>The Model-owned numerical-profile contract leaves both gathers exact under
+ * {@code STRICT_IEEE} and {@code ACCELERATOR}: indices, bounds, axis/Shape mapping, output
+ * placement, and every selected original payload representation remain exact. Gathering applies
+ * no DAZ, FTZ, or arithmetic tolerance. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  */
 public enum AxisGatherKind implements OperationKind {
     /**

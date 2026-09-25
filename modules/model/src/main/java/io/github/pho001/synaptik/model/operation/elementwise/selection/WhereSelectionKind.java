@@ -27,6 +27,14 @@ import java.util.List;
  * remains a different semantic value. The inherited {@link #name()} and {@link #toString()} text
  * is stable diagnostic vocabulary only; it is not a serialization, parsing, registry, reflection,
  * or dispatch contract.</p>
+ *
+ * <p>The Model-owned numerical-profile contract leaves this exact/discrete family unchanged:
+ * {@code STRICT_IEEE} and {@code ACCELERATOR} use the exact Boolean condition and preserve the
+ * selected original payload representation. Selection applies no DAZ, FTZ, epsilon, or
+ * arithmetic tolerance and cannot be changed by neighboring relaxed sites. The condition has no
+ * gradient contribution. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  */
 public enum WhereSelectionKind implements OperationKind {
     /**

@@ -11,6 +11,21 @@ import java.util.List;
  * mean-squared error plus dense-target and index-target categorical cross-entropy directly from
  * logits. Executable gradient, compiler, backend, runtime, and training behavior remain outside
  * these model semantic identities.</p>
+ *
+ * <p>Mean-squared error uses {@code (prediction - target)^2} at every exact logical position,
+ * followed by its explicit reduction. The categorical kinds use the stable log-sum-exp formulas
+ * documented below, with exact class axes, target membership, ignore-index guard, zero-target
+ * guard, reduction membership, identities, and divisors. Their NaN, infinity, and signed-zero
+ * classes follow those guards and named formula sites.</p>
+ *
+ * <p>Under the Model-owned numerical-profile contract, {@code STRICT_IEEE} retains those
+ * formulas. For {@code ACCELERATOR FLOAT32}, every reduction/contraction contributor participates
+ * exactly once, arithmetic sites use DAZ/FTZ and one-round operations, and logarithmic and
+ * exponential sites use the five-ULP elementary ceiling. Exact guards run before arithmetic,
+ * ignored or zero-weighted values stay excluded, and the composite gains no final-output
+ * envelope. Non-FLOAT32 behavior stays strict. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  */
 public enum LossKind implements OperationKind {
     /**

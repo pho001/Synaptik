@@ -25,6 +25,14 @@ import java.util.List;
  * remain backend-specific. Enum identity supplies typed equality and hashing. The inherited {@link
  * #name()} and {@link #toString()} text is diagnostic only, not a serialization, parsing,
  * registry, reflection, dispatch, or kernel contract.</p>
+ *
+ * <p>The Model-owned numerical-profile contract leaves every cast conversion exact under both
+ * {@code STRICT_IEEE} and {@code ACCELERATOR}. Source and target types, rounding, saturation,
+ * overflow, NaN, infinity, signed-zero, and Boolean conversion rules are unchanged; DAZ/FTZ and
+ * the five-ULP elementary-site ceiling do not apply to casts. Non-floating and non-FLOAT32 cases
+ * therefore gain no profile-dependent behavior. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  */
 public enum CastKind implements OperationKind {
     /**

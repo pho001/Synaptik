@@ -246,12 +246,13 @@ style](../developer-guide/documentation/backend-guide-style.md).
 
 ## Profile-qualified capability
 
-Read `query.numericalProfile()` as part of the complete capability question. For the same
-occurrence domain, strict capability is an accelerator subset: every strict-positive answer must
-also be accelerator-positive. Return `false` for an unsupported profile/operation pair rather than
-ignoring the profile or inferring
-support from `DeviceClass`. The current CPU provider returns the same exact answer under
-`STRICT_IEEE` and `ACCELERATOR`.
+Read `query.numericalProfile()` as part of the complete capability question. Model defines the
+unchanged strict result set and total recursive `FLOAT32` accelerator superset; a provider does not
+interpret those floors or infer support from semantic reachability. For the same occurrence domain,
+strict capability is an accelerator subset: every strict-positive answer must also be
+accelerator-positive. Return `false` for an unsupported profile/operation pair rather than
+ignoring the profile or inferring support from `DeviceClass`. The current CPU provider returns the
+same exact answer under `STRICT_IEEE` and `ACCELERATOR`.
 
 The current Metal provider admits only canonical FLOAT32 `NEG`/`ABS`;
 `RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`; `CONTIGUOUS`; bounded `UNFOLD_AXIS`; exact

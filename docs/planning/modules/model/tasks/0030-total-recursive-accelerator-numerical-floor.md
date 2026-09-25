@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Review needed
 
 ## Change class
 
@@ -160,7 +160,7 @@ stop and report that named gap; do not add a backend-local envelope.
   for backend conformance without per-backend invention.
 - Existing CPU/Metal capabilities and identities do not change. Documentation clearly separates
   semantic reachability from implemented coverage and preserves historical blocker records.
-- This task is the sole Ready frontier; Metal 0051 remains Draft until this task is Complete and
+- No other task becomes Ready; Metal 0051 remains Draft until this task is Complete and
   independently approved.
 
 ## Validation
@@ -181,9 +181,12 @@ review; no backend/device execution because capability is unchanged.
 
 ## Follow-up
 
-- Metal 0051: accelerator-only FLOAT32 `EXP`/`SIGMOID`, seeded-gradient topologies, and one fresh
-  device oracle; update provider, analysis/preflight, graph/native switch, candidates/tuning/codec,
-  and their unit/native/conformance plus `EngineExplicitCompositionMetalIntegrationTest`; no other unary or policy.
+- Metal 0051: accelerator-only FLOAT32 `EXP`/`SIGMOID`, seeded-gradient topologies, and fresh
+  recursive-floor certification for every candidate. Before capability becomes true, record the
+  direct-MPSGraph versus fused-custom versus certified-composition choice using hot-run time,
+  dispatch count, and temporary-memory evidence. Update provider, analysis/preflight, graph/native
+  switch, candidates/tuning/codec, and focused tests only after that adjudication; add no runtime
+  checks, benchmark matrices, other unary, or policy.
 - Later serial Metal tasks requalify comparisons/extrema/scans, then cohesive composites/custom
   kernels; structural schema/type/multi-output/state work remains separate.
 - CPU needs no migration: exact routes, artifacts, and session tuning remain valid strict members.
@@ -197,4 +200,17 @@ review; no backend/device execution because capability is unchanged.
 
 ## Result
 
-Empty until execution.
+Implemented the documentation-only clean cutover to the total recursive `ACCELERATOR` contract.
+The foundational authority and accepted ADR 0021 now define exact/discrete, primitive FLOAT32,
+all-contributors-once aggregate, and composite-inheritance floors; ADR 0019 is cleanly superseded.
+All forty concrete Model kinds, public Tensor profile/composition wording, `NumericalProfile`,
+Compiler gradient transport, Engine package status, current API/architecture/glossary/backend
+guides, and planning frontiers are reconciled without changing executable statements, enum shape,
+capability, schema, ABI, native export, cache, tuning, or Runtime/Trace behavior.
+
+The required Model tests, Model Javadocs, and architecture tests passed as 23 actionable Gradle
+tasks with zero failures. Affected Config, Compiler, and Engine Javadocs also passed. Generated
+Javadocs contain all forty concrete kind pages plus the recursive Tensor and `NumericalProfile`
+wording. `git diff --check` passed. Metal 0051 remains Draft and now carries the required
+candidate-certification and cold route-adjudication evidence rule; no runtime check or matrix was
+added.

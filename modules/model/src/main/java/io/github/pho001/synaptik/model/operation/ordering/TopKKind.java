@@ -11,6 +11,14 @@ import java.util.List;
  * one Tensor and describes two ordered outputs: selected values at slot zero and their original
  * logical-axis indices at slot one. It selects no algorithm and provides no evaluation, gradient,
  * compiler, backend, runtime, or execution behavior.</p>
+ *
+ * <p>The Model-owned numerical-profile contract leaves top-K exact under
+ * {@code STRICT_IEEE} and {@code ACCELERATOR}: {@code k}, axis mapping, NaN-last class, infinity
+ * and signed-zero order, largest/smallest direction, stability, ties, sorted/unsorted placement,
+ * selected original value payloads, and logical indices are unchanged. Selection applies no DAZ,
+ * FTZ, epsilon, or arithmetic tolerance. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  */
 public enum TopKKind implements OperationKind {
     /** Selects values and their logical input indices from one shared occurrence. */

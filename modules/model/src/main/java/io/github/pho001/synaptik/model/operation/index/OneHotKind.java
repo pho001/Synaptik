@@ -18,6 +18,13 @@ import java.util.List;
  * cardinality only. They carry no Tensor, Shape, storage, graph, gradient, compiler, backend,
  * bounds-checking, or execution state and do not claim that any later layer currently supports
  * the operation.</p>
+ *
+ * <p>The Model-owned numerical-profile contract leaves one-hot encoding exact under
+ * {@code STRICT_IEEE} and {@code ACCELERATOR}: depth, index bounds, equality predicates, output
+ * mapping, and BOOL result bits remain exact. Encoding applies no DAZ, FTZ, comparison epsilon,
+ * or arithmetic tolerance. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  */
 public enum OneHotKind implements OperationKind {
     /** Requests one exact dense BOOL trailing-axis indicator encoding. */

@@ -32,8 +32,8 @@ import java.util.Set;
  * state.</p>
  *
  * @param mode non-null exact graph-scope mode
- * @param numericalProfile non-null immutable graph-wide numerical-profile identity retained
- *     exactly without interpretation
+ * @param numericalProfile non-null immutable cold graph-wide identity retained exactly without
+ *     interpretation; every generated gradient operation shares it with the forward graph
  * @param graph non-null exact final immutable graph
  * @param partitions non-null exact maximal graph-order partition recipes; membership snapshotted
  * @param memory non-null logical-memory plan derived from this graph and partition list
@@ -57,8 +57,9 @@ public record CompileArtifacts(
      * Validates and snapshots one complete immutable compile recipe.
      *
      * @param mode non-null exact graph-scope mode
-     * @param numericalProfile non-null immutable graph-wide numerical-profile identity retained
-     *     exactly without interpretation
+     * @param numericalProfile non-null immutable cold graph-wide identity retained exactly
+     *     without interpretation; every generated gradient operation shares it with the forward
+     *     graph
      * @param graph non-null exact final immutable graph
      * @param partitions non-null ordered exact maximal graph partitions
      * @param memory non-null logical-memory plan for the supplied graph and partitions

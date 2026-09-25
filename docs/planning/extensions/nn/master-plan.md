@@ -120,7 +120,8 @@ Draft rows without links have no detailed task brief.
 - Draft: 0021B–0024. None has a detailed task brief, and no NN task is `Ready` or `In progress`.
 - 0021B is the next ordered NN Draft candidate only after a planner revalidates its cross-area
   program and truthful concrete-backend coverage. It is not implementation authorization; the
-  [roadmap](../../roadmap.md) selects Model 0030 as the sole Ready repository frontier.
+  [roadmap](../../roadmap.md) records Model 0030 as `Review needed` and no repository task as
+  Ready.
 - Completed NN work used recorded roadmap interleaves. NN 0016/0017 were a bounded parallel pair,
   and 0025/0025A were an explicit out-of-order convolution branch ahead of unrelated Draft
   0021B–0024. Those historical exceptions authorize no further NN work.

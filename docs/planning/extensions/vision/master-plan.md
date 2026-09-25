@@ -143,9 +143,9 @@ operation. No hidden cache, shared mutable reader, or global registry is introdu
 | 0005 | Image batching | Draft | 0004; Data 0003 equal-shape numeric batching | Validate transformed sample compatibility, derive batch extent, delegate final numeric stacking to Data, and return an image-specific Tensor batch without a dataset/loader facade. |
 | 0006 | Vision capability checkpoint | Draft | 0003–0005 | Validate representative/corrupt/adversarial inputs, resource bounds, metadata semantics, Tensor values/layout, batch geometry, documentation, optional decoder dependency, and architecture enforcement. |
 
-No detailed Vision task exists. No Vision, Checkpoint, or NN task is `Ready`. The repository's
-sole Ready frontier is [Model 0030](../../modules/model/tasks/0030-total-recursive-accelerator-numerical-floor.md).
-Vision 0001 remains gated by the coordinated architecture decision owned by
+No detailed Vision task exists. No Vision, Checkpoint, NN, or repository task is `Ready`.
+[Model 0030](../../modules/model/tasks/0030-total-recursive-accelerator-numerical-floor.md) is
+`Review needed`. Vision 0001 remains gated by the coordinated architecture decision owned by
 [Data 0001](../data/master-plan.md).
 
 ## Planned image-batch flow

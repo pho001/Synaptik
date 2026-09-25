@@ -11,6 +11,20 @@ import java.util.List;
  * {@code [output, keep mask, next state]} positions. The keep mask is an auxiliary compiler-facing
  * result rather than a public dropout result. This kind performs no sampling or execution and
  * contains no backend-support or gradient metadata.</p>
+ *
+ * <p>The exact formula performs one abstract draw per logical element, keeps the exact BOOL mask,
+ * advances the unsigned counter by the exact logical count modulo 2^64, publishes positive zero
+ * for a dropped element, and computes a kept element as
+ * {@code input * (1 / (1 - probability))}. Probability zero still advances state; an empty shape
+ * draws zero values.</p>
+ *
+ * <p>Under the Model-owned numerical-profile contract, sampling membership, mask, state
+ * transition, probability, guards, traversal, and dropped value remain exact in both profiles.
+ * For {@code ACCELERATOR FLOAT32}, only the kept-value arithmetic sites may use DAZ/FTZ and
+ * one-round FLOAT32 operations. The mask and next state cannot inherit arithmetic tolerance, and
+ * the composite gains no final-output envelope. Non-FLOAT32 behavior stays strict. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  */
 public enum DropoutKind implements OperationKind {
     /** Training-only inverted dropout with one non-public auxiliary BOOL keep-mask output. */

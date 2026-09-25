@@ -16,10 +16,11 @@
  * Engine construction supplies the current default of {@code STRICT_IEEE}; Config supplies no
  * default.</p>
  *
- * <p>Config owns no profile semantics: Model remains the sole authority for profile-indexed
- * allowed-result sets. Planning, Compiler, Prepare, Engine, and concrete backends may transport or
- * realize the identity without reinterpreting it. This package contains no compiler pass API,
- * profile evaluator, scoring evaluator, live service, runtime state, or concrete backend
+ * <p>Config owns no profile semantics: Model remains the sole authority for the unchanged strict
+ * set and the total recursive {@code FLOAT32} accelerator superset. Planning, Compiler, Prepare,
+ * Engine, and concrete backends transport or realize the exact cold identity without
+ * reinterpreting it; Runtime performs no per-run lookup. This package contains no compiler pass
+ * API, profile evaluator, scoring evaluator, live service, runtime state, or concrete backend
  * implementation.</p>
  */
 package io.github.pho001.synaptik.config.compile;

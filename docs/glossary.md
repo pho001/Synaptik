@@ -449,13 +449,14 @@ broadcasting of the BOOL mask to produce exactly the input Shape and record prov
 `[input, mask]`. False mask positions exclude their inputs, including NaN and infinity. No selected
 values produces zero for masked sum and NaN for masked mean. Masked forms remain floating-only.
 
-For `ACCELERATOR` FLOAT32 SUM and MEAN, axes and masking still determine all and only the selected
-terms and the exact count. A SUM cell with at least two terms may publish either zero sign only
-when a permitted tree's root addition is exact zero; MEAN must divide by the positive count in
-FLOAT32 and gains the choice only when that quotient is exact zero. Intermediate exact-zero
-additions gain no choice. Point-domain SUM remains a bit-preserving copy, empty SUM remains
-positive zero, and zero-count MEAN remains NaN. `STRICT_IEEE`, other types, finite nonzero results,
-and NaN/infinity classification are unchanged; no tolerance or added identity is implied.
+For `ACCELERATOR FLOAT32`, every arithmetic reduction uses the recursive aggregate floor: exact
+axes, masks, contributor sets, identities, counts, and divisors remain, and every selected term
+participates exactly once under any binary tree with per-step FLOAT32 rounding, DAZ/FTZ, and only
+corresponding multiply/add fusion. Masked-out positions remain excluded before arithmetic.
+Elementary sites in statistics and norms use the five-ULP primitive-site rule, never a final
+reduction envelope; extrema, arg-extrema, and Boolean reductions retain exact selection/index/
+truth rules. Existing qualifying final exact-zero SUM/MEAN freedoms remain local to their final
+results. Non-FLOAT32 behavior stays strict.
 
 Public `argMin` and `argMax` accept floating or integral input, normalize one selected axis, and
 produce exact INT64 with false gradient eligibility. They use shared `ArgExtremaAttrs` because the
@@ -489,10 +490,11 @@ The operation uses the existing `AggregateReductionKind.SUM` with
 input type and gradient eligibility, the exact target Shape, unresolved layout, and ordered
 one-input/output-index-zero provenance. Model construction does not bind dimensions, resolve axes,
 read values, capture a graph, build a gradient, lower, or execute. An equal-Shape or otherwise
-unreduced coordinate copies the selected input bits without addition. For `ACCELERATOR` FLOAT32,
-an arithmetic cell with at least two mapped terms may publish either zero sign only when the
-selected tree's root addition is exact zero; the mapping, every term, intermediate sign rule,
-finite nonzero values, and classification remain unchanged. The current CPU portable route
+unreduced coordinate copies the selected input bits without addition. For
+`ACCELERATOR FLOAT32`, exact target mapping and contributor membership remain while each actually
+reduced cell uses the all-contributors-once aggregate floor. Existing qualifying final exact-zero
+publication freedom remains local to the final cell; intermediate arithmetic gains no such rule.
+The current CPU portable route
 separately executes exactly the fully bound, fully static, resolved-layout form over the five
 numeric types: it proves the same right-aligned obligation, uses exact floating or modular integral
 SUM for reduced axes, and copies represented bits when no axis reduces. CPU schema 43 adds no
@@ -2833,10 +2835,10 @@ output-cell ranges, and the bounded fusion/materialized-suffix forms documented 
 guide. Other backend algorithms and execution forms remain planned. See
 [Tensor API](api/tensor-api.md#grouped-nchw-conv2d-expressions).
 
-Under `ACCELERATOR`, FLOAT32 CONV2D and CONV3D retain their existing reassociation/FMA permission
-and gain only row-scoped denormals-are-zero and flush-to-zero. They do not gain MATMUL's
-final-publication exact-zero sign choice; product, intermediate, and published exact-zero signs
-keep the current convolution rules.
+Under `ACCELERATOR FLOAT32`, CONV2D and CONV3D preserve exact geometry, conceptual padding, bias,
+and contributor membership. Every term participates exactly once while arithmetic recurses through
+the primitive and aggregate floors. Convolution gains neither MATMUL's final-publication
+exact-zero choice nor a final-output tolerance.
 
 The current NN **channels-first convolution layers** are the separate final `Conv1d`, `Conv2d`,
 and `Conv3d` unary modules for NCW, NCHW, and NCDHW input. Each infers only the positive static
@@ -2890,22 +2892,23 @@ values, capture a graph, choose a backend, or execute. See
 ### Numerical profile
 
 A Model-owned graph-wide identity that indexes operation allowed-result sets. The current
-architecture contract defines two meanings: `STRICT_IEEE` preserves every operation's exact
-current family-specific promise and freedom, while `ACCELERATOR` is an opt-in superset containing
-only the operation-specific `FLOAT32` alternatives in the
-[sole normative table](architecture/contracts/foundational-modules.md#numerical-profiles).
-For SUM and arithmetic SUM-to-Shape, either zero sign is permitted only for an exact-zero final
-addition with at least two declared terms. For MEAN, it is permitted only for the exact-zero
-mandatory quotient by the positive declared count. For nonempty MATMUL, either sign is permitted
-only at publication after one complete otherwise-permitted contraction result is exact zero.
-Every pairwise term, standalone product, and pre-publication addition/FMA sign keeps its existing
-rule; a one-term product gains no accumulator or FMA, and empty MATMUL remains positive zero.
-Convolution retains only its prior reassociation/FMA plus DAZ/FTZ profile rule. These are
-result-level freedoms, not per-step freedom, tolerance, identity insertion, reduced precision, or
-term loss; copies, empty reduction results, mapping, classification, and nonzero results otherwise
-retain their contracts. `STRICT_IEEE` does not imply universal bitwise identity, correct rounding,
-Java `strictfp`, or a fixed instruction. `ACCELERATOR` is not generic fast math or permission for
-an unlisted operation or data type.
+architecture contract defines two meanings: `STRICT_IEEE` preserves every operation's unchanged
+current family-specific promise and freedom, while `ACCELERATOR` is its total recursive
+`FLOAT32` superset under the
+[normative contract](architecture/contracts/foundational-modules.md#numerical-profiles).
+The exact/discrete floor preserves kinds, attributes, descriptors, mapping, contributors, masks,
+indices, state, traversal, casts, ordering, guards, identities, divisors, and publication. The
+primitive floor permits DAZ/FTZ, one-round basic arithmetic, corresponding FMA only without an
+observable intermediate, and at most five ordered FLOAT32 representations at a named
+elementary-function site. The aggregate floor permits any binary tree only while every declared
+contributor participates exactly once. Composite and Compiler-generated gradient formulas recurse
+through those sites and gain no final-output envelope. Special classes and domains remain
+formula-derived; NaN cannot become ordinary, predicate and selection gain no tolerance, and
+non-FLOAT32 behavior remains strict. Existing operation-local final exact-zero publication
+freedoms remain local to their named final results. Neither profile newly permits reduced
+precision, reciprocal substitution, algebraic identities absent from the formula, cross-node
+contraction, term loss, or hidden state changes. `STRICT_IEEE` does not imply universal bitwise
+identity, correct rounding, Java `strictfp`, or fixed instructions.
 
 The semantic result sets remain Model-owned. The immutable Config identity `NumericalProfile` is
 selected once while constructing an Engine, defaults to `STRICT_IEEE`, and is transported
@@ -4202,14 +4205,13 @@ vector/matrix rank pairing, unbroadcasts batch axes with ordinary `sumToShape`, 
 ordinary cast when a promoted contribution differs from the selected operand type. Integral
 MATMUL remains rejected by autograd.
 
-For `ACCELERATOR` FLOAT32, every declared pairwise term still participates exactly once under the
-existing reassociation, corresponding multiply-add FMA, rounding, and row-scoped DAZ/FTZ rules.
-Only after a complete nonempty otherwise-permitted contraction result is exact zero may the
-published MATMUL cell choose either zero sign. Thus one term `+0.0f * -1.0f` retains a negative-zero
-multiply result while publication may expose positive or negative zero; no positive-zero
-accumulator or FMA is inserted. Product and intermediate signs, finite nonzero results,
-NaN/infinity classification, non-FLOAT32 types, and empty-contraction positive zero remain
-unchanged. This Model-owned allowed-result set grants no backend capability by itself.
+For `ACCELERATOR FLOAT32`, exact broadcast/contraction mapping and contributor membership remain
+fixed. Every declared pairwise product participates exactly once under any aggregate tree with
+per-step FLOAT32 rounding, DAZ/FTZ, and only corresponding multiply/add fusion. The existing
+qualifying final exact-zero publication choice remains local to the complete nonempty MATMUL
+cell. A one-term contraction gains no positive-zero accumulator or new FMA, products and
+intermediate arithmetic gain no publication rule, and an empty contraction remains positive
+zero. This is not a final-output tolerance and grants no backend capability by itself.
 
 The current CPU portable route executes every fully static, resolved-layout non-BOOL numeric
 promotion: all nine ordered BFLOAT16/FLOAT32/FLOAT64 pairs and all four ordered INT32/INT64 pairs.

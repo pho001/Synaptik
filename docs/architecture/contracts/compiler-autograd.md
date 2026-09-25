@@ -186,6 +186,13 @@ ordered gradient contributions and accumulated gradients. This is ephemeral reve
 bookkeeping, not public Tensor state and not another graph representation. Multiple contributions
 are accumulated with ordinary `Tensor.add`.
 
+Those generated operations have exactly the same graph-wide numerical profile as the forward
+graph. Their Model formulas recurse through the selected profile's exact/discrete, primitive, and
+aggregate floors at ordinary Tensor-operation sites; the compiler creates no gradient-only
+tolerance or alternate numerical policy. Saved outputs, masks, indices, statistics, and state
+remain the exact stored values named by the derivative formula. A backend is eligible only if it
+supports the entire generated topology under that same profile.
+
 Before constructing any backward expression, the compiler must inventory every
 backward-reachable operation occurrence and its exact attributes and derivative policies. Any
 unsupported or ambiguous occurrence fails closed. Full inference and validation still occur only
@@ -304,4 +311,5 @@ Compile must not create:
 
 The compile port accepts one exact non-null `NumericalProfile`. Compiler passes it unchanged to
 every capability query and stores it in `CompileArtifacts`; compilation does not interpret its
-semantics. The profile is cold compile identity, not a graph value or runtime input.
+semantics or evaluate its recursive floors. The profile is cold compile identity, not a graph
+value or runtime input.

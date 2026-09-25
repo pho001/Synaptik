@@ -13,6 +13,22 @@ import java.util.List;
  * normalized attention weights at slot one. Its attributes preserve scale and causal eligibility.
  * The kind expresses mathematical meaning and occurrence structure, not decomposition, gradients,
  * backend support, lowering, or execution.</p>
+ *
+ * <p>The exact formula forms every eligible score from a query/key dot product and exact scale,
+ * applies the exact Boolean/causal eligibility guard, uses the documented guarded final-axis
+ * softmax, and weights value rows with every eligible contributor exactly once. No eligible
+ * position produces positive-zero output; all eligible negative infinities do likewise; eligible
+ * NaN propagates; positive-infinity ties split unit weight equally; excluded score/value special
+ * values never enter arithmetic.</p>
+ *
+ * <p>Under the Model-owned numerical-profile contract, those guards, masks, scale, contributor
+ * sets, special classes, output/weight slots, and saved weights remain exact. For
+ * {@code ACCELERATOR FLOAT32}, score/output contractions and softmax reductions use the
+ * all-contributors-once floor while primitive exponential, division, and arithmetic sites use
+ * their recursive floors. The composite gains no final-output envelope and non-FLOAT32 behavior
+ * stays strict. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  */
 public enum ScaledDotProductAttentionKind implements OperationKind {
     /** Scaled query/key scores, masked final-axis softmax, and weighted value aggregation. */

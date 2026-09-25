@@ -529,10 +529,13 @@ See the [Runtime/Prepare/Backend boundary](../architecture/runtime-prepare-backe
 
 ## Numerical-profile admission
 
-A preparer receives the exact graph-wide `NumericalProfile` in `PrepareContext`. It must reject an
-unsupported profile/operation combination before route analysis, preserve the strict-subset
-capability invariant, and retain the profile in every plan and compatibility identity that could
-otherwise be reused. CPU admits both profiles with identical exact routes and distinct identities.
+A preparer receives the exact graph-wide `NumericalProfile` in `PrepareContext`. Model alone
+defines the unchanged strict set and total recursive `FLOAT32` accelerator floors. Preparation
+must not reinterpret or evaluate those floors: it rejects an unsupported profile/operation
+combination before route analysis, preserves the strict-subset capability invariant, proves an
+eligible route stays within Model's result set, and retains the profile in every plan and
+compatibility identity that could otherwise be reused. CPU admits both profiles with identical
+exact routes and distinct identities.
 Metal admits exact
 canonical NEG/ABS/affine/`CONTIGUOUS`, bounded canonical `FLOAT32` `UNFOLD_AXIS`, canonical
 positive-rank `FLOAT32` data GATHER with canonical `INT32` indices, positive-rank

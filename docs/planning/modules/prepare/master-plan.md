@@ -100,9 +100,9 @@ Engine user facade.
 - Opaque tuning transport, producerless published-constant assignment, and the persistent-resource
   transaction are Complete through 0006.
 - Runtime 0016 and Engine 0010 complete the adjacent owner and outward-handle lifecycle; current
-  Metal preparation is Complete through its recorded successors. No Prepare task is `Ready`.
-  Model 0030 is the sole Ready repository frontier; Draft Metal 0051 remains downstream and 0008
-  changed no Prepare contract or executable behavior.
+  Metal preparation is Complete through its recorded successors. No Prepare or repository task is
+  `Ready`. Model 0030 is `Review needed`; Draft Metal 0051 remains downstream and 0008 changed no
+  Prepare contract or executable behavior.
 
 ## Live risks and gates
 
@@ -110,8 +110,9 @@ Engine user facade.
   resource geometry must be resolved before analysis unless a future explicit contract preserves
   route and assignment stability.
 - Keep backend candidates opaque and colocated with their owner. Draft Metal 0051 may transport
-  new route identity through the existing Prepare boundary only after Model 0030; it must not move
-  Metal fields, compatibility, numerical meaning, or route choice into Prepare.
+  new route identity through the existing Prepare boundary only after Model 0030 is Complete and
+  independently approved; it must not move Metal fields, compatibility, numerical meaning, or
+  route choice into Prepare.
 - Preserve analysis-before-assignment-before-finalization and the one-time ownership transaction;
   never let finalization add undeclared shared resources or let Prepare execute physical work.
 - Producerless published constants contribute to complete assignment only; backend selection,

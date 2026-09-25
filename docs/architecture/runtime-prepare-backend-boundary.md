@@ -638,8 +638,10 @@ workflow boundaries that feed prepare without entering runtime.
 ## Numerical profile at the boundary
 
 `PrepareContext` carries the exact selected `NumericalProfile` into backend analysis and preserves
-it across projections. A backend must reject an unsupported profile/operation pair before route
-selection, preserve strict capability as an accelerator subset, and retain supported profile
+it across projections. Model owns the unchanged strict set and total recursive `FLOAT32`
+accelerator floors. Prepare does not interpret them: a backend must reject an unsupported
+profile/operation pair before route selection, preserve strict capability as an accelerator
+subset, prove its complete route results fall inside Model's recursive set, and retain profile
 identity in every reusable plan/cache boundary. CPU admits both profiles through identical exact
 routes. Metal's common exact occurrence domain under both profiles contains only canonical
 FLOAT32 `NEG`/`ABS`; `RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`; `CONTIGUOUS`; bounded

@@ -10,6 +10,16 @@ import java.util.List;
  * <p>Each occurrence consumes exactly one floating tensor and produces exactly one tensor. Max
  * and average pooling retain distinct attribute types and numerical policies. These kinds do not
  * define gradients, algorithms, compiler support, backend capabilities, storage, or execution.</p>
+ *
+ * <p>Under the Model-owned numerical-profile contract, max pooling remains exact/discrete in both
+ * profiles: window geometry, eligibility, traversal, NaN dominance, signed-zero order, first-tie
+ * winner, empty identity, and selected original payload are unchanged. For
+ * {@code ACCELERATOR FLOAT32}, average pooling preserves every kernel position and its exact
+ * divisor while allowing any binary tree, per-step FLOAT32 rounding, DAZ/FTZ, and only
+ * corresponding multiply/add fusion. It may not drop padding or another contributor and gains no
+ * final-output envelope. Non-FLOAT32 behavior stays strict. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  */
 public enum Pool2dKind implements OperationKind {
     /**

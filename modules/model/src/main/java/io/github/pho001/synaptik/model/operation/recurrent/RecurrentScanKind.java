@@ -33,6 +33,17 @@ import java.util.List;
  * }</pre>
  * <p>The equations define semantic association and packing, not decomposition, accumulator
  * widening, fusion, or another execution algorithm. There is no recurrent-side bias.</p>
+ *
+ * <p>Under the Model-owned numerical-profile contract, direction, sequence traversal, valid-
+ * length guards, packing, initial/final state mapping, output placement, and every declared
+ * recurrence term remain exact. For {@code ACCELERATOR FLOAT32}, each contraction includes every
+ * contributor exactly once under the aggregate floor; arithmetic sites use DAZ/FTZ and one-round
+ * FLOAT32 operations; sigmoid/tanh sites use the five-ULP elementary ceiling. Exact guards run
+ * before arithmetic, skipped timesteps do not participate, stored states are the exact published
+ * recurrence results, and the composite gains no final-output envelope. Non-FLOAT32 behavior
+ * stays strict. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  */
 public enum RecurrentScanKind implements OperationKind {
     /**

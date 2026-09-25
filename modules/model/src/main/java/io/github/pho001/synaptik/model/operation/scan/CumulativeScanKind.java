@@ -17,13 +17,15 @@ import java.util.List;
  * define eligible input types, result descriptors, accumulation precision, gradients, value
  * execution, storage, compiler behavior, or backend availability.</p>
  *
- * <p>The graph numerical profile indexes this family's allowed {@code FLOAT32} results as defined
- * by the <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">sole normative numerical-profile table</a>.
- * {@code STRICT_IEEE} retains the per-kind rules below. {@code ACCELERATOR} preserves the axis,
- * direction, traversal, inclusive/exclusive placement, and exact exclusive positive-zero or
- * positive-one identity; only arithmetic steps may use row-scoped DAZ/FTZ, and an FTZ zero may use
- * either sign. Every non-FLOAT32 type receives no relaxation. This vocabulary describes result
- * sets; it does not evaluate a scan or choose a backend.</p>
+ * <p>Under the Model-owned graph numerical-profile contract, {@code STRICT_IEEE} retains the
+ * scan formula. For {@code ACCELERATOR FLOAT32}, direction, exclusivity, output placement,
+ * identity, and each logical prefix's contributor membership remain exact. Every prefix
+ * contributor participates exactly once; its arithmetic may use any binary tree, per-step
+ * FLOAT32 rounding, DAZ/FTZ, and only corresponding multiply/add fusion. No contributor may be
+ * dropped, duplicated, invented, pretruncated, or replaced. Non-FLOAT32 scans remain strict. See
+ * the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  */
 public enum CumulativeScanKind implements OperationKind {
     /**

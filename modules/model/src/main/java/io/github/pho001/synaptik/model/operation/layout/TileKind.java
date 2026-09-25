@@ -21,6 +21,13 @@ import java.util.List;
  * [3, 4, 3, 4, 3, 4]]}. This is complete-pattern tiling, not repetition of each scalar into a
  * consecutive run. The example states semantic meaning only and does not claim value execution.</p>
  *
+ * <p>The Model-owned numerical-profile contract leaves tiling exact under
+ * {@code STRICT_IEEE} and {@code ACCELERATOR}: repeat counts, output mapping, and every copied
+ * stored payload representation remain exact. Tiling applies no DAZ, FTZ, or arithmetic
+ * tolerance. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
+ *
  * <p>The family-owned signature enforces the exact pairing and declares one input and one output.
  * This enum defines no input-rank validation, result Shape or DataType, layout, storage,
  * materialization, provenance, gradient, compiler, backend, ONNX, or execution behavior. Its

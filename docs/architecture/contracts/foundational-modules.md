@@ -140,53 +140,79 @@ and fused-multiply-add promise or freedom. The name does not promise universal b
 correct rounding, Java `strictfp`, a fixed instruction sequence, or cross-backend equality beyond
 each operation's existing contract.
 
-`ACCELERATOR` is an opt-in superset of the `STRICT_IEEE` allowed-result set. A backend may always
-produce a strict result. It may produce an additional result only through the operation-specific
-`FLOAT32` transformation in the following table. All unlisted data types and operations retain
-their `STRICT_IEEE` allowed-result set.
+`ACCELERATOR` is an opt-in superset of the complete `STRICT_IEEE` allowed-result set. A backend may
+always produce a strict result. For `FLOAT32`, it may additionally evaluate any current operation
+through the three recursive floors below. Every other data type retains strict behavior. For one
+operation occurrence and descriptor domain, strict capability and behavior must remain subsets of
+accelerator capability and behavior.
 
-For the same operation occurrence, descriptor domain, and backend availability, a backend's
-`STRICT_IEEE` capability must be a subset of its `ACCELERATOR` capability. Accelerator execution
-may always choose a strict result; profile selection may add only the operation-specific results
-authorized below and must never remove a strict capability.
+#### Exact and discrete floor
 
-Where a row permits DAZ/FTZ, DAZ means that a declared arithmetic `FLOAT32` subnormal input may be
-interpreted as same-signed zero, and FTZ means that a finite subnormal arithmetic result may be
-flushed to zero with either sign. These permissions affect only the arithmetic evaluation named by
-that row; they do not rewrite a stored input or an observable value outside it.
+Kind and attributes, input/output arity and descriptors, Shape/layout/axis mapping, contributor
+membership, masks, indices, graph-RNG state transitions, traversal, casts, conversions, ordering,
+stability, ties, empty-domain behavior, identities, divisors, and publication remain exact. A
+selected stored value is one original candidate representation. Predicates gain no epsilon, and
+approximation cannot choose an index, mask, winner, ordering, or state transition. A floating
+comparison may compare DAZ-normalized operands, and an extrema operation may treat DAZ-normalized
+values as tied; its existing NaN and signed-zero rules still apply and a selected result remains an
+original candidate. Movement, copying, `CONTIGUOUS`, `WHERE`, classification, Boolean logic,
+casts, indexing, ordering, arg-extrema, RNG state/masks, and max-pooling selection otherwise gain
+no arithmetic relaxation from adjacent work.
 
-This is the sole normative operation-family table for numerical-profile result sets:
+#### Primitive `FLOAT32` floor
 
-| Operation family | Additional `ACCELERATOR` allowed results for `FLOAT32` |
-|---|---|
-| Binary/scalar `ADD`, `SUB`, `MUL`, `DIV` | A declared arithmetic subnormal input may be interpreted as same-signed zero (denormals-are-zero, DAZ); a finite subnormal arithmetic result may be flushed to zero (flush-to-zero, FTZ). An FTZ zero may use either sign. An exact-zero `ADD` or `SUB` result may use either zero sign. `MUL` and `DIV` otherwise retain the sign required by the selected operands. |
-| `SUM`, `MEAN`, `SUM_TO_SHAPE` | Derive all and only the declared terms for each output coordinate after axes, masking, and target-Shape mapping, then use a permitted binary tree with `FLOAT32` per-step rounding and this row's DAZ/FTZ rules. Reordering or reassociation may change the tree but may not drop, duplicate, or invent a term. A `SUM` or arithmetic `SUM_TO_SHAPE` cell with at least two terms may publish either signed zero only when the selected tree's root addition produces exact zero; intermediate exact-zero additions gain no such freedom. `MEAN` must divide a permitted sum by the declared positive selected count in `FLOAT32` and may publish either signed zero only when that mandatory quotient is exact zero. An empty-axis point form, equal-Shape `SUM_TO_SHAPE`, or any other one-term `SUM`/`SUM_TO_SHAPE` cell performs no addition and preserves the selected input bits; no synthetic positive-zero identity may be added. Empty-domain `SUM` remains exact positive zero and zero-count `MEAN` remains NaN. Every finite nonzero result and NaN/infinity classification retains the existing contract. |
-| `MATMUL` | For each output coordinate, derive all and only the pairwise multiplication terms selected by the declared contraction dimension, with every term participating exactly once, then evaluate one complete contraction using the current family-owned reassociation and corresponding multiply-add FMA permissions, `FLOAT32` rounding, and this row's DAZ/FTZ. An FMA may contract only a corresponding multiply and add in that contraction; it may not fuse arbitrary graph nodes or erase an observable intermediate value. The sign of every standalone product and every addition or FMA result before publication retains its existing rule; a zero produced by FTZ retains only the existing FTZ sign permission. Separately, only when the complete nonempty contraction's otherwise-permitted arithmetic result is exact zero may the published cell use either zero sign. This publication rule includes a one-term contraction without adding a positive-zero accumulator or converting its multiplication into an FMA. An empty contraction remains exact positive zero. Every finite nonzero result and NaN/infinity classification retains the existing contract. |
-| `CONV2D`, `CONV3D` | Retain the current family-owned reassociation and FMA permission and additionally allow this row's DAZ/FTZ. An FMA may contract only a corresponding multiply and add in the declared contraction; it may not fuse arbitrary graph nodes or erase an observable intermediate value. |
-| Floating comparisons | Compare operands after this row's DAZ normalization. Preserve the current NaN and signed-zero truth tables and canonical `BOOL` result. |
-| Binary/scalar/reduction `MIN` and `MAX` | NaN still propagates. Opposite-zero ties may return either zero sign. Values equal after DAZ normalization may return either original operand bit pattern; unequal normalized values retain numeric ordering. |
-| `CUM_SUM`, `CUM_PROD` | Preserve axis, direction, traversal, inclusive/exclusive placement, and the exact exclusive positive-zero or positive-one identity. Only arithmetic steps may use this row's DAZ/FTZ, and an FTZ zero may use either sign. |
-| Affine/layout movement, `CONTIGUOUS`, `WHERE`, classification, Boolean logic, casts, indexing, ordering, and arg-extrema | No relaxation. Preserve their current bit, conversion, truth, selected-value, index, and tie contracts. |
-| Unlisted unary/transcendental, normalization, loss, attention, pooling, scatter/fold, random, and recurrent families | No relaxation. A later coordinated architecture update must give a named operation its own finite-domain and special-value envelope before any backend may use `ACCELERATOR` to widen capability. |
+At each arithmetic primitive site named by the operation's Model formula, a subnormal operand may
+be read as same-signed zero (denormals-are-zero, DAZ), and a finite subnormal site result may become
+either signed zero (flush-to-zero, FTZ). These choices do not rewrite a stored input or another
+observable value. Basic `ADD`, `SUB`, `MUL`, and `DIV` still perform one `FLOAT32`
+round-to-nearest-even operation. A multiply and corresponding add with no Model-observable
+intermediate may use one `FLOAT32` fused multiply-add; contraction never crosses graph nodes.
 
-For one fixed permitted evaluation, NaN sign, payload, and quiet/signaling representation may vary
-only where the current operation has no stronger promise. NaN may not become an ordinary value,
-and an ordinary value may not become NaN, except through a genuine IEEE exceptional path created
-by one listed DAZ, reassociation, or FMA choice. Transcendentals receive no generic epsilon or ULP
-budget.
+An elementary-function site — `POW`, logarithmic, exponential, error-function,
+root/reciprocal-root, sigmoid/tanh, or a formula-named activation site — may return an ordinary
+finite value at most five monotonically ordered `FLOAT32` representations from the correctly
+rounded exact mathematical result after DAZ and before FTZ. Five ULP is the smallest single
+ceiling covering current direct-route evidence: certified CPU primitive gates are one or two ULP
+except `TANH` at five, while retained Metal `EXP` and `SIGMOID` evidence is one and two ULP. It is
+not the historical four-ULP softmax output oracle or the looser composite ERF/GELU test tolerance.
+The bound is a primitive-site construction rule, never a final-output `allclose` envelope.
 
-The following exclusions are mandatory under both profiles:
+Domain and special classes remain formula-derived. NaN cannot become ordinary. An ordinary finite
+result cannot become NaN or infinity except through genuine overflow or a domain path after DAZ.
+Required infinity and zero signs remain intact except for explicit DAZ/FTZ, the established
+extrema tie rule, or an operation's existing final exact-zero publication freedom. Five ULP
+applies only to an ordinary finite non-subnormal reference; a subnormal reference is exact or FTZ.
 
-- no term dropping, reciprocal substitution, algebraic identity rewrite, arbitrary reduced
-  precision, cross-node contraction, or tolerance-based acceptance
-- `maxFinite / maxFinite -> 0` and `+infinity / maxFinite -> NaN` are invalid; the selected operands
-  still require one and positive infinity, respectively
-- `RELU(NaN) -> +0` and `TANH(NaN) -> +1` are invalid; zero-sign freedom never changes NaN
-  classification
-- `CAST`, affine/layout movement, `CONTIGUOUS`, and selected `WHERE` values acquire no DAZ/FTZ or
-  NaN-payload freedom from surrounding arithmetic
-- `FLOAT64`, `BFLOAT16`, future `FLOAT16`, integral values, and `BOOL` acquire no relaxed arithmetic
-  meaning; future IEEE `FLOAT16` semantics remain independently owned
+#### Aggregate floor
+
+After exact mapping, masking, padding, bounds, and selection determine one logical cell, every
+declared contributor participates exactly once. `FLOAT32` evaluation may choose any binary tree,
+reassociate, round each arithmetic step to `FLOAT32`, use the primitive DAZ/FTZ rules, and fuse
+only a corresponding multiply/add. Exact empty/point identities and mandatory divisors remain.
+No evaluation may drop, duplicate, invent, pretruncate, or replace a term.
+
+This floor applies recursively to ordinary and masked reductions, sum-to-Shape, scans,
+overlap/scatter reductions, statistics and norms, loss reductions, matrix/convolution/attention/
+recurrent contractions, and average pooling. Extrema and winner selection use the exact/discrete
+floor. The established final exact-zero publication freedoms for qualifying SUM, MEAN,
+SUM-to-Shape, and nonempty MATMUL results remain part of their Model formulas; they do not grant
+intermediate or neighboring-operation sign freedom.
+
+#### Composite inheritance
+
+Normalization, activation, loss, attention, pooling, convolution, random/dropout, recurrent,
+visible convenience composition, and Compiler-generated gradient formulas receive no separate
+error envelope. Their exact guards run first, and their authoritative Model formulas recurse
+through the exact/discrete, primitive, and aggregate floors. Saved outputs, statistics, masks, and
+indices are exact stored values. An opaque vendor selector is eligible only when its complete
+output set is proved to be a subset of this recursive set.
+
+Neither profile permits reduced precision, reciprocal substitution for division, algebraic
+identities absent from the Model formula, cross-node contraction, term loss, hidden state changes,
+or tolerance-based predicate/selection changes. In particular, `maxFinite / maxFinite -> 0`,
+`+infinity / maxFinite -> NaN`, `RELU(NaN) -> +0`, and `TANH(NaN) -> +1` remain invalid.
+`FLOAT64`, `BFLOAT16`, future `FLOAT16`, integral values, and `BOOL` acquire no relaxed arithmetic
+meaning.
 
 The selected profile is graph-wide and cold. Model defines its result sets. A later Config change
 may own only the immutable declarative selector, without semantic or route logic. Planning may

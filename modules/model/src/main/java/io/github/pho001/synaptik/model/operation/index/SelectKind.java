@@ -24,6 +24,13 @@ import java.util.List;
  * gradient, compiler policy, backend support, or execution state. Its inherited enum name is
  * diagnostic text rather than a serialization, parsing, registry, dispatch, reflection, route,
  * or kernel identifier.</p>
+ *
+ * <p>The Model-owned numerical-profile contract leaves scalar selection exact under
+ * {@code STRICT_IEEE} and {@code ACCELERATOR}: axis/index normalization, bounds, output mapping,
+ * and the selected original payload representation remain exact. Selection applies no DAZ, FTZ,
+ * or arithmetic tolerance. See the
+ * <a href="https://github.com/pho001/Synaptik/blob/main/docs/architecture/contracts/foundational-modules.md#numerical-profiles">normative
+ * numerical-profile contract</a>.</p>
  */
 public enum SelectKind implements OperationKind {
     /**

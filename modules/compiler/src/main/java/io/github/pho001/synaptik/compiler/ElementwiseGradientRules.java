@@ -35,6 +35,11 @@ import io.github.pho001.synaptik.model.tensor.TensorProducer;
  * at negative infinity. Every other formula deliberately uses ordinary Tensor operations in the
  * specified order without a compiler-inserted domain or exceptional-value mask.</p>
  *
+ * <p>Every generated occurrence is an ordinary public Tensor operation in the same graph-wide
+ * numerical profile as its forward graph. Exact masks, ties, saved outputs, and guards remain
+ * exact; formula arithmetic recursively inherits Model's selected primitive and aggregate floors.
+ * This class creates no backward-only approximation, output envelope, or profile lookup.</p>
+ *
  * <p>For input {@code x} and output cotangent {@code g}, ERF constructs
  * {@code g * exp(-(x * x)) * C}, where {@code C} is the exact typed representation of
  * {@code 2 / sqrt(pi)}: BFLOAT16 bits {@code 0x3F90}, FLOAT32 bits {@code 0x3F906EBB}, or

@@ -51,8 +51,11 @@
  * <p>Both surfaces capture one exact graph-wide {@link
  * io.github.pho001.synaptik.config.compile.NumericalProfile} at construction. Builders default to
  * {@code STRICT_IEEE}; an explicit selection is passed unchanged through compilation and
- * preparation. CPU and Metal currently fail closed for {@code ACCELERATOR}, and Runtime performs
- * no per-run profile lookup.</p>
+ * preparation. Model alone defines the unchanged strict set and the total recursive
+ * {@code FLOAT32} accelerator superset. CPU currently realizes both profiles through identical
+ * exact routes. Metal realizes its documented common exact subset under both profiles and its
+ * documented binary/reduction/MATMUL subset only under {@code ACCELERATOR}; every other pair
+ * fails closed. Runtime performs no per-run profile lookup.</p>
  *
  * <p>Neither surface performs backend discovery or successful zero-node preparation. Mixed-backend
  * execution is confined to ordinary Engine's explicit CPU/Metal composition and exact transfer
