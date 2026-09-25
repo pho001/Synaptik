@@ -2,15 +2,16 @@
 
 ## Status
 
-Review needed
+Complete
 
 Implemented from exact clean planning base `1d8f8cb03cb631ab59c25bbfa025369f4d2547e9`.
 Initial independent Class C review returned `BLOCK` for two P2 findings: the attestation collector
 did not honor the observer's concurrent-callback contract, and generator schema 1 did not fully
-specify its corpus. Both are remediated from exact clean base
-`c3e12e7de949b8d3f2c5dad5f45b8086cfc8fedb`; the updated focused and actual-device evidence below
-supersedes the stale original reports. Status remains `Review needed` for the same reviewer's
-rereview. The repository-wide build remains deliberately reserved for the final program checkpoint.
+specify its corpus. Both were remediated from exact clean base
+`c3e12e7de949b8d3f2c5dad5f45b8086cfc8fedb` at
+`77e6091b2a452faa04fa2b674bc295ddc7be88b7`; updated focused and actual-device evidence superseded
+the stale original reports. The same reviewer then returned `APPROVE` with zero remaining findings.
+The repository-wide build remains deliberately reserved for the final program checkpoint.
 
 ## Change class
 
@@ -313,6 +314,8 @@ commands exercise the supported surface and their JSON/failure validation is the
 - Markdown/link/fence/newline/trailing-whitespace validation and `git diff --check` passed for the
   affected documentation. No full build, native rebuild, additional fork, Shape, operation, route,
   or performance matrix ran.
+- Same-reviewer Class C rereview at remediation
+  `77e6091b2a452faa04fa2b674bc295ddc7be88b7` returned `APPROVE` with zero remaining findings.
 
 ## Commands
 

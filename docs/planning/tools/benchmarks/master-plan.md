@@ -49,9 +49,9 @@ commits, models, and environments.
 | 0003 | Model and end-to-end suites | Draft | 0001, operational engine paths | Compare complete model and lifecycle behavior with the same report-only boundary. |
 
 Cross-area [Metal Task 0043](../../backends/metal/tasks/0043-reproducible-metal-route-benchmark.md)
-is `Review needed` after its fixed two-route benchmark delivery and focused evidence. Metal owns
-its lifecycle facts and pending independent Class C review; this tools plan owns the report-only
-boundary and has no duplicate local task.
+is Complete at remediation `77e6091b` after same-reviewer Class C approval with zero remaining
+findings. Metal owns its lifecycle facts and the separate Task 0044 documentation/audit no-change
+evaluation; this tools plan owns the report-only boundary and has no duplicate local task.
 
 
 ## Milestones
@@ -63,11 +63,11 @@ boundary and has no duplicate local task.
 ## Current status
 
 Complete through benchmark task 0001 and CPU 0010M's evidence hardening. Cross-area Metal 0043 is
-`Review needed` after adding one fixed `[1_048_576]` singleton FLOAT32 `NEG` report over both
-current opaque Metal candidates, with separate traced route attestation, ordinary untraced timing,
-exact raw-bit checks, paired smoke/baseline sampling, and no winner, cache I/O, threshold, or
-retained result artifact. Its focused build, actual smoke/baseline JSON, and missing-metadata
-failure evidence passed; local tasks 0002 and 0003 remain Draft.
+Complete after adding one fixed `[1_048_576]` singleton FLOAT32 `NEG` report over both current
+opaque Metal candidates, with thread-safe snapshot attestation, ordinary untraced timing, exact
+raw-bit checks, paired smoke/baseline sampling, reconstructible generator schema 2, and no winner,
+cache I/O, threshold, or retained result artifact. Metal Task 0044 owns only its documentation/audit
+no-change evaluation; local tasks 0002 and 0003 remain Draft.
 
 The directly runnable non-evidence profiles are:
 
