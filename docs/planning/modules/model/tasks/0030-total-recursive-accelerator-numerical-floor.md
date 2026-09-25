@@ -2,7 +2,7 @@
 
 ## Status
 
-Review needed
+Complete
 
 ## Change class
 
@@ -228,10 +228,10 @@ review; no backend/device execution because capability is unchanged.
 
 - Coordinated architecture, ADR, public numerical contract, Javadoc, API, glossary, backend-guide,
   and planning updates are mandatory; completed historical briefs remain unchanged.
-- Independent Class C rereview must verify completed Model 0031's exact-reference BFLOAT16/FLOAT32/
-  FLOAT64 bounds and recursive native/one-wider sets, family/site coverage, accelerator
-  ordered-distance derivation, exact/aggregate invariants, gradients, identity conclusions, Metal
-  reachability/blocker split, and no executable drift.
+- Independent Class C rereview verified completed Model 0031's exact-reference
+  BFLOAT16/FLOAT32/FLOAT64 bounds and recursive native/one-wider sets, family/site coverage,
+  accelerator ordered-distance derivation, exact/aggregate invariants, gradients, identity
+  conclusions, Metal reachability/blocker split, and no executable drift.
 
 ## Result
 
@@ -256,7 +256,10 @@ require complete-domain recursive-subset proof.
 
 The focused Model test/Javadoc/architecture command is `BUILD SUCCESSFUL` with 23 actionable tasks
 (three executed, twenty up-to-date); validation of ten changed Markdown documents and 481 local
-links/anchors, fences, final newlines, and `git diff --check` also passes. Historical Metal
-tasks retain their recorded statuses/evidence; current wording distinguishes recursively reachable
+links/anchors, fences, final newlines, and `git diff --check` also pass. Historical Metal tasks
+retain their recorded statuses/evidence; current wording distinguishes recursively reachable
 arithmetic from remaining exact-selection, structural, schema, gradient, and route-proof blockers.
-Metal 0051 remains Draft. Status remains `Review needed` for independent Class C rereview.
+The recursive-contract remediation is `2d95ab71683698753c9ac64d9373fde8301c9404`; strict-baseline
+remediation is `97cb9d116bd85ee6a0dfbf2e9b70d32604633c85`. Independent Class C rereview after
+`97cb9d11` returned `APPROVE` with zero findings. Status is `Complete`; Metal 0051 is the first
+authorized executable successor.

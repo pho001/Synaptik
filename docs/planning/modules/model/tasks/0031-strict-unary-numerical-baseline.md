@@ -130,8 +130,8 @@ and confirm the Java diff contains documentation comments only.
 ## Documentation and review impact
 
 The task is documentation/Javadoc-only but closes a durable public numerical contract. Independent
-Class C review is mandatory and may reuse Task 0030's successful executable evidence because this
-task changes no executable statement.
+Class C review reused Task 0030's successful executable evidence because this task changes no
+executable statement.
 
 ## Result
 
@@ -155,3 +155,8 @@ Focused verification passed:
 `BUILD SUCCESSFUL` with 23 actionable tasks (three executed, twenty up-to-date). Markdown
 validation covered ten changed documents, 481 local links/anchors, fences, and final newlines;
 `git diff --check` also passed.
+
+The initial strict baseline is `a08db430f2d01f8250b74b65bea488bbc06b5860`; the complete
+backend-independent result-set remediation is
+`97cb9d116bd85ee6a0dfbf2e9b70d32604633c85`. Independent Class C rereview after `97cb9d11`
+returned `APPROVE` with zero findings. Status remains `Complete`.
