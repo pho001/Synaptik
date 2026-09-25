@@ -75,7 +75,7 @@ Training-to-Metal optimizer bridge.
   `d0a947fa953bddb2714c1917c7114ac345c530b7`, and final remediation/reviewed revision
   `f88066e3ad0547987bb03b2d18ed2813f97de223`. Historical profile-common FLOAT32 SOFTMAX Task
   0026 and BatchNorm inference Task 0027 remain Blocked on their frozen strict-side/no-FTZ gates.
-  Under review-needed Model 0030, their observed FTZ values are recursively reachable for
+  With Complete Model 0030, their observed FTZ values are recursively reachable for
   `ACCELERATOR`, but neither one run nor an opaque direct selector proves the complete recursive
   output subset or supplies a strict route. Task 0030 remains independently Blocked because exact
   max-pool signed-zero/NaN winner selection is outside the recursive floating floors. Task 0031 is
@@ -111,8 +111,8 @@ Training-to-Metal optimizer bridge.
   `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Task 0047 is Blocked on a real GPU-capable hosted
   runner. Task 0048 is Complete at independently approved implementation `89f9fbb9`. Documentation-
   only Task 0049 is Complete after approved P1 remediation `6d4246f7`. Evidence-only Task 0050
-  completed the sole final packaged/extracted-Metal full build. Task 0051 is Draft behind
-  review-needed Model 0030; no Metal or repository task is Ready.
+  completed the sole final packaged/extracted-Metal full build. Detailed Task 0051 is the sole
+  Ready Metal task after approved Model 0030/0031.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
   requirements. Metal 0017 remains Blocked under its old accelerator-reduction contract.
@@ -135,7 +135,7 @@ Training-to-Metal optimizer bridge.
 - Complete Metal 0025 delivered bounded common-profile exact FLOAT32 UNFOLD_AXIS and passed final
   independent lean Class C review at reviewed revision `f88066e3ad0547987bb03b2d18ed2813f97de223`.
 - Metal 0026 and 0027 remain historically Blocked without production changes under their frozen
-  profile-common/no-FTZ gates. Review-needed Model 0030 makes the observed SOFTMAX/BatchNorm FTZ
+  profile-common/no-FTZ gates. Complete Model 0030 makes the observed SOFTMAX/BatchNorm FTZ
   values recursively reachable only for `ACCELERATOR`; neither sample proves a complete
   opaque-selector subset or supplies a strict route.
 - Historical Metal 0028's FLOAT16 reservation is recorded by planning-only Task 0039 as Blocked on
@@ -149,10 +149,10 @@ Training-to-Metal optimizer bridge.
   but its opaque shape-dependent contraction lacks complete recursive-subset proof over the full
   geometry. One sample or prohibited matrix cannot supply that proof.
 - Metal 0032 remains Blocked without a device probe or production change under its frozen
-  profile-common premise. Review-needed Model 0030 recursively reaches `ACCELERATOR` MSE
+  profile-common premise. Complete Model 0030 recursively reaches `ACCELERATOR` MSE
   arithmetic, but no direct selector or complete decomposition/custom route, schema, formula,
   gradient, and complete-domain proof exists.
-- Metal 0033 remains Blocked without a device probe or production change. Review-needed Model 0030
+- Metal 0033 remains Blocked without a device probe or production change. Complete Model 0030
   recursively reaches `ACCELERATOR` attention arithmetic, but the current direct selector's
   additive mask contract mismatches Model and its opaque contractions, scale, guards, softmax,
   output, special classes, gradients, and shape algorithms lack complete-domain subset proof.
@@ -172,7 +172,7 @@ Training-to-Metal optimizer bridge.
   reachable for `ACCELERATOR`, but mapping, ceil-tail, divisor, and route proof are absent; max
   Pool3d retains exact winner selection exposed by 0030. UNFOLD3D/FOLD3D remain separate custom
   movement/overlap work.
-- Metal 0037 remains Blocked without a device probe or production change. Review-needed Model 0030
+- Metal 0037 remains Blocked without a device probe or production change. Complete Model 0030
   recursively reaches `ACCELERATOR` recurrent arithmetic, but direct RNN lacks runtime INT64 valid
   lengths, atomic validation, skipped padded work, zero-padding, and final-hidden output. No
   complete recurrence/state-publication/GRU/LSTM/gradient route proof or required
@@ -297,7 +297,7 @@ before extracting a package or widening another type.
 | 0048 | [Persistent immutable Metal splats and no-general-pool closure](tasks/0048-persistent-immutable-splats-and-no-general-pool-closure.md) | Complete | 0046 Complete at independently approved implementation `4aad1ab6`; Runtime 0016; Prepare 0006; Engine 0010; current Metal finalization/schedule/trace/tuning spine | Every concurrent Metal preparation/finalization/executable/schedule/buffer/transfer, trace/tuning identity, backend/runtime/API/decision documentation, Metal test, master, or roadmap edit | None | Implemented from sole-Ready planning commit `08b9e7ea`; independent Class C review approved implementation `89f9fbb9` with zero findings while 0047 remains Blocked | 49 focused execution tests plus nine identity tests passed; exactly two explicit real-device tests passed with zero skips/failures/errors; Javadocs, focused Runtime architecture, docs, diff, and clean checks passed; no full build by instruction | Persists each immutable source-owned splat once per prepared execution with fresh read-only run bindings and exact deferred release; explicitly rejects a general output/workspace pool under current RunResult/concurrency ownership. |
 | 0049 | [Synchronous single-default-device Metal contract](tasks/0049-synchronous-single-default-device-contract.md) | Complete | 0048 Complete at independently approved implementation `89f9fbb9` plus documentation finalization `a4ff40c2`; Runtime 0016; Prepare 0006; Engine 0010; Planning device eligibility; Trace 0003; Metal 0041–0042 | Every concurrent edit to the original nine documentation paths or review-remediation Trace master, or any async execution, result/resource lifetime, Metal device/context, planner device-selection, native ABI, trace, cache, tuning, route, capability, or pooling decision | None | Executed at `6e95d523`; P1 status-drift remediation `6d4246f7`; final cumulative independent Class C review `APPROVE` with zero findings | Original nine paths plus cumulative tenth Trace-master path; links/anchors, fences, newlines, whitespace, planning status, diff, and clean checks passed; no code/tests/Javadocs/builds/benchmarks/probes | Documents synchronous completed-state result semantics and one system-default context per integration; preserves all identities, context-bound resources, no cross-device semantics, and no general output/workspace pool. |
 | 0050 | [Final packaged Metal repository verification](tasks/0050-final-packaged-metal-repository-verification.md) | Complete | 0045–0046 Complete package/archive contract; 0048 Complete implementation; 0049 Complete at finalization `2c6326a9` | Every concurrent source, test, Gradle, native, package, archive, Metal planning, or roadmap edit during verification | None | Final verification from exact clean revision `2c6326a9`; no implementation or second full build | Native build; fixed ad-hoc sign; package/verifier; explicit archive; permission-preserving extraction/reverification; exactly one full build with 87/87 actionable tasks; 19/130 Metal suites/tests and 1/15 explicit Metal integration suite/tests passed with zero failures/errors/skips | Proves the final-approved repository against the freshly built, packaged, archived, extracted Metal dylib; records artifact identities and remaining external blockers without changing behavior. |
-| 0051 | ACCELERATOR FLOAT32 EXP/SIGMOID recursive-floor realization | Draft | Model 0030 Complete and independently approved; 0050 current packaged baseline; retained 0016 device evidence | Every concurrent Metal capability/schema/native-preflight/candidate/codec/tuning/public Engine scope and shared numerical-profile documentation | None | Serial after Model 0030; no implementation while Draft | Fresh recursive-floor certification for every candidate; then a recorded direct-MPSGraph versus fused-custom versus certified-composition choice using hot-run time, dispatch count, and temporary-memory evidence; focused native/schema/capability/conformance/generated-gradient/public Engine/identity-stale-rejection/docs checks; no runtime checks or matrices | Add only canonical accelerator FLOAT32 EXP and SIGMOID plus their complete seeded-gradient topologies; append wires 20/21 under node schema 12, bump relevant version-twelve Metal identities to 13, retain ABI 4, and add no numerical policy. |
+| 0051 | [ACCELERATOR FLOAT32 EXP/SIGMOID recursive-floor realization](tasks/0051-accelerator-float32-exp-sigmoid-recursive-floor-realization.md) | Ready | Model 0030/0031 Complete and independently approved; 0050 current packaged baseline; retained 0016 device evidence | Every concurrent Metal capability/schema/native-preflight/candidate/codec/tuning/public Engine scope and shared numerical-profile documentation | None | Planning commit, capability-false candidate staging, exactly one recursive-floor oracle, exactly one route adjudication, production implementation, focused proof, documentation, independent Class C review | Fresh recursive-floor certification for every candidate; then a recorded direct-MPSGraph versus fused-custom versus certified-composition choice using hot-run time, dispatch count, and temporary-memory evidence; focused native/schema/capability/conformance/generated-gradient/public Engine/identity-stale-rejection/docs checks; no runtime checks or matrices | Add only canonical accelerator FLOAT32 EXP and SIGMOID plus their complete seeded-gradient topologies; append wires 20/21 under node schema 12, bump relevant version-twelve Metal identities to 13, retain ABI 4, and add no numerical policy. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -333,7 +333,7 @@ Completed profile spine and serial successors:
 
 `0049 (Complete) -> 0050 (Complete final program verification)`
 
-`Model 0030 (Review needed) -> 0051 (Draft; first bounded recursive-floor realization after approval)`
+`Model 0031 (Complete) -> Model 0030 (Complete) -> 0051 (Ready; first bounded recursive-floor realization)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -387,8 +387,9 @@ independently approved implementation `89f9fbb9093db3fb86629189cb98ae521a631b27`
 [0049](tasks/0049-synchronous-single-default-device-contract.md) is Complete after final cumulative
 independent Class C `APPROVE` with zero findings on remediation `6d4246f7`.
 [0050](tasks/0050-final-packaged-metal-repository-verification.md) is Complete after the sole final
-packaged/extracted-Metal repository build from exact revision `2c6326a9`. No Metal task is Ready.
-Every other Metal task retains its recorded status.
+packaged/extracted-Metal repository build from exact revision `2c6326a9`. Detailed
+[0051](tasks/0051-accelerator-float32-exp-sigmoid-recursive-floor-realization.md) is the sole Ready
+Metal task. Every other Metal task retains its recorded status.
 These edges serialize shared Metal mutation; they do not claim that one operation family requires
 another.
 
@@ -397,9 +398,9 @@ another.
 - Complete Tasks 0046, 0048, 0049, and 0050 retain their reviewed local-archive, persistent-
   immutable-splat, synchronous/single-default-device, and final-verification boundaries. Blocked
   Task 0047 owns no workflow, provider, runner, Gradle, or native-distribution implementation scope
-  until its external GPU-hosted-runner gate is resolved. No concurrent CI/workflow, Gradle wrapper/
-  toolchain, native distribution, benchmark protocol, async/device-selection implementation, or
-  overlapping shared-document work is authorized while no Metal task is Ready.
+  until its external GPU-hosted-runner gate is resolved. Ready Task 0051 exclusively owns concurrent
+  Metal capability/schema/native/tuning/Engine and shared-document changes; no overlapping CI,
+  distribution, benchmark-protocol, async/device-selection, or shared-document work is authorized.
 - Complete Metal 0044 owns its documentation/audit no-change record; no active owner may reinterpret
   its bounded report as a winner or production decision.
 - Complete Metal 0043 retains its reviewed benchmark implementation and evidence; Complete Metal
@@ -448,7 +449,7 @@ WINDOW_AXIS 6, and version-twelve identities. It landed at implementation
 execution returned `0x00000000` at flattened index 18 where its frozen four-ULP StrictMath oracle
 required `0x0008ec28`. Metal 0027 likewise remains historically Blocked after its only `[2,8,2]`
 direct BatchNorm inference execution flushed both signed minimum-subnormal channel-6 outputs.
-Under review-needed Model 0030, those FTZ observations are recursively reachable only for
+With Complete Model 0030, those FTZ observations are recursively reachable only for
 `ACCELERATOR`; strict capability remains false, and an opaque selector still requires complete
 domain recursive-subset proof. Metal 0030 is independently Blocked because its sole
 `[1,1,1,18]` direct `MAX_POOL2D` execution returned negative zero for `[+0,-0]` and finite `3.0f`
@@ -493,10 +494,10 @@ findings. Tasks 0043–0044 are Complete. Task 0045 is Complete at same-reviewer
 remains unauthenticated and local. Task 0047 is Blocked on the unavailable required M2 GPU hosted
 runner. Task 0048 is Complete at independently approved implementation `89f9fbb9`. Documentation-
 only Task 0049 is Complete after approved P1 remediation `6d4246f7`. Evidence-only Task 0050
-completed the final packaged/extracted-Metal 87-task repository build; no Metal task is Ready.
+completed the final packaged/extracted-Metal 87-task repository build; detailed Task 0051 is Ready.
 
 Metal 0006 remains historically `Blocked` after its frozen direct-selector
-RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH special-class and sign gate failures. Review-needed Model 0030
+RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH special-class and sign gate failures. Complete Model 0030
 does not authorize gross class/sign errors, but a future conforming custom or composed
 `ACCELERATOR` route may recurse through the new floors after complete formula, schema, capability,
 and route proof. Metal 0007 remains independently `Blocked` after eight direct-output executions
@@ -553,10 +554,10 @@ representable subnormal results and sigmoid had two-step ordinary finite results
 passed and the disposable probe was removed.
 
 Complete [0019](tasks/0019-exact-profile-qualified-float32-abs.md) adds only exact canonical `ABS`
-under both profiles. Under review-needed Model 0030, recursive `ACCELERATOR` `EXP`/`SIGMOID`
-results are semantically reachable in principle, but current capability stays false pending
-Task 0030 approval, Metal 0051 schema/wires and complete gradient topology, fresh recursive
-candidate certification, and route adjudication. Gross class/sign-failing direct selectors for
+under both profiles. Complete Model 0030 makes recursive `ACCELERATOR` `EXP`/`SIGMOID`
+results semantically reachable, but current capability stays false pending Ready Metal 0051's
+schema/wires, complete gradient topology, fresh recursive candidate certification, route
+adjudication, implementation, and review. Gross class/sign-failing direct selectors for
 `RECIPROCAL`, `LOG`, `SQRT`, `RSQRT`, `RELU`, and `TANH` remain unusable; a conforming custom or
 composed route would still require complete formula, schema, capability, and route proof.
 
@@ -590,7 +591,7 @@ remediation `d0a947fa`, and final reviewed remediation `f88066e3`; final indepen
 approved with zero findings. Metal 0026 and 0027 remain historically Blocked under their frozen
 profile-common/no-FTZ gates: direct SOFTMAX returned `0x00000000` where its reference was
 `0x0008ec28`, and direct BatchNorm flushed both signed minimum-subnormal outputs to same-signed
-zero. Their probes were removed. Under review-needed Model 0030 those observations are recursively
+zero. Their probes were removed. Under Complete Model 0030 those observations are recursively
 reachable only for `ACCELERATOR`; neither sample proves a complete opaque-selector subset, no
 strict route exists, and current capabilities remain false. Comparison, scalar, extrema, scan,
 LOG_SOFTMAX, every normalization, broader window/fold, BatchNorm training, backward closure, and
