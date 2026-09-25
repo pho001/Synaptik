@@ -313,6 +313,22 @@ complete current `MetalLocalWorkloadTuning` pair, and prepares both opaque candi
 both routes and never selects a winner, calls `prepareTuned(...)`, uses complete-plan tuning, reads
 or writes a cache, applies a threshold, or changes a later preparation.
 
+Generator schema 2 defines its zero-based input words exactly. Indices `0..15` are, in order:
+
+```text
+0x00000000 0x80000000 0x00000001 0x80000001
+0x007fffff 0x807fffff 0x00800000 0x80800000
+0x3f800000 0xbf800000 0x7f800000 0xff800000
+0x7fc12345 0xffc54321 0x7fa12345 0xffa54321
+```
+
+For `i` in `16..1_048_575`, signed 64-bit arithmetic computes
+`r = ((i * 17) % 101) - 50`. Because `i` is nonnegative, Java `%` yields `0..100` and `r` is
+`-50..50`. Convert exact `r` and `101` to binary32, divide using Java's strict IEEE 754 binary32
+round-to-nearest, ties-to-even semantics, and retain `Float.floatToRawIntBits(r / 101.0f)`.
+Expected output word `i` is input word `i XOR 0x80000000`; no floating arithmetic constructs the
+oracle. Schema 2 reports the complete sentinel list and every formula/conversion/rounding fact.
+
 Build the native bridge, then run the bounded smoke profile:
 
 ```bash
@@ -322,11 +338,13 @@ SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_met
 ```
 
 The environment variable must contain an absolute regular-file path. The benchmark neither
-discovers nor packages the dylib. It first opens a separate traced integration, prepares and runs
-both candidates, exact-byte-checks their outputs, and requires successful
-`CUSTOM_KERNEL`/`GRAPH_EXECUTABLE` PREPARE and RUN facts with `NOT_QUERIED`. It closes that
-integration before opening the ordinary no-trace integration used for every retained timing.
-Candidate identity bytes must match across the two integrations.
+discovers nor packages the dylib. It first opens a separate traced integration with a synchronized
+thread-safe event collector, prepares and runs both candidates, and exact-byte-checks their outputs.
+After each candidate run it takes one immutable event snapshot before checking the unchanged prefix,
+exactly appended PREPARE/RUN pair, order, indices, and route facts. It requires successful
+`CUSTOM_KERNEL`/`GRAPH_EXECUTABLE` outcomes with `NOT_QUERIED`, then closes that integration before
+opening the ordinary no-trace integration used for every retained timing. Candidate identity bytes
+must match across the two integrations.
 
 Timed execution is exactly `PreparedExecutionRunner.run(...) + RunResult.close()`. It includes
 fresh Runtime output/workspace allocation, synchronous native invocation/wait, and run-owned

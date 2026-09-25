@@ -51,6 +51,7 @@ import java.util.Collections;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -69,6 +70,11 @@ public final class MetalRouteBenchmark {
     private static final String LIBRARY_ENVIRONMENT = "SYNAPTIK_METAL_TEST_LIBRARY";
     private static final String PROPERTY_PREFIX = "synaptik.benchmark.metal.";
     private static final PreparedExecutionRunner RUNNER = new PreparedExecutionRunner();
+    private static final int GENERATOR_SCHEMA_VERSION = 2;
+    private static final long GENERATOR_MULTIPLIER = 17L;
+    private static final long GENERATOR_MODULUS = 101L;
+    private static final long GENERATOR_OFFSET = 50L;
+    private static final float GENERATOR_DENOMINATOR = 101.0f;
     private static final int[] SENTINEL_BITS = {
         0x00000000,
         0x80000000,
@@ -188,21 +194,23 @@ public final class MetalRouteBenchmark {
         if (index < SENTINEL_BITS.length) {
             return SENTINEL_BITS[index];
         }
-        float value = (((index * 17L) % 101L) - 50L) / 101.0f;
-        return Float.floatToRawIntBits(value);
+        long numerator = ((index * GENERATOR_MULTIPLIER) % GENERATOR_MODULUS)
+                - GENERATOR_OFFSET;
+        return Float.floatToRawIntBits((float) numerator / GENERATOR_DENOMINATOR);
     }
 
     private static List<Attestation> attest(Path library, Workload workload) {
-        List<TraceEvent<? extends TracePayload>> events = new ArrayList<>();
+        TraceCollector collector = new TraceCollector();
+        List<TraceEvent<? extends TracePayload>> observedEvents = List.of();
         List<Attestation> attestations = new ArrayList<>(2);
         try (MetalBackendIntegration integration = MetalBackendIntegration.open(
-                        new MetalBackendConfiguration(library), events::add);
+                        new MetalBackendConfiguration(library), collector::record);
                 BufferRepresentation input = integration.borrow(workload.storage())) {
             List<BufferRepresentation> callerInputs = List.of(input);
             CandidateSuite suite = candidates(integration, workload);
             requireCompleteCandidatePair(suite);
             for (int index = 0; index < suite.candidates().size(); index++) {
-                int eventStart = events.size();
+                int eventStart = observedEvents.size();
                 var candidate = suite.candidates().get(index);
                 var preparation = suite.tuning().trialPreparation(suite.batch(), candidate);
                 try (PreparedExecution execution = GraphPreparation.prepare(
@@ -215,9 +223,11 @@ public final class MetalRouteBenchmark {
                                 "attestation checksum disagrees with fixed expected output");
                     }
                 }
-                if (events.size() != eventStart + 2) {
+                List<TraceEvent<? extends TracePayload>> snapshot = collector.snapshot();
+                if (snapshot.size() != eventStart + 2
+                        || !snapshot.subList(0, eventStart).equals(observedEvents)) {
                     throw new IllegalStateException(
-                            "attestation candidate must emit exactly PREPARE and RUN events");
+                            "attestation candidate must add exactly its PREPARE and RUN events");
                 }
                 TraceRouteKind expectedRoute = index == 0
                         ? TraceRouteKind.CUSTOM_KERNEL
@@ -226,8 +236,9 @@ public final class MetalRouteBenchmark {
                         index,
                         identityHex(suite, index),
                         expectedRoute,
-                        events.get(eventStart),
-                        events.get(eventStart + 1)));
+                        snapshot.get(eventStart),
+                        snapshot.get(eventStart + 1)));
+                observedEvents = snapshot;
             }
         }
         return List.copyOf(attestations);
@@ -602,9 +613,23 @@ public final class MetalRouteBenchmark {
                 .append(",\"roundOrders\":").append(nestedIntegers(timed.roundOrders()))
                 .append('}')
                 .append(",\"workload\":{")
-                .append("\"generatorSchema\":1")
-                .append(",\"generator\":\"sentinel-prefix-plus-mod101-finite\"")
+                .append("\"generatorSchema\":").append(GENERATOR_SCHEMA_VERSION)
+                .append(",\"generator\":\"sentinel-prefix-plus-indexed-binary32-mod101\"")
+                .append(",\"indexOrigin\":0")
                 .append(",\"sentinelCount\":").append(SENTINEL_BITS.length)
+                .append(",\"sentinelRawWordsHex\":").append(sentinelRawWordsHex())
+                .append(",\"tail\":{")
+                .append("\"firstIndex\":").append(SENTINEL_BITS.length)
+                .append(",\"lastIndex\":").append(ELEMENT_COUNT - 1)
+                .append(",\"formula\":\"rawBits(roundTiesToEvenBinary32(exactBinary32((((int64) i * 17) % 101) - 50) / exactBinary32(101)))\"")
+                .append(",\"integerArithmetic\":\"exact signed 64-bit over declared index range\"")
+                .append(",\"remainder\":\"Java % on nonnegative dividend; result 0..100\"")
+                .append(",\"numeratorRange\":[-50,50]")
+                .append(",\"numeratorConversion\":\"exact integer-to-binary32\"")
+                .append(",\"denominatorBinary32RawWordHex\":\"0x42ca0000\"")
+                .append(",\"division\":\"strict IEEE 754 binary32 roundTiesToEven\"")
+                .append(",\"encoding\":\"Float.floatToRawIntBits\"}")
+                .append(",\"expectedRawWordFormula\":\"inputRawWord XOR 0x80000000\"")
                 .append(",\"operation\":\"NEG\"")
                 .append(",\"numericalProfile\":\"STRICT_IEEE\"")
                 .append(",\"graphOptimizations\":\"disabled\"")
@@ -767,6 +792,17 @@ public final class MetalRouteBenchmark {
         }
     }
 
+    private static String sentinelRawWordsHex() {
+        StringBuilder out = new StringBuilder("[");
+        for (int index = 0; index < SENTINEL_BITS.length; index++) {
+            if (index > 0) out.append(',');
+            out.append("\"0x")
+                    .append(HexFormat.of().toHexDigits(SENTINEL_BITS[index]))
+                    .append('"');
+        }
+        return out.append(']').toString();
+    }
+
     private record Profile(
             String name, int warmupRounds, int measurementRounds, long minimumSampleNanos) {}
 
@@ -802,6 +838,18 @@ public final class MetalRouteBenchmark {
             List<List<Integer>> roundOrders,
             int compatibilitySchema,
             String reuseScope) {}
+
+    private static final class TraceCollector {
+        private final List<TraceEvent<? extends TracePayload>> events = new ArrayList<>();
+
+        private synchronized void record(TraceEvent<? extends TracePayload> event) {
+            events.add(Objects.requireNonNull(event, "event"));
+        }
+
+        private synchronized List<TraceEvent<? extends TracePayload>> snapshot() {
+            return List.copyOf(events);
+        }
+    }
 
     private static final class RouteMeasurements {
         private final int candidateIndex;
