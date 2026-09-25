@@ -239,8 +239,8 @@ Model/repository task is Ready. Task 0026 remains an independent Draft.
 | 0027 | [Explicit numerical-profile semantic authority](tasks/0027-explicit-numerical-profile-semantic-authority.md) | Complete | Completed operation-family semantics through 0025L; Metal 0014 and retained numerical blocker evidence; accepted Variant B | Established root/foundational authority, ADR 0019, bounded Model-owned result sets, affected Javadocs, and gross-error exclusions; implementation `ff86a302`, independent validation, and Class C review passed with zero failures, skips, or findings. |
 | 0028 | [ACCELERATOR reduction exact-zero sign freedom](tasks/0028-accelerator-reduction-exact-zero-sign-freedom.md) | Complete | 0027; corrected Metal 0017 blocker evidence | Established final-result-only exact-zero sign freedom for arithmetic FLOAT32 SUM/MEAN/SUM_TO_SHAPE while preserving strict, terms, identities, copies, and count division; implementation `fc003ab8`, proof and 23-task validation passed, and Class C review approved with zero findings. |
 | 0029 | [ACCELERATOR MATMUL exact-zero sign freedom](tasks/0029-accelerator-matmul-exact-zero-sign-freedom.md) | Complete | 0027; 0028; retained Metal 0018 blocker evidence | Split the contraction row and established only final-publication either-zero-sign freedom for a complete nonempty exact-zero FLOAT32 ACCELERATOR MATMUL result; implementation `30826783`, proof and 23-task validation passed, and Class C review approved with zero findings. |
-| 0030 | [Total recursive ACCELERATOR numerical floor](tasks/0030-total-recursive-accelerator-numerical-floor.md) | Review needed | 0031; 0027–0029; completed profile spine and backend realizations; retained Metal blocker evidence through 0040; approved minimal recursive redesign | Implemented the documentation-only cutover to total exact/discrete, primitive FLOAT32, all-contributors-once aggregate, and composite-inheritance floors across every current Model family and generated-gradient consequence; defines an inclusive ordered-binary32 distance ceiling and closed primitive-site ledger; preserved the two-value API and all capability/identity behavior; Metal 0051 remains Draft. |
-| 0031 | [STRICT unary numerical baseline](tasks/0031-strict-unary-numerical-baseline.md) | Complete | 0018T1; 0019A; 0027–0029; completed CPU 0005H/0005I evidence | Closed the previously deferred strict allowed-result set for all nineteen unary kinds through documentation/Javadoc only, preserving current CPU results and changing no executable behavior or capability. |
+| 0030 | [Total recursive ACCELERATOR numerical floor](tasks/0030-total-recursive-accelerator-numerical-floor.md) | Review needed | 0031; 0027–0029; completed profile spine and backend realizations; retained Metal blocker evidence through 0040; approved minimal recursive redesign | Implemented the documentation-only cutover to total exact/discrete, primitive FLOAT32, all-contributors-once aggregate, and composite-inheritance floors across every current Model family and generated-gradient consequence; rests on Model-owned all-type strict unary bounds and recursive result sets; preserved the two-value API and all capability/identity behavior; Metal 0051 remains Draft. |
+| 0031 | [STRICT unary numerical baseline](tasks/0031-strict-unary-numerical-baseline.md) | Complete | 0018T1; 0019A; 0027–0029; completed CPU 0005H/0005I evidence | Owns exact-reference primitive bounds, special/domain rules, and recursive native/one-wider results for all nineteen kinds and every accepted BFLOAT16/FLOAT32/FLOAT64 type through documentation/Javadoc only, preserving current CPU results and changing no executable behavior or capability. |
 
 ## Milestones and current frontier
 
@@ -266,28 +266,30 @@ Model/repository task is Ready. Task 0026 remains an independent Draft.
   independent Class C review passed.
 - Task 0030 is `Review needed` after the original documentation-only recursive-contract cutover
   from planning base `333f780d1acbe234a2231cbced78535895a23f7a` and remediation against completed
-  Task 0031. It now depends explicitly on the strict unary baseline, defines the inclusive
-  ordered-binary32 distance-at-most-five rule with its conservative Java/binade rationale,
-  enumerates every composite primitive site, and reconciles current Metal reachability wording.
-  Required Model tests, Model Javadocs, architecture tests, affected Config/Compiler/Engine
-  Javadocs, Markdown validation, and diff checks passed. Independent Class C rereview remains.
-- Task 0031 is `Complete`. Its documentation/Javadoc-only decision closes the strict unary
-  baseline for all nineteen kinds from retained public and CPU evidence. Its focused 23-task
-  Model test/Javadoc/architecture checkpoint passed; no executable statement or capability
-  changed. Metal 0051 remains Draft and no repository task is Ready.
+  Task 0031. It depends on the backend-independent all-type strict unary baseline, defines the
+  inclusive accelerator ordered-binary32 distance-at-most-five rule with its conservative
+  Java/binade rationale, enumerates every composite primitive site, and reconciles current Metal
+  reachability wording. The focused 23-task Model test/Javadoc/architecture checkpoint and
+  ten-document Markdown validation pass; independent Class C rereview remains the completion gate.
+- Task 0031 is `Complete`. Its documentation/Javadoc-only decision owns exact mathematical
+  references and per-type bounds for all nineteen unary kinds, including BFLOAT16 without implying
+  capability. Composites are recursive native/one-wider result sets, not backend implementations.
+  No executable statement or capability changed. Metal 0051 remains Draft and no repository task
+  is Ready.
 - Task 0026 remains an independent `Draft` with no detailed brief or dependency relationship to
   0027–0031. It is selected only when IEEE-754 binary16 `FLOAT16` becomes current.
 
 ## Live gates, decisions, and risks
 
 - **Explicit numerical profiles:** completed 0027–0029 established the prior table and focused
-  zero-sign refinements. Complete 0031 owns the explicit strict allowed-result baseline for all
-  nineteen unary kinds, including subnormal/special-class rules and selected fixed result sets
-  without promoting backend test tolerances to public envelopes. Review-needed 0030 has been
-  remediated to depend on that baseline, define the exact ordered-distance rule, close every
-  composite primitive site, and distinguish recursive semantic reachability from remaining
-  Metal selection/structure/route-proof blockers. Current CPU/Metal capability and identities
-  remain unchanged. Draft Metal 0051 remains gated on completed and independently approved 0030.
+  zero-sign refinements. Complete 0031 owns the strict unary result sets for every accepted
+  floating type: exact-reference ordered bounds, explicit error-function bounds, complete
+  subnormal/special rules, and recursive native/one-wider composite sites independent of backend
+  algorithms. Review-needed 0030 rests on that baseline, defines its separate accelerator
+  ordered-distance rule, closes every composite primitive site, and distinguishes recursive
+  semantic reachability from remaining Metal selection/structure/route-proof blockers. Current
+  CPU/Metal capability and identities remain unchanged. Draft Metal 0051 remains gated on
+  completed and independently approved 0030.
 - **FLOAT16 and mixed precision:** BFLOAT16 remains a distinct current type. Only 0026 may add true
   IEEE binary16 FLOAT16 and must audit each affected family’s input, accumulation/intermediate,
   and output types. A shared two-byte carrier does not imply arithmetic, Java Vector support, or a

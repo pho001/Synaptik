@@ -2897,12 +2897,15 @@ architecture contract defines two meanings: `STRICT_IEEE` is each operation's ex
 family-specific promise and freedom, while `ACCELERATOR` is its total recursive `FLOAT32`
 superset under the
 [normative contract](architecture/contracts/foundational-modules.md#numerical-profiles).
-All nineteen unary kinds now have an explicit strict baseline. It preserves represented
-subnormals, domains, special classes, and required zero signs; exact kinds retain the selected
-represented operation, Java elementary kinds retain the selected scalar or lane operation and its
-documented accuracy, and the remaining first-class functions retain named fixed realizations.
-Loose backend conformance tolerances are not strict public envelopes. BFLOAT16 has no current
-backend unary capability and receives no inferred finite realization from its storage width.
+All nineteen unary kinds have a complete strict baseline for BFLOAT16, FLOAT32, and FLOAT64. It
+preserves represented subnormals, domains, special classes, ranges, and required zero signs. Exact
+kinds retain exact represented results. Correctly rounded exact references bound logarithmic and
+exponential primitives by two ordered representations, square root by one, and tanh by five.
+Error function uses inclusive absolute/relative coefficients `2^-7`, `2e-5`, and `2e-7` for those
+three formats. RSQRT and the activation formulas recurse through those Model-owned primitive sets
+and explicit one-round sites in native or one-wider formats. These semantics neither depend on a
+backend implementation nor infer capability: BFLOAT16 remains defined even without a current unary
+route.
 The exact/discrete floor preserves kinds, attributes, descriptors, mapping, contributors, masks,
 indices, state, traversal, casts, ordering, guards, identities, divisors, and publication. The
 primitive floor permits DAZ/FTZ, one-round basic arithmetic, corresponding FMA only without an

@@ -15,9 +15,10 @@ or backend route would need another exceptional row, and the same formula could 
 meaning depending on whether it was visible or nested inside another operation.
 
 The current Model owns formulas, guards, contributor sets, masks, mappings, state transitions,
-special-value behavior, and saved values. Completed Model 0031 separately closes the strict unary
-baseline; this decision adds only the recursive accelerator superset. Java's scalar and Vector
-`TANH` contract is at most 2.5 ULP from the exact result, while FLOAT32 Vector lanes use the
+special-value behavior, and saved values. Completed Model 0031 separately owns backend-independent
+exact-reference strict unary sets for BFLOAT16, FLOAT32, and FLOAT64; this decision adds only the
+recursive accelerator superset. For that accelerator bound, Java's scalar and Vector `TANH`
+contract is at most 2.5 ULP from the exact result, while FLOAT32 Vector lanes use the
 specified widen/evaluate/narrow adaptation. A power-of-two binade boundary converts that guarantee
 to an ordered distance of five adjacent binary32 representation steps. The one-ULP Java
 logarithmic/exponential contract and retained Metal `EXP`/`SIGMOID` observations fit within

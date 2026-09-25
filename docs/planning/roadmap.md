@@ -31,7 +31,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 
 | Order | Project area | Current status | Entry or next gate |
 |---:|---|---|---|
-| 1 | [`modules/model`](modules/model/master-plan.md) | Complete through reviewed 0029 and strict-baseline 0031; 0026 Draft; 0030 Review needed | Model 0031 completed the explicit strict unary baseline; [Model 0030](modules/model/tasks/0030-total-recursive-accelerator-numerical-floor.md) has been remediated against it and remains `Review needed` pending independent rereview. No repository task is Ready. |
+| 1 | [`modules/model`](modules/model/master-plan.md) | Complete through reviewed 0029 and strict-baseline 0031; 0026 Draft; 0030 Review needed | Model 0031 owns backend-independent strict unary semantics for every accepted floating type; [Model 0030](modules/model/tasks/0030-total-recursive-accelerator-numerical-floor.md) has been remediated against it and remains `Review needed` pending independent rereview. No repository task is Ready. |
 | 2 | [`modules/trace`](modules/trace/master-plan.md) | Complete through 0003; 0004–0008 Draft | [Trace 0003](modules/trace/tasks/0003-backend-preparation-and-invocation-diagnostic-dtos.md) completed its JDK-only DTO/ID surface and validation; no Trace task is Ready. |
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete through 0004 | Reopen only for a concrete shared-contract need. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress, interleaved; 0001–0003, 0006, and 0006A–0006B Complete; 0004–0005 and 0007–0008 Draft | 0006 completed at `314e049` plus `37e9e9db`; no Config task is Ready. |
@@ -61,11 +61,13 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 Model numerical profiles
 
 [Model 0031](modules/model/tasks/0031-strict-unary-numerical-baseline.md) is `Complete`. Its
-Model/public documentation and Javadoc-only decision closes the strict allowed-result set for all
-nineteen unary kinds from retained public and CPU 0005H/0005I evidence. The focused 23-task
-Model test/Javadoc/architecture checkpoint passed. It changed no executable behavior or capability.
-Task 0030 has been remediated against this explicit prerequisite and remains `Review needed`
-pending independent rereview.
+Model/public documentation and Javadoc-only decision owns exact-reference primitive bounds,
+special/domain rules, and recursive native/one-wider results for all nineteen unary kinds and
+every accepted BFLOAT16/FLOAT32/FLOAT64 type. Retained CPU 0005H/0005I evidence shows current
+routes remain admitted without defining semantics. The focused 23-task Model
+test/Javadoc/architecture checkpoint and ten-document Markdown validation pass. It changes no
+executable behavior or capability. Task 0030 has been remediated against this prerequisite and
+remains `Review needed` pending independent rereview.
 
 Trace and Metal diagnostics
 
@@ -157,11 +159,11 @@ Numerical profiles
 [Model 0030](modules/model/tasks/0030-total-recursive-accelerator-numerical-floor.md) remains
 `Review needed` after the original documentation-only recursive cutover from planning base
 `333f780d1acbe234a2231cbced78535895a23f7a` and completed remediation against
-[Model 0031](modules/model/tasks/0031-strict-unary-numerical-baseline.md). Task 0031 owns the public
-strict allowed-result baseline for all nineteen unary kinds. Task 0030 now depends on it, defines
-the exact inclusive ordered-binary32 distance rule and closed composite primitive-site ledger, and
-reconciles current Metal semantic reachability with remaining structural/route blockers. No
-executable behavior or backend capability changes.
+[Model 0031](modules/model/tasks/0031-strict-unary-numerical-baseline.md). Task 0031 owns the public,
+backend-independent strict result sets for all unary kinds and accepted floating types. Task 0030
+depends on that baseline, defines the separate inclusive ordered-binary32 accelerator rule and
+closed composite primitive-site ledger, and reconciles current Metal semantic reachability with
+remaining structural/route blockers. No executable behavior or backend capability changes.
 
 Metal 0051 remains Draft as the first serial implementation successor: accelerator-only canonical
 FLOAT32 `EXP`/`SIGMOID` and complete seeded-gradient topologies, node schema 12 with wires 20/21,

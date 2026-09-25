@@ -22,50 +22,46 @@ special classes, signed zero, and subnormal behavior explicit enough for conform
 - Close `ABS`, `NEG`, `RECIPROCAL`, `LOG`, `LOG1P`, `EXP`, `EXPM1`, `ERF`, `SQRT`, `RSQRT`,
   `FLOOR`, `CEIL`, `SIGN`, `RELU`, `SIGMOID`, `TANH`, `GELU`,
   `GELU_TANH_APPROXIMATION`, and `SILU` together; no kind remains deferred.
-- Define an ordered floating-representation distance for finite same-format results. The reference
-  has distance zero and a bound is inclusive. Distance does not replace separate NaN, infinity,
-  domain, overflow, underflow, or signed-zero rules.
+- Define ordered finite-representation distance for BFLOAT16, FLOAT32, and FLOAT64 with the
+  sign-aware monotonic raw-bit key. The correctly rounded exact reference has distance zero and
+  every bound is inclusive. Distance does not replace separate domain, range, NaN, infinity,
+  overflow, underflow, subnormal, or signed-zero requirements.
 - Retain represented inputs exactly under `STRICT_IEEE`: no denormals-are-zero (DAZ),
-  flush-to-zero (FTZ), reciprocal estimate, reduced precision, reassociation, or cross-node
-  contraction. Ordinary primitive arithmetic uses same-format round-to-nearest, ties-to-even.
-- Define strict ordinary finite outputs as the exact union of the current selected scalar and vector
-  realizations, not as the loose conformance tolerances used to test them. Exact rows use the
-  represented result of `ABS`, `NEG`, one typed `+1 / x`, `FLOOR`, `CEIL`, `SIGN`, and
-  `max(x,+0)` for ReLU. `SQRT` uses its correctly rounded scalar reference and the retained vector
-  result at distance at most one from that reference. NaN payload/sign are unspecified; NaN
-  classification is mandatory.
-- `LOG`, `LOG1P`, `EXP`, and `EXPM1` use their selected scalar or lane-wise Java operation.
-  The Java one-ULP exact-reference contract is at most ordered distance two at a binade boundary.
-  `TANH` uses the corresponding 2.5-ULP contract, which is at most ordered distance five at a
-  binade boundary. The retained five-step vector/scalar differential gate corroborates the lane
-  route; it is not another error term. All ceilings are inclusive.
-- Define `RSQRT` against the retained first-class `1 / sqrt(x)` scalar realization: exact widening
-  of a represented binary32 input to binary64, binary64 `StrictMath.sqrt`, one binary64 division,
-  and one final ties-to-even binary32 narrowing; the retained vector result may be at most two
-  ordered binary32 representations from that scalar reference. Record the corresponding binary64
-  realization without inventing an exact-mathematical proof.
-- Define strict `ERF` and exact GELU as the union of their selected scalar Cephes-derived
-  realization and selected typed vector realization, each with its fixed coefficients, branches,
-  operation order, and special corrections. Define `SIGMOID`, tanh GELU, and `SILU` by their
-  selected stable scalar formulas and fixed evaluation order. The retained
-  `max(2e-5, 2e-5 * abs(reference))` and `max(2e-7, 2e-7 * abs(reference))` test tolerances remain
-  backend qualification evidence, not new public strict result envelopes. In particular they
-  cannot admit FTZ or a wrong special class.
-- Enumerate every primitive site in the three first-class composite activation formulas. Exact
-  GELU uses typed `0.5`, typed `1`, typed `sqrt(2)`, division, `ERF`, addition, and multiplication.
-  Tanh GELU additionally names typed `2`, typed `pi`, typed `0.044715`, `x*x`, the resulting
-  `x^3`, additions, multiplications, division/root for `sqrt(2/pi)`, and `TANH`. SiLU uses its
-  sign-stable `SIGMOID`/`EXP`, additions, division, and final multiplication. Constants are rounded
-  once to the result format where the formula names a typed constant.
+  flush-to-zero (FTZ), reciprocal estimate, reduced precision, unlisted reassociation, fused
+  operation, or cross-node contraction.
+- Make exact/discrete results backend-independent: represented sign edit for `ABS`/`NEG`, one exact
+  ties-to-even same-format division for `RECIPROCAL`, exact `FLOOR`/`CEIL`, exact sign
+  classification, and family-extrema `max(x,+0)` for ReLU.
+- Use correctly rounded exact same-format references and inclusive ordered-distance ceilings of
+  two for `LOG`, `LOG1P`, `EXP`, and `EXPM1`; one for `SQRT`; and five for `TANH`, in every
+  accepted floating format. `LOG1P` and `EXPM1` reference the exact real function rather than a
+  separately rounded addition or subtraction.
+- Define `ERF` from the exact real error-function integral. Its finite result must be finite,
+  same-signed, nonzero for nonzero input, and inside `[-1,1]`, with inclusive error
+  `max(A, R*abs(reference))`: `A=R=2^-7` for BFLOAT16, `2e-5` for FLOAT32, and `2e-7` for
+  FLOAT64. Those bounds are Model semantics supported by retained CPU conformance, not an
+  implementation identity.
+- Define `RSQRT`, `SIGMOID`, both GELU forms, and `SILU` recursively from Model-owned primitive
+  result sets. A realization evaluates in the result format or, for BFLOAT16/FLOAT32, one wider
+  format followed by one final ties-to-even narrowing. Every constant rounds once before use;
+  every named negation, addition, multiplication, and division is one ties-to-even site; no
+  reassociation or contraction is allowed.
+- Enumerate every composite data dependency. `RSQRT` is square root then division. Sigmoid and SiLU
+  use their sign-stable exponential branches. Exact GELU names `0.5*x`, `sqrt(2)`, division,
+  `ERF`, addition, and final multiplication. Tanh GELU names `x*x`, `x^2*x`, `0.044715*x^3`,
+  addition, `2/pi`, square root, multiplication, `TANH`, addition, `0.5*x`, and final
+  multiplication. No composite receives a whole-result strict or accelerator envelope.
+- State every top-level finite domain, signed-zero, infinity, and NaN-class result. NaN payload,
+  quieting, and sign remain unspecified, but NaN classification is mandatory.
 - Reconcile the Model-owned numerical-profile contract, unary kind and Tensor Javadocs, public
-  Tensor API reference, glossary, Model master, and roadmap. Keep Task 0030 review-blocked until
-  this prerequisite is Complete, then make its dependency and baseline explicit.
+  Tensor API reference, glossary, Model capability/master plans, Task 0030 evidence, and roadmap.
+  Keep executable/API/capability behavior unchanged.
 
 ## Non-goals
 
 No executable Java/native statement, enum value/order, public method, signature, attribute,
 operation construction, gradient, backend capability, route, schema, wire, ABI, cache, tuning,
-hot-path policy, conformance test, or historical completed/blocked task rewrite.
+hot-path policy, conformance test, or unrelated historical completed/blocked task rewrite.
 
 ## Contracts
 
@@ -85,32 +81,39 @@ rather than tighten the public contract or change execution.
   Javadoc, Tensor API, glossary, Model master, or roadmap edit.
 - Parallel group: None.
 - Common base revision: `4bd26e72a4f3aa71a6607269991f1b96b880812f`.
+- Review-remediation base revision: `2d95ab71683698753c9ac64d9373fde8301c9404`.
 - Integration order: first; Task 0030 remediation depends on this completed baseline.
 - Integration validation: focused Model documentation/Javadoc and architecture checkpoint.
 - Shared-document integration owner: Main planner.
 
-All dependencies are Complete and the retained evidence is present at the common base. Task 0031
-is the sole authorized repository frontier; Task 0030 remains `Review needed`, but final review is
-blocked until this prerequisite completes and its remediation rests on the explicit baseline.
+All dependencies are Complete and retained evidence is present. Task 0031 remains Complete while
+this same-review remediation closes its finite-result omission; Task 0030 remains `Review needed`
+until independent rereview accepts the corrected prerequisite and accelerator contract.
 
 ## Files and symbols
 
-- `docs/architecture/contracts/foundational-modules.md` — strict unary allowed-result baseline.
+- `ARCHITECTURE.md` and `docs/architecture/contracts/foundational-modules.md` — strict unary
+  ownership and normative allowed-result baseline.
 - `UnaryElementwiseKind` and the nineteen `Tensor` unary-method Javadocs — exact formulas,
   references, bounds, domain, special classes, signed zero, and subnormals.
-- `docs/api/tensor-api.md` and `docs/glossary.md` — public explanation and terminology.
-- This task, Model master, and roadmap — status, evidence, and dependency frontier.
+- `docs/api/tensor-api.md`, `docs/glossary.md`, and Model capabilities — public explanation and
+  terminology.
+- ADR 0021, Task 0030, this task, Model master, and roadmap — dependency, evidence, and review
+  frontier.
 
 ## Acceptance criteria
 
-- All nineteen unary kinds have one explicit strict allowed-result assignment and complete
-  exceptional/signed-zero treatment; no accuracy or formula-site decision is deferred.
-- Current CPU FLOAT32/FLOAT64 scalar and vector results remain admitted by evidence-backed bounds.
-- Ordered distance, reference zero, inclusive bounds, ordinary-finite scope, and zero/NaN/infinity
-  exclusions are unambiguous.
-- GELU, tanh GELU, and SiLU formulas enumerate their primitive exponent and constant sites; no
-  whole-operation envelope is mistaken for Task 0030 accelerator recursion.
-- Completed Task 0031 is the explicit strict prerequisite for Task 0030 remediation and re-review.
+- All nineteen unary kinds and every accepted BFLOAT16/FLOAT32/FLOAT64 type have one complete,
+  backend-independent strict allowed-result assignment and complete exceptional/signed-zero rules.
+- Exact mathematical references, ordered keys for all three formats, inclusive primitive bounds,
+  and `ERF` absolute/relative coefficients are unambiguous.
+- Current CPU FLOAT32/FLOAT64 scalar and vector results remain admitted by retained conformance
+  evidence, without making an implementation or coefficient table semantic authority.
+- `RSQRT`, sigmoid, GELU, tanh GELU, and SiLU recursively enumerate every primitive, constant, and
+  one-round arithmetic site in the native/one-wider union; no whole-operation envelope is used.
+- Unsupported BFLOAT16 execution still has complete finite semantics without implying capability.
+- Completed Task 0031 remains the explicit strict prerequisite for Task 0030 remediation and
+  re-review.
 - No executable/API/capability/schema/cache/hot-path behavior changes.
 
 ## Validation
@@ -132,14 +135,23 @@ task changes no executable statement.
 
 ## Result
 
-Completed the documentation/Javadoc-only strict unary decision for all nineteen current kinds.
-The normative contract now defines the ordered-representation metric, inclusive finite bounds,
-selected scalar/typed-lane result sets, subnormal and special-class rules, and fixed first-class
-formula sites without treating backend test tolerances as public result envelopes. Unary kind,
-Tensor, public API, glossary, Model master, and roadmap wording are synchronized. No executable
-statement, API shape, capability, route, schema, cache, tuning, or hot-path behavior changed.
+Completed the documentation/Javadoc-only strict unary decision for all nineteen current kinds and
+all accepted BFLOAT16/FLOAT32/FLOAT64 types. The normative contract now owns exact mathematical
+references; ordered-representation keys and inclusive distance bounds of two, one, and five for
+the applicable primitives; `ERF` absolute/relative coefficients `2^-7`, `2e-5`, and `2e-7`; exact
+special/domain/subnormal rules; and recursive native/one-wider composite site graphs. No CPU,
+library, coefficient table, or route defines semantics.
 
-`./gradlew :modules:model:test :modules:model:javadoc :testing:architecture-tests:test` passed
-with 23 actionable tasks, three executed and twenty up-to-date. Generated Model Javadocs, changed
-Markdown links/anchors/fences/newlines, and `git diff --check` passed. Task 0030 remains
-`Review needed` and its remediation now depends explicitly on this completed baseline.
+Retained CPU 0005H/0005I conformance supplies the bound rationale and remains admitted: the
+one-ULP logarithmic/exponential contract converts to two ordered steps at a binade boundary,
+2.5-ULP tanh converts to five, square-root evidence fits one, and direct-reference error-function
+gates supply the FLOAT32/FLOAT64 coefficients. The BFLOAT16 coefficient dominates one BFLOAT16
+narrowing plus the retained FLOAT32 error. Unary kind, Tensor, public API, glossary, capability,
+Model master, Task 0030, and roadmap wording are synchronized. No executable statement, API shape,
+capability, route, schema, cache, tuning, or hot-path behavior changed.
+
+Focused verification passed:
+`./gradlew :modules:model:test :modules:model:javadoc :testing:architecture-tests:test` was
+`BUILD SUCCESSFUL` with 23 actionable tasks (three executed, twenty up-to-date). Markdown
+validation covered ten changed documents, 481 local links/anchors, fences, and final newlines;
+`git diff --check` also passed.

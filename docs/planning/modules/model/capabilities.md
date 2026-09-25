@@ -194,12 +194,13 @@ subnormal, and signed-zero values from both infinities and every NaN encoding. T
 “classification” rather than tracing-oriented “diagnostic” ownership.
 
 Task 0018T1's function names originally selected portable targets and exact special-value classes
-without an accuracy envelope. Completed Task 0031 now supplies the strict allowed-result baseline:
-current selected scalar or typed-lane realizations, their documented Java accuracy where
-applicable, and named fixed realizations for reciprocal square root, error function, sigmoid, and
-the composite activations. Loose backend qualification tolerances are not public result sets.
-The recursive `ACCELERATOR FLOAT32` floor additionally applies only at the primitive sites named by
-the normative numerical-profile contract.
+without an accuracy envelope. Completed Task 0031 now supplies a backend-independent strict
+allowed-result baseline for every unary kind and accepted BFLOAT16/FLOAT32/FLOAT64 type. Exact
+mathematical references have inclusive ordered-distance or per-type absolute/relative bounds;
+reciprocal square root, sigmoid, and the composite activations recurse through those primitive
+sets and explicit one-round native or one-wider sites. The recursive `ACCELERATOR FLOAT32` floor
+additionally applies only at the primitive sites named by the normative numerical-profile
+contract.
 
 The selected special-value classes preserve signed zero for `log1p` and `expm1`; map the two
 signed zeros to same-signed infinities for `rsqrt`; map positive infinity to positive zero for

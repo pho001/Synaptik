@@ -180,11 +180,13 @@ The following invariants must remain true:
   graph-wide and cold: later lifecycle layers may transport, retain, query capability for, and
   realize it, but must not reinterpret Model semantics or consult profile policy on the runtime hot
   path.
-- `STRICT_IEEE` retains every current per-operation promise and freedom. `ACCELERATOR` is its
-  total recursive `FLOAT32` superset: exact mapping/selection/state, DAZ/FTZ and one-round
-  primitives, an inclusive ordered-binary32 distance-at-most-five ceiling only at irreducible
-  elementary-function sites, and all-declared-contributors-once aggregate freedom. Composite
-  Model and generated-gradient formulas inherit those floors at their sites and gain no
+- `STRICT_IEEE` retains every current per-operation promise and freedom. Its unary contract owns
+  exact-reference primitive bounds, special/domain rules, and recursive native/one-wider results
+  for every accepted BFLOAT16/FLOAT32/FLOAT64 type, independent of backend algorithms.
+  `ACCELERATOR` is its total recursive `FLOAT32` superset: exact mapping/selection/state, DAZ/FTZ
+  and one-round primitives, an inclusive ordered-binary32 distance-at-most-five ceiling only at
+  irreducible elementary-function sites, and all-declared-contributors-once aggregate freedom.
+  Composite Model and generated-gradient formulas inherit those floors at their sites and gain no
   final-output tolerance; non-FLOAT32 behavior remains strict.
 - Engine construction captures one exact graph-wide profile, defaulting to `STRICT_IEEE`.
   Planning queries, Compiler artifacts, Prepare contexts, and backend plan/cache identities retain

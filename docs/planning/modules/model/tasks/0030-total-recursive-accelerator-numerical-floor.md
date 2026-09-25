@@ -13,7 +13,8 @@ recursive contract without changing the public profile vocabulary or backend cap
 ## Goal
 
 Keep public `NumericalProfile` exactly `STRICT_IEEE` and `ACCELERATOR`, rest on completed Model
-0031's explicit strict unary baseline, and make `ACCELERATOR` a total `FLOAT32` superset through
+0031's backend-independent strict unary baseline for BFLOAT16/FLOAT32/FLOAT64, and make
+`ACCELERATOR` a total `FLOAT32` superset through
 three recursive floors: exact/discrete behavior, primitive floating evaluation, and
 all-terms-once aggregation. Composite operations inherit their existing Model formula. Add no
 determinism mode, conformance-envelope registry, or per-operation backend exception layer.
@@ -33,7 +34,8 @@ determinism mode, conformance-envelope registry, or per-operation backend except
 ### Normative recursive contract
 
 1. `STRICT_IEEE` is the explicit current per-operation allowed-result set, including completed
-   Model 0031's strict unary baseline. `ACCELERATOR` is that set union results constructed by these
+   Model 0031's exact-reference primitive bounds and recursive native/one-wider unary sets for
+   every accepted floating type. `ACCELERATOR` is that set union results constructed by these
    `FLOAT32` rules. Other data types remain strict.
 2. **Exact/discrete floor.** Preserve kind/attributes, arity/descriptors, shape/layout/axis mapping,
    contributor membership, mask/index/state/RNG transition, traversal, selected stored payload,
@@ -179,9 +181,9 @@ stop and report that named gap; do not add a backend-local envelope.
 
 ## Acceptance criteria
 
-- The two-value public profile remains unchanged; completed Model 0031 explicitly owns strict
-  unary semantics; `ACCELERATOR` is a total recursive `FLOAT32` superset with no unassigned
-  current family and no new policy layer.
+- The two-value public profile remains unchanged; completed Model 0031 owns backend-independent
+  strict unary semantics for every accepted floating type; `ACCELERATOR` is a total recursive
+  `FLOAT32` superset with no unassigned current family and no new policy layer.
 - The inclusive ordered-binary32 distance ceiling is defined exactly and conservatively derived
   from current Java scalar/Vector and retained Metal evidence without a minimality claim; special
   classes, domain, exact/discrete state, all contributors, and non-FLOAT32 behavior cannot be
@@ -226,19 +228,23 @@ review; no backend/device execution because capability is unchanged.
 
 - Coordinated architecture, ADR, public numerical contract, Javadoc, API, glossary, backend-guide,
   and planning updates are mandatory; completed historical briefs remain unchanged.
-- Independent Class C rereview must verify the completed Model 0031 prerequisite, family/site
-  coverage, ordered-distance derivation, exact/aggregate invariants, gradients, identity
-  conclusions, Metal reachability/blocker split, and no executable drift.
+- Independent Class C rereview must verify completed Model 0031's exact-reference BFLOAT16/FLOAT32/
+  FLOAT64 bounds and recursive native/one-wider sets, family/site coverage, accelerator
+  ordered-distance derivation, exact/aggregate invariants, gradients, identity conclusions, Metal
+  reachability/blocker split, and no executable drift.
 
 ## Result
 
 Implemented the documentation-only clean cutover to the total recursive `ACCELERATOR` contract,
-now explicitly based on completed Model 0031's strict unary allowed-result baseline. The
-foundational authority and accepted ADR 0021 define exact/discrete, primitive FLOAT32,
-all-contributors-once aggregate, and composite-inheritance floors. Ordered binary32 distance is
-defined by a monotonic raw-bit key and an inclusive `distance <= 5` exact-reference ceiling;
-the retained Java 2.5-ULP `TANH` contract supplies the conservative binade-boundary rationale,
-without calling the bound five ULP or claiming empirical minimality.
+based on completed Model 0031's backend-independent strict unary allowed-result baseline for every
+accepted floating type. That baseline now defines exact mathematical references, per-format
+ordered distance, explicit `ERF` absolute/relative bounds, special/domain rules, and recursive
+native/one-wider composites without implementation authority. The foundational authority and
+accepted ADR 0021 then define exact/discrete, primitive FLOAT32, all-contributors-once aggregate,
+and composite-inheritance accelerator floors. Accelerator ordered binary32 distance uses a
+monotonic raw-bit key and an inclusive `distance <= 5` exact-reference ceiling; retained Java
+2.5-ULP `TANH` evidence supplies the conservative binade-boundary rationale, without calling the
+bound five ULP or claiming empirical minimality.
 
 All forty concrete Model kinds, public Tensor profile/composition wording, `NumericalProfile`,
 Compiler gradient transport, Engine package status, current API/architecture/glossary/backend
@@ -248,8 +254,9 @@ closed ledger now enumerates constants, `x*x`/`x^2*x`, irreducible elementary si
 aggregates, guards, selections, and state for every first-class composite formula. Opaque routes
 require complete-domain recursive-subset proof.
 
-The required Model tests, Model Javadocs, architecture tests, affected Config/Compiler/Engine
-Javadocs, Markdown validation, and `git diff --check` pass after remediation. Historical Metal
+The focused Model test/Javadoc/architecture command is `BUILD SUCCESSFUL` with 23 actionable tasks
+(three executed, twenty up-to-date); validation of ten changed Markdown documents and 481 local
+links/anchors, fences, final newlines, and `git diff --check` also passes. Historical Metal
 tasks retain their recorded statuses/evidence; current wording distinguishes recursively reachable
 arithmetic from remaining exact-selection, structural, schema, gradient, and route-proof blockers.
 Metal 0051 remains Draft. Status remains `Review needed` for independent Class C rereview.

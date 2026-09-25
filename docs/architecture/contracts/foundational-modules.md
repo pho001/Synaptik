@@ -140,40 +140,104 @@ and fused-multiply-add promise or freedom. The name does not promise universal b
 correct rounding, Java `strictfp`, a fixed instruction sequence, or cross-backend equality beyond
 each operation's existing contract.
 
-For unary semantics, the strict baseline is now explicit for all nineteen current kinds. It
-preserves represented normal and subnormal inputs and results: no denormals-are-zero (DAZ),
-flush-to-zero (FTZ), reduced precision, reciprocal estimate, or unlisted reassociation applies.
-NaN must remain NaN, although payload, quieting, and sign are not promised. The per-kind domain,
-infinity, and signed-zero rules in `UnaryElementwiseKind` remain mandatory.
+For unary semantics, the strict baseline is complete for every current kind and every accepted
+`BFLOAT16`, `FLOAT32`, and `FLOAT64` input. Let `F` denote one of those formats, let
+`RN_F(z)` round the exact real `z` once to `F` using round-to-nearest, ties-to-even with gradual
+underflow, and let `q_F(f,x) = RN_F(f(real(x)))`. Overflow produces the correctly signed infinity.
+No denormals-are-zero (DAZ), flush-to-zero (FTZ), reduced precision, reciprocal estimate,
+unlisted reassociation, or contraction applies.
 
-Finite same-format accuracy uses an ordered-representation distance only where stated. For a raw
-binary32 word `b`, define `key32(b)` as unsigned `~b` when its sign bit is set and unsigned
-`b ^ 0x80000000` otherwise; binary64 uses the analogous sign-bit transform. Distance is the
-unsigned absolute difference between keys. Thus the reference has distance zero and negative zero
-and positive zero are adjacent. Every ceiling is inclusive, while zero sign, NaN, infinity,
-overflow, underflow, and domain are checked separately.
+Finite accuracy uses an ordered-representation distance where stated. For an unsigned raw
+`BFLOAT16` word `b`, `key16(b)` is unsigned `~b` when its sign bit is set and unsigned
+`b ^ 0x8000` otherwise. `key32` and `key64` apply the same transform with their respective sign
+bits and word widths. `distance_F(a,b)` is the mathematical absolute difference between the two
+unsigned keys. Thus identical references have distance zero and negative zero and positive zero
+are adjacent. Every bound below is inclusive.
 
-The current strict unary result set is:
+For a distance-bounded primitive, a zero or infinity reference requires that exact signed result.
+A finite nonzero reference requires a finite same-sign result within the stated distance; a
+subnormal reference may not become zero. The result also remains inside the mathematical range:
+`EXP` is nonnegative, `SQRT` is nonnegative, and `TANH` is in `[-1,1]`. These class, sign, range,
+overflow, underflow, and domain requirements are independent of distance.
 
-| Kinds | Strict ordinary-finite result rule |
+The Model-owned strict primitive result sets are:
+
+| Kinds | Exact mathematical reference and strict result rule |
 |---|---|
-| `ABS`, `NEG`, `RECIPROCAL`, `FLOOR`, `CEIL`, `SIGN`, `RELU` | Exact selected represented operation: sign edit, typed `+1 / x`, integral rounding, sign classification, or `max(x,+0)` respectively. |
-| `LOG`, `LOG1P`, `EXP`, `EXPM1` | The selected scalar or lane-wise Java operation. Its one-unit-in-the-last-place contract is at most ordered distance two from the correctly rounded exact same-format reference at a binade boundary. FLOAT32 lane operations use the specified exact widening to binary64 and one final narrowing. |
-| `SQRT` | Correctly rounded same-format principal square root. |
-| `TANH` | The selected scalar or lane-wise Java operation. Its 2.5-unit-in-the-last-place contract is at most ordered distance five from the correctly rounded exact same-format reference at a binade boundary. The retained five-step scalar differential gate is corroboration, not an additional error term. |
-| `RSQRT` | The exact union of the retained first-class scalar and lane realizations of typed `+1 / sqrt(x)`: FLOAT32 scalar widens once, performs binary64 square root and division, then narrows once; the FLOAT32 lane form performs typed square root then typed division. |
-| `ERF` | The exact union of the selected scalar Cephes-derived piecewise realization and selected typed lane realization, including their fixed coefficients, branches, operation order, and special corrections. |
-| `SIGMOID` | The selected stable branch: `1/(1+exp(-x))` for nonnegative input and `exp(x)/(1+exp(x))` for negative input, in the result format's retained scalar realization. |
-| `GELU` | The selected exact-GELU realization `0.5*x*(1+erf(x/sqrt(2)))`, using its selected strict `ERF` realization and fixed operation order. |
-| `GELU_TANH_APPROXIMATION` | The selected fixed formula `0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))` and fixed operation order. |
-| `SILU` | The selected stable branch: `x/(1+exp(-x))` for nonnegative input and `x*exp(x)/(1+exp(x))` for negative input. |
+| `ABS`, `NEG` | Exact represented sign clearing or sign inversion respectively. |
+| `RECIPROCAL` | Exactly `RN_F(1 / real(x))`; this is one `F` division site, not an estimate. |
+| `FLOOR`, `CEIL` | The exact represented greatest integer not above, or least integer not below, the input respectively. |
+| `SIGN` | Exact same-format `-1`, signed zero, or `+1` according to the represented input sign and zero class. |
+| `RELU` | Exact family-extrema `max(x,+0)`. |
+| `LOG` | `q_F(ln,x)`, with `distance_F <= 2`. |
+| `LOG1P` | `q_F(x -> ln(1+x),x)`, with `distance_F <= 2`; the real addition is part of the mathematical reference and is not rounded first. |
+| `EXP` | `q_F(exp,x)`, with `distance_F <= 2`. |
+| `EXPM1` | `q_F(x -> exp(x)-1,x)`, with `distance_F <= 2`; the real subtraction is not rounded separately. |
+| `SQRT` | `q_F(sqrt,x)`, with `distance_F <= 1`. |
+| `TANH` | `q_F(tanh,x)`, with `distance_F <= 5`. |
 
-The retained CPU relative-error checks for `ERF`, `SIGMOID`, both GELU kinds, and `SILU` qualify
-those fixed realizations; they are not public strict result envelopes. In particular, they cannot
-turn an FTZ result or a wrong zero, infinity, NaN, or domain class into a strict result. BFLOAT16
-has the same mathematical targets and mandatory special classes, but no current backend unary
-capability; its future finite realization requires separate qualification rather than inference
-from storage width.
+`ERF` has exact real reference
+`erf(x) = 2/sqrt(pi) * integral[0,x](exp(-t*t)) dt`. For a finite nonzero input its strict result
+`y` is finite, nonzero, same-signed, in `[-1,1]`, and satisfies
+`abs(real(y)-erf(real(x))) <= max(A_F, R_F*abs(erf(real(x))))`, with inclusive constants:
+
+| Format `F` | `A_F` | `R_F` |
+|---|---:|---:|
+| `BFLOAT16` | `2^-7` | `2^-7` |
+| `FLOAT32` | `2e-5` | `2e-5` |
+| `FLOAT64` | `2e-7` | `2e-7` |
+
+All remaining first-class unary functions are Model-owned recursive result sets, not aliases and
+not backend-algorithm identities. A strict realization format `E` is either the native `F`, or
+one wider format (`BFLOAT16 -> FLOAT32` or `FLOAT32 -> FLOAT64`); `FLOAT64` has only its native
+realization. The represented input injects exactly into `E`. Each named real constant is rounded
+once by `RN_E` before first use; every named negation, addition, multiplication, and division is
+one `RN_E` site; every elementary call chooses a result from the strict primitive set above for
+`E`. Evaluation follows the listed data dependencies with no reassociation or fused operation,
+then rounds the final value once by `RN_F`. The strict result is the union over those Model-owned
+native and one-wider realizations:
+
+| Kind | Recursive sites, in dependency order |
+|---|---|
+| `RSQRT` | `s in SQRT_E(x)`; `y = RN_E(1 / s)`. |
+| `SIGMOID`, `x >= 0` | `n = RN_E(-x)`; `e in EXP_E(n)`; `d = RN_E(1+e)`; `y = RN_E(1/d)`. |
+| `SIGMOID`, `x < 0` | `e in EXP_E(x)`; `d = RN_E(1+e)`; `y = RN_E(e/d)`. |
+| `GELU` | `m = RN_E(0.5*x)`; `s in SQRT_E(2)`; `u = RN_E(x/s)`; `e in ERF_E(u)`; `v = RN_E(1+e)`; `y = RN_E(m*v)`. |
+| `GELU_TANH_APPROXIMATION` | `x2 = RN_E(x*x)`; `x3 = RN_E(x2*x)`; `c = RN_E(0.044715*x3)`; `u = RN_E(x+c)`; `r = RN_E(2/pi)`; `s in SQRT_E(r)`; `v = RN_E(s*u)`; `h in TANH_E(v)`; `j = RN_E(1+h)`; `m = RN_E(0.5*x)`; `y = RN_E(m*j)`. |
+| `SILU`, `x >= 0` | `n = RN_E(-x)`; `e in EXP_E(n)`; `d = RN_E(1+e)`; `y = RN_E(x/d)`. |
+| `SILU`, `x < 0` | `e in EXP_E(x)`; `p = RN_E(x*e)`; `d = RN_E(1+e)`; `y = RN_E(p/d)`. |
+
+The following top-level domain and special-value results override the ordinary-finite constructions.
+Every listed NaN result must be NaN, but payload, quieting, and sign are unspecified.
+
+| Kinds | Signed zero, infinity, domain, and NaN rules |
+|---|---|
+| `ABS` | Either zero becomes `+0`; either infinity becomes `+infinity`; NaN remains NaN. |
+| `NEG` | The sign of zero and infinity is inverted; NaN remains NaN. |
+| `RECIPROCAL` | Each signed zero becomes same-signed infinity; each infinity becomes same-signed zero; NaN remains NaN. |
+| `LOG` | Either zero becomes `-infinity`; negative finite inputs and `-infinity` become NaN; `+infinity` remains; NaN remains NaN. |
+| `LOG1P` | Signed zero is preserved; `-1` becomes `-infinity`; values below `-1`, including `-infinity`, become NaN; `+infinity` remains; NaN remains NaN. |
+| `EXP` | Either zero becomes `+1`; `-infinity` becomes `+0`; `+infinity` remains; NaN remains NaN. |
+| `EXPM1` | Signed zero is preserved; `-infinity` becomes `-1`; `+infinity` remains; NaN remains NaN. |
+| `ERF` | Signed zero is preserved; each infinity becomes the same-signed unit value; NaN remains NaN. |
+| `SQRT` | Signed zero is preserved; negative finite inputs and `-infinity` become NaN; `+infinity` remains; NaN remains NaN. |
+| `RSQRT` | Each signed zero becomes same-signed infinity; negative finite inputs and `-infinity` become NaN; `+infinity` becomes `+0`; NaN remains NaN. |
+| `FLOOR`, `CEIL` | Signed zero and signed infinity are preserved; NaN remains NaN. |
+| `SIGN` | Signed zero is preserved; infinities become same-signed unit values; NaN remains NaN. |
+| `RELU` | Negative finite inputs, `-infinity`, and either zero become `+0`; `+infinity` remains; NaN remains NaN. |
+| `SIGMOID` | Either zero becomes `0.5`; `-infinity` becomes `+0`; `+infinity` becomes `+1`; NaN remains NaN. |
+| `TANH` | Signed zero is preserved; infinities become same-signed unit values; NaN remains NaN. |
+| `GELU`, `GELU_TANH_APPROXIMATION`, `SILU` | `-infinity` becomes `-0` by continuous extension; signed zero is preserved; `+infinity` remains; NaN remains NaN. |
+
+The bounds are Model decisions supported, not defined, by retained conformance evidence. The
+one-ULP logarithmic/exponential evidence converts to at most two ordered steps at a binade
+boundary; the 2.5-ULP `TANH` evidence converts to at most five; retained square-root qualification
+fits one. The retained direct-reference `ERF` gates supply `2e-5` for `FLOAT32` and `2e-7` for
+`FLOAT64`. For `BFLOAT16`, `2^-7` dominates one ties-to-even BFLOAT16 narrowing plus the retained
+FLOAT32 `ERF` error, while the distance bounds admit a conforming wider-format evaluation after one
+final narrowing. Current CPU routes are members because native FLOAT64, native FLOAT32, and
+one-wider FLOAT32 evaluation all use the same mathematical references and site graph; no CPU,
+library, or coefficient table is semantic authority.
 
 `ACCELERATOR` is an opt-in superset of the complete `STRICT_IEEE` allowed-result set. A backend may
 always produce a strict result. For `FLOAT32`, it may additionally evaluate any current operation

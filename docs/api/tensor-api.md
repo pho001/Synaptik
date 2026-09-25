@@ -3157,27 +3157,33 @@ data type, immutable `Shape` reference, and `requiresGrad` flag, while leaving l
 That flag is eligibility metadata; it does not assert that a derivative or backward rule exists.
 
 `rsqrt`, `log1p`, `expm1`, both GELU variants, and SiLU are first-class transforms, not stored
-compositions. Their `STRICT_IEEE` allowed-result sets are nevertheless explicit. Strict preserves
-normal and subnormal values and every required domain, infinity, NaN-class, and signed-zero rule;
-it permits no DAZ or FTZ. Exact kinds retain their represented operation. Java elementary kinds
-retain the selected scalar or typed-lane operation and its documented accuracy. `RSQRT`, `ERF`,
-`SIGMOID`, GELU, tanh GELU, and SiLU retain the fixed realizations named by the Model contract,
-rather than turning CPU qualification tolerances into public result envelopes.
+compositions. Their `STRICT_IEEE` allowed-result sets are complete for all three accepted floating
+types. Strict permits no DAZ or FTZ. Exact/discrete kinds retain their exact represented result.
+Relative to the correctly rounded exact same-format reference, `log`, `log1p`, `exp`, and `expm1`
+permit at most two ordered representations, `sqrt` one, and `tanh` five; all bounds are inclusive
+and separate from class, domain, range, and zero-sign rules. `erf` uses the exact integral
+reference and inclusive `max(A, R*abs(reference))` error, with `A=R=2^-7` for BFLOAT16, `2e-5`
+for FLOAT32, and `2e-7` for FLOAT64.
 
-Exact GELU selects `0.5 * x * (1 + erf(x / sqrt(2)))`. Its typed constants, square root,
-division, `ERF`, addition, and two multiplications are its complete primitive sites. The explicitly
-named tanh approximation selects
-`0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * x^3)))`; its typed constants, `x*x`,
-`x^2*x`, root, division, additions, remaining multiplications, and `TANH` are complete. Sigmoid
-uses `1/(1+exp(-x))` for nonnegative input and `exp(x)/(1+exp(x))` for negative input. SiLU uses
-`x/(1+exp(-x))` and `x*exp(x)/(1+exp(x))` on the corresponding branches. Its comparison,
-negation, exponential, additions, multiplication, and divisions are explicit sites. The API uses
-canonical `silu` naming and provides no `swish` alias. None of these first-class operations gains
-a whole-result accelerator envelope.
+`RSQRT`, sigmoid, GELU, tanh GELU, and SiLU are recursive Model-owned result sets. Strict evaluation
+may use the result type or, for BFLOAT16/FLOAT32, one wider format followed by one final
+ties-to-even narrowing. Every named constant is rounded once in that evaluation format; every
+named arithmetic site rounds once; and each elementary site chooses only from the primitive
+result set above. This union is independent of backend route and coefficient tables.
 
-Their selected special-value meanings are:
+Exact GELU uses `0.5 * x * (1 + erf(x / sqrt(2)))`. Its constants, square root, division, `ERF`,
+addition, and two multiplications are its complete sites. The explicitly named tanh approximation
+uses `0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * x^3)))`; its constants, `x*x`, `x^2*x`,
+root, division, additions, remaining multiplications, and `TANH` are complete. Sigmoid uses
+`1/(1+exp(-x))` for nonnegative input and `exp(x)/(1+exp(x))` for negative input. SiLU uses
+`x/(1+exp(-x))` and `x*exp(x)/(1+exp(x))` on the corresponding branches. Comparison, negation,
+exponential, additions, multiplication, and divisions are explicit sites. The API uses canonical
+`silu` naming and provides no `swish` alias. None of these first-class operations gains a
+whole-result accelerator envelope.
 
-| Method | Selected special-value behavior |
+Their Model-owned special-value meanings are:
+
+| Method | Special-value behavior |
 |---|---|
 | `rsqrt` | Positive/negative zero becomes same-signed infinity; positive infinity becomes positive zero; negative finite values and negative infinity produce NaN; NaN produces NaN. |
 | `log1p` | Signed zero is preserved; `-1` produces negative infinity; values below `-1`, including negative infinity, produce NaN; positive infinity remains positive infinity; NaN produces NaN. |
