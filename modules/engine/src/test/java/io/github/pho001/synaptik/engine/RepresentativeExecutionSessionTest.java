@@ -56,6 +56,7 @@ import org.junit.jupiter.api.io.TempDir;
 final class RepresentativeExecutionSessionTest {
     private static final BackendId BACKEND = new BackendId("representative-test");
 
+
     @Test
     void admissionAndOwnershipPrecedeRepresentativeInspection() {
         RecordingComposition firstComposition = new RecordingComposition();
@@ -1414,7 +1415,7 @@ final class RepresentativeExecutionSessionTest {
     }
 
     @Test
-    void nonCpuOwnedPlanRejectsBeforeRepresentativeBorrowOrFallback(
+    void unsupportedOwnedPlanRejectsBeforeRepresentativeBorrowOrFallback(
             @TempDir Path directory) {
         RecordingComposition composition = new RecordingComposition();
         Engine engine = engine(composition);
@@ -1427,7 +1428,8 @@ final class RepresentativeExecutionSessionTest {
             IllegalStateException observed = assertThrows(IllegalStateException.class,
                     () -> engine.prepareTuned(compiled, request));
 
-            assertEquals("model autotuning requires a CPU-owned partition plan",
+            assertEquals(
+                    "model autotuning requires a supported single-owner partition plan",
                     observed.getMessage());
             assertEquals(0, observed.getSuppressed().length);
             assertEquals(List.of(), composition.closeOrder);
@@ -1737,6 +1739,12 @@ final class RepresentativeExecutionSessionTest {
                             new io.github.pho001.synaptik.tools.tuning.CompletePlanTuningRequest
                                     .DecisionCodecIdentity(1, new byte[] {2}),
                             1, new byte[] {3}, completeReuseScope);
+        }
+
+        @Override public io.github.pho001.synaptik.tools.tuning.CompletePlanTuningRequest
+                .PolicyIdentity completePlanPolicyIdentity() {
+            return new io.github.pho001.synaptik.tools.tuning.CompletePlanTuningRequest
+                    .PolicyIdentity(1, new byte[] {4});
         }
 
         @Override public io.github.pho001.synaptik.tools.tuning.CompletePlanTuningRequest

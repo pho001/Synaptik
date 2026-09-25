@@ -162,18 +162,20 @@ acquires no ownership.
 
 The two roles are deliberately method-free. Shared Prepare can preserve the caller's concrete
 generic types, associate the values with one partition, and transport them, but it cannot
-enumerate candidates, interpret compatibility, choose a winner, or apply a decision. The current
-CPU OpenBLAS batch and decision adopt these nominal roles without changing their components,
-schema, candidate generation, matching, heuristic fallback, or execution behavior. CPU remains
-the only layer that validates the decision against a freshly generated CPU batch.
+enumerate candidates, interpret compatibility, choose a winner, or apply a decision. CPU OpenBLAS
+and Metal route batches and decisions adopt these nominal roles without moving their components,
+schema, candidate generation, matching, heuristic fallback, or execution behavior out of the
+backend. Each backend validates a supplied decision against a freshly generated local batch.
 
 The record itself contains no measurement, cache schema, serialized form, executable, or Runtime
-state. Current public CPU-only `Engine.prepareTuned(...)` first obtains the sole eligible local
+state. Current public `Engine.prepareTuned(...)` first obtains the sole eligible single-owner local
 handoff, maps it to occurrence 0 in partition 0 with weight 1, and passes it opaquely to Phase 1.
-The exact authenticated local decision then goes unchanged to CPU's separate complete-plan
-producer. Engine transports that second decision-empty handoff to Phase 2 and later authenticates
-the decision-present result. Model-wide extraction, multiple occurrences, broader graph/partition
-search, mixed backends, and executable persistence remain downstream work.
+The exact authenticated local decision then goes unchanged to the same backend's separate
+complete-plan producer. Engine transports that second decision-empty handoff to Phase 2 and later
+authenticates the decision-present result. Metal exposes this transport only for an exact
+singleton NEG two-route local batch and a one-candidate complete batch fixed to the local winner.
+Model-wide extraction, multiple occurrences, broader graph/partition search, multiple partitions,
+mixed backends, and executable persistence remain downstream work.
 
 ### Current representative-execution lifecycle
 
@@ -207,14 +209,15 @@ warmups and timed samples, each through a freshly prepared trial and fresh `RunS
 and fallback production recipes are prepared afresh. No tuning state, cache access, ranking, or
 route selection enters Runtime.
 
-Current Engine adapts the correctness primitive and CPU's opaque complete-plan batch to the
-generic tools-only consumer. All candidate correctness actions and cleanup finish before any
-warmup or timed action. Every action freshly prepares the requested recipe, and one additional
-fresh preparation creates the authenticated production winner after representative cleanup.
-Current CPU compatibility is `SESSION`, so the exact model-plan path is transported but no
-model-plan-cache filesystem I/O occurs. This composition changes no candidate interpretation,
-backend contract, Prepare ownership, or Runtime behavior; a future `PERSISTENT` producer may use
-the same translation without making current CPU decisions persistent.
+Current Engine adapts the correctness primitive and the selected backend's opaque complete-plan
+batch to the generic tools-only consumer. All candidate correctness actions and cleanup finish
+before any warmup or timed action. Every action freshly prepares the requested recipe, and one
+additional fresh preparation creates the authenticated production winner after representative
+cleanup. Current CPU and Metal complete-plan compatibility is `SESSION`, so the exact model-plan
+path is transported but receives no filesystem input/output. Metal local compatibility is also
+`SESSION`; it cannot hit or publish a persistent workload entry. This composition changes no
+candidate interpretation, backend contract, Prepare ownership, or Runtime behavior; a future
+`PERSISTENT` producer may use the same translation without making current decisions persistent.
 
 ## The staged prepare handoff
 
@@ -307,8 +310,9 @@ The prepared schedule carries direct executable, representation-creation, transf
 publication recipes. Runtime cold binding turns them into typed direct-reference actions; neither
 binding nor traversal consults Engine, the adapter, a backend ID, capability provider,
 availability snapshot, integration, `ServiceLoader`, reflection, or a global registry.
-`prepareTuned(...)` may use only a selected CPU adapter; Metal, missing, empty, and mixed ownership
-fail before trials, and a safe-heuristic fallback never changes the selected CPU owner.
+`prepareTuned(...)` may use a selected CPU adapter or an exact eligible singleton-NEG Metal
+adapter. Metal MPSGraph-only, multiple-partition, and mixed-owner plans fail local eligibility
+before trials. A safe-heuristic fallback never changes the selected adapter.
 
 ## Planned fixed recurrent scan handoff
 

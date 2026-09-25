@@ -235,11 +235,19 @@ and unknown or pruned candidates. The bytes contain no native handle or executab
 and earlier codec bytes and cross-profile decisions fail closed even when their trailing checksum
 is otherwise valid.
 
-This codec is only the backend-side authentication foundation. It performs no file input/output,
-measurement, winner selection, or persistent reuse, and there is no `tools/tuning`, Engine, or
-outer `WorkloadCompatibility` adapter. The tools-owned cache artifact version, checksum, atomic
-replacement, objective, sampling, and cache lifecycle remain separate. Cross-session Metal reuse
-requires a separately authorized stable device/library fingerprint.
+The public `MetalLocalWorkloadTuning` retained by `MetalBackendIntegration` wraps this codec and
+candidate generator without changing their version-twelve bytes. It returns a handoff only for an
+exact singleton NEG whose complete ordered candidate list is `[CUSTOM_SINGLE_NEG, MPSGRAPH]`.
+`MetalCompletePlanTuning` authenticates the exact Phase-1 association and exposes one complete-plan
+candidate fixed to that selected route. Both collaborations use opaque exact-owner/batch values,
+defensive bytes, fresh authoritative analysis for trial and selected preparation, and
+`SESSION`-only compatibility. They perform no execution, measurement, winner selection, or cache
+input/output. Validation analysis omits tracing; returned preparations retain the integration's
+real trace producer, so only preparations that are actually finalized allocate and report units.
+MPSGraph-only, mixed-owner, and multiple-partition plans remain ineligible. Metal cannot publish
+or hit a persistent workload-cache entry, and its complete-plan phase never touches the supplied
+model-plan path. Cross-session Metal reuse still requires a separately authorized stable
+device/library fingerprint.
 
 ### Finalization and persistent ownership
 
@@ -663,14 +671,15 @@ composed Engine may register Metal alone or beside CPU.
 
 `MetalBackendIntegration.open(MetalBackendConfiguration)` and its optional traced overload own
 configuration validation, native library loading, context construction, availability production,
-host ingress and materialization, partition preparation, physical contribution, direct
-upload/download endpoints, and partial-open rollback.
-`Engine.Builder.takeOwnership(MetalBackendIntegration)` transfers that complete opened owner into
-Engine. Engine owns registration, duplicate-ID validation, compile-time inventory, complete
-owner/transfer preflight, shared preparation, global schedule composition, per-occurrence outer
-adapter capture, and closure. Metal host ingress and materialization occur outside Runtime without
-re-querying the registry. The dependency remains one-way: Engine may depend on Metal; Metal
-production never depends on Engine.
+host ingress and materialization, partition preparation, the retained
+`MetalLocalWorkloadTuning`/`MetalCompletePlanTuning` collaborations, physical contribution, direct
+upload/download endpoints, and partial-open rollback. `Engine.Builder.takeOwnership(...)`
+transfers that complete opened owner into Engine. Engine owns registration, duplicate-ID
+validation, compile-time inventory, complete owner/transfer preflight, shared preparation, global
+schedule composition, tuning execution and evidence, per-occurrence outer adapter capture, and
+closure. Metal host ingress and materialization occur outside Runtime without re-querying the
+registry. The dependency remains one-way: Engine may depend on Metal; Metal production never
+depends on Engine.
 
 An explicitly composed Engine may mix CPU and Metal partitions. Shared Prepare assigns one
 representation position per participating owner; Metal contributes its exact buffer/workspace
@@ -679,19 +688,24 @@ distinct destination owner immediately before its first consumer. The current pa
 fully static canonical contiguous `FLOAT32` and performs no conversion, retry, fallback, or
 on-demand discovery. Runtime executes only the resulting direct prepared references.
 
-The builder does not make Metal's current backend-local candidates available to public
-`prepareTuned(...)`. A Metal-owned plan rejects that CPU-only workflow before representative
-input borrowing, candidate generation, or trial work; an allowed CPU safe-heuristic fallback
-cannot select or prepare Metal.
+For one exact singleton NEG Metal plan, public `prepareTuned(...)` measures the complete two-route
+local batch, authenticates the selected version-twelve decision, then correctness-checks and times
+one complete-plan candidate fixed to that route. The returned production recipe is freshly
+prepared after representative cleanup. Metal policy, producer, and decision-codec identities are
+adapter-owned and distinct from CPU identities; existing CPU bytes and behavior remain unchanged.
+Both Metal phases are `SESSION`, so workload-cache entries cannot hit or publish and the
+model-plan path receives no input/output. An allowed recoverable fallback performs ordinary
+preparation through the already-selected Metal adapter and never switches owner.
 
-Metal production has no Compiler or Engine dependency. Architecture tests lock that direction and
-the API-visible Engine dependency on Metal. Builder lifecycle tests cover entry-time transfer,
-snapshot and order freezing, duplicate-ID rejection, terminal failed build, reverse cleanup, and
-composition through `CONTIGUOUS`, the default strict binary/reduction fail-closed ownership
-boundary, CPU ownership when CPU is explicitly registered, and CPU-free accelerator binary and
-reduction execution. Separate CPU/Metal tests cover custom singleton execution, both transfer
-directions, adapter use after registry lookup is poisoned, CPU tuning with Metal registered, and
-early Metal tuning rejection.
+Mixed-owner plans, plans with multiple partitions, and MPSGraph-only partitions remain ineligible
+for Metal tuning. Metal production has no Compiler or Engine dependency. Architecture tests lock
+that direction and the API-visible Engine dependency on Metal. Builder lifecycle tests cover
+entry-time transfer, snapshot and order freezing, duplicate-ID rejection, terminal failed build,
+reverse cleanup, and composition through `CONTIGUOUS`, the default strict
+binary/reduction fail-closed ownership boundary, CPU ownership when CPU is explicitly registered,
+and CPU-free accelerator binary and reduction execution. Separate CPU/Metal tests cover custom
+singleton execution, both transfer directions, adapter use after registry lookup is poisoned,
+unchanged CPU tuning, public bounded Metal tuning, and selected-owner fallback.
 These implement the construction boundary in
 [ADR 0015](../design/decisions/0015-explicit-engine-backend-composition.md) and the current
 owner-indexed mixed schedule in

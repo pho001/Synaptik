@@ -3,6 +3,8 @@ package io.github.pho001.synaptik.engine;
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
 import io.github.pho001.synaptik.backend.cpu.CpuCompletePlanTuning;
 import io.github.pho001.synaptik.backend.cpu.CpuLocalWorkloadTuning;
+import io.github.pho001.synaptik.backend.metal.MetalCompletePlanTuning;
+import io.github.pho001.synaptik.backend.metal.MetalLocalWorkloadTuning;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.compiler.FunctionalGradientRequest;
 import io.github.pho001.synaptik.compiler.GraphCompilationPort;
@@ -75,6 +77,12 @@ public final class AdvancedEngine implements AutoCloseable {
     private static final int COMPLETE_PLAN_POLICY_TAG = 0x53455031;
     private static final int COMPLETE_PLAN_PRODUCER_TAG = 0x53455052;
     private static final int COMPLETE_PLAN_CODEC_TAG = 0x53454344;
+    private static final int METAL_COMPLETE_PLAN_POLICY_SCHEMA = 1;
+    private static final int METAL_COMPLETE_PLAN_PRODUCER_SCHEMA = 1;
+    private static final int METAL_COMPLETE_PLAN_CODEC_SCHEMA = 1;
+    private static final int METAL_COMPLETE_PLAN_POLICY_TAG = 0x4d455031;
+    private static final int METAL_COMPLETE_PLAN_PRODUCER_TAG = 0x4d455052;
+    private static final int METAL_COMPLETE_PLAN_CODEC_TAG = 0x4d454344;
 
     private enum Lifecycle { OPEN, CLOSING, CLOSED }
 
@@ -107,13 +115,13 @@ public final class AdvancedEngine implements AutoCloseable {
     private int activeOperations;
     private Throwable closeFailure;
 
-    /** Narrow typed cold-tuning seam implemented by CPU production composition and focused tests. */
+    /** Narrow typed cold-tuning seam implemented by supported production backends and tests. */
     interface ModelAutotuningTuning<C extends BackendTuningCandidateBatch,
             D extends BackendTuningDecision, K,
             PC extends BackendTuningCandidateBatch,
             PD extends BackendTuningDecision, PK> extends BackendWorkloadTuning<C, D, K> {
         /**
-         * Obtains the optional CPU-local candidate handoff for the exact compile artifacts.
+         * Obtains the optional backend-local candidate handoff for the exact compile artifacts.
          * @param artifacts non-null immutable artifacts for the admitted compiled graph
          * @return a non-null optional containing the sole eligible handoff, or empty when tuning
          *     is unavailable
@@ -147,6 +155,10 @@ public final class AdvancedEngine implements AutoCloseable {
          * @return non-null tool compatibility
          */
         CompletePlanTuningRequest.PlanCompatibility completePlanCompatibility(PC batch);
+        /** Returns the backend adapter's exact complete-plan policy identity.
+         * @return non-null immutable policy identity
+         */
+        CompletePlanTuningRequest.PolicyIdentity completePlanPolicyIdentity();
         /** Maps one opaque complete-plan candidate identity.
          * @param candidate exact candidate
          * @return non-null tool identity
@@ -234,8 +246,8 @@ public final class AdvancedEngine implements AutoCloseable {
      *
      * @param composition non-null owned Engine composition
      * @param numericalProfile non-null immutable graph-wide numerical-profile identity
-     * @param tuningOverride optional focused typed collaboration used instead of CPU production
-     *     adaptation; retained without invoking it
+     * @param tuningOverride optional focused typed collaboration used instead of production
+     *     backend adaptation; retained without invoking it
      */
     AdvancedEngine(
             EngineBackendComposition composition,
@@ -852,9 +864,10 @@ public final class AdvancedEngine implements AutoCloseable {
             EngineBackendComposition adapter =
                     composition.selectedAdapter(compiledGraph.artifacts());
             if (suppliedTuning == null
-                    && !(adapter instanceof CpuEngineBackendComposition)) {
+                    && !(adapter instanceof CpuEngineBackendComposition)
+                    && !(adapter instanceof MetalEngineBackendComposition)) {
                 throw new IllegalStateException(
-                        "model autotuning requires a CPU-owned partition plan");
+                        "model autotuning requires a supported single-owner partition plan");
             }
             session = new RepresentativeExecutionSession(
                     this,
@@ -872,8 +885,14 @@ public final class AdvancedEngine implements AutoCloseable {
         try {
             tuning = suppliedTuning;
             if (tuning == null) {
-                tuning = new CpuTuningAdapter(
-                        (CpuEngineBackendComposition) session.adapter());
+                if (session.adapter() instanceof CpuEngineBackendComposition cpu) {
+                    tuning = new CpuTuningAdapter(cpu);
+                } else if (session.adapter() instanceof MetalEngineBackendComposition metal) {
+                    tuning = new MetalTuningAdapter(metal);
+                } else {
+                    throw new IllegalStateException(
+                            "model autotuning requires a supported single-owner partition plan");
+                }
             }
         } catch (RuntimeException | Error failure) {
             closeWithSuppression(session, failure);
@@ -897,7 +916,7 @@ public final class AdvancedEngine implements AutoCloseable {
         try {
             var optionalHandoff = tuning.candidateHandoff(compiledGraph.artifacts());
             if (optionalHandoff.isEmpty()) {
-                throw new IllegalStateException("no eligible CPU local-workload tuning handoff");
+                throw new IllegalStateException("no eligible local-workload tuning handoff");
             }
             var handoff = optionalHandoff.orElseThrow();
             byte[] context = ByteBuffer.allocate(8).putInt(0).putInt(0).array();
@@ -925,14 +944,15 @@ public final class AdvancedEngine implements AutoCloseable {
             var optionalCompleteHandoff = tuning.completePlanCandidateHandoff(
                     compiledGraph.artifacts(), phaseOneDecision);
             if (optionalCompleteHandoff.isEmpty()) {
-                throw new IllegalStateException("no eligible CPU complete-plan tuning handoff");
+                throw new IllegalStateException("no eligible complete-plan tuning handoff");
             }
             var completeHandoff = optionalCompleteHandoff.orElseThrow();
             var completeCompatibility = Objects.requireNonNull(
                     tuning.completePlanCompatibility(completeHandoff.candidateBatch()),
                     "complete-plan compatibility");
             var completeRequest = completePlanTuningRequest(
-                    config, modelIdentity, completeHandoff, completeCompatibility);
+                    config, modelIdentity, completeHandoff, completeCompatibility,
+                    tuning.completePlanPolicyIdentity());
             CompletePlanTuningResult<PC, PD> completeResult;
             try {
                 completeResult = CompletePlanTuning.tune(
@@ -2131,9 +2151,11 @@ public final class AdvancedEngine implements AutoCloseable {
                     ModelAutotuningConfig config,
                     ModelAutotuningRequest.ModelIdentity modelIdentity,
                     BackendPartitionTuningHandoff<C, D> handoff,
-                    CompletePlanTuningRequest.PlanCompatibility compatibility) {
+                    CompletePlanTuningRequest.PlanCompatibility compatibility,
+                    CompletePlanTuningRequest.PolicyIdentity policyIdentity) {
         Objects.requireNonNull(config, "config");
         Objects.requireNonNull(compatibility, "compatibility");
+        Objects.requireNonNull(policyIdentity, "policyIdentity");
         var profile = config.representativeProfile();
         var budget = config.completePlanBudget();
         return new CompletePlanTuningRequest<>(
@@ -2148,8 +2170,7 @@ public final class AdvancedEngine implements AutoCloseable {
                             CompletePlanTuningRequest.Objective.MIN_MEDIAN_ELAPSED_NANOS;
                 },
                 CompletePlanTuningRequest.CorrectnessPolicy.EXACT_CANONICAL_BYTES,
-                new CompletePlanTuningRequest.PolicyIdentity(
-                        COMPLETE_PLAN_POLICY_SCHEMA, completePlanPolicyIdentity()),
+                policyIdentity,
                 budget.maximumPlanCandidates(),
                 budget.warmupCount(),
                 budget.timedSampleCount(),
@@ -2176,7 +2197,7 @@ public final class AdvancedEngine implements AutoCloseable {
                 .array();
     }
 
-    private static byte[] completePlanPolicyIdentity() {
+    static byte[] completePlanPolicyIdentity() {
         return ByteBuffer.allocate(24)
                 .putInt(COMPLETE_PLAN_POLICY_TAG)
                 .putInt(COMPLETE_PLAN_POLICY_SCHEMA)
@@ -2187,19 +2208,48 @@ public final class AdvancedEngine implements AutoCloseable {
                 .array();
     }
 
-    private static CompletePlanTuningRequest.ProducerIdentity completePlanProducerIdentity() {
+    static CompletePlanTuningRequest.ProducerIdentity completePlanProducerIdentity() {
         return new CompletePlanTuningRequest.ProducerIdentity(
                 COMPLETE_PLAN_PRODUCER_SCHEMA,
                 ByteBuffer.allocate(8).putInt(COMPLETE_PLAN_PRODUCER_TAG)
                         .putInt(COMPLETE_PLAN_PRODUCER_SCHEMA).array());
     }
 
-    private static CompletePlanTuningRequest.DecisionCodecIdentity
+    static CompletePlanTuningRequest.DecisionCodecIdentity
             completePlanDecisionCodecIdentity() {
         return new CompletePlanTuningRequest.DecisionCodecIdentity(
                 COMPLETE_PLAN_CODEC_SCHEMA,
                 ByteBuffer.allocate(8).putInt(COMPLETE_PLAN_CODEC_TAG)
                         .putInt(COMPLETE_PLAN_CODEC_SCHEMA).array());
+    }
+
+    static CompletePlanTuningRequest.PolicyIdentity metalCompletePlanPolicyIdentity() {
+        return new CompletePlanTuningRequest.PolicyIdentity(
+                METAL_COMPLETE_PLAN_POLICY_SCHEMA,
+                ByteBuffer.allocate(24)
+                        .putInt(METAL_COMPLETE_PLAN_POLICY_TAG)
+                        .putInt(METAL_COMPLETE_PLAN_POLICY_SCHEMA)
+                        .putInt(2) // fixed one-partition Metal producer
+                        .putInt(1) // exact canonical-byte correctness
+                        .putInt(1) // exact Phase-1-selected local route
+                        .putInt(0) // no complete-plan topology/representation alternative
+                        .array());
+    }
+
+    static CompletePlanTuningRequest.ProducerIdentity
+            metalCompletePlanProducerIdentity() {
+        return new CompletePlanTuningRequest.ProducerIdentity(
+                METAL_COMPLETE_PLAN_PRODUCER_SCHEMA,
+                ByteBuffer.allocate(8).putInt(METAL_COMPLETE_PLAN_PRODUCER_TAG)
+                        .putInt(METAL_COMPLETE_PLAN_PRODUCER_SCHEMA).array());
+    }
+
+    static CompletePlanTuningRequest.DecisionCodecIdentity
+            metalCompletePlanDecisionCodecIdentity() {
+        return new CompletePlanTuningRequest.DecisionCodecIdentity(
+                METAL_COMPLETE_PLAN_CODEC_SCHEMA,
+                ByteBuffer.allocate(8).putInt(METAL_COMPLETE_PLAN_CODEC_TAG)
+                        .putInt(METAL_COMPLETE_PLAN_CODEC_SCHEMA).array());
     }
 
     private static <C extends BackendTuningCandidateBatch, D extends BackendTuningDecision, K,
@@ -2541,6 +2591,13 @@ public final class AdvancedEngine implements AutoCloseable {
                     composition.projectedContext(artifacts), Optional.of(phaseOneDecision));
         }
 
+        @Override public CompletePlanTuningRequest.PolicyIdentity
+                completePlanPolicyIdentity() {
+            return new CompletePlanTuningRequest.PolicyIdentity(
+                    COMPLETE_PLAN_POLICY_SCHEMA,
+                    AdvancedEngine.completePlanPolicyIdentity());
+        }
+
         @Override public List<CpuCompletePlanTuning.Candidate> completePlanCandidates(
                 CpuCompletePlanTuning.CandidateBatch batch) {
             return completeTuning().candidates(batch);
@@ -2594,6 +2651,150 @@ public final class AdvancedEngine implements AutoCloseable {
                         CompileArtifacts artifacts,
                         CpuCompletePlanTuning.CandidateBatch batch,
                         CpuCompletePlanTuning.SelectedDecision decision) {
+            return composition.prepare(
+                    artifacts, completeTuning().selectedPreparation(batch, decision));
+        }
+    }
+
+    private record MetalTuningAdapter(MetalEngineBackendComposition composition)
+            implements ModelAutotuningTuning<MetalLocalWorkloadTuning.CandidateBatch,
+                    MetalLocalWorkloadTuning.SelectedDecision,
+                    MetalLocalWorkloadTuning.Candidate,
+                    MetalCompletePlanTuning.CandidateBatch,
+                    MetalCompletePlanTuning.SelectedDecision,
+                    MetalCompletePlanTuning.Candidate> {
+        private MetalTuningAdapter {
+            Objects.requireNonNull(composition, "composition");
+        }
+
+        private MetalLocalWorkloadTuning tuning() {
+            return composition.localWorkloadTuning();
+        }
+
+        private MetalCompletePlanTuning completeTuning() {
+            return composition.completePlanTuning();
+        }
+
+        @Override public Optional<BackendPartitionTuningHandoff<
+                MetalLocalWorkloadTuning.CandidateBatch,
+                MetalLocalWorkloadTuning.SelectedDecision>> candidateHandoff(
+                        CompileArtifacts artifacts) {
+            return tuning().candidateHandoff(composition.projectedContext(artifacts));
+        }
+
+        @Override public io.github.pho001.synaptik.runtime.execution.PreparedExecution prepareTrial(
+                CompileArtifacts artifacts,
+                MetalLocalWorkloadTuning.CandidateBatch batch,
+                MetalLocalWorkloadTuning.Candidate candidate) {
+            return composition.prepare(
+                    artifacts, tuning().trialPreparation(batch, candidate));
+        }
+
+        @Override public List<MetalLocalWorkloadTuning.Candidate> candidates(
+                MetalLocalWorkloadTuning.CandidateBatch batch) {
+            return tuning().candidates(batch);
+        }
+
+        @Override public WorkloadTuningRequest.WorkloadCompatibility compatibility(
+                MetalLocalWorkloadTuning.CandidateBatch batch) {
+            var value = tuning().compatibility(batch);
+            return new WorkloadTuningRequest.WorkloadCompatibility(
+                    value.schemaVersion(), value.bytes(),
+                    WorkloadTuningRequest.ReuseScope.SESSION);
+        }
+
+        @Override public WorkloadTuningRequest.CandidateIdentity candidateIdentity(
+                MetalLocalWorkloadTuning.Candidate candidate) {
+            return new WorkloadTuningRequest.CandidateIdentity(
+                    tuning().candidateIdentity(candidate).bytes());
+        }
+
+        @Override public MetalLocalWorkloadTuning.SelectedDecision selectedDecision(
+                MetalLocalWorkloadTuning.CandidateBatch batch,
+                MetalLocalWorkloadTuning.Candidate candidate) {
+            return tuning().selectedDecision(batch, candidate);
+        }
+
+        @Override public byte[] encodeDecision(
+                MetalLocalWorkloadTuning.SelectedDecision decision) {
+            return tuning().encodeDecision(decision);
+        }
+
+        @Override public Optional<MetalLocalWorkloadTuning.SelectedDecision>
+                decodeCompatibleDecision(
+                        MetalLocalWorkloadTuning.CandidateBatch batch,
+                        byte[] encodedDecision) {
+            return tuning().decodeCompatibleDecision(batch, encodedDecision);
+        }
+
+        @Override public Optional<BackendPartitionTuningHandoff<
+                MetalCompletePlanTuning.CandidateBatch,
+                MetalCompletePlanTuning.SelectedDecision>> completePlanCandidateHandoff(
+                        CompileArtifacts artifacts,
+                        MetalLocalWorkloadTuning.SelectedDecision phaseOneDecision) {
+            return Optional.of(completeTuning().candidateHandoff(
+                    composition.projectedContext(artifacts), phaseOneDecision));
+        }
+
+        @Override public List<MetalCompletePlanTuning.Candidate> completePlanCandidates(
+                MetalCompletePlanTuning.CandidateBatch batch) {
+            return completeTuning().candidates(batch);
+        }
+
+        @Override public CompletePlanTuningRequest.PlanCompatibility completePlanCompatibility(
+                MetalCompletePlanTuning.CandidateBatch batch) {
+            var value = completeTuning().compatibility(batch);
+            return new CompletePlanTuningRequest.PlanCompatibility(
+                    metalCompletePlanProducerIdentity(),
+                    metalCompletePlanDecisionCodecIdentity(),
+                    value.schemaVersion(),
+                    value.bytes(),
+                    CompletePlanTuningRequest.ReuseScope.SESSION);
+        }
+
+        @Override public CompletePlanTuningRequest.PolicyIdentity
+                completePlanPolicyIdentity() {
+            return metalCompletePlanPolicyIdentity();
+        }
+
+        @Override public CompletePlanTuningRequest.CandidateIdentity
+                completePlanCandidateIdentity(MetalCompletePlanTuning.Candidate candidate) {
+            return new CompletePlanTuningRequest.CandidateIdentity(
+                    completeTuning().candidateIdentity(candidate).bytes());
+        }
+
+        @Override public MetalCompletePlanTuning.SelectedDecision completePlanSelectedDecision(
+                MetalCompletePlanTuning.CandidateBatch batch,
+                MetalCompletePlanTuning.Candidate candidate) {
+            return completeTuning().selectedDecision(batch, candidate);
+        }
+
+        @Override public byte[] encodeCompletePlanDecision(
+                MetalCompletePlanTuning.SelectedDecision decision) {
+            return completeTuning().encodeDecision(decision);
+        }
+
+        @Override public Optional<MetalCompletePlanTuning.SelectedDecision>
+                decodeCompatibleCompletePlanDecision(
+                        MetalCompletePlanTuning.CandidateBatch batch,
+                        byte[] encodedDecision) {
+            return completeTuning().decodeCompatibleDecision(batch, encodedDecision);
+        }
+
+        @Override public io.github.pho001.synaptik.runtime.execution.PreparedExecution
+                prepareCompletePlanTrial(
+                        CompileArtifacts artifacts,
+                        MetalCompletePlanTuning.CandidateBatch batch,
+                        MetalCompletePlanTuning.Candidate candidate) {
+            return composition.prepare(
+                    artifacts, completeTuning().trialPreparation(batch, candidate));
+        }
+
+        @Override public io.github.pho001.synaptik.runtime.execution.PreparedExecution
+                prepareCompletePlanSelected(
+                        CompileArtifacts artifacts,
+                        MetalCompletePlanTuning.CandidateBatch batch,
+                        MetalCompletePlanTuning.SelectedDecision decision) {
             return composition.prepare(
                     artifacts, completeTuning().selectedPreparation(batch, decision));
         }

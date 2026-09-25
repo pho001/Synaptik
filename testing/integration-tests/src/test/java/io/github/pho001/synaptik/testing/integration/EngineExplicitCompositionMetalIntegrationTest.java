@@ -1044,15 +1044,6 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         var result = engine.run(tuned, List.of(cpuInput))) {
                     assertEquals(1, result.resultCount());
                 }
-                Tensor noStorage = TensorFactory.create(
-                        descriptor, Optional.empty(), Optional.empty());
-                var metalForTuning = engine.compile(List.of(noStorage.neg()));
-                ModelAutotuningRequest metalRequest = tuningRequest(
-                        directory, noStorage,
-                        ModelAutotuningConfig.FallbackPolicy.ALLOW_SAFE_HEURISTIC);
-                assertEquals("model autotuning requires a CPU-owned partition plan",
-                        assertThrows(IllegalStateException.class,
-                                () -> engine.prepareTuned(metalForTuning, metalRequest)).getMessage());
                 Tensor capturedBase = input.exp();
                 Tensor metalPublication = capturedBase.neg();
                 Tensor cpuPublication = metalPublication.exp();
@@ -1061,6 +1052,64 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         engine.compile(List.of(metalPublication, cpuPublication)),
                         List.of("cpu", "metal", "cpu"),
                         List.of(input));
+            }
+        }
+    }
+
+    @Test
+    void publicMetalRouteTuningPreparesAndRunsSingletonNeg(@TempDir Path directory) {
+        Path library = configuredMetalLibrary();
+        Path workloadCache = directory.resolve("metal-workload.bin");
+        Path modelPlanCache = directory.resolve("metal-model-plan.bin");
+        try (Arena arena = Arena.ofShared();
+                Engine.Builder builder = Engine.builder()) {
+            builder.takeOwnership(MetalBackendIntegration.open(
+                    new MetalBackendConfiguration(library)));
+            try (Engine engine = builder.build()) {
+                Tensor input = nativeTensor(
+                        descriptor(Shape.of(2)), arena, 1.25f, -2.5f);
+                var compiled = engine.compile(List.of(input.neg()));
+                var config = new ModelAutotuningConfig(
+                        ModelAutotuningConfig.Objective.MIN_MEDIAN_ELAPSED_NANOS,
+                        new ModelAutotuningConfig.Budget(1, 2, 0, 1),
+                        new ModelAutotuningConfig.RepresentativeProfileIdentity(
+                                1, new byte[] {2}),
+                        ModelAutotuningConfig.FallbackPolicy.REQUIRE_TUNED_RESULT,
+                        workloadCache,
+                        new ModelAutotuningConfig.CompletePlanBudget(1, 0, 1, 2L, 8L),
+                        modelPlanCache);
+                var request = new ModelAutotuningRequest(
+                        config,
+                        new ModelAutotuningRequest.ModelIdentity(1, new byte[] {1}),
+                        List.of(input));
+
+                ModelAutotuningPreparation preparation =
+                        engine.prepareTuned(compiled, request);
+                assertEquals(ModelAutotuningPreparation.Outcome.TUNED,
+                        preparation.outcome());
+                var evidence = preparation.evidence().orElseThrow();
+                assertEquals(1, evidence.workloads().size());
+                var local = evidence.workloads().getFirst();
+                assertEquals(ModelAutotuningPreparation.Source.MEASURED, local.source());
+                assertEquals(ModelAutotuningPreparation.ReuseScope.SESSION,
+                        local.compatibility().reuseScope());
+                assertEquals(2, local.candidates().size());
+                assertEquals(ModelAutotuningPreparation.Source.MEASURED,
+                        evidence.completePlan().source());
+                assertEquals(ModelAutotuningPreparation.ReuseScope.SESSION,
+                        evidence.completePlan().compatibility().reuseScope());
+                assertEquals(1, evidence.completePlan().candidates().size());
+                assertFalse(Files.exists(workloadCache));
+                assertFalse(Files.exists(modelPlanCache));
+
+                try (var tuned = preparation.preparedExecution();
+                        var result = engine.run(tuned, List.of(input))) {
+                    assertEquals(1, result.resultCount());
+                    assertCanonical(
+                            result.materialize(
+                                    result.publications().getFirst(), 8L).bytes(),
+                            -1.25f, 2.5f);
+                }
             }
         }
     }

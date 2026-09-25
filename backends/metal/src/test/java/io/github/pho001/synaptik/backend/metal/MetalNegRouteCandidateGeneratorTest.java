@@ -103,6 +103,7 @@ class MetalNegRouteCandidateGeneratorTest {
         }
     }
 
+
     @Test
     void signaturesUseStructuralPositionsAndCoverIndependentCurrentFacts() {
         TestNativeApi api = new TestNativeApi();
@@ -1090,14 +1091,16 @@ class MetalNegRouteCandidateGeneratorTest {
     }
 
 
-    private static BackendPartitionAnalysis<MetalNegPreparationPlan> analyze(
+    static BackendPartitionAnalysis<MetalNegPreparationPlan> analyze(
             PrepareContext<MetalNegAnalysisInputs> context) {
         return new MetalNegPartitionPreparer().analyze(context);
     }
 
-    private static Workload withInputs(Workload workload, MetalNegAnalysisInputs inputs) {
+    static Workload withInputs(Workload workload, MetalNegAnalysisInputs inputs) {
         PrepareContext<MetalNegAnalysisInputs> context = workload.context();
-        return new Workload(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, context.partitionDag(), context.values(), context.memoryRequirements(), context.constants(), inputs));
+        return new Workload(new PrepareContext<>(NumericalProfile.STRICT_IEEE,
+                context.partitionDag(), context.values(), context.memoryRequirements(),
+                context.constants(), inputs));
     }
 
     private static Workload unaryWorkload(
@@ -1124,7 +1127,7 @@ class MetalNegRouteCandidateGeneratorTest {
                 context.backendInputs()));
     }
 
-    private static Workload workload(
+    static Workload workload(
             MetalDeviceContext device,
             long identityBase,
             Shape shape,
@@ -1191,13 +1194,13 @@ class MetalNegRouteCandidateGeneratorTest {
         return changed;
     }
 
-    private record Workload(PrepareContext<MetalNegAnalysisInputs> context) { }
+    record Workload(PrepareContext<MetalNegAnalysisInputs> context) { }
 
     private record Generated(
             BackendPartitionAnalysis<MetalNegPreparationPlan> analysis,
             MetalNegTuningBatch batch) { }
 
-    private static final class TestNativeApi extends MetalNativeApi {
+    static final class TestNativeApi extends MetalNativeApi {
         private final AtomicInteger nativeAllocations = new AtomicInteger();
         private long nextHandle = 1;
 

@@ -262,10 +262,11 @@ host materialization. Neither operation re-queries the registry. Engine shutdown
 results first, then sessions and standalone prepared handles in their shared reverse
 preparation-publication order, then integrations, so no captured reference can outlive its owner.
 
-The existing `prepareTuned(...)` workflow stays CPU-only. It can tune a single CPU-owned plan even
-when Metal is also registered. A Metal-owned plan fails before representative input borrowing or
-trial work, and the allowed safe-heuristic fallback remains within the already-selected CPU owner;
-it never changes ownership or prepares Metal.
+`prepareTuned(...)` accepts one eligible single-owner CPU plan or exact singleton-NEG Metal plan.
+Metal Phase 1 measures its custom-kernel and MPSGraph routes; Phase 2 checks one complete candidate
+fixed to the selected route. Mixed ownership, multiple partitions, and MPSGraph-only Metal plans
+remain ineligible. A safe-heuristic fallback always prepares through the already-selected adapter;
+it never substitutes CPU for Metal or otherwise changes ownership.
 
 Engine shutdown rejects new work, waits for admitted Engine operations, closes retained results in
 reverse successful-run publication order, then sessions and standalone prepared handles in their

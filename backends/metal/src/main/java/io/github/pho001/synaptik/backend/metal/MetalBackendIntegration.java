@@ -19,9 +19,10 @@ import java.util.function.Consumer;
  * validates its ABI, creates native ownership, and rolls back every partially opened native owner
  * before failing. The integration and its immutable collaborators may be used concurrently while
  * Engine coordinates their lifetime. It performs no library discovery, CPU fallback, backend
- * registration, or transfer scheduling. It exposes a physical schedule contributor and checked
- * native upload/download binders that Engine uses for the bounded mixed-owner CPU/Metal transfer
- * domain.</p>
+ * registration, transfer scheduling, tuning measurement, or cache input/output. It exposes
+ * retained local-workload and complete-plan tuning collaborations, a physical schedule
+ * contributor, and checked native upload/download binders that Engine uses for the bounded
+ * mixed-owner CPU/Metal transfer domain.</p>
  */
 public final class MetalBackendIntegration implements AutoCloseable {
     private final MetalBackendConfiguration configuration;
@@ -133,6 +134,34 @@ public final class MetalBackendIntegration implements AutoCloseable {
      */
     public PartitionPreparation<?, ?> partitionPreparation() {
         return runtime.partitionPreparation();
+    }
+
+    /**
+     * Returns the retained Metal local-workload route-tuning collaboration.
+     *
+     * <p>The collaboration is session-scoped, exposes candidates only for exact singleton NEG
+     * partitions having both custom-kernel and MPSGraph routes, and borrows this integration's
+     * lifetime. It performs no execution, measurement, or cache input/output.</p>
+     *
+     * @return the same non-null collaboration on every call
+     * @throws IllegalStateException if native ownership is no longer available when used
+     */
+    public MetalLocalWorkloadTuning localWorkloadTuning() {
+        return runtime.localWorkloadTuning();
+    }
+
+    /**
+     * Returns the retained Metal fixed-route complete-plan tuning collaboration.
+     *
+     * <p>The collaboration is session-scoped, exposes one authenticated candidate after a local
+     * route selection, and borrows this integration's lifetime. It performs no execution,
+     * measurement, or cache input/output.</p>
+     *
+     * @return the same non-null collaboration on every call
+     * @throws IllegalStateException if native ownership is no longer available when used
+     */
+    public MetalCompletePlanTuning completePlanTuning() {
+        return runtime.completePlanTuning();
     }
 
     /**

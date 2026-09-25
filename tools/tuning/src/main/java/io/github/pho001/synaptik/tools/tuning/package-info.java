@@ -21,10 +21,12 @@
  * correctness-reference bytes, cleanup, and later preparation of the selected decision. The
  * concrete producer owns candidate meaning, legality, compatibility, ordering, reuse scope,
  * decision construction, and codecs. Current {@code Engine.prepareTuned(...)} composes both
- * phases for one eligible CPU workload occurrence and one CPU complete-plan candidate batch with
- * session-scoped reuse. Broader occurrence extraction, graph, ownership, or partition
- * alternatives, mixed-backend composition, persistent CPU complete-plan reuse, and executable
- * persistence remain outside the current public workflow.
+ * phases for one eligible single-owner CPU or Metal workload occurrence. Metal is limited to an
+ * exact singleton NEG with a two-route local batch and one complete-plan candidate fixed to the
+ * selected route; both Metal phases are session-scoped, so the tool performs no Metal
+ * publication, persistent hit, or model-plan-cache input/output. Broader occurrence extraction,
+ * mixed ownership, multiple partitions, MPSGraph-only Metal partitions, persistent complete-plan
+ * reuse, and executable persistence remain outside the current public workflow.
  *
  * <p>{@link io.github.pho001.synaptik.tools.tuning.TuningInspection} supplies a separate cold,
  * read-only view of both compact schema-1 artifacts and of already-created rich evidence. It

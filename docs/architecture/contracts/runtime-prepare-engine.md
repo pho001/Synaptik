@@ -444,11 +444,12 @@ transactional in `RunStateCreation`; a later creation, binding, transfer, execut
 failure closes only run-owned resources in reverse acquisition order and never closes borrowed
 caller storage.
 
-`Engine.prepareTuned(...)` remains CPU-only. It rejects an empty, missing, Metal-only, or mixed
-owner plan before representative-input borrowing, candidate generation, trial preparation, or
-execution. A complete CPU-owned plan may tune when Metal is also registered.
-`ALLOW_SAFE_HEURISTIC` may fall back only within that already-selected CPU entry after a
-recoverable CPU tuning failure; it never changes owner or admits a heterogeneous trial.
+`Engine.prepareTuned(...)` admits one eligible single-owner CPU plan or exact singleton-NEG Metal
+plan. It rejects empty, missing, mixed-owner, and multiple-partition plans before representative
+trial execution; Metal additionally requires the complete custom-kernel/MPSGraph local batch, so
+MPSGraph-only plans are not tuned. `ALLOW_SAFE_HEURISTIC` may fall back only through the exact
+already-selected adapter after a recoverable tuning failure; it never changes owner or admits a
+heterogeneous trial.
 
 The registry map has no post-prepare execution role. Runtime receives immutable schedules with
 direct prepared executable, transfer, representation-creation, and publication references. Outer

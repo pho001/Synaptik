@@ -22,18 +22,21 @@ Benchmarking remains a separate report-only activity. Planning cost remains a se
 backend-neutral estimate used to prune or rank ownership choices. Runtime profiling remains
 passive observation.
 
-The current public Engine composition implements both phases for one representative input set,
-at most one eligible CPU-local workload, and one non-empty maximal CPU partition. It joins Config,
-both generic tuning transactions, Prepare's opaque handoff, CPU's typed producers, and Engine's
-exact correctness primitive behind `Engine.prepareTuned(...)`.
+The current public Engine composition implements both phases for one representative input set and
+one eligible single-owner partition. CPU retains its existing local and complete-plan producers.
+Metal admits only exact singleton NEG, exposes the ordered local candidates custom kernel then
+MPSGraph, and exposes one complete-plan candidate fixed to the selected route. Engine joins
+Config, both generic tuning transactions, Prepare's opaque handoff, the selected backend's typed
+producer, and exact correctness behind `Engine.prepareTuned(...)`.
 
-Phase 1 runs once. Engine authenticates its selected decision and passes that exact value
-unchanged to CPU complete-plan candidate production. Phase 2 then checks every candidate by exact
-ordered canonical publication bytes before any warmup or timed execution. Each action uses a
-fresh preparation and fresh Runtime state. After winner authentication, Engine cleans the
-representative session and performs exactly one fresh selected production preparation. This
-bounded composition does not add Compiler graph alternatives, Planning owner or partition
-alternatives, multiple partitions, mixed backends, or persistent CPU reuse.
+Phase 1 runs once. Engine authenticates its selected decision and passes that exact value unchanged
+to the same backend's complete-plan producer. Phase 2 then checks every candidate by exact ordered
+canonical publication bytes before any warmup or timed execution. Each action uses a fresh
+preparation and fresh Runtime state. After winner authentication, Engine cleans the representative
+session and performs exactly one fresh selected production preparation. This bounded composition
+does not add Compiler graph alternatives, Planning owner or partition alternatives, multiple
+partitions, mixed backends, or persistent complete-plan reuse. Metal compatibility is session-only,
+so Metal cannot hit or publish the workload cache and never accesses the model-plan path.
 
 ## Benchmarking is fixed and observational
 
@@ -174,19 +177,22 @@ session; execution, copy, count, length, or cleanup failure follows the existing
 and once-only cleanup protocol.
 
 Engine adapts that primitive to the generic Phase-2 transaction without moving candidate meaning
-out of CPU. Correctness, warmup, and timed actions each freshly prepare the requested candidate;
-after result authentication and representative cleanup, exactly one additional fresh preparation
-creates the returned winner. The correctness primitive itself still does not enumerate or
-interpret candidates, time work, select a winner, access a cache, or apply fallback.
+out of the selected backend. Correctness, warmup, and timed actions each freshly prepare the
+requested candidate; after result authentication and representative cleanup, exactly one
+additional fresh preparation creates the returned winner. The correctness primitive itself still
+does not enumerate or interpret candidates, time work, select a winner, access a cache, or apply
+fallback.
 
 `TUNED` carries authenticated immutable evidence for both phases. Measured complete-plan rows
 record the exact correctness action, encounter-ordered raw samples, summary, and candidate
-identity; compact cache records do not. `SAFE_HEURISTIC_FALLBACK` records one fresh allowed safe
-preparation and carries no evidence. Caller-defined model and profile identities label evidence;
-they neither key the workload cache nor authorize compatibility. The current occurrence is always
-index 0 in partition 0 with weight 1. This remains CPU-only bounded plan tuning, not model
-extraction, multi-occurrence weighting, broader graph/partition search, mixed-backend tuning, or
-executable persistence.
+identity; compact cache records do not. `SAFE_HEURISTIC_FALLBACK` records one fresh allowed
+safe-heuristic preparation through the selected adapter and carries no evidence. Caller-defined
+model and profile identities label evidence; they neither key the workload cache nor authorize
+compatibility. The current occurrence is always index 0 in partition 0 with weight 1. Current CPU
+and Metal complete-plan compatibility is session-only; Metal local compatibility is also
+session-only. This remains bounded single-partition tuning, not model extraction,
+multi-occurrence weighting, broader graph/partition search, mixed-backend tuning, or executable
+persistence.
 
 Runtime executes the selected prepared schedule. It performs no search, tuning-cache lookup or
 mutation, or hot-path graph inspection. Runtime profiling may passively describe actual execution

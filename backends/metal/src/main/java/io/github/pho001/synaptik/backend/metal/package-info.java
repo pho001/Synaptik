@@ -35,23 +35,31 @@
  * <p>{@link io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration} names one explicit
  * native bridge. {@link io.github.pho001.synaptik.backend.metal.MetalBackendIntegration} opens and
  * owns one default-device native context and supplies availability, partition preparation,
- * backend-local schedule assembly, a shared physical schedule contribution, checked native
- * upload/download binders, caller-host ingress, and bounded canonical host materialization to
- * Engine's explicit builder. Exact prepared affine-view targets may materialize from their
- * authenticated backend-private dense represented-order buffers without rewriting logical view
- * descriptors or widening the canonical non-view CPU/Metal transfer predicate. Engine uses those
- * contributions and binders for the bounded bidirectional CPU/Metal mixed-owner schedule. Native
- * internals remain package-private. There is no library discovery, CPU fallback, or backend-global
- * integration.</p>
+ * retained {@link io.github.pho001.synaptik.backend.metal.MetalLocalWorkloadTuning local-workload}
+ * and {@link io.github.pho001.synaptik.backend.metal.MetalCompletePlanTuning complete-plan}
+ * tuning, backend-local schedule assembly, a shared physical schedule contribution, checked
+ * native upload/download binders, caller-host ingress, and bounded canonical host materialization
+ * to Engine's explicit builder. Local tuning admits only an exact singleton NEG having both the
+ * custom-kernel and MPSGraph routes. Complete-plan tuning authenticates that local selection and
+ * exposes one whole-plan candidate fixed to the selected route. Both collaborations use opaque
+ * exact associations, fresh authoritative preparation, and session-only compatibility; they
+ * perform no execution, measurement, cache input/output, or fallback-policy work. Exact prepared
+ * affine-view targets may materialize from their authenticated backend-private dense
+ * represented-order buffers without rewriting logical view descriptors or widening the canonical
+ * non-view CPU/Metal transfer predicate. Engine uses those contributions and binders for the
+ * bounded bidirectional CPU/Metal mixed-owner schedule. Native internals remain package-private.
+ * There is no library discovery, CPU fallback, or backend-global integration.</p>
  *
  * <p>The optional
  * {@link MetalBackendIntegration#open(MetalBackendConfiguration, MetalTraceObserver) traced open}
- * overload retains but never closes one caller-owned thread-safe observer. It reports only final
- * preparation and native-invocation outcomes with stream-local correlations. Observer runtime
- * failures disable later tracing without changing backend outcomes. An observer error propagates
- * from success reporting; during failure reporting, the backend failure remains primary and
- * receives a distinct acyclic observer error as a suppressed failure. The ordinary open overload
- * creates no trace producer or trace work.</p>
+ * overload retains but never closes one caller-owned thread-safe observer. The same trace producer
+ * is retained by ordinary, local-trial, complete-plan-trial, and selected preparations. It reports
+ * only final preparation and native-invocation outcomes with stream-local correlations; tuning
+ * eligibility validation creates no ghost trace unit. Observer runtime failures disable later
+ * tracing without changing backend outcomes. An observer error propagates from success reporting;
+ * during failure reporting, the backend failure remains primary and receives a distinct acyclic
+ * observer error as a suppressed failure. The ordinary open overload creates no trace producer or
+ * trace work.</p>
  *
  * <p>The selected numerical profile participates in partition-plan, route, tuning,
  * decision-codec, and workload identity. Java rejects profile/schema mismatches before native

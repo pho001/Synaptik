@@ -13,9 +13,9 @@ import java.util.Optional;
  * <p>A tuned result first records the authenticated local-workload decisions, then the exact
  * correctness actions and complete-plan measurements that selected the production plan. The
  * contained handle is freshly prepared only after both phases and representative cleanup finish;
- * no correctness or timing trial becomes production state. Current CPU complete-plan evidence is
- * session-scoped and measured, while the value model can also represent a future authenticated
- * persistent hit with no candidate rows.</p>
+ * no correctness or timing trial becomes production state. Current CPU and Metal complete-plan
+ * evidence is session-scoped and measured, while the value model can also represent a future
+ * authenticated persistent hit with no candidate rows.</p>
  *
  * <p>Evidence is present exactly for {@link Outcome#TUNED}; fallback is always explicit and
  * carries none. This value is not another closeable owner: callers close the contained {@link

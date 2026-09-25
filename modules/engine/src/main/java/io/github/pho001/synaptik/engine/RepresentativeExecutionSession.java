@@ -4,6 +4,7 @@ import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorId;
+import io.github.pho001.synaptik.prepare.GraphPreparation;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import io.github.pho001.synaptik.runtime.run.PreparedExecutionRunner;
@@ -492,11 +493,10 @@ final class RepresentativeExecutionSession implements AutoCloseable {
                     ordinaryPreparationOverride.prepare(artifacts),
                     "ordinary preparation override result");
         }
-        if (!(composition instanceof CpuEngineBackendComposition cpu)) {
-            throw new IllegalStateException(
-                    "ordinary tuning fallback requires CPU composition");
-        }
-        return cpu.prepare(artifacts, cpu.partitionPreparation());
+        return GraphPreparation.prepare(
+                artifacts,
+                List.of(composition.partitionPreparation()),
+                composition.scheduleAssembler());
     }
 
     /**

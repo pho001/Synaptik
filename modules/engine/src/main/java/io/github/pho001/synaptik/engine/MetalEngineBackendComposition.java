@@ -2,13 +2,19 @@ package io.github.pho001.synaptik.engine;
 
 import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
 import io.github.pho001.synaptik.backend.metal.MetalBackendIntegration;
+import io.github.pho001.synaptik.backend.metal.MetalCompletePlanTuning;
+import io.github.pho001.synaptik.backend.metal.MetalLocalWorkloadTuning;
+import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
+import io.github.pho001.synaptik.prepare.GraphPreparation;
 import io.github.pho001.synaptik.prepare.PartitionPreparation;
 import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
 import io.github.pho001.synaptik.prepare.PreparedScheduleContributor;
+import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import io.github.pho001.synaptik.runtime.execution.PreparedBufferTransfer;
+import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import java.util.List;
@@ -35,6 +41,49 @@ final class MetalEngineBackendComposition implements EngineBackendComposition {
     /** @return the exact retained Metal integration for direct prepared transfer binding */
     MetalBackendIntegration integration() {
         return integration;
+    }
+
+    /** @return the retained Metal-owned local-workload tuning collaboration */
+    MetalLocalWorkloadTuning localWorkloadTuning() {
+        return integration.localWorkloadTuning();
+    }
+
+    /** @return the retained Metal-owned complete-plan tuning collaboration */
+    MetalCompletePlanTuning completePlanTuning() {
+        return integration.completePlanTuning();
+    }
+
+    /**
+     * Obtains the sole authoritative stable Prepare projection for Metal tuning.
+     *
+     * @param artifacts exact non-null Engine-owned compile result; inspected but not transferred
+     * @return a new non-null validated context for the sole Metal partition
+     * @throws NullPointerException if {@code artifacts} is {@code null}
+     * @throws IllegalArgumentException if partition coverage is not exactly one
+     * @throws IllegalStateException if the Metal integration is closed
+     */
+    PrepareContext<?> projectedContext(CompileArtifacts artifacts) {
+        Objects.requireNonNull(artifacts, "artifacts");
+        if (artifacts.partitions().size() != 1) {
+            throw new IllegalArgumentException(
+                    "Metal integration requires exactly one non-empty Metal partition");
+        }
+        PartitionPreparation<?, ?> preparation = integration.partitionPreparation();
+        return GraphPreparation.project(
+                artifacts, artifacts.partitions().getFirst(), preparation.backendInputs());
+    }
+
+    /**
+     * Composes one Metal-owned partition preparation through complete shared graph preparation.
+     *
+     * @param artifacts exact non-null Engine-owned compile result; inspected synchronously
+     * @param preparation exact non-null Metal-owned positional preparation
+     * @return one non-null complete immutable prepared execution owned by the caller
+     */
+    PreparedExecution prepare(
+            CompileArtifacts artifacts, PartitionPreparation<?, ?> preparation) {
+        return GraphPreparation.prepare(
+                artifacts, List.of(preparation), integration.scheduleAssembler());
     }
 
     /** {@inheritDoc} */

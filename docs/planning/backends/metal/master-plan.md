@@ -90,8 +90,8 @@ Training-to-Metal optimizer bridge.
   numerics are unrelaxed and underdocumented. Documentation/audit-only Task 0038 is Complete.
   Task 0040 failed its one BFLOAT16 raw-bit Gather gate. Task 0041 is Complete at implementation
   `ba16d942` plus remediation `386705ca` after final Class C approval with zero findings. Task 0042
-  is the sole `Ready` repository frontier from exact clean base
-  `a961c0086c72b8457db1ea2b645810d60fed0a9d`; it connects only the existing singleton-`NEG`
+  is `Review needed` after implementation from exact clean base
+  `31ab01a65ff1e4842a43471a54e74544fb603760`; it connects only the existing singleton-`NEG`
   two-route candidates to the bounded public tuning workflow.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
@@ -178,8 +178,8 @@ Training-to-Metal optimizer bridge.
   `0e796a82f18fbaaa1d5210638f41e0785e22094c` after Trace 0003's final independent
   public-API/documentation approval. Final independent Class C rereview returned `APPROVE` with
   zero findings.
-- Task 0042 is `Ready` as the sole repository frontier from exact clean base
-  `a961c0086c72b8457db1ea2b645810d60fed0a9d`. It adds retained public local/complete-plan Metal
+- Task 0042 is `Review needed` after implementation from exact clean base
+  `31ab01a65ff1e4842a43471a54e74544fb603760`. It adds retained public local/complete-plan Metal
   tuning collaborations and the minimum private Engine adapter/fallback generalization for exactly
   one eligible singleton-`NEG` partition, with session-only reuse and no native/capability change.
 - Production dependencies may point to Model, Config, Planning, Runtime, Prepare,
@@ -247,7 +247,7 @@ before extracting a package or widening another type.
 | 0039 | [Profile-common IEEE FLOAT16 prerequisite gate](tasks/0039-profile-common-ieee-float16-prerequisite-gate.md) | Blocked | Model 0026 Complete; reviewed public binary16 representation, promotion, conversion, family semantics, profile result sets, and downstream fail-closed enum adoption; Metal 0038 Complete | Every concurrent Model dtype/profile task and Metal capability/schema/native/type/ingress/publication/identity/transfer scope | None | Documentation-only prerequisite record; post-dependency implementation requires separate authorization and schema revalidation | Planning links/anchors/fences/final newlines, status consistency, documentation-only path scope, and `git diff --check`; no build, test, native compile, or device probe | No public FLOAT16 oracle exists. `MPSDataTypeFloat16` is representation evidence only; current Metal plumbing is closed. Task 0040 consumed no schema/type/identity values, so this candidate remains conditional and unreserved. |
 | 0040 | [Profile-common exact canonical BFLOAT16 Gather](tasks/0040-profile-common-exact-canonical-bfloat16-gather.md) | Blocked | 0023, 0025, and 0038 Complete; current Model BFLOAT16/Gather semantics; Compiler indexing capture; CPU 0006A2; Config 0006; Engine 0018 | Every concurrent Metal capability/schema/native/type/ingress/publication/identity/transfer scope and any restart consuming the same next values | None | Sole mandatory direct-selector gate only; no implementation authorized after failure | Exactly one graph/compile/execution over the 20-word reverse-permutation corpus; planning/status/Markdown/diff validation only | First output returned canonical quiet-NaN `0x7fc0` instead of selected negative signaling-NaN `0xffa6`. Inputs were unchanged; later output/guard checks made no success claim. Artifacts were removed, schema 12/wire 20/type 4/identities 13 remain unimplemented and unreserved, and production is unchanged. |
 | 0041 | [Prepared route and invocation trace](tasks/0041-prepared-route-and-invocation-trace.md) | Complete | Trace 0003 Complete and independently approved after remediation at `0e796a82f18fbaaa1d5210638f41e0785e22094c`; Metal 0001–0005/0008/0014–0015/0019–0025; Engine 0017–0018 | Every concurrent Metal integration/preparation/executable/native-failure/hot-path/API scope and shared Trace/Metal/API/roadmap documents | None | Implemented at `ba16d942`; remediated at `386705ca`; final independent Class C rereview approved with zero findings | Focused Metal trace tests; actual public Engine session collector scenario; architecture/Javadoc/docs/diff checks; independent Class C review | Completed the optional Metal observer overload, disabled fast path, stream-local producer IDs/events, typed PREPARE finalization and RUN native-invocation outcomes, truthful `NOT_QUERIED`, containment/redaction, failure precedence, and no native ABI change. |
-| 0042 | [Metal route tuning workflow](tasks/0042-metal-route-tuning-workflow.md) | Ready | Metal 0004/0041; Prepare 0004/0008; tools/tuning 0001–0002/0004; Config 0006A–0006B; CPU 0010I–0010J precedent; Engine 0006A–0009/0011/0015–0018; Runtime 0016 | Every concurrent Metal integration/preparation/candidate/codec/trace/API scope; Engine tuning/composition/lifecycle/fallback; CPU tuning identities; tools/tuning/API/architecture/master/roadmap documents | None | One serial implementation from exact base `a961c0086c72b8457db1ea2b645810d60fed0a9d`; focused validation/docs; one full build; independent Class C review | Lean fake-native Metal collaboration tests; focused Engine and CPU identity/behavior regressions; one actual public `prepareTuned`→run singleton-NEG scenario; architecture/Javadocs/docs/diff; one full build | Add retained opaque Metal local and fixed complete-plan collaborations, session-only two-route tuning, and the minimum private Engine adapter/backend-neutral fallback while preserving public Config/result, CPU identity bytes, native ABI/schema/capability, and all excluded ownership domains. |
+| 0042 | [Metal route tuning workflow](tasks/0042-metal-route-tuning-workflow.md) | Review needed | Metal 0004/0041; Prepare 0004/0008; tools/tuning 0001–0002/0004; Config 0006A–0006B; CPU 0010I–0010J precedent; Engine 0006A–0009/0011/0015–0018; Runtime 0016 | Every concurrent Metal integration/preparation/candidate/codec/trace/API scope; Engine tuning/composition/lifecycle/fallback; CPU tuning identities; tools/tuning/API/architecture/master/roadmap documents | None | Implemented serially from exact base `31ab01a65ff1e4842a43471a54e74544fb603760`; focused validation/docs and one full build complete; independent Class C review pending | Lean fake-native Metal collaboration tests; focused Engine and CPU identity/behavior regressions; one actual public `prepareTuned`→run singleton-NEG scenario; architecture/Javadocs/docs/diff; one full build | Adds retained opaque Metal local and fixed complete-plan collaborations, session-only two-route tuning, and the minimum private Engine adapter/backend-neutral fallback while preserving public Config/result, CPU identity bytes, native ABI/schema/capability, and all excluded ownership domains. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -275,7 +275,7 @@ Completed profile spine and serial successors:
 
 `Trace 0003 (Complete) -> 0041 (Complete)`
 
-`0004 (Complete) + 0041 (Complete) + Engine 0009/0015–0018 (Complete) + tools/tuning 0001–0002 (Complete) -> 0042 (Ready)`
+`0004 (Complete) + 0041 (Complete) + Engine 0009/0015–0018 (Complete) + tools/tuning 0001–0002 (Complete) -> 0042 (Review needed)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -315,9 +315,9 @@ revision `f88066e3ad0547987bb03b2d18ed2813f97de223`.
 changes. Tasks 0031–0037 and 0039 ran no probe; Task 0040 ran exactly its one failed gate.
 [0041](tasks/0041-prepared-route-and-invocation-trace.md) is Complete at implementation `ba16d942`
 plus remediation `386705ca` after final independent Class C approval with zero findings.
-[0042](tasks/0042-metal-route-tuning-workflow.md) is the sole Metal and repository `Ready` task.
-It is a serial cross-module frontier from exact clean base
-`a961c0086c72b8457db1ea2b645810d60fed0a9d`; every other Metal task retains its recorded status.
+[0042](tasks/0042-metal-route-tuning-workflow.md) is the active Metal frontier at
+`Review needed`. It is a serial cross-module frontier implemented from exact clean base
+`31ab01a65ff1e4842a43471a54e74544fb603760`; every other Metal task retains its recorded status.
 These edges serialize shared Metal mutation; they do not claim that one operation family requires
 another.
 
@@ -406,9 +406,9 @@ changes, and version-thirteen identities remain unimplemented and unreserved. Pl
 is Blocked after its one direct BFLOAT16 Gather run canonicalized required `0xffa6` to `0x7fc0`;
 its artifacts were removed and production remains unchanged. Task 0041 is Complete at
 implementation `ba16d942` plus remediation `386705ca` after final independent Class C approval
-with zero findings. Documentation/audit-only Task 0038 is Complete. Task 0042 is the sole `Ready`
-Metal and repository frontier from exact clean base
-`a961c0086c72b8457db1ea2b645810d60fed0a9d`.
+with zero findings. Documentation/audit-only Task 0038 is Complete. Task 0042 is the active
+`Review needed` Metal frontier implemented from exact clean base
+`31ab01a65ff1e4842a43471a54e74544fb603760`.
 
 Metal 0006 remains `Blocked` after exact RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures.
 Metal 0007 remains independently `Blocked` after eight direct-output executions returned positive
@@ -579,10 +579,10 @@ Model 0026 remain unauthorized.
   global resource.
 - The completed 0004 brief fixes route-specific typed shapes and conservatively session-scoped
   target compatibility without changing cache-file or native ABI ownership. Its package-private
-  codec remains unconsumed by current production `tools/tuning` and Engine composition until
-  Ready Task 0042 implements its public wrappers and private Engine adapter. Task 0042 does not
-  authorize cross-session reuse, cache-format work, a device fingerprint, or broader
-  operation/type, mixed-owner, async, packaging/discovery, or performance claims.
+  codec is now consumed by Task 0042's public wrappers and private Engine adapter without changing
+  its version-twelve bytes. Task 0042 does not authorize cross-session reuse, cache-format work, a
+  device fingerprint, or broader operation/type, mixed-owner, async, packaging/discovery, or
+  performance claims.
 - Main risks are moving lowering into shared layers, leaking Metal fields through opaque seams,
   confusing capability with availability, and extending native/prepared lifetimes beyond their
   explicit owners.

@@ -73,9 +73,9 @@ The package-private complete Compiler entry consumes all four compile-config lea
 `GraphCompilationPort` supplies them through its public integration call. No current
 `CompileConfig`, public capability-matrix or eligibility surface, or numeric scoring evaluator is
 callable. The ordinary Engine supplies fixed compile settings rather than those configurable
-surfaces. The model-autotuning request is current through `Engine.prepareTuned(...)`, but only for
-the bounded CPU-local handoff described below. Generic graph/plan tuning remains planned. APIs
-may change through the ordered planning process.
+surfaces. The model-autotuning request is current through `Engine.prepareTuned(...)` for the
+bounded single-owner CPU workflow and exact singleton-NEG Metal workflow described below. Generic
+graph/plan tuning remains planned. APIs may change through the ordered planning process.
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md) defines module boundaries, not source or binary
 compatibility.
 
@@ -347,19 +347,24 @@ executable, or perform Engine or Runtime work.
 Current `Engine.prepareTuned(...)` maps both budgets and the objective one-for-one, supplies the
 request's caller-defined model and representative-profile identities, binds its live
 representative inputs, and passes both explicit cache paths to `tools/tuning`. Phase 1 exposes
-exactly one CPU-local occurrence at occurrence index 0, partition index 0, and weight 1. Its
-authenticated selected decision then passes unchanged into CPU complete-plan candidate
-production. Phase 2 checks every candidate by exact canonical publication bytes before any
-warmup or timed execution, measures the bounded candidates, authenticates the winner, cleans the
+exactly one backend-local occurrence at occurrence index 0, partition index 0, and weight 1. CPU
+retains its current local and complete-plan alternatives. Metal accepts only an exact singleton
+NEG and exposes exactly the ordered local candidates custom kernel then MPSGraph. Its authenticated
+selected decision then passes unchanged into a one-candidate complete-plan batch fixed to that
+route. Phase 2 checks every candidate by exact canonical publication bytes before any warmup or
+timed execution, measures the bounded candidates, authenticates the winner, cleans the
 representative session, and prepares exactly one fresh selected production recipe.
 
-Current CPU complete-plan reuse is `SESSION`, so Phase 2 retains but does not inspect, create, or
-publish the supplied model-plan path. The same translation remains valid for a future producer
-that can honestly declare `PERSISTENT`. Strict mode reports a failed or unavailable complete
-tuning result, while safe-heuristic mode may return one fresh ordinary safe preparation with no
-evidence. Fallback grants no candidate eligibility, numerical relaxation, cache compatibility,
-partial-result acceptance, or suppression of an unrelated preparation failure. Generic
-multiple-occurrence extraction and broader Compiler/Planning plan alternatives remain planned.
+Current CPU and Metal complete-plan reuse is `SESSION`, so Phase 2 retains but does not inspect,
+create, or publish the supplied model-plan path. Metal local compatibility is also `SESSION`, so
+the supplied workload-cache path can neither provide a Metal hit nor receive a Metal publication.
+The same generic translation remains valid for a future producer that can honestly declare
+`PERSISTENT`. Strict mode reports a failed or unavailable complete tuning result, while
+safe-heuristic mode may return one fresh ordinary safe preparation through the already-selected
+owner with no evidence. Fallback grants no candidate eligibility, numerical relaxation, cache
+compatibility, partial-result acceptance, owner substitution, or suppression of an unrelated
+preparation failure. Multiple-occurrence extraction, multiple partitions, mixed ownership, and
+broader Compiler/Planning plan alternatives remain planned.
 
 The public `modules:planning` surface contains eight backend-neutral compile-time declarations:
 
@@ -869,9 +874,10 @@ adapters captured during its sole preparation. It performs no compile, prepare, 
 availability, registry, route, kernel, or schedule lookup and is not an implicit cross-backend
 transfer, Tensor, storage association, typed array, cache, or persistence format.
 
-Optional `prepareTuned(...)` is a cache-first CPU-only preparation path. This complete example
-uses a `CONTIGUOUS` expression, which has no eligible local tuning handoff in the current standard
-composition, so the allowed policy deterministically demonstrates explicit safe fallback:
+Optional `prepareTuned(...)` is a cache-first preparation path for eligible single-owner CPU plans
+and exact singleton-NEG Metal plans. This CPU example uses a `CONTIGUOUS` expression, which has no
+eligible local tuning handoff in the current standard composition, so the allowed policy
+deterministically demonstrates explicit safe fallback:
 
 ```java
 import io.github.pho001.synaptik.config.tuning.ModelAutotuningConfig;
@@ -931,23 +937,25 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
 
 The request snapshots the list and identity bytes but retains the live caller-owned Tensor and
 storage. Phase 1 reuses or measures the sole eligible local workload. Its authenticated winner is
-then fixed while Phase 2 considers only CPU's retained complete topology and representation
-alternatives. Phase 2 performs every exact correctness action before timing; correctness,
-warmup, and timed executions each use a fresh preparation and fresh Runtime state. After winner
-authentication and representative cleanup, the returned production handle is prepared afresh.
-Every trial closes its result before its temporary preparation on every path. The
-`ModelAutotuningPreparation` metadata carrier is not another closeable owner: its contained
-`PreparedExecution` alone owns the production preparation.
+then fixed while Phase 2 considers the backend-owned complete candidates. For CPU those are the
+retained complete topology and representation alternatives; for Metal there is one complete
+candidate fixed to the Phase-1-selected route. Phase 2 performs every exact correctness action
+before timing; correctness, warmup, and timed executions each use a fresh preparation and fresh
+Runtime state. After winner authentication and representative cleanup, the returned production
+handle is prepared afresh. Every trial closes its result before its temporary preparation on every
+path. The `ModelAutotuningPreparation` metadata carrier is not another closeable owner: its
+contained `PreparedExecution` alone owns the production preparation.
 
 A tuned result has outcome `TUNED`. Its immutable evidence contains the Phase-1 workload rows and
 required `completePlan` evidence: compatibility and reuse scope, the exact Phase-2 budget, source,
 winner identity and summary, plus one correctness-and-sample row per measured candidate. A future
 persistent hit has no candidate rows because compact reusable cache records do not contain rich
-per-call correctness actions or raw samples. Current CPU complete-plan evidence is always
-`SESSION` and measured, and its explicit model-plan path receives no filesystem access.
-Model/profile identities are caller-defined evidence labels, not workload-cache keys. Current
-scope excludes multiple workloads or occurrences, Compiler graph alternatives, Planning owner or
-partition alternatives, and mixed backends.
+per-call correctness actions or raw samples. Current CPU and Metal complete-plan evidence is
+always `SESSION` and measured, and its explicit model-plan path receives no filesystem access.
+Metal workload evidence is also always `SESSION` and measured. Model/profile identities are
+caller-defined evidence labels, not workload-cache keys. Current scope excludes multiple
+workloads or occurrences, Compiler graph alternatives, Planning owner or partition alternatives,
+multiple partitions, and mixed backends.
 
 The current one-shot forms are exactly:
 
@@ -1269,8 +1277,9 @@ performs deferred prepared-resource cleanup.
 validates and snapshots the explicit absolute native-library path and acquires its default-device
 native context before the integration is transferred. Engine neither parses the native-library
 path nor owns a duplicate Metal configuration. The integration supplies partition preparation,
-physical creation contribution, exact transfer endpoints, host ingress, materialization, and
-close in addition to capability.
+retained `localWorkloadTuning()` and `completePlanTuning()` collaborations, physical creation
+contribution, exact transfer endpoints, host ingress, materialization, and close in addition to
+capability.
 
 `MetalTraceObserver` is a public functional interface whose sole abstract method receives
 `TraceEvent<? extends TracePayload>`. Passing a non-null caller-owned thread-safe observer to
@@ -1295,13 +1304,17 @@ Metal retains a custom route for an eligible singleton `NEG` under either profil
 partition and every other supported partition uses one typed whole-partition MPSGraph executable.
 The MATMUL domain also executes Compiler-generated explicitly seeded rank-two gradients for both
 operands through authenticated local transposes; this does not add scalar-loss or general training
-support. This private route and native ABI choice adds no public Java type or method.
+support.
 
-`prepareTuned(...)` remains the bounded CPU-only workflow. It can tune a CPU-owned plan when Metal
-is also registered, but a Metal-owned plan fails with `IllegalStateException` before
-representative input borrowing, candidate generation, or trial work. The allowed safe-heuristic
-fallback remains within the already-selected CPU integration and never changes owner or prepares
-Metal.
+`MetalLocalWorkloadTuning` publicly exposes opaque candidates, session compatibility, identities,
+decision encode/decode, and trial/selected `PartitionPreparation` for the exact two-route
+singleton-NEG batch. `MetalCompletePlanTuning` authenticates that Phase-1 decision and exposes the
+same opaque operations for exactly one fixed-route complete-plan candidate. Both are retained
+integration collaborations, reject foreign/stale/closed use, and perform no execution,
+measurement, selection, fallback, or cache input/output themselves. Public `prepareTuned(...)`
+adapts them only for one Metal partition; MPSGraph-only, multiple-partition, and mixed-owner plans
+remain ineligible. An allowed safe fallback stays with the selected adapter and never changes
+owner.
 
 `Engine.standard()` remains the CPU-only convenience and uses this builder ownership path
 internally. `AdvancedEngine.takeOwnership(CpuBackendIntegration)` remains CPU-only; explicit

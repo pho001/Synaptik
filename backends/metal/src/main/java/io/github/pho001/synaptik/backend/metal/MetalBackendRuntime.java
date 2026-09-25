@@ -30,6 +30,8 @@ final class MetalBackendRuntime implements AutoCloseable {
     private final BackendAvailabilitySnapshot availabilitySnapshot;
     private final PartitionPreparation<?, ?> partitionPreparation;
     private final PreparedScheduleAssembler scheduleAssembler;
+    private final MetalLocalWorkloadTuning localWorkloadTuning;
+    private final MetalCompletePlanTuning completePlanTuning;
 
     MetalBackendRuntime(MetalDeviceContext context) {
         this(context, null);
@@ -47,6 +49,8 @@ final class MetalBackendRuntime implements AutoCloseable {
                 new MetalNegPartitionPreparer(),
                 new MetalNegPartitionFinalizer(context));
         this.scheduleAssembler = new MetalNegPreparedScheduleAssembler(context);
+        this.localWorkloadTuning = new MetalLocalWorkloadTuning(context, traceProducer);
+        this.completePlanTuning = new MetalCompletePlanTuning(localWorkloadTuning);
     }
 
     /**
@@ -107,6 +111,24 @@ final class MetalBackendRuntime implements AutoCloseable {
      */
     PartitionPreparation<?, ?> partitionPreparation() {
         return partitionPreparation;
+    }
+
+    /**
+     * Returns the retained Metal local-workload tuning collaboration.
+     *
+     * @return the retained Metal local-workload tuning collaboration
+     */
+    MetalLocalWorkloadTuning localWorkloadTuning() {
+        return localWorkloadTuning;
+    }
+
+    /**
+     * Returns the retained Metal complete-plan tuning collaboration.
+     *
+     * @return the retained Metal complete-plan tuning collaboration
+     */
+    MetalCompletePlanTuning completePlanTuning() {
+        return completePlanTuning;
     }
 
     /**

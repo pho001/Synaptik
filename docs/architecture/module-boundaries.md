@@ -207,9 +207,11 @@ shared transaction. Mixed values use one deterministic representation per partic
 exact static canonical contiguous `FLOAT32` transfer; this does not imply a general conversion or
 fallback system.
 
-The builder does not generalize current CPU model autotuning. `prepareTuned(...)` accepts only a
-single CPU-owned plan, and its allowed fallback stays with that CPU owner. A Metal-owned plan
-fails before tuning work.
+The builder adapts current CPU model autotuning and the exact singleton-NEG Metal workflow without
+moving candidate meaning into Engine. Metal's public backend collaboration owns its two local
+routes, one fixed complete-plan candidate, session compatibility, and decision codec. Mixed-owner,
+multiple-partition, and MPSGraph-only Metal plans remain ineligible. Any allowed fallback stays
+with the already-selected adapter.
 
 For a future runnable recurrent scan, Engine owns the checked typed mapping from the logical input
 Tensors, including `INT64[batch]` valid lengths, to ordered Runtime caller-input representations

@@ -2,10 +2,11 @@
 
 ## Status
 
-Ready
+Review needed
 
-This is the sole repository `Ready` task. Execute from exact clean planning base
-`a961c0086c72b8457db1ea2b645810d60fed0a9d`; do not combine it with another frontier.
+Implemented from exact clean planning base `31ab01a65ff1e4842a43471a54e74544fb603760`.
+The bounded implementation and validation evidence below are complete; independent Class C review
+has not yet run.
 
 ## Change class
 
@@ -307,7 +308,7 @@ or an alternate correctness/timing algorithm.
   Engine tuning/composition/lifecycle/fallback scope; CPU tuning identity changes; tools/tuning,
   public API, backend guide, architecture, master-plan, or roadmap edits.
 - Parallel group: None.
-- Common base revision: `a961c0086c72b8457db1ea2b645810d60fed0a9d`.
+- Common base revision: `31ab01a65ff1e4842a43471a54e74544fb603760`.
 - Integration order: one serial implementation from the exact base, focused validation and docs,
   exactly one full repository build, then independent Class C review.
 - Shared-document integration owner: Metal 0042 executor.
@@ -413,6 +414,27 @@ documentation are complete. Independent review inspects the exact diff and gener
 reports; it does not run a performance matrix or preprobe a device. Review remediation reruns only
 the checks affected by the finding unless production changes invalidate the single full-build
 evidence.
+
+### Implementation evidence
+
+- The focused fake-native Metal command passed
+  `MetalLocalWorkloadTuningTest`, `MetalCompletePlanTuningTest`,
+  `MetalNegRouteCandidateGeneratorTest`, and `MetalNegPreparedExecutionTest`.
+- The focused Engine command passed `ModelAutotuningCompositionTest`,
+  `CompletePlanAutotuningCompositionTest`, and `RepresentativeExecutionSessionTest`. The exact
+  regression assertions preserve CPU policy/producer/codec bytes and prove all three Metal
+  identities differ.
+- `./native/metal-macos-arm64/build.sh` passed. With its resulting dylib supplied through
+  `SYNAPTIK_METAL_TEST_LIBRARY`, the one bounded
+  `publicMetalRouteTuningPreparesAndRunsSingletonNeg` scenario passed on the actual Metal device.
+  It observed `TUNED`, two measured session local rows, one measured session complete-plan row,
+  absent cache files, and exact public NEG output.
+- The focused `EngineCompositionContractTest` architecture check passed. Final
+  `:backends:metal:javadoc :modules:engine:javadoc` completed without warnings.
+- The ten-file Markdown validator passed, and `git diff --check` reported no errors.
+- Exactly one full `./gradlew build` passed with 87 actionable tasks: 8 executed, 1 from cache,
+  and 78 up to date. No performance matrix or device preprobe ran.
+- Status is `Review needed`; independent Class C review is the only remaining task gate.
 
 The required public integration scenario is one bounded workflow, not a benchmark:
 

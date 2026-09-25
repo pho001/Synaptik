@@ -29,15 +29,17 @@
  * lifecycle seams, fixes Compiler's absent unit seed and disconnected-target error policy, and
  * returns a detached objective plus target-aligned first derivatives. Explicit seeds and
  * selective output access are also available through inference sessions. Optional
- * model-autotuning accepts one caller-defined
- * model identity and one live representative input set. It first completes bounded CPU-local
- * workload selection, then preserves that exact decision while checking and measuring the
- * session-scoped complete CPU plan alternatives. Every correctness, warmup, and timed action uses
- * fresh preparation and Runtime state; the returned handle is another fresh preparation of the
+ * model-autotuning accepts one caller-defined model identity and one live representative input
+ * set for one eligible single-owner partition. It completes bounded backend-local workload
+ * selection, then preserves that exact decision while checking and measuring the session-scoped
+ * complete plan. CPU retains its existing alternatives. Metal admits only exact singleton NEG,
+ * measures the custom-kernel and MPSGraph routes, then checks and measures one complete-plan
+ * candidate fixed to that selected route. Every correctness, warmup, and timed action uses fresh
+ * preparation and Runtime state; the returned handle is another fresh preparation of the
  * authenticated complete-plan winner. The result reports immutable evidence for both phases, or
- * explicitly reports one fresh safe-heuristic fallback preparation. Every temporary trial
- * preparation closes after its result, while the selected or fallback handle is the sole outward
- * owner retained for caller close or final Engine shutdown.</p>
+ * explicitly reports one fresh selected-owner safe-heuristic fallback preparation. Every
+ * temporary trial preparation closes after its result, while the selected or fallback handle is
+ * the sole outward owner retained for caller close or final Engine shutdown.</p>
  *
  * <p>The advanced surface owns one explicitly supplied CPU integration and coordinates the
  * advanced {@code compile -> prepare -> run} lifecycle. Compiled and prepared recipes remain
@@ -55,7 +57,9 @@
  * <p>Neither surface performs backend discovery or successful zero-node preparation. Mixed-backend
  * execution is confined to ordinary Engine's explicit CPU/Metal composition and exact transfer
  * domain; the advanced surface remains owner-bound to one CPU integration. Current complete-plan
- * tuning is exact-byte, session-scoped, CPU-only, and performs no model-plan-cache file access.
+ * tuning is exact-byte and session-scoped, and performs no model-plan-cache file access. Metal
+ * mixed-owner plans, multiple partitions, and MPSGraph-only partitions are not locally tunable;
+ * Metal session compatibility also forbids persistent workload-cache hits or publication.
  * Inferred backward targets, multi-occurrence, persistent complete-plan reuse, general
  * Compiler/Planning graph-plan alternatives, and unsupported transfer or conversion domains are
  * not current APIs.</p>

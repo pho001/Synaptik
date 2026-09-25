@@ -2,6 +2,8 @@ package io.github.pho001.synaptik.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.github.pho001.synaptik.config.tuning.ModelAutotuningConfig;
@@ -100,5 +102,26 @@ final class CompletePlanAutotuningCompositionTest {
         assertSame(phaseOne, config.budget());
         assertSame(phaseTwo, config.completePlanBudget());
         assertSame(modelPlan, config.modelPlanCache());
+    }
+
+    @Test
+    void cpuCompletePlanIdentityBytesStayStableAndMetalOwnershipIsDistinct() {
+        byte[] cpuPolicy = java.nio.ByteBuffer.allocate(24)
+                .putInt(0x53455031).putInt(1).putInt(1).putInt(1).putInt(1).putInt(1)
+                .array();
+        byte[] cpuProducer = java.nio.ByteBuffer.allocate(8)
+                .putInt(0x53455052).putInt(1).array();
+        byte[] cpuCodec = java.nio.ByteBuffer.allocate(8)
+                .putInt(0x53454344).putInt(1).array();
+
+        assertArrayEquals(cpuPolicy, AdvancedEngine.completePlanPolicyIdentity());
+        assertArrayEquals(cpuProducer, AdvancedEngine.completePlanProducerIdentity().bytes());
+        assertArrayEquals(cpuCodec, AdvancedEngine.completePlanDecisionCodecIdentity().bytes());
+        assertFalse(Arrays.equals(
+                cpuPolicy, AdvancedEngine.metalCompletePlanPolicyIdentity().bytes()));
+        assertFalse(Arrays.equals(
+                cpuProducer, AdvancedEngine.metalCompletePlanProducerIdentity().bytes()));
+        assertFalse(Arrays.equals(
+                cpuCodec, AdvancedEngine.metalCompletePlanDecisionCodecIdentity().bytes()));
     }
 }
