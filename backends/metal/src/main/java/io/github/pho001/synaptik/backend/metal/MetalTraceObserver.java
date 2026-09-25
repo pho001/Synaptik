@@ -8,7 +8,9 @@ import io.github.pho001.synaptik.trace.TracePayload;
  *
  * <p>The caller retains ownership and must support concurrent callbacks. Metal never closes the
  * observer. A callback {@link RuntimeException} disables later tracing for that integration and is
- * contained without changing backend work or outcomes; an {@link Error} propagates normally.</p>
+ * contained without changing backend work or outcomes. A callback {@link Error} propagates from
+ * success reporting; during failure reporting, the backend failure remains primary and receives a
+ * distinct acyclic callback error as a suppressed failure.</p>
  */
 @FunctionalInterface
 public interface MetalTraceObserver {
@@ -17,7 +19,8 @@ public interface MetalTraceObserver {
      *
      * @param event non-null typed event; callbacks may occur concurrently
      * @throws RuntimeException to disable later tracing without changing the backend outcome
-     * @throws Error to propagate a fatal callback failure
+     * @throws Error from success reporting; failure reporting suppresses a distinct acyclic error
+     *     on the primary backend failure
      */
     void onEvent(TraceEvent<? extends TracePayload> event);
 }

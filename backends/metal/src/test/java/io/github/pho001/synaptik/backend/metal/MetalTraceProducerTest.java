@@ -207,6 +207,63 @@ class MetalTraceProducerTest {
     }
 
     @Test
+    void failureReportingPreservesPrimaryAndRejectsSelfOrCyclicSuppression() {
+        AssertionError observerFailure = new AssertionError("observer failure");
+        MetalTraceProducer producer = new MetalTraceProducer(event -> {
+            throw observerFailure;
+        });
+        MetalTraceProducer.PreparedUnit unit = producer.prepareUnit(
+                NumericalProfile.STRICT_IEEE,
+                MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG);
+        RuntimeException preparationFailure = new RuntimeException("preparation");
+        RuntimeException invocationFailure = new RuntimeException("invocation");
+
+        unit.preparationFailed(preparationFailure);
+        Error reported = unit.invocationFailed(unit.beginInvocation(), invocationFailure);
+
+        assertArrayEquals(new Throwable[] {observerFailure}, preparationFailure.getSuppressed());
+        assertArrayEquals(new Throwable[] {observerFailure}, invocationFailure.getSuppressed());
+        assertSame(observerFailure, reported);
+        assertTrue(producer.enabled());
+
+        AssertionError backendError = new AssertionError("backend error");
+        AssertionError errorObserverFailure = new AssertionError("error observer");
+        MetalTraceProducer errorProducer = new MetalTraceProducer(event -> {
+            throw errorObserverFailure;
+        });
+        MetalTraceProducer.PreparedUnit errorUnit = errorProducer.prepareUnit(
+                NumericalProfile.STRICT_IEEE,
+                MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG);
+        errorUnit.preparationFailed(backendError);
+        assertArrayEquals(
+                new Throwable[] {errorObserverFailure}, backendError.getSuppressed());
+        assertTrue(errorProducer.enabled());
+
+        AssertionError self = new AssertionError("self");
+        MetalTraceProducer selfProducer = new MetalTraceProducer(event -> {
+            throw self;
+        });
+        MetalTraceProducer.PreparedUnit selfUnit = selfProducer.prepareUnit(
+                NumericalProfile.STRICT_IEEE,
+                MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG);
+        selfUnit.preparationFailed(self);
+        assertEquals(0, self.getSuppressed().length);
+
+        RuntimeException primary = new RuntimeException("primary");
+        AssertionError cyclic = new AssertionError("cyclic");
+        cyclic.addSuppressed(primary);
+        MetalTraceProducer cyclicProducer = new MetalTraceProducer(event -> {
+            throw cyclic;
+        });
+        MetalTraceProducer.PreparedUnit cyclicUnit = cyclicProducer.prepareUnit(
+                NumericalProfile.STRICT_IEEE,
+                MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG);
+        cyclicUnit.preparationFailed(primary);
+        assertEquals(0, primary.getSuppressed().length);
+        assertArrayEquals(new Throwable[] {primary}, cyclic.getSuppressed());
+    }
+
+    @Test
     void constructionFailureAndEachSequenceExhaustionDisableWithoutWraparound() throws Exception {
         MetalTraceProducer invalid = new MetalTraceProducer(event -> {});
         assertNull(invalid.prepareUnit(

@@ -93,6 +93,7 @@ final class MetalNegPartitionFinalizer
             BackendPartitionFinalization<MetalNegPreparationPlan> finalization) {
         Objects.requireNonNull(finalization, "finalization");
         MetalNegPreparationPlan plan = finalization.analysis().plan();
+        BackendPartitionFinalizationResult result;
         try {
             if (!finalization.analysis().partition().owner()
                     .equals(MetalCapabilityProvider.METAL_BACKEND_ID)) {
@@ -106,23 +107,22 @@ final class MetalNegPartitionFinalizer
                 throw new IllegalArgumentException(
                         "Metal NEG analysis/finalization context mismatch");
             }
-            BackendPartitionFinalizationResult result =
-                    finalizeSelectedPartition(finalization, plan);
-            try {
-                if (plan.traceUnit() != null) {
-                    plan.traceUnit().preparationSucceeded();
-                }
-            } catch (Error fatal) {
-                closeResultAfterTraceError(result, fatal);
-                throw fatal;
-            }
-            return result;
-        } catch (RuntimeException failure) {
+            result = finalizeSelectedPartition(finalization, plan);
+        } catch (RuntimeException | Error failure) {
             if (plan.traceUnit() != null) {
                 plan.traceUnit().preparationFailed(failure);
             }
             throw failure;
         }
+        try {
+            if (plan.traceUnit() != null) {
+                plan.traceUnit().preparationSucceeded();
+            }
+        } catch (Error fatal) {
+            closeResultAfterTraceError(result, fatal);
+            throw fatal;
+        }
+        return result;
     }
 
     private BackendPartitionFinalizationResult finalizeSelectedPartition(

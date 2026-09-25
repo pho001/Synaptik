@@ -138,11 +138,14 @@ before the existing Java indexing rescan translates the outward exception.
 
 ID exhaustion, trace-object construction failure, or an observer `RuntimeException` atomically
 disables later tracing without changing backend work, failure, rollback, suppression, or outward
-exception. An `Error` is not converted and propagates normally. Payloads include only Trace-owned
-IDs and closed facts; they never include the library path, device/session token, address, handle,
-Tensor/storage value, scalar, shape, byte extent, workload/candidate fingerprint, thread identity,
-exception, free-form string, or generic map. Tracing changes no capability, route, native call,
-native ABI/schema/export, result, lifecycle, or Engine production behavior.
+exception. An observer `Error` from success reporting propagates normally. During failure
+reporting, the existing finalization or route-specific run failure remains primary; a distinct
+observer `Error` is attached as an acyclic suppressed failure after any rollback suppression,
+without disabling tracing. Payloads include only Trace-owned IDs and closed facts; they never
+include the library path, device/session token, address, handle, Tensor/storage value, scalar,
+shape, byte extent, workload/candidate fingerprint, thread identity, exception, free-form string,
+or generic map. Tracing changes no capability, route, native call, native ABI/schema/export,
+result, lifecycle, or Engine production behavior.
 
 ### Capability, whole-partition analysis, and route selection
 

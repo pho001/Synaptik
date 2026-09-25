@@ -55,7 +55,9 @@ public final class MetalBackendIntegration implements AutoCloseable {
      *
      * <p>The observer is retained but never closed. Its callback may be invoked concurrently.
      * Callback {@link RuntimeException RuntimeExceptions} disable later tracing without changing
-     * backend work or outcomes; callback {@link Error Errors} propagate normally.</p>
+     * backend work or outcomes. Callback {@link Error Errors} propagate from success reporting;
+     * during failure reporting, the backend failure remains primary and receives a distinct
+     * acyclic callback error as a suppressed failure.</p>
      *
      * @param configuration non-null validated configuration; its immutable value is snapshotted
      * @param observer non-null caller-owned thread-safe observer retained for this integration
@@ -63,7 +65,8 @@ public final class MetalBackendIntegration implements AutoCloseable {
      * @throws NullPointerException if an argument is {@code null}
      * @throws IllegalArgumentException if the native library path is not absolute
      * @throws RuntimeException if library loading, ABI validation, or context creation fails
-     * @throws Error if opening, partial-construction rollback, or an observer reports a fatal error
+     * @throws Error if opening, partial-construction rollback, or successful-outcome observation
+     *     reports a fatal error
      */
     public static MetalBackendIntegration open(
             MetalBackendConfiguration configuration, MetalTraceObserver observer) {

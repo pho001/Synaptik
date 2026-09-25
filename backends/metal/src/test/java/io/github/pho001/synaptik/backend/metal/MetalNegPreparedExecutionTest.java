@@ -287,22 +287,52 @@ class MetalNegPreparedExecutionTest {
     }
 
     @Test
-    void MetalTracePreparationFailureEmitsOneFinalOutcomeWithoutChangingFailure() {
+    void MetalTracePreparationObserverErrorPreservesMalformedNativeRollbackFailure() {
         RecordingNativeApi api = new RecordingNativeApi();
         api.pipelineCreateStatus = 12;
+        api.createHandleOnFailure = true;
+        api.pipelineReleaseStatus = 7;
         MetalDeviceContext context = MetalDeviceContext.open(api);
         List<TraceEvent<? extends TracePayload>> events = new CopyOnWriteArrayList<>();
-        MetalTraceProducer producer = new MetalTraceProducer(events::add);
+        AssertionError observerFailure = new AssertionError("prepare observer");
+        MetalTraceProducer producer = new MetalTraceProducer(event -> {
+            events.add(event);
+            throw observerFailure;
+        });
         SingleNegRoute route =
                 singleNegRoute(context, Shape.of(2), Optional.empty(), producer);
         FinalizationFixture assignment = finalization(route.analysis());
         try {
-            MetalNativeApi.NativeFailure failure = assertThrows(
-                    MetalNativeApi.NativeFailure.class,
+            IllegalStateException failure = assertThrows(
+                    IllegalStateException.class,
                     () -> new MetalNegPartitionFinalizer(context)
                             .finalizePartition(assignment.finalization()));
+            assertEquals(
+                    MetalNativeApi.NEG_KERNEL_PIPELINE_CREATE_OPERATION
+                            + " returned failure with a non-null handle",
+                    failure.getMessage());
+            MetalNativeApi.NativeFailure nativeFailure =
+                    (MetalNativeApi.NativeFailure) failure.getCause();
             assertNativeFailure(
-                    failure, MetalNativeApi.NEG_KERNEL_PIPELINE_CREATE_OPERATION, 12);
+                    nativeFailure, MetalNativeApi.NEG_KERNEL_PIPELINE_CREATE_OPERATION, 12);
+            assertEquals(
+                    MetalNativeApi.NEG_KERNEL_PIPELINE_CREATE_OPERATION
+                            + " failed with native status KERNEL_COMPILATION_FAILED (12)",
+                    nativeFailure.getMessage());
+            assertEquals(2, failure.getSuppressed().length);
+            MetalNativeApi.NativeFailure rollbackFailure =
+                    (MetalNativeApi.NativeFailure) failure.getSuppressed()[0];
+            assertNativeFailure(
+                    rollbackFailure,
+                    MetalNativeApi.NEG_KERNEL_PIPELINE_CREATE_OPERATION
+                            + " malformed-handle cleanup",
+                    7);
+            assertEquals(
+                    MetalNativeApi.NEG_KERNEL_PIPELINE_CREATE_OPERATION
+                            + " malformed-handle cleanup failed with native status"
+                            + " INTERNAL_ERROR (7)",
+                    rollbackFailure.getMessage());
+            assertSame(observerFailure, failure.getSuppressed()[1]);
             assertEquals(1, events.size());
             TraceEvent<? extends TracePayload> event = events.getFirst();
             BackendPreparationOutcome outcome =
@@ -310,12 +340,61 @@ class MetalNegPreparedExecutionTest {
             assertEquals(TracePhase.PREPARE, event.phase());
             assertEquals(TraceLevel.ERROR, event.level());
             assertEquals(TraceOutcomeStatus.FAILED, outcome.status());
-            assertEquals(
-                    TraceNativeStatusKind.COMPILATION_FAILED,
-                    outcome.nativeStatus().orElseThrow().kind());
-            assertEquals(12, outcome.nativeStatus().orElseThrow().code());
+            assertTrue(outcome.nativeStatus().isEmpty());
             assertEquals(1, api.pipelineCreates.get());
+            assertEquals(1, api.pipelineReleases.get());
         } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void MetalTraceCustomRunObserverErrorIsSuppressedOnNativeFailure() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        AssertionError observerFailure = new AssertionError("custom run observer");
+        MetalTraceProducer producer = new MetalTraceProducer(event -> {
+            if (event.phase() == TracePhase.RUN) {
+                throw observerFailure;
+            }
+        });
+        SingleNegRoute route =
+                singleNegRoute(context, Shape.of(2), Optional.empty(), producer);
+        FinalizationFixture finalization = finalization(route.analysis());
+        BackendPartitionFinalizationResult finalized =
+                new MetalNegPartitionFinalizer(context)
+                        .finalizePartition(finalization.finalization());
+        var executable = (MetalNegPreparedExecutable) finalized.executable();
+        var buffers = new ArrayList<MetalBufferRepresentation>();
+        RunState state = null;
+        try {
+            for (var entry : finalization.memoryPlan().buffers()) {
+                buffers.add(context.createBuffer(entry.byteSize()));
+            }
+            var bindings = buffers.stream()
+                    .map(buffer -> List.of(new BufferRepresentationBinding(
+                            buffer, RunResourceOwnership.BORROWED)))
+                    .toList();
+            state = new RunState(finalization.memoryPlan(), bindings, List.of());
+            var invocation = executable.bind(state);
+            api.customRunStatus = 11;
+
+            MetalNativeApi.NativeFailure failure = assertThrows(
+                    MetalNativeApi.NativeFailure.class, invocation::execute);
+
+            assertNativeFailure(
+                    failure, MetalNativeApi.NEG_KERNEL_PIPELINE_RUN_OPERATION, 11);
+            assertEquals(
+                    MetalNativeApi.NEG_KERNEL_PIPELINE_RUN_OPERATION
+                            + " failed with native status EXECUTION_FAILED (11)",
+                    failure.getMessage());
+            assertArrayEquals(new Throwable[] {observerFailure}, failure.getSuppressed());
+            assertEquals(1, api.customRunCalls.get());
+            assertTrue(producer.enabled());
+        } finally {
+            if (state != null) state.close();
+            buffers.forEach(MetalBufferRepresentation::close);
+            finalized.resources().forEach(resource -> resource.close());
             context.close();
         }
     }
@@ -667,11 +746,70 @@ class MetalNegPreparedExecutionTest {
     }
 
     @Test
+    void MetalTraceMpsGraphRunObserverErrorIsSuppressedOnNativeFailure() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        AssertionError observerFailure = new AssertionError("MPSGraph run observer");
+        MetalTraceProducer producer = new MetalTraceProducer(event -> {
+            if (event.phase() == TracePhase.RUN) {
+                throw observerFailure;
+            }
+        });
+        IndexingRoute route = indexingRoute(context, Map.of(), producer);
+        FinalizationFixture finalization = finalization(route.analysis());
+        BackendPartitionFinalizationResult finalized =
+                new MetalNegPartitionFinalizer(context)
+                        .finalizePartition(finalization.finalization());
+        var executable = (MetalNegPreparedExecutable) finalized.executable();
+        var buffers = new ArrayList<MetalBufferRepresentation>();
+        RunState state = null;
+        try {
+            for (var entry : finalization.memoryPlan().buffers()) {
+                buffers.add(context.createBuffer(entry.byteSize()));
+            }
+            var bindings = buffers.stream()
+                    .map(buffer -> List.of(new BufferRepresentationBinding(
+                            buffer, RunResourceOwnership.BORROWED)))
+                    .toList();
+            var workspace = new MetalNegPreparedExecutable.AddressWorkspace(
+                    context, buffers.size());
+            state = new RunState(finalization.memoryPlan(), bindings, List.of(workspace));
+            var invocation = executable.bind(state);
+            api.runStatus = 11;
+
+            MetalNativeApi.NativeFailure failure = assertThrows(
+                    MetalNativeApi.NativeFailure.class, invocation::execute);
+
+            assertNativeFailure(failure, MetalNativeApi.EXECUTABLE_RUN_OPERATION, 11);
+            assertEquals(
+                    MetalNativeApi.EXECUTABLE_RUN_OPERATION
+                            + " failed with native status EXECUTION_FAILED (11)",
+                    failure.getMessage());
+            assertArrayEquals(new Throwable[] {observerFailure}, failure.getSuppressed());
+            assertEquals(1, api.runCalls.get());
+            assertTrue(producer.enabled());
+        } finally {
+            if (state != null) state.close();
+            buffers.forEach(MetalBufferRepresentation::close);
+            finalized.resources().forEach(resource -> resource.close());
+            context.close();
+        }
+    }
+
+    @Test
     void MetalTraceMpsGraphRangeFailureIsCapturedBeforeDeterministicJavaBoundsRescan() {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
         List<TraceEvent<? extends TracePayload>> events = new CopyOnWriteArrayList<>();
-        MetalTraceProducer producer = new MetalTraceProducer(events::add);
+        List<AssertionError> observerFailures = new CopyOnWriteArrayList<>();
+        MetalTraceProducer producer = new MetalTraceProducer(event -> {
+            events.add(event);
+            if (event.phase() == TracePhase.RUN) {
+                AssertionError failure = new AssertionError("range observer");
+                observerFailures.add(failure);
+                throw failure;
+            }
+        });
         IndexingRoute route = indexingRoute(context, Map.of(), producer);
         IndexingRoute splatRoute =
                 indexingRoute(context, Map.of(route.oneHotIndices(), ScalarValue.int32(2)));
@@ -727,6 +865,8 @@ class MetalNegPreparedExecutionTest {
             assertEquals(
                     "ONE_HOT index at logical position 1 is out of bounds: value=4, depth=4",
                     oneHot.getMessage());
+            assertArrayEquals(
+                    new Throwable[] {observerFailures.get(0)}, oneHot.getSuppressed());
 
             uploadBits(buffers.get(1), 0, -1);
             uploadBits(buffers.get(2), 1, 2);
@@ -736,6 +876,8 @@ class MetalNegPreparedExecutionTest {
                     "GATHER index at logical position 1 for data axis 1 is out of bounds:"
                             + " value=-1, extent=3",
                     gather.getMessage());
+            assertArrayEquals(
+                    new Throwable[] {observerFailures.get(1)}, gather.getSuppressed());
             assertEquals(2, api.runCalls.get());
             assertEquals(3, events.size());
             assertEquals(List.of(0L, 1L, 2L), events.stream()
@@ -754,6 +896,7 @@ class MetalNegPreparedExecutionTest {
                         outcome.nativeStatus().orElseThrow().kind());
                 assertEquals(5, outcome.nativeStatus().orElseThrow().code());
             }
+            assertTrue(producer.enabled());
         } finally {
             if (state != null) state.close();
             buffers.forEach(MetalBufferRepresentation::close);

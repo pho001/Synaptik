@@ -209,9 +209,12 @@ its exact signed code; a Java-side failure before native status return leaves na
 
 ID exhaustion, event/DTO construction failure, or an observer `RuntimeException` permanently
 disables later events for that integration without changing backend work, results, rollback, or
-outward exceptions. An observer `Error` propagates normally. Events expose no library path,
-session/device token, address or handle, Tensor/storage value, scalar, shape, byte extent, cache or
-workload fingerprint, thread identity, exception, free-form string, or generic map. The producer
+outward exceptions. An observer `Error` from success reporting propagates normally. During failure
+reporting, the existing backend/finalization/run failure remains primary; a distinct observer
+`Error` is attached as an acyclic suppressed failure without disabling tracing or disturbing prior
+rollback suppression. Events expose no library path, session/device token, address or handle,
+Tensor/storage value, scalar, shape, byte extent, cache or workload fingerprint, thread identity,
+exception, free-form string, or generic map. The producer
 adds no Engine production behavior, native ABI/schema/export, capability, route, or lifecycle
 change.
 

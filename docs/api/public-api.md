@@ -1285,9 +1285,11 @@ independent non-negative sequences; backend/device correlations are both zero. P
 the fixed profile, neutral custom-kernel or graph-executable route, and `NOT_QUERIED`; invocation
 reports the same immutable facts and exact mapped native status when one exists. An observer
 `RuntimeException`, ID exhaustion, or trace-object construction failure disables later tracing
-without changing backend behavior or outward exceptions. An `Error` propagates normally. Events
-contain only the bounded trace DTO fields and expose no native path, handle, Tensor value, shape,
-exception, free-form string, or generic map.
+without changing backend behavior or outward exceptions. An observer `Error` from success
+reporting propagates normally; during failure reporting, the existing finalization or run failure
+remains primary and receives a distinct acyclic observer `Error` as a suppressed failure without
+losing earlier rollback suppression. Events contain only the bounded trace DTO fields and expose
+no native path, handle, Tensor value, shape, exception, free-form string, or generic map.
 
 Metal retains a custom route for an eligible singleton `NEG` under either profile; every `ABS`
 partition and every other supported partition uses one typed whole-partition MPSGraph executable.

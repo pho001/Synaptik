@@ -57,7 +57,9 @@ by its runtime/prepared resources. One integration is one producer-defined trace
 - every event uses `System.nanoTime()` and its own stream-local event ID;
 - ID exhaustion, DTO/event construction failure, or observer `RuntimeException` atomically disables
   later tracing and never changes backend success, failure, rollback, or outward exception;
-- Java `Error` follows ordinary fatal-error propagation and is not converted into diagnostics;
+- observer `Error` propagates from success reporting. During failure reporting, the existing
+  backend/finalization/run failure remains primary and receives a distinct acyclic observer
+  `Error` as a suppressed failure without disabling tracing or losing prior rollback suppression;
 - callbacks are not globally serialized. IDs are unique, a preparation outcome precedes any
   invocation for its unit, and concurrent invocation completion order is otherwise unspecified.
 
@@ -102,7 +104,9 @@ Events contain only the Trace 0003 components. Never expose the native library p
 FFM segment, address/handle, Tensor/storage value, scalar constant, shape, byte extent, workload or
 candidate fingerprint, thread identity, exception text/stack, free-form string, or generic map.
 Tracing never changes route selection, tuning compatibility, resource ownership, native call count,
-result, failure type/message/suppression, retry/fallback behavior, or cleanup order.
+result, retry/fallback behavior, or cleanup order. It does not replace a failure or change its
+type/message/native status; failure reporting only appends a distinct acyclic observer `Error`
+after any existing rollback suppression.
 
 ## Non-goals
 
@@ -162,11 +166,14 @@ ABI/schema/capability change, a generic map/string payload, or observer failure 
    `NOT_QUERIED`, correlation IDs, phase, level, and success/failure status.
 3. Each native invocation emits one typed RUN outcome with a unique invocation ID and exact
    known/unknown status mapping; MPSGraph range failure is captured before outward rescan mapping.
-4. Observer/runtime trace failures disable later trace without changing backend outcomes; repeated
-   and concurrent session runs retain unique stream-local IDs and documented ordering only.
+4. Runtime trace failures disable later trace without changing backend outcomes. An observer
+   `Error` propagates from success reporting but is suppressed on the already-primary failure
+   during PREPARE or either RUN path, including MPSGraph pre-rescan reporting; repeated and
+   concurrent session runs retain unique stream-local IDs and documented ordering only.
 5. Payloads expose none of the prohibited data and use no string/map/Throwable escape hatch.
-6. Public Engine composition, `InferenceSession.run`, repeated execution, materialization, failure
-   text/suppression, ownership, close, route, and native call counts remain unchanged.
+6. Public Engine composition, `InferenceSession.run`, repeated execution, materialization, ownership,
+   close, route, and native call counts remain unchanged. Failure type/message/native status and
+   earlier suppression remain intact; only the defined observer `Error` suppression is added.
 7. No Engine production, CPU, native source/ABI/export/schema/status/capability, dependency, or build
    change occurs.
 8. Deterministic injected-native tests and an actual public Engine lifecycle collector scenario pass;
@@ -207,20 +214,28 @@ Implemented the exact public `MetalTraceObserver` and two-argument
 retains its producer-free path. One package-private integration-owned producer now allocates
 independent atomic event/prepared-unit/invocation IDs, reads `System.nanoTime()`, maps the exact
 native status vocabulary, and contains runtime trace failures by permanently disabling later
-events. Callback `Error` remains fatal. Immutable prepared facts flow through the selected plan and
-route-specific executable without an Engine production, dependency/build, capability, native
-source, ABI/export, or schema change.
+events. Callback `Error` propagates from success reporting. During failure reporting, PREPARE and
+both route-specific RUN paths preserve the backend failure as primary and append a distinct
+acyclic callback `Error` after any existing rollback suppression without disabling tracing.
+Immutable prepared facts flow through the selected plan and route-specific executable without an
+Engine production, dependency/build, capability, native source, ABI/export, or schema change.
 
 Metal finalization emits only its final `PREPARE` success/failure outcome, with truthful
 `NOT_QUERIED`; each custom or MPSGraph native invocation emits only one `RUN` outcome while tracing
 is enabled. MPSGraph range failure is recorded before the existing Java bounds rescan. Payloads
 contain only the authorized Trace 0003 components. Deterministic fake-native coverage proves
-successful and failed finalization, repeated invocation, observer-failure containment and disabled
-silence, range-status capture before outward translation, every exact status mapping, sequence
-exhaustion, and concurrent callback/ID behavior.
+successful and failed finalization, malformed native finalization with rollback suppression,
+custom and MPSGraph run failure precedence, range-status capture and observer suppression before
+outward Java bounds translation, observer-failure containment and disabled silence, every exact
+status mapping, sequence exhaustion, concurrent callback/ID behavior, and rejection of self or
+cyclic suppression.
 
 Validation passed: nine focused Metal trace tests; all 14 actual public Engine Metal integration
 tests against a freshly built existing dylib, including compile/session/repeated-run collection and
 bounds failure; the focused Engine composition architecture test; Metal Javadocs; seven affected
 Markdown files; and `git diff --check`. The one required full repository build passed with 87
 actionable tasks. The implementation is ready for independent Class C review.
+
+The review-block remediation revalidated the focused Metal producer/prepared-execution tests and
+the exact public Engine lifecycle collector scenario. The already-passing full repository build
+was intentionally not repeated.

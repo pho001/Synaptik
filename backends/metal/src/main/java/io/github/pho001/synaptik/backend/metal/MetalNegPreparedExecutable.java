@@ -251,8 +251,9 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             try {
                 resource.run(inputCount, inputs, outputCount, outputs);
             } catch (MetalNativeApi.NativeFailure failure) {
+                Error observerFailure = null;
                 if (traceUnit != null) {
-                    traceUnit.invocationFailed(invocationId, failure);
+                    observerFailure = traceUnit.invocationFailed(invocationId, failure);
                 }
                 if (failure.status() != MetalNativeApi.Status.RANGE_OUT_OF_BOUNDS) {
                     throw failure;
@@ -264,9 +265,14 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                     failure.addSuppressed(rescanFailure);
                     throw failure;
                 }
-                if (reproduced != null) throw reproduced;
+                if (reproduced != null) {
+                    if (observerFailure != null) {
+                        MetalTraceProducer.suppressObserverError(reproduced, observerFailure);
+                    }
+                    throw reproduced;
+                }
                 throw failure;
-            } catch (RuntimeException failure) {
+            } catch (RuntimeException | Error failure) {
                 if (traceUnit != null) {
                     traceUnit.invocationFailed(invocationId, failure);
                 }
@@ -430,7 +436,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                     traceUnit == null ? null : traceUnit.beginInvocation();
             try {
                 resource.run(inputHandle, outputHandle);
-            } catch (RuntimeException failure) {
+            } catch (RuntimeException | Error failure) {
                 if (traceUnit != null) {
                     traceUnit.invocationFailed(invocationId, failure);
                 }

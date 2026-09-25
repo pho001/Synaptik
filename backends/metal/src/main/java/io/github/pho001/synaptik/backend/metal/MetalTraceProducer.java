@@ -18,6 +18,9 @@ import io.github.pho001.synaptik.trace.payload.TraceNativeStatusKind;
 import io.github.pho001.synaptik.trace.payload.TraceNumericalProfile;
 import io.github.pho001.synaptik.trace.payload.TraceOutcomeStatus;
 import io.github.pho001.synaptik.trace.payload.TraceRouteKind;
+import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -90,9 +93,13 @@ final class MetalTraceProducer {
         emitPreparation(unit, TraceOutcomeStatus.SUCCEEDED, NATIVE_SUCCESS);
     }
 
-    void preparationFailed(PreparedUnit unit, RuntimeException failure) {
+    void preparationFailed(PreparedUnit unit, Throwable failure) {
         Objects.requireNonNull(failure, "failure");
-        emitPreparation(unit, TraceOutcomeStatus.FAILED, nativeFailure(failure));
+        try {
+            emitPreparation(unit, TraceOutcomeStatus.FAILED, nativeFailure(failure));
+        } catch (Error observerFailure) {
+            suppressObserverError(failure, observerFailure);
+        }
     }
 
     void invocationSucceeded(PreparedUnit unit, TraceInvocationId invocationId) {
@@ -101,12 +108,19 @@ final class MetalTraceProducer {
         }
     }
 
-    void invocationFailed(
-            PreparedUnit unit, TraceInvocationId invocationId, RuntimeException failure) {
+    Error invocationFailed(
+            PreparedUnit unit, TraceInvocationId invocationId, Throwable failure) {
         Objects.requireNonNull(failure, "failure");
-        if (invocationId != null) {
+        if (invocationId == null) {
+            return null;
+        }
+        try {
             emitInvocation(
                     unit, invocationId, TraceOutcomeStatus.FAILED, nativeFailure(failure));
+            return null;
+        } catch (Error observerFailure) {
+            suppressObserverError(failure, observerFailure);
+            return observerFailure;
         }
     }
 
@@ -196,12 +210,44 @@ final class MetalTraceProducer {
         return null;
     }
 
-    private static Optional<TraceNativeStatus> nativeFailure(RuntimeException failure) {
+    private static Optional<TraceNativeStatus> nativeFailure(Throwable failure) {
         if (!(failure instanceof MetalNativeApi.NativeFailure nativeFailure)) {
             return Optional.empty();
         }
         int code = nativeFailure.statusCode();
         return Optional.of(new TraceNativeStatus(mapNativeStatus(code), code));
+    }
+
+    static void suppressObserverError(Throwable primary, Error observerFailure) {
+        if (primary == observerFailure
+                || contains(primary, observerFailure)
+                || contains(observerFailure, primary)) {
+            return;
+        }
+        primary.addSuppressed(observerFailure);
+    }
+
+    private static boolean contains(Throwable root, Throwable target) {
+        var pending = new ArrayDeque<Throwable>();
+        var seen = Collections.newSetFromMap(new IdentityHashMap<Throwable, Boolean>());
+        pending.add(root);
+        while (!pending.isEmpty()) {
+            Throwable current = pending.removeLast();
+            if (!seen.add(current)) {
+                continue;
+            }
+            if (current == target) {
+                return true;
+            }
+            Throwable cause = current.getCause();
+            if (cause != null) {
+                pending.add(cause);
+            }
+            for (Throwable suppressed : current.getSuppressed()) {
+                pending.add(suppressed);
+            }
+        }
+        return false;
     }
 
     private static TraceNativeStatusKind mapNativeStatus(int code) {
@@ -265,7 +311,7 @@ final class MetalTraceProducer {
             producer.preparationSucceeded(this);
         }
 
-        void preparationFailed(RuntimeException failure) {
+        void preparationFailed(Throwable failure) {
             producer.preparationFailed(this, failure);
         }
 
@@ -277,9 +323,9 @@ final class MetalTraceProducer {
             producer.invocationSucceeded(this, invocationId);
         }
 
-        void invocationFailed(
-                TraceInvocationId invocationId, RuntimeException failure) {
-            producer.invocationFailed(this, invocationId, failure);
+        Error invocationFailed(
+                TraceInvocationId invocationId, Throwable failure) {
+            return producer.invocationFailed(this, invocationId, failure);
         }
 
         TracePreparedUnitId preparedUnitId() {
