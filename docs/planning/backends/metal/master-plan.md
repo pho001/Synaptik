@@ -47,11 +47,14 @@ Training-to-Metal optimizer bridge.
   domain.
 - Candidate generators return complete valid typed route configurations, are version-controlled,
   tested, and colocated with their routes. Shared orchestration treats them opaquely.
-- Before any future Metal operation becomes capability-true, its task must numerically certify
-  every candidate, then record the direct-MPSGraph versus fused-custom versus
-  certified-composition decision using hot-run time, dispatch count, and temporary-memory
-  evidence. This is cold planning/qualification evidence, never a runtime check or benchmark
-  matrix.
+- Before any future Metal operation becomes capability-true, every selectable candidate needs a
+  complete-domain subset proof from an authoritative selector contract or auditable custom/
+  composition algorithm. A bounded device corpus is regression/rejection evidence only and cannot
+  authorize unsampled ranks, extents, broadcasts, axes, modes, or shape-dependent opaque behavior.
+  Every domain-proved numerical-pass direct, fused-custom, and certified-composition candidate then
+  enters one cost comparison using hot-run time, actual dispatch count, and temporary-memory
+  evidence; route family may break only a complete measured tie. This is cold
+  planning/qualification evidence, never a runtime check or benchmark matrix.
 - Safe heuristics remain correct without tuning. Model 0026 independently owns future IEEE
   FLOAT16 semantics; two-byte storage implies neither BFLOAT16 nor FLOAT16 capability.
 - Task 0005's strict `ADD`/`SUB`/`MUL`/`DIV` delivery remains historically withdrawn after its
@@ -114,7 +117,8 @@ Training-to-Metal optimizer bridge.
   completed the sole final packaged/extracted-Metal full build. Task 0051 is Blocked before timing
   because no installed supported tool can read actual GPU dispatch/transient-memory capture facts.
   Planning-only Task 0052 inventories ACCELERATOR FLOAT32 comparisons, extrema, and scans and is
-  Blocked on the same evidence prerequisite before any device oracle. No Metal task is Ready.
+  Blocked before any device oracle on both that instrumentation prerequisite and absent
+  complete-domain proofs for its staged candidates. No Metal task is Ready.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
   requirements. Metal 0017 remains Blocked under its old accelerator-reduction contract.
@@ -300,7 +304,7 @@ before extracting a package or widening another type.
 | 0049 | [Synchronous single-default-device Metal contract](tasks/0049-synchronous-single-default-device-contract.md) | Complete | 0048 Complete at independently approved implementation `89f9fbb9` plus documentation finalization `a4ff40c2`; Runtime 0016; Prepare 0006; Engine 0010; Planning device eligibility; Trace 0003; Metal 0041–0042 | Every concurrent edit to the original nine documentation paths or review-remediation Trace master, or any async execution, result/resource lifetime, Metal device/context, planner device-selection, native ABI, trace, cache, tuning, route, capability, or pooling decision | None | Executed at `6e95d523`; P1 status-drift remediation `6d4246f7`; final cumulative independent Class C review `APPROVE` with zero findings | Original nine paths plus cumulative tenth Trace-master path; links/anchors, fences, newlines, whitespace, planning status, diff, and clean checks passed; no code/tests/Javadocs/builds/benchmarks/probes | Documents synchronous completed-state result semantics and one system-default context per integration; preserves all identities, context-bound resources, no cross-device semantics, and no general output/workspace pool. |
 | 0050 | [Final packaged Metal repository verification](tasks/0050-final-packaged-metal-repository-verification.md) | Complete | 0045–0046 Complete package/archive contract; 0048 Complete implementation; 0049 Complete at finalization `2c6326a9` | Every concurrent source, test, Gradle, native, package, archive, Metal planning, or roadmap edit during verification | None | Final verification from exact clean revision `2c6326a9`; no implementation or second full build | Native build; fixed ad-hoc sign; package/verifier; explicit archive; permission-preserving extraction/reverification; exactly one full build with 87/87 actionable tasks; 19/130 Metal suites/tests and 1/15 explicit Metal integration suite/tests passed with zero failures/errors/skips | Proves the final-approved repository against the freshly built, packaged, archived, extracted Metal dylib; records artifact identities and remaining external blockers without changing behavior. |
 | 0051 | [ACCELERATOR FLOAT32 EXP/SIGMOID recursive-floor realization](tasks/0051-accelerator-float32-exp-sigmoid-recursive-floor-realization.md) | Blocked | Model 0030/0031 Complete and independently approved; 0050 current packaged baseline; retained 0016 device evidence | Every concurrent Metal capability/schema/native-preflight/candidate/codec/tuning/public Engine scope and shared numerical-profile documentation | None | Planned at `3a818745`; exactly one capability-false recursive oracle; stop before timing when installed tooling could not read actual GPU dispatch/peak-transient facts | The 83-word Apple M3 Max oracle passed direct EXP and recursive composed SIGMOID, rejected custom EXP/SIGMOID and direct SIGMOID, then the task blocked before its one adjudication workload because Command Line Tools have no usable `xctrace`; artifacts removed; no production, schema, identity, ABI, test, or capability change | Preserves false EXP/SIGMOID capability and current schema 11/version-twelve/ABI 4 until supported GPU-trace tooling can supply actual dispatch and peak temporary-memory evidence. |
-| 0052 | [ACCELERATOR FLOAT32 comparisons, extrema, and scans](tasks/0052-accelerator-float32-comparisons-extrema-scans.md) | Blocked | Model 0030/0031 Complete and independently approved; 0050 current packaged baseline; retained 0010/0012/0013 evidence; current Compiler capture | Every concurrent Metal capability/schema/native-preflight/candidate/codec/tuning/public Engine scope and shared numerical-profile documentation; no Task-0051 production overlap | None | Planning-only from `f2debef3`; instrumentation prerequisite; structural gate; exactly one capability-false numerical process invocation; one bounded cost-evidence group; fixed per-operation routes | Planning links/Markdown/status/diff only; no oracle, capture, build, test, native, or production action in this slice | Partitions six comparisons, tensor/scalar/clamp/reduction extrema, and CUM_SUM/CUM_PROD under exact/discrete plus recursive aggregate floors; capability remains false until each operation passes structural, numerical, actual dispatch/transient cost, and fixed-route gates. |
+| 0052 | [ACCELERATOR FLOAT32 comparisons, extrema, and scans](tasks/0052-accelerator-float32-comparisons-extrema-scans.md) | Blocked | Model 0030/0031 Complete and independently approved; 0050 current packaged baseline; retained 0010/0012/0013 evidence; current Compiler capture | Every concurrent Metal capability/schema/native-preflight/candidate/codec/tuning/public Engine scope and shared numerical-profile documentation; no Task-0051 production overlap | None | Planning/remediation from `f2debef3`; instrumentation prerequisite; structural/API plus distinct complete-domain proof; exactly one capability-false regression process invocation; one bounded all-candidate cost group; fixed per-operation routes | Planning links/Markdown/status/diff only; no oracle, capture, build, test, native, or production action in this slice | Partitions six comparisons, tensor/scalar/clamp/reduction extrema, and CUM_SUM/CUM_PROD under exact/discrete plus recursive aggregate floors; bounded samples cannot prove the domain; every domain-proved numerical-pass direct/custom/composed candidate competes on measured cost before family is used only as a tie-breaker. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -394,20 +398,22 @@ packaged/extracted-Metal repository build from exact revision `2c6326a9`. Detail
 [0051](tasks/0051-accelerator-float32-exp-sigmoid-recursive-floor-realization.md) is Blocked after
 its oracle and before timing on missing readable GPU dispatch/transient-memory instrumentation.
 Planning-only [0052](tasks/0052-accelerator-float32-comparisons-extrema-scans.md) is independently
-Blocked on that instrumentation prerequisite before any device oracle. No Metal task is Ready.
-Every other Metal task retains its recorded status. These edges serialize shared Metal mutation;
-they do not claim that one operation family requires another.
+Blocked before any device oracle on that instrumentation prerequisite and absent complete-domain
+candidate proofs. No Metal task is Ready. Every other Metal task retains its recorded status.
+These edges serialize shared Metal mutation; they do not claim that one operation family requires
+another.
 
 ## Integration ownership and shared documents
 
 - Complete Tasks 0046, 0048, 0049, and 0050 retain their reviewed local-archive, persistent-
   immutable-splat, synchronous/single-default-device, and final-verification boundaries. Blocked
   Task 0047 owns no workflow, provider, runner, Gradle, or native-distribution implementation scope
-  until its external GPU-hosted-runner gate is resolved. Blocked Tasks 0051 and 0052 own no
-  production write scope until supported installed tooling can read actual GPU dispatch and peak
-  transient-memory facts. They may cross-link only in this master and the roadmap; neither may
-  consume schema/wire/identity values or edit the other's task/evidence while both remain Blocked.
-  No overlapping CI, distribution, benchmark-protocol, async/device-selection, or shared-document
+  until its external GPU-hosted-runner gate is resolved. Blocked Task 0051 owns no production write
+  scope until supported installed tooling can read actual GPU dispatch and peak transient-memory
+  facts. Task 0052 additionally needs complete-domain candidate proofs before its sole regression
+  invocation. They may cross-link only in this master and the roadmap; neither may consume
+  schema/wire/identity values or edit the other's task/evidence while both remain Blocked. No
+  overlapping CI, distribution, benchmark-protocol, async/device-selection, or shared-document
   work is authorized while no Metal task is Ready.
 - Complete Metal 0044 owns its documentation/audit no-change record; no active owner may reinterpret
   its bounded report as a winner or production decision.
@@ -572,10 +578,12 @@ readable actual GPU dispatch/peak-transient instrumentation was unavailable befo
 
 Planning-only [0052](tasks/0052-accelerator-float32-comparisons-extrema-scans.md) freezes the next
 bounded inventory for six comparisons, tensor/scalar/clamp/reduction extrema, and cumulative
-SUM/PRODUCT under Model 0030's exact/discrete and recursive aggregate floors. It stages direct
-MPSGraph first, exact custom extrema only as a coverage contingency, and composition last. It ran
-no device action and grants no capability; each operation still requires structural, sole-oracle,
-actual-dispatch/transient cost, and fixed-route gates after the shared instrumentation prerequisite.
+SUM/PRODUCT under Model 0030's exact/discrete and recursive aggregate floors. It stages typed
+direct and auditable custom candidates for every operation plus concrete CLAMP compositions.
+Every candidate first needs complete-domain proof; the sole ordered-prefix/abstract-NaN corpus is
+regression evidence only. Every domain-proved numerical-pass candidate enters one measured
+cost comparison, with direct/custom/composed used only as the final tie-break order. It ran no
+device action and grants no capability.
 Gross class/sign-failing direct selectors for `RECIPROCAL`, `LOG`, `SQRT`, `RSQRT`, `RELU`, and
 `TANH` remain unusable; a conforming custom or
 composed route would still require complete formula, schema, capability, and route proof.
