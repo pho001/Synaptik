@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through reviewed 0025; 0006–0007, 0009–0013, 0016–0018, 0026–0027, and 0030–0033 Blocked | Metal 0033 records the no-probe documentation-first unmasked default-scale SDPA blocker while preserving all earlier evidence. No Metal task is Ready. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through reviewed 0025; 0006–0007, 0009–0013, 0016–0018, 0026–0027, and 0030–0034 Blocked | Metal 0034 records the no-probe documentation-first ascending SORT blocker while preserving all earlier evidence. No Metal task is Ready. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -92,6 +92,8 @@ decomposition cannot import accelerator binary relaxations into exact loss seman
 cannot close independent FTZ, special-class, and rounding gaps. Metal 0033 is Blocked without a
 probe: direct unmasked output-only SDPA exists, but attention is unrelaxed and its documentation
 leaves independent FTZ, accumulation, stable-softmax, special-class, and shape-algorithm gaps.
+Metal 0034 is Blocked without a probe: direct one-output SORT exists, but unrelaxed ordering's
+stability, NaN, signed-zero, subnormal, exact-bit, and shape-algorithm contracts are undocumented.
 None changed production; no Metal task is Ready.
 
 Task 0019 landed at implementation `a6d1796d` plus mixed-owner test remediation `bcb717a6`. Its
@@ -108,7 +110,7 @@ The active semantic and Metal serial DAG is:
 
 `Model 0028 (Complete) -> Metal 0020 (Complete) -> Metal 0018 (Blocked)`
 
-`Metal 0018 blocker evidence -> Model 0029 (Complete) -> Metal 0021 (Complete) -> Metal 0022 (Complete) -> Metal 0023 (Complete) -> Metal 0024 (Complete) -> Metal 0025 (Complete) -> {Metal 0026 (Blocked), Metal 0027 (Blocked), Metal 0030 (Blocked), Metal 0031 (Blocked), Metal 0032 (Blocked), Metal 0033 (Blocked)}`
+`Metal 0018 blocker evidence -> Model 0029 (Complete) -> Metal 0021 (Complete) -> Metal 0022 (Complete) -> Metal 0023 (Complete) -> Metal 0024 (Complete) -> Metal 0025 (Complete) -> {Metal 0026 (Blocked), Metal 0027 (Blocked), Metal 0030 (Blocked), Metal 0031 (Blocked), Metal 0032 (Blocked), Metal 0033 (Blocked), Metal 0034 (Blocked)}`
 
 [Metal 0016](backends/metal/tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) is Blocked
 without production changes. Its Apple M3 Max gate proved exact `ABS`, but `EXP` and `SIGMOID`
@@ -151,8 +153,8 @@ Class C review returned `APPROVE` with zero findings. Metal 0022 completed at `4
 implementation `44edd86092509348e1e72cf7f0f4c3b13d141fa8`, first remediation
 `d0a947fa953bddb2714c1917c7114ac345c530b7`, and final remediation/reviewed revision
 `f88066e3ad0547987bb03b2d18ed2813f97de223`; final approval had zero findings. Metal 0026,
-Metal 0027, Metal 0030, Metal 0031, Metal 0032, and Metal 0033 are Blocked without production
-changes; 0031–0033 ran no probe and no Metal task is Ready.
+Metal 0027, Metal 0030, Metal 0031, Metal 0032, Metal 0033, and Metal 0034 are Blocked without
+production changes; 0031–0034 ran no probe and no Metal task is Ready.
 
 Engine
 [0017](modules/engine/tasks/0017-reusable-inference-session-api.md) is Complete from exact base
@@ -204,6 +206,11 @@ unmasked noncausal default-scale one-output SDPA. The macOS-15 direct selector i
 current runtime, but attention is unrelaxed and the headers do not close independent FTZ,
 accumulation, stable-softmax, special-class, or shape-algorithm gaps. The additive mask surface
 mismatches Model's BOOL eligibility semantics and provides no adjacent route.
+Blocked [0034](backends/metal/tasks/0034-profile-common-canonical-float32-no-grad-ascending-sort.md)
+also ran no probe. Its smallest candidate is profile-common canonical rank-one FLOAT32 no-grad
+ascending SORT. The direct selector is runtime-available but omits the complete exact ordering
+contract. ARGSORT returns INT32 rather than Model INT64, and mandatory two-output TOP_K cannot fit
+the current Metal one-output schema.
 
 [0006](backends/metal/tasks/0006-mpsgraph-float32-unary-algebra.md) remains `Blocked` by exact
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures. [0007](backends/metal/tasks/0007-mpsgraph-float32-reductions.md)
@@ -265,7 +272,7 @@ operand only on its consuming edge; general affine publication and valid local c
 available. Version-twelve identities separate profile/type/topology compatibility, scalar
 reduction and BOOL materialization remain local-only, FLOAT32-only transfer is unchanged, and
 Runtime/Trace remain profile-free. Metal 0025 is Complete at final reviewed revision `f88066e3`.
-Metal 0026–0027/0030–0033 are Blocked and changed no executable capability; 0031–0033 ran no
+Metal 0026–0027/0030–0034 are Blocked and changed no executable capability; 0031–0034 ran no
 device probe. Schema 12/wire 20/attribute 7 and version-thirteen identities remain conditional,
 unimplemented, and unreserved; no Metal task is Ready.
 
@@ -296,8 +303,11 @@ an undocumented shape-dependent contraction algorithm. Metal 0032 is Blocked bef
 because no direct MSE selector exists, binary accelerator freedoms are operation-scoped, and one
 run cannot close its independent exact-loss gaps. Metal 0033 is Blocked before a probe because
 attention is unrelaxed and the direct selector leaves independent exact-attention gaps across
-opaque shape-dependent algorithms. No task may infer generic fast math, transfer row relaxations,
-replace a prohibited matrix with narrowing, or reserve conditional schema.
+opaque shape-dependent algorithms. Metal 0034 is Blocked before a probe because ordering is
+unrelaxed and direct SORT leaves independent stability, special-order, exact-bit, and
+shape-algorithm gaps; ARGSORT/TOP_K also conflict with current type/arity boundaries. No task may
+infer generic fast math, transfer row relaxations, replace a prohibited matrix with narrowing, or
+reserve conditional schema.
 
 ## Blocked, review-needed, and deferred work
 
@@ -354,7 +364,7 @@ replace a prohibited matrix with narrowing, or reserve conditional schema.
   comparison still requires a separately reviewed, fully sealed matrix before measurement.
 - Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
   0017, and Metal 0015/0019/0020/0021/0022/0023/0024/0025 are Complete. Metal 0016–0018,
-  0026–0027, and 0030–0033 remain Blocked under their recorded contracts. No Metal task is Ready;
+  0026–0027, and 0030–0034 remain Blocked under their recorded contracts. No Metal task is Ready;
   every unfinished or blocked family remains unauthorized.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
@@ -400,6 +410,15 @@ transfer into unrelaxed attention. The selector documentation leaves independent
 accumulation, stable-softmax, special-class, and shape-algorithm gaps that one run cannot close.
 Unblocking requires authoritative complete selector documentation, an exact custom-kernel proof,
 or preceding attention-specific Model/architecture broadening.
+Metal 0034 is now Blocked without a device probe. Its smallest candidate is profile-common
+canonical rank-one FLOAT32 no-grad ascending SORT. Direct one-output SORT is runtime-available, but
+ordering has no accelerator relaxation and Apple does not document stable ties, NaNs-last,
+signed-zero order, ordinary subnormal comparison, exact represented-bit movement, or one behavior
+across shape-dependent algorithms. ARGSORT's direct INT32 result mismatches Model's mandatory INT64
+and the current Metal type/publication path; mandatory two-output TOP_K cannot fit the current
+one-output schema and lacks Model's output-order guarantees. One run cannot close these independent
+gaps. Unblocking requires an authoritative complete direct-selector contract or an exact custom
+stable-sort kernel.
 Schema 12/wire 20/attribute 7 and identity 13 remain conditional, unimplemented, and unreserved.
 Metal 0026/0027 remain separately finalized Blocked, and no Metal task is Ready.
 
