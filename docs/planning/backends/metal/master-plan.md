@@ -114,16 +114,16 @@ Training-to-Metal optimizer bridge.
   `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Task 0047 is Blocked on a real GPU-capable hosted
   runner. Task 0048 is Complete at independently approved implementation `89f9fbb9`. Documentation-
   only Task 0049 is Complete after approved P1 remediation `6d4246f7`. Evidence-only Task 0050
-  completed the sole final packaged/extracted-Metal full build. Task 0051 is Blocked before
-  complete-domain authorization and timing: its sampled direct EXP and inherited composed SIGMOID
-  routes are `DOMAIN-BLOCKED`, its other candidates failed numerically, its one-shot oracle is
-  consumed, and installed tooling cannot read actual GPU dispatch/transient-memory capture facts.
-  Task 0052 completed Gate 1A/API, Gate 1B custom-route proof, and exactly one capability-false
-  Apple M3 Max oracle; every opaque direct candidate is `DOMAIN-BLOCKED` and every custom candidate
-  passed. Its exact custom source, validator, audit, wrapper, and proof were recovered from the
-  original execution session, matched their recorded hashes, and are permanently reviewable under
-  [`evidence/0052/`](evidence/0052/README.md) without another oracle invocation. Execution stopped
-  before timing on the same instrumentation prerequisite. No Metal task is Ready.
+  completed the sole final packaged/extracted-Metal full build. Task 0051 remains Blocked as the
+  consumed historical EXP/SIGMOID oracle record: its sampled direct EXP and inherited composed
+  SIGMOID routes are `DOMAIN-BLOCKED`, its other candidates failed numerically, and its one-shot
+  oracle is never rerun. Task 0053 supersedes it for future EXP/SIGMOID work but is Blocked until
+  concrete source/constants pass a pinned machine-checkable complete-domain proof plus independent
+  review and full-Xcode tooling can read actual GPU dispatch/peak-transient facts; no new oracle has
+  run. Task 0052 independently completed Gate 1A/API, Gate 1B custom-route proof, and exactly one
+  capability-false Apple M3 Max oracle; every opaque direct candidate is `DOMAIN-BLOCKED` and every
+  custom candidate passed. Its exact custom source, validator, audit, wrapper, and proof remain
+  permanently reviewable under [`evidence/0052/`](evidence/0052/README.md). No Metal task is Ready.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
   requirements. Metal 0017 remains Blocked under its old accelerator-reduction contract.
@@ -308,8 +308,9 @@ before extracting a package or widening another type.
 | 0048 | [Persistent immutable Metal splats and no-general-pool closure](tasks/0048-persistent-immutable-splats-and-no-general-pool-closure.md) | Complete | 0046 Complete at independently approved implementation `4aad1ab6`; Runtime 0016; Prepare 0006; Engine 0010; current Metal finalization/schedule/trace/tuning spine | Every concurrent Metal preparation/finalization/executable/schedule/buffer/transfer, trace/tuning identity, backend/runtime/API/decision documentation, Metal test, master, or roadmap edit | None | Implemented from sole-Ready planning commit `08b9e7ea`; independent Class C review approved implementation `89f9fbb9` with zero findings while 0047 remains Blocked | 49 focused execution tests plus nine identity tests passed; exactly two explicit real-device tests passed with zero skips/failures/errors; Javadocs, focused Runtime architecture, docs, diff, and clean checks passed; no full build by instruction | Persists each immutable source-owned splat once per prepared execution with fresh read-only run bindings and exact deferred release; explicitly rejects a general output/workspace pool under current RunResult/concurrency ownership. |
 | 0049 | [Synchronous single-default-device Metal contract](tasks/0049-synchronous-single-default-device-contract.md) | Complete | 0048 Complete at independently approved implementation `89f9fbb9` plus documentation finalization `a4ff40c2`; Runtime 0016; Prepare 0006; Engine 0010; Planning device eligibility; Trace 0003; Metal 0041–0042 | Every concurrent edit to the original nine documentation paths or review-remediation Trace master, or any async execution, result/resource lifetime, Metal device/context, planner device-selection, native ABI, trace, cache, tuning, route, capability, or pooling decision | None | Executed at `6e95d523`; P1 status-drift remediation `6d4246f7`; final cumulative independent Class C review `APPROVE` with zero findings | Original nine paths plus cumulative tenth Trace-master path; links/anchors, fences, newlines, whitespace, planning status, diff, and clean checks passed; no code/tests/Javadocs/builds/benchmarks/probes | Documents synchronous completed-state result semantics and one system-default context per integration; preserves all identities, context-bound resources, no cross-device semantics, and no general output/workspace pool. |
 | 0050 | [Final packaged Metal repository verification](tasks/0050-final-packaged-metal-repository-verification.md) | Complete | 0045–0046 Complete package/archive contract; 0048 Complete implementation; 0049 Complete at finalization `2c6326a9` | Every concurrent source, test, Gradle, native, package, archive, Metal planning, or roadmap edit during verification | None | Final verification from exact clean revision `2c6326a9`; no implementation or second full build | Native build; fixed ad-hoc sign; package/verifier; explicit archive; permission-preserving extraction/reverification; exactly one full build with 87/87 actionable tasks; 19/130 Metal suites/tests and 1/15 explicit Metal integration suite/tests passed with zero failures/errors/skips | Proves the final-approved repository against the freshly built, packaged, archived, extracted Metal dylib; records artifact identities and remaining external blockers without changing behavior. |
-| 0051 | [ACCELERATOR FLOAT32 EXP/SIGMOID recursive-floor realization](tasks/0051-accelerator-float32-exp-sigmoid-recursive-floor-realization.md) | Blocked | Model 0030/0031 Complete and independently approved; 0050 current packaged baseline; retained 0016 device evidence | Every concurrent Metal capability/schema/native-preflight/candidate/codec/tuning/public Engine scope and shared numerical-profile documentation | None | Planned at `3a818745`; one capability-false 83-word regression oracle consumed; Gate-1B evidence correction; a new authorized successor must prove/stage auditable integer custom EXP/stable SIGMOID and own any fresh oracle before instrumentation-backed adjudication | Retained oracle hashes/verdicts; Gate-1B per-candidate ledger; successor-only fixed-point/source/certificate proof obligations; Markdown/status/diff/path/artifact checks only; no new device, native, timing, build, test, schema, identity, capability, or production action | Direct EXP and its composed SIGMOID are `DOMAIN-BLOCKED` despite bounded numerical passes; original custom EXP/custom SIGMOID/direct SIGMOID retain failures; no current candidate may reach timing or production. |
-| 0052 | [ACCELERATOR FLOAT32 comparisons, extrema, and scans](tasks/0052-accelerator-float32-comparisons-extrema-scans.md) | Blocked | Model 0030/0031 Complete and independently approved; 0050 current packaged baseline; retained 0010/0012/0013 evidence; current Compiler capture | Every concurrent Metal capability/schema/native-preflight/candidate/codec/tuning/public Engine scope and shared numerical-profile documentation; no Task-0051 production overlap | None | Planned/remediated from `f2debef3`; Gate 1A/API plus distinct complete-domain proof and sole capability-false oracle from `bd5c40d3`; exact custom proof package recovered and retained under [evidence/0052](evidence/0052/README.md); stop before cost on missing trace instrumentation; future one bounded all-survivor cost group and fixed per-operation routes | Hash-revalidated proof/source/validator/audit/wrapper; exactly one 98-output Apple M3 Max process invocation; offline exact verdict; Markdown/status/diff/path/disposable-artifact checks; no rerun, timing, capture, build, test, native production, or capability action | All opaque direct candidates are `DOMAIN-BLOCKED`; all 16 custom candidates are `DOMAIN-PASS` and numerical `PASS`; bounded evidence cannot replace domain proof; no route was selected because actual dispatch/peak-transient trace facts remain unavailable. |
+| 0051 | [ACCELERATOR FLOAT32 EXP/SIGMOID recursive-floor realization](tasks/0051-accelerator-float32-exp-sigmoid-recursive-floor-realization.md) | Blocked | Model 0030/0031 Complete and independently approved; 0050 current packaged baseline; retained 0016 device evidence | Every concurrent Metal capability/schema/native-preflight/candidate/codec/tuning/public Engine scope and shared numerical-profile documentation | None | Planned at `3a818745`; one capability-false 83-word regression oracle consumed; Gate-1B evidence correction; superseded by 0053 for all future candidate/proof/oracle/cost/production work | Retained oracle hashes/verdicts; Gate-1B per-candidate ledger; successor obligations transferred to 0053; no new device, native, timing, build, test, schema, identity, capability, or production action | Historical record only: direct EXP and its composed SIGMOID are `DOMAIN-BLOCKED` despite bounded numerical passes; original custom EXP/custom SIGMOID/direct SIGMOID retain failures; its oracle is never rerun. |
+| 0052 | [ACCELERATOR FLOAT32 comparisons, extrema, and scans](tasks/0052-accelerator-float32-comparisons-extrema-scans.md) | Blocked | Model 0030/0031 Complete and independently approved; 0050 current packaged baseline; retained 0010/0012/0013 evidence; current Compiler capture | Every concurrent Metal capability/schema/native-preflight/candidate/codec/tuning/public Engine scope and shared numerical-profile documentation; no Task-0051/0053 production overlap | None | Planned/remediated from `f2debef3`; Gate 1A/API plus distinct complete-domain proof and sole capability-false oracle from `bd5c40d3`; exact custom proof package recovered and retained under [evidence/0052](evidence/0052/README.md); stop before cost on missing trace instrumentation; future one bounded all-survivor cost group and fixed per-operation routes | Hash-revalidated proof/source/validator/audit/wrapper; exactly one 98-output Apple M3 Max process invocation; offline exact verdict; Markdown/status/diff/path/disposable-artifact checks; no rerun, timing, capture, build, test, native production, or capability action | All opaque direct candidates are `DOMAIN-BLOCKED`; all 16 custom candidates are `DOMAIN-PASS` and numerical `PASS`; bounded evidence cannot replace domain proof; no route was selected because actual dispatch/peak-transient trace facts remain unavailable. |
+| 0053 | [Certified ACCELERATOR FLOAT32 custom EXP and stable SIGMOID](tasks/0053-certified-accelerator-float32-custom-exp-stable-sigmoid.md) | Blocked | Model 0030/0031 Complete and independently approved; 0051 preserved consumed evidence; 0050 packaged baseline; concrete pinned proof toolchain; supported full-Xcode dispatch/peak-transient trace reader | Every concurrent Metal capability/schema/native-preflight/candidate/codec/tuning/public Engine scope and shared numerical-profile documentation; Task-0052 task/evidence | None | Concrete source/constants/manifests and kernel-checked complete-domain proof → independent read-only approval → exactly one new successor oracle → all-survivor instrumented cost → fixed routes → separately reviewed production cutover | Planning links/fences/status/path/diff only now; future proof/source hash and complete-domain review, then one frozen-corpus oracle and actual dispatch/peak-transient evidence; never rerun 0051 | Supersedes 0051 for future work; custom EXP and recursively proved stable SIGMOID are `DOMAIN-PENDING`, current opaque direct/inherited routes remain `DOMAIN-BLOCKED`, and no device/schema/capability action is authorized while either prerequisite is absent. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -345,7 +346,7 @@ Completed profile spine and serial successors:
 
 `0049 (Complete) -> 0050 (Complete final program verification)`
 
-`Model 0031 (Complete) -> Model 0030 (Complete) -> {0051 (Blocked on complete-domain proof plus GPU-trace instrumentation after its consumed regression oracle), 0052 (Blocked after its sole oracle on GPU-trace instrumentation)}`
+`Model 0031 (Complete) -> Model 0030 (Complete) -> {0051 (historical Blocked after its consumed oracle) -> 0053 (Blocked on concrete machine-checked complete-domain proof plus full-Xcode GPU-trace instrumentation before its newly authorized oracle), 0052 (Blocked after its sole oracle on GPU-trace instrumentation)}`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -400,15 +401,18 @@ independently approved implementation `89f9fbb9093db3fb86629189cb98ae521a631b27`
 independent Class C `APPROVE` with zero findings on remediation `6d4246f7`.
 [0050](tasks/0050-final-packaged-metal-repository-verification.md) is Complete after the sole final
 packaged/extracted-Metal repository build from exact revision `2c6326a9`. Detailed
-[0051](tasks/0051-accelerator-float32-exp-sigmoid-recursive-floor-realization.md) is Blocked after
-its consumed regression oracle and before complete-domain authorization or timing: direct EXP and
-its composed SIGMOID are domain-blocked, the remaining candidates failed, and readable GPU
-dispatch/transient-memory instrumentation is unavailable.
-[0052](tasks/0052-accelerator-float32-comparisons-extrema-scans.md) is independently Blocked after
-Gate 1A/API, Gate 1B custom-route proof, and its sole numerical oracle, before timing on the same
-missing readable GPU dispatch/transient-memory instrumentation. Its exact Gate-1 custom source and
-proof package is retained under [`evidence/0052/`](evidence/0052/README.md) with all recorded hashes
-revalidated. No Metal task is Ready. Every other Metal task retains its recorded status.
+[0051](tasks/0051-accelerator-float32-exp-sigmoid-recursive-floor-realization.md) remains Blocked
+after its consumed regression oracle: direct EXP and its composed SIGMOID are domain-blocked, the
+remaining candidates failed, and its invocation is never rerun.
+[0053](tasks/0053-certified-accelerator-float32-custom-exp-stable-sigmoid.md) supersedes 0051 for
+future EXP/SIGMOID work and is Blocked before source execution. It requires concrete source,
+constants, complete raw-word/rank-`1..16` machine-checked proof and independent approval plus
+supported full-Xcode actual-dispatch/peak-transient trace tooling before its one newly authorized
+oracle. [0052](tasks/0052-accelerator-float32-comparisons-extrema-scans.md) is independently
+Blocked after Gate 1A/API, Gate 1B custom-route proof, and its sole numerical oracle, before timing
+on the same trace prerequisite. Its exact Gate-1 custom source and proof package remains retained
+under [`evidence/0052/`](evidence/0052/README.md). No Metal task is Ready. Every other Metal task
+retains its recorded status.
 These edges serialize shared Metal mutation; they do not claim that one operation family requires
 another.
 
@@ -417,24 +421,24 @@ another.
 - Complete Tasks 0046, 0048, 0049, and 0050 retain their reviewed local-archive, persistent-
   immutable-splat, synchronous/single-default-device, and final-verification boundaries. Blocked
   Task 0047 owns no workflow, provider, runner, Gradle, or native-distribution implementation scope
-  until its external GPU-hosted-runner gate is resolved. Blocked Task 0051 owns no production write
-  scope: a new explicitly authorized successor must first prove and independently review a concrete
-  auditable custom route, run its own one-shot regression oracle, and obtain actual GPU dispatch and
-  peak transient-memory facts.
-  Task 0052 completed its complete-domain gate for every custom candidate and its sole
-  regression invocation. Exact source, validator, audit, wrapper, and proof review copies are
-  permanently retained and hash-revalidated; its opaque direct candidates remain domain-blocked,
-  and it owns no production scope until trace instrumentation permits Gate 3. Tasks 0051 and 0052
-  may cross-link only in this master and the roadmap; neither may consume schema/wire/identity
-  values or edit the other's task/evidence while both remain Blocked. No
-  overlapping CI, distribution, benchmark-protocol, async/device-selection, or shared-document
-  work is authorized while no Metal task is Ready.
+  until its external GPU-hosted-runner gate is resolved. Blocked Task 0051 is historical and owns no
+  future source, oracle, or production work. Task 0053 owns the successor EXP/SIGMOID contract but
+  no production scope while either its concrete machine-checked proof prerequisite or full-Xcode
+  trace prerequisite is absent. It must prove and independently review exact source/constants
+  before its one new oracle, then obtain actual GPU dispatch and peak transient-memory facts before
+  route selection. Task 0052 completed its separate complete-domain gate and sole regression
+  invocation; its exact evidence remains retained and must not be edited by Task 0053. Its opaque
+  direct candidates remain domain-blocked, and it owns no production scope until trace
+  instrumentation permits Gate 3. Tasks 0052 and 0053 may cross-link only in this master and the
+  roadmap; neither may consume schema/wire/identity values or edit the other's task/evidence while
+  both remain Blocked. No overlapping CI, distribution, benchmark-protocol,
+  async/device-selection, or shared-document work is authorized while no Metal task is Ready.
 - Complete Metal 0044 owns its documentation/audit no-change record; no active owner may reinterpret
   its bounded report as a winner or production decision.
 - Complete Metal 0043 retains its reviewed benchmark implementation and evidence; Complete Metal
   0042 retains its reviewed tuning collaborations and Engine integration. Task 0044 changed neither
   production surface.
-- Blocked Metal 0016–0018, 0026–0027, 0030–0037, 0039–0040, and 0051–0052 have no active
+- Blocked Metal 0016–0018, 0026–0027, 0030–0037, 0039–0040, and 0051–0053 have no active
   production write or review scope. Complete Metal 0041 retains its reviewed implementation.
   Model 0028 owns the reduction semantic contract, Complete Model 0029 owns the MATMUL
   final-publication semantic contract, and Complete Metal 0021–0025 retain their reviewed
@@ -523,9 +527,9 @@ findings. Tasks 0043–0044 are Complete. Task 0045 is Complete at same-reviewer
 remains unauthenticated and local. Task 0047 is Blocked on the unavailable required M2 GPU hosted
 runner. Task 0048 is Complete at independently approved implementation `89f9fbb9`. Documentation-
 only Task 0049 is Complete after approved P1 remediation `6d4246f7`. Evidence-only Task 0050
-completed the final packaged/extracted-Metal 87-task repository build; Task 0051 is Blocked after
-its consumed regression oracle and before complete-domain authorization or timing, Task 0052 is
-Blocked after its proof/oracle and before timing, and no Metal task is Ready.
+completed the final packaged/extracted-Metal 87-task repository build; Task 0051 is the preserved
+Blocked consumed-oracle record, Task 0053 is Blocked before proof approval/new oracle/trace-backed
+cost, Task 0052 is Blocked after its proof/oracle and before timing, and no Metal task is Ready.
 
 Metal 0006 remains historically `Blocked` after its frozen direct-selector
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH special-class and sign gate failures. Complete Model 0030
@@ -590,10 +594,14 @@ results semantically reachable. Task 0051's sole 83-word oracle gave bounded num
 direct EXP and recursively composed SIGMOID, while direct SIGMOID and both original custom
 candidates failed. The two sampled passes are regression evidence only: opaque direct EXP lacks an
 authoritative all-binary32/rank-`1..16` contract, and the composition inherits that
-`DOMAIN-BLOCKED` dependency. No current candidate is eligible for timing. Task 0051 now specifies
-successor-only integer custom EXP and stable SIGMOID proof obligations, but concrete source,
-all-raw-word certificates, independent review, a newly authorized oracle, and readable actual GPU
-dispatch/peak-transient instrumentation are still required before any route or capability decision.
+`DOMAIN-BLOCKED` dependency. Task 0051 is now historical and its oracle is never rerun.
+[0053](tasks/0053-certified-accelerator-float32-custom-exp-stable-sigmoid.md) supersedes it for
+future work. The successor requires concrete source/constants and machine-checkable proofs of the
+complete raw partition, DAZ, range reduction, table/index and approximation bounds, every RNE/FMA
+and FTZ site, inclusive EXP distance `<=5`, launch/index coverage, and recursive stable-SIGMOID
+membership before independent approval and one new oracle. It remains Blocked on that proof package
+and supported full-Xcode actual-dispatch/peak-transient tooling; no candidate is currently eligible
+for timing or production.
 
 [0052](tasks/0052-accelerator-float32-comparisons-extrema-scans.md) freezes the next bounded
 inventory for six comparisons, tensor/scalar/clamp/reduction extrema, and cumulative SUM/PRODUCT
