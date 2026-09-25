@@ -58,12 +58,29 @@ or import producer-domain types.
 |---|---|---|---|---|
 | 0001 | [Core trace event envelope](tasks/0001-core-trace-event-envelope.md) | Complete | Model milestone complete | Replaced the placeholder with the caller-supplied event identity, lifecycle phase, diagnostic level, open typed-payload marker, and immutable generic event envelope. |
 | 0002 | [Model correlation identifiers](tasks/0002-model-correlation-identifiers.md) | Complete | 0001, completed model milestone | Added trace-local node, value, and tensor identities for stable model correlations without importing or duplicating producer objects. |
-| 0003 | Typed trace attributes | Draft | 0001 | Add the constrained typed backend-specific attribute escape hatch without making a string map the primary model. |
+| 0003 | [Backend preparation and invocation diagnostic DTOs](tasks/0003-backend-preparation-and-invocation-diagnostic-dtos.md) | Ready | 0001–0002; stable Metal prepare/run producer facts | Add four trace-local producer IDs and the closed neutral profile/route/cache/native-status preparation and invocation outcome DTOs required by Metal 0041, without emission behavior. |
 | 0004 | Compile payload family | Draft | 0001–0002 | Define typed capture, transformation, ownership, partition, logical-memory, and publication diagnostic payloads after compiler/planning facts stabilize. |
-| 0005 | Prepare payload family | Draft | 0001–0003 | Define typed preparation, route, prepared-memory, partition, unit, and schedule diagnostics after prepare contracts stabilize. |
-| 0006 | Run payload family | Draft | 0001–0003 | Define typed invocation, execution, transfer, materialization, step, and publication diagnostics after runtime contracts stabilize. |
-| 0007 | Backend payload family | Draft | 0001–0003 | Define typed availability, capability, route, kernel, storage, and backend-detail diagnostics without backend implementation dependencies. |
+| 0005 | Broader prepare payload family | Draft | 0003 | Extend beyond the bounded prepared-unit finalization outcome only after additional prepare producer contracts stabilize. |
+| 0006 | Broader run payload family | Draft | 0003 | Extend beyond the bounded native-invocation outcome only after additional Runtime producer contracts stabilize. |
+| 0007 | Broader backend payloads and typed attributes | Draft | 0003 | Define later availability, capability, kernel, storage, and constrained backend-detail DTOs without a generic string map or backend dependency. |
 | 0008 | Serialization and schema validation | Draft | 0001–0007 | Select and validate a stable external encoding only after all shared DTO families are concrete. |
+
+## Dependency DAG and authorized frontier
+
+`0001 (Complete) -> 0002 (Complete) -> 0003 (Ready) -> Metal 0041 (Blocked)`
+
+Tasks 0004–0008 remain Draft and are not parallel frontiers. Trace 0003 is the sole authorized
+repository frontier. It serializes every Trace ID/payload/API write; Metal 0041 must rebase after
+0003 completes before it may become Ready.
+
+## Integration ownership and shared documents
+
+- Integration owner: Trace 0003 executor.
+- Shared documents: Trace 0003 exclusively owns current Trace API/explanation/glossary status,
+  this master plan, and the roadmap during implementation.
+- Common base revision: `790454309df60b44e805c8552549e935611fd4c2`.
+- Integration validation: Trace module tests/Javadocs, public-shape/import checks, Markdown/link
+  validation, exact scope, and `git diff --check`.
 
 
 ## Milestones
@@ -74,29 +91,16 @@ or import producer-domain types.
 
 ## Current status
 
-In progress but deliberately interleaved after the stable foundation. Tasks 0001 and 0002 are
-Complete and supply the common event envelope plus three model-correlation domains. No trace task
-is Ready. Backend-contract tasks 0001–0003 now provide identity, class, and supplied availability
-facts, and task 0004 completes its hard-requirement vocabulary. The backend-contract project area
-and capability checkpoint are Complete. The latest explicit interleave has config tasks 0001 and
-0002 Complete and planning task 0001 Complete before config scoring work resumes. Config task
-0003 is now Complete with one optional soft coarse device-class preference.
-Planning 0001 defines the operation-capability query/provider boundary, and Planning 0002 is now
-Complete with internal per-query hard eligibility. It adds no trace DTO,
-structured rejection reason, public matrix, score, ownership event, or compiler event. Trace task
-0003 and later rows remain Draft without detailed specifications until the broader config,
-planning, compiler, prepare, and runtime producer facts are stable. Runtime profiling will be
-passive producer observation translated into typed trace DTOs; it will not select
-model-autotuning settings. Planning task 0003 is Complete with internal baseline owner selection.
-It adds no trace schema or structured diagnostic. Planning task 0004 is now Complete with an
-immutable owner-plus-node-ID partition recipe and internal maximal consecutive grouping. That
-bounded contract still adds no event emission, trace identifier,
-payload schema, rejection taxonomy, or compiler producer. Trace 0003+ remain Draft, and no trace
-task is Ready. Planning task 0005 is Complete with immutable logical value requirements. Its
-current facts may later inform the compile payload family, but it adds no trace identity, event,
-emission owner, payload schema, rejection taxonomy, or serialization. Planning 0006 is Complete
-with a `CLOSED` documentation-only audit verdict; no trace task is Ready, no trace payload schema
-becomes current, and no global task is Ready pending a separate frontier reassessment.
+Tasks 0001 and 0002 are Complete. Stable Metal preparation and native-invocation facts now justify
+the bounded additive DTO foundation in detailed Task 0003. It is Ready and is the sole authorized
+frontier. The task adds only trace-local backend/device/prepared-unit/invocation IDs, closed neutral
+profile/route/cache/native-status vocabulary, and two immutable outcome payloads. It
+preserves every existing Trace type and adds no emitter, observer, consumer, allocator, clock,
+mutable state, producer dependency, generic map, or serialization behavior.
+
+Metal 0041 is the immediate coordinated successor and remains Blocked until Trace 0003 completes.
+Broader compile, prepare, run, backend-detail, typed-attribute, and serialization work remains Draft
+under 0004–0008.
 
 ## Open questions
 
@@ -115,46 +119,31 @@ becomes current, and no global task is Ready pending a separate frontier reasses
   a clock.
 - The event record is shallowly immutable. Its open payload bound documents an immutable DTO
   obligation but cannot enforce payload implementation immutability at runtime.
-- Task 0002 introduces only node, value, and tensor correlation IDs because their source concepts
-  are stable. Partition, backend, and prepared-unit IDs remain with the later payload tasks that
-  can validate their actual producer domains.
+- Task 0002 introduced only node, value, and tensor correlation IDs. Task 0003 now adds the four
+  producer-stream identity domains whose Metal producer semantics are stable: backend, device,
+  prepared unit, and invocation.
 - Trace-local correlation values are assigned within a producer-defined trace stream. They are not
   direct references to, or required numeric copies of, producer-owned identifiers.
-- After task 0002, roadmap execution interleaves `modules/backend-contract` rather than designing
-  typed backend attributes or payloads without a concrete producer vocabulary. This pauses no
-  completed contract and adds no trace dependency on backend-contract.
-- Backend-contract task 0001 supplies `BackendId` and `BackendDeviceId`, but trace-local backend
-  and device correlations remain deferred to the later payload work that can define their actual
-  producer domains. Trace continues to import no backend-contract type.
-- Backend-contract classification, supplied availability, and declarative requirement work do not
-  make trace consume those producer types. Later producers will translate selected facts into
-  trace-owned identities and payloads after their complete schemas are concrete.
-- The next interleave opened only planning task 0001 before config scoring configuration. A boolean
-  capability answer does not stabilize trace rejection diagnostics or backend payload schemas, so
-  trace task 0003 and later rows remain Draft and trace keeps no planning dependency.
-- Config task 0003 is Complete after that interleave. Its declarative class preference
-  creates no trace producer schema, score, rejection diagnostic, or ownership event.
-- Planning task 0002 remains intentionally boolean/filtering-only at the diagnostic boundary: its
-  result retains eligible backend identities and no rejection reason. It therefore does not
-  stabilize typed capability-rejection or no-match trace payloads.
-- Complete Planning task 0003 defines one internal terminal no-eligible exception and deterministic
-  preferred-class/provider-order selection without emitting a trace or defining a rejection,
-  score, ownership-event, or compiler payload. It therefore does not advance Trace 0003.
-- Complete Planning task 0004 defines no trace contract. An owner-plus-node-ID recipe stabilizes
-  planning data without selecting trace-local partition identity, compile payload fields,
-  emission ownership, or serialization before the compiler producer exists.
+- Task 0003 uses only closed trace-owned neutral vocabulary. It does not import Backend Contract,
+  Config, Prepare, Runtime, Engine, or Metal types and does not publish MPSGraph, NEG, native symbol,
+  or backend-local numeric-code names as shared concepts.
+- `TraceCacheStatus.NOT_QUERIED` is the only current cache fact. It is not a cache miss, and Trace
+  does not infer hits, misses, or selection policy.
+- `TraceRouteKind.CUSTOM_KERNEL` and `GRAPH_EXECUTABLE` describe the current producer mechanisms;
+  they are not a universal registry into which every later backend route must fit.
 - Benchmark reports, workload tuning caches, model-plan results, planning cost profiles, and
-  runtime profiling are distinct. Only passive observations from stable producers can become
-  trace payloads; trace never runs searches or changes production settings.
+  runtime profiling remain distinct. Only passive observations from stable producers become trace
+  payloads; Trace never runs searches or changes production settings.
 
 ## Risks
 
-- Allowing producer-domain types or unstructured string maps into shared trace contracts.
+- Allowing producer-domain types, backend-specific names, or unstructured string maps into shared
+  trace contracts.
 - Treating caller-supplied monotonic timestamps as wall-clock instants or globally comparable
   values.
 - Selecting a serialization mechanism before the shared payload schemas exist.
-- Defining partition, backend, or prepared-unit identity before their owning module contracts are
-  concrete.
+- Mistaking stream-local backend/device IDs for a global backend registry, or `NOT_QUERIED` for a
+  cache miss.
 
 ## Notes
 
@@ -169,37 +158,9 @@ documentation pass finalized the correlation Javadocs and explanations and passe
 repository Markdown, exact eleven-path, status, and whitespace validation without rerunning Java
 tests.
 
-After task 0002, reassess the frontier rather than forcing speculative lifecycle payload schemas.
-If producer contracts are still absent, the roadmap may explicitly interleave their owning
-project areas before returning to the corresponding trace payload rows.
-
-That reassessment selected the backend-contract interleave. Backend-contract task 0001 is now
-Complete with identity-only producer vocabulary, tasks 0002–0003 add class and supplied
-availability facts, and task 0004 completes the hard-requirement closure vocabulary and selected
-backend-contract checkpoint. Trace tasks 0003–0008 remain ordered Draft work and return to
-planning only when their directly relevant producer facts are stable; no detailed task-0003
-specification exists.
-
-The following reassessment selected config task 0001 rather than prematurely resuming trace. Its
-single optional hard-intent contract is now current, but it does not stabilize scoring, compiler,
-prepare, runtime, or backend payload schemas. Config task 0001's repository checkpoint passed.
-Config task 0002 is now Complete, but its declarative mode and optimization values still create no
-compiler or trace producer schema. Config task 0003 is now Complete, and no trace task 0003
-specification has been created.
-
-The following reassessment selected planning task 0001 before config 0003. That task is now
-Complete after stabilizing the typed capability question and passing its single final repository
-suite. It deliberately defers structured rejection diagnostics and device-level capability,
-creates no trace producer schema, and does not justify a trace task 0003 specification. The likely
-frontier returned to config 0003 rather than trace. Config task 0003 is now Complete after focused
-validation and an independent documentation pass; it creates no trace producer schema. Trace task
-0003 remains Draft without a detailed specification. A later reassessment selected Planning task
-0002 alone for internal hard eligibility; its no-reason result still creates no trace schema.
-Config 0004 was the likely next area after that task, subject to another reassessment, while every
-trace task remained Draft. Planning task 0002 is Complete. The later terminology/ownership reset
-retired the unimplemented Config 0004 detailed specification. Planning task 0003 is now Complete;
-its internal baseline selection creates no trace schema. Planning task 0004 is now Complete; its
-partition recipe and internal grouping likewise create no trace schema. A separate reassessment
-made Planning task 0005 Ready without selecting a trace payload or producer contract. Planning
-0005 is now Complete and still introduces no trace schema. No trace task is Ready, and no detailed
-trace task-0003 specification exists.
+The producer contracts required by Task 0003 are now stable: the current lifecycle fixes route and
+profile during Prepare, constructs the executable during finalization, invokes the prepared route
+during Run, and retains a closed native-status taxonomy. The detailed Task 0003 brief therefore
+replaces the former speculative typed-attributes row and is Ready from clean revision
+`790454309df60b44e805c8552549e935611fd4c2`. Metal 0041 is deliberately Blocked on that contract-
+first cutover; no concurrent Trace or Metal implementation is authorized.
