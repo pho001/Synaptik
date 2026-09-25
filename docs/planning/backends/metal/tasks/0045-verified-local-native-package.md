@@ -2,7 +2,7 @@
 
 ## Status
 
-Review needed
+Complete
 
 ## Change class
 
@@ -203,5 +203,6 @@ build tree remains byte- and mode-identical. The regenerated packaged dylib pass
 in 19 suites and 15 Engine integration tests with zero skips, failures, or errors. Markdown,
 seven-path scope, shell syntax, and diff checks passed; no full repository build ran.
 
-The artifact remains local and unauthenticated; every release-only exclusion remains. Status:
-Review needed for the same independent Class C reviewer after P1 remediation.
+The artifact remains local and unauthenticated; every release-only exclusion remains. The same
+independent Class C reviewer approved remediation commit `26c6c911` with zero remaining findings.
+Status: Complete.
