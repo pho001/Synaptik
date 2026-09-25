@@ -2,12 +2,13 @@
 
 ## Status
 
-Review needed
+Complete
 
-Trace 0003 completed its final independent public-API/documentation review with `APPROVE` after
-remediation at `0e796a82f18fbaaa1d5210638f41e0785e22094c`. This task was implemented from that
-exact clean common base. The implementation and validation are ready for the required independent
-Class C review; no task is Ready.
+Implemented at `ba16d942`, remediated at `386705ca`, and finalized after independent Class C
+rereview returned `APPROVE` with zero findings. Trace 0003 completed its final independent
+public-API/documentation review with `APPROVE` after remediation at
+`0e796a82f18fbaaa1d5210638f41e0785e22094c`; this task was implemented from that exact clean common
+base. No task is Ready.
 
 ## Change class
 
@@ -234,8 +235,9 @@ Validation passed: nine focused Metal trace tests; all 14 actual public Engine M
 tests against a freshly built existing dylib, including compile/session/repeated-run collection and
 bounds failure; the focused Engine composition architecture test; Metal Javadocs; seven affected
 Markdown files; and `git diff --check`. The one required full repository build passed with 87
-actionable tasks. The implementation is ready for independent Class C review.
+actionable tasks. Review-block remediation then revalidated the focused Metal
+producer/prepared-execution tests and the exact public Engine lifecycle collector scenario; the
+already-passing full repository build was intentionally not repeated.
 
-The review-block remediation revalidated the focused Metal producer/prepared-execution tests and
-the exact public Engine lifecycle collector scenario. The already-passing full repository build
-was intentionally not repeated.
+Implementation `ba16d942` plus failure-precedence remediation `386705ca` passed final independent
+Class C rereview with `APPROVE` and zero findings.
