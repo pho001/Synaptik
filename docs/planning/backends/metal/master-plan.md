@@ -87,8 +87,8 @@ Training-to-Metal optimizer bridge.
   shape-dependent contraction, while Pooling4D/stencil do not establish exact unrelaxed Pool3d
   structure and semantics. Task 0037 is Blocked before a probe: direct RNN lacks runtime INT64
   valid lengths, atomic validation, skipped padded work, and `finalHidden`, while recurrent
-  numerics are unrelaxed and underdocumented. Documentation/audit-only Task 0038 is Complete; no
-  Metal task is Ready.
+  numerics are unrelaxed and underdocumented. Documentation/audit-only Task 0038 is Complete.
+  Profile-common exact canonical BFLOAT16 Gather Task 0040 is the sole Ready Metal frontier.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
   requirements. Metal 0017 remains Blocked under its old accelerator-reduction contract.
@@ -112,9 +112,9 @@ Training-to-Metal optimizer bridge.
   independent lean Class C review at reviewed revision `f88066e3ad0547987bb03b2d18ed2813f97de223`.
 - Metal 0026 is Blocked without production changes: its only permitted direct-selector run returned
   `0x00000000` where the four-ULP oracle required `0x0008ec28`.
-- Historical Metal 0028's FLOAT16 reservation is now recorded by planning-only Task 0039 as
-  Blocked on Draft Model 0026; Metal 0029 remains reserved for a separately authorized BFLOAT16
-  scope.
+- Historical Metal 0028's FLOAT16 reservation is recorded by planning-only Task 0039 as Blocked on
+  Draft Model 0026. Historical Metal 0029 is now detailed by sole Ready Task 0040 as exact
+  profile-common canonical BFLOAT16 data plus INT32-index Gather.
 - Metal 0030 is Blocked without production changes. Its one raw-winner execution passed ordinary
   and signed-subnormal preservation plus shape/input/guard controls, but failed signed-zero order
   and every NaN-class cell; schema 12/wire 20/POOL2D 7 and identities 13 remain unimplemented.
@@ -161,11 +161,13 @@ Training-to-Metal optimizer bridge.
   0017, and Metal 0015/0019/0020/0021/0022/0023/0024/0025 are Complete.
 - Task 0038 is Complete from base `ec4499bd9e18ed863c9091baa9cfe82dbcf06a9b`. It froze the exact
   implemented common/accelerator occurrence matrices and synchronized stale current summaries
-  without changing production, native, schema, identity, or test code. No Metal task is Ready.
-- Task 0039 is Blocked on Draft Model 0026 without a probe or production change. Public Model has
-  no FLOAT16 type, oracle, promotion, conversion, or family contract, and current Metal type,
-  ingress, publication, identity, and transfer paths remain closed. Its bounded post-dependency
-  candidate and possible schema/type/identity values are conditional and unreserved.
+  without changing production, native, schema, identity, or test code.
+- Task 0039 remains Blocked on Draft Model 0026 without a probe or production change. Public Model
+  has no FLOAT16 type, oracle, promotion, conversion, or family contract. Task 0040 now reserves
+  the formerly conditional schema 12/wire 20/type 4/identity 13 values for distinct BFLOAT16
+  Gather, so any later FLOAT16 candidate must rebase and allocate fresh values.
+- Task 0040 is the sole Ready frontier from exact clean base
+  `b495e4e43ce5bdcd962256f9bfc726301f3d1549`; planning ran no probe or implementation.
 - Production dependencies may point to Model, Config, Planning, Runtime, Prepare,
   Backend Contract, and Trace, never Engine or Training. Task 0002's Compiler edge is test-only.
 
@@ -226,7 +228,8 @@ visibility.
 | 0036 | [Extended 3D inference](tasks/0036-extended-3d-inference.md) | Blocked | 0025 Complete; Model 0025H/0025J/0025K; Compiler 0006B/0006B1/0006B2; CPU 0008A/0008G1 precedent; Config 0006; Engine 0018; 0030/0031 evidence is independent | Every concurrent Metal capability/schema/native-preflight/candidate/codec/materialization/public Engine scope; biased/gradient convolution, pooling, 3D-window/custom-kernel work; any 0016–0018 restart | None | Documentation-first 3D selector, mapping, and numerical review only; no device gate | Model/profile, installed-header/runtime, Compiler/CPU, current schema, and 0030/0031 evidence; no production change | Direct Conv3d maps full grouped NCDHW/OIDHW geometry but inherits 0031's opaque shape-dependent contraction. Pooling4D/stencil do not establish exact unrelaxed Pool3d mapping/semantics, so no probe ran and all schema values remain conditional/unreserved. |
 | 0037 | [Profile-common canonical FLOAT32 no-grad FORWARD RNN_TANH](tasks/0037-profile-common-canonical-float32-no-grad-forward-rnn-tanh.md) | Blocked | 0025 Complete; Model 0025E/0025F; Compiler 0006A; Config 0006; Engine 0018; current CPU has no recurrent precedent; earlier blockers are independent | Every concurrent Metal capability/schema/native-ABI/preflight/candidate/codec/input-type/materialization/public Engine scope; recurrent, multi-input, multi-output, INT64, custom-kernel, or gradient work; any 0016–0018 restart | None | Documentation-first recurrent API, arity, type, and numerical review only; no device gate | Model/profile, installed-header/runtime, Compiler/CPU, current schema/type/lifecycle, and prior tanh evidence; no production change | Direct RNN lacks runtime valid lengths, atomic validation, skipped padding semantics, and final hidden; unrelaxed numeric gaps and current five-input/two-output/INT64 boundaries require an exact custom route. |
 | 0038 | [Current profile capability manifest closure](tasks/0038-current-profile-capability-manifest-closure.md) | Complete | 0022–0025 Complete; finalized Metal capability evidence through 0037; Model 0027–0029; Config 0006; Engine 0018 | Every concurrent Metal capability/schema/native/candidate/codec documentation scope and shared README/architecture/API/backend/user/master/roadmap edits | None | Planning authorization `1bb2a0e5`, then one documentation/audit closure commit from exact base `ec4499bd9e18ed863c9091baa9cfe82dbcf06a9b` | Focused existing capability/conformance tests and targeted architecture checks passed; Markdown/link/terminology, diff, and documentation-only scope passed; no device probe or full build | Exact current common and accelerator-only occurrence matrices, strict-subset monotonicity, fail-closed remainder, and ABI/schema/identity boundary are synchronized; every Blocked row remains unsupported and no manifest API was added. |
-| 0039 | [Profile-common IEEE FLOAT16 prerequisite gate](tasks/0039-profile-common-ieee-float16-prerequisite-gate.md) | Blocked | Model 0026 Complete; reviewed public binary16 representation, promotion, conversion, family semantics, profile result sets, and downstream fail-closed enum adoption; Metal 0038 Complete | Every concurrent Model dtype/profile task and Metal capability/schema/native/type/ingress/publication/identity/transfer scope | None | Documentation-only prerequisite record; post-dependency implementation requires separate authorization | Planning links/anchors/fences/final newlines, status consistency, documentation-only path scope, and `git diff --check`; no build, test, native compile, or device probe | No public FLOAT16 oracle exists. `MPSDataTypeFloat16` is representation evidence only; current Metal plumbing is closed. The smallest later profile-common CONTIGUOUS candidate and all possible schema/type/identity values remain conditional and unreserved. |
+| 0039 | [Profile-common IEEE FLOAT16 prerequisite gate](tasks/0039-profile-common-ieee-float16-prerequisite-gate.md) | Blocked | Model 0026 Complete; reviewed public binary16 representation, promotion, conversion, family semantics, profile result sets, and downstream fail-closed enum adoption; Metal 0038 Complete | Every concurrent Model dtype/profile task and Metal capability/schema/native/type/ingress/publication/identity/transfer scope | None | Documentation-only prerequisite record; post-dependency implementation requires separate authorization and schema rebase | Planning links/anchors/fences/final newlines, status consistency, documentation-only path scope, and `git diff --check`; no build, test, native compile, or device probe | No public FLOAT16 oracle exists. `MPSDataTypeFloat16` is representation evidence only; current Metal plumbing is closed. Task 0040 consumes the former next schema/type/identity values, so a later FLOAT16 candidate must rebase and allocate fresh values. |
+| 0040 | [Profile-common exact canonical BFLOAT16 Gather](tasks/0040-profile-common-exact-canonical-bfloat16-gather.md) | Ready | 0023, 0025, and 0038 Complete; current Model BFLOAT16/Gather semantics; Compiler indexing capture; CPU 0006A2; Config 0006; Engine 0018 | Every concurrent Metal capability/schema/native/type/ingress/publication/identity/transfer scope and any restart consuming the same next values | None | Documentation-first gate from clean `b495e4e`; exactly one lean smoke; serial schema/type/identity, capability, ingress/publication, proof, docs, and review | One representative one-graph/compile/run raw-bit gate; focused Metal/native/conformance/public Engine/Javadoc/architecture checks; exactly one full build; Markdown/diff; independent lean Class C review | Sole Ready frontier; planned schema 12, `BFLOAT16_GATHER=20`, value type 4/width two, identities 13, unchanged ABI v4/160 bytes/thirteen exports/attributes, caller ingress/local chaining/publication, and unchanged FLOAT32-only transfer. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -249,6 +252,8 @@ Completed profile spine and serial successors:
 `0022 (Complete) + 0023 (Complete) + 0024 (Complete) + 0025 (Complete) + finalized evidence through 0037 -> 0038 (Complete)`
 
 `Model 0026 (Draft) -> 0039 (Blocked)`
+
+`0023 (Complete) + 0025 (Complete) + 0038 (Complete) + Model BFLOAT16/Gather + Config 0006 + Engine 0018 -> 0040 (Ready)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -285,16 +290,17 @@ revision `f88066e3ad0547987bb03b2d18ed2813f97de223`.
 [0037](tasks/0037-profile-common-canonical-float32-no-grad-forward-rnn-tanh.md) and
 [0039](tasks/0039-profile-common-ieee-float16-prerequisite-gate.md) are Blocked without production
 changes. Tasks 0031–0037 and 0039 additionally ran no probe. Documentation/audit-only Task 0038 is
-Complete; there is no Ready Metal serial frontier.
+Complete. [0040](tasks/0040-profile-common-exact-canonical-bfloat16-gather.md) is the sole Ready
+Metal serial frontier.
 These edges serialize shared Metal mutation; they do not claim that one operation family requires
 another.
 
 ## Integration ownership and shared documents
 
-- Integration owner: Task 0038 completed the current documentation-only closure; executable serial
-  tasks retain their recorded integration owners and independent Class C reviews.
-- Shared documents: the next separately authorized task owns any future planning,
-  architecture-status, API/user status, capability-guide, or README change.
+- Integration owner: Ready Task 0040 owns the next serial executable checkpoint and its independent
+  lean Class C review.
+- Shared documents: Task 0040 exclusively owns its implementation-time architecture status,
+  API/user status, capability guide, native README, master-plan, and roadmap synchronization.
 - Blocked Metal 0016–0018, 0026–0027, 0030–0037, and 0039 have no active write or review scope.
   Model 0028 owns the reduction semantic contract, Complete Model 0029 owns the MATMUL
   final-publication semantic contract, and Complete Metal 0021–0025 retain their reviewed
@@ -368,11 +374,12 @@ separate custom movement/overlap work. Metal 0037 is Blocked without a probe: di
 runtime INT64 valid lengths, atomic validation, skipped padded work, positive-zero padding, and
 `finalHidden`; its contraction/add/tanh/state-update ordering is unrelaxed and underdocumented.
 Only an exact custom recurrent kernel plus complete five-input/two-output/caller-INT64 schema can
-unblock it. Schema 12/wires beginning at 20/attribute 7, INT64, ABI/export, and version-thirteen
-identities remain conditional, unimplemented, and unreserved. Planning-only Task 0039 also leaves
-its possible FLOAT16 schema 12/wire 20/type wire 4/identity 13 values conditional and unreserved
-while Draft Model 0026 provides no public type or oracle. Documentation/audit-only Task 0038 is
-Complete; Task 0039 is Blocked without a probe or production change, and no Metal task is Ready.
+unblock it. Task 0040 reserves schema 12, `BFLOAT16_GATHER=20`, local value type 4, and
+version-thirteen identities while keeping attribute 7, INT64, ABI/export changes, and later wires
+unreserved. Every Blocked candidate that named those former next values must rebase before restart.
+Planning-only Task 0039 likewise reserves no FLOAT16 schema/type/identity value while Draft Model
+0026 provides no public type or oracle. Documentation/audit-only Task 0038 is Complete; Task 0039
+is Blocked without a probe or production change, and Task 0040 is the sole Ready Metal frontier.
 
 Metal 0006 remains `Blocked` after exact RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures.
 Metal 0007 remains independently `Blocked` after eight direct-output executions returned positive
