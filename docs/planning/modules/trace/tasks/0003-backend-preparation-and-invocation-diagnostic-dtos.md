@@ -186,7 +186,7 @@ unless Java changes.
 
 Implemented the four nominal backend-execution correlation IDs, five exact closed enums,
 `TraceNativeStatus`, and the two exact outcome payload records. The implementation preserves every
-pre-existing Trace public source file, adds no dependency or behavior owner, and keeps
+pre-existing public Trace type source unchanged, adds no dependency or behavior owner, and keeps
 `modules:trace` a JDK-only immutable DTO leaf. Focused and full Trace tests, Trace Javadoc,
 targeted Markdown/link validation, exact scope inspection, and `git diff --check` passed.
 Independent public-API/documentation review follows separately as requested before any Metal

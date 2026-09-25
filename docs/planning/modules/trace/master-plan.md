@@ -92,8 +92,8 @@ complete, and Metal 0041 is the sole Ready repository frontier.
 
 Tasks 0001–0003 are Complete. Task 0003 added only trace-local backend/device/prepared-unit/
 invocation IDs, closed neutral profile/route/cache/native-status vocabulary, and two immutable
-outcome payloads. It preserved every pre-existing Trace public source file and added no emitter,
-observer, consumer, allocator, clock, mutable state, producer dependency, generic map, or
+outcome payloads. It preserved every pre-existing public Trace type source unchanged and added no
+emitter, observer, consumer, allocator, clock, mutable state, producer dependency, generic map, or
 serialization behavior. No Trace task is Ready.
 
 Metal 0041 is the immediate coordinated successor and is Ready from the completed Trace surface.

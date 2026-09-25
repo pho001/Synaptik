@@ -394,20 +394,22 @@ materialization, compiler capture, lowering, backend/ONNX behavior, and executio
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
-runtime, concrete backends, concrete trace payload families, trace correlation beyond event
-identity and the current node/value/Tensor domains, trace serialization/emission, and training
-remain architecture or planning contracts. The implemented trace foundation consists of
-`TraceEventId`, `TracePhase`, `TraceLevel`, the open `TracePayload` marker, the generic
-`TraceEvent` envelope, and the trace-local `TraceNodeId`, `TraceValueId`, and `TraceTensorId`
-correlation values. The implemented backend-contract foundation consists of `BackendId`,
+runtime, concrete backends, broader trace payload families beyond the bounded backend preparation
+and invocation outcomes, trace correlation beyond event/model/backend-execution identities, trace
+serialization/emission, and training remain architecture or planning contracts. The implemented
+trace foundation consists of `TraceEventId`, `TracePhase`, `TraceLevel`, the open `TracePayload`
+marker, the generic `TraceEvent` envelope, the trace-local `TraceNodeId`, `TraceValueId`,
+`TraceTensorId`, `TraceBackendId`, `TraceDeviceId`, `TracePreparedUnitId`, and
+`TraceInvocationId` correlation values, and the immutable `BackendPreparationOutcome` and
+`BackendInvocationOutcome` payloads with their closed neutral status/profile/route/cache/native-
+status vocabulary. The implemented backend-contract foundation consists of `BackendId`,
 `BackendDeviceId`, the coarse `DeviceClass` categories `CPU` and `ACCELERATOR`, and
 `BackendAvailabilitySnapshot` for one backend's caller-supplied point-in-time device-to-class
 availability association. It also contains the sealed, method-free `BackendRequirement` family
 with exact-backend, exact-device, and device-class hard targets. Planning currently evaluates one
 query against explicitly supplied providers, snapshots, and intent through a package-private
 result/factory. Discovery and refresh, registration, concrete provider implementations, public
-planning orchestration, concrete backend integration, and trace-local backend/device correlations
-remain planned. The implemented
+planning orchestration, and concrete backend integration remain planned. The implemented
 config foundation contains `BackendIntent`, `CompileMode`, `GraphOptimizationConfig`, and
 `PartitionScoringConfig`. They record hard-requirement optionality, graph scope,
 optional-optimization permission, and one optional soft coarse class preference, respectively,
@@ -2958,9 +2960,11 @@ scalar values](api/tensor-api.md#exact-typed-scalar-values).
 ### Data-transfer object / DTO
 
 A value whose purpose is to carry structured data across a boundary without owning the behavior
-that produced it. Synaptik's implemented trace-event foundation uses typed DTO contracts so later
-diagnostic producers and consumers can exchange explicit fields without importing compiler,
-runtime, or backend business objects. Concrete lifecycle payload DTOs remain planned.
+that produced it. Synaptik's implemented Trace API uses typed DTO contracts for the event envelope
+and the bounded `BackendPreparationOutcome` and `BackendInvocationOutcome` facts so diagnostic
+producers and consumers can exchange explicit fields without importing compiler, runtime, or
+backend business objects. Broader compile, prepare, run, and backend lifecycle payload DTO
+families remain planned.
 
 ### Device class / `DeviceClass`
 
@@ -6740,10 +6744,12 @@ or durable checkpoint.
 ### Typed trace DTO
 
 A typed data-transfer object used to carry one defined category of diagnostic facts. The current
-foundation implements the event envelope and an open payload marker; concrete compile, prepare,
-run, and backend payload DTOs remain planned. Typed fields preserve meaning and machine-readable
-types. They are preferred over a primary `Map<String,String>` model, while a typed backend
-attribute escape hatch also remains planned. See [Tracing](architecture/tracing.md#current-event-foundation).
+Trace API implements the event envelope, open payload marker, and bounded
+`BackendPreparationOutcome` and `BackendInvocationOutcome` payloads. Broader compile, prepare,
+run, and backend payload families remain planned. Typed fields preserve meaning and machine-
+readable types. They are preferred over a primary `Map<String,String>` model, while a typed
+backend attribute escape hatch also remains planned. See
+[Tracing](architecture/tracing.md#current-event-foundation).
 
 ### `ValueId`
 
