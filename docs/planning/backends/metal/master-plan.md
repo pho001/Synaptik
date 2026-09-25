@@ -93,7 +93,8 @@ Training-to-Metal optimizer bridge.
   is Complete at `9feb2505705263b6efb417d606678c606c2b9598` after final independent Class C
   review returned `APPROVE` with zero findings. Task 0043 is Complete at remediation
   `77e6091b2a452faa04fa2b674bc295ddc7be88b7` after same-reviewer Class C approval with zero
-  remaining findings. Ready Task 0044 owns only the documentation/audit no-change evaluation.
+  remaining findings. Task 0044 is Complete as a documentation/audit no-change evaluation from
+  planning revision `3d458b7a1d356f32fcd2c04de408ae9aa22355b0`.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
   requirements. Metal 0017 remains Blocked under its old accelerator-reduction contract.
@@ -186,9 +187,9 @@ Training-to-Metal optimizer bridge.
   change.
 - Task 0043 is Complete at remediation `77e6091b2a452faa04fa2b674bc295ddc7be88b7`
   after same-reviewer Class C approval with zero remaining findings.
-- Task 0044 is Ready to record the bounded report-only facts and retain both singleton-`NEG`
-  routes plus the existing no-selected-decision safe heuristic without a performance endorsement
-  or production change.
+- Task 0044 is Complete from planning revision `3d458b7a1d356f32fcd2c04de408ae9aa22355b0`.
+  It records the bounded report-only facts and retains both singleton-`NEG` routes plus the existing
+  no-selected-decision safe heuristic without a performance endorsement or production change.
 - Production dependencies may point to Model, Config, Planning, Runtime, Prepare,
   Backend Contract, and Trace, never Engine or Training. Task 0002's Compiler edge is test-only.
 
@@ -256,7 +257,7 @@ before extracting a package or widening another type.
 | 0041 | [Prepared route and invocation trace](tasks/0041-prepared-route-and-invocation-trace.md) | Complete | Trace 0003 Complete and independently approved after remediation at `0e796a82f18fbaaa1d5210638f41e0785e22094c`; Metal 0001–0005/0008/0014–0015/0019–0025; Engine 0017–0018 | Every concurrent Metal integration/preparation/executable/native-failure/hot-path/API scope and shared Trace/Metal/API/roadmap documents | None | Implemented at `ba16d942`; remediated at `386705ca`; final independent Class C rereview approved with zero findings | Focused Metal trace tests; actual public Engine session collector scenario; architecture/Javadoc/docs/diff checks; independent Class C review | Completed the optional Metal observer overload, disabled fast path, stream-local producer IDs/events, typed PREPARE finalization and RUN native-invocation outcomes, truthful `NOT_QUERIED`, containment/redaction, failure precedence, and no native ABI change. |
 | 0042 | [Metal route tuning workflow](tasks/0042-metal-route-tuning-workflow.md) | Complete | Metal 0004/0041; Prepare 0004/0008; tools/tuning 0001–0002/0004; Config 0006A–0006B; CPU 0010I–0010J precedent; Engine 0006A–0009/0011/0015–0018; Runtime 0016 | Every concurrent Metal integration/preparation/candidate/codec/trace/API scope; Engine tuning/composition/lifecycle/fallback; CPU tuning identities; tools/tuning/API/architecture/master/roadmap documents | None | Implemented at `9feb2505705263b6efb417d606678c606c2b9598` from exact base `31ab01a65ff1e4842a43471a54e74544fb603760`; final independent Class C review approved with zero findings | Lean fake-native Metal collaboration tests; focused Engine and CPU identity/behavior regressions; one actual public `prepareTuned`→run singleton-NEG scenario; architecture/Javadocs/docs/diff; one full build; independent review | Completed retained opaque Metal local and fixed complete-plan collaborations, session-only two-route tuning, and the minimum private Engine adapter/backend-neutral fallback while preserving public Config/result, CPU identity bytes, native ABI/schema/capability, and all excluded ownership domains. |
 | 0043 | [Reproducible Metal route benchmark](tasks/0043-reproducible-metal-route-benchmark.md) | Complete | 0042 Complete and independently approved; benchmark 0001/CPU 0010M protocol precedent; current public Compiler/Prepare/Runtime/Trace/Metal collaborations | Every concurrent benchmark build/report/schema/documentation scope and Metal candidate/trace/API/master/roadmap documents | None | Implemented from planning base `1d8f8cb03cb631ab59c25bbfa025369f4d2547e9`; P2 remediation at `77e6091b2a452faa04fa2b674bc295ddc7be88b7`; same-reviewer Class C rereview approved with zero remaining findings | Focused benchmark build/Javadocs; updated actual smoke and metadata-complete baseline; parsed JSON/failure/docs/diff checks; no full build or matrix | Completed schema-1 report-only `[1_048_576]` singleton FLOAT32 NEG benchmark over both opaque candidates with thread-safe snapshot attestation, reconstructible generator schema 2, exact raw-bit checks, paired alternating samples, and no winner/cache/threshold or retained result artifact. |
-| 0044 | [Custom singleton-NEG benchmark evaluation and no-change closure](tasks/0044-custom-singleton-neg-benchmark-evaluation.md) | Ready | 0043 Complete and same-reviewer approved at `77e6091b2a452faa04fa2b674bc295ddc7be88b7`; updated reviewed Task 0043 baseline facts | Every concurrent Metal route/default/candidate/benchmark-evaluation scope and the same task/master/roadmap planning documents | None | One documentation/audit-only execution from the exact planning revision; direct completion after validation | Exact report-fact audit; changed-Markdown/link/fence/newline/trailing-whitespace checks; forbidden-claim and exact-path searches; `git diff --check`; no build, test, native action, or measurement | Record that both routes are exact for one frozen case, retain both routes and the existing CUSTOM_SINGLE_NEG no-selected-decision safe heuristic, and authorize no winner, performance endorsement, default/order/policy/cache/removal/threshold/Shape-special-case change. |
+| 0044 | [Custom singleton-NEG benchmark evaluation and no-change closure](tasks/0044-custom-singleton-neg-benchmark-evaluation.md) | Complete | 0043 Complete and same-reviewer approved at `77e6091b2a452faa04fa2b674bc295ddc7be88b7`; updated reviewed Task 0043 baseline facts | Every concurrent Metal route/default/candidate/benchmark-evaluation scope and the same task/master/roadmap planning documents | None | Executed from exact planning revision `3d458b7a1d356f32fcd2c04de408ae9aa22355b0`; direct Class A completion after documentation validation | Exact report-fact audit and changed-Markdown/link/fence/newline/trailing-whitespace/forbidden-claim/path/diff checks passed; no build, test, native action, or measurement | Completed the no-change closure: both routes are exact only for the frozen case; both and the existing CUSTOM_SINGLE_NEG no-selected-decision safe heuristic remain; no winner, performance endorsement, default/order/policy/cache/removal/threshold/Shape-special-case change is authorized. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -284,7 +285,7 @@ Completed profile spine and serial successors:
 
 `Trace 0003 (Complete) -> 0041 (Complete)`
 
-`0004 (Complete) + 0041 (Complete) + Engine 0009/0015–0018 (Complete) + tools/tuning 0001–0002 (Complete) -> 0042 (Complete) -> 0043 (Complete) -> 0044 (Ready)`
+`0004 (Complete) + 0041 (Complete) + Engine 0009/0015–0018 (Complete) + tools/tuning 0001–0002 (Complete) -> 0042 (Complete) -> 0043 (Complete) -> 0044 (Complete)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -328,18 +329,18 @@ plus remediation `386705ca` after final independent Class C approval with zero f
 `9feb2505705263b6efb417d606678c606c2b9598` after final independent Class C review returned
 `APPROVE` with zero findings. [0043](tasks/0043-reproducible-metal-route-benchmark.md) is Complete
 at remediation `77e6091b2a452faa04fa2b674bc295ddc7be88b7` after same-reviewer Class C approval with zero
-remaining findings. [0044](tasks/0044-custom-singleton-neg-benchmark-evaluation.md) is the sole
-Ready Metal task. Every other Metal task retains its recorded status.
+remaining findings. [0044](tasks/0044-custom-singleton-neg-benchmark-evaluation.md) is Complete;
+no Metal task is Ready. Every other Metal task retains its recorded status.
 These edges serialize shared Metal mutation; they do not claim that one operation family requires
 another.
 
 ## Integration ownership and shared documents
 
-- Metal 0044 owns only its documentation/audit decision record plus the Metal master and roadmap.
-  No concurrent owner may change the same route/default/candidate/benchmark-evaluation claims.
+- Complete Metal 0044 owns its documentation/audit no-change record; no active owner may reinterpret
+  its bounded report as a winner or production decision.
 - Complete Metal 0043 retains its reviewed benchmark implementation and evidence; Complete Metal
-  0042 retains its reviewed tuning collaborations and Engine integration. Task 0044 may change
-  neither production surface.
+  0042 retains its reviewed tuning collaborations and Engine integration. Task 0044 changed neither
+  production surface.
 - Blocked Metal 0016–0018, 0026–0027, 0030–0037, and 0039–0040 have no active write or review
   scope. Complete Metal 0041 retains its reviewed implementation. Model 0028 owns the reduction
   semantic contract, Complete Model 0029 owns the MATMUL final-publication semantic contract, and
@@ -421,7 +422,7 @@ its artifacts were removed and production remains unchanged. Task 0041 is Comple
 implementation `ba16d942` plus remediation `386705ca` after final independent Class C approval
 with zero findings. Documentation/audit-only Task 0038 is Complete. Task 0042 is Complete at
 `9feb2505705263b6efb417d606678c606c2b9598` after final independent Class C approval with zero
-findings. Task 0043 is Complete at remediation `77e6091b`; Task 0044 is the sole Ready Metal task.
+findings. Tasks 0043–0044 are Complete; no Metal task is Ready.
 
 Metal 0006 remains `Blocked` after exact RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures.
 Metal 0007 remains independently `Blocked` after eight direct-output executions returned positive

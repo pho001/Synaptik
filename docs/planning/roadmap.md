@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through reviewed 0043; Task 0044 Ready; recorded blockers retained | [Metal 0044](backends/metal/tasks/0044-custom-singleton-neg-benchmark-evaluation.md) is the sole Ready task: a Class A documentation/audit no-change evaluation of the reviewed fixed singleton-NEG report. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through documentation/audit-only 0044; recorded blockers retained | Metal 0044 completed its bounded custom singleton-NEG benchmark evaluation and no-change closure; no Metal task is Ready. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -94,12 +94,13 @@ remaining findings. It implements one reviewed report-only `[1_048_576]` singlet
 benchmark over both current opaque local candidates, with thread-safe snapshot attestation,
 reconstructible generator schema 2, exact raw-bit checks, and no winner/cache/threshold/artifact.
 
-[Metal 0044](backends/metal/tasks/0044-custom-singleton-neg-benchmark-evaluation.md) is the sole
-Ready task. It may record only the bounded descriptive evidence and a no-change conclusion:
-retain both routes and the existing `CUSTOM_SINGLE_NEG` no-selected-decision safe heuristic without
-a winner, performance endorsement, or production change.
+[Metal 0044](backends/metal/tasks/0044-custom-singleton-neg-benchmark-evaluation.md) is Complete
+from exact planning revision `3d458b7a1d356f32fcd2c04de408ae9aa22355b0`. It records only the
+bounded descriptive evidence and a no-change conclusion: retain both routes and the existing
+`CUSTOM_SINGLE_NEG` no-selected-decision safe heuristic without a winner, performance endorsement,
+or production change.
 
-`Metal 0004 (Complete) + Metal 0041 (Complete) + Engine 0009/0015–0018 (Complete) + tools/tuning 0001–0002 (Complete) -> Metal 0042 (Complete) -> Metal 0043 (Complete) -> Metal 0044 (Ready)`
+`Metal 0004 (Complete) + Metal 0041 (Complete) + Engine 0009/0015–0018 (Complete) + tools/tuning 0001–0002 (Complete) -> Metal 0042 (Complete) -> Metal 0043 (Complete) -> Metal 0044 (Complete)`
 
 Numerical profiles
 
@@ -148,7 +149,7 @@ remain unrelaxed. None changed production. Documentation/audit-only Metal 0038 i
 0040 is Blocked after its one BFLOAT16 Gather gate canonicalized the first selected signaling NaN.
 Metal 0041 is Complete at implementation `ba16d942` plus remediation `386705ca` after final Class C
 approval with zero findings. Metal 0042 is Complete at `9feb2505`; Metal 0043 is Complete at
-`77e6091b`; Metal 0044 is Ready.
+`77e6091b`; Metal 0044 is Complete from planning revision `3d458b7a`.
 
 Task 0019 landed at implementation `a6d1796d` plus mixed-owner test remediation `bcb717a6`. Its
 native ABI/export, Metal, conformance, real Engine, architecture, full-build, documentation, and
@@ -214,7 +215,7 @@ Metal 0037 are Blocked without production changes; 0031–0037 ran no probe. Doc
 Metal 0038 is Complete. Planning-only Metal 0039 and failed-gate Metal 0040 remain Blocked; Metal
 0041 is Complete at implementation `ba16d942` plus remediation `386705ca` after final approval with
 zero findings. Metal 0042 is Complete at `9feb2505`; Metal 0043 is Complete at `77e6091b`;
-Metal 0044 is Ready.
+Metal 0044 is Complete from planning revision `3d458b7a`.
 
 Engine
 [0017](modules/engine/tasks/0017-reusable-inference-session-api.md) is Complete from exact base
@@ -362,7 +363,7 @@ production behavior. Metal 0042 now consumes only the existing version-twelve si
 tuning foundation through public retained collaborations and private Engine composition. Schema
 12/wires beginning at 20/attribute 7, local type 4, INT64 type/ingress, ABI/export changes, and
 version-thirteen identities remain unimplemented and unreserved. Documentation/audit-only Metal
-0038 and Metal 0042–0043 are Complete; Metal 0044 is Ready.
+0038 and Metal 0042–0044 are Complete; no Metal task is Ready.
 
 Strategic gate: historical blocker evidence is preserved, and no backend task may define Model
 semantics. Complete Model 0028 owns bounded reduction exact-zero sign freedom; Complete Metal 0020
@@ -462,8 +463,8 @@ schema.
   0017, Trace 0003, and Metal
   0015/0019/0020/0021/0022/0023/0024/0025/0038/0041/0042/0043 are Complete.
   Metal 0016–0018, 0026–0027, 0030–0037, planning-only 0039, and failed-gate 0040 remain Blocked
-  under their recorded contracts. Metal 0044 is the sole Ready task; every blocked operation family
-  remains unauthorized.
+  under their recorded contracts. Metal 0044 is Complete; every blocked operation family remains
+  unauthorized, and no Metal task is Ready.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -477,13 +478,13 @@ schema.
 
 ## Nearest next step
 
-Metal 0044 is Ready from exact reviewed Task 0043 remediation
-`77e6091b2a452faa04fa2b674bc295ddc7be88b7`. Its only authorized action is the Class A
-documentation/audit no-change closure over the updated report: record exact bounded correctness and
-descriptive correlated timing facts, retain both routes and the existing `CUSTOM_SINGLE_NEG`
-no-selected-decision safe heuristic, and authorize no winner, performance endorsement,
-default/order/policy/cache/removal/threshold/Shape-special-case change. It runs no build, test,
-native action, probe, benchmark, or additional measurement and creates no retained report.
+Metal 0044 is Complete from exact planning revision
+`3d458b7a1d356f32fcd2c04de408ae9aa22355b0`. Its Class A documentation/audit closure records the
+updated Task 0043 report's bounded correctness and descriptive correlated timing facts, retains both
+routes and the existing `CUSTOM_SINGLE_NEG` no-selected-decision safe heuristic, and authorizes no
+winner, performance endorsement, default/order/policy/cache/removal/threshold/Shape-special-case
+change. It ran no build, test, native action, probe, benchmark, or additional measurement and
+retained no report. No Metal task is Ready; a future task requires separate planning authorization.
 
 Metal 0040 is Blocked from exact clean planning revision
 `c300582727ec568a7482dd974f9d1b2e2e13f82c`. Its sole disposable direct BFLOAT16 Gather program
@@ -568,7 +569,7 @@ finalized Blocked. Documentation/audit-only Metal 0038 is Complete. Planning-onl
 Blocked on Draft Model 0026. Metal 0040 is Blocked by its failed one-execution BFLOAT16 raw-bit
 gate. Metal 0041 is Complete at implementation `ba16d942` plus remediation `386705ca` after final
 approval with zero findings. Metal 0042 is Complete at `9feb2505705263b6efb417d606678c606c2b9598`;
-Metal 0043 is Complete at remediation `77e6091b`; Metal 0044 is the sole Ready task.
+Metal 0043 is Complete at remediation `77e6091b`; Metal 0044 is Complete; no Metal task is Ready.
 
 ## History policy
 
