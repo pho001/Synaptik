@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Task 0052 In progress; read-only 0054 remains the pre-cutover audit | [Metal 0052](backends/metal/tasks/0052-accelerator-float32-comparisons-extrema-scans.md) is the sole authorized frontier. ADR 0022 permits its closed custom-only M3 Max cost adjudication; opaque MPSGraph candidates remain `DOMAIN-BLOCKED`. Task 0052 then owns the fixed-route 15-kind atomic production cutover. 0051 is historical, 0053 remains proof/full-Xcode gated, and 0054 must be regenerated after the cutover. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Task 0052 Complete; 0054 retained as historical pre-cutover audit | [Metal 0052](backends/metal/tasks/0052-accelerator-float32-comparisons-extrema-scans.md) completed its proof/oracle, ADR-0022 custom-only cost adjudication, fixed routes, and fifteen-kind atomic production cutover. Schema 12 and identity 13 are current. Opaque routes remain `DOMAIN-BLOCKED`; 0051 is historical, 0053 remains proof/full-Xcode gated, and 0054 records the exact superseded pre-cutover inventory. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -189,28 +189,18 @@ dispatch/peak-transient trace tooling exists. Only then may its one new frozen-c
 Task 0051 is never rerun. Capability, schema, identities, routes, and production remain unchanged.
 
 [Metal 0052](backends/metal/tasks/0052-accelerator-float32-comparisons-extrema-scans.md)
-is the sole authorized Metal frontier for six FLOAT32 comparisons, tensor/scalar/clamp/reduction
-extrema, and CUM_SUM/CUM_PROD. Gate 1 found every opaque direct candidate API-present but
-`DOMAIN-BLOCKED`, while all 16 auditable custom candidates proved `DOMAIN-PASS`. Its exact custom
-source, validator, audit, wrapper, and proof remain hash-validated permanent evidence. Its sole
-98-output Apple M3 Max numerical invocation passed every custom candidate and is never rerun.
-ADR 0022 permitted the exact source-owned dispatch and route-owned temporary-byte declarations for
-these closed custom routes only. The one custom-only Gate-3 process passed on this M3 Max with all
-128 retained samples recorded. Fused custom CLAMP measured `292241.523 ns` versus composed
-`377525.038 ns`, won on runtime, and also had one versus two dispatches and zero versus `4194304`
-temporary bytes. It is fixed for production; every other sole survivor is likewise fixed. The
-atomic schema/identity/native/capability/preparation/execution cutover is in progress. Opaque
-MPSGraph candidates received no inferred internal facts.
+is Complete for six FLOAT32 comparisons, tensor/scalar/clamp/reduction extrema, and
+CUM_SUM/CUM_PROD. Every opaque direct candidate remains `DOMAIN-BLOCKED`; all sixteen auditable
+custom candidates proved `DOMAIN-PASS` and passed the sole numerical oracle. The custom-only
+Gate-3 process retained all 128 samples; fused CLAMP beat composed CLAMP and became the fixed
+route. The atomic schema/identity/native/capability/preparation/execution cutover landed all
+fifteen kinds through one fixed custom whole-program route, schema 12, and identity version 13.
+Its exact evidence remains permanent and no oracle was rerun.
 
-[Metal 0054](backends/metal/tasks/0054-current-accelerator-115-kind-completeness-audit.md) is a
-Complete read-only audit from post-0053 base `93b3d379`. Current Model source has 40 operation-kind
-enums and exactly 115 constants: 19 have at least one bounded ACCELERATOR capability-true domain,
-0051/0053 own two false EXP/SIGMOID kinds, 0052 owns 15 false kinds despite its 16 passing custom
-candidates, and 79 other false kinds are assigned exactly once to 12 serial blocker workstreams.
-Every unlisted dtype/shape/layout/attribute/generated-gradient row remains false. The audit records
-schema-11 cardinality, FLOAT32/INT32/BOOL carrier, attribute, complete-domain-proof, actual-dispatch/
-peak-transient-trace, and Compiler gradient-registry blockers; it ran no device, build, test, proof,
-timing, or trace and changed no production, schema, identity, capability, or retained evidence.
+[Metal 0054](backends/metal/tasks/0054-current-accelerator-115-kind-completeness-audit.md) remains
+the exact Complete read-only audit of base `93b3d379`: 40 enums, 115 constants, and
+`19+2+15+79=115`. Its schema-11 and Task-0052 capability-false counts are historical pre-cutover
+facts; the document explicitly names its supersession and grants no production scope.
 
 [CPU 0017](backends/cpu/tasks/0017-explicit-accelerator-numerical-profile-realization.md) is
 Complete at implementation `372a8b98`. For every backend, capability/behavior under
@@ -283,9 +273,9 @@ The active semantic and Metal serial DAG is:
 
 `Metal 0018 blocker evidence -> Model 0029 (Complete) -> Metal 0021 (Complete) -> Metal 0022 (Complete) -> Metal 0023 (Complete) -> Metal 0024 (Complete) -> Metal 0025 (Complete) -> {Metal 0026 (Blocked), Metal 0027 (Blocked), Metal 0030 (Blocked), Metal 0031 (Blocked), Metal 0032 (Blocked), Metal 0033 (Blocked), Metal 0034 (Blocked), Metal 0035 (Blocked), Metal 0036 (Blocked), Metal 0037 (Blocked)}`
 
-`Model 0031 (Complete) -> Model 0030 (Complete) -> {Metal 0051 (historical Blocked after its consumed oracle) -> Metal 0053 (Blocked on concrete machine-checked complete-domain proof plus full-Xcode trace instrumentation before its new oracle), Metal 0052 (In progress under ADR-0022 custom-only cost and production authorization)}`
+`Model 0031 (Complete) -> Model 0030 (Complete) -> {Metal 0051 (historical Blocked) -> Metal 0053 (Blocked on proof plus full-Xcode trace tooling), Metal 0052 (Complete)}`
 
-`Metal 0051 (historical Blocked) + Metal 0052 (reviewed Gate-1/Gate-2 evidence) + Metal 0053 (Blocked successor) + current Model/Metal/Compiler source -> Metal 0054 (Complete pre-cutover read-only 115-kind audit) -> Metal 0052 production cutover`
+`Metal 0051 + reviewed Metal 0052 evidence + Metal 0053 + historical source -> Metal 0054 (Complete pre-cutover audit); Metal 0052 production cutover (Complete) supersedes that inventory`
 
 `Metal 0022/0023/0024/0025 (Complete) + finalized evidence through Metal 0037 -> Metal 0038 (Complete)`
 
@@ -303,14 +293,10 @@ Metal 0053 is the planning-only successor and remains Blocked until concrete cus
 pass the complete machine-checked proof and independent review and readable full-Xcode actual
 dispatch/peak-transient tooling exists. Only then may its one new oracle precede cost and capability
 work.
-Metal 0052's independent comparison/extrema/scan custom proofs and sole regression oracle passed,
-and its exact source/proof/audit package is permanently reviewable with every recorded hash
-revalidated. Its opaque routes remain domain-blocked. The ADR-0022 custom-only Apple M3 Max Gate 3
-passed with all 128 raw samples retained and no numerical rerun. Fused CLAMP won over composed
-CLAMP on runtime (`292241.523 ns` versus `377525.038 ns`) and also had fewer dispatches and no
-route-owned temporary buffer. Every other sole survivor is fixed. Production cutover is now in
-progress; the bounded corpus remains regression evidence, not complete-domain proof. Gross
-class/sign-failing 0006 selectors remain unusable.
+Metal 0052's independent proof, sole regression oracle, ADR-0022 custom-only Gate 3, fixed routes,
+and production cutover are Complete. Its opaque routes remain domain-blocked; fused CLAMP won; all
+other sole survivors are fixed. The bounded corpus remains regression evidence, not
+complete-domain proof. Gross class/sign-failing 0006 selectors remain unusable.
 
 [Metal 0017](backends/metal/tasks/0017-accelerator-float32-sum-mean-sum-to-shape-reductions.md)
 remains Blocked under its unchanged old contract. After probe-only dangling autorelease-string and
@@ -475,32 +461,25 @@ no production, native, test, or probe changes remain.
 is `Complete` at `42c4cfbf` plus `fb102a46` after the operation-by-operation DAZ/FTZ oracle, focused
 validation, combined serial checkpoint, and independent Class C approval all passed.
 
-Current Metal uses ABI v4 with exactly thirteen exports and node schema 11. Both profile matrices
-admit exact canonical `FLOAT32` NEG/ABS/affine/`CONTIGUOUS`, bounded canonical FLOAT32
-`UNFOLD_AXIS`, canonical positive-rank FLOAT32 data GATHER with canonical INT32 indices,
-positive-rank INT32-to-BOOL ONE_HOT, and canonical FLOAT32/INT32/FLOAT32
-`SCATTER_ELEMENTS/NONE`; accelerator additionally admits tensor `FLOAT32`
-`ADD`/`SUB`/`MUL`/`DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two
-MATMUL with authenticated local transposes. Java/native validation authenticates an affine MATMUL
-operand only on its consuming edge; general affine publication and valid local consumers remain
-available. Version-twelve identities separate profile/type/topology compatibility, scalar
-reduction and BOOL materialization remain local-only, FLOAT32-only transfer is unchanged, and
-Runtime/Trace remain profile-free. Metal 0025 is Complete at final reviewed revision `f88066e3`.
-Metal 0026–0027/0030–0037/0039–0040 are Blocked and changed no executable capability; 0031–0037
-and 0039 ran no device probe, and 0040 ran exactly its one failed gate. Complete 0041 implements
-only the bounded optional tracing surface and changes no capability, schema, ABI, export, or Engine
-production behavior. Metal 0042 consumes only the existing version-twelve singleton-`NEG` tuning
-foundation through public retained collaborations and private Engine composition. Blocked Metal
-0051 implemented none of schema 12, EXP/SIGMOID wires 20/21, or version-thirteen identities and is
-now a preserved historical record. Planning-only Metal 0053 reserves none of them either. Metal
-0052 is the sole serialized owner of schema 12, operation wires `20..34`, scalar/clamp/scan
-attribute wires `7..9`, and version-thirteen identities. Until its atomic cutover lands, current
-source remains schema 11 with operation wires `1..19`, attribute wires `0..6`, and version-twelve
-identities. Local type 4, INT64 type/ingress, ABI/export changes, and every other unimplemented
-vocabulary remain unreserved. Documentation/audit-only Metal 0038, Metal 0042–0046, Metal
-0048–0050, and Metal 0054 are Complete; Metal 0047/0051/0053 remain Blocked and Metal 0052 is In
-progress. The pre-cutover Task-0054 ledger remains `19+2+15+79=115` and must be regenerated after
-the capability cutover. No backend task may define Model semantics.
+Current Metal uses ABI v4, exactly thirteen exports, fixed 160-byte records, and node schema 12.
+Both profiles retain exact canonical FLOAT32 NEG/ABS/affine/CONTIGUOUS, bounded UNFOLD_AXIS, and
+exact typed GATHER, ONE_HOT, and SCATTER_ELEMENTS/NONE. Accelerator additionally admits the
+existing arithmetic, SUM/MEAN/SUM_TO_SHAPE, and bounded MATMUL rows plus Task-0052 comparisons,
+tensor/scalar/clamp/reduction extrema, and scans. The Task-0052 route materializes every logical
+value in a declared run-owned buffer, keeps BOOL results as direct targets, and invokes one fixed
+custom whole-program native executable per hot run. Schema 12 retains wires `1..19` and attributes
+`0..6`, appends operation wires `20..34` and scalar/clamp/scan attributes `7..9`, and rejects stale
+schema 11. Workload, policy, candidate, compatibility, route, and codec identities are version
+thirteen; ABI/export and complete-plan-wrapper identities remain unchanged.
+
+Metal 0025 remains Complete at reviewed revision `f88066e3`; its schema-11/version-twelve facts are
+historical. Blocked 0026–0027/0030–0037/0039–0040 changed no executable capability. Complete 0041
+changes no capability. Metal 0042 still exposes only bounded singleton-NEG local tuning. Historical
+0051 and planning-only 0053 reserve no current wire. Metal 0052 and the superseded historical audit
+0054 are Complete; Metal 0047/0051/0053 remain Blocked. Local type 4, INT64 ingress, ABI/export
+changes, and every other unimplemented vocabulary remain unreserved. No backend task may define
+Model semantics.
+
 Complete Model 0028 owns bounded reduction exact-zero sign freedom; Complete Metal 0020
 implements that rule under accelerator only. Blocked Metal 0018 retains its unchanged historical
 MATMUL contract and no production changes. Complete Model 0029 split the shared contraction row,
@@ -730,21 +709,19 @@ gradient obligations. Unblocking requires a conforming custom or proved selector
 complete five-input/two-output/caller-INT64 schema, native lifecycle, and proof.
 
 Schema 12, Task-0052 operation wires `20..34`, scalar/clamp/scan attributes `7..9`, and
-version-thirteen identities are now owned exclusively by the serialized Task-0052 cutover but
-remain absent until that atomic production commit lands. Metal 0053's provisional EXP/SIGMOID
-vocabulary must rebase after the landed Task-0052 identities. Local value type 4, INT64
-type/ingress, and ABI/export changes remain unimplemented and unreserved. Metal 0026/0027 remain
-separately finalized Blocked. Documentation/audit-only Metal 0038 is Complete. Planning-only Metal
-0039 is Blocked on Draft Model 0026. Metal 0040 is Blocked by its failed one-execution BFLOAT16
-raw-bit gate. Metal 0041 is Complete at implementation `ba16d942` plus remediation `386705ca`;
-Metal 0042 is Complete at `9feb2505705263b6efb417d606678c606c2b9598`; Metal 0043 is Complete at
-remediation `77e6091b`; Metal 0044 is Complete; Metal 0045 is Complete at remediation `26c6c911`;
-Metal 0046 is Complete at independently approved implementation `4aad1ab6`; Metal 0047 is Blocked;
-Metal 0048 is Complete at independently approved implementation `89f9fbb9`; documentation-only
-Metal 0049 is Complete after remediation `6d4246f7`; Metal 0050 final verification and
+version-thirteen identities are landed. Metal 0053's provisional EXP/SIGMOID vocabulary must
+rebase after those identities. Local value type 4, INT64 type/ingress, and ABI/export changes
+remain unimplemented and unreserved. Metal 0026/0027 remain separately finalized Blocked.
+Documentation/audit-only Metal 0038 is Complete. Planning-only Metal 0039 is Blocked on Draft
+Model 0026. Metal 0040 is Blocked by its failed one-execution BFLOAT16 raw-bit gate. Metal 0041 is
+Complete at implementation `ba16d942` plus remediation `386705ca`; Metal 0042 is Complete at
+`9feb2505705263b6efb417d606678c606c2b9598`; Metal 0043 is Complete at remediation `77e6091b`;
+Metal 0044 is Complete; Metal 0045 is Complete at remediation `26c6c911`; Metal 0046 is Complete
+at independently approved implementation `4aad1ab6`; Metal 0047 is Blocked; Metal 0048 is Complete
+at independently approved implementation `89f9fbb9`; documentation-only Metal 0049 is Complete
+after remediation `6d4246f7`; Metal 0050 final verification, Task 0052, and historical
 documentation/audit-only Metal 0054 are Complete. Historical Metal 0051 and successor Metal 0053
-are Blocked. Task 0052 is In progress as the sole authorized Metal frontier; Task 0054 remains the
-pre-cutover `19+2+15+79=115` record.
+are Blocked. Task 0054 remains the exact pre-cutover `19+2+15+79=115` record, not a current count.
 
 ## History policy
 

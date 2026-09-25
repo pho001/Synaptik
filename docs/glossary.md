@@ -2461,17 +2461,14 @@ compatibility projection, and Engine's representative execution are implemented.
 Engine path produces the sole occurrence-0/partition-0/weight-1 mapping. Model extraction and
 multiple-occurrence aggregation remain planned.
 
-The profile-qualified Metal instance is also implemented internally. Its version-twelve
-fingerprint covers the exact `NumericalProfile`, node schema 11, typed exact common-profile
-NEG/ABS/affine/`CONTIGUOUS`/`UNFOLD_AXIS`/GATHER/ONE_HOT/`SCATTER_ELEMENTS` or accelerator
-tensor-binary/reduction/MATMUL nodes, ordered first/second/auxiliary input edges, reduction form,
-ordered axes, keep-dimensions state and sum-to-Shape target, unfold axis/size/step and fixed
-selector-expansion bound, gather/scatter axes, one-hot depth, authenticated local-transpose
-provenance, ordered structural output positions, descriptors, value states, exact splat bits,
-logical-boundary facts, candidate/route schemas, and native ABI. Target compatibility separately
-includes the exact live `MetalDeviceContext` session nonce; ABI version `4` is not a stable
-cross-session device fingerprint. It currently supports only backend-local construction and
-authentication, not the tools-owned workload cache.
+The profile-qualified Metal instance is also implemented internally. Its version-thirteen
+fingerprint covers the exact `NumericalProfile`, node schema 12, all retained wires `1..19`, the
+Task-0052 wires `20..34`, typed attributes through wire `9`, ordered input edges, reduction and scan
+forms, authenticated local-transpose provenance, ordered structural outputs, descriptors, value
+states, exact scalar/splat bits, logical-boundary facts, candidate/route schemas, and native ABI.
+Target compatibility separately includes the exact live `MetalDeviceContext` session nonce; ABI
+version `4` is not a stable cross-session device fingerprint. It currently supports only
+backend-local construction and authentication, not the tools-owned workload cache.
 
 ### Candidate generator
 
@@ -5173,51 +5170,33 @@ implements the transactional finalizer handoff.
 
 ### Metal prepared executable
 
-The current Metal backend's package-private, shape-specialized Runtime recipe for one complete
-maximal profile-homogeneous partition. Both profiles admit exact canonical `NEG`/`ABS`,
-`RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`; canonical positive-rank
-FLOAT32+INT32 `GATHER`; INT32-to-BOOL `ONE_HOT`; and canonical positive-rank
-FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. An accelerator recipe may additionally contain
-canonical tensor `ADD`, `SUB`, `MUL`, and `DIV`; canonical `SUM`, `MEAN`, and binding-resolved
-`SUM_TO_SHAPE`; and positive static rank-two `MATMUL` whose affine operands are authenticated local
-`PERMUTE [1,0]` results on their consuming edges. Metal analysis fixes stable feed, target, and
-structural value order, lowers fixed-width node-schema-10 typed records, generates a complete
-version-eleven route batch, authenticates any supplied session decision, then fixes a closed
-private route before declaring shared resources.
+The current Metal backend's package-private shape-specialized Runtime recipe for one complete
+maximal profile-homogeneous partition. Both profiles admit the exact canonical NEG/ABS, affine,
+canonicalization, bounded UNFOLD_AXIS, GATHER, ONE_HOT, and replacement Scatter Elements rows.
+ACCELERATOR additionally admits FLOAT32 tensor ADD/SUB/MUL/DIV/MIN/MAX, all six comparisons,
+scalar MIN/MAX/CLAMP, SUM/MEAN/MIN/MAX/SUM_TO_SHAPE, every CUM_SUM/CUM_PROD mode, and bounded
+rank-two MATMUL. Comparisons may publish canonical one-byte BOOL locally, while BOOL feed,
+consumer, and transfer paths remain closed.
 
-With no decision, an exact singleton `NEG` under either profile with one feed, one target, and
-checked element count in `1..UINT32_MAX` selects the custom route; every ABS, indexing, and other
-supported partition selects MPSGraph. An eligible singleton can instead use an authenticated
-MPSGraph decision. Java profile, inferred-type, indexing-Shape, reduction-geometry, contraction,
-and local-transpose preflight rejects every incompatible record before native entry. This boundary
-does not change capability, fallback, retry, or partitioning and makes no performance claim.
+Metal analysis fixes stable value/node/feed/target order, lowers schema-12 typed records, generates
+a complete version-13 route batch, authenticates any supplied session decision, and fixes one
+private route before declaring resources. An eligible singleton NEG may use the dedicated custom
+pipeline. A partition containing any Task-0052 node selects the fixed custom whole-program route;
+every other supported partition uses MPSGraph. This choice changes no capability, ownership,
+fallback, retry, or partition boundary.
 
-After shared slot assignment, Metal finalization compiles either the fixed branch-free custom
-FLOAT32 NEG pipeline or one typed whole-partition `MPSGraphExecutable` and returns its owner as a
-[`PreparedResource`](#prepared-resource--preparedresource). `PreparedExecution` owns that resource
-across runs. Each run separately borrows exact canonical FLOAT32/INT32 caller Metal buffers and
-owns fresh type-matching initialized constant buffers and typed output buffers. MPSGraph runs
-additionally own a closeable native-address workspace; custom runs retain direct typed input and
-output references with no workspace.
+Finalization compiles one persistent route resource and transfers it to `PreparedExecution`.
+Task-0052 creation compiles the fifteen fixed reviewed safe-math kernels plus cold nested
+existing-node executables. Every logical intermediate has a declared assigned run-owned Metal
+buffer; targets are direct assigned buffers; one address workspace carries the stable value table
+and target aliases. Hot Java execution makes one synchronous native invocation with no source
+text, host staging, hidden materialization, per-node downcall, retry, fallback, or compilation.
 
-Affine results retain exact logical view descriptors but receive distinct full-logical-size Metal
-targets in canonical logical coordinate order. Materialization accepts that dense physical
-representation only with exact finalized-route, target, descriptor, context, and byte-extent
-authentication. It also accepts a locally produced canonical scalar reduction target as exactly
-four detached bytes and a locally produced canonical BOOL target as exact one-byte elements.
-These paths produce detached raw-bit-preserving canonical host bytes and do not widen
-positive-rank canonical FLOAT32-only CPU/Metal transfer, establish source aliasing, or enable
-general affine or BOOL chaining.
-
-Hot execution validates every indexing input in stable node then row-major ordinal order before
-MPSGraph selector dispatch or any target write, and otherwise makes one route-specific synchronous
-native downcall. The custom route submits one command buffer and compute encoder, waits once, and
-writes the assigned `MTLBuffer` output without an explicit host-staging or intermediate-copy step.
-The MPSGraph route also executes the narrow Compiler-generated explicitly seeded rank-two MATMUL
-gradients through authenticated local transposes. The term does not imply an indexing backward
-route, a mixed-owner schedule, backend-global executable cache, per-run compilation, universal
-custom kernels, general Metal backward/training, or that MPSGraph uses no internal temporary
-storage.
+Affine publications retain their logical view descriptors but use authenticated represented-order
+buffers. Locally produced scalar reduction targets materialize as four bytes and local canonical
+BOOL targets as exact one-byte elements. These paths do not widen positive-rank canonical
+FLOAT32-only CPU/Metal transfer. Context child leases, transactional rollback, synchronous reuse,
+concurrent sessions, close rejection, and run-owned output/workspace isolation are retained.
 
 ### Prepared executable / `PreparedExecutable`
 

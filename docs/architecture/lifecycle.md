@@ -405,10 +405,11 @@ transports, queries, or realizes that meaning without reinterpreting it. CPU rea
 identically. Metal's common exact occurrence domain under both profiles contains only canonical
 FLOAT32 `NEG`/`ABS`; `RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`; `CONTIGUOUS`; bounded
 `UNFOLD_AXIS`; exact FLOAT32-data/INT32-index `GATHER`; INT32-to-BOOL `ONE_HOT`; and
-FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. `ACCELERATOR` additionally admits only tensor
-FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static
-rank-two MATMUL with authenticated local transpose operands. Strict capability is an accelerator
-subset; every other occurrence fails closed before route selection. No Blocked operation has a
-capability/schema row: ABI v4, thirteen exports, node schema 11, operation wires `1..19`,
-attribute wires `0..6`, and version-twelve identities remain frozen. Runtime executes the prepared
-result with no profile branch.
+FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. `ACCELERATOR` additionally admits tensor FLOAT32
+`ADD`/`SUB`/`MUL`/`DIV`/`MIN`/`MAX`, all six comparisons, scalar MIN/MAX/CLAMP,
+SUM/MEAN/MIN/MAX/SUM_TO_SHAPE, every CUM_SUM/CUM_PROD mode, and positive static rank-two
+MATMUL with authenticated local transpose operands. Strict capability remains an accelerator
+subset; every other occurrence fails closed before route selection. ABI v4, thirteen exports, and
+160-byte records remain fixed. Node schema 12 retains operation wires `1..19` and attributes
+`0..6`, appends Task-0052 operations `20..34` and attributes `7..9`, and uses version-thirteen
+backend identities. Runtime executes the prepared result with no profile branch.

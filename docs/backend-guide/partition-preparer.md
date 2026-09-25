@@ -536,15 +536,11 @@ combination before route analysis, preserves the strict-subset capability invari
 eligible route stays within Model's result set, and retains the profile in every plan and
 compatibility identity that could otherwise be reused. CPU admits both profiles with identical
 exact routes and distinct identities.
-Metal admits exact
-canonical NEG/ABS/affine/`CONTIGUOUS`, bounded canonical `FLOAT32` `UNFOLD_AXIS`, canonical
-positive-rank `FLOAT32` data GATHER with canonical `INT32` indices, positive-rank
-`INT32`-to-`BOOL` ONE_HOT, and canonical positive-rank
-`FLOAT32`/`INT32`/`FLOAT32` `SCATTER_ELEMENTS/NONE` under both profiles. It additionally admits
-accelerator tensor-binary, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two
-MATMUL partitions. The Metal preparer authenticates an affine MATMUL operand to an exact local
-rank-two transpose of a canonical source on that consuming edge; the view may otherwise be
-published or have another valid affine consumer. It preserves exact typed ingress and target byte
-geometry, window Shape and selector-bound obligations, bounds-before-uniqueness indexing
-obligations, and the profile in schema-eleven/version-twelve route identity without widening
-CPU/Metal transfer.
+Metal admits canonical NEG/ABS/affine/CONTIGUOUS, bounded FLOAT32 UNFOLD_AXIS, and exact typed
+GATHER, ONE_HOT, and SCATTER_ELEMENTS/NONE under both profiles. Accelerator additionally admits
+the existing arithmetic/reduction/MATMUL rows and the exact Task-0052 comparisons, extrema,
+scalar/clamp, reduction-extrema, and scan rows. The preparer authenticates local MATMUL transposes,
+keeps comparison BOOL values as direct targets, and declares every internal logical value for a
+Task-0052 whole-program route. It preserves typed ingress, target and internal byte geometry,
+window/index obligations, and the profile in schema-twelve/version-thirteen route identity without
+widening CPU/Metal transfer.

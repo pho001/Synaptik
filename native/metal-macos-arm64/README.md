@@ -4,22 +4,24 @@
 
 This directory builds the local application binary interface (ABI) used by the Synaptik Metal
 backend on Apple-silicon macOS. ABI version 4 retains context, shared-storage buffer, executable,
-and bounded custom singleton-`NEG` ownership. Its versioned typed whole-partition MPSGraph program
-uses node schema 11. Under Java's profile-qualified preflight, both profiles support exact canonical
-`NEG`, `ABS`, `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, the explicit
-`CONTIGUOUS` canonicalization barrier, bounded canonical `FLOAT32` `UNFOLD_AXIS`, canonical
-positive-rank `FLOAT32` data `GATHER` with canonical `INT32` indices, canonical positive-rank
-`INT32`-to-`BOOL` `ONE_HOT`, and canonical positive-rank
+and bounded custom singleton-`NEG` ownership with the same thirteen exports. Its versioned typed
+whole-partition program uses node schema 12. Under Java's profile-qualified preflight, both
+profiles support exact canonical `NEG`, `ABS`, `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`,
+`SQUEEZE`, the explicit `CONTIGUOUS` canonicalization barrier, bounded canonical `FLOAT32`
+`UNFOLD_AXIS`, canonical positive-rank `FLOAT32` data `GATHER` with canonical `INT32` indices,
+canonical positive-rank `INT32`-to-`BOOL` `ONE_HOT`, and canonical positive-rank
 `FLOAT32`/`INT32`/`FLOAT32` `SCATTER_ELEMENTS` replacement. `ACCELERATOR` additionally supports
-tensor `ADD`, `SUB`, `MUL`, and `DIV`; canonical `FLOAT32` `SUM`, `MEAN`, and binding-resolved
-`SUM_TO_SHAPE`; and positive static rank-two `FLOAT32` `MATMUL` with exact authenticated local
-rank-two transpose operands. Strict `MATMUL` remains unsupported. No symbol or ABI-signature change
-was required.
+tensor `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, and `MAX`; all six FLOAT32 comparisons with canonical
+BOOL output; FLOAT32 scalar `MIN`, `MAX`, and fused `CLAMP`; canonical FLOAT32 `SUM`, `MEAN`,
+`MIN`, `MAX`, and binding-resolved `SUM_TO_SHAPE`; FLOAT32 `CUM_SUM` and `CUM_PROD` in every
+exclusive/reverse mode; and positive static rank-two `FLOAT32` `MATMUL` with exact authenticated
+local rank-two transpose operands. Strict `MATMUL` and every Task-0052 operation remain
+unsupported under `STRICT_IEEE`. No symbol or ABI-signature change was required.
 
 ```text
-Java analysis -> choose custom singleton or MPSGraph route -> declare exact resources
-Java prepare  -> compile one typed persistent resource     -> retain opaque handle
-Java run      -> pass assigned MTLBuffer handles           -> synchronous direct output
+Java analysis -> choose fixed whole-partition route -> declare every exact resource
+Java prepare  -> compile one typed persistent resource -> retain opaque handle
+Java run      -> pass assigned MTLBuffer handles       -> one synchronous native call
 Java close    -> release persistent/run resources, context, and FFM lookup
 ```
 
@@ -57,7 +59,7 @@ package and independently verify the final signed bytes:
 The ignored `build/package-v1/macos-arm64/` directory contains exactly the signed dylib,
 `manifest.json`, and `SHA256SUMS`. The canonical schema-1 manifest records the final dylib's
 relative name, size, SHA-256, platform, architecture, macOS 26.0 minimum, install name, empty
-rpath set, ABI 4, node schema 11, required frameworks, and fixed ad-hoc identifier. It contains no
+rpath set, ABI 4, node schema 12, required frameworks, and fixed ad-hoc identifier. It contains no
 time, host, absolute path, source revision, product version, SDK version, Team ID, notarization,
 provenance, or release field. Packaging the same exact signed input produces byte-identical
 manifest and checksum files.
@@ -148,16 +150,18 @@ accepts only `1..UINT32_MAX`; it returns unsupported shape outside that domain r
 narrowing the value. Created handles use caller-supplied output cells, which remain null on
 failure.
 
-The graph creator accepts node schema `11` and a bounded fixed-width table:
+The graph creator accepts node schema `12` and a bounded fixed-width table:
 
 ```c
 typedef struct {
-    uint32_t operation;       /* NEG=1, binaries=2..5, affine=6..10,
-                                 CONTIGUOUS=11, ABS=12, SUM=13, MEAN=14,
-                                 MATMUL=15, GATHER=16, ONE_HOT=17,
-                                 SCATTER_ELEMENTS=18, UNFOLD_AXIS=19 */
-    uint32_t attribute_kind;  /* NONE=0, TARGET_SHAPE=1, PERMUTATION=2,
-                                 AXIS=3, REDUCTION=4, DEPTH=5, WINDOW_AXIS=6 */
+    uint32_t operation;       /* existing operations=1..19;
+                                 GT/GE/LT/LE/EQ/NE=20..25,
+                                 TENSOR_MIN/MAX=26..27,
+                                 SCALAR_MIN/MAX=28..29, CLAMP=30,
+                                 REDUCTION_MIN/MAX=31..32,
+                                 CUM_SUM/CUM_PROD=33..34 */
+    uint32_t attribute_kind;  /* existing attributes=0..6;
+                                 SCALAR_VALUE=7, CLAMP_RANGE=8, SCAN=9 */
     uint32_t first_input;
     uint32_t second_input;    /* ordered binary/MATMUL/GATHER/scatter index */
     uint32_t output;
@@ -165,7 +169,7 @@ typedef struct {
     uint32_t axis;            /* normalized axis, reduction form, or UINT32_MAX */
     uint32_t auxiliary;       /* reduction keep-dimensions or scatter updates input */
     uint64_t attribute_values[16];
-} SynaptikMetalMpsGraphNodeV11; /* exactly 160 bytes; payload begins at byte 32 */
+} SynaptikMetalMpsGraphNodeV12; /* exactly 160 bytes; payload begins at byte 32 */
 ```
 
 Its exact signature is:
@@ -175,7 +179,7 @@ int32_t synaptik_metal_mpsgraph_executable_create(
     void *context, uint32_t node_schema_version,
     uint32_t value_count, const uint32_t *value_ranks,
     const uint64_t *value_dimensions,
-    uint32_t node_count, const SynaptikMetalMpsGraphNodeV11 *nodes,
+    uint32_t node_count, const SynaptikMetalMpsGraphNodeV12 *nodes,
     uint32_t feed_count, const uint32_t *feed_indices,
     uint32_t target_count, const uint32_t *target_indices,
     void **out_executable);
@@ -319,6 +323,25 @@ it is an eligible singleton NEG using the custom route under either profile. The
 once during analysis and is never retried, replaced, or
 repartitioned in finalization or execution. This private implementation-domain boundary is not
 capability narrowing, tuning, fallback, or a performance claim.
+
+## Task-0052 custom whole-program execution
+
+Any schema-12 program containing a Task-0052 wire uses one retained custom-program handle.
+Creation compiles only the fifteen fixed reviewed Metal kernels with `MTLMathModeSafe`, creates one
+immutable pipeline and metadata buffer per custom node, and cold-compiles each interleaved existing
+node as a typed one-node MPSGraph executable. Java declares and assigns a run-owned buffer for
+every logical intermediate and a native-address workspace for the stable value table plus direct
+target aliases. No source text, function name, route identifier, hidden intermediate, or
+input-dependent choice crosses the ABI.
+
+One Java/native run call authenticates the complete value table and exact direct targets, rejects
+one physical buffer reused by distinct live value entries, and preserves each target's required
+output alias to its own table entry. The hot native route consumes supplied handles directly
+without allocating a mirror collection, executes stable program order, and submits consecutive
+custom nodes through one framework command buffer. Interleaved existing nodes execute their
+already-compiled resource internally; Java performs no per-node downcall. There is no host staging,
+retry, fallback, or hot compilation. Comparison targets are canonical one-byte BOOL values; scalar,
+reduction, and scan metadata retain exact raw words and mode state.
 
 ## Ownership and concurrency
 

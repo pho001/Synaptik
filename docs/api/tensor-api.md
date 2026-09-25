@@ -116,16 +116,15 @@ results. Tensor construction still performs no numerical evaluation and stores n
 ordinary Engine captures one profile for its lifetime and transports it through profile-qualified
 capability, compile artifacts, Prepare, and backend identity. For any backend, strict capability
 and behavior are an accelerator subset for the same occurrence domain. CPU executes both profiles
-with the same exact current semantics. Metal's common exact domain contains only canonical
-FLOAT32 `NEG`/`ABS`; `RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`; `CONTIGUOUS`; bounded
-`UNFOLD_AXIS`; exact FLOAT32-data/INT32-index `GATHER`; INT32-to-BOOL `ONE_HOT`; and
-FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. Accelerator additionally admits only tensor
-FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static
-rank-two FLOAT32 `MATMUL` with canonical or authenticated local-transpose operands. Every other
-occurrence fails closed before route selection; no Blocked operation has a capability or schema
-row. Metal remains ABI v4 with thirteen exports, node schema 11, operation wires `1..19`,
-attribute wires `0..6`, and version-twelve identities. Model remains the sole semantic owner of
-profile meaning.
+with the same exact current semantics. Metal's common exact domain contains canonical FLOAT32
+`NEG`/`ABS`; affine layouts; `CONTIGUOUS`; bounded `UNFOLD_AXIS`; exact typed GATHER, ONE_HOT, and
+SCATTER_ELEMENTS/NONE. Accelerator additionally admits tensor FLOAT32 ADD/SUB/MUL/DIV/MIN/MAX,
+all six FLOAT32 comparisons with BOOL outputs, scalar MIN/MAX/CLAMP, SUM/MEAN/MIN/MAX and
+SUM_TO_SHAPE reductions, every CUM_SUM/CUM_PROD mode, and positive static rank-two MATMUL.
+Every unlisted occurrence fails closed before route selection. Metal remains ABI v4 with thirteen
+exports and 160-byte records; schema 12 retains operation wires `1..19` and attributes `0..6`,
+appends Task-0052 wires `20..34` and attributes `7..9`, and uses version-thirteen identities.
+Model remains the sole semantic owner of profile meaning.
 
 The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 

@@ -2,32 +2,29 @@
 
 ## Status
 
-In progress
+Completed
 
-Gate 1A/API, Gate 1B complete-domain proof, and the sole Gate-2 numerical oracle completed from
-clean revision `bd5c40d3f08487cddec4284ac1588ce276f1c979`. Every opaque direct candidate is
-`DOMAIN-BLOCKED`; every auditable custom candidate is `DOMAIN-PASS` and numerical `PASS`. The exact
-custom source, validator, audit, wrapper, and proof were recovered from the original execution
-session, hash-revalidated against their pre-run identities, and retained as
-[permanent review evidence](../evidence/0052/README.md) without another numerical invocation.
-ADR 0022 now permits exact route-declared dispatch and route-owned temporary-byte facts for the
-surviving closed custom routes only. Task 0052 is the sole authorized Metal production frontier:
-run its predeclared custom-only Apple M3 Max Gate 3, freeze routes, then complete the atomic
-schema/identity/capability/native/preparation/execution/test/documentation cutover. Opaque MPSGraph
-candidates remain `DOMAIN-BLOCKED` and may not receive inferred cost facts.
+Gates 1 through 4 and the atomic production cutover are complete. Every opaque direct candidate
+remains `DOMAIN-BLOCKED`; every auditable custom candidate is `DOMAIN-PASS` and numerical `PASS`.
+The custom-only Apple M3 Max Gate 3 selected one fixed production route for all fifteen kinds,
+including fused custom CLAMP. Production now uses schema 12 operation wires `20..34`, attribute
+wires `7..9`, backend-local identity version 13, exact ACCELERATOR capability, a persistent fixed
+custom whole-program resource, declared run-owned value buffers, and one synchronous Java/native
+invocation. ABI 4, the 160-byte record, thirteen exports, and complete-plan wrapper 1 remain
+unchanged. Focused Java/native/conformance/Compiler-contract and no-skip real-dylib public Engine
+proof passed; the final full repository build remains deliberately deferred.
 
 ## Change class
 
-Class C — eventual implementation would extend profile-qualified capability, exact BOOL
-publication, scalar-attribute and scan schema meaning, typed native lowering, candidate identity,
-prepared execution, and public Engine evidence. It must not change Model semantics, public API,
-Compiler generation, Runtime policy, native ABI exports, or the completed package contract.
+Class C — implementation extends profile-qualified capability, exact BOOL publication,
+scalar-attribute and scan schema meaning, typed native lowering, candidate identity, prepared
+execution, and public Engine evidence. It does not change Model semantics, public API, Compiler
+generation, Runtime policy, native ABI exports, or the completed package contract.
 
-This execution/evidence slice changes only planning documents and the non-production review
-evidence under [`../evidence/0052/`](../evidence/0052/README.md). It ran exactly one disposable
-real-device numerical process invocation after proof/audit, then no timing workload, capture, native
-production build, or production test. Every new capability remains false. The later P1 remediation
-performed transcript recovery and hash validation only; it did not rerun or rebuild the oracle.
+The earlier evidence slice changed only planning documents and non-production review evidence,
+ran exactly one disposable numerical invocation, and later recovered and hash-validated that
+evidence without rerun. The completed production slice consumes only the independently approved
+proof and Gate-3 route decision; it does not rerun either oracle.
 
 ## Goal
 
@@ -529,8 +526,8 @@ lifecycle, real no-skip Engine proof, and disposable-artifact boundaries.
 
 ## Result
 
-Gates 1 through 4 are complete and production implementation is in progress. Gate 1A/API, Gate 1B
-complete-domain proof, and the sole Gate-2 numerical invocation completed from clean execution base
+Gates 1 through 4 and production implementation are complete. Gate 1A/API, Gate 1B complete-domain
+proof, and the sole Gate-2 numerical invocation completed from clean execution base
 `bd5c40d3f08487cddec4284ac1588ce276f1c979`. The custom-only Gate-3 process then passed on Apple M3
 Max under ADR 0022 and Gate 4 fixed all 15 production routes, including fused custom CLAMP.
 
@@ -646,5 +643,25 @@ Every operation had one surviving route except CLAMP. Fused custom CLAMP measure
 `377525.038 ns`, two dispatches, and `4194304` route-owned temporary bytes. Fused custom won on the
 first lexicographic key and is the sole production CLAMP route. Every other custom survivor is its
 operation's fixed route. Opaque direct and MPSGraph candidates remain `DOMAIN-BLOCKED` and received
-no inferred facts. The disposable Gate-3 executable was removed; production implementation and
-focused proof remain.
+no inferred facts. The disposable Gate-3 executable was removed before production work.
+
+Production appended schema-12 operation wires `20..34` and attribute wires `7..9`, advanced every
+backend-local workload/policy/candidate/compatibility/route/codec identity to 13, and retained ABI
+4, 160-byte records, thirteen exports, and complete-plan wrapper 1. Whole-partition analysis
+rejects BOOL feeds/consumers/transfers and strict/no-grad/type/layout/domain exclusions before
+native allocation. A partition containing any completed kind uses `CUSTOM_TASK0052`: cold
+preparation compiles the fifteen fixed reviewed safe-math kernels plus interleaved existing-node
+executables, while every logical intermediate is an assigned run-owned buffer and targets remain
+direct assigned buffers. Hot Java execution performs one synchronous native invocation with no
+host staging, hidden materialization, retry, fallback, per-node downcall, or hot compilation.
+
+Focused proof covers all fifteen kinds, exact scalar words, every reduction form, every scan mode,
+mixed existing canonical nodes, canonical BOOL publication, rank-zero extrema publication,
+malformed schema state, reuse, concurrent independent sessions, close/lifecycle behavior, stale
+schema and identity rejection, and one CPU-free no-skip real-dylib public Engine scenario. Review
+remediation rejects duplicate physical handles across distinct live value-table entries during
+cold Java binding and again at the untrusted native boundary while preserving each target's own
+matching output alias. The native hot route consumes the supplied value table directly and creates
+no avoidable mirror collection; only framework command-buffer/encoder objects remain per run. The
+warnings-as-errors bridge and canonical schema-12 local package both verify with exactly thirteen
+exports. The final full repository build was not run, as required by this task.

@@ -30,10 +30,12 @@ canonical input rank 1..15, size 1..16, positive step, and size no larger than t
 it returns the exact rank-plus-one floor-count Shape, preserves addressed FLOAT32 bits, and does
 not mutate or alias its source. Scatter validates complete bounds then target uniqueness before
 dispatch and writes, preserves exact addressed-update and unaddressed-base bits, and leaves inputs
-unchanged. Accelerator Metal additionally supports canonical tensor `ADD`, `SUB`, `MUL`, and
-`DIV`; canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`; and positive static rank-two `MATMUL` with canonical
-or authenticated local-transpose operands, under the bounded Model profile. Strict
-binary/reduction/MATMUL fails ownership selection before native preparation.
+unchanged. Accelerator Metal additionally supports canonical tensor `ADD`, `SUB`, `MUL`, `DIV`,
+`MIN`, and `MAX`; all six comparisons with local canonical BOOL publication; exact FLOAT32 scalar
+`MIN`, `MAX`, and `CLAMP`; canonical `SUM`, `MEAN`, `MIN`, `MAX`, and `SUM_TO_SHAPE`; every
+exclusive/reverse `CUM_SUM` and `CUM_PROD` mode; and positive static rank-two `MATMUL` with
+canonical or authenticated local-transpose operands. Strict rejects every accelerator-only row
+before native preparation. BOOL feeds, consumers, and CPU/Metal transfer remain unsupported.
 Every graph feed and direct `NEG` or `ABS` operand/output is a canonical contiguous non-view. Affine
 operations under either profile may consume exact zero-offset views produced earlier in the same
 maximal Metal partition, retain their exact logical view descriptors, and privately write dense
@@ -1322,11 +1324,13 @@ remains primary and receives a distinct acyclic observer `Error` as a suppressed
 losing earlier rollback suppression. Events contain only the bounded trace DTO fields and expose
 no native path, handle, Tensor value, shape, exception, free-form string, or generic map.
 
-Metal retains a custom route for an eligible singleton `NEG` under either profile; every `ABS`
-partition and every other supported partition uses one typed whole-partition MPSGraph executable.
-The MATMUL domain also executes Compiler-generated explicitly seeded rank-two gradients for both
-operands through authenticated local transposes; this does not add scalar-loss or general training
-support.
+Metal retains a custom route for an eligible singleton `NEG` under either profile. A supported
+ACCELERATOR partition containing any Task-0052 comparison/extrema/scalar/reduction-extrema/scan
+node uses the fixed custom whole-program resource with declared run-owned buffers and one
+synchronous Java/native invocation. Every other supported partition uses one typed whole-partition
+MPSGraph executable. The MATMUL domain also executes Compiler-generated explicitly seeded
+rank-two gradients for both operands through authenticated local transposes; this does not add
+scalar-loss or general training support.
 
 `MetalLocalWorkloadTuning` publicly exposes opaque candidates, session compatibility, identities,
 decision encode/decode, and trial/selected `PartitionPreparation` for the exact two-route

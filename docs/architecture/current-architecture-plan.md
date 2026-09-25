@@ -63,15 +63,18 @@ CPU realizes both numerical profiles through identical exact behavior and routes
 occurrence- and profile-qualified. Both profiles admit only exact canonical FLOAT32 `NEG`/`ABS`;
 `RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`; `CONTIGUOUS`; bounded `UNFOLD_AXIS`; exact
 FLOAT32-data/INT32-index `GATHER`; INT32-to-BOOL `ONE_HOT`; and FLOAT32/INT32/FLOAT32
-`SCATTER_ELEMENTS/NONE`. Accelerator additionally admits only canonical tensor FLOAT32
-`ADD`/`SUB`/`MUL`/`DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two
-MATMUL. Strict capability is an accelerator subset; every other occurrence fails closed before
-route selection.
-Locally produced scalar reduction targets materialize as four bytes, while caller ingress and
-CPU/Metal transfer remain positive-rank.
-The custom Metal route is available to an eligible singleton NEG under either profile. Current
-Metal remains ABI v4 with thirteen exports, node schema 11, operation wires `1..19`, attribute
-wires `0..6`, and version-twelve identities; no Blocked operation has a row.
+`SCATTER_ELEMENTS/NONE`. Accelerator additionally admits canonical tensor FLOAT32
+`ADD`/`SUB`/`MUL`/`DIV`/`MIN`/`MAX`, all six comparisons with local canonical BOOL publication,
+exact scalar `MIN`/`MAX`/`CLAMP`, canonical `SUM`/`MEAN`/`MIN`/`MAX`/`SUM_TO_SHAPE`, every
+`CUM_SUM`/`CUM_PROD` mode, and positive static rank-two MATMUL. Strict capability remains an
+accelerator subset; every other occurrence fails closed before route selection. BOOL ingress,
+consumers, and CPU/Metal transfer remain unsupported.
+Locally produced scalar reduction targets materialize as four bytes; caller ingress and transfer
+remain positive-rank. An eligible singleton NEG retains its dedicated custom route. Any partition
+containing a Task-0052 node uses the fixed custom whole-program route with declared run-owned value
+buffers and one Java/native invocation. Current Metal remains ABI v4 with thirteen exports and
+160-byte records; node schema 12 retains wires `1..19`/`0..6`, appends operations `20..34` and
+attributes `7..9`, and advances the backend-local identities to version thirteen.
 
 The Training extension now owns a public reusable
 Engine-backed scalar session with persistent SGD, accumulation, and detached in-memory state over

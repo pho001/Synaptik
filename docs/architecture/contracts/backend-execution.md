@@ -311,22 +311,26 @@ Metal's common exact occurrence domain under both profiles contains only canonic
 `NEG`/`ABS`; `RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`; `CONTIGUOUS`; bounded canonical
 FLOAT32 `UNFOLD_AXIS`; canonical positive-rank FLOAT32 data `GATHER` with canonical INT32 indices;
 positive-rank INT32-to-BOOL `ONE_HOT`; and canonical positive-rank
-FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. Its accelerator-only set contains only tensor
-FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`; canonical FLOAT32 `SUM`, `MEAN`, and binding-resolved
-`SUM_TO_SHAPE` over full, normalized single-axis, ordered normalized multi-axis including empty,
-and exact keep-dimensions forms; and positive static rank-two FLOAT32 MATMUL with exact contraction
+FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. Its accelerator-only set adds tensor FLOAT32
+`ADD`/`SUB`/`MUL`/`DIV`/`MIN`/`MAX`; all six FLOAT32 comparisons with canonical BOOL output;
+exact FLOAT32 scalar `MIN`/`MAX`/`CLAMP`; canonical FLOAT32 `SUM`, `MEAN`, `MIN`, `MAX`, and
+binding-resolved `SUM_TO_SHAPE` over their exact full, normalized single-axis, ordered
+multi-axis including empty, and keep-dimensions forms; every exclusive/reverse mode of FLOAT32
+`CUM_SUM` and `CUM_PROD`; and positive static rank-two FLOAT32 MATMUL with exact contraction
 geometry and canonical or authenticated local rank-two-transpose operands. Strict capability is a
 subset because every common occurrence has the same answer under accelerator; strict rejects every
-accelerator-only addition.
+accelerator-only addition. BOOL feeds, consumers, and CPU/Metal transfer remain unsupported.
 
-Accelerator operations must produce only results admitted by Model's total recursive `FLOAT32`
-exact/discrete, primitive, aggregate, and composite-inheritance floors. The inclusive
-ordered-binary32 distance-at-most-five ceiling applies only per irreducible elementary-function
-site, not as a final-output comparison rule. Every other profile/operation occurrence fails closed
-before route selection; transporting profile identity never authorizes a result outside the
-Model-owned set. No Blocked Metal operation has a capability
-or schema row.
-The package remains ABI v4 with thirteen exports, node schema 11,
-operation wires `1..19`, attribute wires `0..6`, and version-twelve workload/policy/candidate/
-compatibility/route-policy/codec identities. Schema 12, wire 20, attribute 7, INT64, ABI/export
-changes, and version-thirteen identities remain conditional, unimplemented, and unreserved.
+Accelerator operations must produce only results admitted by Model's total recursive FLOAT32
+exact/discrete, primitive, aggregate, and composite-inheritance floors. Every other
+profile/operation occurrence fails closed before route selection; transporting profile identity
+never authorizes a result outside the Model-owned set. The Task-0052 slice is realized by fifteen
+fixed reviewed safe-math kernels behind one whole-program native invocation, with declared assigned
+buffers for every logical value and no hidden materialization, host staging, hot compilation,
+retry, or fallback.
+
+The package remains ABI v4 with thirteen exports and 160-byte records. Node schema 12 retains
+operation wires `1..19` and attribute wires `0..6`, appends Task-0052 operation wires `20..34` and
+attribute wires `7..9`, and rejects stale schema 11. Workload, exact-policy, candidate,
+compatibility, route-policy, and codec identities are version thirteen; the complete-plan wrapper
+remains version one. INT64 and ABI/export changes remain unimplemented.
