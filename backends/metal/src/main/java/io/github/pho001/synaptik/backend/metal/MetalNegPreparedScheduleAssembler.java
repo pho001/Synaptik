@@ -1,7 +1,6 @@
 package io.github.pho001.synaptik.backend.metal;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
-import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.prepare.PreparedBufferAssignment;
@@ -23,9 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Objects;
-import java.lang.foreign.Arena;
-import java.lang.foreign.MemorySegment;
-import static java.lang.foreign.ValueLayout.JAVA_INT;
 
 /**
  * Supplies Metal physical contributions for supported NEG and affine-composition operations and
@@ -149,9 +145,10 @@ final class MetalNegPreparedScheduleAssembler
                     throw new IllegalArgumentException(
                             "Metal initialized buffer requires matching FLOAT32 or INT32 scalar");
                 }
-                int bits = raw32Bits(scalar);
+                MetalPreparedSplatResource resource = requireSplatResource(
+                        scheduleContext.partitions(), assignment.valueId());
                 preparation = new PreparedRepresentationPlan.InitializedBuffer(
-                        () -> createSplatBuffer(bytes, bits));
+                        resource::newRunBinding);
             } else {
                 preparation = new PreparedRepresentationPlan.CreatedBuffer(
                         () -> context.createBuffer(bytes));
@@ -293,10 +290,12 @@ final class MetalNegPreparedScheduleAssembler
                 int feedIndex = plan.feedValueIds().indexOf(assignment.valueId());
                 var splat = plan.feedSplats().get(feedIndex);
                 if (splat.isPresent()) {
-                    long bytes = plan.feedRequiredBytes()[feedIndex];
-                    int bits = raw32Bits(splat.orElseThrow());
+                    MetalPreparedSplatResource resource = executable
+                            .splatResource(assignment.valueId())
+                            .orElseThrow(() -> new IllegalArgumentException(
+                                    "Metal splat feed has no exact prepared source resource"));
                     preparation = List.of(new PreparedRepresentationPlan.InitializedBuffer(
-                            () -> createSplatBuffer(bytes, bits)));
+                            resource::newRunBinding));
                 } else {
                     preparation = List.of(new PreparedRepresentationPlan.CallerInput());
                 }
@@ -350,33 +349,29 @@ final class MetalNegPreparedScheduleAssembler
         return new PreparedSchedule(memoryPlan, steps);
     }
 
-    private static int raw32Bits(ScalarValue value) {
-        return switch (value.dataType()) {
-            case FLOAT32 -> Float.floatToRawIntBits(value.float32Value());
-            case INT32 -> value.int32Value();
-            default -> throw new IllegalArgumentException(
-                    "Metal splat requires FLOAT32 or INT32 scalar");
-        };
-    }
-
-    private MetalBufferRepresentation createSplatBuffer(long bytes, int rawBits) {
-        MetalBufferRepresentation buffer = context.createBuffer(bytes);
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment source = arena.allocate(bytes, Integer.BYTES);
-            long elements = bytes / Float.BYTES;
-            for (long index = 0; index < elements; index++) {
-                source.setAtIndex(JAVA_INT, index, rawBits);
+    private static MetalPreparedSplatResource requireSplatResource(
+            List<PreparedPartition> partitions, ValueId valueId) {
+        MetalPreparedSplatResource found = null;
+        for (PreparedPartition partition : partitions) {
+            if (!(partition.executable() instanceof MetalNegPreparedExecutable executable)) {
+                continue;
             }
-            buffer.upload(0L, source, 0L, bytes);
-            return buffer;
-        } catch (RuntimeException | Error failure) {
-            try {
-                buffer.close();
-            } catch (RuntimeException | Error cleanup) {
-                if (cleanup != failure) failure.addSuppressed(cleanup);
+            Optional<MetalPreparedSplatResource> candidate =
+                    executable.splatResource(valueId);
+            if (candidate.isEmpty()) {
+                continue;
             }
-            throw failure;
+            if (found != null && found != candidate.orElseThrow()) {
+                throw new IllegalArgumentException(
+                        "Metal splat feed has multiple prepared source resources");
+            }
+            found = candidate.orElseThrow();
         }
+        if (found == null) {
+            throw new IllegalArgumentException(
+                    "Metal splat feed has no exact prepared source resource");
+        }
+        return found;
     }
 
 

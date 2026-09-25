@@ -349,6 +349,45 @@ class MetalNegPreparedExecutionTest {
     }
 
     @Test
+    void MetalTraceSplatUploadFailureEmitsOnlyFailedPrepareAndRollsBack() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        RuntimeException uploadFailure = new RuntimeException("prepared splat upload");
+        api.failUploadCall = 1;
+        api.uploadFailure = uploadFailure;
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        List<TraceEvent<? extends TracePayload>> events = new CopyOnWriteArrayList<>();
+        MetalTraceProducer producer = new MetalTraceProducer(events::add);
+        SingleNegRoute route = singleNegRoute(
+                context,
+                Shape.of(2),
+                Optional.of(ScalarValue.float32(1.25f)),
+                producer);
+        FinalizationFixture assignment = finalization(route.analysis());
+        try {
+            RuntimeException actual = assertThrows(
+                    RuntimeException.class,
+                    () -> new MetalNegPartitionFinalizer(context)
+                            .finalizePartition(assignment.finalization()));
+            assertSame(uploadFailure, actual);
+            assertEquals(1, events.size());
+            TraceEvent<? extends TracePayload> event = events.getFirst();
+            BackendPreparationOutcome outcome =
+                    (BackendPreparationOutcome) event.payload();
+            assertEquals(TracePhase.PREPARE, event.phase());
+            assertEquals(TraceLevel.ERROR, event.level());
+            assertEquals(TraceOutcomeStatus.FAILED, outcome.status());
+            assertEquals(0, api.customRunCalls.get());
+            assertEquals(1, api.bufferCreates.get());
+            assertEquals(1, api.bufferReleases.get());
+            assertEquals(1, api.pipelineCreates.get());
+            assertEquals(1, api.pipelineReleases.get());
+            assertTrue(api.liveBufferHandles().isEmpty());
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
     void MetalTraceCustomRunObserverErrorIsSuppressedOnNativeFailure() {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
@@ -400,7 +439,7 @@ class MetalNegPreparedExecutionTest {
     }
 
     @Test
-    void customSplatRouteCreatesFreshRunOwnedInputsAndExactNegation() {
+    void customSplatRoutePersistsImmutableInputAndDefersReleaseUntilLastResult() {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
         SingleNegRoute route = singleNegRoute(
@@ -409,6 +448,9 @@ class MetalNegPreparedExecutionTest {
         BackendPartitionFinalizationResult finalized =
                 new MetalNegPartitionFinalizer(context)
                         .finalizePartition(assignment.finalization());
+        assertEquals(2, finalized.resources().size());
+        assertTrue(finalized.resources().get(0) instanceof MetalNegKernelPipelineResource);
+        assertTrue(finalized.resources().get(1) instanceof MetalPreparedSplatResource);
         var schedule = new MetalNegPreparedScheduleAssembler(
                 context, route.analysis().plan(), List.of(route.target()))
                 .assembleRoute(assignment.memoryPlan(),
@@ -416,30 +458,220 @@ class MetalNegPreparedExecutionTest {
                         assignment.preparedAssignments());
         PreparedExecution execution = new PreparedExecution(
                 assignment.memoryPlan(), schedule, finalized.resources());
+        io.github.pho001.synaptik.runtime.run.RunResult first = null;
+        io.github.pho001.synaptik.runtime.run.RunResult second = null;
         try {
             var runner = new PreparedExecutionRunner();
-            var first = runner.run(execution, List.of());
-            var second = runner.run(execution, List.of());
+            first = runner.run(execution, List.of());
+            second = runner.run(execution, List.of());
+            MetalBufferRepresentation firstOutput =
+                    (MetalBufferRepresentation) first.publicationRepresentation(0);
+            MetalBufferRepresentation secondOutput =
+                    (MetalBufferRepresentation) second.publicationRepresentation(0);
+            long firstOutputHandle = firstOutput.executionHandle().carrier().address();
+            long secondOutputHandle = secondOutput.executionHandle().carrier().address();
             try (Arena arena = Arena.ofConfined()) {
-                assertNegated((MetalBufferRepresentation) first.publicationRepresentation(0),
-                        new float[] {0.0f, 0.0f}, arena);
-                assertNegated((MetalBufferRepresentation) second.publicationRepresentation(0),
-                        new float[] {0.0f, 0.0f}, arena);
-                assertNotSame(first.publicationRepresentation(0),
-                        second.publicationRepresentation(0));
-            } finally {
-                second.close();
-                first.close();
+                assertNegated(firstOutput, new float[] {0.0f, 0.0f}, arena);
+                assertNegated(secondOutput, new float[] {0.0f, 0.0f}, arena);
+                assertNotSame(firstOutput, secondOutput);
             }
             assertEquals(1, api.pipelineCreates.get());
             assertEquals(2, api.customRunCalls.get());
-            assertEquals(4, api.bufferCreates.get(),
-                    "each run owns one fresh splat and one fresh output");
-            assertEquals(2, api.uploads.get());
+            assertEquals(3, api.bufferCreates.get(),
+                    "prepare owns one splat and each run owns one output");
+            assertEquals(1, api.uploads.get());
+            assertEquals(2, api.customInputHandles.size());
+            assertEquals(api.customInputHandles.get(0), api.customInputHandles.get(1));
+            long splatHandle = api.customInputHandles.getFirst();
+
+            execution.close();
+            assertEquals(1, api.pipelineReleases.get());
+            assertEquals(Set.of(splatHandle, firstOutputHandle, secondOutputHandle),
+                    api.liveBufferHandles());
+            int createsAtClose = api.bufferCreates.get();
+            assertThrows(IllegalStateException.class,
+                    () -> runner.run(execution, List.of()));
+            assertEquals(createsAtClose, api.bufferCreates.get());
+
+            second.close();
+            second = null;
+            assertEquals(Set.of(splatHandle, firstOutputHandle), api.liveBufferHandles(),
+                    "one open result retains the immutable prepared splat");
+            first.close();
+            first = null;
+            assertTrue(api.liveBufferHandles().isEmpty(),
+                    "the last result releases its output and the deferred prepared splat");
+            assertEquals(3, api.bufferReleases.get());
+        } finally {
+            close(second);
+            close(first);
+            execution.close();
+            context.close();
+        }
+    }
+
+    @Test
+    void outputAllocationFailureReleasesRunBindingAndLaterRunReusesPreparedSplat() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        PreparedExecution execution = prepareSingleExecution(
+                context, Shape.of(2), Optional.of(ScalarValue.float32(2.0f)));
+        try {
+            assertEquals(1, api.bufferCreates.get());
+            assertEquals(1, api.uploads.get());
+            RuntimeException allocationFailure = new RuntimeException("output allocation");
+            api.failBufferCreateCall = 2;
+            api.bufferCreateFailure = allocationFailure;
+            assertSame(allocationFailure, assertThrows(
+                    RuntimeException.class,
+                    () -> new PreparedExecutionRunner().run(execution, List.of())));
+            assertEquals(0, api.customRunCalls.get());
+            assertEquals(1, api.liveBufferHandles().size(),
+                    "run rollback releases its child binding but not the prepared owner");
+
+            api.failBufferCreateCall = -1;
+            try (var result = new PreparedExecutionRunner().run(execution, List.of());
+                    Arena arena = Arena.ofConfined()) {
+                assertNegated(
+                        (MetalBufferRepresentation) result.publicationRepresentation(0),
+                        new float[] {-2.0f, -2.0f},
+                        arena);
+            }
+            assertEquals(1, api.customRunCalls.get());
+            assertEquals(3, api.bufferCreates.get(),
+                    "failed and successful output allocation attempts retain one prepared splat");
+            assertEquals(1, api.uploads.get());
         } finally {
             execution.close();
             context.close();
         }
+        assertTrue(api.liveBufferHandles().isEmpty());
+    }
+
+    @Test
+    void preparedSplatBindingIsReadableForTransferAndMaterializationButNeverWritable() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        MetalBackendRuntime runtime = new MetalBackendRuntime(context);
+        SingleNegRoute route = singleNegRoute(
+                context, Shape.of(2), Optional.of(ScalarValue.float32(-2.5f)));
+        FinalizationFixture assignment = finalization(route.analysis());
+        BackendPartitionFinalizationResult finalized =
+                new MetalNegPartitionFinalizer(context)
+                        .finalizePartition(assignment.finalization());
+        MetalNegPreparedExecutable executable =
+                (MetalNegPreparedExecutable) finalized.executable();
+        var binding = executable.splatResource(route.feed()).orElseThrow().newRunBinding();
+        TensorDescriptor descriptor = descriptor(Shape.of(2));
+        try {
+            assertTrue(runtime.acceptsContiguousFloat32Transfer(binding, descriptor));
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment destination = arena.allocate(2L * Float.BYTES, Float.BYTES);
+                runtime.bindContiguousFloat32Download(binding, descriptor).accept(destination);
+                assertEquals(Float.floatToRawIntBits(-2.5f),
+                        destination.getAtIndex(JAVA_INT, 0));
+                assertEquals(Float.floatToRawIntBits(-2.5f),
+                        destination.getAtIndex(JAVA_INT, 1));
+            }
+            byte[] canonical = runtime.copyToCanonicalHostBytes(binding, descriptor, 8L);
+            assertEquals(Float.floatToRawIntBits(-2.5f),
+                    java.nio.ByteBuffer.wrap(canonical).getInt(0));
+            assertThrows(IllegalArgumentException.class,
+                    () -> runtime.bindContiguousFloat32Upload(binding, descriptor));
+
+            for (int index = finalized.resources().size() - 1; index >= 0; index--) {
+                finalized.resources().get(index).close();
+            }
+            assertEquals(0, api.bufferReleases.get(),
+                    "the live read binding defers prepared-owner physical release");
+            byte[] afterOwnerClose =
+                    runtime.copyToCanonicalHostBytes(binding, descriptor, 8L);
+            assertArrayEquals(canonical, afterOwnerClose);
+            RuntimeException deferredRelease =
+                    new RuntimeException("deferred prepared splat release");
+            api.bufferReleaseFailures.add(deferredRelease);
+            assertSame(deferredRelease,
+                    assertThrows(RuntimeException.class, binding::close));
+            assertFalse(runtime.acceptsContiguousFloat32Transfer(binding, descriptor));
+        } finally {
+            binding.close();
+            for (int index = finalized.resources().size() - 1; index >= 0; index--) {
+                finalized.resources().get(index).close();
+            }
+            runtime.close();
+        }
+        assertEquals(1, api.bufferReleases.get());
+        assertTrue(api.liveBufferHandles().isEmpty());
+    }
+
+    @Test
+    void firstMetalConsumerOwnsOnePreparedSplatAndCpuSourceOwnsNone() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        BackendPartitionFinalizationResult firstFinalized = null;
+        BackendPartitionFinalizationResult secondFinalized = null;
+        BackendPartitionFinalizationResult cpuSourceFinalized = null;
+        try {
+            TensorDescriptor descriptor = descriptor(Shape.of(2));
+            ValueId shared = new ValueId(70_000);
+            ValueId firstTarget = new ValueId(70_001);
+            ValueId secondTarget = new ValueId(70_002);
+            CompiledNode firstNode = negNode(70_001, shared, firstTarget);
+            CompiledNode secondNode = negNode(70_002, shared, secondTarget);
+            PlannedPartition firstPartition = new PlannedPartition(
+                    MetalCapabilityProvider.METAL_BACKEND_ID, List.of(firstNode.id()));
+            PlannedPartition secondPartition = new PlannedPartition(
+                    MetalCapabilityProvider.METAL_BACKEND_ID, List.of(secondNode.id()));
+            List<PlannedPartition> consumers = List.of(firstPartition, secondPartition);
+            BackendPartitionAnalysis<MetalNegPreparationPlan> first = splatConsumerAnalysis(
+                    context, firstPartition, firstNode, shared, firstTarget, descriptor, consumers);
+            BackendPartitionAnalysis<MetalNegPreparationPlan> second = splatConsumerAnalysis(
+                    context, secondPartition, secondNode, shared, secondTarget, descriptor, consumers);
+            assertArrayEquals(new boolean[] {true}, first.plan().feedSplatSources());
+            assertArrayEquals(new boolean[] {false}, second.plan().feedSplatSources());
+
+            FinalizationFixture firstFixture = finalization(first);
+            firstFinalized = new MetalNegPartitionFinalizer(context)
+                    .finalizePartition(firstFixture.finalization());
+            FinalizationFixture secondFixture = finalization(second);
+            secondFinalized = new MetalNegPartitionFinalizer(context)
+                    .finalizePartition(secondFixture.finalization());
+            assertEquals(1, api.bufferCreates.get(),
+                    "later Metal consumers must not duplicate the source splat");
+            assertEquals(1, api.uploads.get());
+            assertEquals(2, firstFinalized.resources().size());
+            assertEquals(1, secondFinalized.resources().size());
+
+            ValueId cpuOwned = new ValueId(71_000);
+            ValueId metalTarget = new ValueId(71_001);
+            CompiledNode metalNode = negNode(71_001, cpuOwned, metalTarget);
+            PlannedPartition cpuPartition = new PlannedPartition(
+                    new io.github.pho001.synaptik.backend.contract.BackendId("cpu-source-test"),
+                    List.of(new NodeId(71_000)));
+            PlannedPartition metalPartition = new PlannedPartition(
+                    MetalCapabilityProvider.METAL_BACKEND_ID, List.of(metalNode.id()));
+            BackendPartitionAnalysis<MetalNegPreparationPlan> cpuSource = splatConsumerAnalysis(
+                    context,
+                    metalPartition,
+                    metalNode,
+                    cpuOwned,
+                    metalTarget,
+                    descriptor,
+                    List.of(cpuPartition, metalPartition));
+            assertArrayEquals(new boolean[] {false}, cpuSource.plan().feedSplatSources());
+            FinalizationFixture cpuSourceFixture = finalization(cpuSource);
+            cpuSourceFinalized = new MetalNegPartitionFinalizer(context)
+                    .finalizePartition(cpuSourceFixture.finalization());
+            assertEquals(1, api.bufferCreates.get(),
+                    "a CPU source keeps Metal on the ordinary transfer destination path");
+            assertEquals(1, cpuSourceFinalized.resources().size());
+        } finally {
+            closeResources(cpuSourceFinalized);
+            closeResources(secondFinalized);
+            closeResources(firstFinalized);
+            context.close();
+        }
+        assertTrue(api.liveBufferHandles().isEmpty());
     }
 
     @Test
@@ -532,13 +764,15 @@ class MetalNegPreparedExecutionTest {
     }
 
     @Test
-    void customFinalizerRollbackPreservesPrimaryAndPipelineCleanupFailure() {
+    void customFinalizerFactoryFailureReversesSplatThenPipelineWithSuppression() {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
         BackendPartitionAnalysis<MetalNegPreparationPlan> analysis = singleNegRoute(
-                context, Shape.of(2), Optional.empty()).analysis();
+                context, Shape.of(2), Optional.of(ScalarValue.float32(3.0f))).analysis();
         FinalizationFixture fixture = finalization(analysis);
         RuntimeException primary = new RuntimeException("custom recipe construction");
+        RuntimeException splatCleanup = new RuntimeException("splat cleanup");
+        api.bufferReleaseFailures.add(splatCleanup);
         api.pipelineReleaseStatus = 7;
         var finalizer = new MetalNegPartitionFinalizer(context,
                 new MetalNegPartitionFinalizer.FinalizedExecutableFactory() {
@@ -551,6 +785,7 @@ class MetalNegPreparedExecutionTest {
                             int[] targets,
                             int[] targetRepresentations,
                             MetalMpsGraphExecutableResource resource,
+                            List<Optional<MetalPreparedSplatResource>> splats,
                             long[] feedBytes,
                             long[] targetBytes,
                             int workspace) {
@@ -565,7 +800,10 @@ class MetalNegPreparedExecutionTest {
                             int feedRepresentation,
                             int target,
                             int targetRepresentation,
-                            MetalNegKernelPipelineResource resource) {
+                            MetalNegKernelPipelineResource resource,
+                            List<Optional<MetalPreparedSplatResource>> splats) {
+                        assertEquals(1, splats.size());
+                        assertTrue(splats.getFirst().isPresent());
                         throw primary;
                     }
                 });
@@ -573,12 +811,17 @@ class MetalNegPreparedExecutionTest {
             RuntimeException actual = assertThrows(RuntimeException.class,
                     () -> finalizer.finalizePartition(fixture.finalization()));
             assertSame(primary, actual);
-            assertEquals(1, actual.getSuppressed().length);
-            assertNativeFailure((MetalNativeApi.NativeFailure) actual.getSuppressed()[0],
+            assertEquals(2, actual.getSuppressed().length);
+            assertSame(splatCleanup, actual.getSuppressed()[0]);
+            assertNativeFailure((MetalNativeApi.NativeFailure) actual.getSuppressed()[1],
                     MetalNativeApi.NEG_KERNEL_PIPELINE_RELEASE_OPERATION, 7);
             assertEquals(1, api.pipelineCreates.get());
             assertEquals(1, api.pipelineReleases.get());
+            assertEquals(1, api.bufferCreates.get());
+            assertEquals(1, api.uploads.get());
+            assertEquals(1, api.bufferReleases.get());
             assertEquals(0, api.executableCreates.get());
+            assertTrue(api.liveBufferHandles().isEmpty());
         } finally {
             context.close();
         }
@@ -1522,6 +1765,7 @@ class MetalNegPreparedExecutionTest {
                         targets,
                         targetRepresentations,
                         resource,
+                        splats,
                         feedBytes,
                         targetBytes,
                         workspace) -> {
@@ -1715,15 +1959,16 @@ class MetalNegPreparedExecutionTest {
     }
 
     @Test
-    void positiveRankSplatsAreColdInitializedInStableOrderAndIsolatedAcrossRuns()
+    void positiveRankSplatsArePreparedOnceAndOutputsStayIsolatedAcrossRuns()
             throws Exception {
         RecordingNativeApi api = new RecordingNativeApi();
         SplatRoute route = prepareSplatRoute(api);
         MetalBufferRepresentation caller = null;
         try {
-            assertEquals(0, api.bufferCreates.get(),
-                    "prepare must not allocate a splat or output buffer");
-            assertEquals(0, api.uploads.get(), "prepare must not upload a splat");
+            assertEquals(route.splatBits().length, api.bufferCreates.get(),
+                    "prepare owns exactly one buffer per source splat");
+            assertEquals(route.splatBits().length, api.uploads.get(),
+                    "prepare uploads each source splat exactly once");
             caller = route.context().createBuffer(8);
             uploadBits(caller, 0x3F800000, 0xC0000000);
             int coldBaseCreates = api.bufferCreates.get();
@@ -1734,11 +1979,13 @@ class MetalNegPreparedExecutionTest {
             List<MetalBufferRepresentation> firstOutputs = publishedBuffers(first);
             RecordingNativeApi.RunObservation firstRun = api.runs.getFirst();
             assertSplatRun(route, api, caller, firstRun, coldBaseCreates, coldBaseUploads);
-            assertEquals(coldBaseCreates + route.splatBits().length + route.targetCount(),
-                    api.bufferCreates.get());
-            assertEquals(coldBaseUploads + route.splatBits().length, api.uploads.get());
+            assertEquals(coldBaseCreates + route.targetCount(), api.bufferCreates.get());
+            assertEquals(coldBaseUploads, api.uploads.get());
+            Set<Long> persistentHandles = new java.util.HashSet<>(firstRun.splatHandles());
+            persistentHandles.add(caller.executionHandle().carrier().address());
             first.close();
-            assertEquals(Set.of(caller.executionHandle().carrier().address()), api.liveBufferHandles());
+            assertEquals(persistentHandles, api.liveBufferHandles(),
+                    "closing a result releases outputs but not prepared splats");
 
             int secondBaseCreates = api.bufferCreates.get();
             int secondBaseUploads = api.uploads.get();
@@ -1747,14 +1994,19 @@ class MetalNegPreparedExecutionTest {
             RecordingNativeApi.RunObservation secondRun = api.runs.get(1);
             assertSplatRun(route, api, caller, secondRun, secondBaseCreates, secondBaseUploads);
             assertNotSame(firstRun.inputAddresses(), secondRun.inputAddresses());
-            assertTrue(disjoint(firstRun.splatHandles(), secondRun.splatHandles()));
+            assertEquals(firstRun.splatHandles(), secondRun.splatHandles());
             assertTrue(disjoint(firstRun.outputHandles(), secondRun.outputHandles()));
             for (int index = 0; index < firstOutputs.size(); index++) {
                 assertNotSame(firstOutputs.get(index), secondOutputs.get(index));
             }
             second.close();
+            assertEquals(route.splatBits().length + 2 * route.targetCount() + 1,
+                    api.bufferCreates.get(),
+                    "two runs add only outputs after prepared constants and caller input");
+            assertEquals(route.splatBits().length + 1, api.uploads.get(),
+                    "only prepared splats and the explicit caller upload occur");
 
-            int concurrentRunBufferCount = route.splatBits().length + route.targetCount();
+            int concurrentRunBufferCount = route.targetCount();
             api.blockBufferCreates(concurrentRunBufferCount * 2);
             api.blockRuns(1);
             try (var executor = Executors.newFixedThreadPool(2)) {
@@ -1776,8 +2028,8 @@ class MetalNegPreparedExecutionTest {
                 try {
                     List<RecordingNativeApi.RunObservation> concurrent =
                             api.runs.subList(api.runs.size() - 2, api.runs.size());
-                    assertTrue(disjoint(concurrent.get(0).splatHandles(),
-                            concurrent.get(1).splatHandles()));
+                    assertEquals(concurrent.get(0).splatHandles(),
+                            concurrent.get(1).splatHandles());
                     assertTrue(disjoint(concurrent.get(0).outputHandles(),
                             concurrent.get(1).outputHandles()));
                     assertNotSame(concurrent.get(0).inputAddresses(),
@@ -1793,65 +2045,61 @@ class MetalNegPreparedExecutionTest {
             } finally {
                 api.continueRuns.countDown();
             }
-            assertEquals(Set.of(caller.executionHandle().carrier().address()), api.liveBufferHandles());
+            assertEquals(persistentHandles, api.liveBufferHandles());
         } finally {
             close(route.execution());
             close(caller);
             route.context().close();
         }
+        assertTrue(api.liveBufferHandles().isEmpty());
     }
 
     @Test
-    void splatAllocationFailureRollsBackEarlierSplatAndPreservesCleanupFailure() {
+    void splatAllocationFailureDuringFinalizationRollsBackEarlierSplatThenExecutable() {
         RecordingNativeApi api = new RecordingNativeApi();
-        SplatRoute route = prepareSplatRoute(api);
-        MetalBufferRepresentation caller = route.context().createBuffer(8);
-        uploadBits(caller, 1, 2);
         RuntimeException primary = new RuntimeException("splat allocation");
         RuntimeException cleanup = new RuntimeException("earlier splat release");
-        api.failBufferCreateCall = api.bufferCreates.get() + 2;
+        api.failBufferCreateCall = 2;
         api.bufferCreateFailure = primary;
         api.bufferReleaseFailures.add(cleanup);
-        try {
-            RuntimeException actual = assertThrows(RuntimeException.class,
-                    () -> new PreparedExecutionRunner().run(route.execution(), List.of(caller)));
-            assertSame(primary, actual);
-            assertArrayEquals(new Throwable[] {cleanup}, actual.getSuppressed());
-            assertEquals(0, api.runCalls.get());
-            assertEquals(Set.of(caller.executionHandle().carrier().address()), api.liveBufferHandles());
-        } finally {
-            close(route.execution());
-            caller.close();
-            route.context().close();
-        }
+
+        RuntimeException actual = assertThrows(
+                RuntimeException.class, () -> prepareSplatRoute(api));
+        assertSame(primary, actual);
+        assertArrayEquals(new Throwable[] {cleanup}, actual.getSuppressed());
+        assertEquals(0, api.runCalls.get());
+        assertEquals(2, api.bufferCreates.get());
+        assertEquals(1, api.bufferReleases.get());
+        assertEquals(1, api.executableCreates.get());
+        assertEquals(1, api.executableReleases.get());
+        assertEquals(1, api.contextReleases.get());
+        assertTrue(api.liveBufferHandles().isEmpty());
     }
 
     @Test
-    void splatUploadFailureClosesCurrentThenRollsBackEarlierSplatInSuppressionOrder() {
+    void splatUploadFailureClosesCurrentThenPriorSplatBeforeExecutable() {
         RecordingNativeApi api = new RecordingNativeApi();
-        SplatRoute route = prepareSplatRoute(api);
-        MetalBufferRepresentation caller = route.context().createBuffer(8);
-        uploadBits(caller, 1, 2);
         RuntimeException primary = new RuntimeException("splat upload");
         RuntimeException currentCleanup = new RuntimeException("current splat release");
         RuntimeException earlierCleanup = new RuntimeException("earlier splat release");
-        api.failUploadCall = api.uploads.get() + 2;
+        api.failUploadCall = 2;
         api.uploadFailure = primary;
         api.bufferReleaseFailures.add(currentCleanup);
         api.bufferReleaseFailures.add(earlierCleanup);
-        try {
-            RuntimeException actual = assertThrows(RuntimeException.class,
-                    () -> new PreparedExecutionRunner().run(route.execution(), List.of(caller)));
-            assertSame(primary, actual);
-            assertArrayEquals(
-                    new Throwable[] {currentCleanup, earlierCleanup}, actual.getSuppressed());
-            assertEquals(0, api.runCalls.get());
-            assertEquals(Set.of(caller.executionHandle().carrier().address()), api.liveBufferHandles());
-        } finally {
-            close(route.execution());
-            caller.close();
-            route.context().close();
-        }
+
+        RuntimeException actual = assertThrows(
+                RuntimeException.class, () -> prepareSplatRoute(api));
+        assertSame(primary, actual);
+        assertArrayEquals(
+                new Throwable[] {currentCleanup, earlierCleanup}, actual.getSuppressed());
+        assertEquals(0, api.runCalls.get());
+        assertEquals(2, api.bufferCreates.get());
+        assertEquals(2, api.uploads.get());
+        assertEquals(2, api.bufferReleases.get());
+        assertEquals(1, api.executableCreates.get());
+        assertEquals(1, api.executableReleases.get());
+        assertEquals(1, api.contextReleases.get());
+        assertTrue(api.liveBufferHandles().isEmpty());
     }
 
     @Test
@@ -2273,6 +2521,7 @@ class MetalNegPreparedExecutionTest {
                         targets,
                         targetRepresentations,
                         resource,
+                        splats,
                         feedBytes,
                         targetBytes,
                         workspace) -> {
@@ -2546,9 +2795,8 @@ class MetalNegPreparedExecutionTest {
         assertEquals(1 + route.splatBits().length, run.inputHandles().size());
         assertEquals(caller.executionHandle().carrier().address(), run.inputHandles().getFirst());
         assertEquals(route.targetCount(), run.outputHandles().size());
-        assertEquals(baseCreates + route.splatBits().length + route.targetCount(),
-                run.bufferCreateCount());
-        assertEquals(baseUploads + route.splatBits().length, run.uploadCount());
+        assertEquals(baseCreates + route.targetCount(), run.bufferCreateCount());
+        assertEquals(baseUploads, run.uploadCount());
         assertEquals(run.bufferCreateCount(), api.bufferCreates.get(),
                 "hot execution must not allocate a Metal buffer");
         assertEquals(run.uploadCount(), api.uploads.get(),
@@ -3220,6 +3468,42 @@ class MetalNegPreparedExecutionTest {
         return new SingleNegRoute(partition, feed, target, analysis);
     }
 
+    private static CompiledNode negNode(long nodeId, ValueId feed, ValueId target) {
+        return new CompiledNode(
+                new NodeId(nodeId),
+                new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE),
+                List.of(feed),
+                List.of(target));
+    }
+
+    private static BackendPartitionAnalysis<MetalNegPreparationPlan> splatConsumerAnalysis(
+            MetalDeviceContext context,
+            PlannedPartition partition,
+            CompiledNode node,
+            ValueId feed,
+            ValueId target,
+            TensorDescriptor descriptor,
+            List<PlannedPartition> consumers) {
+        return new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
+                NumericalProfile.STRICT_IEEE,
+                new PartitionDag(partition, List.of(node)),
+                List.of(new GraphValue(feed, descriptor), new GraphValue(target, descriptor)),
+                List.of(
+                        requirement(feed, descriptor, Optional.empty(), consumers, false),
+                        requirement(target, descriptor, Optional.of(partition), List.of(), true)),
+                Map.of(feed, ScalarValue.float32(4.0f)),
+                new MetalNegAnalysisInputs(context)));
+    }
+
+    private static void closeResources(BackendPartitionFinalizationResult finalized) {
+        if (finalized == null) {
+            return;
+        }
+        for (int index = finalized.resources().size() - 1; index >= 0; index--) {
+            finalized.resources().get(index).close();
+        }
+    }
+
     private static PreparedExecution prepareSingleExecution(
             MetalDeviceContext context, Shape shape, Optional<ScalarValue> splat) {
         SingleNegRoute route = singleNegRoute(context, shape, splat);
@@ -3489,6 +3773,7 @@ class MetalNegPreparedExecutionTest {
         private final Map<Thread, List<Long>> createdHandlesByThread =
                 new ConcurrentHashMap<>();
         private final List<RunObservation> runs = new CopyOnWriteArrayList<>();
+        private final List<Long> customInputHandles = new CopyOnWriteArrayList<>();
         private final Queue<RuntimeException> bufferReleaseFailures =
                 new ConcurrentLinkedQueue<>();
         private RuntimeException createFailure;
@@ -3624,6 +3909,7 @@ class MetalNegPreparedExecutionTest {
         @Override int runNegKernelPipelineNative(
                 Handle pipeline, Handle inputBuffer, Handle outputBuffer) {
             customRunCalls.incrementAndGet();
+            customInputHandles.add(inputBuffer.carrier().address());
             byte[] input = buffers.get(inputBuffer.carrier().address());
             byte[] output = buffers.get(outputBuffer.carrier().address());
             if (input == null || output == null || input.length > output.length) {

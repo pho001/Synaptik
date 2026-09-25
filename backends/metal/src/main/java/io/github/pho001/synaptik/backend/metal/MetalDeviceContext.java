@@ -108,8 +108,8 @@ final class MetalDeviceContext implements AutoCloseable {
     }
 
     /**
-     * Allocates one fresh run-owned Metal buffer and acquires one child lease.
-     *
+     * Allocates one fresh Metal buffer and acquires one child lease. The immediate owner may be a
+     * run representation or an immutable prepared resource.
      * @param logicalByteSize exact non-negative logical size in bytes
      * @return a new open buffer representation; never {@code null}
      * @throws IllegalStateException if context close has begun

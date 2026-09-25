@@ -5,10 +5,13 @@ import io.github.pho001.synaptik.prepare.BackendPartitionFinalization;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalizationResult;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalizer;
 import io.github.pho001.synaptik.prepare.PreparationResourceAssignment;
+import io.github.pho001.synaptik.runtime.resource.PreparedResource;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Validates assigned Metal supported-operation declarations and compiles the selected resource.
@@ -40,6 +43,7 @@ final class MetalNegPartitionFinalizer
                     int[] targetPlanIndices,
                     int[] targetRepresentationIndices,
                     MetalMpsGraphExecutableResource resource,
+                    List<Optional<MetalPreparedSplatResource>> splatResources,
                     long[] feedRequiredBytes,
                     long[] targetRequiredBytes,
                     int workspacePlanIndex) {
@@ -51,6 +55,7 @@ final class MetalNegPartitionFinalizer
                         targetPlanIndices,
                         targetRepresentationIndices,
                         resource,
+                        splatResources,
                         feedRequiredBytes,
                         targetRequiredBytes,
                         workspacePlanIndex);
@@ -78,10 +83,10 @@ final class MetalNegPartitionFinalizer
     }
 
     /**
-     * Compiles and returns one assigned executable plus its sole persistent resource.
+     * Compiles and returns one assigned executable plus its persistent resources.
      *
      * @param finalization non-null exact analyzed plan and complete shared assignments
-     * @return non-null atomic result whose resource list contains the executable owner once
+     * @return non-null atomic result whose resources are in physical acquisition order
      * @throws NullPointerException if {@code finalization} is {@code null}
      * @throws IllegalArgumentException if ownership, declaration identity/order, assignment kind,
      *     or exact geometry disagrees with analysis
@@ -171,6 +176,13 @@ final class MetalNegPartitionFinalizer
                 targetRepresentationIndices[targetIndex] = assignment.representationIndex();
             }
         }
+        boolean[] splatSources = plan.feedSplatSources();
+        for (int index = 0; index < splatSources.length; index++) {
+            if (splatSources[index] && feedRepresentationIndices[index] != 0) {
+                throw new IllegalArgumentException(
+                        "Metal source splat must own representation position zero");
+            }
+        }
         return switch (plan.route()) {
             case CUSTOM_SINGLE_NEG -> finalizeCustom(
                     finalization,
@@ -208,8 +220,12 @@ final class MetalNegPartitionFinalizer
                 || workspaceEntry.byteAlignment() != workspaceRequirement.byteAlignment()) {
             throw new IllegalArgumentException("Metal NEG address workspace geometry disagrees");
         }
+        var resources = new ArrayList<PreparedResource>();
         MetalMpsGraphExecutableResource resource = context.createMpsGraphExecutable(plan);
+        addAcquired(resources, resource);
         try {
+            List<Optional<MetalPreparedSplatResource>> splats =
+                    acquireSplats(plan, resources);
             var executable = executableFactory.createMpsGraph(
                     plan,
                     finalization.memoryPlan(),
@@ -218,12 +234,13 @@ final class MetalNegPartitionFinalizer
                     targetPlanIndices,
                     targetRepresentationIndices,
                     resource,
+                    splats,
                     plan.feedRequiredBytes(),
                     plan.targetRequiredBytes(),
                     workspace.planIndex());
-            return new BackendPartitionFinalizationResult(executable, List.of(resource));
+            return new BackendPartitionFinalizationResult(executable, resources);
         } catch (RuntimeException | Error failure) {
-            closeAfterFailure(resource, failure);
+            closeResourcesAfterFailure(resources, failure);
             throw failure;
         }
     }
@@ -239,8 +256,12 @@ final class MetalNegPartitionFinalizer
                 || plan.addressWorkspace().isPresent()) {
             throw new IllegalArgumentException("Metal NEG custom declarations disagree");
         }
+        var resources = new ArrayList<PreparedResource>();
         MetalNegKernelPipelineResource resource = context.createNegKernelPipeline(plan);
+        addAcquired(resources, resource);
         try {
+            List<Optional<MetalPreparedSplatResource>> splats =
+                    acquireSplats(plan, resources);
             var executable = executableFactory.createCustom(
                     plan,
                     finalization.memoryPlan(),
@@ -248,37 +269,63 @@ final class MetalNegPartitionFinalizer
                     feedRepresentationIndices[0],
                     targetPlanIndices[0],
                     targetRepresentationIndices[0],
-                    resource);
-            return new BackendPartitionFinalizationResult(executable, List.of(resource));
+                    resource,
+                    splats);
+            return new BackendPartitionFinalizationResult(executable, resources);
         } catch (RuntimeException | Error failure) {
-            closeAfterFailure(resource, failure);
+            closeResourcesAfterFailure(resources, failure);
             throw failure;
         }
     }
 
+    private List<Optional<MetalPreparedSplatResource>> acquireSplats(
+            MetalNegPreparationPlan plan, List<PreparedResource> resources) {
+        boolean[] sources = plan.feedSplatSources();
+        long[] requiredBytes = plan.feedRequiredBytes();
+        var result = new ArrayList<Optional<MetalPreparedSplatResource>>(sources.length);
+        for (int index = 0; index < sources.length; index++) {
+            if (!sources[index]) {
+                result.add(Optional.empty());
+                continue;
+            }
+            MetalPreparedSplatResource splat = MetalPreparedSplatResource.create(
+                    context, requiredBytes[index], plan.feedSplats().get(index).orElseThrow());
+            addAcquired(resources, splat);
+            result.add(Optional.of(splat));
+        }
+        return List.copyOf(result);
+    }
+
     private static void closeResultAfterTraceError(
             BackendPartitionFinalizationResult result, Error fatal) {
-        List<io.github.pho001.synaptik.runtime.resource.PreparedResource> resources =
-                result.resources();
+        closeResourcesAfterFailure(result.resources(), fatal);
+    }
+
+    private static void addAcquired(
+            List<PreparedResource> resources, PreparedResource resource) {
+        try {
+            resources.add(resource);
+        } catch (RuntimeException | Error failure) {
+            try {
+                resource.close();
+            } catch (RuntimeException | Error cleanup) {
+                if (cleanup != failure) {
+                    failure.addSuppressed(cleanup);
+                }
+            }
+            throw failure;
+        }
+    }
+
+    private static void closeResourcesAfterFailure(
+            List<? extends PreparedResource> resources, Throwable failure) {
         for (int index = resources.size() - 1; index >= 0; index--) {
             try {
                 resources.get(index).close();
             } catch (RuntimeException | Error cleanup) {
-                if (cleanup != fatal) {
-                    fatal.addSuppressed(cleanup);
+                if (cleanup != failure) {
+                    failure.addSuppressed(cleanup);
                 }
-            }
-        }
-    }
-
-    private static void closeAfterFailure(
-            io.github.pho001.synaptik.runtime.resource.PreparedResource resource,
-            Throwable failure) {
-        try {
-            resource.close();
-        } catch (RuntimeException | Error cleanup) {
-            if (cleanup != failure) {
-                failure.addSuppressed(cleanup);
             }
         }
     }
@@ -295,6 +342,7 @@ final class MetalNegPartitionFinalizer
          * @param targetPlanIndices stable target positions in {@code memoryPlan}
          * @param targetRepresentationIndices owner representation positions aligned with targets
          * @param resource acquired executable resource borrowed by the recipe
+         * @param splatResources source-owned immutable splat resources aligned with feeds
          * @param feedRequiredBytes feed byte extents aligned with {@code feedPlanIndices}
          * @param targetRequiredBytes target byte extents aligned with {@code targetPlanIndices}
          * @return non-null immutable executable recipe
@@ -309,6 +357,7 @@ final class MetalNegPartitionFinalizer
                 int[] targetPlanIndices,
                 int[] targetRepresentationIndices,
                 MetalMpsGraphExecutableResource resource,
+                List<Optional<MetalPreparedSplatResource>> splatResources,
                 long[] feedRequiredBytes,
                 long[] targetRequiredBytes,
                 int workspacePlanIndex);
@@ -323,6 +372,7 @@ final class MetalNegPartitionFinalizer
          * @param targetPlanIndex assigned singleton target buffer position
          * @param targetRepresentationIndex assigned Metal target representation position
          * @param resource acquired custom pipeline borrowed by the recipe
+         * @param splatResources source-owned immutable splat resources aligned with the feed
          * @return non-null immutable custom executable recipe
          * @throws RuntimeException if recipe construction fails
          * @throws Error if construction reports an error
@@ -334,7 +384,8 @@ final class MetalNegPartitionFinalizer
                 int feedRepresentationIndex,
                 int targetPlanIndex,
                 int targetRepresentationIndex,
-                MetalNegKernelPipelineResource resource) {
+                MetalNegKernelPipelineResource resource,
+                List<Optional<MetalPreparedSplatResource>> splatResources) {
             return new MetalNegPreparedExecutable(
                     plan,
                     memoryPlan,
@@ -342,7 +393,8 @@ final class MetalNegPartitionFinalizer
                     feedRepresentationIndex,
                     targetPlanIndex,
                     targetRepresentationIndex,
-                    resource);
+                    resource,
+                    splatResources);
         }
     }
 }

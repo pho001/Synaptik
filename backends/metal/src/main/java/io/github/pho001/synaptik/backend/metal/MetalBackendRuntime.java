@@ -209,7 +209,9 @@ final class MetalBackendRuntime implements AutoCloseable {
             return false;
         }
         long byteCount = transferByteCount(descriptor);
-        return representation instanceof MetalBufferRepresentation metal
+        MetalBufferRepresentation metal =
+                MetalPreparedSplatResource.readableBuffer(representation);
+        return metal != null
                 && metal.belongsTo(context)
                 && metal.byteSize() == byteCount;
     }
@@ -223,11 +225,11 @@ final class MetalBackendRuntime implements AutoCloseable {
      */
     Consumer<MemorySegment> bindContiguousFloat32Upload(
             BufferRepresentation representation, TensorDescriptor descriptor) {
-        if (!acceptsContiguousFloat32Transfer(representation, descriptor)) {
+        if (!(representation instanceof MetalBufferRepresentation metal)
+                || !acceptsContiguousFloat32Transfer(representation, descriptor)) {
             throw new IllegalArgumentException(
-                    "Metal upload requires an exact live contiguous FLOAT32 representation");
+                    "Metal upload requires an exact writable contiguous FLOAT32 representation");
         }
-        MetalBufferRepresentation metal = (MetalBufferRepresentation) representation;
         long byteCount = transferByteCount(descriptor);
         return source -> metal.upload(0L, source, 0L, byteCount);
     }
@@ -245,7 +247,8 @@ final class MetalBackendRuntime implements AutoCloseable {
             throw new IllegalArgumentException(
                     "Metal download requires an exact live contiguous FLOAT32 representation");
         }
-        MetalBufferRepresentation metal = (MetalBufferRepresentation) representation;
+        MetalBufferRepresentation metal =
+                MetalPreparedSplatResource.readableBuffer(representation);
         long byteCount = transferByteCount(descriptor);
         return destination -> metal.download(0L, destination, 0L, byteCount);
     }
@@ -282,10 +285,11 @@ final class MetalBackendRuntime implements AutoCloseable {
         if (maximumBytes < 0L) {
             throw new IllegalArgumentException("maximumBytes must be non-negative");
         }
-        if (!(representation instanceof MetalBufferRepresentation metal)
-                || !metal.belongsTo(context)) {
+        MetalBufferRepresentation metal =
+                MetalPreparedSplatResource.readableBuffer(representation);
+        if (metal == null || !metal.belongsTo(context)) {
             throw new IllegalArgumentException(
-                    "representation must be a live buffer owned by this Metal integration");
+                    "representation must be a live readable buffer owned by this Metal integration");
         }
         LayoutDescriptor layout = descriptor.layout().orElse(null);
         int rank = descriptor.shape().rank();

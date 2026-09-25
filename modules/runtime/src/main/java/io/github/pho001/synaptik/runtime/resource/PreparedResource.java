@@ -5,19 +5,23 @@ package io.github.pho001.synaptik.runtime.resource;
  *
  * <p>Concrete backends implement this nominal contract and own every physical release detail.
  * Runtime retains only the resource identity and invokes {@link #close()} once when the owning
- * prepared execution can no longer admit or serve a run. This contract exposes no physical
- * storage, backend value, lookup key, or access operation.
+ * prepared execution can no longer admit or serve a run. Close relinquishes that prepared-owner
+ * reference. A concrete immutable subresource may remain resident under a child lease that the
+ * backend already issued to a run-owned representation; that lease must reject mutation and new
+ * acquisition after owner close and must perform exact-once final release. This contract exposes
+ * no physical storage, backend value, lookup key, or access operation.
  *
  * <p>Implementations may report cleanup failure with an unchecked exception or error. They must
  * not require Runtime to identify the concrete backend or physical resource type.
  */
 public interface PreparedResource extends AutoCloseable {
     /**
-     * Releases the backend-owned physical resource.
+     * Relinquishes the backend-owned prepared-resource reference.
      *
      * <p>The owning prepared execution invokes this method at most once, in deterministic reverse
-     * acquisition order, after all admitted synchronous runs have released their leases.
-     *
+     * acquisition order, after all admitted synchronous runs have released their execution
+     * leases. An implementation may defer a child physical release only under an already-issued
+     * run-owned representation lease as described by this interface.
      * @throws RuntimeException if physical cleanup reports an unchecked failure
      * @throws Error if physical cleanup reports an error
      */

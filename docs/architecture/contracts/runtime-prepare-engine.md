@@ -75,17 +75,21 @@ kernel or backend discovery. A workspace slot is per-run backend-local implement
 normally binds one physical representation for its declared use; host staging and device scratch
 are separate workspace requirements when both are needed.
 
-Caller inputs are borrowed for one run. Internal buffers and workspaces are run-owned. Published
-outputs transfer or lease ownership to `RunResult`, while immutable persistent prepared resources
-remain owned by `PreparedExecution` and are not ordinary workspace. Runtime orchestrates cleanup,
-but concrete representations perform physical release. Failure cleanup releases only resources
-still owned by the run, never borrowed inputs or already transferred outputs.
+Caller inputs are borrowed for one run. Mutable internal buffers and workspaces are run-owned.
+Published outputs transfer or lease ownership to `RunResult`. Immutable persistent prepared
+resources remain owned by `PreparedExecution` and are not ordinary workspace. A backend may issue
+a fresh run-owned read-only representation binding as a child lease into immutable prepared
+physical storage. Prepared-owner close rejects new children and relinquishes its owner reference;
+an already-issued child keeps that storage resident until its exact run state/result closes.
+Runtime orchestrates cleanup, but concrete representations perform physical release. Failure
+cleanup releases only resources still owned by the run, never borrowed inputs or already
+transferred outputs.
 
 A persistent prepared resource implements a narrow Runtime-owned nominal lifecycle contract;
 concrete backend code owns its physical state and performs physical release. `PreparedExecution`
-snapshots each acquired resource identity exactly once and closes the unique resources in
+snapshots each acquired resource identity exactly once and closes the unique prepared owners in
 deterministic reverse-acquisition order. A repeated schedule occurrence or executable reference
-does not create another ownership occurrence.
+does not create another ownership occurrence. Child bindings do not add prepared-resource entries.
 
 Closing a prepared execution atomically rejects new runs. A synchronous run that already acquired
 its prepared-resource lease may finish. Close does not wait for active runs: if any remain,
@@ -248,14 +252,15 @@ only after successful physical transfer; failure leaves source and destination v
 and triggers ordinary reverse run cleanup with the transfer failure primary.
 
 `PreparedExecutionRunner` owns this synchronous orchestration. It is stateless and creates one
-isolated `RunState` per call; concurrent and repeated calls may share the immutable prepared recipe
-but not mutable state or run-owned representations. `PreparedExecution` remains the unique owner
-of persistent prepared resources. Concrete transfer recipes retain exact direction, byte geometry,
-and direct backend-owned cold binders. Cold binding validates concrete representations once and
-creates an action with direct typed source, destination, and staging references. Executable and
-transfer execution, and Runtime publication binding, perform no Engine, registry, backend-ID,
-provider, availability, configuration, discovery, reflection, or representation-map lookup.
-Publication binding retains the selected representation directly without transferring ownership.
+isolated `RunState` per call; concurrent and repeated calls may share immutable prepared physical
+state only through fresh backend-authenticated read-only child bindings. They never share mutable
+state, writable internal/output buffers, or workspaces. `PreparedExecution` remains the unique
+owner of each prepared-resource identity; a run owns only its issued child binding. Concrete
+transfer recipes retain exact direction, byte geometry, and direct backend-owned cold binders.
+Cold binding validates concrete representations once and creates an action with direct typed
+source, destination, and staging references. Executable and transfer execution, and Runtime
+publication binding, perform no Engine, registry, backend-ID, provider, availability,
+configuration, discovery, reflection, or representation-map lookup.
 
 Run must not perform:
 
@@ -438,11 +443,12 @@ preparation-publication order second, and integrations last.
 Preparation is transactional across all owner contributions. A finalizer retains rollback
 responsibility until it returns. Shared Prepare then owns all returned persistent resources across
 later finalizers, contribution assembly, transfer-recipe creation, schedule validation, Runtime
-aggregate construction, and outward-handle publication. Failure closes acquired persistent
-resources in reverse partition/acquisition order. Per-run representation creation is separately
+aggregate construction, and outward-handle publication. Failure closes acquired persistent owners
+in reverse partition/acquisition order. Per-run representation creation is separately
 transactional in `RunStateCreation`; a later creation, binding, transfer, execution, or publication
 failure closes only run-owned resources in reverse acquisition order and never closes borrowed
-caller storage.
+caller storage. Closing a read-only prepared child releases its lease, not another run's child or
+the still-open prepared owner.
 
 `Engine.prepareTuned(...)` admits one eligible single-owner CPU plan or exact singleton-NEG Metal
 plan. It rejects empty, missing, mixed-owner, and multiple-partition plans before representative
@@ -500,8 +506,9 @@ input and publication adapter arrays and Runtime's stateless runner. It must not
 query capability providers or availability, inspect the Engine registry, select a backend or
 kernel, assemble another schedule, or cache a result. It adds no per-run collection, copy, or
 resource beyond the existing `Engine.run` contract. Runtime creates one isolated `RunState` and
-fresh run-owned resources per call, so repeated and concurrent session runs share only immutable
-prepared state.
+fresh run-owned representation objects per call. Repeated and concurrent session runs may share
+only authenticated immutable prepared physical state through those fresh bindings; mutable
+outputs and workspaces remain isolated.
 
 Session run admission checks the Engine lifecycle first. Under that one Engine admission, it
 retrieves and checks the session's exact hidden prepared delegate before inspecting the caller

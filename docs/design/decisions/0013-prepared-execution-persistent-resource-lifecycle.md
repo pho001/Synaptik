@@ -66,6 +66,13 @@ Runtime defines only a narrow nominal `PreparedResource` lifecycle contract. A c
 implements that contract and performs the physical release of its native state. The aggregate is
 not a public resource lookup API and exposes no backend payload.
 
+One prepared owner may publish a backend-private child lease to a fresh run-owned representation
+only when the underlying physical state is immutable and the representation is read-only. In that
+case `PreparedResource.close()` rejects new child acquisition and relinquishes the prepared-owner
+reference; an already-issued child may defer the exact-once physical release until its run
+state/result closes. The child is not another prepared-resource entry and cannot expose a Runtime
+lookup or backend payload.
+
 `PreparedExecution` becomes a final lifecycle-bearing class implementing `AutoCloseable`. Its
 memory plan, schedule, executable recipes, and retained resource identities remain immutable. It
 is no longer a record: records cannot keep private lifecycle state outside their components, and
@@ -120,6 +127,12 @@ nominal Runtime contract gives shared orchestration enough information to close 
 learning its type or mechanics. Deferred release makes close bounded and avoids waiting on code
 that may itself need to finish through the same prepared resource.
 
+This bounded child-lease rule supports prepared immutable constants without extending the
+synchronous execution lease through `RunResult`. It does not authorize a pool: mutable outputs
+outlive the synchronous call and mutable address workspaces are rewritten during cold binding.
+Pooling them requires a separately reviewed async/result-lifetime contract for exclusive return,
+reset/validity, bounded capacity/eviction, context close, and cleanup failure.
+
 ## Consequences
 
 ### Positive
@@ -138,6 +151,8 @@ that may itself need to finish through the same prepared resource.
   in a sibling package; that seam must not expose resources or permit backend lookup.
 - A close caller may return before physical cleanup when an admitted run is active; any cleanup
   failure is then observed by the last lease-releasing run rather than that close call.
+- A child-delayed physical release failure is observed by the last run-owned binding close rather
+  than replayed through the already-closed prepared owner.
 
 ### Migration, testing, and follow-up
 

@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through reviewed local archive 0046; 0047 Blocked; 0048 Ready; recorded blockers retained | [Metal 0048](backends/metal/tasks/0048-persistent-immutable-splats-and-no-general-pool-closure.md) is the sole Ready frontier: persist immutable source-owned splats per prepared execution and explicitly reject a general mutable output/workspace pool under the current result/concurrency lifetime. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through reviewed local archive 0046; 0047 Blocked; 0048 Review needed; recorded blockers retained | [Metal 0048](backends/metal/tasks/0048-persistent-immutable-splats-and-no-general-pool-closure.md) implemented immutable source-owned splats per prepared execution and explicitly rejected a general mutable output/workspace pool under the current result/concurrency lifetime; independent Class C review is pending. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -118,14 +118,14 @@ Standard `macos-26` arm64 has no documented usable Metal GPU; documented M2 GPU 
 repository access, and a real provider proof. No workflow or compile-only substitute was added.
 
 [Metal 0048](backends/metal/tasks/0048-persistent-immutable-splats-and-no-general-pool-closure.md)
-is the sole Ready Metal task. It persists immutable source-owned splats per prepared execution with
-fresh read-only run bindings and exact deferred release. It deliberately does not pool mutable
-outputs or MPSGraph address workspaces because `RunResult` and concurrent-run ownership lack a safe
-exclusive return/reset/eviction contract.
+is implemented from planning commit `08b9e7ea` and Review needed. It persists immutable source-owned
+splats per prepared execution with fresh read-only run bindings and exact deferred release. It
+deliberately does not pool mutable outputs or MPSGraph address workspaces because `RunResult` and
+concurrent-run ownership lack a safe exclusive return/reset/eviction contract.
 
 `Metal 0004 (Complete) + Metal 0041 (Complete) + Engine 0009/0015–0018 (Complete) + tools/tuning 0001–0002 (Complete) -> Metal 0042 (Complete) -> Metal 0043 (Complete) -> Metal 0044 (Complete) -> Metal 0045 (Complete) -> Metal 0046 (Complete) -> Metal 0047 (Blocked)`
 
-`Metal 0046 (Complete) + Runtime 0016 (Complete) + Prepare 0006 (Complete) + Engine 0010 (Complete) -> Metal 0048 (Ready)`
+`Metal 0046 (Complete) + Runtime 0016 (Complete) + Prepare 0006 (Complete) + Engine 0010 (Complete) -> Metal 0048 (Review needed)`
 
 Numerical profiles
 
@@ -176,7 +176,7 @@ Metal 0041 is Complete at implementation `ba16d942` plus remediation `386705ca` 
 approval with zero findings. Metal 0042 is Complete at `9feb2505`; Metal 0043 is Complete at
 `77e6091b`; Metal 0044 is Complete from planning revision `3d458b7a`; Metal 0045 is Complete at
 same-reviewer-approved remediation `26c6c911`; Metal 0046 is Complete at independently approved
-implementation `4aad1ab6`; Metal 0047 is Blocked; Metal 0048 is Ready.
+implementation `4aad1ab6`; Metal 0047 is Blocked; Metal 0048 is Review needed.
 
 Task 0019 landed at implementation `a6d1796d` plus mixed-owner test remediation `bcb717a6`. Its
 native ABI/export, Metal, conformance, real Engine, architecture, full-build, documentation, and
@@ -390,7 +390,7 @@ production behavior. Metal 0042 now consumes only the existing version-twelve si
 tuning foundation through public retained collaborations and private Engine composition. Schema
 12/wires beginning at 20/attribute 7, local type 4, INT64 type/ingress, ABI/export changes, and
 version-thirteen identities remain unimplemented and unreserved. Documentation/audit-only Metal
-0038 and Metal 0042–0046 are Complete; Metal 0047 is Blocked; Metal 0048 is the sole Ready task.
+0038 and Metal 0042–0046 are Complete; Metal 0047 is Blocked; Metal 0048 is Review needed.
 
 Strategic gate: historical blocker evidence is preserved, and no backend task may define Model
 semantics. Complete Model 0028 owns bounded reduction exact-zero sign freedom; Complete Metal 0020
@@ -491,7 +491,7 @@ schema.
   0015/0019/0020/0021/0022/0023/0024/0025/0038/0041/0042/0043/0044/0045/0046 are Complete.
   Metal 0016–0018, 0026–0027, 0030–0037, planning-only 0039, failed-gate 0040, and provider-gated
   0047 remain Blocked under their recorded contracts. Every blocked operation family remains
-  unauthorized. Metal 0048 is the sole Ready Metal task.
+  unauthorized. Metal 0048 is Review needed after implementation; no Metal task is Ready.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -520,9 +520,10 @@ performance/context/executable matrix. The current personal public repository ca
 required larger runner; no workflow, compile-only replacement, cache, upload, or release path was
 added.
 
-Metal 0048 is the sole Ready frontier. It removes deterministic per-run splat allocation/fill/upload
-while preserving fresh run bindings and exact result-lifetime cleanup, and explicitly rejects a
-general mutable output/workspace pool under the current ownership contract.
+Metal 0048 is implemented from planning commit `08b9e7ea` and Review needed. It removes
+deterministic per-run splat allocation/fill/upload while preserving fresh run bindings and exact
+result-lifetime cleanup, and explicitly rejects a general mutable output/workspace pool under the
+current ownership contract. No Metal task is Ready.
 
 Metal 0040 is Blocked from exact clean planning revision
 `c300582727ec568a7482dd974f9d1b2e2e13f82c`. Its sole disposable direct BFLOAT16 Gather program
@@ -609,7 +610,8 @@ gate. Metal 0041 is Complete at implementation `ba16d942` plus remediation `3867
 approval with zero findings. Metal 0042 is Complete at `9feb2505705263b6efb417d606678c606c2b9598`;
 Metal 0043 is Complete at remediation `77e6091b`; Metal 0044 is Complete; Metal 0045 is Complete at
 same-reviewer-approved remediation `26c6c911`; Metal 0046 is Complete at independently approved
-implementation `4aad1ab6`; Metal 0047 is Blocked; Metal 0048 is the sole Ready Metal task.
+implementation `4aad1ab6`; Metal 0047 is Blocked; Metal 0048 is Review needed and no Metal task is
+Ready.
 
 ## History policy
 

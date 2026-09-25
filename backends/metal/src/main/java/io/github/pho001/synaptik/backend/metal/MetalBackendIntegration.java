@@ -202,12 +202,17 @@ public final class MetalBackendIntegration implements AutoCloseable {
     }
 
     /**
-     * Reports whether a nominal representation is the exact live Metal side of a prepared
-     * contiguous FLOAT32 transfer.
+     * Reports whether a nominal representation is the exact live readable Metal side of a
+     * prepared contiguous FLOAT32 transfer.
+     *
+     * <p>A writable ordinary Metal representation and a backend-issued immutable prepared-splat
+     * binding may both be readable sources. This predicate alone does not authorize destination
+     * mutation; {@link #bindContiguousFloat32Upload(BufferRepresentation, TensorDescriptor)}
+     * separately requires the ordinary writable representation.</p>
      *
      * @param representation non-null candidate Metal representation
      * @param descriptor non-null exact logical descriptor
-     * @return whether representation type, context, layout, data type, and byte extent match
+     * @return whether readable representation, context, layout, data type, and byte extent match
      * @throws NullPointerException if an object argument is null
      */
     public boolean acceptsContiguousFloat32Transfer(
@@ -216,16 +221,18 @@ public final class MetalBackendIntegration implements AutoCloseable {
     }
 
     /**
-     * Cold-binds one exact Metal destination to a direct native upload action.
+     * Cold-binds one exact writable Metal destination to a direct native upload action.
      *
      * <p>The returned action retains the typed destination directly. Invoking it performs exactly
-     * one upload from the supplied live native host segment and allocates no staging storage.</p>
+     * one upload from the supplied live native host segment and allocates no staging storage. An
+     * immutable prepared-splat binding is always rejected as a destination.</p>
      *
-     * @param representation non-null exact destination representation
+     * @param representation non-null exact writable destination representation
      * @param descriptor non-null exact static canonical contiguous FLOAT32 descriptor
      * @return non-null immutable action retaining the typed destination and checked byte extent
      * @throws NullPointerException if an object argument is null
-     * @throws IllegalArgumentException if type, context, layout, or byte extent is incompatible
+     * @throws IllegalArgumentException if type, mutability, context, layout, or byte extent is
+     *     incompatible
      */
     public Consumer<MemorySegment> bindContiguousFloat32Upload(
             BufferRepresentation representation, TensorDescriptor descriptor) {
@@ -233,13 +240,13 @@ public final class MetalBackendIntegration implements AutoCloseable {
     }
 
     /**
-     * Cold-binds one exact Metal source to a direct native download action.
+     * Cold-binds one exact readable Metal source to a direct native download action.
      *
      * <p>The returned action retains the typed source directly. Invoking it performs exactly one
      * download into the supplied live writable native host segment and allocates no staging
-     * storage.</p>
+     * storage. A live backend-issued immutable prepared-splat binding is an eligible source.</p>
      *
-     * @param representation non-null exact source representation
+     * @param representation non-null exact readable source representation
      * @param descriptor non-null exact static canonical contiguous FLOAT32 descriptor
      * @return non-null immutable action retaining the typed source and checked byte extent
      * @throws NullPointerException if an object argument is null
@@ -251,15 +258,16 @@ public final class MetalBackendIntegration implements AutoCloseable {
     }
 
     /**
-     * Downloads one live Metal publication into detached canonical host bytes.
+     * Downloads one live readable Metal representation into detached canonical host bytes.
      *
      * <p>The descriptor is an ordinary canonical non-view FLOAT32 or BOOL publication, including
-     * a locally produced rank-zero FLOAT32 reduction result, or an exact positive-rank logical
-     * affine FLOAT32 view whose representation carries finalized-route authentication for a full
-     * dense represented-order target. A rank-zero FLOAT32 result yields exactly four big-endian
-     * bytes; BOOL retains exact row-major one-byte zero-or-one elements. This local BOOL
-     * publication does not add BOOL ingress or a general BOOL consumer, and the path does not
-     * widen the positive-rank-only CPU/Metal FLOAT32 transfer predicate.</p>
+     * a locally produced rank-zero FLOAT32 reduction result or readable prepared splat binding, or
+     * an exact positive-rank logical affine FLOAT32 view whose representation carries
+     * finalized-route authentication for a full dense represented-order target. A rank-zero
+     * FLOAT32 result yields exactly four big-endian bytes; BOOL retains exact row-major one-byte
+     * zero-or-one elements. This local BOOL publication does not add BOOL ingress or a general BOOL
+     * consumer, and the path does not widen the positive-rank-only CPU/Metal FLOAT32 transfer
+     * predicate.</p>
      *
      * @param representation non-null live representation owned by this integration
      * @param descriptor non-null exact canonical FLOAT32/BOOL or authenticated affine FLOAT32

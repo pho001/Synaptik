@@ -7,13 +7,14 @@ import java.lang.foreign.MemorySegment;
 import java.util.Objects;
 
 /**
- * Run-owned Metal shared-storage buffer with exact logical byte geometry.
+ * Metal shared-storage buffer owner with exact logical byte geometry.
  *
  * <p>The representation owns one opaque native buffer handle and one child lease on its device
- * context. Upload and download expose only explicitly requested byte ranges and interpret no
- * tensor element type. Access, close, and context close are coordinated so an admitted access
- * completes before its relevant close gate proceeds. Closing is thread-safe, idempotent, and
- * consumes the native handle at most once.</p>
+ * context. It may belong directly to a run or to an immutable prepared splat resource whose fresh
+ * read-only run bindings never expose this owner for mutation. Upload and download expose only
+ * explicitly requested byte ranges and interpret no tensor element type. Access, close, and
+ * context close are coordinated so an admitted access completes before its relevant close gate
+ * proceeds. Closing is thread-safe, idempotent, and consumes the native handle at most once.</p>
  */
 final class MetalBufferRepresentation implements BufferRepresentation {
     private final MetalDeviceContext context;

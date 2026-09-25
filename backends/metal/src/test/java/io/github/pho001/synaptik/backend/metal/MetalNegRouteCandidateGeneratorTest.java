@@ -789,6 +789,7 @@ class MetalNegRouteCandidateGeneratorTest {
         source.targetValueIndices(),
         source.declarations(),
         source.feedSplats(),
+        source.feedSplatSources(),
         source.addressWorkspace(),
         source.feedRequiredBytes(),
         targetRequiredBytes);

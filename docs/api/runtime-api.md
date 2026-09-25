@@ -67,15 +67,17 @@ handoff retains source-to-slot associations and constructs the Runtime geometry.
 `GraphPreparation.prepare(...)` coordinates that handoff and validates one explicitly supplied
 schedule recipe before returning `PreparedExecution`. Current `PreparedRepresentationPlan`
 describes borrowed inputs and concrete-backend creators in that geometry's encounter order.
-Package-private cold setup validates all caller inputs, creates
-run-owned buffers and workspaces, and constructs one `RunState`. A current `PreparedExecutable`
-selects those resident representations by dense position, checks backend
-compatibility during cold binding, and creates a per-run `BoundInvocation`. A current
-`PreparedBufferTransfer` selects two distinct already-created representations of one buffer,
-checks their concrete compatibility during cold binding, and creates a per-run
-`BoundBufferTransfer` that orchestrates the explicit validity transition around backend-owned
-physical transfer work. The shared contracts still implement no concrete allocation or storage
-access. The current schedule can retain one first-only creation prefix
+Package-private cold setup validates all caller inputs, creates fresh run-owned representation
+objects and workspaces, and constructs one `RunState`. A creator may return a fresh read-only
+binding whose child lease refers to immutable prepared physical storage; object freshness and
+run-owned cleanup remain unchanged. A current `PreparedExecutable` selects those resident
+representations by dense position, checks backend compatibility during cold binding, and creates a
+per-run `BoundInvocation`. A current `PreparedBufferTransfer` selects two distinct already-created
+representations of one buffer, checks their concrete compatibility during cold binding, and creates
+a per-run `BoundBufferTransfer` that orchestrates the explicit validity transition around
+backend-owned physical transfer work. The shared contracts still implement no concrete allocation
+or storage access.
+The current schedule can retain one first-only creation prefix
 followed by executable or transfer occurrences and then a dense publication-only suffix. It does
 not invoke or execute any step. Current publication names an already-created valid copy and
 leases the complete state to a result. While that exact lease remains open, the inward Runtime
@@ -365,14 +367,16 @@ still has the same explicit close and lease lifecycle. A null component reports 
 `IllegalArgumentException("schedule memory plan does not match prepared execution memory plan")`.
 
 `acquireRunLease()` admits one synchronous run only while the owner is open. `close()` marks the
-owner closed before physical cleanup and never waits: it cleans immediately when no lease is
-active, or the last admitted lease performs cleanup. New leases then fail with
-`IllegalStateException("prepared execution is closed")`. Cleanup attempts every resource once in
-reverse constructor-list order outside the lifecycle monitor. The first unchecked failure or
-error is primary; later distinct failures are suppressed in encounter order, and the same exact
-primary object is skipped to avoid self-suppression. Repeated execution or lease closure is a
-no-op and never replays an earlier cleanup failure. `isClosed()` reports admission closure, not
-whether deferred physical cleanup has finished.
+owner closed before prepared-owner cleanup and never waits: it cleans immediately when no lease is
+active, or the last admitted execution lease performs cleanup. New leases then fail with
+`IllegalStateException(\"prepared execution is closed\")`. Cleanup invokes every resource once in
+reverse constructor-list order outside the lifecycle monitor. A concrete resource close
+relinquishes the prepared-owner reference; physical release may remain deferred only under an
+already-issued run-owned read-only child binding. The first unchecked failure or error is primary;
+later distinct failures are suppressed in encounter order, and the same exact primary object is
+skipped to avoid self-suppression. Repeated execution or lease closure is a no-op and never replays
+an earlier cleanup failure. `isClosed()` reports admission closure, not whether a backend child
+lease has completed physical cleanup.
 
 ## Current slot identities
 
@@ -462,8 +466,10 @@ zero-based positions in `plan.buffers()` and `plan.workspaces()` encounter order
 numeric values inside `BufferSlot` or `WorkspaceSlot`. A buffer position has one or more ordered
 representations, while a workspace position has exactly one representation.
 
-Every bound representation is structurally resident until the state closes: the exact physical
-object exists and remains bound to that run. Each buffer representation also has one independent
+Every bound representation is structurally resident until the state closes: the exact nominal
+object exists and remains bound to that run. A run-owned read-only binding may keep immutable
+prepared physical storage resident under a backend child lease; it remains a fresh representation
+object and its close releases only that lease. Each buffer representation also has one independent
 validity bit. A borrowed buffer starts valid because it is a caller input containing the logical
 slot value. An ordinary created buffer starts invalid; an initialized buffer starts valid because
 its backend creator has already materialized the correct logical value. Zero, one, or multiple
@@ -576,8 +582,10 @@ created variants use the same creator ownership, encounter order, identity, roll
 rules. Runtime does not know which graph value or scalar an initialized creator materializes.
 Dense caller-input encounter order is buffer position first and representation position second.
 Each workspace position has one `WorkspaceCreator`. Callback implementations must be immutable
-and thread-safe, and each successful call must return a fresh non-null representation for that
-run.
+and thread-safe, and each successful call must return a fresh non-null representation object for
+that run. The object may own a read-only child lease into immutable prepared physical storage; it
+must not expose that storage as a writable destination or permit new leases after prepared-owner
+close.
 
 The package-private `RunStateCreation` operation validates the complete caller count, non-null
 elements, and caller identity uniqueness before invoking any callback. It then creates buffers in

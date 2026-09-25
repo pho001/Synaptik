@@ -97,12 +97,12 @@ device discovery.
 | Analysis | Package-private Metal code validates the complete partition, assigns stable structural value order, regenerates typed route candidates and session compatibility, authenticates any supplied decision, fixes one route, and declares that route's exact resources. |
 | Opaque tuning handoff | Metal can construct the Prepare-owned marker-role handoff with no decision or one Metal decision. Shared Prepare does not inspect private candidates; the Metal preparer treats a present decision as untrusted. |
 | Shared preparation | `GraphPreparation` projects facts, assigns slots, validates the result, and transfers persistent resources transactionally. It does not inspect the Metal plan or route. |
-| Finalization | Metal validates exact assignments and compiles either one typed custom pipeline or one shape-specialized MPSGraph executable after slots exist. It never reselects the route. |
-| Persistent resource | One typed `PreparedResource` owns the selected native handle and context child lease; `PreparedExecution` becomes its sole owner. Custom-pipeline and MPSGraph handles are never interchangeable. |
-| Per-run state | Runtime borrows exact canonical FLOAT32/INT32 caller buffers and owns fresh initialized-constant buffers and typed output buffers. Only MPSGraph runs also own one native-address workspace. The scatter executable owns bounded primitive coordinate/uniqueness scratch rebuilt under its synchronized run. Affine targets receive full logical-byte buffers; a scalar reduction target receives four bytes and a BOOL target one byte per element. |
-| Hot invocation | A cold-bound route-specific invocation retains direct references, validates every resource and then every indexing element in stable node/ordinal order, completes each scatter's bounds before complete-coordinate uniqueness, and makes one synchronous typed native call into assigned output destinations only on success. |
-| Optional trace observation | A traced integration emits only final PREPARE and native RUN outcomes through a caller-owned `MetalTraceObserver`. The ordinary open overload creates no producer or trace work. Observation never selects a route, retries, falls back, or changes ownership or results. |
-| Publication | Runtime leases the already-resident output representation. Canonical FLOAT32 outputs, local rank-zero reduction outputs, local canonical BOOL outputs, and exact authenticated dense affine targets may be downloaded as detached canonical host bytes; ordinary CPU/Metal transfer remains positive-rank canonical FLOAT32 and rejects logical views. |
+| Finalization | Metal validates exact assignments, compiles either one typed custom pipeline or one shape-specialized MPSGraph executable, then allocates/uploads each source-owned immutable splat in feed order. It never reselects the route. |
+| Persistent resources | The route resource and zero or more immutable splat resources are returned in physical acquisition order. `PreparedExecution` uniquely owns each prepared owner. A splat owner may have already-issued read-only run-binding child leases; owner close rejects new bindings and the last child performs exact-once physical buffer release. Custom-pipeline and MPSGraph handles are never interchangeable. |
+| Per-run state | Runtime borrows exact canonical FLOAT32/INT32 caller buffers, owns one fresh read-only binding object for each persistent source splat, and owns fresh typed output buffers. Only MPSGraph runs also own one fresh native-address workspace. Mutable outputs/workspaces are never shared or pooled. The scatter executable owns bounded primitive coordinate/uniqueness scratch rebuilt under its synchronized run. Affine targets receive full logical-byte buffers; a scalar reduction target receives four bytes and a BOOL target one byte per element. |
+| Hot invocation | Cold binding authenticates and unwraps immutable splat bindings, retains direct typed buffers/handles, validates every resource and then every indexing element in stable node/ordinal order, completes each scatter's bounds before complete-coordinate uniqueness, and makes one synchronous typed native call into assigned output destinations only on success. |
+| Optional trace observation | A traced integration emits only final PREPARE and native RUN outcomes through a caller-owned `MetalTraceObserver`. PREPARE succeeds only after route and splat acquisition. The ordinary open overload creates no producer or trace work. Observation never selects a route, retries, falls back, or changes ownership or results. |
+| Publication | Runtime leases the already-resident output representation. Canonical FLOAT32 outputs, local rank-zero reduction outputs, local canonical BOOL outputs, exact authenticated dense affine targets, and a readable persistent splat binding may be downloaded as detached canonical host bytes. Ordinary CPU/Metal transfer remains positive-rank canonical FLOAT32 and rejects logical views; a persistent splat is read-source-only. |
 
 The public Java surface contains `MetalCapabilityProvider`, `MetalBackendConfiguration`,
 `MetalBackendIntegration`, and `MetalTraceObserver`. Contexts, physical storage, preparers,
@@ -191,10 +191,13 @@ names the same value. Only feeds and published boundary targets receive Runtime 
 intermediates remain symbolic MPSGraph tensors.
 
 Analysis receives compile-time constant sources through `PrepareContext.constants()`. A boundary
-constant must be an exact type-matching `FLOAT32` or `INT32` splat. The run uses an
-`InitializedBuffer` for that feed rather than consuming a caller position. Existing shared
-`GraphPreparation` tests independently enforce the chain
-`CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
+constant must be an exact type-matching `FLOAT32` or `INT32` splat. Analysis records whether the
+current Metal partition is that producer-free value's first ordered consumer. Only that source
+partition prepares physical storage; later Metal consumers reuse the same logical Metal
+representation, while a value first owned by CPU retains the ordinary transfer destination.
+Runtime uses an `InitializedBuffer` fresh read-only binding for a prepared Metal source rather than
+consuming a caller position. Existing shared `GraphPreparation` tests independently enforce the
+chain `CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
 Once stable values, states, feeds, targets, checked typed byte geometry, and typed node records are
 known, analysis creates a version-twelve candidate batch and workload fingerprint. MPSGraph is
@@ -252,9 +255,10 @@ device/library fingerprint.
 ### Finalization and persistent ownership
 
 Shared Prepare assigns all declared slots before Metal finalization. The finalizer checks
-declaration identity, order, geometry, slot uniqueness, exact `MetalDeviceContext` identity, and
-route/workspace agreement. It then performs exactly the native create operation for the selected
-route and constructs one immutable `PreparedExecutable` recipe.
+declaration identity, order, geometry, slot uniqueness, exact `MetalDeviceContext` identity,
+source-owner representation position, and route/workspace agreement before native work. It creates
+the selected route resource first, then each source-owned splat resource in stable feed order, and
+constructs one immutable `PreparedExecutable` recipe.
 
 For the custom route, native creation compiles the fixed branch-free `synaptik_neg_f32` Metal
 Shading Language source and creates one `MTLComputePipelineState`. For MPSGraph, native creation
@@ -263,42 +267,51 @@ compiles one fixed-shape `MPSGraphExecutable` for the whole partition. MATMUL co
 reduced-precision-fast-math control to set and read back `None`. Compilation happens during
 prepare finalization, never during invocation.
 
-The typed resource owns the selected native handle and one context child lease. A provisional
-lease prevents concurrent context close from invalidating native creation. A malformed native
-create result fails closed: success with a null handle is rejected, while failure with a non-null
-handle releases that handle once and preserves a distinct cleanup failure as suppressed evidence.
-Failed finalization similarly rolls its resource back locally. After finalizer return, shared
-Prepare owns rollback until a validated `PreparedExecution` accepts the resource exactly once.
+Each source splat owns one exact-sized Metal buffer and context child lease. Finalization fills and
+uploads the exact `FLOAT32` or `INT32` raw bits once, before PREPARE success. The result returns the
+route resource followed by source splats in acquisition order. A malformed native route result
+fails closed: success with a null handle is rejected, while failure with a non-null handle releases
+that handle once and preserves a distinct cleanup failure as suppressed evidence. Allocation,
+upload, executable construction, result construction, and observer failure close the current
+buffer where applicable, then prior splats and the route resource in exact reverse order while
+preserving the original failure.
 
-`PreparedExecution.close()` rejects new runs without waiting. Previously admitted synchronous
-runs may finish, and physical resource release is deferred until the last admitted run lease
-ends. Context owner close follows the same child-lease boundary. Cleanup is idempotent,
-reverse-order, and attempt-all; the first failure remains primary and later distinct failures are
-suppressed.
+After finalizer return, shared Prepare owns rollback until a validated `PreparedExecution` accepts
+each resource exactly once. `PreparedExecution.close()` rejects new runs without waiting.
+Previously admitted synchronous runs may finish. Route-owner release occurs after their execution
+leases end. Splat-owner close also rejects new bindings, but an already-returned `RunResult` keeps
+its exact read-only binding and physical buffer resident until that child closes. Cleanup is
+idempotent, reverse-order, and attempt-all; the first failure remains primary and later distinct
+failures are suppressed.
 
 ### Cold run setup and binding
 
-Each run receives isolated mutable state:
+Each run receives isolated mutable state and fresh nominal representation identity:
 
 1. caller input positions borrow caller-owned Metal buffers;
-2. each constant feed allocates a fresh run-owned Metal buffer and uploads the exact raw
-   `FLOAT32` splat bits once;
+2. each source-owned constant feed receives a fresh run-owned read-only binding to its exact
+   prepared immutable buffer, with no allocation, fill, or upload;
 3. each target allocates a fresh run-owned output buffer; affine-view targets use the full positive
    logical element count and retain exact finalized-route authentication, scalar reduction targets
    use exactly four bytes, and other canonical targets use the ordinary canonical buffer path;
 4. an MPSGraph run allocates one native address-array workspace, while a custom run allocates no
    workspace; and
-5. cold binding validates context identity and byte extents and rejects input/output aliasing.
+5. cold binding validates context, byte extent, scalar type/raw bits, read/write role, and physical
+   input/output non-aliasing before unwrapping direct handles.
 
 MPSGraph cold binding writes ordered native handles into its address workspace once and retains
-direct input/output slices. Custom cold binding retains the exact input and output representations
-and their typed native handles directly. An allocation or upload failure closes the current and
-previously created run-owned resources through Runtime rollback. No constant buffer is prepared
-once, shared between runs, or owned by a backend-global cache. Materialization accepts a logical
-affine view only when the live buffer authenticates the exact finalized executable, preparation
-plan, context, target position, value identity, producer kind, descriptor, and full logical byte
-extent. Local canonical materialization accepts a produced scalar reduction result, but transfer
-and caller ingress retain their positive-rank boundary.
+direct input/output slices. Custom cold binding retains the exact underlying input and output
+buffers and their typed native handles directly. A later run-setup failure closes its fresh child
+binding and other created run resources without closing the prepared splat owner. Metal-to-CPU
+transfer and canonical materialization may unwrap a live splat binding as a read source;
+CPU-to-Metal upload and executable output binding reject it before native mutation.
+
+This is deliberately not a general buffer pool. Mutable outputs remain owned by `RunResult` beyond
+the synchronous call and concurrent results require distinct writable buffers. MPSGraph address
+workspaces are mutable per-run pointer arrays. Safe pooling would first require an explicit
+async/result-lifetime contract for exclusive return, reset and validity, bounded capacity/eviction,
+context-close deferral, and cleanup failure. No backend-global constant cache, pool, registry, or
+cross-preparation reuse is added.
 
 ### Custom singleton hot execution
 
@@ -717,7 +730,8 @@ representation position per participating owner; Metal contributes its exact buf
 creators. Engine inserts a direct CPU-to-Metal upload or Metal-to-CPU download once for each
 distinct destination owner immediately before its first consumer. The current path accepts only
 fully static canonical contiguous `FLOAT32` and performs no conversion, retry, fallback, or
-on-demand discovery. Runtime executes only the resulting direct prepared references.
+on-demand discovery. A persistent Metal splat binding is accepted only as a Metal read source; it
+cannot be an upload destination. Runtime executes only the resulting direct prepared references.
 
 For one exact singleton NEG Metal plan, public `prepareTuned(...)` measures the complete two-route
 local batch, authenticates the selected version-twelve decision, then correctness-checks and times

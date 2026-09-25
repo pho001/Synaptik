@@ -230,7 +230,9 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     "Metal supported-operation partition requires at least one feed and one target");
         }
         var feedSplats = new ArrayList<Optional<ScalarValue>>(feeds.size());
-        for (ValueId feed : feeds) {
+        boolean[] feedSplatSources = new boolean[feeds.size()];
+        for (int index = 0; index < feeds.size(); index++) {
+            ValueId feed = feeds.get(index);
             ScalarValue scalar = context.constants().get(feed);
             DataType dataType = graphValues.get(feed).descriptor().dataType();
             if (scalar != null && (scalar.dataType() != dataType
@@ -238,7 +240,15 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 throw new IllegalArgumentException(
                         "Metal splat feed must exactly match FLOAT32 or INT32");
             }
+            LogicalMemoryRequirement requirement = require(requirements, feed);
+            if (scalar != null && (requirement.producerPartition().isPresent()
+                    || requirement.consumerPartitions().isEmpty())) {
+                throw new IllegalArgumentException(
+                        "Metal splat feed must be a consumed producer-free constant");
+            }
             feedSplats.add(Optional.ofNullable(scalar));
+            feedSplatSources[index] = scalar != null
+                    && requirement.consumerPartitions().getFirst() == context.partition();
         }
         for (ValueId constant : context.constants().keySet()) {
             if (!feeds.contains(constant)) {
@@ -280,7 +290,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 route,
                 valueIds, descriptors, valueStates, ranks, dimensions, graphProgram,
                 feeds, feedIndices, targets, targetIndices, declarations, feedSplats,
-                heuristicWorkspace, feedBytes, targetBytes);
+                feedSplatSources, heuristicWorkspace, feedBytes, targetBytes);
         MetalNegTuningBatch freshBatch = new MetalNegRouteCandidateGenerator()
                 .generate(context, heuristicPlan, MetalNegTuningBatch.Candidate.values().length);
         var suppliedHandoff = context.backendInputs().tuningHandoff();
@@ -315,7 +325,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         route,
                         valueIds, descriptors, valueStates, ranks, dimensions, graphProgram,
                         feeds, feedIndices, targets, targetIndices, declarations, feedSplats,
-                        selectedWorkspace, feedBytes, targetBytes, traceUnit);
+                        feedSplatSources, selectedWorkspace, feedBytes, targetBytes, traceUnit);
         var allDeclarations = new ArrayList<PreparationResourceRequirement>(declarations);
         plan.addressWorkspace().ifPresent(allDeclarations::add);
         return new BackendPartitionAnalysis<>(context.partition(), plan, allDeclarations);

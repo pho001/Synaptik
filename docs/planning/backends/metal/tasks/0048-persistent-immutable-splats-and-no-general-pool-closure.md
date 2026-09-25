@@ -2,10 +2,11 @@
 
 ## Status
 
-Ready
+Review needed
 
-This is the sole Ready Metal task. Blocked Task 0047 remains independent: this task is implemented
-and proved on the current local Apple-silicon host and does not add or depend on hosted CI.
+Implementation from sole-Ready planning commit
+`08b9e7ea7782bc0165cb6b45c409afdb59673c2e` is complete and locally proved on the current
+Apple-silicon host. Blocked Task 0047 remains independent; this task adds no hosted CI.
 
 ## Change class
 
@@ -184,8 +185,8 @@ No follow-up pool placeholder, matrix, or partial implementation belongs in this
   edit
 - Parallel group: None
 - Common base revision: `a9adf4d707c9472283ad0621647bee22efc7ff82`
-- Integration order: sole Ready Metal frontier; implementation moves this task to Review needed and
-  leaves 0047 Blocked
+- Integration order: implemented from sole-Ready planning commit `08b9e7ea`; now Review needed
+  while 0047 remains independently Blocked; no Metal task is Ready
 - Integration validation: focused fake-native proof, exactly two explicit real-device no-skip tests,
   Javadocs/architecture/docs/diff checks, then independent Class C review; do not run the repository
   full build until final program verification
@@ -248,7 +249,7 @@ Gradle production file may change.
 
 ## Validation
 
-Focused portable proof:
+Focused portable proof passed:
 
 ```bash
 ./gradlew :backends:metal:test \
@@ -256,8 +257,15 @@ Focused portable proof:
   --tests '*MetalNegRouteCandidateGeneratorTest'
 ```
 
-Build the current native library, pass its explicit absolute path, and run exactly these two real
-functional tests with `--rerun-tasks`:
+JUnit XML reported 49 execution tests with zero failures/errors and three expected environment-
+gated native skips, plus nine candidate/identity tests with zero skips/failures/errors. The focused
+fake-native tests assert exact native create/upload/release counts, raw bits, first-consumer source
+ownership, repeated/concurrent binding identity, output/workspace isolation, read/write rejection,
+open-result close deferral, later-run recovery, trace truth, reverse rollback, and failure
+suppression.
+
+The current native library was rebuilt, selected by its explicit absolute path, and exactly the two
+authorized real-device tests were rerun:
 
 ```bash
 ./native/metal-macos-arm64/build.sh
@@ -268,11 +276,14 @@ SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_met
     --rerun-tasks
 ```
 
-Require the matching JUnit XML to report exactly two executed tests and zero skipped, failures, and
-errors. Also run Metal and Runtime Javadocs, focused architecture checks for the touched ownership
-contract, changed-Markdown local links/fences/final newlines, `git diff --check`, exact path scope,
-and clean status. Do not run the full repository build in this task; reserve the single full build
-for final program verification as directed.
+The matching JUnit XML reports exactly two tests and zero skipped, failures, and errors. Metal and
+Runtime Javadocs passed. Focused `RuntimeDependencyAndHotPathContractTest` passed. Changed-Markdown
+local links/fences/final newlines, `git diff --check`, exact path scope, and clean committed status
+are required before handoff. Per instruction, no full repository build was run; the one final full
+build remains reserved for program verification.
+
+No benchmark was run. The existing singleton-NEG benchmark has one caller-backed input and no
+constant, so it cannot measure this optimization.
 
 ## Acceptance criteria
 
@@ -296,6 +307,22 @@ for final program verification as directed.
 
 ## Result
 
-Pending implementation. Completion must state both outcomes: immutable source splats are persistent
-per prepared execution, and a general output/workspace buffer pool is deliberately not implemented
-because the current result/concurrency ownership contract cannot make it safe.
+Implemented from planning commit `08b9e7ea7782bc0165cb6b45c409afdb59673c2e`.
+Each first-consumer/source-owned Metal splat is allocated, raw-bit-filled, and uploaded exactly once
+per prepared execution. Every run receives a fresh authenticated read-only child binding; route
+invocation, Metal-to-CPU transfer, and canonical materialization unwrap it only for reads. Prepared
+owner close rejects new bindings and exact-once native release is deferred through any already-open
+result. Finalization and all failure paths preserve acquisition order, reverse cleanup, and
+primary/suppressed evidence.
+
+The deterministic custom two-run path is reduced from four creates/two uploads to three creates/one
+upload. The six-splat/eight-target two-run path is reduced from twenty-eight route-internal creates
+and twelve uploads to twenty-two creates and six uploads. Exact raw bits, numerics, trace semantics,
+version-12 identities, public API shape, capability, route policy, native ABI, and native exports
+remain unchanged.
+
+The optimization todo is closed without a misleading general pool: mutable outputs remain fresh
+because `RunResult` owns them beyond synchronous return, and MPSGraph address workspaces remain
+fresh because cold binding mutates their per-run pointer arrays. No pool, cache, matrix, benchmark,
+retry, fallback, or cross-preparation reuse was added. Status is Review needed pending independent
+Class C approval.

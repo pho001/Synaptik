@@ -11,8 +11,8 @@ is the documented arm64 M2 option with eight-GPU hardware acceleration, but GitH
 runners available only to eligible organizations and enterprises with billing and a positive
 spending limit. No workflow may be added until a real GPU-capable hosted runner is enabled for this
 repository. A compile-only macOS lane, skipped Metal tests, or conditional device fallback does not
-satisfy this task. No CI implementation is Ready under Task 0047; independent Task 0048 owns the
-sole Ready Metal implementation frontier.
+satisfy this task. No CI implementation is Ready under Task 0047; independent Task 0048 is
+Review needed after implementation, and no Metal task is Ready.
 
 ## Change class
 

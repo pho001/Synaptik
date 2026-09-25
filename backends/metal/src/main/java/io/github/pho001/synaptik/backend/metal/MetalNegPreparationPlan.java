@@ -56,6 +56,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     private final int[] targetValueIndices;
     private final List<PreparationResourceRequirement.Buffer> declarations;
     private final List<Optional<ScalarValue>> feedSplats;
+    private final boolean[] feedSplatSources;
     private final Optional<PreparationResourceRequirement.Workspace> addressWorkspace;
     private final long[] feedRequiredBytes;
     private final long[] targetRequiredBytes;
@@ -80,7 +81,9 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
      * @param targetValueIds non-null unique boundary outputs in stable target order
      * @param targetValueIndices non-null value indices aligned with targets
      * @param declarations non-null exact feed-then-target buffer declarations
-     * @param feedSplats non-null optional FLOAT32 splats aligned with feeds
+     * @param feedSplats non-null optional FLOAT32/INT32 splats aligned with feeds
+     * @param feedSplatSources non-null source-owner facts aligned with feeds; a true entry requires
+     *     a present splat
      * @param addressWorkspace non-null optional workspace, present exactly for MPSGraph
      * @param feedRequiredBytes non-null required logical byte extents aligned with feeds
      * @param targetRequiredBytes non-null required logical byte extents aligned with targets
@@ -105,6 +108,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             int[] targetValueIndices,
             List<PreparationResourceRequirement.Buffer> declarations,
             List<Optional<ScalarValue>> feedSplats,
+            boolean[] feedSplatSources,
             Optional<PreparationResourceRequirement.Workspace> addressWorkspace,
             long[] feedRequiredBytes,
             long[] targetRequiredBytes) {
@@ -126,6 +130,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
                 targetValueIndices,
                 declarations,
                 feedSplats,
+                feedSplatSources,
                 addressWorkspace,
                 feedRequiredBytes,
                 targetRequiredBytes,
@@ -150,6 +155,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             int[] targetValueIndices,
             List<PreparationResourceRequirement.Buffer> declarations,
             List<Optional<ScalarValue>> feedSplats,
+            boolean[] feedSplatSources,
             Optional<PreparationResourceRequirement.Workspace> addressWorkspace,
             long[] feedRequiredBytes,
             long[] targetRequiredBytes,
@@ -176,6 +182,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
         this.targetValueIndices = targetValueIndices.clone();
         this.declarations = List.copyOf(declarations);
         this.feedSplats = List.copyOf(feedSplats);
+        this.feedSplatSources = feedSplatSources.clone();
         this.addressWorkspace = Objects.requireNonNull(addressWorkspace, "addressWorkspace");
         this.feedRequiredBytes = feedRequiredBytes.clone();
         this.targetRequiredBytes = targetRequiredBytes.clone();
@@ -189,11 +196,18 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
                 || this.feedValueIds.size() != this.feedValueIndices.length
                 || this.feedValueIds.size() != this.feedRequiredBytes.length
                 || this.feedValueIds.size() != this.feedSplats.size()
+                || this.feedValueIds.size() != this.feedSplatSources.length
                 || this.targetValueIds.size() != this.targetValueIndices.length
                 || this.targetValueIds.size() != this.targetRequiredBytes.length
                 || this.declarations.size()
                         != this.feedValueIds.size() + this.targetValueIds.size()) {
             throw new IllegalArgumentException("Metal NEG preparation-plan cardinalities disagree");
+        }
+        for (int index = 0; index < this.feedSplatSources.length; index++) {
+            if (this.feedSplatSources[index] && this.feedSplats.get(index).isEmpty()) {
+                throw new IllegalArgumentException(
+                        "Metal source splat requires an exact scalar value");
+            }
         }
         if ((this.route == Route.CUSTOM_SINGLE_NEG
                         && (partitionDag.nodes().size() != 1
@@ -228,6 +242,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     int[] targetValueIndices() { return targetValueIndices.clone(); }
     List<PreparationResourceRequirement.Buffer> declarations() { return declarations; }
     List<Optional<ScalarValue>> feedSplats() { return feedSplats; }
+    boolean[] feedSplatSources() { return feedSplatSources.clone(); }
     Optional<PreparationResourceRequirement.Workspace> addressWorkspace() {
         return addressWorkspace;
     }
