@@ -2,12 +2,12 @@
 
 ## Status
 
-Ready
+Blocked
 
-This is the sole Ready Metal frontier. Its prerequisites are implemented and reviewed, its conflicts
-are inactive, and its executable work is authorized from exact clean base
-`b495e4e43ce5bdcd962256f9bfc726301f3d1549`. This planning-only authorization runs no probe,
-build, test, or implementation.
+The mandatory one-execution gate failed from exact clean planning revision
+`c300582727ec568a7482dd974f9d1b2e2e13f82c` before production edits. The first reversed output
+canonicalized `0xffa6` to `0x7fc0`, so the direct MPSGraph Gather selector cannot support the
+required raw-bit contract. No Metal task is Ready.
 
 ## Change class
 
@@ -84,6 +84,29 @@ task Blocked, and make no production change. Do not narrow the corpus, compare n
 canonicalize NaNs, widen through FLOAT32, substitute `CONTIGUOUS`, or fall back to host/CPU work.
 Remove every disposable probe artifact after either outcome.
 
+## Blocker evidence
+
+The sole gate ran once on the M3 Max from exact clean planning revision
+`c300582727ec568a7482dd974f9d1b2e2e13f82c`. One disposable Objective-C source compiled against
+Foundation, Metal, and MetalPerformanceShadersGraph. Its executable created one Metal device and
+queue, one MPSGraph with one BFLOAT16 data placeholder, one INT32 index placeholder, and the direct
+axis-zero/batch-dimensions-zero Gather target. It performed one graph compilation with
+`MPSGraphReducedPrecisionFastMathNone` and `MPSGraphOptionsNone`, then one synchronous execution
+over the exact 20-word corpus and reverse permutation above.
+
+The probe compared both complete input buffers byte-for-byte and found them unchanged. It then
+stopped at the first output mismatch: output ordinal zero selected input ordinal 19, required
+negative signaling-NaN word `0xffa6`, and returned positive canonical quiet-NaN word `0x7fc0`.
+The required sign, payload, and signaling representation were therefore lost. Remaining output
+words and the prefilled target guard were not checked after that decisive failure and make no
+success claim.
+
+The source and binary were removed immediately. No second execution, retry, alternate profile,
+Shape/axis/context/option matrix, exhaustive corpus, production/test edit, native build, schema/
+identity/capability change, narrowing, host repair, fallback, or full build exists. Task 0040 is
+`Blocked`. Unblocking requires a separately planned exact replacement route; do not retry or weaken
+this direct-selector contract.
+
 ## Non-goals
 
 BFLOAT16 arithmetic, unary/reduction/matrix operations, affine/view input or publication,
@@ -114,10 +137,9 @@ Runtime/Trace profile state, or different invalid-index semantics, stop and repo
   identity/transfer scope and any restart that would consume the same next schema values
 - Parallel group: None
 - Common base revision: `b495e4e43ce5bdcd962256f9bfc726301f3d1549`
-- Integration order: documentation-first gate; one disposable smoke; schema/type/identity;
-  capability/preparation; ingress/publication; focused proof; synchronized docs; lean review
-- Integration validation: Metal 0040 Class C checkpoint, including exactly one final full build
-- Shared-document integration owner: task implementer, finalized by independent Class C review
+- Integration order: the sole mandatory gate failed; no implementation step is authorized
+- Integration validation: planning blocker evidence, status synchronization, Markdown, and diff
+- Shared-document integration owner: None while Blocked
 
 ## Files and symbols
 
@@ -154,36 +176,20 @@ Runtime/Trace profile state, or different invalid-index semantics, stop and repo
 
 ## Validation
 
-Worker validation, after the single disposable smoke and production implementation:
-
-```bash
-./native/metal-macos-arm64/build.sh
-nm -gU native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib
-SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" ./gradlew :backends:metal:test :backends:metal:javadoc
-./gradlew :testing:backend-conformance:test --tests '*Metal*'
-SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib" ./gradlew :testing:integration-tests:test --tests '*EngineExplicitCompositionMetalIntegrationTest*'
-./gradlew :testing:architecture-tests:test
-./gradlew build
-python3 /tmp/validate_synaptik_markdown.py
-git diff --check
-```
-
-Run the full build exactly once after focused checks stabilize. Permanent tests use one compact
-representative case per observable contract, reuse existing lifecycle/index-validation coverage,
-and add no exhaustive bit corpus, Shape/axis matrix, source-text assertion, or duplicate smoke.
-The independent reviewer inspects the final diff and reuses successful executable evidence unless
-a concrete finding changes executable behavior.
+The pre-production gate is the only executable evidence. Because it failed, no native build,
+production test, Javadoc task, architecture test, or full build is authorized for this task.
+Validate only blocker-evidence wording, links/anchors/fences/final newlines, status/frontier
+consistency, documentation-only path scope, and `git diff --check`.
 
 ## Documentation and review impact
 
-This planning change owns only Task 0040, Task 0039's consumed-value correction, the Metal master
-plan, and the repository roadmap. Implementation must update current architecture/capability/API/
-native/Javadoc status only after behavior passes. No new glossary term is expected; the targeted
-review must confirm that conclusion. Independent lean Class C review covers schema/type parity,
-raw-bit semantics, ingress/publication ownership, transfer non-widening, stale cutover, tests,
-documentation, and validation evidence without adding a second probe or broad rerun.
+This blocker update owns only Task 0040, Task 0039's unconsumed-value correction, the Metal master
+plan, and the repository roadmap. Production architecture/capability/API/native/Javadoc documents
+remain unchanged because the gate authorized no behavior. No glossary term or independent Class C
+review is needed for this planning-only failure record.
 
 ## Result
 
-Planning-only authorization from the recorded clean base. No probe, implementation, build, or test
-has run; executable acceptance remains open.
+Blocked at the sole pre-production execution. MPSGraph changed selected BFLOAT16 signaling-NaN
+word `0xffa6` to canonical quiet-NaN `0x7fc0`; all artifacts were removed and production remains
+unchanged.

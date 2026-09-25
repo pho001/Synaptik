@@ -5,8 +5,8 @@
 Blocked
 
 Model 0026 is an independent Draft without a detailed brief. It must first define and deliver true
-IEEE binary16 Model semantics before any backend can advertise `FLOAT16`. Task 0040 is the sole
-Ready Metal frontier; this independent FLOAT16 task remains Blocked.
+IEEE binary16 Model semantics before any backend can advertise `FLOAT16`. Task 0040 failed its
+independent BFLOAT16 gate; no Metal task is Ready.
 
 ## Change class
 
@@ -85,12 +85,12 @@ This candidate excludes arithmetic, unary numeric operations, affine-view input/
 scalars/constants, casts, mixed precision, `BFLOAT16`, gradients, cross-owner transfer, dynamic or
 zero extents, rank zero, unresolved layout, and every other operation family.
 
-Ready Task 0040 now reserves node schema 12, operation wire 20, internal value-type wire 4, and
-version-thirteen identities for its distinct BFLOAT16 Gather scope. A later separately authorized
-FLOAT16 implementation must rebase from the then-current Metal schema, allocate fresh
-operation/type/identity values, and revalidate its candidate. This Blocked task reserves no
-successor value. The fixed 160-byte record, ABI v4, thirteen exports, and attribute wires `0..6`
-remain the only plausible unchanged boundaries; they are not a FLOAT16 capability claim.
+Blocked Task 0040 implemented no schema and consumes no successor value. A later separately
+authorized FLOAT16 implementation may consider node schema 12, a type-specific operation wire 20,
+internal value-type wire 4, and version-thirteen identities only after revalidating them against the
+then-current frontier. The fixed 160-byte record, ABI v4, thirteen exports, and attribute wires
+`0..6` could remain unchanged. These values are conditional and unreserved; this Blocked task
+allocates none of them.
 
 Caller-host ingress would need exact `FLOAT16` storage admission and local publication would need
 two-byte big-endian canonical output. CPU capability and CPU/Metal `FLOAT16` transfer remain
@@ -113,7 +113,7 @@ removes the probe; success can authorize only its separately revalidated bounded
 - Editing Compiler, Planning, Prepare, Runtime, Engine, CPU, Metal production, or native source.
 - Reserving a schema, wire, type, identity, ABI, export, cache, or transfer value.
 - Probing a device, building native code, or adding/updating tests.
-- Claiming historical Metal 0028, Ready Task 0040, or any existing Blocked operation complete.
+- Claiming historical Metal 0028, Blocked Task 0040, or any existing Blocked operation complete.
 
 ## Dependencies and integration
 
@@ -143,19 +143,20 @@ prerequisite; they remain unchanged.
 
 ## Acceptance criteria
 
-- Task 0039 is Blocked on Draft Model 0026 while Task 0040 is the sole Ready Metal frontier.
+- Task 0039 is Blocked on Draft Model 0026, Task 0040 is independently Blocked, and no Metal task
+  is Ready.
 - The absence of public binary16 type/semantic/oracle contracts and every current Metal plumbing gap
   above is explicit.
 - `MPSDataTypeFloat16` is representation evidence only, not capability evidence.
 - Any later capability is profile-common unless Model explicitly changes the result-set contract;
   Config gains no profile.
-- Its bounded candidate requires a future rebase; Task 0039 reserves no schema, operation, type, or
-  identity value after Task 0040's allocation.
+- Its bounded candidate and all possible schema, operation, type, and identity values remain
+  conditional and unreserved.
 - No device probe, source/test/native/schema/identity/transfer change, or executable validation runs.
 - Model 0026 remains Draft with no detailed brief and no Model task Ready.
 
 ## Result
 
 Blocked before executable work. No FLOAT16 probe or production change is permitted until Model
-0026 is Complete and the candidate is rebased against both its delivered contracts and the
-post-Task-0040 Metal schema.
+0026 is Complete and the candidate is revalidated against its delivered contracts and the
+then-current Metal schema.
