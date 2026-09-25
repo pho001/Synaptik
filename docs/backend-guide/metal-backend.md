@@ -776,9 +776,11 @@ unresolved-layout, noncanonical graph-ingress, foreign-view, variadic, or multi-
 scalar rank is admitted only for a locally produced direct reduction target and four-byte local
 materialization. There is no scalar pointwise or other unary accelerator route, comparison or
 logical operation, general custom-kernel framework, asynchronous API, cross-run overlap guarantee,
-buffer pool, persistent constant buffer, executable serialization, packaging, discovery,
-persistent route cache, current tuning integration, alias promise, scalar-loss or implicit-seed
-training route, general backward route, or performance claim. The one executable backward path is
+general output/workspace buffer pool, executable serialization, packaging, discovery, persistent
+route cache, current tuning integration, alias promise, scalar-loss or implicit-seed training
+route, general backward route, or performance claim. Immutable source-owned splat buffers persist
+only within their exact `PreparedExecution`; mutable outputs and address workspaces remain fresh
+per run and are not pooled. The one executable backward path is
 the explicitly seeded rank-two MATMUL formula described above. Model task 0026 must define FLOAT16
 semantics before any backend can advertise it.
 

@@ -2,11 +2,13 @@
 
 ## Status
 
-Review needed
+Complete
 
-Implementation from sole-Ready planning commit
-`08b9e7ea7782bc0165cb6b45c409afdb59673c2e` is complete and locally proved on the current
-Apple-silicon host. Blocked Task 0047 remains independent; this task adds no hosted CI.
+Implemented at `89f9fbb9093db3fb86629189cb98ae521a631b27` from sole-Ready planning commit
+`08b9e7ea7782bc0165cb6b45c409afdb59673c2e`. Independent Class C review returned `APPROVE` with
+zero findings. This documentation-only finalization corrects one stale backend-guide limitation;
+it changes no implementation, API, ABI, identity, capability, route, trace, cache, or tuning
+behavior.
 
 ## Change class
 
@@ -185,11 +187,12 @@ No follow-up pool placeholder, matrix, or partial implementation belongs in this
   edit
 - Parallel group: None
 - Common base revision: `a9adf4d707c9472283ad0621647bee22efc7ff82`
-- Integration order: implemented from sole-Ready planning commit `08b9e7ea`; now Review needed
-  while 0047 remains independently Blocked; no Metal task is Ready
+- Integration order: implemented from sole-Ready planning commit `08b9e7ea`; independent Class C
+  review approved implementation `89f9fbb9` with zero findings; Complete while 0047 remains
+  independently Blocked
 - Integration validation: focused fake-native proof, exactly two explicit real-device no-skip tests,
-  Javadocs/architecture/docs/diff checks, then independent Class C review; do not run the repository
-  full build until final program verification
+  Javadocs/architecture checks, documentation/diff checks, and independent Class C approval passed;
+  no full repository build was run by instruction
 - Shared-document integration owner: Task 0048 implementation owner
 
 ## Files and responsibilities
@@ -277,10 +280,10 @@ SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/libsynaptik_met
 ```
 
 The matching JUnit XML reports exactly two tests and zero skipped, failures, and errors. Metal and
-Runtime Javadocs passed. Focused `RuntimeDependencyAndHotPathContractTest` passed. Changed-Markdown
-local links/fences/final newlines, `git diff --check`, exact path scope, and clean committed status
-are required before handoff. Per instruction, no full repository build was run; the one final full
-build remains reserved for program verification.
+Runtime Javadocs passed. Focused `RuntimeDependencyAndHotPathContractTest` passed. The final
+documentation-only limitation correction passed changed-Markdown local-link/fence/final-newline,
+`git diff --check`, exact path-scope, and clean-commit validation. Per instruction, no full
+repository build was run; the one final full build remains reserved for program verification.
 
 No benchmark was run. The existing singleton-NEG benchmark has one caller-backed input and no
 constant, so it cannot measure this optimization.
@@ -324,5 +327,5 @@ remain unchanged.
 The optimization todo is closed without a misleading general pool: mutable outputs remain fresh
 because `RunResult` owns them beyond synchronous return, and MPSGraph address workspaces remain
 fresh because cold binding mutates their per-run pointer arrays. No pool, cache, matrix, benchmark,
-retry, fallback, or cross-preparation reuse was added. Status is Review needed pending independent
-Class C approval.
+retry, fallback, or cross-preparation reuse was added. Independent Class C review approved
+implementation `89f9fbb9` with zero findings; Task 0048 is Complete.

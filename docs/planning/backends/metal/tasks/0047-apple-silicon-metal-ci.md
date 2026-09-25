@@ -12,7 +12,7 @@ runners available only to eligible organizations and enterprises with billing an
 spending limit. No workflow may be added until a real GPU-capable hosted runner is enabled for this
 repository. A compile-only macOS lane, skipped Metal tests, or conditional device fallback does not
 satisfy this task. No CI implementation is Ready under Task 0047; independent Task 0048 is
-Review needed after implementation, and no Metal task is Ready.
+Complete at independently approved implementation `89f9fbb9`, and no Metal task is Ready.
 
 ## Change class
 

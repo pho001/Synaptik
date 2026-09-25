@@ -98,7 +98,7 @@ Training-to-Metal optimizer bridge.
   same-reviewer-approved P1 remediation `26c6c911`: it owns the exact ad-hoc-signed local macOS
   arm64 package contract. Task 0046 is Complete at independently approved implementation
   `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Task 0047 is Blocked on a real GPU-capable hosted
-  runner. Task 0048 is implemented from planning commit `08b9e7ea` and Review needed; no Metal task
+  runner. Task 0048 is Complete at independently approved implementation `89f9fbb9`; no Metal task
   is Ready.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
@@ -204,10 +204,10 @@ Training-to-Metal optimizer bridge.
 - Task 0047 is planning-only and Blocked: standard `macos-26` has no documented usable Metal GPU,
   while required M2 GPU runner `macos-26-xlarge` is unavailable to the current personal public
   repository without an eligible organization/enterprise plan, billing, and positive spending.
-- Task 0048 is implemented from planning commit `08b9e7ea` and Review needed. It persists
-  immutable source-owned splats per prepared execution and closes the optimization frontier without
-  a general mutable output/workspace pool, whose result/concurrency lifetime remains unsafe under
-  the current contract.
+- Task 0048 is Complete at independently approved implementation `89f9fbb9`. It persists immutable
+  source-owned splats per prepared execution and closes the optimization frontier without a general
+  mutable output/workspace pool, whose result/concurrency lifetime remains unsafe under the current
+  contract.
 - Production dependencies may point to Model, Config, Planning, Runtime, Prepare,
   Backend Contract, and Trace, never Engine or Training. Task 0002's Compiler edge is test-only.
 
@@ -279,7 +279,7 @@ before extracting a package or widening another type.
 | 0045 | [Verified local macOS arm64 native package](tasks/0045-verified-local-native-package.md) | Complete | 0025 Complete for ABI v4/schema 11; 0044 Complete as the serialized frontier | Native Metal build/package/README and master/roadmap edits; every Gradle distribution, native discovery, release-signing, or publication scope | None | Implemented at `07174014`; three P1 findings remediated at `26c6c911`; same-reviewer Class C rereview approved with zero remaining findings | Atomic build/package, exact Mach-O/dependency/export/signature/manifest/checksum, repeat/copy/original-and-P1 regression proofs, 126 packaged-dylib Metal tests, and 15 Engine integration tests passed | Completed the exact ad-hoc-signed verified local package only; no Developer ID, notarization, authentication, archive, publication, Gradle, Java, ABI, schema, or loader change |
 | 0046 | [Explicit verified Metal native local archive](tasks/0046-explicit-verified-native-local-archive.md) | Complete | 0045 Complete at same-reviewer-approved remediation `26c6c911` | Every concurrent Metal Gradle/native distribution, native README, release-process, master, or roadmap edit; native discovery, release-signing, notarization, publication, or install work | None | Implemented from planning commit `35b222be`; independent Class C review approved implementation `4aad1ab6` with zero findings | Ordinary-build isolation; missing/invalid/symlink path failures; direct verifier reuse; two byte-identical ZIPs; exact entries/modes/timestamps/path/version checks; extracted verification and focused real-device load passed | Added one explicit, opt-in, unversioned local Gradle ZIP over only the reviewed Task 0045 package; manual extraction and absolute-path loading remain |
 | 0047 | [Apple Silicon Metal CI](tasks/0047-apple-silicon-metal-ci.md) | Blocked | 0046 Complete at independently approved implementation `4aad1ab6`; enabled real GPU-capable hosted runner | Every concurrent CI/workflow, Gradle wrapper/toolchain, Metal native package/archive, benchmark protocol, native README, release-process, master, or roadmap edit | None | No implementation until an eligible organization/enterprise plan, billing/spending, repository access to `macos-26-xlarge`, and one real Metal provider run resolve the gate | Planning links/Markdown/status/diff only; no workflow, Gradle, native build, device probe, or artifact action while Blocked | Specifies an exact future portable plus M2-GPU functional workflow with immutable pins, real no-skip Metal/Engine execution, one report-only smoke, and no matrix/cache/upload/release path; current personal public repository cannot schedule the required runner |
-| 0048 | [Persistent immutable Metal splats and no-general-pool closure](tasks/0048-persistent-immutable-splats-and-no-general-pool-closure.md) | Review needed | 0046 Complete at independently approved implementation `4aad1ab6`; Runtime 0016; Prepare 0006; Engine 0010; current Metal finalization/schedule/trace/tuning spine | Every concurrent Metal preparation/finalization/executable/schedule/buffer/transfer, trace/tuning identity, backend/runtime/API/decision documentation, Metal test, master, or roadmap edit | None | Implemented from sole-Ready planning commit `08b9e7ea`; independent Class C review is pending while 0047 remains Blocked | 49 focused execution tests plus nine identity tests passed; exactly two explicit real-device tests passed with zero skips/failures/errors; Javadocs and focused Runtime architecture passed; docs/diff/clean checks before handoff; no full build by instruction | Persists each immutable source-owned splat once per prepared execution with fresh read-only run bindings and exact deferred release; explicitly rejects a general output/workspace pool under current RunResult/concurrency ownership. |
+| 0048 | [Persistent immutable Metal splats and no-general-pool closure](tasks/0048-persistent-immutable-splats-and-no-general-pool-closure.md) | Complete | 0046 Complete at independently approved implementation `4aad1ab6`; Runtime 0016; Prepare 0006; Engine 0010; current Metal finalization/schedule/trace/tuning spine | Every concurrent Metal preparation/finalization/executable/schedule/buffer/transfer, trace/tuning identity, backend/runtime/API/decision documentation, Metal test, master, or roadmap edit | None | Implemented from sole-Ready planning commit `08b9e7ea`; independent Class C review approved implementation `89f9fbb9` with zero findings while 0047 remains Blocked | 49 focused execution tests plus nine identity tests passed; exactly two explicit real-device tests passed with zero skips/failures/errors; Javadocs, focused Runtime architecture, docs, diff, and clean checks passed; no full build by instruction | Persists each immutable source-owned splat once per prepared execution with fresh read-only run bindings and exact deferred release; explicitly rejects a general output/workspace pool under current RunResult/concurrency ownership. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -309,7 +309,7 @@ Completed profile spine and serial successors:
 
 `0004 (Complete) + 0041 (Complete) + Engine 0009/0015–0018 (Complete) + tools/tuning 0001–0002 (Complete) -> 0042 (Complete) -> 0043 (Complete) -> 0044 (Complete) -> 0045 (Complete) -> 0046 (Complete) -> 0047 (Blocked)`
 
-`0046 (Complete) + Runtime 0016 (Complete) + Prepare 0006 (Complete) + Engine 0010 (Complete) -> 0048 (Review needed)`
+`0046 (Complete) + Runtime 0016 (Complete) + Prepare 0006 (Complete) + Engine 0010 (Complete) -> 0048 (Complete)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -358,21 +358,19 @@ remaining findings. [0044](tasks/0044-custom-singleton-neg-benchmark-evaluation.
 remediation `26c6c911`. [0046](tasks/0046-explicit-verified-native-local-archive.md) is Complete at
 independently approved implementation `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`.
 [0047](tasks/0047-apple-silicon-metal-ci.md) is Blocked on a real GPU-capable hosted runner.
-[0048](tasks/0048-persistent-immutable-splats-and-no-general-pool-closure.md) is implemented from
-planning commit `08b9e7ea` and Review needed. No Metal task is Ready. Every other Metal task retains
-its recorded status.
+[0048](tasks/0048-persistent-immutable-splats-and-no-general-pool-closure.md) is Complete at
+independently approved implementation `89f9fbb9093db3fb86629189cb98ae521a631b27`. No Metal task is
+Ready. Every other Metal task retains its recorded status.
 These edges serialize shared Metal mutation; they do not claim that one operation family requires
 another.
 
 ## Integration ownership and shared documents
 
-- Complete Task 0046 retains the reviewed explicit local-archive boundary. Blocked Task 0047 owns
-  no workflow, provider, runner, Gradle, or native-distribution implementation scope until its
-  external GPU-hosted-runner gate is resolved. Review-needed Task 0048 exclusively owns its
-  implemented Metal preparation/finalization/executable/schedule/buffer/transfer changes plus named
-  tests and shared documents until independent review finishes. No concurrent CI/workflow, Gradle
-  wrapper/toolchain, native distribution, benchmark protocol, or other shared-document work is
-  authorized.
+- Complete Tasks 0046 and 0048 retain their reviewed local-archive and persistent-immutable-splat
+  boundaries. Blocked Task 0047 owns no workflow, provider, runner, Gradle, or native-distribution
+  implementation scope until its external GPU-hosted-runner gate is resolved. No concurrent
+  CI/workflow, Gradle wrapper/toolchain, native distribution, benchmark protocol, or shared-
+  document work is authorized while no Metal task is Ready.
 - Complete Metal 0044 owns its documentation/audit no-change record; no active owner may reinterpret
   its bounded report as a winner or production decision.
 - Complete Metal 0043 retains its reviewed benchmark implementation and evidence; Complete Metal
@@ -462,7 +460,7 @@ with zero findings. Documentation/audit-only Task 0038 is Complete. Task 0042 is
 findings. Tasks 0043–0044 are Complete. Task 0045 is Complete at same-reviewer-approved remediation
 `26c6c911`. Task 0046 is Complete at independently approved implementation `4aad1ab6`; its artifact
 remains unauthenticated and local. Task 0047 is Blocked on the unavailable required M2 GPU hosted
-runner. Task 0048 is implemented from planning commit `08b9e7ea` and Review needed; no Metal task
+runner. Task 0048 is Complete at independently approved implementation `89f9fbb9`; no Metal task
 is Ready.
 
 Metal 0006 remains `Blocked` after exact RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures.
