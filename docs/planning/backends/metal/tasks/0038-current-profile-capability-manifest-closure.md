@@ -2,11 +2,11 @@
 
 ## Status
 
-Ready
+Complete
 
-Readiness verification: Metal 0022–0025 are Complete, every later evidence task through 0037 is
-finalized Blocked without capability, and the current provider/schema audit found documentation
-summary drift only. This task is the sole Ready Metal frontier.
+Readiness was verified from Metal 0022–0025 Complete, every later evidence task through 0037
+finalized Blocked without capability, and a provider/schema audit that found documentation summary
+drift only. Execution preserved that boundary and leaves no Ready Metal frontier.
 
 ## Change class
 
@@ -172,4 +172,10 @@ build.
 
 ## Result
 
-Pending execution.
+Completed as a documentation/audit-only closure from planning commit `1bb2a0e5`. Root, architecture,
+API, backend, user, master, and roadmap summaries now publish the exact common and accelerator-only
+occurrence matrices, strict-subset monotonicity, fail-closed remainder, and frozen ABI/schema/
+identity boundary. Task 0027 BatchNorm and every other Blocked row remain unsupported. The three
+focused Gradle invocations passed; Markdown links, anchors, fences, final newlines, terminology,
+final diff, and documentation-only scope passed. No device probe, native build, full suite, or full
+build ran.

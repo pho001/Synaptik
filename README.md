@@ -24,11 +24,17 @@ CPU composition; `Engine.builder()` explicitly owns opened CPU and/or Metal inte
 executes non-empty single-owner plans or bounded mixed CPU/Metal plans through deterministic
 owner-indexed representations and ordered transfer steps. Current cross-owner transfer supports
 positive rank-1..16 fully static canonical contiguous `FLOAT32` values in both directions. Metal
-executes a closed profile-specific `FLOAT32` matrix: exact canonical `ABS` under both profiles;
-strict `NEG`, affine transforms, and `CONTIGUOUS`; and accelerator tensor binary arithmetic,
-canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two `MATMUL` with authenticated
-local transpose operands. An eligible strict singleton negation may use a custom route; other
-supported partitions use MPSGraph. A standard-Metal convenience, generic plugin
+executes a closed occurrence-specific matrix. Both profiles admit only exact canonical `FLOAT32`
+`NEG`/`ABS`; `RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`; `CONTIGUOUS`; bounded
+`UNFOLD_AXIS`; exact `FLOAT32` data plus `INT32` indices `GATHER`; `INT32`-to-`BOOL` `ONE_HOT`;
+and `FLOAT32`/`INT32`/`FLOAT32` `SCATTER_ELEMENTS/NONE`. `ACCELERATOR` additionally admits only
+tensor `FLOAT32` `ADD`/`SUB`/`MUL`/`DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive
+static rank-two `MATMUL` with authenticated local transpose operands. Strict capability is an
+accelerator subset; every other occurrence fails closed before route selection. An eligible
+singleton negation may use the custom route under either profile; other supported partitions use
+MPSGraph. Current Metal remains ABI v4 with thirteen exports, node schema 11, operation wires
+`1..19`, attribute wires `0..6`, and version-twelve identities; no blocked operation has a row.
+A standard-Metal convenience, generic plugin
 registration/discovery, broader Metal coverage, CUDA, training orchestration, persistence, and
 generic graph/plan tuning remain planned.
 Focused documentation identifies the exact current boundary for each area.

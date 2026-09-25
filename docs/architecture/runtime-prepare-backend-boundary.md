@@ -637,7 +637,12 @@ workflow boundaries that feed prepare without entering runtime.
 it across projections. A backend must reject an unsupported profile/operation pair before route
 selection, preserve strict capability as an accelerator subset, and retain supported profile
 identity in every reusable plan/cache boundary. CPU admits both profiles through identical exact
-routes. Metal admits exact canonical NEG/ABS/affine/`CONTIGUOUS` in either matrix and additionally
-admits accelerator tensor-binary, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static
-rank-two MATMUL partitions with authenticated local transpose operands. A prepared schedule
-contains the fixed result, so Runtime requires neither the profile nor a policy lookup.
+routes. Metal's common exact occurrence domain under both profiles contains only canonical
+FLOAT32 `NEG`/`ABS`; `RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`; `CONTIGUOUS`; bounded
+`UNFOLD_AXIS`; exact FLOAT32-data/INT32-index `GATHER`; INT32-to-BOOL `ONE_HOT`; and
+FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. Accelerator additionally admits only tensor
+FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static
+rank-two MATMUL partitions with authenticated local transpose operands. Every other occurrence
+fails closed before route selection, so no Blocked operation reaches a prepared schedule. Current
+ABI v4, thirteen exports, schema 11, wires `1..19`, attributes `0..6`, and version-twelve
+identities remain frozen. Runtime therefore requires neither the profile nor a policy lookup.

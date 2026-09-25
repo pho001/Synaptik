@@ -247,13 +247,21 @@ style](../developer-guide/documentation/backend-guide-style.md).
 ## Profile-qualified capability
 
 Read `query.numericalProfile()` as part of the complete capability question. For the same
-occurrence domain, a backend's strict-positive answer must also be accelerator-positive. Return
-`false` for an unsupported profile/operation pair rather than ignoring the profile or inferring
+occurrence domain, strict capability is an accelerator subset: every strict-positive answer must
+also be accelerator-positive. Return `false` for an unsupported profile/operation pair rather than
+ignoring the profile or inferring
 support from `DeviceClass`. The current CPU provider returns the same exact answer under
-`STRICT_IEEE` and `ACCELERATOR`. The current Metal provider admits exact canonical FLOAT32
-NEG/ABS/affine/`CONTIGUOUS` under both profiles and additionally admits accelerator tensor FLOAT32
-`ADD`/`SUB`/`MUL`/`DIV`, canonical FLOAT32 `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static
-rank-two FLOAT32 MATMUL with canonical or exact local-transpose layouts. Complete-partition
-analysis authenticates each affine MATMUL operand to its local producer on that consuming edge.
-Neither provider treats accelerator identity as generic fast math, and every other unsupported
-pair remains false.
+`STRICT_IEEE` and `ACCELERATOR`.
+
+The current Metal provider admits only canonical FLOAT32 `NEG`/`ABS`;
+`RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`; `CONTIGUOUS`; bounded `UNFOLD_AXIS`; exact
+FLOAT32-data/INT32-index `GATHER`; INT32-to-BOOL `ONE_HOT`; and FLOAT32/INT32/FLOAT32
+`SCATTER_ELEMENTS/NONE` under both profiles. Accelerator additionally admits only tensor FLOAT32
+`ADD`/`SUB`/`MUL`/`DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two
+FLOAT32 MATMUL with canonical or exact local-transpose layouts. Complete-partition analysis
+authenticates each affine MATMUL operand to its local producer on that consuming edge. The common
+dispatch precedes the profile branch, so every strict-positive answer is accelerator-positive.
+Every unlisted occurrence remains false; neither provider treats accelerator identity as generic
+fast math. No Blocked Metal operation has a capability/schema row. ABI v4, thirteen exports, node
+schema 11, operation wires `1..19`, attribute wires `0..6`, and version-twelve identities remain
+frozen.

@@ -81,20 +81,28 @@ It contains no caller Tensor storage reference and performs no execution.
 
 Compilation uses the profile captured by the Engine for every capability query and carries it into
 preparation. The default is `STRICT_IEEE`. CPU answers the same exact capability matrix under
-either profile. Metal admits the common exact FLOAT32 baseline under both profiles: `NEG`, `ABS`,
-`RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`. `ACCELERATOR`
-additionally admits tensor `ADD`/`SUB`/`MUL`/`DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`
-reductions, and positive static rank-two `MATMUL`; strict rejects those additions. Compilation does
-not silently change the requested profile or fall back when an occurrence has no eligible owner.
+either profile. Metal's common exact occurrence domain under both profiles contains only canonical
+FLOAT32 `NEG`/`ABS`; `RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`; `CONTIGUOUS`; bounded
+`UNFOLD_AXIS`; exact FLOAT32-data/INT32-index `GATHER`; INT32-to-BOOL `ONE_HOT`; and
+FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. `ACCELERATOR` additionally admits only tensor
+FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static
+rank-two `MATMUL`. Strict capability is an accelerator subset, and every other occurrence fails
+closed before route selection. Compilation neither changes the requested profile nor falls back
+when an occurrence has no eligible owner.
 
 ## Limitations
 
 Current public composition supports fixed CPU execution and explicit CPU/Metal mixed-owner
 execution. Cross-owner values must be fully static canonical contiguous `FLOAT32`. Both Metal
-profiles admit the documented positive-rank `NEG`, `ABS`, `RESHAPE`, `EXPAND`, `PERMUTE`,
-`EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS` baseline. Accelerator Metal additionally admits tensor
-binary, canonical reduction, and positive static rank-two `MATMUL`; strict Metal rejects those
-additions. Model construction leaves Conv2d and Conv3d result layouts unresolved; Compiler closes
+profiles admit only the common `NEG`/`ABS`, `RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`,
+`CONTIGUOUS`, `UNFOLD_AXIS`, `GATHER`, `ONE_HOT`, and `SCATTER_ELEMENTS/NONE` families in their
+documented exact descriptor domains. Accelerator Metal additionally admits only tensor
+`ADD`/`SUB`/`MUL`/`DIV`, canonical
+`SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two `MATMUL`; strict rejects those additions,
+so strict capability remains an accelerator subset. Every other occurrence is fail-closed. No
+Blocked operation has a capability or schema row; ABI v4, thirteen exports, node schema 11,
+operation wires `1..19`, attribute wires `0..6`, and version-twelve identities remain frozen.
+Model construction leaves Conv2d and Conv3d result layouts unresolved; Compiler closes
 only eligible fully static final convolution
 descriptors before CPU
 Planning capability admission. Dynamic or partially

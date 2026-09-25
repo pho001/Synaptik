@@ -115,11 +115,16 @@ construction still performs no numerical evaluation and stores no profile choice
 ordinary Engine captures one profile for its lifetime and transports it through profile-qualified
 capability, compile artifacts, Prepare, and backend identity. For any backend, strict capability
 and behavior are an accelerator subset for the same occurrence domain. CPU executes both profiles
-with the same exact current semantics. Metal admits exact canonical NEG/ABS/affine/`CONTIGUOUS`
-under both profiles and additionally admits tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`, canonical
-FLOAT32 `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two FLOAT32 `MATMUL` with canonical or
-authenticated local-transpose operands only under `ACCELERATOR`; unsupported combinations fail
-closed rather than selecting a fallback. Model remains the sole semantic owner of profile meaning.
+with the same exact current semantics. Metal's common exact domain contains only canonical
+FLOAT32 `NEG`/`ABS`; `RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`; `CONTIGUOUS`; bounded
+`UNFOLD_AXIS`; exact FLOAT32-data/INT32-index `GATHER`; INT32-to-BOOL `ONE_HOT`; and
+FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. Accelerator additionally admits only tensor
+FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static
+rank-two FLOAT32 `MATMUL` with canonical or authenticated local-transpose operands. Every other
+occurrence fails closed before route selection; no Blocked operation has a capability or schema
+row. Metal remains ABI v4 with thirteen exports, node schema 11, operation wires `1..19`,
+attribute wires `0..6`, and version-twelve identities. Model remains the sole semantic owner of
+profile meaning.
 
 The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 

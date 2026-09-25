@@ -275,15 +275,27 @@ missing scope requires an explicit architecture update.
 
 A concrete backend must qualify capability, preparation plans, specialization, generated
 artifacts, tuning candidates and decisions, and cache compatibility by the exact selected
-`NumericalProfile`. For the same occurrence domain, its strict capability and behavior must be a
-subset of accelerator capability and behavior. CPU currently supports both profiles through one
-identical exact matrix and unchanged routes. Metal's common exact domain is canonical FLOAT32
-`NEG`/`ABS`, affine transforms, and `CONTIGUOUS`. Its accelerator-only set is tensor FLOAT32
-`ADD`/`SUB`/`MUL`/`DIV`; canonical FLOAT32 `SUM`, `MEAN`, and binding-resolved `SUM_TO_SHAPE` over
-full, normalized single-axis, ordered normalized multi-axis including empty, and exact
-keep-dimensions forms; and positive static rank-two FLOAT32 MATMUL with exact contraction geometry
-and canonical or authenticated local rank-two-transpose operands. Strict MATMUL remains
-unsupported. Accelerator operations use only their operation-specific Model-owned bounded
-DAZ/FTZ, reassociation/FMA, NaN, reduction-root, and MATMUL final-publication exact-zero freedoms;
-every other unsupported profile/operation pair rejects before route selection. Transporting the
-identity does not authorize any result outside the Model-owned set.
+`NumericalProfile`. For the same occurrence domain, strict capability is an accelerator subset and
+strict behavior is a subset of accelerator behavior. CPU currently supports both profiles through
+one identical exact matrix and unchanged routes.
+
+Metal's common exact occurrence domain under both profiles contains only canonical FLOAT32
+`NEG`/`ABS`; `RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`; `CONTIGUOUS`; bounded canonical
+FLOAT32 `UNFOLD_AXIS`; canonical positive-rank FLOAT32 data `GATHER` with canonical INT32 indices;
+positive-rank INT32-to-BOOL `ONE_HOT`; and canonical positive-rank
+FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. Its accelerator-only set contains only tensor
+FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`; canonical FLOAT32 `SUM`, `MEAN`, and binding-resolved
+`SUM_TO_SHAPE` over full, normalized single-axis, ordered normalized multi-axis including empty,
+and exact keep-dimensions forms; and positive static rank-two FLOAT32 MATMUL with exact contraction
+geometry and canonical or authenticated local rank-two-transpose operands. Strict capability is a
+subset because every common occurrence has the same answer under accelerator; strict rejects every
+accelerator-only addition.
+
+Accelerator operations use only their operation-specific Model-owned bounded DAZ/FTZ,
+reassociation/FMA, NaN, reduction-root, and MATMUL final-publication exact-zero freedoms. Every
+other profile/operation occurrence fails closed before route selection; transporting profile
+identity never authorizes a result outside the Model-owned set. No Blocked Metal operation has a
+capability or schema row. The package remains ABI v4 with thirteen exports, node schema 11,
+operation wires `1..19`, attribute wires `0..6`, and version-twelve workload/policy/candidate/
+compatibility/route-policy/codec identities. Schema 12, wire 20, attribute 7, INT64, ABI/export
+changes, and version-thirteen identities remain conditional, unimplemented, and unreserved.

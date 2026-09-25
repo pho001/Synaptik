@@ -55,13 +55,17 @@ lifecycle. Ordinary preparation composes non-empty plans across registered owner
 deterministic owner-indexed representations and explicit direct CPU-to-Metal and Metal-to-CPU
 transfers for fully static canonical contiguous `FLOAT32` values.
 CPU realizes both numerical profiles through identical exact behavior and routes. Metal execution
-is profile-qualified: both profiles admit exact canonical `FLOAT32` `NEG`/`ABS`, locally composed
-affine layouts, and explicit `CONTIGUOUS`; accelerator additionally admits canonical tensor
-`FLOAT32` `ADD`, `SUB`, `MUL`, and `DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE` reductions, and
-positive static rank-two MATMUL, under the Model-owned bounded profile. Locally produced scalar
-reduction targets materialize as four bytes, while caller ingress and CPU/Metal transfer remain
-positive-rank. The custom Metal route is available to an eligible singleton NEG under either
-profile.
+is occurrence- and profile-qualified. Both profiles admit only exact canonical FLOAT32
+`NEG`/`ABS`; `RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`; `CONTIGUOUS`; bounded
+`UNFOLD_AXIS`; exact FLOAT32-data/INT32-index `GATHER`; INT32-to-BOOL `ONE_HOT`; and
+FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. Accelerator additionally admits only canonical
+tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static
+rank-two MATMUL under the Model-owned bounded profile. Strict capability is an accelerator subset;
+every other occurrence fails closed before route selection. Locally produced scalar reduction
+targets materialize as four bytes, while caller ingress and CPU/Metal transfer remain positive-rank.
+The custom Metal route is available to an eligible singleton NEG under either profile. Current
+Metal remains ABI v4 with thirteen exports, node schema 11, operation wires `1..19`, attribute
+wires `0..6`, and version-twelve identities; no Blocked operation has a row.
 
 The Training extension now owns a public reusable
 Engine-backed scalar session with persistent SGD, accumulation, and detached in-memory state over
