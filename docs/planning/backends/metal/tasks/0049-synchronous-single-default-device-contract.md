@@ -288,3 +288,14 @@ as Complete and no repository task as Ready. The original execution remains the 
 commit `6e95d523`; cumulative Task 0049 scope is ten Markdown paths, with only the Trace master and
 this brief changed for remediation. The same reviewer returned `APPROVE` with zero findings after
 remediation; Task 0049 is Complete.
+
+## Post-completion program verification
+
+[Task 0050](0050-final-packaged-metal-repository-verification.md) performed the separately reserved
+program verification from exact Task 0049 completion revision
+`2c6326a9663bea5aa99e407351d685919630bbcb`. It built, fixed-identifier ad-hoc-signed, packaged,
+archived, extracted, and independently reverified the current Metal dylib, then ran the sole final
+full `./gradlew build --rerun-tasks` against the extracted absolute dylib. All 87 actionable tasks
+executed successfully. JUnit XML recorded 130 Metal-backend tests across 19 suites and 15 explicit
+Metal integration tests, including two real-Metal public `prepareTuned` cases, with zero failures,
+errors, or skips. This evidence changes none of Task 0049's documentation-only contract or scope.

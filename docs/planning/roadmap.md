@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through final-approved 0049; 0047 Blocked | [Metal 0049](backends/metal/tasks/0049-synchronous-single-default-device-contract.md) completed the synchronous/single-default-device contract after P1 status-drift remediation `6d4246f7` and final cumulative independent Class C `APPROVE` with zero findings. No Metal task is Ready. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through final verification 0050; 0047 Blocked | [Metal 0050](backends/metal/tasks/0050-final-packaged-metal-repository-verification.md) completed the sole final full repository build against the freshly built, signed, packaged, archived, extracted, and reverified dylib from exact Task 0049 completion revision `2c6326a9`. No Metal task is Ready. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -129,11 +129,19 @@ with zero findings. It codifies synchronous completed-state result semantics, on
 Metal context per integration, context-bound resources, distinct non-physical device/trace/tuning
 identities, no cross-device behavior, concrete successor gates, and the no-general-pool decision.
 
+[Metal 0050](backends/metal/tasks/0050-final-packaged-metal-repository-verification.md) is Complete.
+From exact Task 0049 completion revision `2c6326a9`, the native package/archive/extraction verifier
+chain passed and the sole final full build executed all 87 actionable tasks against the extracted
+dylib. All 130 Metal-backend and 15 explicit Metal integration tests had zero failures, errors, or
+skips; the two real-Metal public `prepareTuned` cases are included in the integration total.
+
 `Metal 0004 (Complete) + Metal 0041 (Complete) + Engine 0009/0015–0018 (Complete) + tools/tuning 0001–0002 (Complete) -> Metal 0042 (Complete) -> Metal 0043 (Complete) -> Metal 0044 (Complete) -> Metal 0045 (Complete) -> Metal 0046 (Complete) -> Metal 0047 (Blocked)`
 
 `Metal 0046 (Complete) + Runtime 0016 (Complete) + Prepare 0006 (Complete) + Engine 0010 (Complete) -> Metal 0048 (Complete)`
 
 `Metal 0048 (Complete) + Runtime 0016 (Complete) + Prepare 0006 (Complete) + Engine 0010 (Complete) + Planning device eligibility + Trace 0003 + Metal 0041–0042 (Complete) -> Metal 0049 (Complete)`
+
+`Metal 0049 (Complete) -> Metal 0050 (Complete final program verification)`
 
 Numerical profiles
 
@@ -185,7 +193,7 @@ approval with zero findings. Metal 0042 is Complete at `9feb2505`; Metal 0043 is
 `77e6091b`; Metal 0044 is Complete from planning revision `3d458b7a`; Metal 0045 is Complete at
 same-reviewer-approved remediation `26c6c911`; Metal 0046 is Complete at independently approved
 implementation `4aad1ab6`; Metal 0047 is Blocked; Metal 0048 is Complete at `89f9fbb9`; Metal 0049
-is Complete after approved remediation `6d4246f7`.
+is Complete after approved remediation `6d4246f7`; Metal 0050 final verification is Complete.
 
 Task 0019 landed at implementation `a6d1796d` plus mixed-owner test remediation `bcb717a6`. Its
 native ABI/export, Metal, conformance, real Engine, architecture, full-build, documentation, and
@@ -399,7 +407,7 @@ production behavior. Metal 0042 now consumes only the existing version-twelve si
 tuning foundation through public retained collaborations and private Engine composition. Schema
 12/wires beginning at 20/attribute 7, local type 4, INT64 type/ingress, ABI/export changes, and
 version-thirteen identities remain unimplemented and unreserved. Documentation/audit-only Metal
-0038 and Metal 0042–0046 are Complete; Metal 0047 is Blocked; Metal 0048–0049 are Complete.
+0038, Metal 0042–0046, and Metal 0048–0050 are Complete; Metal 0047 is Blocked.
 
 Strategic gate: historical blocker evidence is preserved, and no backend task may define Model
 semantics. Complete Model 0028 owns bounded reduction exact-zero sign freedom; Complete Metal 0020
@@ -497,7 +505,7 @@ schema.
   comparison still requires a separately reviewed, fully sealed matrix before measurement.
 - Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
   0017, Trace 0003, and Metal
-  0015/0019/0020/0021/0022/0023/0024/0025/0038/0041/0042/0043/0044/0045/0046/0048/0049 are
+  0015/0019/0020/0021/0022/0023/0024/0025/0038/0041/0042/0043/0044/0045/0046/0048/0049/0050 are
   Complete. Metal 0016–0018, 0026–0027, 0030–0037, planning-only 0039, failed-gate 0040, and
   provider-gated 0047 remain Blocked under their recorded contracts. Every blocked operation family
   remains unauthorized. No Metal task is Ready.
@@ -539,6 +547,13 @@ independent Class C `APPROVE` with zero findings. Its contract records the synch
 barrier, completed-state `RunResult` resource/publication lease, and one system-default Metal device
 context per integration without adding an asynchronous API, physical-device selector, multi-device
 execution, identity change, cross-device behavior, or general pool. No Metal task is Ready.
+
+Metal 0050 is Complete. Its final program verification built the current dylib, applied the fixed
+ad-hoc identifier, packaged and independently verified it, created and permission-preservingly
+extracted the explicit local ZIP, reverified the extracted package, and used that absolute dylib for
+the sole final full repository build. The build passed with 87/87 actionable tasks; all 130 Metal-
+backend and 15 explicit Metal integration tests had zero failures, errors, or skips. No benchmark,
+second full build, implementation change, authenticated release, or new Ready frontier was added.
 
 Metal 0040 is Blocked from exact clean planning revision
 `c300582727ec568a7482dd974f9d1b2e2e13f82c`. Its sole disposable direct BFLOAT16 Gather program
@@ -627,7 +642,8 @@ Metal 0043 is Complete at remediation `77e6091b`; Metal 0044 is Complete; Metal 
 same-reviewer-approved remediation `26c6c911`; Metal 0046 is Complete at independently approved
 implementation `4aad1ab6`; Metal 0047 is Blocked; Metal 0048 is Complete at independently approved
 implementation `89f9fbb9`; documentation-only Metal 0049 is Complete after final-approved
-remediation `6d4246f7`, and no Metal task is Ready.
+remediation `6d4246f7`; evidence-only Metal 0050 final verification is Complete, and no Metal task
+is Ready.
 
 ## History policy
 
