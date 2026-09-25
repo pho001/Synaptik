@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through reviewed 0025; 0006–0007, 0009–0013, 0016–0018, 0026–0027, and 0030–0036 Blocked | Metal 0036 records the no-probe extended-3D inference blocker while preserving all earlier evidence. No Metal task is Ready. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through reviewed 0025; 0006–0007, 0009–0013, 0016–0018, 0026–0027, and 0030–0037 Blocked | Metal 0037 records the no-probe profile-common recurrent-forward blocker while preserving all earlier evidence. No Metal task is Ready. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -99,7 +99,9 @@ cannot implement Model's exact INT64[2] initialization/transition or mandatory t
 dropout, and current Metal lacks zero-input, multi-output, and INT64 representation. Metal 0036 is
 Blocked without a probe: direct Conv3d structurally maps NCDHW/OIDHW but inherits 0031's opaque
 shape-dependent contraction, while Pooling4D/stencil do not establish exact unrelaxed Pool3d
-mapping and semantics. None changed production; no Metal task is Ready.
+mapping and semantics. Metal 0037 is Blocked without a probe: direct RNN lacks runtime INT64 valid
+lengths, atomic validation, skipped padded work, and `finalHidden`; multiple recurrent numeric gaps
+remain unrelaxed. None changed production; no Metal task is Ready.
 
 Task 0019 landed at implementation `a6d1796d` plus mixed-owner test remediation `bcb717a6`. Its
 native ABI/export, Metal, conformance, real Engine, architecture, full-build, documentation, and
@@ -115,7 +117,7 @@ The active semantic and Metal serial DAG is:
 
 `Model 0028 (Complete) -> Metal 0020 (Complete) -> Metal 0018 (Blocked)`
 
-`Metal 0018 blocker evidence -> Model 0029 (Complete) -> Metal 0021 (Complete) -> Metal 0022 (Complete) -> Metal 0023 (Complete) -> Metal 0024 (Complete) -> Metal 0025 (Complete) -> {Metal 0026 (Blocked), Metal 0027 (Blocked), Metal 0030 (Blocked), Metal 0031 (Blocked), Metal 0032 (Blocked), Metal 0033 (Blocked), Metal 0034 (Blocked), Metal 0035 (Blocked), Metal 0036 (Blocked)}`
+`Metal 0018 blocker evidence -> Model 0029 (Complete) -> Metal 0021 (Complete) -> Metal 0022 (Complete) -> Metal 0023 (Complete) -> Metal 0024 (Complete) -> Metal 0025 (Complete) -> {Metal 0026 (Blocked), Metal 0027 (Blocked), Metal 0030 (Blocked), Metal 0031 (Blocked), Metal 0032 (Blocked), Metal 0033 (Blocked), Metal 0034 (Blocked), Metal 0035 (Blocked), Metal 0036 (Blocked), Metal 0037 (Blocked)}`
 
 [Metal 0016](backends/metal/tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) is Blocked
 without production changes. Its Apple M3 Max gate proved exact `ABS`, but `EXP` and `SIGMOID`
@@ -158,8 +160,9 @@ Class C review returned `APPROVE` with zero findings. Metal 0022 completed at `4
 implementation `44edd86092509348e1e72cf7f0f4c3b13d141fa8`, first remediation
 `d0a947fa953bddb2714c1917c7114ac345c530b7`, and final remediation/reviewed revision
 `f88066e3ad0547987bb03b2d18ed2813f97de223`; final approval had zero findings. Metal 0026,
-Metal 0027, Metal 0030, Metal 0031, Metal 0032, Metal 0033, Metal 0034, Metal 0035, and Metal 0036
-are Blocked without production changes; 0031–0036 ran no probe and no Metal task is Ready.
+Metal 0027, Metal 0030, Metal 0031, Metal 0032, Metal 0033, Metal 0034, Metal 0035, Metal 0036, and
+Metal 0037 are Blocked without production changes; 0031–0037 ran no probe and no Metal task is
+Ready.
 
 Engine
 [0017](modules/engine/tasks/0017-reusable-inference-session-api.md) is Complete from exact base
@@ -230,6 +233,13 @@ shape-dependent contraction. Pooling4D/stencil do not authorize exact MAX/AVERAG
 and semantics, while 0030 forbids generic max-pool assumptions. UNFOLD3D/FOLD3D remain separate
 custom movement/overlap work; conditional schema is unimplemented and unreserved.
 
+Blocked [0037](backends/metal/tasks/0037-profile-common-canonical-float32-no-grad-forward-rnn-tanh.md)
+also ran no probe. Its smallest candidate is profile-common canonical positive static FLOAT32
+no-grad bias-free FORWARD RNN_TANH over every runtime valid length. Direct RNN has no valid-length
+input, atomic validation, skipped padded work, positive-zero padding contract, or final-hidden
+output. Its independent contraction/add/tanh/state-order gaps are unrelaxed. Exact custom recurrent
+execution requires complete five-input/two-output/caller-INT64 schema and lifecycle.
+
 [0006](backends/metal/tasks/0006-mpsgraph-float32-unary-algebra.md) remains `Blocked` by exact
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH probe failures. [0007](backends/metal/tasks/0007-mpsgraph-float32-reductions.md)
 remains independently `Blocked` because repeated direct-output probes returned positive zero where
@@ -290,9 +300,10 @@ operand only on its consuming edge; general affine publication and valid local c
 available. Version-twelve identities separate profile/type/topology compatibility, scalar
 reduction and BOOL materialization remain local-only, FLOAT32-only transfer is unchanged, and
 Runtime/Trace remain profile-free. Metal 0025 is Complete at final reviewed revision `f88066e3`.
-Metal 0026–0027/0030–0036 are Blocked and changed no executable capability; 0031–0036 ran no
-device probe. Schema 12/wires beginning at 20/attribute 7, local INT64, ABI/export, and version-
-thirteen identities remain conditional, unimplemented, and unreserved; no Metal task is Ready.
+Metal 0026–0027/0030–0037 are Blocked and changed no executable capability; 0031–0037 ran no
+device probe. Schema 12/wires beginning at 20/attribute 7, INT64 type/ingress, ABI/export, and
+version-thirteen identities remain conditional, unimplemented, and unreserved; no Metal task is
+Ready.
 
 Strategic gate: historical blocker evidence is preserved, and no backend task may define Model
 semantics. Complete Model 0028 owns bounded reduction exact-zero sign freedom; Complete Metal 0020
@@ -329,8 +340,11 @@ represent exact Model INT64[2] state, and current Metal lacks zero-input/multi-o
 support. It requires an exact custom kernel plus the complete schema/lifecycle; `p=0` narrowing is
 prohibited. Metal 0036 is Blocked before a probe because direct Conv3d inherits the undocumented
 shape-dependent contraction boundary, while neither Pooling4D nor stencil establishes the
-unrelaxed exact Pool3d contract. No task may infer generic fast math, transfer row relaxations,
-replace a prohibited matrix with narrowing, or reserve conditional schema.
+unrelaxed exact Pool3d contract. Metal 0037 is Blocked before a probe because direct RNN lacks
+runtime INT64 lengths, atomic validation, skipped padding semantics, and `finalHidden`, while
+contraction/add/tanh/state ordering has multiple unrelaxed gaps. No task may infer generic fast
+math, transfer row relaxations, replace a prohibited matrix with narrowing, or reserve conditional
+schema.
 
 ## Blocked, review-needed, and deferred work
 
@@ -387,7 +401,7 @@ replace a prohibited matrix with narrowing, or reserve conditional schema.
   comparison still requires a separately reviewed, fully sealed matrix before measurement.
 - Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
   0017, and Metal 0015/0019/0020/0021/0022/0023/0024/0025 are Complete. Metal 0016–0018,
-  0026–0027, and 0030–0036 remain Blocked under their recorded contracts. No Metal task is Ready;
+  0026–0027, and 0030–0037 remain Blocked under their recorded contracts. No Metal task is Ready;
   every unfinished or blocked family remains unauthorized.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
@@ -460,8 +474,17 @@ max winner, fixed-divisor average, exceptional-value, or zero-sign contract. Tas
 and NaN failures forbid generic MPSGraph max assumptions. UNFOLD3D/FOLD3D require separate custom
 movement/overlap planning. Unblocking requires an exact custom route, authoritative complete
 operation-scoped documentation, or preceding Model/architecture broadening.
+Metal 0037 is now Blocked without a device probe. Its smallest candidate is profile-common
+canonical positive static FLOAT32 no-grad bias-free FORWARD RNN_TANH over the complete runtime
+valid-length domain. The macOS-12.3 direct selector structurally maps source, weights, and initial
+state, but it has no INT64 valid-length input, atomic validation, skipped padded work,
+positive-zero padding contract, or `finalHidden`; its optional training output has the wrong role.
+Recurrent scans are unrelaxed, and the header leaves independent contraction, add, tanh, and
+per-step state-order gaps. GRU and LSTM have the same length/final-state mismatch plus their own
+output-role/order gaps. Unblocking requires an exact custom recurrent kernel and complete
+five-input/two-output/caller-INT64 schema, native lifecycle, and proof.
 
-Schema 12/wires beginning at 20/attribute 7, local INT64, ABI/export, and identity 13 remain
+Schema 12/wires beginning at 20/attribute 7, INT64 type/ingress, ABI/export, and identity 13 remain
 conditional, unimplemented, and unreserved. Metal 0026/0027 remain separately finalized Blocked,
 and no Metal task is Ready.
 
