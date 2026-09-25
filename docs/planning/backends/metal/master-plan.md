@@ -623,12 +623,14 @@ under Model 0030's exact/discrete and recursive aggregate floors. Its Gate 1 aud
 opaque direct candidate API-present but `DOMAIN-BLOCKED`; auditable custom predicates, extrema,
 CLAMP, reductions, and ordered scans all proved `DOMAIN-PASS`. The exact custom source, validator,
 audit, wrapper, and proof were recovered byte-for-byte and their recorded hashes revalidated.
-Exactly one 98-output Apple M3 Max process invocation passed all 16 custom candidates; it is not
-rerun. ADR 0022 now admits exact source-bound dispatch and route-owned temporary-byte declarations
-for these closed custom routes only. One Apple M3 Max Gate-3 group measures every survivor, fused
-and composed CLAMP compete under the common lexicographic rule, and each winner is fixed before the
-atomic schema/identity/capability/native/preparation/execution cutover. Opaque routes receive no
-inferred cost facts.
+Exactly one 98-output Apple M3 Max numerical invocation passed all 16 custom candidates; it is not
+rerun. Under ADR 0022, the custom-only Gate-3 process then passed on the same M3 Max with four
+alternating warmup and eight retained rounds and all 128 raw samples retained. Every one-dispatch
+route declared zero route-owned temporary bytes. Fused custom CLAMP (`292241.523 ns`, one dispatch,
+zero bytes) beat composed custom CLAMP (`377525.038 ns`, two dispatches, `4194304` bytes) on the
+first lexicographic key and is fixed for production. Every other sole survivor is also fixed.
+Opaque routes remain domain-blocked and received no inferred facts. The atomic production cutover
+is in progress.
 
 [0054](tasks/0054-current-accelerator-115-kind-completeness-audit.md) completes the read-only
 post-0053 completeness audit. Current source has 40 `OperationKind` enums and exactly 115 constants:

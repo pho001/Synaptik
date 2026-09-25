@@ -1,0 +1,161 @@
+EXECUTABLE_SHA256=befe573660ef30395d5c0c667689c0bb4978de99bbdb14fe1e3b4937599e39d5
+KERNEL_SHA256=ff15f63c9d2e54d62fa2157e1c424cc00acb90d5355101b18a07175e789a40c0
+PROCESS_EXIT=0
+STDERR_SHA256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+TASK=0052_GATE3
+PROTOCOL=custom-only-v1
+DEVICE=Apple M3 Max
+CANDIDATE_COUNT=16
+WARMUP_ROUNDS=4
+RETAINED_ROUNDS=8
+BATCH_FLOOR_NS=25000000
+BATCH_LIMIT=1000000
+FAST_MATH=0
+VALIDATION=PASS
+INPUTS_PRESERVED=PASS
+SAMPLE candidate=custom_cmp_gt round=0 order=0 duration_ns=25164958 iterations=89 normalized_ns=282752.337
+SAMPLE candidate=custom_cmp_ge round=0 order=1 duration_ns=26483416 iterations=91 normalized_ns=291026.549
+SAMPLE candidate=custom_cmp_lt round=0 order=2 duration_ns=25214541 iterations=96 normalized_ns=262651.469
+SAMPLE candidate=custom_cmp_le round=0 order=3 duration_ns=25505458 iterations=83 normalized_ns=307294.675
+SAMPLE candidate=custom_cmp_eq round=0 order=4 duration_ns=25041042 iterations=94 normalized_ns=266394.064
+SAMPLE candidate=custom_cmp_ne round=0 order=5 duration_ns=25116292 iterations=83 normalized_ns=302605.928
+SAMPLE candidate=custom_tensor_min round=0 order=6 duration_ns=25029375 iterations=86 normalized_ns=291039.244
+SAMPLE candidate=custom_tensor_max round=0 order=7 duration_ns=25164250 iterations=95 normalized_ns=264886.842
+SAMPLE candidate=custom_scalar_min round=0 order=8 duration_ns=25134541 iterations=81 normalized_ns=310302.975
+SAMPLE candidate=custom_scalar_max round=0 order=9 duration_ns=25224208 iterations=85 normalized_ns=296755.388
+SAMPLE candidate=custom_clamp_fused round=0 order=10 duration_ns=25091958 iterations=87 normalized_ns=288413.310
+SAMPLE candidate=composed_custom_clamp round=0 order=11 duration_ns=25136875 iterations=67 normalized_ns=375177.239
+SAMPLE candidate=custom_reduction_min round=0 order=12 duration_ns=33713375 iterations=3 normalized_ns=11237791.667
+SAMPLE candidate=custom_reduction_max round=0 order=13 duration_ns=33740708 iterations=3 normalized_ns=11246902.667
+SAMPLE candidate=custom_scan_sum round=0 order=14 duration_ns=25188458 iterations=68 normalized_ns=370418.500
+SAMPLE candidate=custom_scan_prod round=0 order=15 duration_ns=25133333 iterations=68 normalized_ns=369607.838
+SAMPLE candidate=custom_scan_prod round=1 order=0 duration_ns=25027208 iterations=69 normalized_ns=362713.159
+SAMPLE candidate=custom_scan_sum round=1 order=1 duration_ns=25311833 iterations=69 normalized_ns=366838.159
+SAMPLE candidate=custom_reduction_max round=1 order=2 duration_ns=33012875 iterations=3 normalized_ns=11004291.667
+SAMPLE candidate=custom_reduction_min round=1 order=3 duration_ns=33564791 iterations=3 normalized_ns=11188263.667
+SAMPLE candidate=composed_custom_clamp round=1 order=4 duration_ns=25001667 iterations=66 normalized_ns=378813.136
+SAMPLE candidate=custom_clamp_fused round=1 order=5 duration_ns=25040250 iterations=84 normalized_ns=298098.214
+SAMPLE candidate=custom_scalar_max round=1 order=6 duration_ns=25092416 iterations=87 normalized_ns=288418.575
+SAMPLE candidate=custom_scalar_min round=1 order=7 duration_ns=25160416 iterations=87 normalized_ns=289200.184
+SAMPLE candidate=custom_tensor_max round=1 order=8 duration_ns=25118917 iterations=86 normalized_ns=292080.430
+SAMPLE candidate=custom_tensor_min round=1 order=9 duration_ns=25181333 iterations=89 normalized_ns=282936.326
+SAMPLE candidate=custom_cmp_ne round=1 order=10 duration_ns=25127750 iterations=89 normalized_ns=282334.270
+SAMPLE candidate=custom_cmp_eq round=1 order=11 duration_ns=25164791 iterations=88 normalized_ns=285963.534
+SAMPLE candidate=custom_cmp_le round=1 order=12 duration_ns=25019125 iterations=88 normalized_ns=284308.239
+SAMPLE candidate=custom_cmp_lt round=1 order=13 duration_ns=25032083 iterations=88 normalized_ns=284455.489
+SAMPLE candidate=custom_cmp_ge round=1 order=14 duration_ns=25183084 iterations=88 normalized_ns=286171.409
+SAMPLE candidate=custom_cmp_gt round=1 order=15 duration_ns=25038667 iterations=86 normalized_ns=291147.291
+SAMPLE candidate=custom_cmp_gt round=2 order=0 duration_ns=25232000 iterations=89 normalized_ns=283505.618
+SAMPLE candidate=custom_cmp_ge round=2 order=1 duration_ns=25003958 iterations=88 normalized_ns=284135.886
+SAMPLE candidate=custom_cmp_lt round=2 order=2 duration_ns=25282958 iterations=89 normalized_ns=284078.180
+SAMPLE candidate=custom_cmp_le round=2 order=3 duration_ns=25016292 iterations=88 normalized_ns=284276.045
+SAMPLE candidate=custom_cmp_eq round=2 order=4 duration_ns=25220834 iterations=86 normalized_ns=293265.512
+SAMPLE candidate=custom_cmp_ne round=2 order=5 duration_ns=25126333 iterations=89 normalized_ns=282318.348
+SAMPLE candidate=custom_tensor_min round=2 order=6 duration_ns=25120917 iterations=86 normalized_ns=292103.686
+SAMPLE candidate=custom_tensor_max round=2 order=7 duration_ns=25145666 iterations=86 normalized_ns=292391.465
+SAMPLE candidate=custom_scalar_min round=2 order=8 duration_ns=25109458 iterations=85 normalized_ns=295405.388
+SAMPLE candidate=custom_scalar_max round=2 order=9 duration_ns=25175417 iterations=86 normalized_ns=292737.407
+SAMPLE candidate=custom_clamp_fused round=2 order=10 duration_ns=25155834 iterations=85 normalized_ns=295950.988
+SAMPLE candidate=composed_custom_clamp round=2 order=11 duration_ns=25067250 iterations=66 normalized_ns=379806.818
+SAMPLE candidate=custom_reduction_min round=2 order=12 duration_ns=34045792 iterations=3 normalized_ns=11348597.333
+SAMPLE candidate=custom_reduction_max round=2 order=13 duration_ns=33082208 iterations=3 normalized_ns=11027402.667
+SAMPLE candidate=custom_scan_sum round=2 order=14 duration_ns=25229375 iterations=69 normalized_ns=365643.116
+SAMPLE candidate=custom_scan_prod round=2 order=15 duration_ns=25007083 iterations=68 normalized_ns=367751.221
+SAMPLE candidate=custom_scan_prod round=3 order=0 duration_ns=25016792 iterations=70 normalized_ns=357382.743
+SAMPLE candidate=custom_scan_sum round=3 order=1 duration_ns=25279708 iterations=69 normalized_ns=366372.580
+SAMPLE candidate=custom_reduction_max round=3 order=2 duration_ns=33086584 iterations=3 normalized_ns=11028861.333
+SAMPLE candidate=custom_reduction_min round=3 order=3 duration_ns=33265917 iterations=3 normalized_ns=11088639.000
+SAMPLE candidate=composed_custom_clamp round=3 order=4 duration_ns=25269500 iterations=68 normalized_ns=371610.294
+SAMPLE candidate=custom_clamp_fused round=3 order=5 duration_ns=25108083 iterations=83 normalized_ns=302507.024
+SAMPLE candidate=custom_scalar_max round=3 order=6 duration_ns=25177458 iterations=84 normalized_ns=299731.643
+SAMPLE candidate=custom_scalar_min round=3 order=7 duration_ns=25131959 iterations=88 normalized_ns=285590.443
+SAMPLE candidate=custom_tensor_max round=3 order=8 duration_ns=26276625 iterations=83 normalized_ns=316585.843
+SAMPLE candidate=custom_tensor_min round=3 order=9 duration_ns=25037375 iterations=85 normalized_ns=294557.353
+SAMPLE candidate=custom_cmp_ne round=3 order=10 duration_ns=25030542 iterations=88 normalized_ns=284437.977
+SAMPLE candidate=custom_cmp_eq round=3 order=11 duration_ns=25183875 iterations=87 normalized_ns=289469.828
+SAMPLE candidate=custom_cmp_le round=3 order=12 duration_ns=25205708 iterations=89 normalized_ns=283210.202
+SAMPLE candidate=custom_cmp_lt round=3 order=13 duration_ns=25190250 iterations=89 normalized_ns=283036.517
+SAMPLE candidate=custom_cmp_ge round=3 order=14 duration_ns=25075625 iterations=91 normalized_ns=275556.319
+SAMPLE candidate=custom_cmp_gt round=3 order=15 duration_ns=25118333 iterations=87 normalized_ns=288716.471
+SAMPLE candidate=custom_cmp_gt round=4 order=0 duration_ns=25029917 iterations=89 normalized_ns=281235.022
+SAMPLE candidate=custom_cmp_ge round=4 order=1 duration_ns=25136333 iterations=87 normalized_ns=288923.368
+SAMPLE candidate=custom_cmp_lt round=4 order=2 duration_ns=25210542 iterations=88 normalized_ns=286483.432
+SAMPLE candidate=custom_cmp_le round=4 order=3 duration_ns=25135667 iterations=88 normalized_ns=285632.580
+SAMPLE candidate=custom_cmp_eq round=4 order=4 duration_ns=25028459 iterations=89 normalized_ns=281218.640
+SAMPLE candidate=custom_cmp_ne round=4 order=5 duration_ns=25208958 iterations=89 normalized_ns=283246.719
+SAMPLE candidate=custom_tensor_min round=4 order=6 duration_ns=25116041 iterations=92 normalized_ns=273000.446
+SAMPLE candidate=custom_tensor_max round=4 order=7 duration_ns=25205042 iterations=85 normalized_ns=296529.906
+SAMPLE candidate=custom_scalar_min round=4 order=8 duration_ns=25214750 iterations=87 normalized_ns=289824.713
+SAMPLE candidate=custom_scalar_max round=4 order=9 duration_ns=25163042 iterations=88 normalized_ns=285943.659
+SAMPLE candidate=custom_clamp_fused round=4 order=10 duration_ns=25127667 iterations=87 normalized_ns=288823.759
+SAMPLE candidate=composed_custom_clamp round=4 order=11 duration_ns=25070000 iterations=66 normalized_ns=379848.485
+SAMPLE candidate=custom_reduction_min round=4 order=12 duration_ns=33745458 iterations=3 normalized_ns=11248486.000
+SAMPLE candidate=custom_reduction_max round=4 order=13 duration_ns=33036667 iterations=3 normalized_ns=11012222.333
+SAMPLE candidate=custom_scan_sum round=4 order=14 duration_ns=25099334 iterations=69 normalized_ns=363758.464
+SAMPLE candidate=custom_scan_prod round=4 order=15 duration_ns=25091333 iterations=67 normalized_ns=374497.507
+SAMPLE candidate=custom_scan_prod round=5 order=0 duration_ns=25103375 iterations=71 normalized_ns=353568.662
+SAMPLE candidate=custom_scan_sum round=5 order=1 duration_ns=25125792 iterations=69 normalized_ns=364141.913
+SAMPLE candidate=custom_reduction_max round=5 order=2 duration_ns=33058041 iterations=3 normalized_ns=11019347.000
+SAMPLE candidate=custom_reduction_min round=5 order=3 duration_ns=33252500 iterations=3 normalized_ns=11084166.667
+SAMPLE candidate=composed_custom_clamp round=5 order=4 duration_ns=25091208 iterations=68 normalized_ns=368988.353
+SAMPLE candidate=custom_clamp_fused round=5 order=5 duration_ns=25051042 iterations=86 normalized_ns=291291.186
+SAMPLE candidate=custom_scalar_max round=5 order=6 duration_ns=25108375 iterations=87 normalized_ns=288602.011
+SAMPLE candidate=custom_scalar_min round=5 order=7 duration_ns=25013917 iterations=87 normalized_ns=287516.287
+SAMPLE candidate=custom_tensor_max round=5 order=8 duration_ns=25049291 iterations=86 normalized_ns=291270.826
+SAMPLE candidate=custom_tensor_min round=5 order=9 duration_ns=25150666 iterations=88 normalized_ns=285803.023
+SAMPLE candidate=custom_cmp_ne round=5 order=10 duration_ns=25219125 iterations=87 normalized_ns=289875.000
+SAMPLE candidate=custom_cmp_eq round=5 order=11 duration_ns=25124625 iterations=88 normalized_ns=285507.102
+SAMPLE candidate=custom_cmp_le round=5 order=12 duration_ns=25117792 iterations=88 normalized_ns=285429.455
+SAMPLE candidate=custom_cmp_lt round=5 order=13 duration_ns=25223083 iterations=91 normalized_ns=277176.736
+SAMPLE candidate=custom_cmp_ge round=5 order=14 duration_ns=25147875 iterations=89 normalized_ns=282560.393
+SAMPLE candidate=custom_cmp_gt round=5 order=15 duration_ns=25181625 iterations=87 normalized_ns=289443.966
+SAMPLE candidate=custom_cmp_gt round=6 order=0 duration_ns=25069750 iterations=89 normalized_ns=281682.584
+SAMPLE candidate=custom_cmp_ge round=6 order=1 duration_ns=25199708 iterations=86 normalized_ns=293019.860
+SAMPLE candidate=custom_cmp_lt round=6 order=2 duration_ns=25135500 iterations=87 normalized_ns=288913.793
+SAMPLE candidate=custom_cmp_le round=6 order=3 duration_ns=25097334 iterations=86 normalized_ns=291829.465
+SAMPLE candidate=custom_cmp_eq round=6 order=4 duration_ns=25211375 iterations=91 normalized_ns=277048.077
+SAMPLE candidate=custom_cmp_ne round=6 order=5 duration_ns=25142292 iterations=90 normalized_ns=279358.800
+SAMPLE candidate=custom_tensor_min round=6 order=6 duration_ns=25214916 iterations=89 normalized_ns=283313.663
+SAMPLE candidate=custom_tensor_max round=6 order=7 duration_ns=25026834 iterations=87 normalized_ns=287664.759
+SAMPLE candidate=custom_scalar_min round=6 order=8 duration_ns=25021208 iterations=86 normalized_ns=290944.279
+SAMPLE candidate=custom_scalar_max round=6 order=9 duration_ns=25091417 iterations=88 normalized_ns=285129.739
+SAMPLE candidate=custom_clamp_fused round=6 order=10 duration_ns=25030375 iterations=87 normalized_ns=287705.460
+SAMPLE candidate=composed_custom_clamp round=6 order=11 duration_ns=25207875 iterations=67 normalized_ns=376236.940
+SAMPLE candidate=custom_reduction_min round=6 order=12 duration_ns=33387334 iterations=3 normalized_ns=11129111.333
+SAMPLE candidate=custom_reduction_max round=6 order=13 duration_ns=33136875 iterations=3 normalized_ns=11045625.000
+SAMPLE candidate=custom_scan_sum round=6 order=14 duration_ns=25194916 iterations=67 normalized_ns=376043.522
+SAMPLE candidate=custom_scan_prod round=6 order=15 duration_ns=25017625 iterations=67 normalized_ns=373397.388
+SAMPLE candidate=custom_scan_prod round=7 order=0 duration_ns=25117792 iterations=68 normalized_ns=369379.294
+SAMPLE candidate=custom_scan_sum round=7 order=1 duration_ns=25106125 iterations=69 normalized_ns=363856.884
+SAMPLE candidate=custom_reduction_max round=7 order=2 duration_ns=33277500 iterations=3 normalized_ns=11092500.000
+SAMPLE candidate=custom_reduction_min round=7 order=3 duration_ns=33284875 iterations=3 normalized_ns=11094958.333
+SAMPLE candidate=composed_custom_clamp round=7 order=4 duration_ns=25109583 iterations=66 normalized_ns=380448.227
+SAMPLE candidate=custom_clamp_fused round=7 order=5 duration_ns=25214500 iterations=86 normalized_ns=293191.860
+SAMPLE candidate=custom_scalar_max round=7 order=6 duration_ns=25035791 iterations=88 normalized_ns=284497.625
+SAMPLE candidate=custom_scalar_min round=7 order=7 duration_ns=25126958 iterations=90 normalized_ns=279188.422
+SAMPLE candidate=custom_tensor_max round=7 order=8 duration_ns=25050209 iterations=85 normalized_ns=294708.341
+SAMPLE candidate=custom_tensor_min round=7 order=9 duration_ns=25029791 iterations=84 normalized_ns=297973.702
+SAMPLE candidate=custom_cmp_ne round=7 order=10 duration_ns=25092166 iterations=87 normalized_ns=288415.701
+SAMPLE candidate=custom_cmp_eq round=7 order=11 duration_ns=25094083 iterations=86 normalized_ns=291791.663
+SAMPLE candidate=custom_cmp_le round=7 order=12 duration_ns=25213000 iterations=89 normalized_ns=283292.135
+SAMPLE candidate=custom_cmp_lt round=7 order=13 duration_ns=25025334 iterations=88 normalized_ns=284378.795
+SAMPLE candidate=custom_cmp_ge round=7 order=14 duration_ns=25021000 iterations=89 normalized_ns=281134.831
+SAMPLE candidate=custom_cmp_gt round=7 order=15 duration_ns=25249000 iterations=88 normalized_ns=286920.455
+CANDIDATE=custom_cmp_gt operation=CMP_GT median_ns=285213.036 dispatches=1 route_temp_bytes=0 validation=PASS source_owned=PASS
+CANDIDATE=custom_cmp_ge operation=CMP_GE median_ns=285153.648 dispatches=1 route_temp_bytes=0 validation=PASS source_owned=PASS
+CANDIDATE=custom_cmp_lt operation=CMP_LT median_ns=284228.488 dispatches=1 route_temp_bytes=0 validation=PASS source_owned=PASS
+CANDIDATE=custom_cmp_le operation=CMP_LE median_ns=284868.847 dispatches=1 route_temp_bytes=0 validation=PASS source_owned=PASS
+CANDIDATE=custom_cmp_eq operation=CMP_EQ median_ns=285735.318 dispatches=1 route_temp_bytes=0 validation=PASS source_owned=PASS
+CANDIDATE=custom_cmp_ne operation=CMP_NE median_ns=283842.348 dispatches=1 route_temp_bytes=0 validation=PASS source_owned=PASS
+CANDIDATE=custom_tensor_min operation=TENSOR_MIN median_ns=288421.133 dispatches=1 route_temp_bytes=0 validation=PASS source_owned=PASS
+CANDIDATE=custom_tensor_max operation=TENSOR_MAX median_ns=292235.948 dispatches=1 route_temp_bytes=0 validation=PASS source_owned=PASS
+CANDIDATE=custom_scalar_min operation=SCALAR_MIN median_ns=289512.448 dispatches=1 route_temp_bytes=0 validation=PASS source_owned=PASS
+CANDIDATE=custom_scalar_max operation=SCALAR_MAX median_ns=288510.293 dispatches=1 route_temp_bytes=0 validation=PASS source_owned=PASS
+CANDIDATE=custom_clamp_fused operation=CLAMP median_ns=292241.523 dispatches=1 route_temp_bytes=0 validation=PASS source_owned=PASS
+CANDIDATE=composed_custom_clamp operation=CLAMP median_ns=377525.038 dispatches=2 route_temp_bytes=4194304 validation=PASS source_owned=PASS
+CANDIDATE=custom_reduction_min operation=REDUCTION_MIN median_ns=11158687.500 dispatches=1 route_temp_bytes=0 validation=PASS source_owned=PASS
+CANDIDATE=custom_reduction_max operation=REDUCTION_MAX median_ns=11028132.000 dispatches=1 route_temp_bytes=0 validation=PASS source_owned=PASS
+CANDIDATE=custom_scan_sum operation=CUM_SUM median_ns=366007.848 dispatches=1 route_temp_bytes=0 validation=PASS source_owned=PASS
+CANDIDATE=custom_scan_prod operation=CUM_PROD median_ns=368565.257 dispatches=1 route_temp_bytes=0 validation=PASS source_owned=PASS
+CLAMP_WINNER=custom_clamp_fused
+GATE3_VERDICT=PASS

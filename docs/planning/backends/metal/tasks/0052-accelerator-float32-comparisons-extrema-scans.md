@@ -518,21 +518,21 @@ retained evidence hashes, raw Gate-3 evidence identity, disposable-artifact abse
 
 ## Documentation and review impact
 
-This commit updates this task, the Metal master frontier, the roadmap frontier, and the
-non-production Task-0052 review evidence. It changes no capability, schema/identity, route, gradient
-behavior, public Engine behavior, native guide, or package Javadoc. A future
-instrumentation-enabled implementation must synchronize those surfaces while preserving every
-historical blocked record. Independent Class C review must inspect every surviving custom
-candidate's structural/domain/numerical/cost evidence, retained indexing and numerical invariants,
+The authorization and evidence commits update architecture, this task, the Metal master frontier,
+the roadmap frontier, and permanent Task-0052 Gate-3 evidence. They do not yet change production
+capability, schema/identity, public Engine behavior, native guide, or package Javadoc. The
+production commits must synchronize those surfaces while preserving every historical blocked
+record. Independent Class C review must inspect every surviving custom candidate's
+structural/domain/numerical/cost evidence, retained indexing and numerical invariants,
 ordered-prefix/abstract-NaN oracle, fixed routes, false exclusions, stale-data rejection,
 lifecycle, real no-skip Engine proof, and disposable-artifact boundaries.
 
 ## Result
 
-Blocked before Gate-3 timing or capability. Gate 1A/API, Gate 1B complete-domain proof, and the sole
-Gate-2 numerical invocation completed from clean execution base
-`bd5c40d3f08487cddec4284ac1588ce276f1c979`. No Java, native production, schema, wire, attribute,
-identity, capability, route, test, ABI, export, package, or generated repository artifact changed.
+Gates 1 through 4 are complete and production implementation is in progress. Gate 1A/API, Gate 1B
+complete-domain proof, and the sole Gate-2 numerical invocation completed from clean execution base
+`bd5c40d3f08487cddec4284ac1588ce276f1c979`. The custom-only Gate-3 process then passed on Apple M3
+Max under ADR 0022 and Gate 4 fixed all 15 production routes, including fused custom CLAMP.
 
 The installed SDK declarations gave API `PASS` to every opaque direct comparison, pointwise/scalar
 extrema, clamp, reduction-extrema, and cumulative SUM/PRODUCT candidate. They do not specify the
@@ -632,13 +632,19 @@ CANDIDATE=custom_scan_prod API=PASS DOMAIN=PASS NUMERICAL=PASS OUTPUT_SHA256=c87
 ORACLE_VERDICT=PASS FAILURES=0
 ```
 
-The required actual-dispatch/peak-transient trace reader remained unavailable. Gate 3 therefore did
-not run: there is no timing sample, capture, inferred backend-call or memory substitute, route
-winner, Gate-4 selection, or capability authorization. After the hashes and verdict above were
-recorded, the disposable compiled executable, raw output, verdict file, bytecode cache, and
-temporary workspace were removed. The exact custom source, host source, validator, audit, wrapper,
-and proof were subsequently recovered from the original execution session, matched all recorded
-hashes, and are permanently retained as non-production review evidence; no oracle rerun occurred.
-All comparison, extrema, and scan capability named here remains false pending supported trace
-instrumentation, complete Gate-3 facts for every surviving custom candidate, Gate 4, production
-implementation, and independent Class C review.
+ADR 0022 later resolved Gate 3 only for the 16 closed custom survivors. The permanent
+[Gate-3 evidence](../evidence/0052-gate3/README.md) retains source audit, the one-run wrapper,
+all 128 raw retained timing samples, exact source-owned dispatch/resource declarations, and
+adjudication. One Apple M3 Max process prepared all survivors, exact-checked the cost workload,
+preserved every input, ran four alternating-order warmup rounds and eight retained rounds to the
+25 ms batch floor, exited zero, and wrote no standard error. It did not rerun the numerical oracle.
+The raw evidence SHA-256 is
+`4ec49dac639f27389bf276886b9f82eac28fbcf85ea0d1bf73ddbda6d3e92f64`.
+
+Every operation had one surviving route except CLAMP. Fused custom CLAMP measured
+`292241.523 ns`, one dispatch, and zero route-owned temporary bytes; composed custom CLAMP measured
+`377525.038 ns`, two dispatches, and `4194304` route-owned temporary bytes. Fused custom won on the
+first lexicographic key and is the sole production CLAMP route. Every other custom survivor is its
+operation's fixed route. Opaque direct and MPSGraph candidates remain `DOMAIN-BLOCKED` and received
+no inferred facts. The disposable Gate-3 executable was removed; production implementation and
+focused proof remain.

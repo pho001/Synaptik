@@ -194,11 +194,13 @@ extrema, and CUM_SUM/CUM_PROD. Gate 1 found every opaque direct candidate API-pr
 `DOMAIN-BLOCKED`, while all 16 auditable custom candidates proved `DOMAIN-PASS`. Its exact custom
 source, validator, audit, wrapper, and proof remain hash-validated permanent evidence. Its sole
 98-output Apple M3 Max numerical invocation passed every custom candidate and is never rerun.
-ADR 0022 permits the exact source-owned dispatch and route-owned temporary-byte declarations for
-these closed custom routes only. Gate 3 measures actual hot runtime on this M3 Max for all 16
-survivors, fused and composed custom CLAMP compete under the common lexicographic rule, and the
-winner for every kind is fixed cold before the atomic schema/identity/native/capability/
-preparation/execution cutover. Opaque MPSGraph candidates receive no inferred internal facts.
+ADR 0022 permitted the exact source-owned dispatch and route-owned temporary-byte declarations for
+these closed custom routes only. The one custom-only Gate-3 process passed on this M3 Max with all
+128 retained samples recorded. Fused custom CLAMP measured `292241.523 ns` versus composed
+`377525.038 ns`, won on runtime, and also had one versus two dispatches and zero versus `4194304`
+temporary bytes. It is fixed for production; every other sole survivor is likewise fixed. The
+atomic schema/identity/native/capability/preparation/execution cutover is in progress. Opaque
+MPSGraph candidates received no inferred internal facts.
 
 [Metal 0054](backends/metal/tasks/0054-current-accelerator-115-kind-completeness-audit.md) is a
 Complete read-only audit from post-0053 base `93b3d379`. Current Model source has 40 operation-kind
@@ -303,11 +305,12 @@ dispatch/peak-transient tooling exists. Only then may its one new oracle precede
 work.
 Metal 0052's independent comparison/extrema/scan custom proofs and sole regression oracle passed,
 and its exact source/proof/audit package is permanently reviewable with every recorded hash
-revalidated. Its opaque routes remain domain-blocked. ADR 0022 resolves Gate 3 only for the closed
-custom survivors, whose actual M3 Max runtime and exact source-owned dispatch/resource facts now
-determine fixed cold routes before production. Recovery consumed no new oracle; the bounded corpus
-cannot substitute for complete-domain proof. Gross class/sign-failing 0006 selectors remain
-unusable.
+revalidated. Its opaque routes remain domain-blocked. The ADR-0022 custom-only Apple M3 Max Gate 3
+passed with all 128 raw samples retained and no numerical rerun. Fused CLAMP won over composed
+CLAMP on runtime (`292241.523 ns` versus `377525.038 ns`) and also had fewer dispatches and no
+route-owned temporary buffer. Every other sole survivor is fixed. Production cutover is now in
+progress; the bounded corpus remains regression evidence, not complete-domain proof. Gross
+class/sign-failing 0006 selectors remain unusable.
 
 [Metal 0017](backends/metal/tasks/0017-accelerator-float32-sum-mean-sum-to-shape-reductions.md)
 remains Blocked under its unchanged old contract. After probe-only dangling autorelease-string and
