@@ -1889,7 +1889,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     var composed = engine.compile(List.of(
                             explicitSource.permute(1, 0).matmul(explicitRight),
                             nestedLeft.matmul(nestedRight).floor(),
-                            batchedLinearLeft.linear(linearWeight, linearBias)));
+                            batchedLinearLeft.linear(linearWeight, linearBias),
+                            batchedLinearLeft.linear(linearWeight)));
                     assertEquals(
                             List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(composed));
@@ -1908,6 +1909,10 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                                 result, 2,
                                 14, 25, 20, 31,
                                 26, 37, 32, 43);
+                        assertPublication(
+                                result, 3,
+                                4, 5, 10, 11,
+                                16, 17, 22, 23);
                     }
 
                     Tensor vectorMatrix = vectorMatrixLeft.matmul(vectorMatrixRight);

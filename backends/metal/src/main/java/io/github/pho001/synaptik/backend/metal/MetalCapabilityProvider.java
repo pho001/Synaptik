@@ -1184,11 +1184,16 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         boolean gradientsValid = binary == BinaryArithmeticKind.MIN
                         || binary == BinaryArithmeticKind.MAX
                 ? !left.requiresGrad() && !right.requiresGrad() && !output.requiresGrad()
-                : left.requiresGrad() == right.requiresGrad()
-                        && left.requiresGrad() == output.requiresGrad();
-        return canonical(left)
-                && canonical(right)
-                && canonical(output)
+                : output.requiresGrad() == (left.requiresGrad() || right.requiresGrad());
+        boolean scalarVectorMultiply = binary == BinaryArithmeticKind.MUL
+                && ((left.shape().rank() == 0 && right.shape().rank() > 0)
+                        || (right.shape().rank() == 0 && left.shape().rank() > 0));
+        boolean storageValid = scalarVectorMultiply
+                ? canonicalReductionOutput(left)
+                        && canonicalReductionOutput(right)
+                        && canonical(output)
+                : canonical(left) && canonical(right) && canonical(output);
+        return storageValid
                 && gradientsValid
                 && ShapeBroadcast.broadcast(left.shape(), right.shape()).equals(output.shape());
     }
@@ -1492,10 +1497,8 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                         || carrierType == DataType.BFLOAT16
                         || carrierType == DataType.INT32
                         || carrierType == DataType.INT64);
-        boolean scalarExpandDims = operation.kind() == AxisTransformKind.EXPAND_DIMS
-                && input.shape().rank() == 0;
         if ((!carrierPermute && carrierType != DataType.FLOAT32)
-                || !affineInput(input, carrierType, scalarExpandDims)
+                || !affineInput(input, carrierType)
                 || !geometry(output, carrierType, false)
                 || input.requiresGrad() != output.requiresGrad()) {
             return false;
@@ -1622,9 +1625,8 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         return output.layout().orElseThrow().equals(expected);
     }
 
-    private static boolean affineInput(
-            TensorDescriptor descriptor, DataType dataType, boolean allowScalar) {
-        if (!geometry(descriptor, dataType, allowScalar)) {
+    private static boolean affineInput(TensorDescriptor descriptor, DataType dataType) {
+        if (!geometry(descriptor, dataType, false)) {
             return false;
         }
         LayoutDescriptor layout = descriptor.layout().orElseThrow();

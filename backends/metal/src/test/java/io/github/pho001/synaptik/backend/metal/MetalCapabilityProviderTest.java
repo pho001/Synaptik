@@ -418,6 +418,32 @@ class MetalCapabilityProviderTest {
             assertEquals(supported, provider.supports(binaryQuery(
                     NumericalProfile.ACCELERATOR, kind, row, matrix, matrix)));
         }
+        TensorDescriptor scalarSeed = descriptor(Shape.scalar(), false);
+        TensorDescriptor gradientVector = descriptor(Shape.of(3), true);
+        assertTrue(provider.supports(binaryQuery(
+                NumericalProfile.ACCELERATOR,
+                BinaryArithmeticKind.MUL,
+                scalarSeed,
+                gradientVector,
+                gradientVector)));
+        assertTrue(provider.supports(binaryQuery(
+                NumericalProfile.ACCELERATOR,
+                BinaryArithmeticKind.MUL,
+                gradientVector,
+                scalarSeed,
+                gradientVector)));
+        assertFalse(provider.supports(binaryQuery(
+                NumericalProfile.STRICT_IEEE,
+                BinaryArithmeticKind.MUL,
+                scalarSeed,
+                gradientVector,
+                gradientVector)));
+        assertFalse(provider.supports(binaryQuery(
+                NumericalProfile.ACCELERATOR,
+                BinaryArithmeticKind.ADD,
+                scalarSeed,
+                gradientVector,
+                gradientVector)));
         for (UnaryElementwiseKind kind : UnaryElementwiseKind.values()) {
             assertEquals(exactRawUnary(kind),
                     provider.supports(unaryQuery(
@@ -462,8 +488,6 @@ class MetalCapabilityProviderTest {
         TensorDescriptor expanded = view(Shape.of(2, 3), 0, 1);
         TensorDescriptor permuted = view(Shape.of(3, 2), 1, 3);
         TensorDescriptor rankExpanded = view(Shape.of(2, 1, 3), 3, 3, 1);
-        TensorDescriptor scalar = descriptor(Shape.scalar(), false);
-        TensorDescriptor scalarExpanded = view(Shape.of(1), 1);
         TensorDescriptor squeezed = view(Shape.of(2, 3), 3, 1);
         Shape rank16 = Shape.of(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
         TensorDescriptor rank16Value = descriptor(rank16, false);
@@ -526,13 +550,6 @@ class MetalCapabilityProviderTest {
                                 new AxisTransformAttrs(1)),
                         matrix,
                         rankExpanded),
-                new Occurrence(
-                        "scalar EXPAND_DIMS",
-                        new Operation(
-                                AxisTransformKind.EXPAND_DIMS,
-                                new AxisTransformAttrs(0)),
-                        scalar,
-                        scalarExpanded),
                 new Occurrence(
                         "SQUEEZE",
                         new Operation(

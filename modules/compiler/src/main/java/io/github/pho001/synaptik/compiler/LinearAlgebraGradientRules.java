@@ -6,17 +6,17 @@ import io.github.pho001.synaptik.model.tensor.TensorProducer;
 /**
  * Builds the closed role-aware floating {@code MATMUL} first-order formulas.
  *
- * <p>The four vector/matrix rank pairings use only public Tensor rank edits, explicit contiguous
- * materialization of rank edits, permutation, matrix multiplication, sum-to-Shape, and floating
- * cast operations. Batch broadcasting is reversed independently for each selected operand, then
- * an ordinary cast converts a promoted cotangent to the selected operand type when needed.
+ * <p>The four vector/matrix rank pairings use only public Tensor multiplication, rank edits,
+ * explicit contiguous materialization of rank edits, permutation, matrix multiplication,
+ * sum-to-Shape, and floating cast operations. Batch broadcasting is reversed independently for
+ * each selected operand, then an ordinary cast converts a promoted cotangent to the selected
+ * operand type when needed.
  * Preflight owns promotion, rank, contraction, batch, output-Shape, attribute, and policy
  * validation.</p>
  *
  * <p>For output cotangent {@code g}, left {@code l}, right {@code r},
  * {@code T(v)} denoting a swap of the final two axes, and {@code C(v)} denoting explicit
- * contiguous materialization, the four cases are: vector/vector
- * {@code [C(expandDims(g)) @ C(expandDims(r)), C(expandDims(g)) @ C(expandDims(l))]};
+ * contiguous materialization, the four cases are: vector/vector {@code [g * r, g * l]};
  * vector/matrix
  * {@code [C(squeeze(C(expandDims(g)) @ T(r))), C(expandDims(l)) @ C(expandDims(g))]};
  * matrix/vector {@code [C(expandDims(g)) @ C(expandDims(r)), T(l) @ g]}; and matrix/matrix
@@ -52,12 +52,11 @@ final class LinearAlgebraGradientRules {
         Tensor rightGradient = null;
 
         if (leftRank == 1 && rightRank == 1) {
-            Tensor rowGradient = gradient.expandDims(0).contiguous();
             if (selectedInputs[0]) {
-                leftGradient = rowGradient.matmul(right.expandDims(0).contiguous());
+                leftGradient = gradient.mul(right);
             }
             if (selectedInputs[1]) {
-                rightGradient = rowGradient.matmul(left.expandDims(0).contiguous());
+                rightGradient = gradient.mul(left);
             }
         } else if (leftRank == 1) {
             if (selectedInputs[0]) {

@@ -649,13 +649,11 @@ left gradient  = seed @ transpose(right)
 right gradient = transpose(left) @ seed
 ```
 
-Vector/vector promotes the scalar seed and each opposite operand to MATMUL-compatible rank-one or
-rank-two views, materializes the rank edits, and computes each vector gradient with MATMUL.
-Vector/matrix and matrix/vector likewise insert the missing matrix axes, explicitly materialize
-those rank edits, apply the corresponding MATMUL/last-two transpose, squeeze the promoted vector
-result when required, and `sumToShape` each broadcast operand. Matrix/matrix gradients also use
-`sumToShape`. The local transposes, rank edits, reductions, and MATMUL nodes execute in one
-CPU-free Metal partition for
+Vector/vector multiplies the scalar seed by the opposite operand. Vector/matrix and matrix/vector
+insert the missing matrix axes, explicitly materialize those rank edits, apply the corresponding
+MATMUL/last-two transpose, squeeze the promoted vector result when required, and `sumToShape` each
+broadcast operand. Matrix/matrix gradients also use `sumToShape`. The local multiplication,
+transposes, rank edits, reductions, and MATMUL nodes execute in one CPU-free Metal partition for
 vector, matrix, batched, and broadcast Shapes.
 
 This remains generated first-order execution, not implicit seeding or an unrestricted Metal
@@ -980,8 +978,8 @@ support outside the exact domains above. Variadic support is limited to the expl
 one-through-sixteen CONCAT/STACK domain. Scalar rank remains limited to Task-0059 CAST, empty-width
 PAD, empty-repeat TILE, valid GATHER_ND results, scalar STACK input, locally produced direct
 reduction targets, Task-0060 empty-axis reduction identities, MATMUL vector/vector output,
-explicit scalar-seed ingress and its first EXPAND_DIMS in vector/vector gradients, and typed
-transfer/materialization. Scalar PAD/TILE are one-element identities.
+explicit scalar-seed ingress for vector/vector gradients, and typed transfer/materialization.
+Scalar PAD/TILE are one-element identities.
 The fixed shared custom route is not a general custom-kernel
 framework: cold preparation owns the reviewed kernels and interleaved existing-node executables,
 every logical value has a declared assigned buffer, and hot Java execution makes one synchronous

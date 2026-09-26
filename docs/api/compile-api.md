@@ -723,9 +723,9 @@ four. Those saved slots are formula inputs, not independent cotangent roots, pub
 physical buffers, or a runtime tape.
 
 MATMUL handles vector/vector, vector/matrix, matrix/vector, and matrix/matrix formulas with public
-rank edits, last-two-axis permutation, explicit contiguous materialization, and MATMUL, followed by
-`sumToShape` for each selected operand where batch broadcasting may have occurred and then one
-ordinary cast when the promoted contribution type differs from that operand. Integral MATMUL remains
+rank edits, last-two-axis permutation, multiplication or MATMUL, followed by `sumToShape` for
+each selected operand where batch broadcasting may have occurred and then one ordinary cast when
+the promoted contribution type differs from that operand. Integral MATMUL remains
 non-differentiable.
 
 SLICE writes `g` into an input-shaped typed zero. `SliceAttrs` placement uses the exact stored

@@ -3738,11 +3738,7 @@ static int32_t synaptik_metal_create_decoded(
             for (uint32_t node_index = 0U; node_index < node_count; node_index++) {
                 SynaptikMetalDecodedNode node = nodes[node_index];
                 if (local_transpose[node.output] == 2U) continue;
-                BOOL custom_step = node_uses_custom_kernel(node, shapes, value_types)
-                        || (node.operation == SYNAPTIK_METAL_MPSGRAPH_MATMUL
-                                && (local_transpose_sources[node.first_input] != UINT32_MAX
-                                        || local_transpose_sources[node.second_input]
-                                                != UINT32_MAX));
+                BOOL custom_step = node_uses_custom_kernel(node, shapes, value_types);
                 if (custom_step) {
                     uint32_t final_stage =
                             node.operation == SYNAPTIK_METAL_MPSGRAPH_SCATTER_ND ? 1U : 0U;
@@ -3778,56 +3774,163 @@ static int32_t synaptik_metal_create_decoded(
                         || node.operation == SYNAPTIK_METAL_MPSGRAPH_MATMUL
                         || node.operation == SYNAPTIK_METAL_MPSGRAPH_GATHER)
                     input_count = 2U;
+                BOOL nested_transposed_matmul =
+                        node.operation == SYNAPTIK_METAL_MPSGRAPH_MATMUL
+                        && (local_transpose_sources[node.first_input] != UINT32_MAX
+                                || local_transpose_sources[node.second_input] != UINT32_MAX);
                 uint32_t source_values[3] = {
                     node.first_input, node.second_input, node.auxiliary
                 };
-                uint32_t compact_ranks[4] = {0U, 0U, 0U, 0U};
-                uint64_t compact_dimensions[4U * SYNAPTIK_MAX_RANK] = {0U};
-                uint8_t compact_types[4] = {0U, 0U, 0U, 0U};
+                uint32_t compact_ranks[6] = {0U, 0U, 0U, 0U, 0U, 0U};
+                uint64_t compact_dimensions[6U * SYNAPTIK_MAX_RANK] = {0U};
+                uint64_t compact_strides[6U * SYNAPTIK_MAX_RANK] = {0U};
+                uint64_t compact_offsets[6] = {0U, 0U, 0U, 0U, 0U, 0U};
+                uint64_t compact_spans[6] = {0U, 0U, 0U, 0U, 0U, 0U};
+                uint8_t compact_states[6] = {0U, 0U, 0U, 0U, 0U, 0U};
+                uint8_t compact_types[6] = {0U, 0U, 0U, 0U, 0U, 0U};
                 uint32_t compact_feeds[3] = {0U, 1U, 2U};
                 NSMutableArray<NSNumber *> *step_feeds =
                         [NSMutableArray arrayWithCapacity:input_count];
                 if (step_feeds == nil) return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
-                for (uint32_t input_index = 0U; input_index < input_count; input_index++) {
-                    uint32_t source = source_values[input_index];
-                    compact_ranks[input_index] = value_ranks[source];
-                    compact_types[input_index] = declared_types[source];
+                for (uint32_t input_index = 0U;
+                        input_index < input_count;
+                        input_index++) {
+                    uint32_t logical_source = source_values[input_index];
+                    uint32_t feed_source = nested_transposed_matmul
+                                    && local_transpose_sources[logical_source] != UINT32_MAX
+                            ? local_transpose_sources[logical_source]
+                            : logical_source;
+                    compact_ranks[input_index] = value_ranks[feed_source];
+                    compact_types[input_index] = declared_types[feed_source];
                     memcpy(
                             &compact_dimensions[
                                     (size_t)input_index * SYNAPTIK_MAX_RANK],
-                            &value_dimensions[(size_t)source * SYNAPTIK_MAX_RANK],
+                            &value_dimensions[
+                                    (size_t)feed_source * SYNAPTIK_MAX_RANK],
                             SYNAPTIK_MAX_RANK * sizeof(uint64_t));
-                    [step_feeds addObject:@(source)];
+                    if (nested_transposed_matmul) {
+                        memcpy(
+                                &compact_strides[
+                                        (size_t)input_index * SYNAPTIK_MAX_RANK],
+                                &value_strides[
+                                        (size_t)feed_source * SYNAPTIK_MAX_RANK],
+                                SYNAPTIK_MAX_RANK * sizeof(uint64_t));
+                        compact_offsets[input_index] = layout_offsets[feed_source];
+                        compact_spans[input_index] = layout_spans[feed_source];
+                        compact_states[input_index] = declared_states[feed_source];
+                    }
+                    [step_feeds addObject:@(feed_source)];
                 }
-                compact_ranks[input_count] = value_ranks[node.output];
-                compact_types[input_count] = declared_types[node.output];
-                memcpy(
-                        &compact_dimensions[(size_t)input_count * SYNAPTIK_MAX_RANK],
-                        &value_dimensions[(size_t)node.output * SYNAPTIK_MAX_RANK],
-                        SYNAPTIK_MAX_RANK * sizeof(uint64_t));
-                SynaptikMetalDecodedNode compact = node;
-                compact.first_input = 0U;
-                compact.second_input = input_count >= 2U ? 1U : UINT32_MAX;
-                compact.output = input_count;
-                compact.input_count = input_count;
-                for (uint32_t input_index = 0U;
-                        input_index < input_count;
-                        input_index++)
-                    compact.inputs[input_index] = input_index;
-                if (node.operation == SYNAPTIK_METAL_MPSGRAPH_SCATTER_ELEMENTS)
-                    compact.auxiliary = 2U;
-                uint32_t compact_target = input_count;
+                SynaptikMetalDecodedNode compact_nodes[3] = {0};
+                uint32_t compact_node_count = 0U;
+                uint32_t compact_value_count = 0U;
+                uint32_t compact_target = 0U;
+                if (nested_transposed_matmul) {
+                    uint32_t matmul_inputs[2] = {0U, 1U};
+                    uint32_t next_value = input_count;
+                    for (uint32_t operand = 0U; operand < 2U; operand++) {
+                        uint32_t logical_source = source_values[operand];
+                        if (local_transpose_sources[logical_source] == UINT32_MAX) continue;
+                        uint32_t producer_index = UINT32_MAX;
+                        for (uint32_t prior = 0U; prior < node_index; prior++) {
+                            if (nodes[prior].output == logical_source) {
+                                producer_index = prior;
+                                break;
+                            }
+                        }
+                        if (producer_index == UINT32_MAX
+                                || nodes[producer_index].operation
+                                        != SYNAPTIK_METAL_MPSGRAPH_PERMUTE)
+                            return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
+                        SynaptikMetalDecodedNode transpose = nodes[producer_index];
+                        transpose.first_input = operand;
+                        transpose.output = next_value;
+                        transpose.inputs[0] = operand;
+                        compact_nodes[compact_node_count++] = transpose;
+                        compact_ranks[next_value] = value_ranks[logical_source];
+                        compact_types[next_value] = declared_types[logical_source];
+                        memcpy(
+                                &compact_dimensions[
+                                        (size_t)next_value * SYNAPTIK_MAX_RANK],
+                                &value_dimensions[
+                                        (size_t)logical_source * SYNAPTIK_MAX_RANK],
+                                SYNAPTIK_MAX_RANK * sizeof(uint64_t));
+                        memcpy(
+                                &compact_strides[
+                                        (size_t)next_value * SYNAPTIK_MAX_RANK],
+                                &value_strides[
+                                        (size_t)logical_source * SYNAPTIK_MAX_RANK],
+                                SYNAPTIK_MAX_RANK * sizeof(uint64_t));
+                        compact_offsets[next_value] = layout_offsets[logical_source];
+                        compact_spans[next_value] = layout_spans[logical_source];
+                        compact_states[next_value] = declared_states[logical_source];
+                        matmul_inputs[operand] = next_value++;
+                    }
+                    SynaptikMetalDecodedNode compact = node;
+                    compact.first_input = matmul_inputs[0];
+                    compact.second_input = matmul_inputs[1];
+                    compact.output = next_value;
+                    compact.inputs[0] = matmul_inputs[0];
+                    compact.inputs[1] = matmul_inputs[1];
+                    compact_nodes[compact_node_count++] = compact;
+                    compact_ranks[next_value] = value_ranks[node.output];
+                    compact_types[next_value] = declared_types[node.output];
+                    memcpy(
+                            &compact_dimensions[
+                                    (size_t)next_value * SYNAPTIK_MAX_RANK],
+                            &value_dimensions[
+                                    (size_t)node.output * SYNAPTIK_MAX_RANK],
+                            SYNAPTIK_MAX_RANK * sizeof(uint64_t));
+                    memcpy(
+                            &compact_strides[
+                                    (size_t)next_value * SYNAPTIK_MAX_RANK],
+                            &value_strides[
+                                    (size_t)node.output * SYNAPTIK_MAX_RANK],
+                            SYNAPTIK_MAX_RANK * sizeof(uint64_t));
+                    compact_offsets[next_value] = layout_offsets[node.output];
+                    compact_spans[next_value] = layout_spans[node.output];
+                    compact_states[next_value] = declared_states[node.output];
+                    compact_target = next_value;
+                    compact_value_count = next_value + 1U;
+                } else {
+                    compact_ranks[input_count] = value_ranks[node.output];
+                    compact_types[input_count] = declared_types[node.output];
+                    memcpy(
+                            &compact_dimensions[
+                                    (size_t)input_count * SYNAPTIK_MAX_RANK],
+                            &value_dimensions[
+                                    (size_t)node.output * SYNAPTIK_MAX_RANK],
+                            SYNAPTIK_MAX_RANK * sizeof(uint64_t));
+                    SynaptikMetalDecodedNode compact = node;
+                    compact.first_input = 0U;
+                    compact.second_input = input_count >= 2U ? 1U : UINT32_MAX;
+                    compact.output = input_count;
+                    compact.input_count = input_count;
+                    for (uint32_t input_index = 0U;
+                            input_index < input_count;
+                            input_index++)
+                        compact.inputs[input_index] = input_index;
+                    if (node.operation == SYNAPTIK_METAL_MPSGRAPH_SCATTER_ELEMENTS)
+                        compact.auxiliary = 2U;
+                    compact_nodes[0] = compact;
+                    compact_node_count = 1U;
+                    compact_target = input_count;
+                    compact_value_count = input_count + 1U;
+                }
                 void *nested_handle = NULL;
                 int32_t nested_status = synaptik_metal_create_decoded(
                         context,
                         SYNAPTIK_METAL_ROUTE_MPSGRAPH,
-                        input_count + 1U,
+                        compact_value_count,
                         compact_ranks,
                         compact_dimensions,
-                        NULL, NULL, NULL, NULL,
+                        nested_transposed_matmul ? compact_strides : NULL,
+                        nested_transposed_matmul ? compact_offsets : NULL,
+                        nested_transposed_matmul ? compact_spans : NULL,
+                        nested_transposed_matmul ? compact_states : NULL,
                         compact_types,
-                        1U,
-                        &compact,
+                        compact_node_count,
+                        compact_nodes,
                         input_count,
                         compact_feeds,
                         1U,
