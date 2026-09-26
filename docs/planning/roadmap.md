@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0056; 0054 historical; no Metal task is Ready | [Metal 0056](backends/metal/tasks/0056-deterministic-dual-route-catalog-and-fixed-route-identity.md) landed the exhaustive 115-kind structural catalog, one fixed prepared-route identity, and package-private result-set forcing at `4f35576c` plus approved remediation `1718b28a` without changing the `34/81` capability matrix, fixed routes, public API, cache, or performance authority. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Task 0053 In progress; Complete through Task 0056; 0054 historical | [Metal 0053](backends/metal/tasks/0053-certified-accelerator-float32-custom-exp-stable-sigmoid.md) is the active serialized integer-only EXP/stable-SIGMOID proof and implementation frontier. Capability and device execution remain gated on complete proof/checker/review; local timing is not run. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -170,26 +170,23 @@ MPSGraph stable SIGMOID composition, and rejected custom EXP/custom SIGMOID/dire
 passes are regression evidence only: direct EXP lacks an authoritative all-binary32/rank-`1..16`
 contract and is `DOMAIN-BLOCKED`; the composition inherits that blocker. Task 0051 froze the proof
 obligations and remains historical. Task 0053 now owns the concrete source/certificates,
-independent review, and one newly authorized successor oracle, but stays Blocked on that
-complete-domain work. Task 0051 reserved no production vocabulary; Task 0052 later consumed wires
-`20..34`, and Complete Task 0055 registers `EXP=55`/`SIGMOID=64` inside its zero-capability
-schema-13 foundation.
+independent review, and one newly authorized successor device smoke, and is In progress under that
+complete-domain gate. Task 0051 reserved no production vocabulary; Task 0052 later consumed wires
+`20..34`, and Complete Task 0055 registers `EXP=55`/`SIGMOID=64` inside its schema-13 foundation.
 CPU requires no migration because its exact realizations remain valid members of the widened result
 set.
 
 [Metal 0053](backends/metal/tasks/0053-certified-accelerator-float32-custom-exp-stable-sigmoid.md)
-supersedes 0051 for all future EXP/SIGMOID realization while preserving that historical record.
-Its custom EXP must have concrete source/constants and kernel-checked proof over all raw words,
-DAZ, overflow/underflow, range reduction, table/index and approximation bounds, every RNE/FMA/FTZ
-site, inclusive ordinary EXP distance `<=5`, and rank-`1..16` launch/index coverage. Stable
-SIGMOID must be proved recursively from exact guard/NEG, the approved EXP, and explicit ADD/DIV
-sites, never by a final envelope. Current opaque direct/inherited routes stay `DOMAIN-BLOCKED`;
-only independently domain-proved alternatives may join the certified custom routes. Task 0053 is
-Blocked until that proof package passes read-only review. Only then may its one new frozen-corpus
-oracle run; Task 0051 is never rerun. A sole survivor needs no comparative cost gate; multiple
-survivors may close without timing only through strict dispatch/temporary-byte dominance under
-identical proven semantics/domain, otherwise selection awaits a controlled environment. Local
-timing is diagnostic only. Capability, schema, identities, routes, and production remain unchanged.
+supersedes 0051 for all new EXP/SIGMOID work while preserving that historical record. Its custom
+EXP is a raw-bit integer/fixed-point candidate requiring kernel-checked proof over all raw words,
+DAZ, overflow/underflow, range reduction, table/index and approximation bounds, integer
+reconstruction/FTZ, inclusive ordinary EXP distance `<=5`, and rank-`1..16` launch/index coverage.
+Stable SIGMOID must be proved recursively from exact guard/NEG, the approved EXP, and materialized
+integer ADD/DIV sites, never by a final envelope. Current opaque direct/inherited MPSGraph routes
+remain structural `DOMAIN-BLOCKED` candidates; selector presence, samples, and timing provide no
+correctness approval. Capability and device execution stay closed until proof, independent
+all-word checking, source/compiler audit, and review pass. One correct custom survivor needs no
+cost comparison. Local timing is not run and has no authority.
 
 [Metal 0052](backends/metal/tasks/0052-accelerator-float32-comparisons-extrema-scans.md)
 is Complete for six FLOAT32 comparisons, tensor/scalar/clamp/reduction extrema, and
@@ -302,7 +299,7 @@ The active semantic and Metal serial DAG is:
 
 `Metal 0018 blocker evidence -> Model 0029 (Complete) -> Metal 0021 (Complete) -> Metal 0022 (Complete) -> Metal 0023 (Complete) -> Metal 0024 (Complete) -> Metal 0025 (Complete) -> {Metal 0026 (Blocked), Metal 0027 (Blocked), Metal 0030 (Blocked), Metal 0031 (Blocked), Metal 0032 (Blocked), Metal 0033 (Blocked), Metal 0034 (Blocked), Metal 0035 (Blocked), Metal 0036 (Blocked), Metal 0037 (Blocked)}`
 
-`Model 0031 (Complete) -> Model 0030 (Complete) -> {Metal 0051 (historical Blocked) -> Metal 0053 (Blocked on concrete proof/review), Metal 0052 (Complete)}`
+`Model 0031 (Complete) -> Model 0030 (Complete) -> {Metal 0051 (historical Blocked) -> Metal 0053 (In progress under proof/review gate), Metal 0052 (Complete)}`
 
 `Metal 0051 + reviewed Metal 0052 evidence + Metal 0053 + historical source -> Metal 0054 (Complete pre-cutover audit); Metal 0052 production cutover (Complete) supersedes that inventory`
 
@@ -318,11 +315,10 @@ only canonical exact `ABS` under both profiles. Complete Model 0030 makes recurs
 `EXP`/`SIGMOID` results semantically reachable. Metal 0051's bounded numerical oracle passed direct
 EXP and composed SIGMOID, but both are `DOMAIN-BLOCKED` because the opaque EXP selector lacks an
 authoritative full-domain contract; its other candidates failed and its invocation is never rerun.
-Metal 0053 is the planning-only successor and remains Blocked until concrete custom source/constants
-pass the complete machine-checked proof and independent review. Only then may its one new oracle
-run. A sole survivor needs no comparison; multiple identical-domain survivors close only through
-strict structural dominance, otherwise selection awaits a controlled environment. Local timing is
-diagnostic only.
+Metal 0053 is the active successor. Its integer-only source/proof work is In progress, while
+capability and device execution remain closed until the complete machine-checked proof,
+independent all-word checker, source/site audit, and review pass. One correct custom survivor needs
+no comparison; opaque MPSGraph candidates remain domain-blocked. Local timing is not run.
 Metal 0052's independent proof, sole regression oracle, structural survivor adjudication, fixed
 routes, and production cutover are Complete. Its opaque routes remain domain-blocked; fused CLAMP
 is fixed solely by strict dispatch/temporary-byte dominance, and all other rows had a sole
@@ -505,8 +501,8 @@ wrapper remain stable.
 Metal 0025 remains Complete at reviewed revision `f88066e3`; its schema-11/version-twelve facts are
 historical. Blocked 0026–0027/0030–0037/0039–0040 changed no executable capability. Complete 0041
 changes no capability. Metal 0042 still exposes only bounded singleton-NEG local tuning. Historical
-0051 and planning-only 0053 added no current wire. Metal 0052, superseded historical audit 0054,
-and zero-new-kind foundations 0055 and 0056 are Complete; Metal 0047/0051/0053 remain Blocked.
+0051 added no current wire. Active Task 0053 still adds no wire or capability before proof/review.
+Metal 0052, superseded historical audit 0054, and foundations 0055/0056 are Complete; 0047/0051 remain Blocked.
 Task 0055 landed type wires `1..6`, variable node cardinality, typed transfer, ABI 5/schema 13, and
 identity 14 without changing capability. Task 0056 landed the catalog/fixed-identity architecture
 without changing capability or Model authority; no backend task may define Model semantics.
@@ -559,9 +555,9 @@ matrix with narrowing, or infer capability from registered schema.
   Complete Model 0030 makes those recursive `ACCELERATOR` results semantically reachable. Metal
   0051's sole recursive oracle is bounded regression evidence: direct EXP and composed SIGMOID
   passed the sample but are `DOMAIN-BLOCKED`, the other candidates failed, and that oracle is never
-  rerun. Metal 0053 supersedes it for future work but is Blocked before source execution on concrete
-  machine-checked complete-domain proof plus independent approval. A future nondominated
-  multi-survivor result additionally requires a controlled environment; local timing is diagnostic.
+  rerun. Metal 0053 supersedes it and is In progress on concrete integer-only source plus
+  machine-checked complete-domain proof, independent checker, source/site audit, and review.
+  Capability/device execution remain closed; local timing is not run.
 - Metal 0017 is `Blocked` under its old accelerator reduction contract. Its corrected full probe
   completed 300 executables/2,400 runs and found `SUM([-0,-0]) -> +0`, while the old permitted set
   contained only `-0`; zero is not subnormal, so DAZ/FTZ did not admit the result. No production
@@ -612,10 +608,10 @@ matrix with narrowing, or infer capability from registered schema.
   0017, Trace 0003, and Metal
   0015/0019/0020/0021/0022/0023/0024/0025/0038/0041/0042/0043/0044/0045/0046/0048/0049/0050/0054/
   0055/0056 are Complete. Metal 0016–0018, 0026–0027, 0030–0037, planning-only 0039, failed-gate
-  0040, provider-gated 0047, historical consumed-oracle 0051, and proof/review-gated planning
-  successor 0053 remain Blocked under their recorded contracts. Task 0052 is Complete; Task 0054
-  remains its exact historical pre-cutover inventory. Tasks 0055 and 0056 are the completed
-  zero-new-capability foundation and catalog/identity architecture. No Metal task is Ready.
+  0040, provider-gated 0047, and historical consumed-oracle 0051 remain Blocked under their
+  recorded contracts. Task 0053 is the active serialized proof/implementation frontier. Task 0052
+  is Complete; Task 0054 remains its exact historical pre-cutover inventory. Tasks 0055 and 0056
+  are the completed zero-new-capability foundation and catalog/identity architecture.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -629,13 +625,12 @@ matrix with narrowing, or infer capability from registered schema.
 
 ## Nearest next step
 
-No Metal task is Ready. Complete Metal 0056 consumes Task 0055's private
-ABI-5/schema-13/six-carrier/cardinality/typed-transfer/identity/package foundation and lands only an
-exhaustive internal two-route catalog, one immutable prepared-route identity, shared validation/
-lifecycle/buffer/publication boundaries, and package-private result-set forcing. It does not widen
-capability, change current routes, expose a public knob, retry or fall back at Runtime, or treat
-local timing as authority. Metal 0053 remains independently Blocked on concrete source,
-complete-domain proof, and review.
+Task 0053 is the active Metal frontier. It consumes Complete Task 0056's exhaustive internal
+catalog and immutable route identity plus Task 0055's ABI-5/schema-13 foundation. Its integer-only
+raw-word source, proof package, all-word checker, source/site audit, and fail-closed integration are
+In progress. Capability and device execution remain closed until proof and independent review;
+opaque MPSGraph candidates cannot be forced. A single correct custom survivor needs no comparison.
+No local timing, benchmark, fallback, retry, runtime selection, or final full build is authorized.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
@@ -662,10 +657,9 @@ independent Class C `APPROVE` with zero findings. Its contract records the synch
 barrier, completed-state `RunResult` resource/publication lease, and one system-default Metal device
 context per integration without adding an asynchronous API, physical-device selector, multi-device
 execution, identity change, cross-device behavior, or general output/workspace pool. Historical
-Metal 0051 and planning-only successor 0053 preserve
-those boundaries and own no production scope. Complete Tasks 0055 and 0056 preserve the same
-synchronous, single-default-device, direct-target lifecycle as the shared fixed-route lifecycle
-and publication behavior.
+Metal 0051 and active successor 0053 preserve those lifecycle boundaries. Task 0053 owns no
+production capability until its proof/review gate passes. Complete Tasks 0055 and 0056 preserve the
+same synchronous, single-default-device, direct-target lifecycle and publication behavior.
 
 Metal 0050 is Complete. Its final program verification built the current dylib, applied the fixed
 ad-hoc identifier, packaged and independently verified it, created and permission-preservingly
@@ -751,8 +745,8 @@ complete five-input/two-output/caller-INT64 schema, native lifecycle, and proof.
 
 Schema 13, operation wires `1..115`, attributes `0..41`, local types `1..6`, ABI 5, and
 version-fourteen identities are landed by Complete Task 0055. Complete Task 0056 consumes that
-foundation without capability widening; Metal 0053 consumes it independently but remains Blocked
-before any future production cutover. Metal 0026/0027 remain separately finalized Blocked.
+foundation without capability widening; active Metal 0053 consumes it under a proof/review gate
+before any production cutover. Metal 0026/0027 remain separately finalized Blocked.
 Documentation/audit-only Metal 0038 is Complete. Planning-only Metal 0039 is Blocked on Draft Model
 0026. Metal 0040 is Blocked by its failed one-execution BFLOAT16 raw-bit gate. Metal 0041 is
 Complete at implementation `ba16d942` plus remediation `386705ca`; Metal 0042 is Complete at
@@ -761,9 +755,9 @@ Metal 0044 is Complete; Metal 0045 is Complete at remediation `26c6c911`; Metal 
 independently approved implementation `4aad1ab6`; Metal 0047 is Blocked; Metal 0048 is Complete at
 independently approved implementation `89f9fbb9`; documentation-only Metal 0049 is Complete after
 remediation `6d4246f7`; Metal 0050 final verification, Task 0052, and historical
-documentation/audit-only Metal 0054 are Complete. Historical Metal 0051 and successor Metal 0053
-are Blocked. Task 0054 remains the exact pre-cutover `19+2+15+79=115` record, not a current count;
-current post-cutover count is `34+2+79=115`, and Task 0056 does not change it.
+documentation/audit-only Metal 0054 are Complete. Historical Metal 0051 is Blocked; successor Metal
+0053 is In progress under its proof/review gate. Task 0054 remains the exact pre-cutover
+`19+2+15+79=115` record, not a current count; current post-cutover count is `34+2+79=115`.
 
 ## History policy
 

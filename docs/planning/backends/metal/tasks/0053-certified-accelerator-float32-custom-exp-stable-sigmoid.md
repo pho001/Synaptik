@@ -2,30 +2,36 @@
 
 ## Status
 
-Blocked
+In progress
 
-This planning-only successor supersedes Task 0051 for all future `EXP`/`SIGMOID` realization work
-without rewriting its historical evidence. No candidate is currently `DOMAIN-PASS`. The task stays
-Blocked until concrete custom source, frozen constants, and a pinned machine-checkable
-complete-domain proof package pass independent read-only review.
+The user authorized execution after the schema-13 dual-route catalog and fixed-route identity
+landed. Full Xcode, local timing, and a comparative cost gate are not prerequisites. Installed
+offline tools are pinned to Lean `4.34.1` commit
+`5045d0056413266e57c625dcd7c365b10e377c52`, Sollya `8.0`, MPFI `1.5.4`, MPFR `4.2.2`, and GMP
+`6.3.0`. The retained proof manifest must bind their executable identities and exact commands.
 
-Only after that prerequisite passes may this task consume its one newly authorized real-device
-numerical oracle. Task 0051's consumed invocation is never rerun, amended, or relabeled. If the
-oracle leaves one survivor for an operation, no comparative cost gate is required. If it leaves
-multiple survivors with identical proven semantics/domain, selection may close without timing only
-through strict structural dominance; otherwise it remains pending an explicitly authorized
-controlled environment. Local developer-device timing is diagnostic only and never qualification,
-route-selection, or tuning-identity authority. This plan changes no capability, schema, identity,
-route, production source, test, native binary, or package, and performs no device action.
+The concrete custom candidate uses raw-bit classification and integer/fixed-point arithmetic only;
+the native boundary may load and store raw words but may not rely on ungrounded GPU FLOAT32
+rounding, fused-multiply-add, contraction, denormal, or fast-math behavior. MPSGraph direct
+`EXP`/`SIGMOID` and the inherited stable composition remain structural catalog candidates only.
+Selector presence, headers, bounded samples, and timing grant no correctness approval, so no
+MPSGraph candidate may be forced unless it independently passes the same complete-domain proof.
+
+Production capability remains gated on retained source/constants/manifests, proof-kernel replay,
+an independent exhaustive or partitioned all-word checker with zero unresolved inputs, exact
+source-to-proof/compiler-site audit, rank-`1..16` launch proof, recursive stable-SIGMOID proof,
+one proof-first device smoke, and independent Class C approval. A single correct custom survivor
+needs no cost comparison and may become the one immutable production route. Local timing is never
+run and has no qualification, route-selection, tuning-identity, or cache authority.
 
 ## Change class and scope
 
-Class C — eventual implementation would add canonical `FLOAT32` `EXP` and `SIGMOID` under
-`NumericalProfile.ACCELERATOR`. This planning commit only defines proof, oracle, cost, selection,
-and future implementation gates. It does not reserve wires or versions and does not authorize
-staging through current production preparation.
+Class C — execution adds canonical `FLOAT32` `EXP` and `SIGMOID` under
+`NumericalProfile.ACCELERATOR` only if the proof and review gates close. It consumes existing
+schema-13 operation wires and introduces no public knob, hot selection, fallback, retry, or
+autotuning path.
 
-In scope for future execution:
+In scope for this execution:
 
 - one auditable custom `EXP` candidate over raw binary32 words;
 - one stable custom `SIGMOID` candidate proved recursively from an exact guard and `NEG`, the proved
@@ -168,23 +174,28 @@ every considered route, operation, source/proof identity, and verdict. A candida
 constants, compiler flags, proof assumptions, or a candidate after freeze invalidates the oracle
 authorization and requires a newly reviewed successor plan; it never permits a retry.
 
-## Gate 0: prerequisite before any source execution
+## Gate 0: pinned offline execution boundary
 
-The repository must contain the concrete candidate source/constants and all artifacts in the proof
-package below; a pinned offline proof command must succeed; a second implementation-independent
-all-raw-word checker must succeed; and independent read-only review must issue `DOMAIN-PASS` for
-each candidate.
+The pinned toolchain is locally installed and no longer blocks source/proof work. Command Line
+Tools do not provide a standalone Metal compiler or MSL standard-library source capable of
+grounding hardware FLOAT32 site semantics. The candidate therefore uses integer/fixed-point
+arithmetic over raw binary32 words and an explicit integer packer; any compiler-created FLOAT32
+arithmetic, conversion, FMA, contraction, or opaque intrinsic rejects the candidate.
 
-Trace tooling is not an unconditional prerequisite. Exact source-bound dispatch and route-owned
-temporary-byte declarations are admissible for closed custom routes under ADR 0022. An opaque
-survivor still requires supported observation of actual framework-internal dispatches and peak
-transient resources before it can participate in structural comparison. If multiple nondominated
-survivors remain after exact structural facts, a separately authorized controlled comparative
-environment and protocol are required. A local developer timing run cannot satisfy that gate.
+The repository must retain the concrete candidate source/constants and all artifacts in the proof
+package below. A pinned offline proof command must succeed, a second implementation-independent
+all-raw-word or complete partition checker must succeed with zero unresolved inputs, and
+independent read-only review must issue `DOMAIN-PASS` before capability or a device run is enabled.
 
-Until the proof prerequisite passes, Task 0053 remains Blocked and performs no device process,
-compilation for execution, timing, capture, production edit, schema reservation, or capability
-action.
+Full Xcode and trace tooling are not prerequisites for the closed source-owned route. Exact
+source-bound dispatch and route-owned temporary-byte declarations are admissible under ADR 0022.
+The opaque MPSGraph structural candidates remain `DOMAIN-BLOCKED` unless separately proved; they
+are not baselines and cannot be forced. No local timing, comparison, benchmark, or trace capture is
+authorized.
+
+Source, proof, host integration, and fail-closed tests may be implemented while this gate is being
+checked. Until it passes, capability remains false, production preparation exposes no candidate,
+and no device process or numerical smoke runs.
 
 ## Gate 1A: concrete source and structural audit
 
@@ -415,85 +426,76 @@ substitute or widen binary/affine/scalar capability.
 ## Dependencies and integration
 
 - Depends on: completed and independently approved Model 0030/0031; Task 0051's preserved blocked
-  record; Complete Task 0055's ABI-5/schema-13 foundation; Compiler unary inference/gradient
-  capture; Config 0006; and Engine 0018.
-- Planning base: `1f5c715c0e727d8bd56051f027c44cbed5991f81`.
-- External blocker: the concrete proof prerequisite defined in Gate 0. A controlled environment is
-  a later conditional blocker only if multiple nondominated survivors remain.
-- Supersedes: Task 0051 for all future EXP/SIGMOID candidate, proof, oracle, cost, route, schema, and
-  production work; it does not alter Task 0051's status or evidence.
+  record; Complete Task 0055's ABI-5/schema-13 foundation; Complete Task 0056's canonical route
+  identity/catalog; Compiler unary inference/gradient capture; Config 0006; and Engine 0018.
+- Planning base: current clean Task-0056 completion plus cast-reason remediation `fa9387e0`.
+- Proof tools: pinned Lean `4.34.1`, Sollya `8.0`, MPFI `1.5.4`, MPFR `4.2.2`, GMP `6.3.0`.
+- Supersedes: Task 0051 for all new EXP/SIGMOID source, proof, device smoke, route, schema,
+  capability, and production work; Task 0051's historical source and oracle are never rerun.
 - Independent of: Task 0052 candidates, proof, oracle, raw timing history, and production kernels;
-  it shares only ADR 0022's corrected decision-authority rule.
+  it shares only ADR 0022's corrected decision-authority rule and the current custom-program
+  lifecycle.
 - Conflicts with: every concurrent Metal capability/schema/native-preflight/candidate/codec/tuning/
   lifecycle/public Engine edit and shared numerical-profile documentation.
 - Parallel group: none.
-- Integration owner: future Task-0053 implementer after the proof blocker resolves.
+- Integration owner: this serialized Task-0053 execution.
 
-## Expected future files and artifacts
+## Execution files and artifacts
 
-The proof-first revision is expected to add a dedicated retained Task-0053 evidence directory with
-the exact source/manifests/certificates described above, without touching Task-0052 evidence. A
-later selected-route implementation may update:
-
-- `MetalCapabilityProvider`, `MetalMpsGraphProgram`, `MetalNativeApi`,
-  `MetalNegPartitionPreparer`, and affected package Javadocs;
-- `MetalNegRouteCandidateGenerator`, `MetalNegTuningBatch`, `MetalNegTuningCodec`, route decisions,
-  and complete-plan compatibility tests;
-- `native/metal-macos-arm64/src/synaptik_metal_foundation.m` and its README;
-- focused capability/schema/native/prepared/candidate/codec/conformance/Engine tests; and
-- Metal/backend/API/glossary explanatory docs, this task, the Metal master, and roadmap.
-
-This planning commit creates only this task and updates the Metal master/roadmap frontier.
+Retain a dedicated Task-0053 evidence directory containing exact custom `.metal` source, generated
+embedded-source bytes, constant/table generator inputs and outputs, machine-readable manifests,
+formal model and theorem sources, proof-kernel output, the independent checker and deterministic
+report, launch proof, source-to-proof/compiler-site audit, tool identities, and a top-level
+SHA-256 manifest. Production cutover may update the existing Metal capability, lowering, canonical
+prepared-route/candidate identity, custom-program native lifecycle, package metadata, focused
+conformance/integration tests, authoritative architecture contract, explanatory guides, this task,
+the Metal master, and roadmap.
 
 ## Acceptance criteria
 
-1. Task 0053 is the sole future EXP/SIGMOID successor; Task 0051 remains an unchanged historical
-   blocked record and its oracle is never rerun.
-2. Status remains Blocked until a concrete independently approved proof package/toolchain exists.
-3. Gate 1B requires concrete source/constants and kernel-checked proof over the complete raw-word
-   partition, DAZ, overflow/underflow, range reduction, table/index bounds, approximation interval,
-   every RNE/FMA site, FTZ, inclusive EXP distance `<=5`, and rank-`1..16` launch/index coverage.
-4. Stable SIGMOID is proved recursively from its exact guard/NEG, the approved EXP, and explicit
-   ADD/DIV sites with intermediate materialization; no final envelope is accepted.
-5. The candidate set contains the certified custom routes plus only independently domain-proved
-   MPSGraph/composed alternatives. Every current opaque direct/inherited route stays blocked.
-6. Fail-closed artifact/tool/review rules reject missing, guessed, partial, sampled, unpinned,
-   source-mismatched, unresolved, or opaque proof claims before any device action.
-7. After proof approval, exactly one new Task-0053 oracle may run over the frozen successor
-   candidates/corpus; a failure is final and Task 0051 is not rerun.
-8. Gate 3 closes a single-survivor row without comparison, permits timing-free multi-survivor
-   selection only by strict structural dominance under identical proven semantics/domain, and
-   otherwise leaves selection pending a controlled environment. Local timing is diagnostic only.
-9. This planning change performs no build, test, native compile, device run, timing, capture,
-   capability/schema/identity reservation, production edit, or Task-0052 evidence edit.
-10. Task/master/roadmap links, fences, final newlines, statuses, path scope, and `git diff --check`
-    pass, and the planning-only change is committed for independent review.
+1. Task 0051 remains an unchanged historical record and its source/oracle is never rerun.
+2. The custom source is integer/fixed-point over raw words with explicit specials, DAZ/FTZ,
+   overflow/underflow, range reduction, exact-byte table, polynomial, and bit packer; its compiler
+   audit reports no hardware FLOAT32/FMA/contraction site.
+3. Pinned Lean replay checks the complete raw partition, exact decode, thresholds/quotient/table/
+   residual/polynomial/reconstruction bounds, tie-even packer, inclusive EXP distance `<=5`, and
+   exact rank-`1..16` launch/index coverage without `sorry`, `admit`, or candidate-specific axioms.
+4. An implementation-independent MPFR/MPFI checker covers all `2^32` input words directly or by
+   checked complete partitions and records zero unresolved words, correct class/sign behavior, and
+   maximum ordinary distance at most five.
+5. Stable SIGMOID is proved recursively from exact NaN/sign classification, `NEG`, the approved
+   EXP, and materialized integer implementations of the exact FLOAT32 `ADD`/`DIV` sites including
+   their DAZ/RNE/FTZ alternatives; no whole-function envelope substitutes for site membership.
+6. MPSGraph direct EXP/SIGMOID and the structural stable composition remain catalog candidates but
+   are unavailable to forcing and production unless they independently satisfy the same proof.
+7. One correct custom survivor requires no timing or cost comparison and becomes one immutable
+   cold prepared route; there is no runtime switch, fallback, retry, autotune, or public route knob.
+8. Schema 13 remains the native node schema. Any private candidate/compatibility/route identity
+   change is a clean exact bump with no alias or dual decoder. Strict, gradients, excluded Shapes,
+   types, layouts, and attributes remain capability-false.
+9. Focused proof replay, source/site audit, Java/native/conformance tests, and a no-skip public
+   Engine Metal smoke pass. No local performance benchmark and no final full repository build run.
+10. Independent Class C review approves the proof package and production cutover. Documentation,
+    Javadocs, links, fences, final newlines, status synchronization, and `git diff --check` pass.
 
-## Planning validation
+## Validation
 
-Validate documentation only:
-
-```bash
-git diff --check
-```
-
-Also check Markdown links, anchors, fences, final newlines, status consistency, exactly the new task
-plus Metal master and roadmap planning files, and zero production/native/test/evidence/generated
-artifacts. Do not run a build, test, compiler, proof tool, native process, device oracle, timing
-workload, or trace capture.
+Run the single offline proof driver from a network-disabled environment, the independent checker,
+the retained source/header/site audit, focused Metal Java/native/conformance tests, native build and
+export audit, package verification when package bytes change, and one no-skip public Engine device
+smoke after `DOMAIN-PASS`. Run no Task-0051 oracle, timing, benchmark, numerical performance
+comparison, or final full repository build.
 
 ## Documentation and review impact
 
-The Metal master and roadmap name Task 0053 as the blocked successor frontier, retain Task 0051 as
-consumed historical evidence, preserve Complete Task 0052's raw timing only as diagnostic history,
-and state that no Metal task is Ready. Independent planning review checks only the completeness and
-fail-closed character of this plan. A later proof review is a separate read-only review over exact
-retained bytes and proof-kernel results.
+This Class C capability and native-boundary change requires synchronized updates to the
+authoritative root/backend-execution contract, current Metal explanatory guide/Javadocs, native
+README/package metadata, task/master/roadmap status, backend conformance, and public Engine
+integration evidence. An independent reviewer must replay the proof and target the capability,
+source/proof identity, compiler-site, prepared-route, native lifecycle, and no-fallback boundaries.
 
 ## Result
 
-Planning-only Blocked successor created. No candidate source, constants, certificate, oracle,
-measurement, route, capability, or production change exists yet. Task 0055 has since supplied its
-schema-13 structural vocabulary. The next action is not a device run: it is a separately committed
-concrete source/proof package plus pinned offline verifier, followed by independent read-only
-`DOMAIN-PASS` review.
+Execution is active from exact clean base `fa9387e0`. The pinned proof toolchain is available; no
+proof, device run, capability, or production approval is claimed until retained artifacts close
+every acceptance criterion.
