@@ -7,7 +7,10 @@ import io.github.pho001.synaptik.runtime.resource.PreparedResource;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.util.Objects;
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
+import static java.lang.foreign.ValueLayout.JAVA_LONG;
+import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
 /**
  * Prepared owner of one immutable source-splat buffer and its run-owned read bindings.
@@ -22,7 +25,7 @@ final class MetalPreparedSplatResource implements PreparedResource {
     private final MetalDeviceContext context;
     private final long byteSize;
     private final DataType dataType;
-    private final int rawBits;
+    private final long rawBits;
     private final MetalBufferRepresentation buffer;
     private int activeBindings;
     private boolean ownerClosed;
@@ -32,7 +35,7 @@ final class MetalPreparedSplatResource implements PreparedResource {
             MetalDeviceContext context,
             long byteSize,
             DataType dataType,
-            int rawBits,
+            long rawBits,
             MetalBufferRepresentation buffer) {
         this.context = Objects.requireNonNull(context, "context");
         this.byteSize = byteSize;
@@ -45,8 +48,8 @@ final class MetalPreparedSplatResource implements PreparedResource {
      * Allocates and initializes one prepared immutable splat.
      *
      * @param context exact non-null device context
-     * @param byteSize positive four-byte-aligned logical extent
-     * @param scalar exact non-null FLOAT32 or INT32 scalar
+     * @param byteSize positive logical extent aligned to the scalar carrier width
+     * @param scalar exact non-null scalar in any current carrier type
      * @return a new open prepared owner
      * @throws IllegalArgumentException if type or extent is outside the Metal splat domain
      * @throws RuntimeException if native allocation, upload, or cleanup fails
@@ -56,19 +59,23 @@ final class MetalPreparedSplatResource implements PreparedResource {
             MetalDeviceContext context, long byteSize, ScalarValue scalar) {
         Objects.requireNonNull(context, "context");
         Objects.requireNonNull(scalar, "scalar");
-        if (byteSize <= 0L || byteSize % Integer.BYTES != 0L
-                || (scalar.dataType() != DataType.FLOAT32
-                        && scalar.dataType() != DataType.INT32)) {
+        int width = scalar.dataType().byteWidth();
+        if (byteSize <= 0L || byteSize % width != 0L) {
             throw new IllegalArgumentException(
-                    "Metal prepared splat requires a positive four-byte FLOAT32 or INT32 extent");
+                    "Metal prepared splat requires a positive carrier-aligned extent");
         }
-        int rawBits = raw32Bits(scalar);
+        long rawBits = rawBits(scalar);
         MetalBufferRepresentation buffer = context.createBuffer(byteSize);
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment source = arena.allocate(byteSize, Integer.BYTES);
-            long elements = byteSize / Integer.BYTES;
+            MemorySegment source = arena.allocate(byteSize, width);
+            long elements = byteSize / width;
             for (long index = 0L; index < elements; index++) {
-                source.setAtIndex(JAVA_INT, index, rawBits);
+                switch (scalar.dataType()) {
+                    case FLOAT64, INT64 -> source.setAtIndex(JAVA_LONG, index, rawBits);
+                    case FLOAT32, INT32 -> source.setAtIndex(JAVA_INT, index, (int) rawBits);
+                    case BFLOAT16 -> source.setAtIndex(JAVA_SHORT, index, (short) rawBits);
+                    case BOOL -> source.setAtIndex(JAVA_BYTE, index, (byte) rawBits);
+                }
             }
             buffer.upload(0L, source, 0L, byteSize);
             return new MetalPreparedSplatResource(
@@ -156,7 +163,7 @@ final class MetalPreparedSplatResource implements PreparedResource {
                 || context != expectedContext
                 || byteSize != expectedBytes
                 || dataType != expectedScalar.dataType()
-                || rawBits != raw32Bits(expectedScalar)
+                || rawBits != rawBits(expectedScalar)
                 || !buffer.belongsTo(context)) {
             return null;
         }
@@ -188,12 +195,15 @@ final class MetalPreparedSplatResource implements PreparedResource {
         }
     }
 
-    private static int raw32Bits(ScalarValue scalar) {
+    private static long rawBits(ScalarValue scalar) {
         return switch (scalar.dataType()) {
-            case FLOAT32 -> Float.floatToRawIntBits(scalar.float32Value());
-            case INT32 -> scalar.int32Value();
-            default -> throw new IllegalArgumentException(
-                    "Metal prepared splat requires FLOAT32 or INT32");
+            case FLOAT64 -> Double.doubleToRawLongBits(scalar.float64Value());
+            case FLOAT32 -> Float.floatToRawIntBits(scalar.float32Value())
+                    & 0xffff_ffffL;
+            case BFLOAT16 -> scalar.bfloat16Bits() & 0xffffL;
+            case INT64 -> scalar.int64Value();
+            case INT32 -> scalar.int32Value() & 0xffff_ffffL;
+            case BOOL -> scalar.booleanValue() ? 1L : 0L;
         };
     }
 

@@ -14,6 +14,7 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.invoke.MethodHandle;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -573,6 +574,26 @@ abstract class MetalNativeApi implements AutoCloseable {
                     throw new IllegalArgumentException(
                             "Metal MPSGraph node outputs must be unique and not feeds");
                 }
+                for (int input : node.inputs()) {
+                    requireIndex(input, valueCount, "node input");
+                    if (!node.kind().accepts(states[input])) {
+                        throw new IllegalArgumentException(
+                                "Metal MPSGraph node input value state is unavailable or incompatible");
+                    }
+                    used[input] = true;
+                }
+                if (task0059Production(node.kind())) {
+                    for (int input : node.inputs()) {
+                        if (values.get(input).requiresGrad()) {
+                            throw new IllegalArgumentException(
+                                    "task 0059 production routes require no-grad inputs");
+                        }
+                    }
+                    if (values.get(output).requiresGrad()) {
+                        throw new IllegalArgumentException(
+                                "task 0059 production routes require no-grad outputs");
+                    }
+                }
                 if ((node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_ADD
                                 || node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_SUB
                                 || node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_MUL
@@ -767,6 +788,11 @@ abstract class MetalNativeApi implements AutoCloseable {
                     case ONE_HOT -> requireShape(
                             oneHotMatches(node, left, output, valueRanks, valueDimensions),
                             "ONE_HOT depth and output shape disagree");
+                    case CAST, GATHER_ELEMENTS, GATHER_ND, SCATTER_ADD, SCATTER_ND, SELECT, PAD,
+                            SLICE, SLICE_UPDATE, CONCAT, STACK, TILE, FOLD_AXIS, UNFOLD2D, FOLD2D,
+                            UNFOLD3D, FOLD3D -> requireShape(
+                            task0059ShapeMatches(node, values),
+                            node.kind() + " attributes and output shape disagree");
                     case UNFOLD_AXIS -> requireShape(
                             unfoldAxisMatches(
                                     node, left, output, valueRanks, valueDimensions),
@@ -826,6 +852,115 @@ abstract class MetalNativeApi implements AutoCloseable {
                         requireType(types, left, ValueType.INT32);
                         requireType(types, output, ValueType.BOOL);
                     }
+                    case CAST -> {
+                        ValueType source = types[left];
+                        ValueType target = types[output];
+                        boolean approved = source == target
+                                || source == ValueType.BOOL
+                                || target == ValueType.BOOL
+                                || source == ValueType.INT32 && target == ValueType.INT64
+                                || source == ValueType.INT64 && target == ValueType.INT32
+                                || source == ValueType.BFLOAT16 && target == ValueType.FLOAT32;
+                        if (!approved
+                                || node.attributeWords()[0]
+                                != MetalMpsGraphProgram.dataTypeWire(
+                                        values.get(output).dataType())) {
+                            throw new IllegalArgumentException(
+                                    "CAST pair is outside the exact production matrix");
+                        }
+                    }
+                    case GATHER_ELEMENTS, GATHER_ND -> {
+                        if (types[left] != types[output]
+                                || types[right] != ValueType.INT32
+                                && types[right] != ValueType.INT64) {
+                            throw new IllegalArgumentException(
+                                    node.kind() + " has incompatible data or index types");
+                        }
+                    }
+                    case SCATTER_ADD -> {
+                        if (types[left] == ValueType.BOOL
+                                || types[left] != types[auxiliary]
+                                || types[left] != types[output]
+                                || types[right] != ValueType.INT32
+                                && types[right] != ValueType.INT64) {
+                            throw new IllegalArgumentException(
+                                    "SCATTER_ADD has incompatible data, update, or index types");
+                        }
+                    }
+                    case SCATTER_ND -> {
+                        if (types[left] != types[auxiliary]
+                                || types[left] != types[output]
+                                || types[right] != ValueType.INT32
+                                && types[right] != ValueType.INT64
+                                || types[left] == ValueType.BOOL
+                                && node.attributeWords()[1] != 1L) {
+                            throw new IllegalArgumentException(
+                                    "SCATTER_ND has incompatible data, update, index, or reduction types");
+                        }
+                    }
+                    case SLICE_UPDATE -> {
+                        if (types[left] != types[right] || types[left] != types[output]) {
+                            throw new IllegalArgumentException(
+                                    "SLICE_UPDATE must preserve the exact carrier type");
+                        }
+                    }
+                    case FOLD_AXIS, FOLD2D, FOLD3D -> {
+                        if (types[left] != types[output]
+                                || types[left] != ValueType.FLOAT32
+                                && types[left] != ValueType.FLOAT64
+                                && types[left] != ValueType.BFLOAT16) {
+                            throw new IllegalArgumentException(
+                                    node.kind() + " has an unsupported carrier type");
+                        }
+                    }
+                    case SELECT, SLICE, TILE -> {
+                        if (types[left] != types[output]) {
+                            throw new IllegalArgumentException(
+                                    node.kind() + " must preserve the exact carrier type");
+                        }
+                    }
+                    case PAD -> {
+                        long[] words = node.attributeWords();
+                        int rank = Math.toIntExact(words[0]);
+                        if (types[left] != types[output]
+                                || words[1 + rank * 2]
+                                != MetalMpsGraphProgram.dataTypeWire(
+                                        values.get(left).dataType())) {
+                            throw new IllegalArgumentException(
+                                    "PAD must preserve the carrier and padding scalar type");
+                        }
+                    }
+                    case CONCAT, STACK -> {
+                        for (int input : node.inputs()) {
+                            if (types[input] != types[output]) {
+                                throw new IllegalArgumentException(
+                                        node.kind() + " must preserve every carrier type");
+                            }
+                        }
+                    }
+                    case UNFOLD2D, UNFOLD3D -> {
+                        if (types[left] != types[output]
+                                || types[left] != ValueType.FLOAT32
+                                && types[left] != ValueType.FLOAT64
+                                && types[left] != ValueType.BFLOAT16) {
+                            throw new IllegalArgumentException(
+                                    node.kind() + " has an unsupported carrier type");
+                        }
+                        int dimensions =
+                                node.kind() == MetalMpsGraphProgram.NodeKind.UNFOLD2D ? 2 : 3;
+                        long[] words = node.attributeWords();
+                        if (node.attributeKind()
+                                        == (dimensions == 2
+                                                ? MetalMpsGraphProgram.AttributeKind.PADDED_WINDOW_2D
+                                                : MetalMpsGraphProgram.AttributeKind.PADDED_WINDOW_3D)
+                                && words[dimensions * 4 + 1]
+                                != MetalMpsGraphProgram.dataTypeWire(
+                                        values.get(left).dataType())) {
+                            throw new IllegalArgumentException(
+                                    node.kind() + " padding scalar type must match its carrier");
+
+                        }
+                    }
                 }
                 states[output] = node.kind().outputState();
                 used[left] = true;
@@ -864,6 +999,309 @@ abstract class MetalNativeApi implements AutoCloseable {
                             overflow);
                 }
             }
+        }
+        private static boolean task0059Production(MetalMpsGraphProgram.NodeKind kind) {
+            return switch (kind) {
+                case CAST, GATHER_ELEMENTS, GATHER_ND, SELECT, PAD, SLICE,
+                        CONCAT, STACK, TILE, UNFOLD2D, UNFOLD3D -> true;
+                default -> false;
+            };
+        }
+
+        private static boolean task0059ShapeMatches(
+                MetalMpsGraphProgram.Node node,
+                List<MetalMpsGraphProgram.ValueDescriptor> values) {
+            try {
+                int[] inputs = node.inputs();
+                long[] input = values.get(inputs[0]).dimensions();
+                long[] output = values.get(node.outputIndex()).dimensions();
+                long[] words = node.attributeWords();
+                return switch (node.kind()) {
+                    case CAST -> Arrays.equals(input, output);
+                    case GATHER_ELEMENTS -> {
+                        long[] indices = values.get(inputs[1]).dimensions();
+                        int axis = node.axis();
+                        boolean matches = input.length > 0
+                                && axis >= 0
+                                && axis < input.length
+                                && input.length == indices.length
+                                && Arrays.equals(indices, output);
+                        for (int dimension = 0;
+                                matches && dimension < input.length; dimension++) {
+                            matches = dimension == axis
+                                    || input[dimension] == indices[dimension];
+                        }
+                        yield matches;
+                    }
+                    case GATHER_ND -> {
+                        long[] indices = values.get(inputs[1]).dimensions();
+                        int batch = Math.toIntExact(words[0]);
+                        boolean matches = indices.length > 0
+                                && batch >= 0
+                                && batch < indices.length
+                                && batch <= input.length;
+                        for (int axis = 0; matches && axis < batch; axis++) {
+                            matches = input[axis] == indices[axis];
+                        }
+                        int tuple = matches
+                                ? Math.toIntExact(indices[indices.length - 1]) : 0;
+                        matches = matches && tuple >= 1 && tuple <= input.length - batch;
+                        if (!matches) yield false;
+                        long[] expected = new long[
+                                indices.length - 1 + input.length - batch - tuple];
+                        System.arraycopy(indices, 0, expected, 0, indices.length - 1);
+                        System.arraycopy(input, batch + tuple, expected, indices.length - 1,
+                                input.length - batch - tuple);
+                        yield Arrays.equals(expected, output);
+                    }
+                    case SCATTER_ADD -> {
+                        long[] indices = values.get(inputs[1]).dimensions();
+                        long[] updates = values.get(inputs[2]).dimensions();
+                        int axis = node.axis();
+                        boolean matches = input.length > 0
+                                && axis >= 0
+                                && axis < input.length
+                                && Arrays.equals(input, output)
+                                && Arrays.equals(indices, updates)
+                                && indices.length == input.length;
+                        for (int dimension = 0;
+                                matches && dimension < input.length; dimension++) {
+                            matches = dimension == axis
+                                    || input[dimension] == indices[dimension];
+                        }
+                        yield matches;
+                    }
+                    case SCATTER_ND -> {
+                        long[] indices = values.get(inputs[1]).dimensions();
+                        long[] updates = values.get(inputs[2]).dimensions();
+                        int batch = Math.toIntExact(words[0]);
+                        boolean matches = Arrays.equals(input, output)
+                                && indices.length > 0
+                                && batch >= 0
+                                && batch < indices.length
+                                && batch <= input.length;
+                        for (int axis = 0; matches && axis < batch; axis++) {
+                            matches = input[axis] == indices[axis];
+                        }
+                        int tuple = matches
+                                ? Math.toIntExact(indices[indices.length - 1]) : 0;
+                        matches = matches && tuple >= 1 && tuple <= input.length - batch;
+                        if (!matches) yield false;
+                        long[] expected = new long[
+                                indices.length - 1 + input.length - batch - tuple];
+                        System.arraycopy(indices, 0, expected, 0, indices.length - 1);
+                        System.arraycopy(input, batch + tuple, expected, indices.length - 1,
+                                input.length - batch - tuple);
+                        yield Arrays.equals(expected, updates);
+                    }
+                    case SELECT -> {
+                        int axis = Math.toIntExact(words[0]);
+                        long index = words[1];
+                        if (axis < 0 || axis >= input.length
+                                || index < 0 || index >= input[axis]) yield false;
+                        long[] expected = new long[input.length - 1];
+                        System.arraycopy(input, 0, expected, 0, axis);
+                        System.arraycopy(input, axis + 1, expected, axis,
+                                input.length - axis - 1);
+                        yield Arrays.equals(expected, output);
+                    }
+                    case PAD -> {
+                        int rank = Math.toIntExact(words[0]);
+                        if (rank != input.length || output.length != rank) yield false;
+                        long[] expected = input.clone();
+                        for (int axis = 0; axis < rank; axis++) {
+                            expected[axis] = Math.addExact(
+                                    Math.addExact(input[axis], words[1 + axis]),
+                                    words[1 + rank + axis]);
+                        }
+                        yield Arrays.equals(expected, output);
+                    }
+                    case SLICE -> {
+                        long[] region = task0059SliceRegion(node, input);
+                        yield region != null && Arrays.equals(region, output);
+                    }
+                    case SLICE_UPDATE -> {
+                        long[] region = task0059SliceRegion(node, input);
+                        yield region != null
+                                && Arrays.equals(input, output)
+                                && Arrays.equals(region, values.get(inputs[1]).dimensions());
+                    }
+                    case CONCAT -> {
+                        int axis = node.axis();
+                        if (input.length == 0 || axis < 0 || axis >= input.length
+                                || output.length != input.length) yield false;
+                        long[] expected = input.clone();
+                        expected[axis] = 0;
+                        boolean matches = true;
+                        for (int value : inputs) {
+                            long[] part = values.get(value).dimensions();
+                            matches &= part.length == input.length;
+                            for (int dimension = 0;
+                                    matches && dimension < input.length; dimension++) {
+                                matches = dimension == axis
+                                        || part[dimension] == input[dimension];
+                            }
+                            if (matches) {
+                                expected[axis] =
+                                        Math.addExact(expected[axis], part[axis]);
+                            }
+                        }
+                        yield matches && Arrays.equals(expected, output);
+                    }
+                    case STACK -> {
+                        int axis = node.axis();
+                        if (input.length >= MAX_RANK || axis < 0 || axis > input.length
+                                || output.length != input.length + 1
+                                || output[axis] != inputs.length) yield false;
+                        boolean matches = true;
+                        for (int value : inputs) {
+                            matches &= Arrays.equals(
+                                    input, values.get(value).dimensions());
+                        }
+                        for (int dimension = 0;
+                                matches && dimension < input.length; dimension++) {
+                            matches = output[dimension < axis ? dimension : dimension + 1]
+                                    == input[dimension];
+                        }
+                        yield matches;
+                    }
+                    case TILE -> {
+                        int rank = Math.toIntExact(words[0]);
+                        if (rank != input.length || output.length != rank) yield false;
+                        long[] expected = new long[rank];
+                        for (int axis = 0; axis < rank; axis++) {
+                            expected[axis] =
+                                    Math.multiplyExact(input[axis], words[1 + axis]);
+                        }
+                        yield Arrays.equals(expected, output);
+                    }
+                    case FOLD_AXIS -> {
+                        int axis = node.axis();
+                        long size = words[1];
+                        long step = words[2];
+                        if (output.length + 1 != input.length
+                                || axis < 0
+                                || axis >= output.length
+                                || input[input.length - 1] != size
+                                || output[axis] < size) yield false;
+                        long positions = (output[axis] - size) / step + 1;
+                        boolean matches = true;
+                        for (int dimension = 0;
+                                matches && dimension < output.length; dimension++) {
+                            matches = input[dimension]
+                                    == (dimension == axis ? positions : output[dimension]);
+                        }
+                        yield matches;
+                    }
+                    case UNFOLD2D, UNFOLD3D -> {
+                        int dimensions =
+                                node.kind() == MetalMpsGraphProgram.NodeKind.UNFOLD2D ? 2 : 3;
+                        if (input.length != dimensions + 2 || output.length != 3) yield false;
+                        long kernelVolume = 1;
+                        long positions = 1;
+                        for (int spatial = 0; spatial < dimensions; spatial++) {
+                            kernelVolume =
+                                    Math.multiplyExact(kernelVolume, words[spatial]);
+                            positions = Math.multiplyExact(
+                                    positions,
+                                    task0059WindowExtent(
+                                            input[spatial + 2],
+                                            words[spatial],
+                                            words[dimensions * 2 + spatial],
+                                            words[dimensions + spatial],
+                                            words[dimensions * 3 + spatial],
+                                            words[dimensions * 4] != 0));
+                        }
+                        long[] expected = {
+                                input[0],
+                                Math.multiplyExact(input[1], kernelVolume),
+                                positions
+                        };
+                        yield Arrays.equals(expected, output);
+                    }
+                    case FOLD2D, FOLD3D -> {
+                        int dimensions =
+                                node.kind() == MetalMpsGraphProgram.NodeKind.FOLD2D ? 2 : 3;
+                        int targetRank = Math.toIntExact(words[0]);
+                        if (targetRank != dimensions + 2
+                                || output.length != targetRank
+                                || input.length != 3) yield false;
+                        boolean matches = true;
+                        for (int axis = 0; matches && axis < targetRank; axis++) {
+                            matches = words[1 + axis] == output[axis];
+                        }
+                        int offset = 1 + targetRank;
+                        long kernelVolume = 1;
+                        long positions = 1;
+                        for (int spatial = 0; matches && spatial < dimensions; spatial++) {
+                            kernelVolume =
+                                    Math.multiplyExact(kernelVolume, words[offset + spatial]);
+                            positions = Math.multiplyExact(
+                                    positions,
+                                    task0059WindowExtent(
+                                            output[spatial + 2],
+                                            words[offset + spatial],
+                                            words[offset + dimensions * 2 + spatial],
+                                            words[offset + dimensions + spatial],
+                                            words[offset + dimensions * 3 + spatial],
+                                            words[offset + dimensions * 4] != 0));
+                        }
+                        yield matches
+                                && input[0] == output[0]
+                                && input[1] == Math.multiplyExact(output[1], kernelVolume)
+                                && input[2] == positions;
+                    }
+                    default -> false;
+                };
+            } catch (ArithmeticException | IndexOutOfBoundsException exception) {
+                return false;
+            }
+        }
+
+        private static long[] task0059SliceRegion(
+                MetalMpsGraphProgram.Node node, long[] input) {
+            long[] words = node.attributeWords();
+            if (node.attributeKind() == MetalMpsGraphProgram.AttributeKind.CROP_TO_SHAPE) {
+                int targetRank = Math.toIntExact(words[0]);
+                int prefixOffset = 1 + targetRank;
+                int prefixRank = Math.toIntExact(words[prefixOffset]);
+                if (targetRank != input.length || prefixRank != input.length) return null;
+                long[] target = Arrays.copyOfRange(words, 1, prefixOffset);
+                for (int axis = 0; axis < input.length; axis++) {
+                    long prefix = words[prefixOffset + 1 + axis];
+                    if (Math.addExact(prefix, target[axis]) > input[axis]) return null;
+                }
+                return target;
+            }
+            int count = Math.toIntExact(words[0]);
+            if (count > input.length) return null;
+            long[] expected = input.clone();
+            for (int item = 0; item < count; item++) {
+                long start = words[1 + item];
+                long length = words[1 + count + item];
+                int axis = Math.toIntExact(words[1 + count * 2 + item]);
+                long step = words[1 + count * 3 + item];
+                if (axis < 0 || axis >= input.length || start < 0 || length <= 0
+                        || start >= input[axis]) {
+                    return null;
+                }
+                long last = Math.addExact(start, Math.multiplyExact(length - 1, step));
+                if (last < 0 || last >= input[axis]) return null;
+                expected[axis] = length;
+            }
+            return expected;
+        }
+
+        private static long task0059WindowExtent(
+                long input, long kernel, long padding, long stride,
+                long dilation, boolean ceil) {
+            long effective =
+                    Math.addExact(Math.multiplyExact(dilation, kernel - 1), 1);
+            long numerator = Math.subtractExact(
+                    Math.addExact(input, Math.multiplyExact(2, padding)), effective);
+            if (numerator < 0) throw new ArithmeticException("window does not fit");
+            return Math.addExact(
+                    numerator / stride + (ceil && numerator % stride != 0 ? 1 : 0), 1);
         }
 
         static void validateRun(
@@ -931,7 +1369,9 @@ abstract class MetalNativeApi implements AutoCloseable {
                             RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE,
                             CONTIGUOUS, GATHER, ONE_HOT, SCATTER_ELEMENTS, UNFOLD_AXIS,
                             IS_FINITE, IS_NAN, IS_INF, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT,
-                            WHERE -> true;
+                            WHERE, CAST, GATHER_ELEMENTS, SCATTER_ADD, GATHER_ND, SCATTER_ND,
+                            SELECT, PAD, SLICE, SLICE_UPDATE, CONCAT, STACK, TILE, FOLD_AXIS,
+                            UNFOLD2D, FOLD2D, UNFOLD3D, FOLD3D -> true;
                     default -> false;
                 };
                 case ACCELERATOR -> true;

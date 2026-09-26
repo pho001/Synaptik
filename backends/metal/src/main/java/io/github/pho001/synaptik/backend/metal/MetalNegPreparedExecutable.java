@@ -1,5 +1,6 @@
 package io.github.pho001.synaptik.backend.metal;
 
+import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.trace.id.TraceInvocationId;
 import io.github.pho001.synaptik.runtime.execution.BoundInvocation;
@@ -36,6 +37,8 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
 final class MetalNegPreparedExecutable extends PreparedExecutable {
     private static final ValueLayout.OfInt NATIVE_INT =
             ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder());
+    private static final ValueLayout.OfLong NATIVE_LONG =
+            ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder());
     private final MetalNegPreparationPlan preparationPlan;
     private final MetalMpsGraphExecutableResource mpsGraphResource;
     private final MetalNegKernelPipelineResource customResource;
@@ -272,8 +275,14 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         MemorySegment inputs = workspace.segment().asSlice(0L, (long) inputCount * ADDRESS.byteSize());
         MemorySegment outputs = workspace.segment().asSlice(
                 (long) inputCount * ADDRESS.byteSize(), (long) outputCount * ADDRESS.byteSize());
+        var replayBuffers =
+                new MetalBufferRepresentation[preparationPlan.descriptors().size()];
+        int[] feedValues = preparationPlan.feedValueIndices();
+        for (int index = 0; index < inputBuffers.length; index++) {
+            replayBuffers[feedValues[index]] = inputBuffers[index];
+        }
         return new MpsGraphBoundInvocation(
-                runState, preparationPlan, mpsGraphResource, inputBuffers,
+                runState, preparationPlan, mpsGraphResource, replayBuffers,
                 inputCount, inputs, outputCount, outputs);
     }
 
@@ -284,11 +293,9 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         var workspace = (AddressWorkspace) workspaceRepresentations[0];
         int valueCount = preparationPlan.valueIds().size();
         var valueBuffers = new MetalBufferRepresentation[valueCount];
-        var feedBuffers = new MetalBufferRepresentation[inputCount];
         int[] feedValues = preparationPlan.feedValueIndices();
         for (int index = 0; index < inputCount; index++) {
             MetalBufferRepresentation input = readInput(index, bufferRepresentations[index]);
-            feedBuffers[index] = input;
             valueBuffers[feedValues[index]] = input;
         }
         int[] targetValues = preparationPlan.targetValueIndices();
@@ -326,7 +333,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                 runState,
                 preparationPlan,
                 mpsGraphResource,
-                feedBuffers,
+                valueBuffers,
                 valueCount,
                 values,
                 targetCount,
@@ -427,60 +434,65 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         }
 
         private RuntimeException reproduceIndexFailure() {
-            int[] feedIndices = preparationPlan.feedValueIndices();
             List<MetalMpsGraphProgram.Node> nodes = preparationPlan.graphProgram().nodes();
             for (MetalMpsGraphProgram.Node node : nodes) {
                 int indexValue;
-                long bound;
                 String family;
                 if (node.kind() == MetalMpsGraphProgram.NodeKind.GATHER) {
                     family = "GATHER";
                     indexValue = node.secondInputIndex();
-                    bound = dataAxisExtent(node);
+                } else if (node.kind() == MetalMpsGraphProgram.NodeKind.GATHER_ELEMENTS) {
+                    family = "GATHER_ELEMENTS";
+                    indexValue = node.secondInputIndex();
+                } else if (node.kind() == MetalMpsGraphProgram.NodeKind.GATHER_ND) {
+                    family = "GATHER_ND";
+                    indexValue = node.secondInputIndex();
                 } else if (node.kind() == MetalMpsGraphProgram.NodeKind.ONE_HOT) {
                     family = "ONE_HOT";
                     indexValue = node.firstInputIndex();
-                    bound = node.attributeValues()[0];
                 } else if (node.kind()
                         == MetalMpsGraphProgram.NodeKind.SCATTER_ELEMENTS) {
                     family = "SCATTER_ELEMENTS";
                     indexValue = node.secondInputIndex();
-                    bound = dataAxisExtent(node);
                 } else {
                     continue;
                 }
-                int feedPosition = feedPosition(feedIndices, indexValue);
-                if (feedPosition < 0) {
+                var indexDescriptor = preparationPlan.descriptors().get(indexValue);
+                DataType indexType = indexDescriptor.dataType();
+                int width = indexType.byteWidth();
+                long[] indexShape = indexDescriptor.shape().toLongArray();
+                long elements = indexDescriptor.shape().knownElementCount().orElseThrow();
+                long bytes = Math.multiplyExact(elements, width);
+                MetalBufferRepresentation indexBuffer = inputBuffers[indexValue];
+                if (indexBuffer == null) {
                     throw new IllegalStateException(
-                            "Metal index value is not a stable executable feed");
+                            "Metal index value has no stable executable buffer");
                 }
-                long[] indexShape = preparationPlan.descriptors().get(indexValue)
-                        .shape().toLongArray();
-                long elements = preparationPlan.descriptors().get(indexValue)
-                        .shape().knownElementCount().orElseThrow();
-                long bytes = Math.multiplyExact(elements, Integer.BYTES);
+                long[] dataShape = preparationPlan.descriptors()
+                        .get(node.firstInputIndex()).shape().toLongArray();
+                int batch = family.equals("GATHER_ND")
+                        ? Math.toIntExact(node.attributeWords()[0]) : 0;
+                long tuple = family.equals("GATHER_ND")
+                        ? indexShape[indexShape.length - 1] : 0L;
                 try (Arena arena = Arena.ofConfined()) {
-                    MemorySegment indices = arena.allocate(bytes, Integer.BYTES);
-                    inputBuffers[feedPosition].download(0L, indices, 0L, bytes);
+                    MemorySegment indices = arena.allocate(bytes, width);
+                    indexBuffer.download(0L, indices, 0L, bytes);
                     for (long ordinal = 0L; ordinal < elements; ordinal++) {
-                        int value = indices.getAtIndex(NATIVE_INT, ordinal);
-                        if (value < 0 || (long) value >= bound) {
-                            String message = switch (family) {
-                                case "GATHER" ->
-                                    "GATHER index at logical position " + ordinal
-                                            + " for data axis " + node.axis()
+                        long value = readIndex(indices, ordinal, indexType);
+                        int selectedAxis = family.equals("GATHER_ND")
+                                ? Math.addExact(batch, Math.toIntExact(ordinal % tuple))
+                                : node.axis();
+                        long bound = family.equals("ONE_HOT")
+                                ? node.attributeValues()[0] : dataShape[selectedAxis];
+                        if (value < 0L || value >= bound) {
+                            String message = family.equals("ONE_HOT")
+                                    ? "ONE_HOT index at logical position " + ordinal
+                                            + " is out of bounds: value=" + value
+                                            + ", depth=" + bound
+                                    : family + " index at logical position " + ordinal
+                                            + " for data axis " + selectedAxis
                                             + " is out of bounds: value=" + value
                                             + ", extent=" + bound;
-                                case "ONE_HOT" ->
-                                    "ONE_HOT index at logical position " + ordinal
-                                            + " is out of bounds: value=" + value
-                                            + ", depth=" + bound;
-                                default ->
-                                    "SCATTER_ELEMENTS index at logical position " + ordinal
-                                            + " for data axis " + node.axis()
-                                            + " is out of bounds: value=" + value
-                                            + ", extent=" + bound;
-                            };
                             return new IndexOutOfBoundsException(message);
                         }
                     }
@@ -504,11 +516,16 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             return null;
         }
 
-        private long dataAxisExtent(MetalMpsGraphProgram.Node node) {
-            long[] dataShape = preparationPlan.descriptors()
-                    .get(node.firstInputIndex()).shape().toLongArray();
-            return dataShape[node.axis()];
+        private static long readIndex(
+                MemorySegment indices, long ordinal, DataType dataType) {
+            return switch (dataType) {
+                case INT32 -> indices.getAtIndex(NATIVE_INT, ordinal);
+                case INT64 -> indices.getAtIndex(NATIVE_LONG, ordinal);
+                default -> throw new IllegalStateException(
+                        "Metal index replay requires INT32 or INT64");
+            };
         }
+
 
         private static boolean sameScatterTarget(
                 MemorySegment indices,
@@ -538,12 +555,6 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             return ordinal / stride % shape[axis];
         }
 
-        private static int feedPosition(int[] feedIndices, int valueIndex) {
-            for (int position = 0; position < feedIndices.length; position++) {
-                if (feedIndices[position] == valueIndex) return position;
-            }
-            return -1;
-        }
     }
 
     private static final class CustomBoundInvocation extends BoundInvocation {

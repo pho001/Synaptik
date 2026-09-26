@@ -123,8 +123,7 @@ final class MetalNegPreparedScheduleAssembler
                     || descriptor.layout().isEmpty()
                     || (dataType == DataType.FLOAT32
                             ? !canonical && affinePublication.isEmpty()
-                            : (dataType != DataType.INT32 && dataType != DataType.BOOL)
-                                    || !canonical)) {
+                            : !task0059Carrier(dataType) || !canonical)) {
                 throw new IllegalArgumentException(
                         "Metal assigned buffer requires a supported canonical typed descriptor"
                                 + " or authenticated affine FLOAT32");
@@ -139,11 +138,9 @@ final class MetalNegPreparedScheduleAssembler
             } else if (representationIndex == 0
                     && scheduleContext.constants().containsKey(assignment.valueId())) {
                 var scalar = scheduleContext.constants().get(assignment.valueId());
-                if (scalar.dataType() != descriptor.dataType()
-                        || (scalar.dataType() != DataType.FLOAT32
-                                && scalar.dataType() != DataType.INT32)) {
+                if (scalar.dataType() != descriptor.dataType()) {
                     throw new IllegalArgumentException(
-                            "Metal initialized buffer requires matching FLOAT32 or INT32 scalar");
+                            "Metal initialized buffer requires a matching carrier scalar");
                 }
                 MetalPreparedSplatResource resource = requireSplatResource(
                         scheduleContext.partitions(), assignment.valueId());
@@ -420,6 +417,12 @@ final class MetalNegPreparedScheduleAssembler
         }
         return Optional.empty();
     }
+    private static boolean task0059Carrier(DataType dataType) {
+        return switch (dataType) {
+            case FLOAT64, FLOAT32, BFLOAT16, INT64, INT32, BOOL -> true;
+        };
+    }
+
     private static PreparedBufferAssignment requireAssignment(
             Map<ValueId, PreparedBufferAssignment> assignments, ValueId valueId) {
         PreparedBufferAssignment assignment = assignments.get(valueId);

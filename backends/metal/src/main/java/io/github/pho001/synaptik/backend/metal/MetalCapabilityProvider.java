@@ -9,6 +9,8 @@ import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
 import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ClampRangeAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
@@ -18,6 +20,8 @@ import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSele
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
 import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
 import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
+import io.github.pho001.synaptik.model.operation.index.GatherNdAttrs;
+import io.github.pho001.synaptik.model.operation.index.GatherNdKind;
 import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
@@ -25,11 +29,21 @@ import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
+import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.PadAttrs;
+import io.github.pho001.synaptik.model.operation.layout.PadKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
+import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
+import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
+import io.github.pho001.synaptik.model.operation.layout.TileKind;
 import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.Unfold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Unfold3dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
@@ -82,6 +96,15 @@ import java.util.Objects;
  * extents, exact data-shaped output, non-differentiable indices, and data/update gradient OR.
  * UNFOLD_AXIS requires a canonical rank {@code 1..15} input, size {@code 1..16}, exact floor-count
  * Shape with the window size appended, and a fresh canonical materialization.</p>
+ *
+ * <p>The profile-common Task-0059 domain also admits exactly nineteen static canonical no-gradient
+ * CAST carrier pairs: six identities, BOOL to or from each other carrier, INT32/INT64 in both
+ * directions, and BFLOAT16 to FLOAT32. GATHER_ELEMENTS and GATHER_ND preserve any of the six data
+ * carriers and require canonical INT32 or INT64 indices. PAD, CONCAT, STACK, and TILE preserve any
+ * carrier; UNFOLD2D and UNFOLD3D accept only Model-legal FLOAT64, FLOAT32, or BFLOAT16 inputs.
+ * These raw movement routes require exact static Shapes and normalized attributes. View-only
+ * SELECT/SLICE, scatter reductions, slice update, folds, gradients, empty or dynamic extents,
+ * unresolved/noncanonical layouts, and every unlisted conversion remain unsupported.</p>
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
     /**
@@ -150,6 +173,28 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         }
         TensorDescriptor output = outputs.getFirst();
         try {
+            if (operation.kind() == CastKind.CAST) {
+                return supportsCast(operation, inputs, output);
+            }
+            if (operation.kind() == AxisGatherKind.GATHER_ELEMENTS) {
+                return supportsGatherElements(operation, inputs, output);
+            }
+            if (operation.kind() == GatherNdKind.GATHER_ND) {
+                return supportsGatherNd(operation, inputs, output);
+            }
+            if (operation.kind() == PadKind.PAD) {
+                return supportsPad(operation, inputs, output);
+            }
+            if (operation.kind() instanceof TensorCompositionKind composition) {
+                return supportsComposition(operation, inputs, output, composition);
+            }
+            if (operation.kind() == TileKind.TILE) {
+                return supportsTile(operation, inputs, output);
+            }
+            if (operation.kind() == WindowTransformKind.UNFOLD2D
+                    || operation.kind() == WindowTransformKind.UNFOLD3D) {
+                return supportsImageUnfold(operation, inputs, output);
+            }
             if (operation.kind() == AxisGatherKind.GATHER) {
                 return supportsGather(operation, inputs, output);
             }
@@ -211,6 +256,270 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         } catch (IllegalArgumentException | ArithmeticException incompatible) {
             return false;
         }
+    }
+
+    private static boolean supportsCast(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        if (!(operation.attrs() instanceof CastAttrs attrs) || inputs.size() != 1) {
+            return false;
+        }
+        TensorDescriptor input = inputs.getFirst();
+        DataType source = input.dataType();
+        DataType target = attrs.targetDataType();
+        boolean provedPair = source == target
+                || source == DataType.BOOL
+                || target == DataType.BOOL
+                || source == DataType.INT32 && target == DataType.INT64
+                || source == DataType.INT64 && target == DataType.INT32
+                || source == DataType.BFLOAT16 && target == DataType.FLOAT32;
+        return provedPair
+                && canonicalAny(input, true)
+                && canonicalAny(output, true)
+                && !input.requiresGrad()
+                && !output.requiresGrad()
+                && output.dataType() == target
+                && input.shape().equals(output.shape());
+    }
+
+    private static boolean supportsGatherElements(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        if (!(operation.attrs() instanceof IndexAxisAttrs attrs) || inputs.size() != 2) {
+            return false;
+        }
+        TensorDescriptor data = inputs.get(0);
+        TensorDescriptor indices = inputs.get(1);
+        if (!canonicalAny(data, false)
+                || !canonicalIndex(indices)
+                || !canonicalAny(output, false)
+                || data.requiresGrad()
+                || indices.requiresGrad()
+                || output.requiresGrad()
+                || output.dataType() != data.dataType()
+                || !output.shape().equals(indices.shape())) {
+            return false;
+        }
+        long[] dataShape = data.shape().toLongArray();
+        long[] indexShape = indices.shape().toLongArray();
+        if (dataShape.length != indexShape.length || attrs.axis() >= dataShape.length) {
+            return false;
+        }
+        for (int axis = 0; axis < dataShape.length; axis++) {
+            if (axis != attrs.axis() && dataShape[axis] != indexShape[axis]) return false;
+        }
+        return true;
+    }
+
+    private static boolean supportsGatherNd(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        if (!(operation.attrs() instanceof GatherNdAttrs attrs) || inputs.size() != 2) {
+            return false;
+        }
+        TensorDescriptor data = inputs.get(0);
+        TensorDescriptor indices = inputs.get(1);
+        if (!canonicalAny(data, false)
+                || !canonicalIndex(indices)
+                || !canonicalAny(output, true)
+                || data.requiresGrad()
+                || indices.requiresGrad()
+                || output.requiresGrad()
+                || output.dataType() != data.dataType()) {
+            return false;
+        }
+        long[] dataShape = data.shape().toLongArray();
+        long[] indexShape = indices.shape().toLongArray();
+        int batch = attrs.batchDimensions();
+        if (batch >= indexShape.length || batch > dataShape.length) return false;
+        for (int axis = 0; axis < batch; axis++) {
+            if (dataShape[axis] != indexShape[axis]) return false;
+        }
+        long tupleWord = indexShape[indexShape.length - 1];
+        if (tupleWord < 1L || tupleWord > Integer.MAX_VALUE) return false;
+        int tuple = (int) tupleWord;
+        if (tuple > dataShape.length - batch) return false;
+        int outputRank = Math.addExact(indexShape.length - 1, dataShape.length - batch - tuple);
+        if (outputRank > 16 || output.shape().rank() != outputRank) return false;
+        long[] expected = new long[outputRank];
+        System.arraycopy(indexShape, 0, expected, 0, indexShape.length - 1);
+        System.arraycopy(dataShape, batch + tuple, expected, indexShape.length - 1,
+                dataShape.length - batch - tuple);
+        return java.util.Arrays.equals(expected, output.shape().toLongArray());
+    }
+
+
+    private static boolean supportsPad(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        if (!(operation.attrs() instanceof PadAttrs attrs) || inputs.size() != 1) {
+            return false;
+        }
+        TensorDescriptor input = inputs.getFirst();
+        if (!canonicalAny(input, true)
+                || !canonicalAny(output, true)
+                || input.dataType() != output.dataType()
+                || attrs.constantValue().dataType() != input.dataType()
+                || input.requiresGrad()
+                || output.requiresGrad()) {
+            return false;
+        }
+        long[] inputShape = input.shape().toLongArray();
+        if (attrs.before().size() != inputShape.length
+                || attrs.after().size() != inputShape.length
+                || output.shape().rank() != inputShape.length) {
+            return false;
+        }
+        long[] expected = new long[inputShape.length];
+        for (int axis = 0; axis < inputShape.length; axis++) {
+            expected[axis] = Math.addExact(
+                    Math.addExact(inputShape[axis], attrs.before().get(axis)),
+                    attrs.after().get(axis));
+        }
+        return java.util.Arrays.equals(expected, output.shape().toLongArray());
+    }
+
+
+    private static boolean supportsComposition(
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            TensorDescriptor output,
+            TensorCompositionKind kind) {
+        if (!(operation.attrs() instanceof CompositionAxisAttrs attrs)
+                || inputs.isEmpty() || inputs.size() > MetalMpsGraphProgram.MAX_SELECTOR_EXPANSION
+                || !canonicalAny(output, kind == TensorCompositionKind.STACK)
+                || output.requiresGrad()) {
+            return false;
+        }
+        DataType type = output.dataType();
+        for (TensorDescriptor input : inputs) {
+            if (!canonicalAny(input, kind == TensorCompositionKind.STACK)
+                    || input.dataType() != type || input.requiresGrad()) return false;
+        }
+        long[] first = inputs.getFirst().shape().toLongArray();
+        if (kind == TensorCompositionKind.CONCAT) {
+            if (first.length == 0 || attrs.axis() >= first.length
+                    || output.shape().rank() != first.length) return false;
+            long[] expected = first.clone();
+            expected[attrs.axis()] = 0L;
+            for (TensorDescriptor input : inputs) {
+                long[] shape = input.shape().toLongArray();
+                if (shape.length != first.length) return false;
+                for (int axis = 0; axis < shape.length; axis++) {
+                    if (axis != attrs.axis() && shape[axis] != first[axis]) return false;
+                }
+                expected[attrs.axis()] =
+                        Math.addExact(expected[attrs.axis()], shape[attrs.axis()]);
+            }
+            return java.util.Arrays.equals(expected, output.shape().toLongArray());
+        }
+        if (first.length >= 16 || attrs.axis() > first.length
+                || output.shape().rank() != first.length + 1) return false;
+        for (TensorDescriptor input : inputs) {
+            if (!input.shape().equals(inputs.getFirst().shape())) return false;
+        }
+        long[] expected = new long[first.length + 1];
+        System.arraycopy(first, 0, expected, 0, attrs.axis());
+        expected[attrs.axis()] = inputs.size();
+        System.arraycopy(first, attrs.axis(), expected, attrs.axis() + 1,
+                first.length - attrs.axis());
+        return java.util.Arrays.equals(expected, output.shape().toLongArray());
+    }
+
+    private static boolean supportsTile(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        if (!(operation.attrs() instanceof TileAttrs attrs) || inputs.size() != 1) return false;
+        TensorDescriptor input = inputs.getFirst();
+        if (!canonicalAny(input, true)
+                || !canonicalAny(output, true)
+                || input.dataType() != output.dataType()
+                || input.requiresGrad()
+                || output.requiresGrad()) {
+            return false;
+        }
+        long[] inputShape = input.shape().toLongArray();
+        if (attrs.repeats().size() != inputShape.length
+                || output.shape().rank() != inputShape.length) return false;
+        long[] expected = new long[inputShape.length];
+        for (int axis = 0; axis < inputShape.length; axis++) {
+            expected[axis] = Math.multiplyExact(inputShape[axis], attrs.repeats().get(axis));
+        }
+        return java.util.Arrays.equals(expected, output.shape().toLongArray());
+    }
+
+    private static boolean supportsImageUnfold(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        if (inputs.size() != 1) return false;
+        TensorDescriptor input = inputs.getFirst();
+        if (!canonicalAny(input, false)
+                || !canonicalAny(output, false)
+                || input.dataType() != output.dataType()
+                || input.requiresGrad()
+                || output.requiresGrad()
+                || output.shape().rank() != 3) {
+            return false;
+        }
+        if (input.dataType() != DataType.FLOAT64
+                && input.dataType() != DataType.FLOAT32
+                && input.dataType() != DataType.BFLOAT16) {
+            return false;
+        }
+        if (operation.kind() == WindowTransformKind.UNFOLD2D) {
+            Window2dAttrs window;
+            if (operation.attrs() instanceof Window2dAttrs direct) {
+                window = direct;
+            } else if (operation.attrs() instanceof Unfold2dAttrs explicit
+                    && explicit.paddingValue().dataType() == input.dataType()) {
+                window = explicit.window();
+            } else {
+                return false;
+            }
+            long[] shape = input.shape().toLongArray();
+            if (shape.length != 4) return false;
+            long height = windowExtent(shape[2], window.kernelHeight(), window.paddingHeight(),
+                    window.strideHeight(), window.dilationHeight(), window.ceilMode());
+            long width = windowExtent(shape[3], window.kernelWidth(), window.paddingWidth(),
+                    window.strideWidth(), window.dilationWidth(), window.ceilMode());
+            long[] expected = {
+                    shape[0],
+                    Math.multiplyExact(Math.multiplyExact(shape[1], window.kernelHeight()),
+                            window.kernelWidth()),
+                    Math.multiplyExact(height, width)
+            };
+            return java.util.Arrays.equals(expected, output.shape().toLongArray());
+        }
+        Window3dAttrs window;
+        if (operation.attrs() instanceof Window3dAttrs direct) {
+            window = direct;
+        } else if (operation.attrs() instanceof Unfold3dAttrs explicit
+                && explicit.paddingValue().dataType() == input.dataType()) {
+            window = explicit.window();
+        } else {
+            return false;
+        }
+        long[] shape = input.shape().toLongArray();
+        if (shape.length != 5) return false;
+        long depth = windowExtent(shape[2], window.kernelDepth(), window.paddingDepth(),
+                window.strideDepth(), window.dilationDepth(), window.ceilMode());
+        long height = windowExtent(shape[3], window.kernelHeight(), window.paddingHeight(),
+                window.strideHeight(), window.dilationHeight(), window.ceilMode());
+        long width = windowExtent(shape[4], window.kernelWidth(), window.paddingWidth(),
+                window.strideWidth(), window.dilationWidth(), window.ceilMode());
+        long[] expected = {
+                shape[0],
+                Math.multiplyExact(
+                        Math.multiplyExact(
+                                Math.multiplyExact(shape[1], window.kernelDepth()),
+                                window.kernelHeight()),
+                        window.kernelWidth()),
+                Math.multiplyExact(Math.multiplyExact(depth, height), width)
+        };
+        return java.util.Arrays.equals(expected, output.shape().toLongArray());
+    }
+
+    private static long windowExtent(
+            long input, long kernel, long padding, long stride, long dilation, boolean ceil) {
+        long effective = Math.addExact(Math.multiplyExact(dilation, kernel - 1L), 1L);
+        long numerator =
+                Math.subtractExact(Math.addExact(input, Math.multiplyExact(2L, padding)), effective);
+        if (numerator < 0L) throw new IllegalArgumentException("window does not fit");
+        return Math.addExact(numerator / stride + (ceil && numerator % stride != 0L ? 1L : 0L), 1L);
     }
 
     private static boolean supportsGather(
@@ -791,6 +1100,31 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         return geometry(descriptor, dataType, false)
                 && descriptor.layout().orElseThrow().equals(
                         LayoutDescriptor.contiguous(descriptor.shape()));
+    }
+
+    private static boolean canonicalIndex(TensorDescriptor descriptor) {
+        return (descriptor.dataType() == DataType.INT32
+                        || descriptor.dataType() == DataType.INT64)
+                && canonicalAny(descriptor, false);
+    }
+
+    private static boolean canonicalAny(TensorDescriptor descriptor, boolean allowScalar) {
+        int rank = descriptor.shape().rank();
+        if (!descriptor.shape().isFullyStatic()
+                || rank < (allowScalar ? 0 : 1)
+                || rank > MetalMpsGraphProgram.MAX_RANK
+                || descriptor.layout().isEmpty()
+                || !descriptor.layout().orElseThrow().equals(
+                        LayoutDescriptor.contiguous(descriptor.shape()))) {
+            return false;
+        }
+        long elements = 1L;
+        for (long dimension : descriptor.shape().toLongArray()) {
+            if (dimension <= 0L) return false;
+            elements = Math.multiplyExact(elements, dimension);
+        }
+        Math.multiplyExact(elements, descriptor.dataType().byteWidth());
+        return true;
     }
 
     private static boolean canonicalReductionOutput(TensorDescriptor descriptor) {

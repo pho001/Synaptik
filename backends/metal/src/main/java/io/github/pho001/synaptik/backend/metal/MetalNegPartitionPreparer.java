@@ -11,6 +11,8 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
 import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ClampRangeAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
@@ -20,17 +22,34 @@ import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSele
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
 import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
 import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
+import io.github.pho001.synaptik.model.operation.index.GatherNdAttrs;
+import io.github.pho001.synaptik.model.operation.index.GatherNdKind;
 import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
+import io.github.pho001.synaptik.model.operation.index.SelectAttrs;
+import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
+import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
+import io.github.pho001.synaptik.model.operation.layout.PadAttrs;
+import io.github.pho001.synaptik.model.operation.layout.PadKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
+import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
+import io.github.pho001.synaptik.model.operation.layout.SliceKind;
+import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
+import io.github.pho001.synaptik.model.operation.layout.TileKind;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.Unfold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Unfold3dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
@@ -215,7 +234,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     }
                 }
             }
-            if (inputStates.size() != lowered.kind().inputCount()
+            if (!lowered.kind().acceptsCardinality(inputStates.size(), 1)
                     || inputStates.stream().anyMatch(state -> !lowered.kind().accepts(state))) {
                 throw new IllegalArgumentException(
                         "Metal node input value state is unavailable or incompatible");
@@ -266,10 +285,9 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             ValueId feed = feeds.get(index);
             ScalarValue scalar = context.constants().get(feed);
             DataType dataType = graphValues.get(feed).descriptor().dataType();
-            if (scalar != null && (scalar.dataType() != dataType
-                    || (dataType != DataType.FLOAT32 && dataType != DataType.INT32))) {
+            if (scalar != null && scalar.dataType() != dataType) {
                 throw new IllegalArgumentException(
-                        "Metal splat feed must exactly match FLOAT32 or INT32");
+                        "Metal splat feed must exactly match its descriptor carrier type");
             }
             LogicalMemoryRequirement requirement = require(requirements, feed);
             if (scalar != null && (requirement.producerPartition().isPresent()
@@ -472,9 +490,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
     }
 
     private static boolean canonicalFeed(TensorDescriptor descriptor) {
-        DataType dataType = descriptor.dataType();
-        return (dataType == DataType.FLOAT32 || dataType == DataType.INT32 || dataType == DataType.BOOL)
-                && descriptor.layout().isPresent()
+        return descriptor.layout().isPresent()
                 && descriptor.layout().orElseThrow().equals(
                         LayoutDescriptor.contiguous(descriptor.shape()));
     }
@@ -500,6 +516,93 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
     private static MetalMpsGraphProgram.Node lower(
             Operation operation, int[] inputs, int output) {
         OperationKind kind = operation.kind();
+        if (kind == CastKind.CAST) {
+            CastAttrs attrs = (CastAttrs) operation.attrs();
+            return MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.CAST, inputs, new int[] {output},
+                    MetalMpsGraphProgram.AttributeKind.CAST_TARGET,
+                    new long[] {MetalMpsGraphProgram.dataTypeWire(attrs.targetDataType())});
+        }
+        if (kind == AxisGatherKind.GATHER_ELEMENTS) {
+            IndexAxisAttrs attrs = (IndexAxisAttrs) operation.attrs();
+            return MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.GATHER_ELEMENTS,
+                    inputs, new int[] {output}, MetalMpsGraphProgram.AttributeKind.AXIS,
+                    new long[] {attrs.axis()});
+        }
+        if (kind == GatherNdKind.GATHER_ND) {
+            GatherNdAttrs attrs = (GatherNdAttrs) operation.attrs();
+            return MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.GATHER_ND,
+                    inputs, new int[] {output}, MetalMpsGraphProgram.AttributeKind.GATHER_ND,
+                    new long[] {attrs.batchDimensions()});
+        }
+        if (kind == SelectKind.SELECT) {
+            SelectAttrs attrs = (SelectAttrs) operation.attrs();
+            return MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.SELECT,
+                    inputs, new int[] {output}, MetalMpsGraphProgram.AttributeKind.SELECT,
+                    new long[] {attrs.axis(), attrs.index()});
+        }
+        if (kind == PadKind.PAD) {
+            return MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.PAD,
+                    inputs, new int[] {output}, MetalMpsGraphProgram.AttributeKind.PAD,
+                    padWords((PadAttrs) operation.attrs()));
+        }
+        if (kind == SliceKind.SLICE) {
+            long[] words = operation.attrs() instanceof SliceAttrs attrs
+                    ? sliceWords(attrs)
+                    : cropWords((CropToShapeAttrs) operation.attrs());
+            return MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.SLICE,
+                    inputs, new int[] {output}, MetalMpsGraphProgram.AttributeKind.SLICE, words);
+        }
+        if (kind instanceof TensorCompositionKind composition) {
+            CompositionAxisAttrs attrs = (CompositionAxisAttrs) operation.attrs();
+            MetalMpsGraphProgram.NodeKind nodeKind =
+                    composition == TensorCompositionKind.CONCAT
+                            ? MetalMpsGraphProgram.NodeKind.CONCAT
+                            : MetalMpsGraphProgram.NodeKind.STACK;
+            return MetalMpsGraphProgram.Node.generic(
+                    nodeKind, inputs, new int[] {output},
+                    MetalMpsGraphProgram.AttributeKind.AXIS, new long[] {attrs.axis()});
+        }
+        if (kind == TileKind.TILE) {
+            TileAttrs attrs = (TileAttrs) operation.attrs();
+            long[] words = new long[attrs.repeats().size() + 1];
+            words[0] = attrs.repeats().size();
+            for (int index = 0; index < attrs.repeats().size(); index++) {
+                words[index + 1] = attrs.repeats().get(index);
+            }
+            return MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.TILE,
+                    inputs, new int[] {output}, MetalMpsGraphProgram.AttributeKind.TILE, words);
+        }
+        if (kind == WindowTransformKind.UNFOLD2D) {
+            Object raw = operation.attrs();
+            Window2dAttrs window = raw instanceof Unfold2dAttrs explicit
+                    ? explicit.window() : (Window2dAttrs) raw;
+            boolean padded = raw instanceof Unfold2dAttrs;
+            return MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.UNFOLD2D,
+                    inputs, new int[] {output},
+                    padded ? MetalMpsGraphProgram.AttributeKind.PADDED_WINDOW_2D
+                            : MetalMpsGraphProgram.AttributeKind.WINDOW_2D,
+                    windowWords(window, padded ? ((Unfold2dAttrs) raw).paddingValue() : null));
+        }
+        if (kind == WindowTransformKind.UNFOLD3D) {
+            Object raw = operation.attrs();
+            Window3dAttrs window = raw instanceof Unfold3dAttrs explicit
+                    ? explicit.window() : (Window3dAttrs) raw;
+            boolean padded = raw instanceof Unfold3dAttrs;
+            return MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.UNFOLD3D,
+                    inputs, new int[] {output},
+                    padded ? MetalMpsGraphProgram.AttributeKind.PADDED_WINDOW_3D
+                            : MetalMpsGraphProgram.AttributeKind.WINDOW_3D,
+                    windowWords(window, padded ? ((Unfold3dAttrs) raw).paddingValue() : null));
+        }
         if (kind == AxisGatherKind.GATHER) {
             IndexAxisAttrs attrs = (IndexAxisAttrs) operation.attrs();
             return MetalMpsGraphProgram.Node.gather(
@@ -696,6 +799,104 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 : MetalMpsGraphProgram.NodeKind.SQUEEZE;
         return MetalMpsGraphProgram.Node.axis(
                 nodeKind, inputs[0], output, attrs.axis());
+    }
+
+    private static long[] padWords(PadAttrs attrs) {
+        int rank = attrs.before().size();
+        long[] scalar = scalarWords(attrs.constantValue());
+        long[] words = new long[1 + rank * 2 + scalar.length];
+        words[0] = rank;
+        for (int axis = 0; axis < rank; axis++) {
+            words[1 + axis] = attrs.before().get(axis);
+            words[1 + rank + axis] = attrs.after().get(axis);
+        }
+        System.arraycopy(scalar, 0, words, 1 + rank * 2, scalar.length);
+        return words;
+    }
+
+    private static long[] sliceWords(SliceAttrs attrs) {
+        int count = attrs.axes().size();
+        long[] words = new long[1 + count * 4];
+        words[0] = count;
+        for (int index = 0; index < count; index++) {
+            words[1 + index] = attrs.starts().get(index);
+            words[1 + count + index] = attrs.lengths().get(index);
+            words[1 + count * 2 + index] = attrs.axes().get(index);
+            words[1 + count * 3 + index] = attrs.steps().get(index);
+        }
+        return words;
+    }
+
+    private static long[] cropWords(CropToShapeAttrs attrs) {
+        long[] target = attrs.targetShape().toLongArray();
+        long[] prefix = attrs.prefixShape().toLongArray();
+        if (target.length != prefix.length) {
+            throw new IllegalArgumentException("Metal crop ranks must agree");
+        }
+        long[] words = new long[1 + target.length * 4];
+        words[0] = target.length;
+        for (int axis = 0; axis < target.length; axis++) {
+            words[1 + axis] = prefix[axis];
+            words[1 + target.length + axis] = target[axis];
+            words[1 + target.length * 2 + axis] = axis;
+            words[1 + target.length * 3 + axis] = 1L;
+        }
+        return words;
+    }
+
+    private static long[] windowWords(Window2dAttrs window, ScalarValue padding) {
+        long[] words = new long[padding == null ? 9 : 11];
+        words[0] = window.kernelHeight();
+        words[1] = window.kernelWidth();
+        words[2] = window.strideHeight();
+        words[3] = window.strideWidth();
+        words[4] = window.paddingHeight();
+        words[5] = window.paddingWidth();
+        words[6] = window.dilationHeight();
+        words[7] = window.dilationWidth();
+        words[8] = window.ceilMode() ? 1L : 0L;
+        if (padding != null) {
+            long[] scalar = scalarWords(padding);
+            words[9] = scalar[0];
+            words[10] = scalar[1];
+        }
+        return words;
+    }
+
+    private static long[] windowWords(Window3dAttrs window, ScalarValue padding) {
+        long[] words = new long[padding == null ? 13 : 15];
+        words[0] = window.kernelDepth();
+        words[1] = window.kernelHeight();
+        words[2] = window.kernelWidth();
+        words[3] = window.strideDepth();
+        words[4] = window.strideHeight();
+        words[5] = window.strideWidth();
+        words[6] = window.paddingDepth();
+        words[7] = window.paddingHeight();
+        words[8] = window.paddingWidth();
+        words[9] = window.dilationDepth();
+        words[10] = window.dilationHeight();
+        words[11] = window.dilationWidth();
+        words[12] = window.ceilMode() ? 1L : 0L;
+        if (padding != null) {
+            long[] scalar = scalarWords(padding);
+            words[13] = scalar[0];
+            words[14] = scalar[1];
+        }
+        return words;
+    }
+
+    private static long[] scalarWords(ScalarValue value) {
+        long bits = switch (value.dataType()) {
+            case FLOAT64 -> Double.doubleToRawLongBits(value.float64Value());
+            case FLOAT32 -> Integer.toUnsignedLong(
+                    Float.floatToRawIntBits(value.float32Value()));
+            case BFLOAT16 -> Short.toUnsignedLong(value.bfloat16Bits());
+            case INT32 -> Integer.toUnsignedLong(value.int32Value());
+            case INT64 -> value.int64Value();
+            case BOOL -> value.booleanValue() ? 1L : 0L;
+        };
+        return new long[] {MetalMpsGraphProgram.dataTypeWire(value.dataType()), bits};
     }
 
     private static long byteSize(TensorDescriptor descriptor) {

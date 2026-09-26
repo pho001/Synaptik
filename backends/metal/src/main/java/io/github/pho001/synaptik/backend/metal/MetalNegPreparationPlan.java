@@ -73,7 +73,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
      * @param targetValueIds non-null unique boundary outputs in stable target order
      * @param targetValueIndices non-null value indices aligned with targets
      * @param declarations non-null exact feed-then-target buffer declarations
-     * @param feedSplats non-null optional FLOAT32/INT32 splats aligned with feeds
+     * @param feedSplats non-null optional exact typed splats aligned with feeds
      * @param feedSplatSources non-null source-owner facts aligned with feeds; a true entry requires
      *     a present splat
      * @param addressWorkspace non-null optional workspace, absent only for custom singleton NEG

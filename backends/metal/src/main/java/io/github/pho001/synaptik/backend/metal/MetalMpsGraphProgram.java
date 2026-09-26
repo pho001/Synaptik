@@ -99,7 +99,8 @@ final class MetalMpsGraphProgram {
         CONV2D(36, 2, 3, 1, 1, AttributeKind.CONV_2D),
         CONV3D(37, 2, 3, 1, 1, AttributeKind.CONV_3D),
         TENSOR_POW(38, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
-        CAST(39, 1, 1, 1, 1, AttributeKind.CAST_TARGET),
+        CAST(39, 1, 1, 1, 1, AttributeKind.CAST_TARGET,
+                ValueState.CANONICAL, false, true),
         IS_FINITE(40, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         IS_NAN(41, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         IS_INF(42, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
@@ -129,22 +130,38 @@ final class MetalMpsGraphProgram {
         GELU(66, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         GELU_TANH_APPROXIMATION(67, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         SILU(68, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
-        GATHER_ELEMENTS(69, 2, 2, 1, 1, AttributeKind.AXIS),
-        SCATTER_ADD(70, 3, 3, 1, 1, AttributeKind.AXIS),
-        GATHER_ND(71, 2, 2, 1, 1, AttributeKind.GATHER_ND),
-        SCATTER_ND(72, 3, 3, 1, 1, AttributeKind.SCATTER_ND),
-        SELECT(73, 1, 1, 1, 1, AttributeKind.SELECT),
-        PAD(74, 1, 1, 1, 1, AttributeKind.PAD),
-        SLICE(75, 1, 1, 1, 1, AttributeKind.SLICE),
-        SLICE_UPDATE(76, 2, 2, 1, 1, AttributeKind.SLICE),
-        CONCAT(77, 1, Integer.MAX_VALUE, 1, 1, AttributeKind.AXIS),
-        STACK(78, 1, Integer.MAX_VALUE, 1, 1, AttributeKind.AXIS),
-        TILE(79, 1, 1, 1, 1, AttributeKind.TILE),
-        FOLD_AXIS(80, 1, 1, 1, 1, AttributeKind.WINDOW_AXIS),
-        UNFOLD2D(81, 1, 1, 1, 1, AttributeKind.WINDOW_2D),
-        FOLD2D(82, 1, 1, 1, 1, AttributeKind.FOLD_WINDOW_2D),
-        UNFOLD3D(83, 1, 1, 1, 1, AttributeKind.WINDOW_3D),
-        FOLD3D(84, 1, 1, 1, 1, AttributeKind.FOLD_WINDOW_3D),
+        GATHER_ELEMENTS(69, 2, 2, 1, 1, AttributeKind.AXIS,
+                ValueState.CANONICAL, false, true),
+        SCATTER_ADD(70, 3, 3, 1, 1, AttributeKind.AXIS,
+                ValueState.CANONICAL, false, true),
+        GATHER_ND(71, 2, 2, 1, 1, AttributeKind.GATHER_ND,
+                ValueState.CANONICAL, false, true),
+        SCATTER_ND(72, 3, 3, 1, 1, AttributeKind.SCATTER_ND,
+                ValueState.CANONICAL, false, true),
+        SELECT(73, 1, 1, 1, 1, AttributeKind.SELECT,
+                ValueState.CANONICAL, false, true),
+        PAD(74, 1, 1, 1, 1, AttributeKind.PAD,
+                ValueState.CANONICAL, false, true),
+        SLICE(75, 1, 1, 1, 1, AttributeKind.SLICE,
+                ValueState.CANONICAL, false, true),
+        SLICE_UPDATE(76, 2, 2, 1, 1, AttributeKind.SLICE,
+                ValueState.CANONICAL, false, true),
+        CONCAT(77, 1, Integer.MAX_VALUE, 1, 1, AttributeKind.AXIS,
+                ValueState.CANONICAL, false, true),
+        STACK(78, 1, Integer.MAX_VALUE, 1, 1, AttributeKind.AXIS,
+                ValueState.CANONICAL, false, true),
+        TILE(79, 1, 1, 1, 1, AttributeKind.TILE,
+                ValueState.CANONICAL, false, true),
+        FOLD_AXIS(80, 1, 1, 1, 1, AttributeKind.WINDOW_AXIS,
+                ValueState.CANONICAL, false, true),
+        UNFOLD2D(81, 1, 1, 1, 1, AttributeKind.WINDOW_2D,
+                ValueState.CANONICAL, false, true),
+        FOLD2D(82, 1, 1, 1, 1, AttributeKind.FOLD_WINDOW_2D,
+                ValueState.CANONICAL, false, true),
+        UNFOLD3D(83, 1, 1, 1, 1, AttributeKind.WINDOW_3D,
+                ValueState.CANONICAL, false, true),
+        FOLD3D(84, 1, 1, 1, 1, AttributeKind.FOLD_WINDOW_3D,
+                ValueState.CANONICAL, false, true),
         MEAN_SQUARED_ERROR(85, 2, 2, 1, 1, AttributeKind.MSE),
         DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS(86, 2, 2, 1, 1, AttributeKind.DENSE_CROSS_ENTROPY),
         INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS(87, 2, 2, 1, 1, AttributeKind.INDEX_CROSS_ENTROPY),
@@ -219,9 +236,16 @@ final class MetalMpsGraphProgram {
         boolean executable() { return executable; }
         boolean isCustomProgramOperation() {
             return wireIdentity >= 20 && wireIdentity <= 34
+                    || wireIdentity == 39
                     || wireIdentity >= 40 && wireIdentity <= 45
                     || wireIdentity == 51
-                    || wireIdentity >= 60 && wireIdentity <= 63;
+                    || wireIdentity >= 60 && wireIdentity <= 63
+                    || wireIdentity == 69
+                    || wireIdentity == 71
+                    || wireIdentity >= 73 && wireIdentity <= 75
+                    || wireIdentity >= 77 && wireIdentity <= 79
+                    || wireIdentity == 81
+                    || wireIdentity == 83;
         }
         boolean accepts(ValueState inputState) {
             return inputState == ValueState.CANONICAL
@@ -472,10 +496,7 @@ final class MetalMpsGraphProgram {
                     requireWords(2);
                     requireAxis(attributeWords[0]);
                 }
-                case CROP_TO_SHAPE -> {
-                    int offset = validateShape(attributeWords, 0);
-                    if (validateShape(attributeWords, offset) != attributeWords.length) throw malformed();
-                }
+                case CROP_TO_SHAPE -> validateCrop();
                 case PAD -> validatePad();
                 case SLICE -> validateSlice();
                 case TILE -> validatePositiveList();
@@ -554,6 +575,19 @@ final class MetalMpsGraphProgram {
                     count, true);
         }
 
+        private void validateCrop() {
+            int offset = validateShape(attributeWords, 0);
+            int prefixRank = checkedCount(attributeWords, offset);
+            if (prefixRank != attributeWords[0]
+                    || prefixRank > MAX_RANK
+                    || offset + 1 + prefixRank != attributeWords.length) {
+                throw malformed();
+            }
+            for (int index = offset + 1; index < attributeWords.length; index++) {
+                if (attributeWords[index] < 0L) throw malformed();
+            }
+        }
+
         private void validatePad() {
             int rank = checkedCount(attributeWords, 0);
             if (rank > MAX_RANK || attributeWords.length != 1 + rank * 2 + 2) {
@@ -567,7 +601,7 @@ final class MetalMpsGraphProgram {
 
         private void validateSlice() {
             int count = checkedCount(attributeWords, 0);
-            if (count < 1 || count > MAX_RANK || attributeWords.length != 1 + count * 4) {
+            if (count > MAX_RANK || attributeWords.length != 1 + count * 4) {
                 throw malformed();
             }
             boolean[] seen = new boolean[MAX_RANK];
@@ -742,7 +776,10 @@ final class MetalMpsGraphProgram {
         int secondInputIndex() { return inputs.length >= 2 ? inputs[1] : NO_SECOND_INPUT; }
         int outputIndex() { return outputs[0]; }
         int auxiliary() {
-            if (kind == NodeKind.SCATTER_ELEMENTS || kind == NodeKind.WHERE) return inputs[2];
+            if (kind == NodeKind.SCATTER_ELEMENTS
+                    || kind == NodeKind.SCATTER_ADD
+                    || kind == NodeKind.SCATTER_ND
+                    || kind == NodeKind.WHERE) return inputs[2];
             if (attributeKind == AttributeKind.REDUCTION) return Math.toIntExact(attributeWords[1]);
             return 0;
         }

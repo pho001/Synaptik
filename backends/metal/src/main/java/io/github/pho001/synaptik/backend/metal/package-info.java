@@ -17,8 +17,16 @@
  * size-at-most-axis extent, returns a fresh canonical rank-plus-one value, and preserves exact
  * represented FLOAT32 bits. Scatter accepts only {@code ScatterReduction.NONE}, returns a
  * canonical data-shaped value, preserves exact represented bits, and validates complete bounds
- * then target uniqueness before dispatch. {@code ACCELERATOR} additionally admits tensor
- * {@code ADD}, {@code SUB}, {@code MUL}, {@code DIV}, {@code MIN}, and {@code MAX}; all six
+ * then target uniqueness before dispatch.
+ * The common domain also includes the nineteen proved canonical no-gradient {@code CAST} carrier
+ * pairs; exact raw {@code GATHER_ELEMENTS} and {@code GATHER_ND} over all six data carriers with
+ * {@code INT32} or {@code INT64} indices; all-six-carrier {@code PAD}, {@code CONCAT},
+ * {@code STACK}, and {@code TILE}; and floating-carrier {@code UNFOLD2D}/{@code UNFOLD3D}.
+ * These routes require fully static canonical rank {@code 0..16} descriptors where Model permits
+ * the rank, exact Model-derived Shapes and attributes, and bounds validation before any indexed
+ * write. They use one fixed custom-program route with no fallback, retry, timing, or autotuning.
+ * {@code ACCELERATOR} additionally admits tensor {@code ADD}, {@code SUB}, {@code MUL},
+ * {@code DIV}, {@code MIN}, and {@code MAX}; all six
  * binary comparisons with canonical one-byte {@code BOOL} output; exact FLOAT32 scalar
  * {@code MIN}, {@code MAX}, and fused {@code CLAMP}; canonical {@code FLOAT32} {@code SUM},
  * {@code MEAN}, {@code MIN}, {@code MAX}, and binding-resolved {@code SUM_TO_SHAPE}; all four

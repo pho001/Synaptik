@@ -107,7 +107,9 @@ final class MetalNegRouteCandidateGenerator {
             return false;
         }
         int wire = plan.graphProgram().nodes().getFirst().kind().wireIdentity();
-        return wire >= 40 && wire <= 45 || wire == 51 || wire >= 60 && wire <= 63;
+        return wire >= 40 && wire <= 45
+                || wire == 51
+                || wire >= 60 && wire <= 63;
     }
 
     /**
@@ -229,12 +231,16 @@ final class MetalNegRouteCandidateGenerator {
             if (splat.isPresent()) {
                 var scalar = splat.orElseThrow();
                 updateInt(digest, dataTypeWireValue(scalar.dataType()));
-                updateInt(digest, switch (scalar.dataType()) {
-                    case FLOAT32 -> Float.floatToRawIntBits(scalar.float32Value());
-                    case INT32 -> scalar.int32Value();
-                    default -> throw new IllegalArgumentException(
-                            "Metal workload splat type is unsupported");
-                });
+                switch (scalar.dataType()) {
+                    case FLOAT64 ->
+                            updateLong(digest, Double.doubleToRawLongBits(scalar.float64Value()));
+                    case FLOAT32 ->
+                            updateInt(digest, Float.floatToRawIntBits(scalar.float32Value()));
+                    case BFLOAT16 -> updateInt(digest, scalar.bfloat16Bits() & 0xffff);
+                    case INT64 -> updateLong(digest, scalar.int64Value());
+                    case INT32 -> updateInt(digest, scalar.int32Value());
+                    case BOOL -> updateBoolean(digest, scalar.booleanValue());
+                }
             }
         }
         return new MetalNegTuningBatch.WorkloadSignature(digest.digest());
