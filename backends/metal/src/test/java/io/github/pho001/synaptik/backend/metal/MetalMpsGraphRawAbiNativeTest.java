@@ -33,6 +33,9 @@ class MetalMpsGraphRawAbiNativeTest {
             assertEquals(1, abi.create(rewriteInt(valid, nodeOffset(2), 116), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, nodeOffset(2) + 4, 3), valid.length));
             assertEquals(1, abi.create(valid, valid.length - 1));
+            assertEquals(1, abi.create(valid, Integer.MIN_VALUE));
+            assertEquals(1, abi.create(
+                    rewriteInt(valid, 8, Integer.MIN_VALUE), Integer.MIN_VALUE));
         }
     }
 

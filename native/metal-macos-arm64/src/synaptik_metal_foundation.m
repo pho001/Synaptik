@@ -2176,7 +2176,8 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
         void **out_executable) {
     if (out_executable == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
     *out_executable = NULL;
-    if (context == NULL || program == NULL || program_bytes < 64U)
+    if (context == NULL || program == NULL || program_bytes < 64U
+            || program_bytes > (uint32_t)INT32_MAX)
         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
     @try { @autoreleasepool {
         if (synaptik_read_le32(program) != UINT32_C(0x33314d53)
