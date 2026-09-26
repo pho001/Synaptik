@@ -82,6 +82,72 @@ class MetalMpsGraphRawAbiNativeTest {
             }
         }
     }
+    @Test
+    void JavaAndNativeRejectMalformedExactRawUnaryPrograms() throws Throwable {
+        Path library = configuredLibrary();
+        try (RawAbi abi = new RawAbi(library)) {
+            for (MetalMpsGraphProgram.NodeKind kind : List.of(
+                    MetalMpsGraphProgram.NodeKind.FLOOR,
+                    MetalMpsGraphProgram.NodeKind.CEIL,
+                    MetalMpsGraphProgram.NodeKind.SIGN,
+                    MetalMpsGraphProgram.NodeKind.RELU)) {
+                var node = MetalMpsGraphProgram.Node.generic(
+                        kind,
+                        new int[] {0},
+                        new int[] {1},
+                        MetalMpsGraphProgram.AttributeKind.NONE,
+                        new long[0]);
+                var program = new MetalMpsGraphProgram(List.of(node));
+                List<MetalMpsGraphProgram.ValueDescriptor> rankZero =
+                        List.of(scalarDescriptor(DataType.FLOAT32), scalarDescriptor(DataType.FLOAT32));
+                for (MetalPreparedRoute route :
+                        List.of(MetalPreparedRoute.CUSTOM_PROGRAM, MetalPreparedRoute.MPSGRAPH)) {
+                    assertThrows(
+                            IllegalArgumentException.class,
+                            () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                                    NumericalProfile.STRICT_IEEE,
+                                    rankZero,
+                                    program,
+                                    new int[] {0},
+                                    new int[] {1},
+                                    route));
+                    byte[] image = program.encodedProgramImage(
+                            rankZero, new int[] {0}, new int[] {1}, route);
+                    assertEquals(1, abi.create(image, image.length), kind + " rank zero " + route);
+                }
+
+                List<MetalMpsGraphProgram.ValueDescriptor> wrongType = List.of(
+                        new MetalMpsGraphProgram.ValueDescriptor(
+                                DataType.INT32, new long[] {4}, false),
+                        new MetalMpsGraphProgram.ValueDescriptor(
+                                DataType.INT32, new long[] {4}, false));
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                                NumericalProfile.ACCELERATOR,
+                                wrongType,
+                                program,
+                                new int[] {0},
+                                new int[] {1},
+                                MetalPreparedRoute.MPSGRAPH));
+                byte[] wrongTypeImage = program.encodedProgramImage(
+                        wrongType,
+                        new int[] {0},
+                        new int[] {1},
+                        MetalPreparedRoute.MPSGRAPH);
+                assertEquals(1, abi.create(wrongTypeImage, wrongTypeImage.length));
+
+                byte[] valid = program.encodedProgramImage(
+                        List.of(descriptor(4), descriptor(4)),
+                        new int[] {0},
+                        new int[] {1},
+                        MetalPreparedRoute.MPSGRAPH);
+                byte[] wrongAttribute = rewriteInt(valid, nodeOffset(2) + Integer.BYTES, 7);
+                assertEquals(1, abi.create(wrongAttribute, wrongAttribute.length));
+            }
+        }
+    }
+
 
     @Test
     void nativeAbiFiveReturnsDedicatedStatusForStructurallyValidUnsupportedOperation()

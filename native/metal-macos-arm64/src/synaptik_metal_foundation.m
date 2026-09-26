@@ -64,15 +64,36 @@ typedef enum : uint32_t {
     SYNAPTIK_METAL_CUSTOM_REDUCTION_MAX = 32U,
     SYNAPTIK_METAL_CUSTOM_CUM_SUM = 33U,
     SYNAPTIK_METAL_CUSTOM_CUM_PROD = 34U,
+    SYNAPTIK_METAL_MPSGRAPH_TENSOR_POW = 38U,
     SYNAPTIK_METAL_BOOL_IS_FINITE = 40U,
     SYNAPTIK_METAL_BOOL_IS_NAN = 41U,
     SYNAPTIK_METAL_BOOL_IS_INF = 42U,
     SYNAPTIK_METAL_BOOL_AND = 43U,
     SYNAPTIK_METAL_BOOL_OR = 44U,
     SYNAPTIK_METAL_BOOL_NOT = 45U,
+    SYNAPTIK_METAL_MPSGRAPH_SCALAR_ADD = 46U,
+    SYNAPTIK_METAL_MPSGRAPH_SCALAR_SUB = 47U,
+    SYNAPTIK_METAL_MPSGRAPH_SCALAR_MUL = 48U,
+    SYNAPTIK_METAL_MPSGRAPH_SCALAR_DIV = 49U,
+    SYNAPTIK_METAL_MPSGRAPH_SCALAR_POW = 50U,
     SYNAPTIK_METAL_BOOL_WHERE = 51U,
+    SYNAPTIK_METAL_MPSGRAPH_RECIPROCAL = 52U,
+    SYNAPTIK_METAL_MPSGRAPH_LOG = 53U,
+    SYNAPTIK_METAL_MPSGRAPH_LOG1P = 54U,
     SYNAPTIK_METAL_CUSTOM_EXP = 55U,
-    SYNAPTIK_METAL_CUSTOM_SIGMOID = 64U
+    SYNAPTIK_METAL_MPSGRAPH_EXPM1 = 56U,
+    SYNAPTIK_METAL_MPSGRAPH_ERF = 57U,
+    SYNAPTIK_METAL_MPSGRAPH_SQRT = 58U,
+    SYNAPTIK_METAL_MPSGRAPH_RSQRT = 59U,
+    SYNAPTIK_METAL_CUSTOM_FLOOR = 60U,
+    SYNAPTIK_METAL_CUSTOM_CEIL = 61U,
+    SYNAPTIK_METAL_CUSTOM_SIGN = 62U,
+    SYNAPTIK_METAL_CUSTOM_RELU = 63U,
+    SYNAPTIK_METAL_CUSTOM_SIGMOID = 64U,
+    SYNAPTIK_METAL_MPSGRAPH_TANH = 65U,
+    SYNAPTIK_METAL_MPSGRAPH_GELU = 66U,
+    SYNAPTIK_METAL_MPSGRAPH_GELU_TANH = 67U,
+    SYNAPTIK_METAL_MPSGRAPH_SILU = 68U
 } SynaptikMetalOperation;
 
 typedef enum : uint32_t {
@@ -1167,6 +1188,8 @@ static BOOL operation_uses_custom_kernel(uint32_t operation) {
             || (operation >= SYNAPTIK_METAL_BOOL_IS_FINITE
                     && operation <= SYNAPTIK_METAL_BOOL_NOT)
             || operation == SYNAPTIK_METAL_BOOL_WHERE
+            || (operation >= SYNAPTIK_METAL_CUSTOM_FLOOR
+                    && operation <= SYNAPTIK_METAL_CUSTOM_RELU)
             || operation == SYNAPTIK_METAL_CUSTOM_EXP
             || operation == SYNAPTIK_METAL_CUSTOM_SIGMOID;
 }
@@ -1174,8 +1197,17 @@ static BOOL operation_uses_custom_kernel(uint32_t operation) {
 static BOOL operation_has_direct_mpsgraph(uint32_t operation) {
     return (operation >= SYNAPTIK_METAL_MPSGRAPH_NEG
                     && operation <= SYNAPTIK_METAL_MPSGRAPH_UNFOLD_AXIS)
+            || operation == SYNAPTIK_METAL_MPSGRAPH_TENSOR_POW
             || (operation >= SYNAPTIK_METAL_BOOL_IS_FINITE
                     && operation <= SYNAPTIK_METAL_BOOL_NOT)
+            || (operation >= SYNAPTIK_METAL_MPSGRAPH_SCALAR_ADD
+                    && operation <= SYNAPTIK_METAL_MPSGRAPH_SCALAR_POW)
+            || (operation >= SYNAPTIK_METAL_MPSGRAPH_RECIPROCAL
+                    && operation <= SYNAPTIK_METAL_MPSGRAPH_LOG1P)
+            || (operation >= SYNAPTIK_METAL_MPSGRAPH_EXPM1
+                    && operation <= SYNAPTIK_METAL_CUSTOM_RELU)
+            || (operation >= SYNAPTIK_METAL_MPSGRAPH_TANH
+                    && operation <= SYNAPTIK_METAL_MPSGRAPH_SILU)
             || operation == SYNAPTIK_METAL_BOOL_WHERE;
 }
 
@@ -1205,6 +1237,10 @@ static NSString *custom_function(uint32_t operation) {
         case SYNAPTIK_METAL_BOOL_WHERE: return @"bool_where";
         case SYNAPTIK_METAL_CUSTOM_EXP: return @"task0053_candidate_exp";
         case SYNAPTIK_METAL_CUSTOM_SIGMOID: return @"task0053_candidate_sigmoid";
+        case SYNAPTIK_METAL_CUSTOM_FLOOR: return @"exact_floor";
+        case SYNAPTIK_METAL_CUSTOM_CEIL: return @"exact_ceil";
+        case SYNAPTIK_METAL_CUSTOM_SIGN: return @"exact_sign";
+        case SYNAPTIK_METAL_CUSTOM_RELU: return @"exact_relu";
         default: return nil;
     }
 }
@@ -1332,6 +1368,8 @@ static SynaptikMetalProgramStep *make_custom_step(
             || node.operation == SYNAPTIK_METAL_BOOL_IS_NAN
             || node.operation == SYNAPTIK_METAL_BOOL_IS_INF
             || node.operation == SYNAPTIK_METAL_BOOL_NOT
+            || (node.operation >= SYNAPTIK_METAL_CUSTOM_FLOOR
+                    && node.operation <= SYNAPTIK_METAL_CUSTOM_RELU)
             || node.operation == SYNAPTIK_METAL_CUSTOM_EXP
             || node.operation == SYNAPTIK_METAL_CUSTOM_SIGMOID) {
         SynaptikMetalPointMeta meta = {0};
@@ -1415,6 +1453,19 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_run(
         void *executable, uint32_t input_count, void *const *input_buffers,
         uint32_t output_count, void *const *output_buffers);
 
+
+static MPSGraphTensor *exact_float32_splat(
+        MPSGraph *graph, uint32_t bits, MPSShape *shape) {
+    NSData *data = [NSData dataWithBytes:&bits length:sizeof(bits)];
+    MPSShape *unit_shape = @[@1];
+    MPSGraphTensor *unit = data == nil ? nil
+            : [graph constantWithData:data shape:unit_shape dataType:MPSDataTypeFloat32];
+    if (unit == nil || shape == nil) return nil;
+    if (shape.count == 0U)
+        return [graph reshapeTensor:unit withShape:shape name:nil];
+    if (shape.count == 1U && shape[0].unsignedLongLongValue == 1U) return unit;
+    return [graph broadcastTensor:unit toShape:shape name:nil];
+}
 
 static int32_t synaptik_metal_create_decoded(
         void *context, uint32_t route, uint32_t value_count,
@@ -1512,9 +1563,32 @@ static int32_t synaptik_metal_create_decoded(
                     return SYNAPTIK_METAL_STATUS_UNSUPPORTED_OPERATION;
                 case SYNAPTIK_METAL_MPSGRAPH_NEG:
                 case SYNAPTIK_METAL_MPSGRAPH_ABS:
+                case SYNAPTIK_METAL_MPSGRAPH_RECIPROCAL:
+                case SYNAPTIK_METAL_MPSGRAPH_LOG:
+                case SYNAPTIK_METAL_MPSGRAPH_LOG1P:
+                case SYNAPTIK_METAL_MPSGRAPH_EXPM1:
+                case SYNAPTIK_METAL_MPSGRAPH_ERF:
+                case SYNAPTIK_METAL_MPSGRAPH_SQRT:
+                case SYNAPTIK_METAL_MPSGRAPH_RSQRT:
+                case SYNAPTIK_METAL_MPSGRAPH_TANH:
+                case SYNAPTIK_METAL_MPSGRAPH_GELU:
+                case SYNAPTIK_METAL_MPSGRAPH_GELU_TANH:
+                case SYNAPTIK_METAL_MPSGRAPH_SILU:
                     if (states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
                             || node.second_input != UINT32_MAX
                             || !node_has_no_attributes(node)
+                            || ![shapes[node.first_input] isEqualToArray:shapes[node.output]])
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    break;
+                case SYNAPTIK_METAL_CUSTOM_FLOOR:
+                case SYNAPTIK_METAL_CUSTOM_CEIL:
+                case SYNAPTIK_METAL_CUSTOM_SIGN:
+                case SYNAPTIK_METAL_CUSTOM_RELU:
+                    if (states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
+                            || node.second_input != UINT32_MAX
+                            || !node_has_no_attributes(node)
+                            || shapes[node.first_input].count == 0U
+                            || shapes[node.output].count == 0U
                             || ![shapes[node.first_input] isEqualToArray:shapes[node.output]])
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     break;
@@ -1534,6 +1608,7 @@ static int32_t synaptik_metal_create_decoded(
                 case SYNAPTIK_METAL_MPSGRAPH_SUB:
                 case SYNAPTIK_METAL_MPSGRAPH_MUL:
                 case SYNAPTIK_METAL_MPSGRAPH_DIV:
+                case SYNAPTIK_METAL_MPSGRAPH_TENSOR_POW:
                 case SYNAPTIK_METAL_BOOL_AND:
                 case SYNAPTIK_METAL_BOOL_OR:
                 case SYNAPTIK_METAL_CUSTOM_GT:
@@ -1652,6 +1727,11 @@ static int32_t synaptik_metal_create_decoded(
                 }
                 case SYNAPTIK_METAL_CUSTOM_SCALAR_MIN:
                 case SYNAPTIK_METAL_CUSTOM_SCALAR_MAX:
+                case SYNAPTIK_METAL_MPSGRAPH_SCALAR_ADD:
+                case SYNAPTIK_METAL_MPSGRAPH_SCALAR_SUB:
+                case SYNAPTIK_METAL_MPSGRAPH_SCALAR_MUL:
+                case SYNAPTIK_METAL_MPSGRAPH_SCALAR_DIV:
+                case SYNAPTIK_METAL_MPSGRAPH_SCALAR_POW:
                     if (states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
                             || node.second_input != UINT32_MAX
                             || node.attribute_kind != SYNAPTIK_METAL_CUSTOM_ATTR_SCALAR_VALUE
@@ -1852,6 +1932,26 @@ static int32_t synaptik_metal_create_decoded(
             switch ((SynaptikMetalOperation)node.operation) {
                 case SYNAPTIK_METAL_MPSGRAPH_NEG:
                 case SYNAPTIK_METAL_MPSGRAPH_ABS:
+                case SYNAPTIK_METAL_MPSGRAPH_SCALAR_ADD:
+                case SYNAPTIK_METAL_MPSGRAPH_SCALAR_SUB:
+                case SYNAPTIK_METAL_MPSGRAPH_SCALAR_MUL:
+                case SYNAPTIK_METAL_MPSGRAPH_SCALAR_DIV:
+                case SYNAPTIK_METAL_MPSGRAPH_SCALAR_POW:
+                case SYNAPTIK_METAL_MPSGRAPH_RECIPROCAL:
+                case SYNAPTIK_METAL_MPSGRAPH_LOG:
+                case SYNAPTIK_METAL_MPSGRAPH_LOG1P:
+                case SYNAPTIK_METAL_MPSGRAPH_EXPM1:
+                case SYNAPTIK_METAL_MPSGRAPH_ERF:
+                case SYNAPTIK_METAL_MPSGRAPH_SQRT:
+                case SYNAPTIK_METAL_MPSGRAPH_RSQRT:
+                case SYNAPTIK_METAL_CUSTOM_FLOOR:
+                case SYNAPTIK_METAL_CUSTOM_CEIL:
+                case SYNAPTIK_METAL_CUSTOM_SIGN:
+                case SYNAPTIK_METAL_CUSTOM_RELU:
+                case SYNAPTIK_METAL_MPSGRAPH_TANH:
+                case SYNAPTIK_METAL_MPSGRAPH_GELU:
+                case SYNAPTIK_METAL_MPSGRAPH_GELU_TANH:
+                case SYNAPTIK_METAL_MPSGRAPH_SILU:
                 case SYNAPTIK_METAL_CUSTOM_EXP:
                 case SYNAPTIK_METAL_CUSTOM_SIGMOID:
                 case SYNAPTIK_METAL_MPSGRAPH_CONTIGUOUS:
@@ -1881,6 +1981,7 @@ static int32_t synaptik_metal_create_decoded(
                 case SYNAPTIK_METAL_MPSGRAPH_SUB:
                 case SYNAPTIK_METAL_MPSGRAPH_MUL:
                 case SYNAPTIK_METAL_MPSGRAPH_DIV:
+                case SYNAPTIK_METAL_MPSGRAPH_TENSOR_POW:
                 case SYNAPTIK_METAL_MPSGRAPH_MATMUL:
                 case SYNAPTIK_METAL_CUSTOM_TENSOR_MIN:
                 case SYNAPTIK_METAL_CUSTOM_TENSOR_MAX:
@@ -2054,6 +2155,7 @@ static int32_t synaptik_metal_create_decoded(
                         || node.operation == SYNAPTIK_METAL_MPSGRAPH_SUB
                         || node.operation == SYNAPTIK_METAL_MPSGRAPH_MUL
                         || node.operation == SYNAPTIK_METAL_MPSGRAPH_DIV
+                        || node.operation == SYNAPTIK_METAL_MPSGRAPH_TENSOR_POW
                         || node.operation == SYNAPTIK_METAL_MPSGRAPH_MATMUL
                         || node.operation == SYNAPTIK_METAL_MPSGRAPH_GATHER)
                     input_count = 2U;
@@ -2198,6 +2300,110 @@ static int32_t synaptik_metal_create_decoded(
                 case SYNAPTIK_METAL_MPSGRAPH_ABS:
                     output = [graph absoluteWithTensor:first name:nil];
                     break;
+                case SYNAPTIK_METAL_MPSGRAPH_RECIPROCAL:
+                    output = [graph reciprocalWithTensor:first name:nil];
+                    break;
+                case SYNAPTIK_METAL_MPSGRAPH_LOG:
+                    output = [graph logarithmWithTensor:first name:nil];
+                    break;
+                case SYNAPTIK_METAL_MPSGRAPH_LOG1P: {
+                    MPSGraphTensor *one = exact_float32_splat(
+                            graph, UINT32_C(0x3f800000), shapes[node.output]);
+                    MPSGraphTensor *sum = [graph additionWithPrimaryTensor:one
+                            secondaryTensor:first name:nil];
+                    output = [graph logarithmWithTensor:sum name:nil];
+                    break;
+                }
+                case SYNAPTIK_METAL_MPSGRAPH_EXPM1: {
+                    MPSGraphTensor *one = exact_float32_splat(
+                            graph, UINT32_C(0x3f800000), shapes[node.output]);
+                    MPSGraphTensor *exponent = [graph exponentWithTensor:first name:nil];
+                    output = [graph subtractionWithPrimaryTensor:exponent
+                            secondaryTensor:one name:nil];
+                    break;
+                }
+                case SYNAPTIK_METAL_MPSGRAPH_ERF:
+                    output = [graph erfWithTensor:first name:nil];
+                    break;
+                case SYNAPTIK_METAL_MPSGRAPH_SQRT:
+                    output = [graph squareRootWithTensor:first name:nil];
+                    break;
+                case SYNAPTIK_METAL_MPSGRAPH_RSQRT:
+                    output = [graph reciprocalSquareRootWithTensor:first name:nil];
+                    break;
+                case SYNAPTIK_METAL_CUSTOM_FLOOR:
+                    output = [graph floorWithTensor:first name:nil];
+                    break;
+                case SYNAPTIK_METAL_CUSTOM_CEIL:
+                    output = [graph ceilWithTensor:first name:nil];
+                    break;
+                case SYNAPTIK_METAL_CUSTOM_SIGN:
+                    output = [graph signWithTensor:first name:nil];
+                    break;
+                case SYNAPTIK_METAL_CUSTOM_RELU:
+                    output = [graph reLUWithTensor:first name:nil];
+                    break;
+                case SYNAPTIK_METAL_MPSGRAPH_TANH:
+                    output = [graph tanhWithTensor:first name:nil];
+                    break;
+                case SYNAPTIK_METAL_MPSGRAPH_GELU: {
+                    MPSGraphTensor *half = exact_float32_splat(
+                            graph, UINT32_C(0x3f000000), shapes[node.output]);
+                    MPSGraphTensor *one = exact_float32_splat(
+                            graph, UINT32_C(0x3f800000), shapes[node.output]);
+                    MPSGraphTensor *two = exact_float32_splat(
+                            graph, UINT32_C(0x40000000), shapes[node.output]);
+                    MPSGraphTensor *rootTwo = [graph squareRootWithTensor:two name:nil];
+                    MPSGraphTensor *normalized = [graph divisionWithPrimaryTensor:first
+                            secondaryTensor:rootTwo name:nil];
+                    MPSGraphTensor *erf = [graph erfWithTensor:normalized name:nil];
+                    MPSGraphTensor *shifted = [graph additionWithPrimaryTensor:one
+                            secondaryTensor:erf name:nil];
+                    MPSGraphTensor *weighted = [graph multiplicationWithPrimaryTensor:first
+                            secondaryTensor:shifted name:nil];
+                    output = [graph multiplicationWithPrimaryTensor:half
+                            secondaryTensor:weighted name:nil];
+                    break;
+                }
+                case SYNAPTIK_METAL_MPSGRAPH_GELU_TANH: {
+                    MPSGraphTensor *half = exact_float32_splat(
+                            graph, UINT32_C(0x3f000000), shapes[node.output]);
+                    MPSGraphTensor *one = exact_float32_splat(
+                            graph, UINT32_C(0x3f800000), shapes[node.output]);
+                    MPSGraphTensor *two = exact_float32_splat(
+                            graph, UINT32_C(0x40000000), shapes[node.output]);
+                    MPSGraphTensor *three = exact_float32_splat(
+                            graph, UINT32_C(0x40400000), shapes[node.output]);
+                    MPSGraphTensor *pi = exact_float32_splat(
+                            graph, UINT32_C(0x40490fdb), shapes[node.output]);
+                    MPSGraphTensor *coefficient = exact_float32_splat(
+                            graph, UINT32_C(0x3d372713), shapes[node.output]);
+                    MPSGraphTensor *ratio = [graph divisionWithPrimaryTensor:two
+                            secondaryTensor:pi name:nil];
+                    MPSGraphTensor *root = [graph squareRootWithTensor:ratio name:nil];
+                    MPSGraphTensor *cube = [graph powerWithPrimaryTensor:first
+                            secondaryTensor:three name:nil];
+                    MPSGraphTensor *cubic = [graph multiplicationWithPrimaryTensor:coefficient
+                            secondaryTensor:cube name:nil];
+                    MPSGraphTensor *polynomial = [graph additionWithPrimaryTensor:first
+                            secondaryTensor:cubic name:nil];
+                    MPSGraphTensor *argument = [graph multiplicationWithPrimaryTensor:root
+                            secondaryTensor:polynomial name:nil];
+                    MPSGraphTensor *tanh = [graph tanhWithTensor:argument name:nil];
+                    MPSGraphTensor *shifted = [graph additionWithPrimaryTensor:one
+                            secondaryTensor:tanh name:nil];
+                    MPSGraphTensor *weighted = [graph multiplicationWithPrimaryTensor:first
+                            secondaryTensor:shifted name:nil];
+                    output = [graph multiplicationWithPrimaryTensor:half
+                            secondaryTensor:weighted name:nil];
+                    break;
+                }
+                case SYNAPTIK_METAL_MPSGRAPH_SILU: {
+                    MPSGraphTensor *sigmoid = [graph sigmoidWithTensor:first name:nil];
+                    output = [graph multiplicationWithPrimaryTensor:first
+                            secondaryTensor:sigmoid name:nil];
+                    break;
+                }
                 case SYNAPTIK_METAL_BOOL_IS_FINITE:
                     output = [graph isFiniteWithTensor:first name:nil];
                     break;
@@ -2226,6 +2432,44 @@ static int32_t synaptik_metal_create_decoded(
                     output = [graph divisionWithPrimaryTensor:first
                             secondaryTensor:second name:nil];
                     break;
+                case SYNAPTIK_METAL_MPSGRAPH_TENSOR_POW:
+                    output = [graph powerWithPrimaryTensor:first
+                            secondaryTensor:second name:nil];
+                    break;
+                case SYNAPTIK_METAL_MPSGRAPH_SCALAR_ADD:
+                case SYNAPTIK_METAL_MPSGRAPH_SCALAR_SUB:
+                case SYNAPTIK_METAL_MPSGRAPH_SCALAR_MUL:
+                case SYNAPTIK_METAL_MPSGRAPH_SCALAR_DIV:
+                case SYNAPTIK_METAL_MPSGRAPH_SCALAR_POW: {
+                    MPSGraphTensor *scalar = exact_float32_splat(
+                            graph, (uint32_t)node.attribute_values[0],
+                            shapes[node.output]);
+                    switch ((SynaptikMetalOperation)node.operation) {
+                        case SYNAPTIK_METAL_MPSGRAPH_SCALAR_ADD:
+                            output = [graph additionWithPrimaryTensor:first
+                                    secondaryTensor:scalar name:nil];
+                            break;
+                        case SYNAPTIK_METAL_MPSGRAPH_SCALAR_SUB:
+                            output = [graph subtractionWithPrimaryTensor:first
+                                    secondaryTensor:scalar name:nil];
+                            break;
+                        case SYNAPTIK_METAL_MPSGRAPH_SCALAR_MUL:
+                            output = [graph multiplicationWithPrimaryTensor:first
+                                    secondaryTensor:scalar name:nil];
+                            break;
+                        case SYNAPTIK_METAL_MPSGRAPH_SCALAR_DIV:
+                            output = [graph divisionWithPrimaryTensor:first
+                                    secondaryTensor:scalar name:nil];
+                            break;
+                        case SYNAPTIK_METAL_MPSGRAPH_SCALAR_POW:
+                            output = [graph powerWithPrimaryTensor:first
+                                    secondaryTensor:scalar name:nil];
+                            break;
+                        default:
+                            break;
+                    }
+                    break;
+                }
                 case SYNAPTIK_METAL_BOOL_AND:
                     output = [graph logicalANDWithPrimaryTensor:first
                             secondaryTensor:second name:nil];

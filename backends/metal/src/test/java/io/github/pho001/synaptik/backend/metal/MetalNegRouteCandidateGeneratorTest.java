@@ -20,6 +20,8 @@ import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
@@ -164,6 +166,90 @@ class MetalNegRouteCandidateGeneratorTest {
             assertEquals(0, api.nativeAllocations.get());
         }
     }
+    @Test
+    void exactRawUnaryOccurrencesFixCustomProductionAndKeepDirectCandidatesForceable() {
+        TestNativeApi api = new TestNativeApi();
+        try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
+            long identity = 200_000L;
+            for (NumericalProfile profile : NumericalProfile.values()) {
+                for (UnaryElementwiseKind kind : List.of(
+                        UnaryElementwiseKind.FLOOR,
+                        UnaryElementwiseKind.CEIL,
+                        UnaryElementwiseKind.SIGN,
+                        UnaryElementwiseKind.RELU)) {
+                    Workload workload = unaryWorkload(device, identity++, profile, kind);
+                    Generated generated = generated(workload, 2);
+                    assertSame(
+                            MetalPreparedRoute.CUSTOM_PROGRAM,
+                            generated.analysis().plan().route());
+                    assertEquals(
+                            List.of(
+                                    MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM,
+                                    MetalNegTuningBatch.Candidate.MPSGRAPH),
+                            generated.batch().candidates());
+                    assertSame(
+                            MetalPreparedRoute.MPSGRAPH,
+                            new MetalNegPartitionPreparer()
+                                    .analyzeForTesting(
+                                            workload.context(), MetalPreparedRoute.MPSGRAPH)
+                                    .plan()
+                                    .route());
+                }
+            }
+            assertEquals(0, api.nativeAllocations.get());
+        }
+    }
+    @Test
+    void blockedScalarArithmeticAndReciprocalFailBeforeNativePreparation() {
+        TestNativeApi api = new TestNativeApi();
+        try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
+            long identity = 210_000L;
+            for (NumericalProfile profile : NumericalProfile.values()) {
+                for (boolean requiresGrad : List.of(false, true)) {
+                    Shape shape = Shape.of(2, 3);
+                    TensorDescriptor descriptor = new TensorDescriptor(
+                            DataType.FLOAT32,
+                            shape,
+                            Optional.of(LayoutDescriptor.contiguous(shape)),
+                            requiresGrad);
+                    for (ScalarElementwiseKind kind : List.of(
+                            ScalarElementwiseKind.ADD,
+                            ScalarElementwiseKind.SUB,
+                            ScalarElementwiseKind.MUL,
+                            ScalarElementwiseKind.DIV,
+                            ScalarElementwiseKind.POW)) {
+                        Workload workload = operationWorkload(
+                                device,
+                                identity++,
+                                profile,
+                                new Operation(
+                                        kind,
+                                        new ScalarValueAttrs(ScalarValue.float32(2.0f))),
+                                descriptor,
+                                descriptor);
+                        assertThrows(
+                                IllegalArgumentException.class,
+                                () -> analyze(workload.context()));
+                    }
+                    Workload reciprocal = operationWorkload(
+                            device,
+                            identity++,
+                            profile,
+                            new Operation(
+                                    UnaryElementwiseKind.RECIPROCAL,
+                                    NoOperationAttrs.INSTANCE),
+                            descriptor,
+                            descriptor);
+                    assertThrows(
+                            IllegalArgumentException.class,
+                            () -> analyze(reciprocal.context()));
+                }
+            }
+            assertEquals(0, api.nativeAllocations.get());
+        }
+    }
+
+
 
 
     @Test
@@ -229,6 +315,67 @@ class MetalNegRouteCandidateGeneratorTest {
                     "requested profile participates in ABS workload identity");
         }
     }
+    @Test
+    void structuralScalarWireRawBitsShapeAndTensorPrimitiveDriftInWorkloadFingerprint() {
+        TestNativeApi api = new TestNativeApi();
+        try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
+            Workload unary = unaryWorkload(
+                    device,
+                    220_000L,
+                    NumericalProfile.ACCELERATOR,
+                    UnaryElementwiseKind.ABS);
+            MetalNegPreparationPlan source = analyze(unary.context()).plan();
+            var signatures = new java.util.HashSet<MetalNegTuningBatch.WorkloadSignature>();
+            var generator = new MetalNegRouteCandidateGenerator();
+            for (MetalMpsGraphProgram.NodeKind kind : List.of(
+                    MetalMpsGraphProgram.NodeKind.SCALAR_ADD,
+                    MetalMpsGraphProgram.NodeKind.SCALAR_SUB,
+                    MetalMpsGraphProgram.NodeKind.SCALAR_MUL,
+                    MetalMpsGraphProgram.NodeKind.SCALAR_DIV,
+                    MetalMpsGraphProgram.NodeKind.SCALAR_POW)) {
+                MetalNegPreparationPlan scalarPlan = copyPlan(
+                        source,
+                        source.descriptors(),
+                        scalarProgram(kind, 0x3f80_0000),
+                        source.targetRequiredBytes());
+                signatures.add(generator.generate(
+                        unary.context(), scalarPlan, 2).compatibility().workload());
+            }
+            MetalNegPreparationPlan rawBitsPlan = copyPlan(
+                    source,
+                    source.descriptors(),
+                    scalarProgram(MetalMpsGraphProgram.NodeKind.SCALAR_ADD, 0x3f80_0001),
+                    source.targetRequiredBytes());
+            signatures.add(generator.generate(
+                    unary.context(), rawBitsPlan, 2).compatibility().workload());
+
+            Shape matrixShape = Shape.of(2, 2);
+            List<TensorDescriptor> matrixDescriptors = List.of(
+                    new TensorDescriptor(
+                            DataType.FLOAT32,
+                            matrixShape,
+                            Optional.of(LayoutDescriptor.contiguous(matrixShape)),
+                            false),
+                    new TensorDescriptor(
+                            DataType.FLOAT32,
+                            matrixShape,
+                            Optional.of(LayoutDescriptor.contiguous(matrixShape)),
+                            false));
+            MetalNegPreparationPlan shapePlan = copyPlan(
+                    source,
+                    matrixDescriptors,
+                    scalarProgram(MetalMpsGraphProgram.NodeKind.SCALAR_ADD, 0x3f80_0000),
+                    source.targetRequiredBytes());
+            signatures.add(generator.generate(
+                    unary.context(), shapePlan, 2).compatibility().workload());
+
+            signatures.add(workloadSignature(binaryWorkload(
+                    device, 221_000L, BinaryArithmeticKind.ADD, false)));
+            assertEquals(8, signatures.size());
+            assertEquals(0, api.nativeAllocations.get());
+        }
+    }
+
 
     @Test
     void affineFingerprintsCoverKindsTypedAttrsLayoutsDenseGeometryAndOrderedTopology() {
@@ -887,6 +1034,17 @@ class MetalNegRouteCandidateGeneratorTest {
             Workload workload, MetalNegPreparationPlan plan) {
         return new MetalNegRouteCandidateGenerator().generate(
                 workload.context(), plan, 2);
+    }
+
+    private static MetalMpsGraphProgram scalarProgram(
+            MetalMpsGraphProgram.NodeKind kind, int rawBits) {
+        MetalMpsGraphProgram.Node node = MetalMpsGraphProgram.Node.generic(
+                kind,
+                new int[] {0},
+                new int[] {1},
+                MetalMpsGraphProgram.AttributeKind.SCALAR_VALUE,
+                new long[] {1L, Integer.toUnsignedLong(rawBits)});
+        return new MetalMpsGraphProgram(List.of(node));
     }
 
     private static MetalNegPreparationPlan copyPlan(

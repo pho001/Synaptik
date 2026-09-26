@@ -48,16 +48,17 @@ import java.util.Objects;
  * Reports the exact operation-occurrence capability of the current Metal backend.
  *
  * <p>This provider is immutable and performs no native loading, device discovery, allocation,
- * registration, or caching. Under either numerical profile, support includes unary {@code NEG}
- * and {@code ABS}, five FLOAT32 affine transforms, the explicit {@code CONTIGUOUS}
- * canonicalization barrier, bounded canonical FLOAT32 {@code UNFOLD_AXIS} materialization,
- * canonical positive-rank INT32 {@code GATHER} indices selecting FLOAT32 data, canonical
- * positive-rank INT32 {@code ONE_HOT} indices producing canonical BOOL values, canonical
- * FLOAT32/INT32/FLOAT32 {@code SCATTER_ELEMENTS} replacement with unique valid targets, and the
- * exact profile-common wires for FLOAT32 classification, BOOL logic, and FLOAT32 {@code WHERE}.
- * The seven BOOL-domain operations require canonical positive rank {@code 1..16}; classification
- * accepts either input gradient flag and produces no-grad BOOL, logic is entirely no-grad, and
- * WHERE propagates the branch gradient OR after branch-first then condition broadcasting.
+ * registration, or caching. Under either numerical profile, support includes unary {@code NEG},
+ * {@code ABS}, {@code FLOOR}, {@code CEIL}, {@code SIGN}, and {@code RELU}, five FLOAT32 affine
+ * transforms, the explicit {@code CONTIGUOUS} canonicalization barrier, bounded canonical FLOAT32
+ * {@code UNFOLD_AXIS} materialization, canonical positive-rank INT32 {@code GATHER} indices
+ * selecting FLOAT32 data, canonical positive-rank INT32 {@code ONE_HOT} indices producing
+ * canonical BOOL values, canonical FLOAT32/INT32/FLOAT32 {@code SCATTER_ELEMENTS} replacement
+ * with unique valid targets, and the exact profile-common wires for FLOAT32 classification, BOOL
+ * logic, and FLOAT32 {@code WHERE}. The seven BOOL-domain operations require canonical positive
+ * rank {@code 1..16}; classification accepts either input gradient flag and produces no-grad BOOL,
+ * logic is entirely no-grad, and WHERE propagates the branch gradient OR after branch-first then
+ * condition broadcasting.
  * {@code ACCELERATOR} additionally admits tensor {@code ADD}/{@code SUB}/{@code MUL}/{@code DIV},
  * canonical FLOAT32 {@code SUM}/{@code MEAN}/{@code SUM_TO_SHAPE}, and positive static rank-two
  * FLOAT32 {@code MATMUL}. MATMUL accepts each
@@ -159,7 +160,11 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 return supportsUnfoldAxis(operation, inputs, output);
             }
             if (operation.kind() == UnaryElementwiseKind.NEG
-                    || operation.kind() == UnaryElementwiseKind.ABS) {
+                    || operation.kind() == UnaryElementwiseKind.ABS
+                    || operation.kind() == UnaryElementwiseKind.FLOOR
+                    || operation.kind() == UnaryElementwiseKind.CEIL
+                    || operation.kind() == UnaryElementwiseKind.SIGN
+                    || operation.kind() == UnaryElementwiseKind.RELU) {
                 return supportsCanonicalUnary(operation, inputs, output);
             }
             if (operation.kind() == ContiguousKind.CONTIGUOUS) {

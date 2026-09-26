@@ -60,7 +60,7 @@ final class MetalNegRouteCandidateGenerator {
         var candidates = new ArrayList<MetalNegTuningBatch.Candidate>(2);
         if (plan.route() == MetalPreparedRoute.CUSTOM_PROGRAM) {
             candidates.add(MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM);
-            if (directPredicateCandidateIsValid(plan)) {
+            if (directCustomProgramCandidateIsValid(plan)) {
                 candidates.add(MetalNegTuningBatch.Candidate.MPSGRAPH);
             }
         } else if (customCandidateIsValid(plan)) {
@@ -97,8 +97,8 @@ final class MetalNegRouteCandidateGenerator {
                 && feedBytes / Float.BYTES <= UINT32_MAX;
     }
 
-    /** Returns whether one exact predicate occurrence has a direct structural MPSGraph candidate. */
-    private static boolean directPredicateCandidateIsValid(MetalNegPreparationPlan plan) {
+    /** Returns whether one exact custom-program occurrence has a direct MPSGraph candidate. */
+    private static boolean directCustomProgramCandidateIsValid(MetalNegPreparationPlan plan) {
         if (plan.partitionDag().nodes().size() != 1
                 || plan.graphProgram().nodes().size() != 1
                 || plan.targetValueIds().size() != 1
@@ -106,7 +106,7 @@ final class MetalNegRouteCandidateGenerator {
             return false;
         }
         int wire = plan.graphProgram().nodes().getFirst().kind().wireIdentity();
-        return wire >= 40 && wire <= 45 || wire == 51;
+        return wire >= 40 && wire <= 45 || wire == 51 || wire >= 60 && wire <= 63;
     }
 
     /**

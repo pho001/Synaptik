@@ -1,0 +1,24 @@
+Task 0058 exact raw unary exhaustive proof record
+
+Checker source SHA-256:
+32d9749319fe6b6eda93f2c790beca247fc443ae96df9984f35057653dd7870f  all_words.c
+
+Production exact-kernel source SHA-256:
+36ca002274e7723b02c525457ac1226291cc753b0aa83c1d29a46ed9e9db09a6  native/metal-macos-arm64/src/synaptik_exact_kernels.h
+
+Compiler:
+Apple clang version 21.0.0 (clang-2100.3.34.2)
+Target: arm64-apple-darwin25.6.0
+Thread model: posix
+InstalledDir: /Library/Developer/CommandLineTools/usr/bin
+
+Reproduction from the repository root:
+clang -O3 -std=c17 -Wall -Wextra -Werror -fno-fast-math -frounding-math -pthread docs/planning/backends/metal/evidence/0058/all_words.c -lm -o /tmp/synaptik-task0058-all-words
+/tmp/synaptik-task0058-all-words
+
+Observed result:
+words=4294967296 failures=0 partition_failures=0 covered=4294967296
+partitions nan=16777214 infinity=2 zero=2 below_one=2130706430 integral=1778384894 fractional=369098754
+digest=be418f313ebe8f30 boundary_words=2590 boundary_digest=8e08446771842252
+
+The six disjoint partition counts sum to 4294967296. The checker evaluates FLOOR, CEIL, SIGN, and RELU for every binary32 word, checks an independent host-libm/class reference, checks exactly-one partition membership, and separately checks the explicit transition-boundary corpus. The zero failure counts authorize the bounded raw-word implementation together with the focused native and public Engine execution evidence; they do not authorize any other operation or domain.

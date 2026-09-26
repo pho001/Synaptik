@@ -69,7 +69,12 @@ final class MetalOperationRouteCatalog {
         CA_NEG,
         CA_0052,
         CA_0057,
+        CA_0058,
         CP_POINT,
+        CP_SCALAR_GRADIENT,
+        CP_POWER,
+        CP_ELEMENTARY,
+        CP_RECURSIVE_SITES,
         CP_MOVE,
         CP_CONTRACT,
         CP_AGGREGATE,
@@ -87,6 +92,14 @@ final class MetalOperationRouteCatalog {
                 CustomKernelState.AVAILABLE, CustomKernelReason.CA_NEG),
         DIRECT_ARITH_PENDING_POINT(MpsGraphState.DIRECT, MpsGraphReason.MD_ARITH,
                 CustomKernelState.PENDING, CustomKernelReason.CP_POINT),
+        DIRECT_ARITH_CUSTOM_0058(MpsGraphState.DIRECT, MpsGraphReason.MD_ARITH,
+                CustomKernelState.AVAILABLE, CustomKernelReason.CA_0058),
+        DIRECT_ARITH_PENDING_POWER(MpsGraphState.DIRECT, MpsGraphReason.MD_ARITH,
+                CustomKernelState.PENDING, CustomKernelReason.CP_POWER),
+        DIRECT_ARITH_PENDING_ELEMENTARY(MpsGraphState.DIRECT, MpsGraphReason.MD_ARITH,
+                CustomKernelState.PENDING, CustomKernelReason.CP_ELEMENTARY),
+        DIRECT_ARITH_PENDING_RECURSIVE(MpsGraphState.DIRECT, MpsGraphReason.MD_ARITH,
+                CustomKernelState.PENDING, CustomKernelReason.CP_RECURSIVE_SITES),
         DIRECT_CAST_PENDING_POINT(MpsGraphState.DIRECT, MpsGraphReason.MD_CAST,
                 CustomKernelState.PENDING, CustomKernelReason.CP_POINT),
         DIRECT_SHAPE_PENDING_MOVE(MpsGraphState.DIRECT, MpsGraphReason.MD_SHAPE,
@@ -117,10 +130,18 @@ final class MetalOperationRouteCatalog {
                 CustomKernelState.PENDING, CustomKernelReason.CP_CONTRACT),
         DIRECT_PRED_PENDING_POINT(MpsGraphState.DIRECT, MpsGraphReason.MD_PRED,
                 CustomKernelState.PENDING, CustomKernelReason.CP_POINT),
-        COMPOSED_SCALAR_PENDING_POINT(MpsGraphState.COMPOSED, MpsGraphReason.MC_SCALAR,
-                CustomKernelState.PENDING, CustomKernelReason.CP_POINT),
-        COMPOSED_UNARY_PENDING_POINT(MpsGraphState.COMPOSED, MpsGraphReason.MC_UNARY,
-                CustomKernelState.PENDING, CustomKernelReason.CP_POINT),
+        COMPOSED_SCALAR_PENDING_GRADIENT(MpsGraphState.COMPOSED,
+                MpsGraphReason.MC_SCALAR, CustomKernelState.PENDING,
+                CustomKernelReason.CP_SCALAR_GRADIENT),
+        COMPOSED_SCALAR_PENDING_POWER(MpsGraphState.COMPOSED,
+                MpsGraphReason.MC_SCALAR, CustomKernelState.PENDING,
+                CustomKernelReason.CP_POWER),
+        COMPOSED_UNARY_PENDING_ELEMENTARY(MpsGraphState.COMPOSED,
+                MpsGraphReason.MC_UNARY, CustomKernelState.PENDING,
+                CustomKernelReason.CP_ELEMENTARY),
+        COMPOSED_UNARY_PENDING_RECURSIVE(MpsGraphState.COMPOSED,
+                MpsGraphReason.MC_UNARY, CustomKernelState.PENDING,
+                CustomKernelReason.CP_RECURSIVE_SITES),
         COMPOSED_SELECT_PENDING_MOVE(MpsGraphState.COMPOSED, MpsGraphReason.MC_SELECT,
                 CustomKernelState.PENDING, CustomKernelReason.CP_MOVE),
         COMPOSED_STACK_PENDING_MOVE(MpsGraphState.COMPOSED, MpsGraphReason.MC_STACK,
@@ -227,12 +248,15 @@ final class MetalOperationRouteCatalog {
     static Entry entry(MetalMpsGraphProgram.NodeKind kind) {
         return switch (Objects.requireNonNull(kind, "kind")) {
             case NEG -> Entry.DIRECT_ARITH_CUSTOM_NEG;
-            case ADD, SUB, MUL, DIV, TENSOR_POW -> Entry.DIRECT_ARITH_PENDING_POINT;
+            case ADD, SUB, MUL, DIV -> Entry.DIRECT_ARITH_PENDING_POINT;
+            case TENSOR_POW -> Entry.DIRECT_ARITH_PENDING_POWER;
             case CAST -> Entry.DIRECT_CAST_PENDING_POINT;
             case RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, CONTIGUOUS,
                     PAD, SLICE, SLICE_UPDATE, CONCAT, TILE -> Entry.DIRECT_SHAPE_PENDING_MOVE;
-            case ABS, RECIPROCAL, LOG, EXP, ERF, SQRT, RSQRT, FLOOR, CEIL, SIGN,
-                    RELU, SIGMOID, TANH -> Entry.DIRECT_ARITH_PENDING_POINT;
+            case ABS, EXP, SIGMOID -> Entry.DIRECT_ARITH_PENDING_POINT;
+            case FLOOR, CEIL, SIGN, RELU -> Entry.DIRECT_ARITH_CUSTOM_0058;
+            case LOG, ERF, SQRT, TANH -> Entry.DIRECT_ARITH_PENDING_ELEMENTARY;
+            case RECIPROCAL, RSQRT -> Entry.DIRECT_ARITH_PENDING_RECURSIVE;
             case SUM, MEAN, PROD, ALL, ANY, VARIANCE ->
                     Entry.DIRECT_REDUCE_PENDING_AGGREGATE;
             case MATMUL -> Entry.DIRECT_MATMUL_PENDING_CONTRACT;
@@ -248,10 +272,12 @@ final class MetalOperationRouteCatalog {
             case CONV2D, CONV3D -> Entry.DIRECT_CONV_PENDING_CONTRACT;
             case IS_FINITE, IS_NAN, IS_INF, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT, WHERE ->
                     Entry.DIRECT_PRED_CUSTOM_0057;
-            case SCALAR_ADD, SCALAR_SUB, SCALAR_MUL, SCALAR_DIV, SCALAR_POW ->
-                    Entry.COMPOSED_SCALAR_PENDING_POINT;
-            case LOG1P, EXPM1, GELU, GELU_TANH_APPROXIMATION, SILU ->
-                    Entry.COMPOSED_UNARY_PENDING_POINT;
+            case SCALAR_ADD, SCALAR_SUB, SCALAR_MUL, SCALAR_DIV ->
+                    Entry.COMPOSED_SCALAR_PENDING_GRADIENT;
+            case SCALAR_POW -> Entry.COMPOSED_SCALAR_PENDING_POWER;
+            case LOG1P, EXPM1 -> Entry.COMPOSED_UNARY_PENDING_ELEMENTARY;
+            case GELU, GELU_TANH_APPROXIMATION, SILU ->
+                    Entry.COMPOSED_UNARY_PENDING_RECURSIVE;
             case SELECT -> Entry.COMPOSED_SELECT_PENDING_MOVE;
             case STACK -> Entry.COMPOSED_STACK_PENDING_MOVE;
             case FOLD_AXIS -> Entry.COMPOSED_FOLD_AXIS_PENDING_MOVE;

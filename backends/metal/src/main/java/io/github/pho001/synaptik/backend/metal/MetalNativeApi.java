@@ -574,10 +574,24 @@ abstract class MetalNativeApi implements AutoCloseable {
                             "Metal MPSGraph node outputs must be unique and not feeds");
                 }
                 switch (node.kind()) {
-                    case NEG, ABS, CONTIGUOUS, SCALAR_MIN, SCALAR_MAX, CLAMP, CUM_SUM, CUM_PROD ->
+                    case NEG, ABS, CONTIGUOUS, SCALAR_MIN, SCALAR_MAX, CLAMP, CUM_SUM, CUM_PROD,
+                            SCALAR_ADD, SCALAR_SUB, SCALAR_MUL, SCALAR_DIV, SCALAR_POW,
+                            RECIPROCAL, LOG, LOG1P, EXPM1, ERF, SQRT, RSQRT,
+                            TANH, GELU, GELU_TANH_APPROXIMATION, SILU ->
                             requireShape(
                                     sameShape(left, output, valueRanks, valueDimensions),
                                     node.kind() + " input/output shapes must match exactly");
+                    case FLOOR, CEIL, SIGN, RELU ->
+                            requireShape(
+                                    valueRanks[left] >= 1
+                                            && valueRanks[output] >= 1
+                                            && sameShape(
+                                                    left,
+                                                    output,
+                                                    valueRanks,
+                                                    valueDimensions),
+                                    node.kind()
+                                            + " input/output must have matching positive ranks");
                     case IS_FINITE, IS_NAN, IS_INF, LOGICAL_NOT ->
                             requireShape(
                                     valueRanks[left] >= 1
@@ -585,7 +599,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                                             && sameShape(left, output, valueRanks, valueDimensions),
                                     node.kind()
                                             + " input/output must have matching positive ranks");
-                    case ADD, SUB, MUL, DIV, GT, GE, LT, LE, EQ, NE,
+                    case ADD, SUB, MUL, DIV, TENSOR_POW, GT, GE, LT, LE, EQ, NE,
                             TENSOR_MIN, TENSOR_MAX, LOGICAL_AND, LOGICAL_OR -> {
                         requireIndex(right, valueCount, "second node input");
                         if (!node.kind().accepts(states[right])
@@ -731,7 +745,10 @@ abstract class MetalNativeApi implements AutoCloseable {
                 switch (node.kind()) {
                     case NEG, ABS, CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS,
                             SQUEEZE, SUM, MEAN, REDUCTION_MIN, REDUCTION_MAX,
-                            SCALAR_MIN, SCALAR_MAX, CLAMP, CUM_SUM, CUM_PROD, UNFOLD_AXIS -> {
+                            SCALAR_MIN, SCALAR_MAX, CLAMP, CUM_SUM, CUM_PROD, UNFOLD_AXIS,
+                            SCALAR_ADD, SCALAR_SUB, SCALAR_MUL, SCALAR_DIV, SCALAR_POW,
+                            RECIPROCAL, LOG, LOG1P, EXPM1, ERF, SQRT, RSQRT, FLOOR, CEIL, SIGN,
+                            RELU, TANH, GELU, GELU_TANH_APPROXIMATION, SILU -> {
                         requireType(types, left, ValueType.FLOAT32);
                         requireType(types, output, ValueType.FLOAT32);
                     }
@@ -754,7 +771,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                         requireType(types, auxiliary, ValueType.FLOAT32);
                         requireType(types, output, ValueType.FLOAT32);
                     }
-                    case ADD, SUB, MUL, DIV, TENSOR_MIN, TENSOR_MAX, MATMUL -> {
+                    case ADD, SUB, MUL, DIV, TENSOR_POW, TENSOR_MIN, TENSOR_MAX, MATMUL -> {
                         requireType(types, left, ValueType.FLOAT32);
                         requireType(types, right, ValueType.FLOAT32);
                         requireType(types, output, ValueType.FLOAT32);
@@ -880,7 +897,8 @@ abstract class MetalNativeApi implements AutoCloseable {
             if (!kind.executable()) return false;
             return switch (numericalProfile) {
                 case STRICT_IEEE -> switch (kind) {
-                    case NEG, ABS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE,
+                    case NEG, ABS, FLOOR, CEIL, SIGN, RELU,
+                            RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE,
                             CONTIGUOUS, GATHER, ONE_HOT, SCATTER_ELEMENTS, UNFOLD_AXIS,
                             IS_FINITE, IS_NAN, IS_INF, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT,
                             WHERE -> true;

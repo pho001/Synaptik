@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 
 class MetalOperationRouteCatalogTest {
     @Test
-    void exhaustivelyDescribesAllRegisteredOperationKindsAndExecutableCapability() {
+    void exhaustivelyDescribesAllRegisteredKindsAndStructuralExecutionSet() {
         MetalMpsGraphProgram.NodeKind[] kinds = MetalMpsGraphProgram.NodeKind.values();
         assertEquals(115, kinds.length);
 
@@ -54,11 +54,11 @@ class MetalOperationRouteCatalogTest {
         assertEquals(76, direct);
         assertEquals(34, composed);
         assertEquals(5, unavailable);
-        assertEquals(23, customAvailable);
-        assertEquals(92, customPending);
+        assertEquals(27, customAvailable);
+        assertEquals(88, customPending);
         assertEquals(0, customUnavailableWithProof);
-        assertEquals(41, executable);
-        assertEquals(74, kinds.length - executable);
+        assertEquals(62, executable);
+        assertEquals(53, kinds.length - executable);
         assertThrows(NullPointerException.class, () -> MetalOperationRouteCatalog.entry(null));
     }
 
@@ -100,6 +100,48 @@ class MetalOperationRouteCatalogTest {
                 MetalOperationRouteCatalog.CustomKernelState.AVAILABLE,
                 MetalOperationRouteCatalog.CustomKernelReason.CA_0057);
         assertCatalog(
+                MetalMpsGraphProgram.NodeKind.FLOOR,
+                MetalOperationRouteCatalog.MpsGraphState.DIRECT,
+                MetalOperationRouteCatalog.MpsGraphReason.MD_ARITH,
+                MetalOperationRouteCatalog.CustomKernelState.AVAILABLE,
+                MetalOperationRouteCatalog.CustomKernelReason.CA_0058);
+        assertCatalog(
+                MetalMpsGraphProgram.NodeKind.TENSOR_POW,
+                MetalOperationRouteCatalog.MpsGraphState.DIRECT,
+                MetalOperationRouteCatalog.MpsGraphReason.MD_ARITH,
+                MetalOperationRouteCatalog.CustomKernelState.PENDING,
+                MetalOperationRouteCatalog.CustomKernelReason.CP_POWER);
+        assertCatalog(
+                MetalMpsGraphProgram.NodeKind.SCALAR_ADD,
+                MetalOperationRouteCatalog.MpsGraphState.COMPOSED,
+                MetalOperationRouteCatalog.MpsGraphReason.MC_SCALAR,
+                MetalOperationRouteCatalog.CustomKernelState.PENDING,
+                MetalOperationRouteCatalog.CustomKernelReason.CP_SCALAR_GRADIENT);
+        assertCatalog(
+                MetalMpsGraphProgram.NodeKind.LOG,
+                MetalOperationRouteCatalog.MpsGraphState.DIRECT,
+                MetalOperationRouteCatalog.MpsGraphReason.MD_ARITH,
+                MetalOperationRouteCatalog.CustomKernelState.PENDING,
+                MetalOperationRouteCatalog.CustomKernelReason.CP_ELEMENTARY);
+        assertCatalog(
+                MetalMpsGraphProgram.NodeKind.RECIPROCAL,
+                MetalOperationRouteCatalog.MpsGraphState.DIRECT,
+                MetalOperationRouteCatalog.MpsGraphReason.MD_ARITH,
+                MetalOperationRouteCatalog.CustomKernelState.PENDING,
+                MetalOperationRouteCatalog.CustomKernelReason.CP_RECURSIVE_SITES);
+        assertCatalog(
+                MetalMpsGraphProgram.NodeKind.LOG1P,
+                MetalOperationRouteCatalog.MpsGraphState.COMPOSED,
+                MetalOperationRouteCatalog.MpsGraphReason.MC_UNARY,
+                MetalOperationRouteCatalog.CustomKernelState.PENDING,
+                MetalOperationRouteCatalog.CustomKernelReason.CP_ELEMENTARY);
+        assertCatalog(
+                MetalMpsGraphProgram.NodeKind.SILU,
+                MetalOperationRouteCatalog.MpsGraphState.COMPOSED,
+                MetalOperationRouteCatalog.MpsGraphReason.MC_UNARY,
+                MetalOperationRouteCatalog.CustomKernelState.PENDING,
+                MetalOperationRouteCatalog.CustomKernelReason.CP_RECURSIVE_SITES);
+        assertCatalog(
                 MetalMpsGraphProgram.NodeKind.CAST,
                 MetalOperationRouteCatalog.MpsGraphState.DIRECT,
                 MetalOperationRouteCatalog.MpsGraphReason.MD_CAST,
@@ -138,6 +180,9 @@ class MetalOperationRouteCatalogTest {
         assertFalse(MetalMpsGraphProgram.NodeKind.DROPOUT.executable());
         assertTrue(MetalMpsGraphProgram.NodeKind.NEG.executable());
         assertTrue(MetalMpsGraphProgram.NodeKind.GT.executable());
+        assertTrue(MetalMpsGraphProgram.NodeKind.FLOOR.executable());
+        assertTrue(MetalMpsGraphProgram.NodeKind.SCALAR_ADD.executable());
+        assertTrue(MetalMpsGraphProgram.NodeKind.RECIPROCAL.executable());
     }
 
     private static void assertCatalog(

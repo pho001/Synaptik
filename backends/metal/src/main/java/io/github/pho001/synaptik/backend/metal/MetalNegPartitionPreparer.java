@@ -518,6 +518,21 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         if (kind == UnaryElementwiseKind.ABS) {
             return MetalMpsGraphProgram.Node.abs(inputs[0], output);
         }
+        if (kind == UnaryElementwiseKind.FLOOR
+                || kind == UnaryElementwiseKind.CEIL
+                || kind == UnaryElementwiseKind.SIGN
+                || kind == UnaryElementwiseKind.RELU) {
+            MetalMpsGraphProgram.NodeKind nodeKind = switch ((UnaryElementwiseKind) kind) {
+                case FLOOR -> MetalMpsGraphProgram.NodeKind.FLOOR;
+                case CEIL -> MetalMpsGraphProgram.NodeKind.CEIL;
+                case SIGN -> MetalMpsGraphProgram.NodeKind.SIGN;
+                case RELU -> MetalMpsGraphProgram.NodeKind.RELU;
+                default -> throw new IllegalStateException("unreachable exact unary kind");
+            };
+            return MetalMpsGraphProgram.Node.generic(
+                    nodeKind, inputs, new int[] {output},
+                    MetalMpsGraphProgram.AttributeKind.NONE, new long[0]);
+        }
         if (kind instanceof FloatingClassificationKind classification) {
             MetalMpsGraphProgram.NodeKind nodeKind = switch (classification) {
                 case IS_FINITE -> MetalMpsGraphProgram.NodeKind.IS_FINITE;

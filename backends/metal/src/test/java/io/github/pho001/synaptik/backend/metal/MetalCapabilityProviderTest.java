@@ -55,6 +55,38 @@ import org.junit.jupiter.api.Test;
 
 class MetalCapabilityProviderTest {
     private final MetalCapabilityProvider provider = new MetalCapabilityProvider();
+    @Test
+    void registeredWireCapabilityLedgerClosesAtFortyFiveTrueAndSeventyFalse() {
+        java.util.Set<MetalMpsGraphProgram.NodeKind> structuralOnly = java.util.Set.of(
+                MetalMpsGraphProgram.NodeKind.TENSOR_POW,
+                MetalMpsGraphProgram.NodeKind.SCALAR_ADD,
+                MetalMpsGraphProgram.NodeKind.SCALAR_SUB,
+                MetalMpsGraphProgram.NodeKind.SCALAR_MUL,
+                MetalMpsGraphProgram.NodeKind.SCALAR_DIV,
+                MetalMpsGraphProgram.NodeKind.SCALAR_POW,
+                MetalMpsGraphProgram.NodeKind.RECIPROCAL,
+                MetalMpsGraphProgram.NodeKind.LOG,
+                MetalMpsGraphProgram.NodeKind.LOG1P,
+                MetalMpsGraphProgram.NodeKind.EXPM1,
+                MetalMpsGraphProgram.NodeKind.ERF,
+                MetalMpsGraphProgram.NodeKind.SQRT,
+                MetalMpsGraphProgram.NodeKind.RSQRT,
+                MetalMpsGraphProgram.NodeKind.TANH,
+                MetalMpsGraphProgram.NodeKind.GELU,
+                MetalMpsGraphProgram.NodeKind.GELU_TANH_APPROXIMATION,
+                MetalMpsGraphProgram.NodeKind.SILU);
+        assertEquals(17, structuralOnly.size());
+        long trueRows = java.util.Arrays.stream(MetalMpsGraphProgram.NodeKind.values())
+                .filter(MetalMpsGraphProgram.NodeKind::executable)
+                .filter(kind -> !structuralOnly.contains(kind))
+                .count();
+        assertEquals(45L, trueRows);
+        assertEquals(70L, MetalMpsGraphProgram.NodeKind.values().length - trueRows);
+        structuralOnly.forEach(kind -> assertTrue(kind.executable(), kind.name()));
+        assertFalse(MetalMpsGraphProgram.NodeKind.EXP.executable());
+        assertFalse(MetalMpsGraphProgram.NodeKind.SIGMOID.executable());
+    }
+
 
     @Test
     void enforcesClosedStrictAndAcceleratorCapabilityMatrices() {
@@ -92,11 +124,11 @@ class MetalCapabilityProviderTest {
                     NumericalProfile.ACCELERATOR, kind, row, matrix, matrix)));
         }
         for (UnaryElementwiseKind kind : UnaryElementwiseKind.values()) {
-            assertEquals(kind == UnaryElementwiseKind.NEG || kind == UnaryElementwiseKind.ABS,
+            assertEquals(exactRawUnary(kind),
                     provider.supports(unaryQuery(
                             NumericalProfile.STRICT_IEEE, kind, matrix, matrix)),
                     "strict " + kind);
-            assertEquals(kind == UnaryElementwiseKind.NEG || kind == UnaryElementwiseKind.ABS,
+            assertEquals(exactRawUnary(kind),
                     provider.supports(unaryQuery(
                             NumericalProfile.ACCELERATOR, kind, matrix, matrix)),
                     "accelerator " + kind);
@@ -146,6 +178,26 @@ class MetalCapabilityProviderTest {
                 new Occurrence(
                         "ABS",
                         new Operation(UnaryElementwiseKind.ABS, NoOperationAttrs.INSTANCE),
+                        matrix,
+                        matrix),
+                new Occurrence(
+                        "FLOOR",
+                        new Operation(UnaryElementwiseKind.FLOOR, NoOperationAttrs.INSTANCE),
+                        matrix,
+                        matrix),
+                new Occurrence(
+                        "CEIL",
+                        new Operation(UnaryElementwiseKind.CEIL, NoOperationAttrs.INSTANCE),
+                        matrix,
+                        matrix),
+                new Occurrence(
+                        "SIGN",
+                        new Operation(UnaryElementwiseKind.SIGN, NoOperationAttrs.INSTANCE),
+                        matrix,
+                        matrix),
+                new Occurrence(
+                        "RELU",
+                        new Operation(UnaryElementwiseKind.RELU, NoOperationAttrs.INSTANCE),
                         matrix,
                         matrix),
                 new Occurrence(
@@ -207,6 +259,33 @@ class MetalCapabilityProviderTest {
                     List.of(occurrence.output()))), occurrence.name() + " accelerator");
         }
     }
+    @Test
+    void scalarArithmeticAndReciprocalRemainClosedForBothGradientsAndProfiles() {
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            for (boolean requiresGrad : List.of(false, true)) {
+                TensorDescriptor value = descriptor(Shape.of(2, 3), requiresGrad);
+                for (ScalarElementwiseKind kind : List.of(
+                        ScalarElementwiseKind.ADD,
+                        ScalarElementwiseKind.SUB,
+                        ScalarElementwiseKind.MUL,
+                        ScalarElementwiseKind.DIV,
+                        ScalarElementwiseKind.POW)) {
+                    assertFalse(provider.supports(new OperationCapabilityQuery(
+                            profile,
+                            new Operation(
+                                    kind,
+                                    new ScalarValueAttrs(ScalarValue.float32(2.0f))),
+                            List.of(value),
+                            List.of(value))),
+                            profile + " " + requiresGrad + " " + kind);
+                }
+                assertFalse(provider.supports(unaryQuery(
+                        profile, UnaryElementwiseKind.RECIPROCAL, value, value)),
+                        profile + " " + requiresGrad + " RECIPROCAL");
+            }
+        }
+    }
+
 
     @Test
     void admitsOnlyBoundedCanonicalFloat32UnfoldAxisInBothProfiles() {
@@ -452,28 +531,36 @@ class MetalCapabilityProviderTest {
                 Optional.of(LayoutDescriptor.of(Shape.of(2, 3), new long[] {1, 2}, 0, false)),
                 false);
 
-        assertTrue(provider.supports(unaryQuery(
-                NumericalProfile.STRICT_IEEE, UnaryElementwiseKind.ABS, valid, valid)));
-        assertTrue(provider.supports(unaryQuery(
-                NumericalProfile.ACCELERATOR, UnaryElementwiseKind.ABS, valid, valid)));
+        List<UnaryElementwiseKind> exactUnaryKinds = List.of(
+                UnaryElementwiseKind.NEG,
+                UnaryElementwiseKind.ABS,
+                UnaryElementwiseKind.FLOOR,
+                UnaryElementwiseKind.CEIL,
+                UnaryElementwiseKind.SIGN,
+                UnaryElementwiseKind.RELU);
         for (NumericalProfile profile : NumericalProfile.values()) {
-            assertFalse(provider.supports(unaryQuery(
-                    profile, UnaryElementwiseKind.ABS, typed(DataType.FLOAT64),
-                    typed(DataType.FLOAT64))));
-            assertFalse(provider.supports(unaryQuery(
-                    profile, UnaryElementwiseKind.ABS, valid,
-                    descriptor(Shape.of(3, 2), false))));
-            assertFalse(provider.supports(unaryQuery(
-                    profile, UnaryElementwiseKind.ABS, valid,
-                    descriptor(Shape.of(2, 3), true))));
-            assertFalse(provider.supports(unaryQuery(
-                    profile, UnaryElementwiseKind.ABS, view, valid)));
-            assertFalse(provider.supports(unaryQuery(
-                    profile, UnaryElementwiseKind.ABS, descriptor(Shape.of(), false),
-                    descriptor(Shape.of(), false))));
-            assertFalse(provider.supports(unaryQuery(
-                    profile, UnaryElementwiseKind.ABS, descriptor(rank17, false),
-                    descriptor(rank17, false))));
+            for (UnaryElementwiseKind kind : exactUnaryKinds) {
+                assertTrue(provider.supports(unaryQuery(profile, kind, valid, valid)));
+                TensorDescriptor grad = descriptor(Shape.of(2, 3), true);
+                assertTrue(provider.supports(unaryQuery(profile, kind, grad, grad)));
+                assertFalse(provider.supports(unaryQuery(
+                        profile, kind, typed(DataType.FLOAT64), typed(DataType.FLOAT64))));
+                assertFalse(provider.supports(unaryQuery(
+                        profile, kind, valid, descriptor(Shape.of(3, 2), false))));
+                assertFalse(provider.supports(unaryQuery(
+                        profile, kind, valid, descriptor(Shape.of(2, 3), true))));
+                assertFalse(provider.supports(unaryQuery(profile, kind, noLayout, noLayout)));
+                assertFalse(provider.supports(unaryQuery(profile, kind, offset, offset)));
+                assertFalse(provider.supports(unaryQuery(profile, kind, view, valid)));
+                assertFalse(provider.supports(unaryQuery(profile, kind, strided, strided)));
+                assertFalse(provider.supports(unaryQuery(
+                        profile,
+                        kind,
+                        descriptor(Shape.of(), false),
+                        descriptor(Shape.of(), false))));
+                assertFalse(provider.supports(unaryQuery(
+                        profile, kind, descriptor(rank17, false), descriptor(rank17, false))));
+            }
         }
         assertFalse(provider.supports(new OperationCapabilityQuery(NumericalProfile.ACCELERATOR, new Operation(BinaryComparisonKind.GREATER_THAN, NoOperationAttrs.INSTANCE), List.of(valid, valid), List.of(valid))));
         assertFalse(provider.supports(new OperationCapabilityQuery(NumericalProfile.ACCELERATOR, new Operation(
@@ -935,6 +1022,15 @@ class MetalCapabilityProviderTest {
                 new Operation(kind, attrs),
                 List.of(input),
                 List.of(output));
+    }
+
+    private static boolean exactRawUnary(UnaryElementwiseKind kind) {
+        return kind == UnaryElementwiseKind.NEG
+                || kind == UnaryElementwiseKind.ABS
+                || kind == UnaryElementwiseKind.FLOOR
+                || kind == UnaryElementwiseKind.CEIL
+                || kind == UnaryElementwiseKind.SIGN
+                || kind == UnaryElementwiseKind.RELU;
     }
 
     private static Operation neg() {

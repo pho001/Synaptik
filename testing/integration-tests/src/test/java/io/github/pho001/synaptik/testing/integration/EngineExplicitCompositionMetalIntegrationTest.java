@@ -472,6 +472,87 @@ final class EngineExplicitCompositionMetalIntegrationTest {
             }
         }
     }
+    @Test
+    void cpuFreeMetalEngineRunsAllRemainingExactUnaryOperationsUnderBothProfiles()
+            throws Exception {
+        Path library = configuredMetalLibrary();
+        int[] inputBits = {
+            0x00000000, 0x80000000,
+            0x00000001, 0x80000001,
+            0x007fffff, 0x807fffff,
+            0x00800000, 0x80800000,
+            0x3f7fffff, 0xbf7fffff,
+            0x3fc00000, 0xbfc00000,
+            0x7f7fffff, 0xff7fffff,
+            0x7f800000, 0xff800000,
+            0x7fc12345, 0xff812346
+        };
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            List<ObservedTrace> events = new CopyOnWriteArrayList<>();
+            try (Arena arena = Arena.ofShared();
+                    Engine.Builder builder = Engine.builder()) {
+                builder.numericalProfile(profile);
+                builder.takeOwnership(MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library), traceCollector(events)));
+                try (Engine engine = builder.build()) {
+                    Tensor input = nativeTensorBits(
+                            descriptor(Shape.of(inputBits.length)), arena, inputBits);
+                    MemorySegment inputBytes = ((MemorySegmentStorage)
+                            input.hostStorage().orElseThrow()).segment();
+                    var compiled = engine.compile(List.of(
+                            input.floor(), input.ceil(), input.sign(), input.relu()));
+                    assertEquals(
+                            List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(compiled));
+                    assertTrue(events.isEmpty(), "compile performs no native preparation");
+
+                    InferenceSession first = engine.session(compiled);
+                    try (InferenceSession second = engine.session(compiled)) {
+                        assertEquals(2, events.size());
+                        for (ObservedTrace event : events) {
+                            assertEquals("PREPARE", event.phase());
+                            assertEquals(
+                                    "CUSTOM_KERNEL",
+                                    enumName(component(event.payload(), "route")));
+                        }
+
+                        assertThrows(
+                                IllegalArgumentException.class,
+                                () -> first.run(List.of()));
+                        try (var recovered = first.run(List.of(input))) {
+                            assertRemainingExactUnaryResults(recovered, inputBits);
+                        }
+                        try (var repeated = first.run(List.of(input))) {
+                            assertRemainingExactUnaryResults(repeated, inputBits);
+                        }
+
+                        try (var executor = Executors.newFixedThreadPool(2)) {
+                            var left = executor.submit(() -> {
+                                try (var result = first.run(List.of(input))) {
+                                    assertRemainingExactUnaryResults(result, inputBits);
+                                }
+                            });
+                            var right = executor.submit(() -> {
+                                try (var result = second.run(List.of(input))) {
+                                    assertRemainingExactUnaryResults(result, inputBits);
+                                }
+                            });
+                            left.get(30, TimeUnit.SECONDS);
+                            right.get(30, TimeUnit.SECONDS);
+                        }
+
+                        first.close();
+                        assertTrue(first.isClosed());
+                        assertThrows(IllegalStateException.class, () -> first.run(List.of(input)));
+                    } finally {
+                        first.close();
+                    }
+                    assertArrayEquals(inputBits, inputBytes.toArray(ValueLayout.JAVA_INT));
+                }
+            }
+        }
+    }
+
 
     @Test
     void cpuFreeMetalEngineRunsExactInt32GatherAndBoolOneHotWithBoundsErrors() {
@@ -1451,6 +1532,42 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     private static boolean isNaN(int bits) {
         return (bits & 0x7f800000) == 0x7f800000
                 && (bits & 0x007fffff) != 0;
+    }
+
+    private static void assertRemainingExactUnaryResults(
+            io.github.pho001.synaptik.engine.RunResult result,
+            int[] inputBits) {
+        assertEquals(4, result.resultCount());
+        int[][] actual = new int[4][];
+        for (int publication = 0; publication < actual.length; publication++) {
+            actual[publication] = rawBits(
+                    result.materialize(
+                            result.publications().get(publication),
+                            Math.multiplyExact((long) inputBits.length, Integer.BYTES)).bytes(),
+                    inputBits.length);
+        }
+        for (int lane = 0; lane < inputBits.length; lane++) {
+            int input = inputBits[lane];
+            if (isNaN(input)) {
+                for (int publication = 0; publication < actual.length; publication++) {
+                    assertTrue(
+                            isNaN(actual[publication][lane]),
+                            "publication=" + publication + " NaN lane=" + lane);
+                }
+                continue;
+            }
+            float value = Float.intBitsToFloat(input);
+            int expectedFloor = Float.floatToRawIntBits((float) StrictMath.floor(value));
+            int expectedCeil = Float.floatToRawIntBits((float) StrictMath.ceil(value));
+            int expectedSign = (input & 0x7fff_ffff) == 0
+                    ? input
+                    : input < 0 ? 0xbf80_0000 : 0x3f80_0000;
+            int expectedRelu = input < 0 ? 0 : input;
+            assertEquals(expectedFloor, actual[0][lane], "FLOOR lane=" + lane);
+            assertEquals(expectedCeil, actual[1][lane], "CEIL lane=" + lane);
+            assertEquals(expectedSign, actual[2][lane], "SIGN lane=" + lane);
+            assertEquals(expectedRelu, actual[3][lane], "RELU lane=" + lane);
+        }
     }
 
     private static void assertAbsEngineResults(

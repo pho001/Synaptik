@@ -62,7 +62,7 @@ final class MetalNegCapabilityPartitionConformanceTest {
         TensorDescriptor row = descriptor(Shape.of(3));
         for (UnaryElementwiseKind kind : UnaryElementwiseKind.values()) {
             assertEquals(
-                    kind == UnaryElementwiseKind.NEG || kind == UnaryElementwiseKind.ABS,
+                    exactRawUnary(kind),
                     provider.supports(query(
                             NumericalProfile.STRICT_IEEE,
                             operation(kind),
@@ -70,7 +70,7 @@ final class MetalNegCapabilityPartitionConformanceTest {
                             List.of(matrix))),
                     "strict " + kind);
             assertEquals(
-                    kind == UnaryElementwiseKind.NEG || kind == UnaryElementwiseKind.ABS,
+                    exactRawUnary(kind),
                     provider.supports(query(
                             NumericalProfile.ACCELERATOR,
                             operation(kind),
@@ -637,6 +637,15 @@ final class MetalNegCapabilityPartitionConformanceTest {
     private static TensorDescriptor view(Shape shape, long... strides) {
         return new TensorDescriptor(DataType.FLOAT32, shape,
                 Optional.of(LayoutDescriptor.of(shape, strides, 0L, true)), false);
+    }
+
+    private static boolean exactRawUnary(UnaryElementwiseKind kind) {
+        return kind == UnaryElementwiseKind.NEG
+                || kind == UnaryElementwiseKind.ABS
+                || kind == UnaryElementwiseKind.FLOOR
+                || kind == UnaryElementwiseKind.CEIL
+                || kind == UnaryElementwiseKind.SIGN
+                || kind == UnaryElementwiseKind.RELU;
     }
 
     private static Operation operation(UnaryElementwiseKind kind) {

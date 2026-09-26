@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 class MetalMpsGraphAffineSchemaTest {
 
     @Test
-    void schemaRegistryIsCompleteWithExactExecutableCapability() {
+    void schemaRegistryIsCompleteWithExactStructuralExecutionSet() {
         MetalMpsGraphProgram.NodeKind[] operations = MetalMpsGraphProgram.NodeKind.values();
         assertEquals(115, operations.length);
         int executable = 0;
@@ -21,8 +21,8 @@ class MetalMpsGraphAffineSchemaTest {
             assertEquals(index + 1, operations[index].wireIdentity());
             if (operations[index].executable()) executable++;
         }
-        assertEquals(41, executable);
-        assertEquals(74, operations.length - executable);
+        assertEquals(62, executable);
+        assertEquals(53, operations.length - executable);
 
         MetalMpsGraphProgram.AttributeKind[] attributes =
                 MetalMpsGraphProgram.AttributeKind.values();
