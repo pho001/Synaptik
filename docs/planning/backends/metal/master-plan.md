@@ -134,7 +134,9 @@ Training-to-Metal optimizer bridge.
   [`evidence/0052-gate3/`](evidence/0052-gate3/README.md). Documentation-only Task 0054 remains the
   exact historical pre-cutover `19+2+15+79=115` inventory and names its supersession. Task 0055 is
   Complete at `ddeff1b2`: ABI 5/schema 13, six-carrier typed transfer, identity 14, and zero new
-  capability kinds are landed.
+  capability kinds are landed. Task 0056 is the sole Ready frontier for an exhaustive internal
+  dual-route catalog and immutable prepared-route identity; it authorizes no capability, device,
+  oracle, timing, benchmark, or autotuning work.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
   requirements. Metal 0017 remains Blocked under its old accelerator-reduction contract.
@@ -171,24 +173,25 @@ Training-to-Metal optimizer bridge.
   but its opaque shape-dependent contraction lacks complete recursive-subset proof over the full
   geometry. One sample or prohibited matrix cannot supply that proof.
 - Metal 0032 remains Blocked without a device probe or production change under its frozen
-  profile-common premise. Complete Model 0030 recursively reaches `ACCELERATOR` MSE
-  arithmetic, but no direct selector or complete decomposition/custom route, schema, formula,
-  gradient, and complete-domain proof exists.
+  profile-common premise. MSE arithmetic is now recursively reachable under `ACCELERATOR`, but
+  MPSGraph has no direct selector and no complete decomposition/custom implementation, formula,
+  generated-gradient route, or complete-domain proof exists. Schema 13 only carries the structure.
 - Metal 0033 remains Blocked without a device probe or production change. Complete Model 0030
   recursively reaches `ACCELERATOR` attention arithmetic, but the current direct selector's
   additive mask contract mismatches Model and its opaque contractions, scale, guards, softmax,
   output, special classes, gradients, and shape algorithms lack complete-domain subset proof.
 - Metal 0034 is Blocked without a device probe or production change. Its smallest ordering
   candidate is profile-common canonical rank-one FLOAT32 no-grad ascending SORT. ARGSORT's direct
-  INT32 result mismatches Model INT64 and the current type path; mandatory two-output TOP_K cannot
-  fit the current one-output schema. Unblocking requires an authoritative complete direct-selector
-  contract or an exact custom stable-sort kernel.
+  INT32 result mismatches Model INT64. Schema 13 now carries INT64 and two-output TOP_K, but no
+  proved cast composition, exact TOP_K output-order route, or exact custom stable-sort kernel
+  exists.
 - Metal 0035 is Blocked without a device probe or production change. Its smallest nondegenerate
   candidate is profile-common exact canonical rank-one FLOAT32 no-grad INITIAL_STATE plus explicit-
   state DROPOUT over the complete probability domain. MPSGraph's hidden-random one-output dropout
   and opaque Philox state cannot implement exact key/counter-plus-N, mask, next-state, binary64
-  probability, or special/scaling semantics. Unblocking requires an exact custom random kernel plus
-  a complete zero-input/multi-output/local-INT64 schema and lifecycle; `p=0` is not a substitute.
+  probability, or special/scaling semantics. Schema 13 now carries zero-input, three-output, and
+  INT64 structure, but no exact custom random route/lifecycle/proof exists; `p=0` is not a
+  substitute.
 - Metal 0036 remains Blocked without a device probe or production change. Direct Conv3d inherits
   0031's opaque shape-dependent contraction boundary. Average Pool3d arithmetic is recursively
   reachable for `ACCELERATOR`, but mapping, ceil-tail, divisor, and route proof are absent; max
@@ -196,9 +199,9 @@ Training-to-Metal optimizer bridge.
   movement/overlap work.
 - Metal 0037 remains Blocked without a device probe or production change. Complete Model 0030
   recursively reaches `ACCELERATOR` recurrent arithmetic, but direct RNN lacks runtime INT64 valid
-  lengths, atomic validation, skipped padded work, zero-padding, and final-hidden output. No
-  complete recurrence/state-publication/GRU/LSTM/gradient route proof or required
-  five-input/two-output/caller-INT64 schema exists.
+  lengths, atomic validation, skipped padded work, zero-padding, and final-hidden output. Schema 13
+  carries the required cardinality/type structure, but no complete recurrent implementation,
+  state-publication, GRU/LSTM, or gradient-route proof exists.
 - Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
   0017, and Metal 0015/0019/0020/0021/0022/0023/0024/0025 are Complete.
 - Task 0038 is Complete from base `ec4499bd9e18ed863c9091baa9cfe82dbcf06a9b`. It froze the exact
@@ -300,12 +303,12 @@ before extracting a package or widening another type.
 | 0027 | [Profile-common FLOAT32 batch-normalization inference](tasks/0027-profile-common-float32-batch-normalization-inference.md) | Blocked | 0025 Complete; Model 0021B; Compiler 0005B/0005C; CPU 0007F1 precedent; Config 0006; Engine 0018; 0026 is not a functional dependency | Every concurrent Metal capability/schema/native-preflight/candidate/codec/materialization/public Engine scope; training, multi-output, backward closure, and any 0016–0018 restart | None | Mandatory one-run direct-selector numerical gate only | One `[2,8,2]` production-settings execution; no production change | Channel 6 returned `0x00000000`/`0x80000000` where exact positive/negative minimum subnormals `0x00000001`/`0x80000001` were required. Other 30 cells and all five unchanged feeds passed; probe removed; implementation did not begin. |
 | 0030 | [Profile-common exact canonical FLOAT32 MAX_POOL2D forward](tasks/0030-profile-common-exact-canonical-float32-max-pool2d-forward.md) | Blocked | 0025 Complete; Model 0020A; Compiler 0005D/0006B11; CPU 0008G precedent; Config 0006; Engine 0018 | Every concurrent Metal capability/schema/native-preflight/candidate/codec/materialization/public Engine scope; convolution, average/1D/3D pooling, backward, multi-output, and any 0016–0018 restart | None | Mandatory one-execution raw-winner gate only | One `[1,1,1,18]` disjoint-window execution; no production change | `[+0,-0]` returned negative zero, and first/later qNaN/sNaN windows returned finite `3.0f`; ordinary/subnormal/shape/input/guard controls passed, artifacts were removed, and implementation did not begin. |
 | 0031 | [ACCELERATOR canonical FLOAT32 unbiased CONV2D forward](tasks/0031-accelerator-canonical-float32-unbiased-conv2d-forward.md) | Blocked | 0025 Complete; Model 0020; Compiler 0005D/0006B11; Config 0006; Engine 0018; 0030 blocker evidence is independent | Every concurrent Metal capability/schema/native-preflight/candidate/codec/materialization/public Engine scope; biased/gradient/Conv1d/Conv3d/pooling work; any 0016–0018 restart | None | Documentation-first structural review only; no device gate | Header/API mapping and exact candidate/schema research; no production change | Direct MPSGraph maps the full grouped NCHW/OIHW geometry, but its opaque shape-dependent contraction lacks complete recursive-subset proof. One execution or prohibited matrix cannot authorize the full domain; a conforming custom or completely proved selector route is required. |
-| 0032 | [Profile-common canonical FLOAT32 no-grad MSE NONE](tasks/0032-profile-common-canonical-float32-no-grad-mse-none.md) | Blocked | 0025 Complete; Model 0022; Compiler 0005D/0006B11; CPU 0008I/0008M precedent; Config 0006; Engine 0018; prior blockers remain independent | Every concurrent Metal capability/schema/native-preflight/candidate/codec/materialization/public Engine scope; MSE SUM/MEAN, categorical/index loss, backward/training, and any 0016–0018 restart | None | Documentation-first selector and numerical review only; no device gate | Model/profile, installed-header, Compiler/CPU, current-schema, and prior-FTZ evidence; no production change | Historical profile-common scope remains Blocked. Review-needed Model 0030 recursively reaches `ACCELERATOR` MSE arithmetic, but no direct selector or complete decomposition/custom route, schema, formula, gradient, and complete-domain proof exists. |
+| 0032 | [Profile-common canonical FLOAT32 no-grad MSE NONE](tasks/0032-profile-common-canonical-float32-no-grad-mse-none.md) | Blocked | 0025 Complete; Model 0022; Compiler 0005D/0006B11; CPU 0008I/0008M precedent; Config 0006; Engine 0018; prior blockers remain independent | Every concurrent Metal capability/schema/native-preflight/candidate/codec/materialization/public Engine scope; MSE SUM/MEAN, categorical/index loss, backward/training, and any 0016–0018 restart | None | Documentation-first selector and numerical review only; no device gate | Model/profile, installed-header, Compiler/CPU, current-schema, and prior-FTZ evidence; no production change | Historical profile-common scope remains Blocked. Complete Model 0030 recursively reaches `ACCELERATOR` MSE arithmetic and schema 13 carries MSE structure, but no direct selector or complete decomposition/custom implementation, formula, gradient route, and complete-domain proof exists. |
 | 0033 | [Profile-common canonical FLOAT32 no-grad default SDPA forward](tasks/0033-profile-common-canonical-float32-no-grad-unmasked-noncausal-default-scale-sdpa-forward.md) | Blocked | 0025 Complete; Model 0019E/0023F; Compiler 0005D/0006B11; CPU 0008H precedent; Config 0006; Engine 0018; earlier blockers remain independent | Every concurrent Metal capability/schema/native-preflight/candidate/codec/materialization/public Engine scope; mask/causal/weights/backward work; any 0016–0018 restart | None | Documentation-first selector, runtime, mask, and numerical review only; no device gate | Model/profile, installed-header/runtime, Compiler/CPU, schema, and prior-FTZ evidence; no production change | Review-needed Model 0030 recursively reaches `ACCELERATOR` attention arithmetic, but additive mask semantics mismatch Model and the opaque selector lacks complete-domain proof for contractions, scale, guards, softmax, specials, output, gradients, and shape-dependent algorithms. |
-| 0034 | [Profile-common canonical FLOAT32 no-grad ascending SORT](tasks/0034-profile-common-canonical-float32-no-grad-ascending-sort.md) | Blocked | 0025 Complete; Model 0019C/0019C1; Compiler 0005C/0006B11; CPU 0006C precedent; Config 0006; Engine 0018; earlier blockers remain independent | Every concurrent Metal capability/schema/native-preflight/candidate/codec/materialization/public Engine scope; ordering/top-K/INT64/gradient work; any 0016–0018 restart | None | Documentation-first selector, ordering, type, and arity review only; no device gate | Model/profile, installed-header/runtime, Compiler/CPU, current schema/type/publication evidence; no production change | Direct one-output SORT aligns structurally, but ordering is unrelaxed and the header omits independent stability/NaN/signed-zero/subnormal/exact-bit/shape-algorithm properties. ARGSORT returns INT32 rather than Model INT64, TOP_K requires two outputs, one run cannot close the gaps, and schema 12/wire 20/ORDERING 7/identity 13 remain conditional and unreserved. |
-| 0035 | [Profile-common canonical FLOAT32 no-grad explicit-state dropout](tasks/0035-profile-common-canonical-float32-no-grad-explicit-state-dropout.md) | Blocked | 0025 Complete; Model 0019B/0019B1; Compiler 0003/0005C/0006B11; CPU 0006D precedent; Config 0006; Engine 0018; earlier blockers remain independent | Every concurrent Metal capability/schema/native-ABI/preflight/candidate/codec/local-type/materialization/public Engine scope; multi-output/INT64/random/gradient work; any 0016–0018 restart | None | Documentation-first state/API/schema review only; no device gate | Model/profile, installed-header, Compiler/CPU, current schema/type/lifecycle evidence; no production change | Direct dropout hides randomness and returns one output; opaque Philox state cannot implement exact Model INT64[2] initialization/transition or mandatory three-output dropout. Exact custom kernel plus multi-output/local-INT64 schema is prerequisite. |
+| 0034 | [Profile-common canonical FLOAT32 no-grad ascending SORT](tasks/0034-profile-common-canonical-float32-no-grad-ascending-sort.md) | Blocked | 0025 Complete; Model 0019C/0019C1; Compiler 0005C/0006B11; CPU 0006C precedent; Config 0006; Engine 0018; earlier blockers remain independent | Every concurrent Metal capability/schema/native-preflight/candidate/codec/materialization/public Engine scope; ordering/top-K/INT64/gradient work; any 0016–0018 restart | None | Documentation-first selector, ordering, type, and arity review only; no device gate | Model/profile, installed-header/runtime, Compiler/CPU, current schema/type/publication evidence; no production change | Direct one-output SORT aligns structurally, but ordering is unrelaxed and the header omits independent stability/NaN/signed-zero/subnormal/exact-bit/shape-algorithm properties. ARGSORT returns INT32 rather than Model INT64. Schema 13 now carries INT64 and two-output TOP_K, but no proved cast/TOP_K output-order route exists and one run cannot close the gaps. |
+| 0035 | [Profile-common canonical FLOAT32 no-grad explicit-state dropout](tasks/0035-profile-common-canonical-float32-no-grad-explicit-state-dropout.md) | Blocked | 0025 Complete; Model 0019B/0019B1; Compiler 0003/0005C/0006B11; CPU 0006D precedent; Config 0006; Engine 0018; earlier blockers remain independent | Every concurrent Metal capability/schema/native-ABI/preflight/candidate/codec/local-type/materialization/public Engine scope; multi-output/INT64/random/gradient work; any 0016–0018 restart | None | Documentation-first state/API/schema review only; no device gate | Model/profile, installed-header, Compiler/CPU, current schema/type/lifecycle evidence; no production change | Direct dropout hides randomness and returns one output; opaque Philox state cannot implement exact Model INT64[2] initialization/transition or mandatory mask/three-output dropout. Schema 13 carries the required structure, but no exact custom random route, lifecycle proof, or route approval exists. |
 | 0036 | [Extended 3D inference](tasks/0036-extended-3d-inference.md) | Blocked | 0025 Complete; Model 0025H/0025J/0025K; Compiler 0006B/0006B1/0006B2; CPU 0008A/0008G1 precedent; Config 0006; Engine 0018; 0030/0031 evidence is independent | Every concurrent Metal capability/schema/native-preflight/candidate/codec/materialization/public Engine scope; biased/gradient convolution, pooling, 3D-window/custom-kernel work; any 0016–0018 restart | None | Documentation-first 3D selector, mapping, and numerical review only; no device gate | Model/profile, installed-header/runtime, Compiler/CPU, current schema, and 0030/0031 evidence; no production change | Direct Conv3d inherits the opaque contraction boundary. Average Pool3d arithmetic is recursively reachable for `ACCELERATOR` but lacks mapping/divisor/route proof; max Pool3d retains exact winner selection exposed by 0030. |
-| 0037 | [Profile-common canonical FLOAT32 no-grad FORWARD RNN_TANH](tasks/0037-profile-common-canonical-float32-no-grad-forward-rnn-tanh.md) | Blocked | 0025 Complete; Model 0025E/0025F; Compiler 0006A; Config 0006; Engine 0018; current CPU has no recurrent precedent; earlier blockers are independent | Every concurrent Metal capability/schema/native-ABI/preflight/candidate/codec/input-type/materialization/public Engine scope; recurrent, multi-input, multi-output, INT64, custom-kernel, or gradient work; any 0016–0018 restart | None | Documentation-first recurrent API, arity, type, and numerical review only; no device gate | Model/profile, installed-header/runtime, Compiler/CPU, current schema/type/lifecycle, and prior tanh evidence; no production change | Review-needed Model 0030 recursively reaches `ACCELERATOR` recurrent arithmetic, but direct RNN lacks runtime valid lengths, atomic validation, skipped padding, and final hidden, and no complete recurrence/state/gradient route or required five-input/two-output/INT64 schema exists. |
+| 0037 | [Profile-common canonical FLOAT32 no-grad FORWARD RNN_TANH](tasks/0037-profile-common-canonical-float32-no-grad-forward-rnn-tanh.md) | Blocked | 0025 Complete; Model 0025E/0025F; Compiler 0006A; Config 0006; Engine 0018; current CPU has no recurrent precedent; earlier blockers remain independent | Every concurrent Metal capability/schema/native-ABI/preflight/candidate/codec/input-type/materialization/public Engine scope; recurrent, multi-input, multi-output, INT64, custom-kernel, or gradient work; any 0016–0018 restart | None | Documentation-first recurrent API, arity, type, and numerical review only; no device gate | Model/profile, installed-header/runtime, Compiler/CPU, current schema/type/lifecycle, and prior tanh evidence; no production change | Complete Model 0030 recursively reaches `ACCELERATOR` recurrent arithmetic, but direct RNN lacks runtime valid lengths, atomic validation, skipped padding, and final hidden. Schema 13 carries the required signature; no complete recurrence/state/gradient route or route approval exists. |
 | 0038 | [Current profile capability manifest closure](tasks/0038-current-profile-capability-manifest-closure.md) | Complete | 0022–0025 Complete; finalized Metal capability evidence through 0037; Model 0027–0029; Config 0006; Engine 0018 | Every concurrent Metal capability/schema/native/candidate/codec documentation scope and shared README/architecture/API/backend/user/master/roadmap edits | None | Planning authorization `1bb2a0e5`, then one documentation/audit closure commit from exact base `ec4499bd9e18ed863c9091baa9cfe82dbcf06a9b` | Focused existing capability/conformance tests and targeted architecture checks passed; Markdown/link/terminology, diff, and documentation-only scope passed; no device probe or full build | Exact current common and accelerator-only occurrence matrices, strict-subset monotonicity, fail-closed remainder, and ABI/schema/identity boundary are synchronized; every Blocked row remains unsupported and no manifest API was added. |
 | 0039 | [Profile-common IEEE FLOAT16 prerequisite gate](tasks/0039-profile-common-ieee-float16-prerequisite-gate.md) | Blocked | Model 0026 Complete; reviewed public binary16 representation, promotion, conversion, family semantics, profile result sets, and downstream fail-closed enum adoption; Metal 0038 Complete | Every concurrent Model dtype/profile task and Metal capability/schema/native/type/ingress/publication/identity/transfer scope | None | Documentation-only prerequisite record; post-dependency implementation requires separate authorization and schema revalidation | Planning links/anchors/fences/final newlines, status consistency, documentation-only path scope, and `git diff --check`; no build, test, native compile, or device probe | No public FLOAT16 oracle exists. `MPSDataTypeFloat16` is representation evidence only; current Metal plumbing is closed. Task 0040 consumed no schema/type/identity values, so this candidate remains conditional and unreserved. |
 | 0040 | [Profile-common exact canonical BFLOAT16 Gather](tasks/0040-profile-common-exact-canonical-bfloat16-gather.md) | Blocked | 0023, 0025, and 0038 Complete; current Model BFLOAT16/Gather semantics; Compiler indexing capture; CPU 0006A2; Config 0006; Engine 0018 | Every concurrent Metal capability/schema/native/type/ingress/publication/identity/transfer scope and any restart consuming the same next values | None | Sole mandatory direct-selector gate only; no implementation authorized after failure | Exactly one graph/compile/execution over the 20-word reverse-permutation corpus; planning/status/Markdown/diff validation only | First output returned canonical quiet-NaN `0x7fc0` instead of selected negative signaling-NaN `0xffa6`. Inputs were unchanged; later output/guard checks made no success claim. Artifacts were removed, schema 12/wire 20/type 4/identities 13 remain unimplemented and unreserved, and production is unchanged. |
@@ -324,6 +327,7 @@ before extracting a package or widening another type.
 | 0053 | [Certified ACCELERATOR FLOAT32 custom EXP and stable SIGMOID](tasks/0053-certified-accelerator-float32-custom-exp-stable-sigmoid.md) | Blocked | Model 0030/0031 Complete and independently approved; 0051 preserved consumed evidence; 0050 packaged baseline; concrete pinned proof toolchain | Every concurrent Metal capability/schema/native-preflight/candidate/codec/tuning/public Engine scope and shared numerical-profile documentation; Task-0052 task/evidence | None | Concrete source/constants/manifests and kernel-checked complete-domain proof → independent read-only approval → exactly one new successor oracle → single-survivor freeze or strict structural dominance; otherwise controlled environment → separately reviewed production cutover | Planning links/fences/status/path/diff only now; future proof/source hash and complete-domain review, then one frozen-corpus oracle and exact structural facts; local timing remains diagnostic only; never rerun 0051 | Supersedes 0051 for future work; custom EXP and recursively proved stable SIGMOID are `DOMAIN-PENDING`, current opaque direct/inherited routes remain `DOMAIN-BLOCKED`, and no device/schema/capability action is authorized while proof/review is absent. |
 | 0054 | [Current ACCELERATOR 115-kind completeness audit](tasks/0054-current-accelerator-115-kind-completeness-audit.md) | Complete | 0051–0053 current records and reviewed 0052 evidence; current Model enums, Metal capability/private schema, and Compiler gradient capture at `93b3d379` | Every production, capability, schema, identity, native, test, evidence, proof, device, timing, trace, or build scope | None | Documentation/read-only audit only; no successor task made Ready | Enum/ledger recomputation; exact `19+2+15+79=115` and 79-kind blocker-partition sums; Markdown links/fences/newlines/status and diff checks | Records every current Model operation-kind constant exactly once, corrects stale Task-0052/0053 claims, documents bounded true rows plus false dtype/shape/layout/gradient rows, private schema/type/cardinality blockers, and the serial dependency partition. |
 | 0055 | [Private Metal schema, type, and cardinality foundation](tasks/0055-private-schema-type-cardinality-foundation.md) | Complete | 0052 Complete; 0054 historical audit; current 115-kind Model signatures and approved planning base `b7b9bab8d099539977c7fefc4c69b9f53db7592b` | Every concurrent Metal capability/schema/native ABI/type/transfer/identity/package scope during implementation | None | Implemented atomically at `ddeff1b2` with no dual decoder and zero new capability kinds | Focused Java/CPU/Metal/native/package/typed-transfer/public Engine checks; no timing and no second full repository build | Replaced the 160-byte record with one bounded schema-13 image; landed ABI 5, type wires `1..6`, operation wires `1..115`, attributes `0..41`, cardinality, BOOL/INT/rank-zero structure, all-six transfer, identity 14, and exact thirteen exports. |
+| 0056 | [Deterministic dual-route catalog and fixed route identity](tasks/0056-deterministic-dual-route-catalog-and-fixed-route-identity.md) | Ready | 0055 Complete at `ddeff1b2`; signed-32 image remediation `ce569b65`; current ABI/schema documentation remediations `486ff493` and `5b80d37c`; current 115-kind Model and installed MPSGraph SDK headers | Every concurrent Metal capability/schema/native/candidate/codec/preparation/finalization/execution/test/documentation scope; 0053 proof/oracle work | None | Catalog and identity first; shared validation spine; package-private forcing tests; one atomic implementation; independent Class C review | Exhaustive `115` catalog with fixed `76/34/5` MPSGraph and `16/99/0` custom counts; unchanged `34/81` capability; route/result-set/no-fallback/codec tests; focused native/package checks if touched; one final repository build; no device or timing run | Adds only deterministic internal dual-route metadata and fixed plan identity while preserving all current production routes and a future controlled-autotune seam. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -363,7 +367,7 @@ Completed profile spine and serial successors:
 
 `0051 (historical Blocked) + 0052 reviewed evidence + 0053 (Blocked) + historical source -> 0054 (Complete pre-cutover audit); 0052 production cutover (Complete) supersedes that inventory`
 
-`0052 (Complete) + 0054 (historical inventory) + current source -> 0055 (Complete foundation); 0053 and every remaining-kind production workstream consume the completed foundation`
+`0052 (Complete) + 0054 (historical inventory) + current source -> 0055 (Complete foundation) -> 0056 (Ready deterministic dual-route catalog); 0053 and every remaining-kind production workstream consume the completed foundation but cannot bypass 0056 route identity`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -435,6 +439,13 @@ received no inferred facts. Its exact Gate-1/Gate-2 and Gate-3 packages remain r
 [`evidence/0052-gate3/`](evidence/0052-gate3/README.md).
 [0054](tasks/0054-current-accelerator-115-kind-completeness-audit.md) remains Complete as the exact
 historical pre-cutover `19 + 2 + 15 + 79 = 115` inventory and explicitly records its supersession.
+[0055](tasks/0055-private-schema-type-cardinality-foundation.md) is Complete at `ddeff1b2`.
+[0056](tasks/0056-deterministic-dual-route-catalog-and-fixed-route-identity.md) is the sole Ready
+frontier. It catalogs all 115 schema-13 kinds as MPSGraph `76 DIRECT / 34 COMPOSED / 5 UNAVAILABLE`
+and custom `16 AVAILABLE / 99 PENDING / 0 UNAVAILABLE-WITH-PROOF`, centralizes the existing
+candidate-wire route identities, and adds package-private result-set route forcing without changing
+the `34/81` capability matrix or fixed production choices. It contains no device, oracle, timing,
+benchmark, public API, hot fallback, or autotune scope.
 Every other Metal task retains its recorded status.
 These edges serialize shared Metal mutation; they do not claim that one operation family requires
 another.
@@ -458,6 +469,11 @@ another.
 - Complete Task 0055 owns the landed ABI-5/schema-13 program-image, six-carrier typed-transfer,
   identity-14, validation, and package foundation. It added zero capability kinds and grants no
   operation route, proof, oracle, or performance authorization.
+- Ready Task 0056 owns only the internal 115-kind structural route catalog, one immutable prepared
+  route identity, the shared schema-13/capability/validation/lifecycle/buffer/publication spine, and
+  package-private route-forcing/result-set tests. Catalog states are not correctness approval or
+  capability. Current routes remain fixed, local timing is never authority, and only the existing
+  cold authenticated handoff remains as a seam for separately approved controlled autotuning.
 - Complete Metal 0044 owns its documentation/audit no-change record; no active owner may reinterpret
   its bounded report as a winner or production decision.
 - Complete Metal 0043 retains its reviewed benchmark implementation and evidence; Complete Metal
@@ -487,7 +503,8 @@ Current ABI 5 retains exactly thirteen exports and accepts one bounded schema-13
 Type wires are `1..6`, operation wires are `1..115`, attribute wires are `0..41`, and workload/
 exact-policy/candidate/compatibility/route/codec identities are version fourteen. Task 0055 landed
 that atomic foundation at `ddeff1b2` while retaining the exact 34 executable kinds and all existing
-fixed routes.
+fixed routes. Ready Task 0056 catalogs both route families and centralizes fixed identity without
+changing those facts or authorizing any operation route.
 Complete Model 0028 owns the root-only exact-zero reduction rule. Complete Model 0029 owns the
 MATMUL-only final-publication exact-zero sign rule. Metal 0018 remains Blocked without production
 changes. Complete Metal 0022
@@ -522,19 +539,19 @@ algorithm contract, so one execution cannot prove the complete recursive output 
 shape. Metal 0032 remains Blocked without a probe under its frozen profile-common task. Its MSE
 formula is recursively reachable for `ACCELERATOR` through subtraction, `delta*delta`, reduction,
 and the exact divisor, but MPSGraph has no direct selector and no complete decomposition/custom
-route, structural schema/capability, formula, or generated-gradient proof exists. Metal 0033
-remains Blocked without a probe: attention arithmetic is recursively reachable for `ACCELERATOR`,
-but the macOS-15 direct unmasked output-only SDPA selector is opaque, additive mask semantics
-mismatch Model, and no complete-domain proof covers contractions, scale, guards/masks, softmax,
-special classes, output contraction, gradients, or shape-dependent algorithms. Metal 0034 remains
-Blocked without a probe: direct ascending one-output SORT aligns structurally, but the exact
-ordering contract for stable ties, NaNs, signed zero, subnormals, represented-bit movement, and
-shape-dependent algorithms is undocumented. ARGSORT returns INT32 rather than Model INT64, and
-mandatory two-output TOP_K cannot fit the current schema. Metal 0035 remains Blocked without a
-probe: direct dropout hides randomness and returns one output, opaque Philox state cannot establish
-Model INT64[2] key/counter-plus-N, and current Metal lacks zero-input, three-output, and INT64
-representation. Only an exact custom random kernel plus complete multi-output/local-INT64 schema
-can unblock it; `p=0` narrowing is prohibited. Metal 0036 remains Blocked without a probe: direct
+implementation, formula, or generated-gradient proof exists. Metal 0033 remains Blocked without a
+probe: attention arithmetic is recursively reachable for `ACCELERATOR`, but the macOS-15 direct
+unmasked output-only SDPA selector is opaque, additive mask semantics mismatch Model, and no
+complete-domain proof covers contractions, scale, guards/masks, softmax, special classes, output
+contraction, gradients, or shape-dependent algorithms. Metal 0034 remains Blocked without a probe:
+direct ascending one-output SORT aligns structurally, but the exact ordering contract for stable
+ties, NaNs, signed zero, subnormals, represented-bit movement, and shape-dependent algorithms is
+undocumented. ARGSORT returns INT32 rather than Model INT64. Schema 13 carries INT64 and two-output
+TOP_K, but the required cast/output-order routes remain unproved. Metal 0035 remains Blocked without
+a probe: direct dropout hides randomness and returns one output, and opaque Philox state cannot
+establish Model INT64[2] key/counter-plus-N. Schema 13 carries zero-input, three-output, and INT64
+structure, but only an exact custom random route plus lifecycle and proof can unblock it; `p=0`
+narrowing is prohibited. Metal 0036 remains Blocked without a probe: direct
 Conv3d inherits the opaque shape-dependent contraction boundary. Average Pool3d arithmetic is
 recursively reachable for `ACCELERATOR`, but Pooling4D/stencil do not prove its complete NCDHW
 mapping, ceil-tail, fixed divisor, or route; max Pool3d additionally retains exact
@@ -563,7 +580,8 @@ completed the final packaged/extracted-Metal 87-task repository build; Task 0051
 Blocked consumed-oracle record, Task 0053 is Blocked before proof approval/new oracle/trace-backed
 cost, Task 0052 is Complete through its custom-cost/production cutover, Task 0054 is the Complete
 historical pre-cutover read-only `19+2+15+79=115` inventory, and Task 0055 is Complete at
-`ddeff1b2` with zero capability widening. No later Metal task is Ready.
+`ddeff1b2` with zero capability widening. Task 0056 is the sole Ready Metal frontier for the
+internal catalog/identity implementation described above.
 
 Metal 0006 remains historically `Blocked` after its frozen direct-selector
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH special-class and sign gate failures. Complete Model 0030
@@ -779,11 +797,11 @@ training, backward closure, and Model 0026 remain unauthorized pending complete-
   knob registry, generic parameter bag, Planning route choice, Runtime cache access, or hidden
   global resource.
 - The completed 0004 brief fixes route-specific typed shapes and conservatively session-scoped
-  target compatibility without changing cache-file or native ABI ownership. Its package-private
-  codec is now consumed by Task 0042's public wrappers and private Engine adapter without changing
-  its version-thirteen bytes. Task 0042 does not authorize cross-session reuse, cache-format work, a
-  device fingerprint, or broader operation/type, mixed-owner, async, packaging/discovery, or
-  performance claims.
+  target compatibility without changing cache-file or native ABI ownership. Task 0042's public
+  wrappers and private Engine adapter consume that package-private codec. Task 0055 later migrated
+  the current codec and all related identities to version fourteen without a dual decoder. Task
+  0042 does not authorize cross-session reuse, cache-format work, a device fingerprint, or broader
+  operation/type, mixed-owner, async, packaging/discovery, or performance claims.
 - Main risks are moving lowering into shared layers, leaking Metal fields through opaque seams,
   confusing capability with availability, and extending native/prepared lifetimes beyond their
   explicit owners.
