@@ -262,6 +262,7 @@ rank-two MATMUL. Complete-partition analysis authenticates each affine MATMUL op
 producer and prevents comparison BOOL values from crossing or feeding another operation. The
 common dispatch precedes the profile branch, so every strict-positive answer remains
 accelerator-positive. Every unlisted occurrence is false; accelerator identity never means generic
-fast math. ABI v4, thirteen exports, and 160-byte records remain fixed. Schema 12 retains operation
-wires `1..19` and attributes `0..6`, appends Task-0052 wires `20..34` and attributes `7..9`, and
-uses version-thirteen workload, policy, candidate, compatibility, route, and codec identities.
+fast math. ABI 5 retains the thirteen export names and consumes one bounded schema-13 program
+image. Operation wires `1..115`, attribute wires `0..41`, and type wires `1..6` are structural
+vocabulary only; version-fourteen workload, policy, candidate, compatibility, route, and codec
+identities authenticate that meaning without adding capability.

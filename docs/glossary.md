@@ -2461,14 +2461,14 @@ compatibility projection, and Engine's representative execution are implemented.
 Engine path produces the sole occurrence-0/partition-0/weight-1 mapping. Model extraction and
 multiple-occurrence aggregation remain planned.
 
-The profile-qualified Metal instance is also implemented internally. Its version-thirteen
-fingerprint covers the exact `NumericalProfile`, node schema 12, all retained wires `1..19`, the
-Task-0052 wires `20..34`, typed attributes through wire `9`, ordered input edges, reduction and scan
-forms, authenticated local-transpose provenance, ordered structural outputs, descriptors, value
-states, exact scalar/splat bits, logical-boundary facts, candidate/route schemas, and native ABI.
-Target compatibility separately includes the exact live `MetalDeviceContext` session nonce; ABI
-version `4` is not a stable cross-session device fingerprint. It currently supports only
-backend-local construction and authentication, not the tools-owned workload cache.
+The profile-qualified Metal instance is also implemented internally. Its version-fourteen
+fingerprint covers the exact `NumericalProfile`, bounded node schema 13, operation wires `1..115`,
+attribute wires `0..41`, type wires `1..6`, ordered variable-cardinality inputs/outputs, ordered
+feed/target/value structure, descriptors, value states, exact attribute and splat bits,
+logical-boundary facts, candidate/route schemas, and native ABI. Target compatibility separately
+includes the exact live `MetalDeviceContext` session nonce; ABI version `5` is not a stable
+cross-session device fingerprint. It currently supports only backend-local construction and
+authentication, not the tools-owned workload cache.
 
 ### Candidate generator
 
@@ -5175,15 +5175,16 @@ maximal profile-homogeneous partition. Both profiles admit the exact canonical N
 canonicalization, bounded UNFOLD_AXIS, GATHER, ONE_HOT, and replacement Scatter Elements rows.
 ACCELERATOR additionally admits FLOAT32 tensor ADD/SUB/MUL/DIV/MIN/MAX, all six comparisons,
 scalar MIN/MAX/CLAMP, SUM/MEAN/MIN/MAX/SUM_TO_SHAPE, every CUM_SUM/CUM_PROD mode, and bounded
-rank-two MATMUL. Comparisons may publish canonical one-byte BOOL locally, while BOOL feed,
-consumer, and transfer paths remain closed.
+rank-two MATMUL. Comparisons may publish canonical one-byte BOOL locally. Schema 13 and prepared
+transfer can represent and move all six current carriers, including BOOL, but no current
+BOOL-consuming Metal operation is capability-true.
 
-Metal analysis fixes stable value/node/feed/target order, lowers schema-12 typed records, generates
-a complete version-13 route batch, authenticates any supplied session decision, and fixes one
-private route before declaring resources. An eligible singleton NEG may use the dedicated custom
-pipeline. A partition containing any Task-0052 node selects the fixed custom whole-program route;
-every other supported partition uses MPSGraph. This choice changes no capability, ownership,
-fallback, retry, or partition boundary.
+Metal analysis fixes stable value/node/feed/target order, lowers one bounded schema-13 program
+image, generates a complete version-14 route batch, authenticates any supplied session decision,
+and fixes one private route before declaring resources. An eligible singleton NEG may use the
+dedicated custom pipeline. A partition containing any Task-0052 node selects the fixed custom
+whole-program route; every other supported partition uses MPSGraph. This choice changes no
+capability, ownership, fallback, retry, or partition boundary.
 
 Finalization compiles one persistent route resource and transfers it to `PreparedExecution`.
 Task-0052 creation compiles the fifteen fixed reviewed safe-math kernels plus cold nested

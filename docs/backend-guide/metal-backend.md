@@ -139,9 +139,9 @@ refresh.
 `BackendDeviceId(metal, "default")`, fixed `TraceDeviceId(0)`, and the tuning `SessionNonce` are
 distinct non-physical identities. The first is an abstract availability slot, the second a Metal
 trace correlation token, and the third a session-compatibility identity that makes no stable-device
-claim. No mapping among them is implied. ABI v4, the thirteen native exports, schema 12, and every
-version-13 workload/exact-policy/candidate/compatibility/route/codec identity remain fixed;
-tuning remains session-scoped and non-persistent.
+claim. No mapping among them is implied. ABI 5, the thirteen native exports, schema 13, and every
+version-14 workload/exact-policy/candidate/compatibility/route/codec identity remain fixed; tuning
+remains session-scoped and non-persistent.
 
 Future asynchronous execution requires a separate cross-module contract for completion/failure,
 cancellation/timeout, input borrowing, result/workspace ownership, prepared leases through device
@@ -301,10 +301,10 @@ constructs one immutable `PreparedExecutable` recipe.
 For the singleton-NEG custom route, native creation compiles the fixed branch-free
 `synaptik_neg_f32` source and creates one pipeline. For a Task-0052 custom program, creation
 compiles the fifteen fixed reviewed safe-math kernels and any interleaved existing-node MPSGraph
-executables before publication. For the ordinary MPSGraph route, native creation validates the
-fixed-width schema-twelve 160-byte typed node table and compiles one fixed-shape whole-partition
-executable. MATMUL compilation requires reduced-precision-fast-math read-back `None`. All
-compilation happens during finalization, never invocation.
+executables before publication. For the ordinary MPSGraph route, native creation validates one
+canonical bounded schema-13 program image and compiles one fixed-shape whole-partition executable.
+MATMUL compilation requires reduced-precision-fast-math read-back `None`. All compilation happens
+during finalization, never invocation.
 
 Each source splat owns one exact-sized Metal buffer and context child lease. Finalization fills and
 uploads the exact `FLOAT32` or `INT32` raw bits once, before PREPARE success. The result returns the
@@ -595,30 +595,28 @@ variant or automatic Metal selection outside the explicitly registered inventory
 
 ## ABI and failures
 
-Private ABI version `4` exports exactly thirteen symbols: the version/context/buffer foundation,
+Private ABI version `5` exports exactly thirteen symbols: the version/context/buffer foundation,
 `synaptik_metal_mpsgraph_executable_create`, executable release/run, and the three typed custom
-singleton-NEG pipeline operations. The old
-`synaptik_metal_mpsgraph_neg_executable_create` symbol is absent. Statuses `0..12` retain their
-documented meanings; unknown integers fail closed with the raw value retained.
+singleton-NEG pipeline operations. The create function accepts a pointer plus unsigned byte count
+for one schema-13 program image. The old `synaptik_metal_mpsgraph_neg_executable_create` symbol is
+absent. Statuses `0..12` retain their documented meanings, status `13` reports a structurally valid
+registered operation without a current native route, and unknown integers fail closed with the raw
+value retained.
 
-The create ABI requires node schema `12` and one 160-byte discriminated record per node. Existing
-operation wires `1..19` are retained. Task 0052 appends `GT=20`, `GE=21`, `LT=22`, `LE=23`,
-`EQ=24`, `NE=25`, `TENSOR_MIN=26`, `TENSOR_MAX=27`, `SCALAR_MIN=28`, `SCALAR_MAX=29`,
-`CLAMP=30`, `REDUCTION_MIN=31`, `REDUCTION_MAX=32`, `CUM_SUM=33`, and `CUM_PROD=34`.
-Existing attribute wires `0..6` are retained; exact raw-word `SCALAR_VALUE=7`,
-`CLAMP_RANGE=8`, and normalized-axis/Boolean-word `SCAN=9` are appended. Reduction records use
-typed full, single-axis, multi-axis, and sum-to-Shape forms; their bounded payload holds ordered
-axes or target dimensions. The typed `auxiliary` cell holds a reduction keep-dimensions bit, the
-scatter updates value index, or zero. Java and native code require exact operation/attribute
-pairing, inferred FLOAT32/INT32/BOOL value types, ordered inputs, exact broadcast/contraction/
-window/indexing/reduction/scan output Shapes, explicit unavailable/canonical/affine-view state
-transitions, authenticated local transpose provenance, exact absent-input/axis sentinels, zero
-unused fields, positive input ranks and dimensions, rank-zero reduction direct targets only,
-complete permutations, valid axes/depth/window/flag state, topological availability, fresh
-outputs, unique produced targets, exact declared Shapes, and checked typed logical byte geometry.
-Java also
-rejects profile-incompatible programs before native entry and owns typed handle liveness and
-pointer-region preconditions that a raw C boundary cannot prove.
+The schema-13 image is little-endian, at least 64 bytes, at most `Integer.MAX_VALUE` bytes on both
+sides, and consists of a 64-byte header, 16-byte value descriptors, 32-byte node descriptors,
+64-bit dimensions, 32-bit value references, canonical alignment padding, and 64-bit attribute
+words. Header and create-argument byte counts must match exactly. Operation wires `1..34` retain
+their executable meaning; wires `35..115` are registered structural vocabulary that return status
+`13` only after complete image validation. Attribute wires `0..41` and type wires `1..6` cover all
+current Model signatures and carriers.
+
+Java and native code independently require exact operation/attribute/type/cardinality agreement,
+ordered feeds, targets, node inputs and outputs, exact Shapes and checked byte geometry, explicit
+unavailable/canonical/affine-view state transitions, topological availability, fresh outputs,
+unique produced targets, canonical packed sections, zero reserved/padding bytes, and signed-32-bit
+image bounds. Java additionally rejects profile-incompatible programs before native entry and owns
+typed handle liveness and pointer-region preconditions that a raw C boundary cannot prove.
 Index-domain and buffer-copy bounds map to status `5`; input/output aliasing and wrong device or
 insufficient extent map to status `10`; grid representability maps to status `8`; unusable
 threadgroup geometry and custom command failures map to status `11`; Objective-C exceptions map to
@@ -849,8 +847,8 @@ FLOAT32 SUM/MEAN/MIN/MAX/SUM_TO_SHAPE, every CUM_SUM/CUM_PROD scan mode, and pos
 rank-two FLOAT32 MATMUL with authenticated local transposes. These arithmetic routes remain inside
 Model's exact/discrete or recursive primitive/aggregate floors; they gain no generic final-output
 tolerance. The profile is retained in partition plans and every route/tuning/codec/workload
-identity. Java enforces the boundary before native entry. ABI version `4`, thirteen exports, and
-the 160-byte record remain unchanged; node schema `12` retains operation wires `1..19` and
-attribute wires `0..6`, then appends operation wires `20..34` and attribute wires `7..9`.
-Route, candidate, compatibility, workload, exact-policy, and codec identities are version `13`;
-the complete-plan wrapper remains version `1`.
+identity. Java enforces the boundary before native entry. ABI version `5` retains thirteen export
+names and accepts one bounded schema-13 image; operation wires `1..115`, attribute wires `0..41`,
+and type wires `1..6` cover the current structural registry without widening capability. Route,
+candidate, compatibility, workload, exact-policy, and codec identities are version `14`; the
+complete-plan wrapper remains version `1`.

@@ -116,10 +116,11 @@ fixed stream-local Metal trace correlation token. The tuning `SessionNonce` iden
 session-compatibility context and explicitly carries no stable-device claim. They remain distinct;
 no mapping among them or to a physical device is introduced.
 
-Metal retains ABI v4 and thirteen exports. Task 0052 advanced the typed node schema to 12 and the
-workload, exact-policy, candidate, compatibility, route, and codec identities to version 13
-without changing this device-identity decision. Tuning remains session-scoped and non-persistent.
-No cache key, trace payload, or compatibility identity gains a physical-device fingerprint.
+Metal uses ABI 5 with the same thirteen export names, bounded node schema 13, and version-14
+workload, exact-policy, candidate, compatibility, route, and codec identities. Task 0055's atomic
+structural migration changed none of this decision's device-identity semantics. Tuning remains
+session-scoped and non-persistent. No cache key, trace payload, or compatibility identity gains a
+physical-device fingerprint.
 
 ### Persistent immutable resources and no general pool
 

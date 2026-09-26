@@ -121,9 +121,10 @@ with the same exact current semantics. Metal's common exact domain contains cano
 SCATTER_ELEMENTS/NONE. Accelerator additionally admits tensor FLOAT32 ADD/SUB/MUL/DIV/MIN/MAX,
 all six FLOAT32 comparisons with BOOL outputs, scalar MIN/MAX/CLAMP, SUM/MEAN/MIN/MAX and
 SUM_TO_SHAPE reductions, every CUM_SUM/CUM_PROD mode, and positive static rank-two MATMUL.
-Every unlisted occurrence fails closed before route selection. Metal remains ABI v4 with thirteen
-exports and 160-byte records; schema 12 retains operation wires `1..19` and attributes `0..6`,
-appends Task-0052 wires `20..34` and attributes `7..9`, and uses version-thirteen identities.
+Every unlisted occurrence fails closed before route selection. Metal uses ABI 5 with the same
+thirteen exports and one bounded schema-13 program image. Operation wires `1..115`, attribute wires
+`0..41`, and type wires `1..6` cover current structural vocabulary; version-fourteen identities
+authenticate that meaning without widening capability.
 Model remains the sole semantic owner of profile meaning.
 
 The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
