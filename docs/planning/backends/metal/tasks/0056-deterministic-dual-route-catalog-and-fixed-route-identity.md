@@ -9,6 +9,11 @@ Authorized from clean production/documentation base
 the signed-32 native program-image remediation is Complete at `ce569b65`, and current ABI/schema
 documentation remediations are Complete at `486ff493` plus `5b80d37c`.
 
+The normative [per-wire route-evidence audit](0056-route-evidence-audit.md) is part of this task.
+It resolves every row to an exact installed-SDK selector or finite selector composition and to the
+current Model enum source plus bounded signature; broad reason codes are summaries, not evidence
+substitutes.
+
 This task is the sole Metal implementation frontier. It is an internal architecture/catalog task,
 not an operation-capability task and not a performance experiment.
 
@@ -498,8 +503,10 @@ Implementation validation, not this planning commit, must include:
 4. packaged signed-library focused route tests when native code or package inputs changed;
 5. public Engine singleton-NEG tuned/untuned coverage if candidate plumbing changed;
 6. architecture checks, documentation links/fences/final-newline checks, and `git diff --check`;
-7. the repository build exactly once after focused tests; and
-8. independent Class C review before `Complete`.
+7. an audit alignment check proving wires `1..115`, exact kind/state equality, both fixed totals,
+   every installed header selector citation, and every Model source link;
+8. the repository build exactly once after focused tests; and
+9. independent Class C review before `Complete`.
 
 This planning-only commit runs documentation validation only. It runs no production build, device
 probe, oracle, benchmark, performance test, or native package build.
@@ -509,6 +516,8 @@ probe, oracle, benchmark, performance test, or native package build.
 Task 0056 may become `Complete` only when:
 
 - one executable exhaustive catalog accounts for all 115 kinds with the fixed state totals;
+- the normative per-wire evidence audit remains exactly aligned with the catalog and every cited
+  selector, installed header, Model kind, and bounded signature is still current;
 - one immutable route identity is embedded in every plan and used without hot reconsideration;
 - both route families share the schema-13/capability/validation/lifecycle/buffer/publication spine;
 - all current production route decisions, capability rows, candidate bytes, and public APIs are

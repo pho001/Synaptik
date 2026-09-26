@@ -214,9 +214,11 @@ thirteen export names, typed CPU/Metal transfer, identity 14, independent valida
 metadata. Capability remains exactly 34 executable and 81 registered unsupported kinds.
 
 [Metal 0056](backends/metal/tasks/0056-deterministic-dual-route-catalog-and-fixed-route-identity.md)
-is Ready from clean base `5b80d37c585f7e8579856678b84cf4d52cbb2397`. It is a zero-capability
-internal architecture task: the full catalog totals are MPSGraph
-`76 DIRECT + 34 COMPOSED + 5 UNAVAILABLE` and custom
+is Ready from clean base `5b80d37c585f7e8579856678b84cf4d52cbb2397`. Its normative
+[per-wire evidence audit](backends/metal/tasks/0056-route-evidence-audit.md) gives every catalog row
+an exact installed-SDK selector or finite selector composition and current Model
+semantic/signature source. This remains a zero-capability internal architecture task: totals are
+MPSGraph `76 DIRECT + 34 COMPOSED + 5 UNAVAILABLE` and custom
 `16 AVAILABLE + 99 PENDING + 0 UNAVAILABLE-WITH-PROOF`. Each prepared plan retains one current
 route wire before declaration/finalization; schema-13 validation, capability, lifecycle, buffers,
 completion, and publication remain shared. Package-private tests force only approved routes and

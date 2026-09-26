@@ -441,11 +441,14 @@ received no inferred facts. Its exact Gate-1/Gate-2 and Gate-3 packages remain r
 historical pre-cutover `19 + 2 + 15 + 79 = 115` inventory and explicitly records its supersession.
 [0055](tasks/0055-private-schema-type-cardinality-foundation.md) is Complete at `ddeff1b2`.
 [0056](tasks/0056-deterministic-dual-route-catalog-and-fixed-route-identity.md) is the sole Ready
-frontier. It catalogs all 115 schema-13 kinds as MPSGraph `76 DIRECT / 34 COMPOSED / 5 UNAVAILABLE`
-and custom `16 AVAILABLE / 99 PENDING / 0 UNAVAILABLE-WITH-PROOF`, centralizes the existing
-candidate-wire route identities, and adds package-private result-set route forcing without changing
-the `34/81` capability matrix or fixed production choices. It contains no device, oracle, timing,
-benchmark, public API, hot fallback, or autotune scope.
+frontier. Its normative [per-wire route-evidence audit](tasks/0056-route-evidence-audit.md) cites an
+exact installed-header selector or finite composition and current Model semantic/signature source
+for every one of the 115 rows. The catalog remains MPSGraph
+`76 DIRECT / 34 COMPOSED / 5 UNAVAILABLE` and custom
+`16 AVAILABLE / 99 PENDING / 0 UNAVAILABLE-WITH-PROOF`, centralizes the existing candidate-wire
+route identities, and adds package-private result-set route forcing without changing the `34/81`
+capability matrix or fixed production choices. It contains no device, oracle, timing, benchmark,
+public API, hot fallback, or autotune scope.
 Every other Metal task retains its recorded status.
 These edges serialize shared Metal mutation; they do not claim that one operation family requires
 another.
