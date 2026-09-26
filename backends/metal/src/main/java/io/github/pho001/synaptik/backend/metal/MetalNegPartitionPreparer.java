@@ -64,9 +64,10 @@ import java.util.Optional;
  * remains exactly the existing operations 1..34. Graph feeds are canonical and explicitly typed.
  * Rank-zero values participate where the existing operation capability permits them. BOOL results
  * may be direct or cross-owner targets but cannot feed a current Metal operation. Analysis freshly
- * regenerates the complete candidate batch; an absent decision preserves the singleton-NEG
- * heuristic, while a present decision must authenticate against the current schema, workload,
- * profile, session target, and candidate identity. Any Task-0052 node fixes the whole partition
+ * regenerates the complete candidate batch. Every supplied handoff authenticates its exact
+ * partition, schema, workload, profile, and session target; an absent decision preserves the
+ * singleton-NEG heuristic, while a present decision must additionally authenticate its candidate
+ * identity. Any Task-0052 node fixes the whole partition
  * to its custom program route before exact declarations, including a declared run-owned buffer
  * for every internal logical value. Package-private tests may force only another candidate already
  * approved by that freshly validated batch; production has no corresponding input or switch.

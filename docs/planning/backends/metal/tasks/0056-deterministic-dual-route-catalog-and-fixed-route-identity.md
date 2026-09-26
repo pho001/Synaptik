@@ -2,20 +2,22 @@
 
 ## Status
 
-Ready
+Complete
 
-Authorized from clean production/documentation base
-`5b80d37c585f7e8579856678b84cf4d52cbb2397`. Task 0055 is Complete at `ddeff1b2`;
-the signed-32 native program-image remediation is Complete at `ce569b65`, and current ABI/schema
-documentation remediations are Complete at `486ff493` plus `5b80d37c`.
+Implemented at `4f35576c` with the focused conformance-matrix correction `4a5cbdef` and
+independent-review remediation `1718b28a`. The Class C reviewer found one P2 decision-empty
+handoff-authentication gap, verified the remediation and its foreign-session/changed-workload
+regressions, then returned final `APPROVE` with zero remaining findings. Task 0055 remains Complete
+at `ddeff1b2`; the signed-32 native program-image remediation remains Complete at `ce569b65`, and
+the ABI/schema documentation remediations remain Complete at `486ff493` plus `5b80d37c`.
 
-The normative [per-wire route-evidence audit](0056-route-evidence-audit.md) is part of this task.
-It resolves every row to an exact installed-SDK selector or finite selector composition and to the
-current Model enum source plus bounded signature; broad reason codes are summaries, not evidence
-substitutes.
+The normative [per-wire route-evidence audit](0056-route-evidence-audit.md) remains part of this
+task. It resolves every row to an exact installed-SDK selector or finite selector composition and
+to the current Model enum source plus bounded signature; broad reason codes are summaries, not
+evidence substitutes.
 
-This task is the sole Metal implementation frontier. It is an internal architecture/catalog task,
-not an operation-capability task and not a performance experiment.
+This completed internal architecture/catalog task changed no operation capability, performance
+authority, device contract, oracle, timing policy, benchmark, or autotuning behavior.
 
 ## Change class
 
@@ -469,8 +471,9 @@ routes never become candidates merely because the catalog says structurally poss
    tests, no-fallback failure tests, and codec stability tests.
 7. Update current Metal package/backend docs and planning status. Do not edit historical task or
    evidence claims except to add an explicit later-supersession sentence when genuinely necessary.
-8. Run focused verification once, then the one repository validation required by the integration
-   contract. Remove throwaway artifacts and commit one atomic implementation.
+8. Run focused verification once. The explicit implementation direction supersedes the planned
+   final full repository build and atomic-commit wording: run no final full build, remove throwaway
+   artifacts, and retain logical implementation, remediation, and documentation commits.
 
 ## Required tests
 
@@ -505,7 +508,8 @@ Implementation validation, not this planning commit, must include:
 6. architecture checks, documentation links/fences/final-newline checks, and `git diff --check`;
 7. an audit alignment check proving wires `1..115`, exact kind/state equality, both fixed totals,
    every installed header selector citation, and every Model source link;
-8. the repository build exactly once after focused tests; and
+8. no final full repository build; the explicit implementation direction requires focused
+   verification only; and
 9. independent Class C review before `Complete`.
 
 This planning-only commit runs documentation validation only. It runs no production build, device
@@ -525,5 +529,30 @@ Task 0056 may become `Complete` only when:
 - internal forcing proves each approved route independently against Model result sets and proves no
   fallback/retry;
 - local timing is absent from qualification and selection;
-- focused and repository validation pass; and
-- independent review approves the atomic implementation.
+- focused validation passes and the explicitly excluded final full build is not run; and
+- independent review approves the implemented and remediated logical commits.
+
+## Completion record
+
+- `MetalOperationRouteCatalog` exhaustively describes all 115 `NodeKind` values with fixed totals
+  MPSGraph `76/34/5` and custom `16/99/0`. Capability remains `34 true / 81 false`; catalog state
+  neither admits an occurrence nor authorizes a route.
+- `MetalPreparedRoute` is the one package-private canonical identity for
+  `CUSTOM_SINGLE_NEG=1`, `MPSGRAPH=2`, and `CUSTOM_TASK0052=3`; it owns the two-value family and
+  candidate encoding delegates to it. Every prepared plan retains one final identity.
+- The package-private forcing seam runs ordinary capability/semantic validation, authenticates
+  every supplied handoff, and accepts only an exact freshly generated candidate. Independent
+  custom/MPSGraph singleton-NEG result-set tests, incompatible-force tests, fixed-identity tests,
+  and create/run no-fallback tests pass.
+- Focused Java catalog/route/candidate/codec/preparation/finalization/execution/trace/tuning tests
+  passed. Focused capability, backend-conformance, Metal/Engine public-shape, Metal Javadoc, and
+  architecture checks passed.
+- A fresh native build retained exactly thirteen defined exports. Two raw ABI/schema-13 malformed
+  and unsupported-operation tests plus one prepared native route test passed with zero skips. Two
+  public Engine singleton-NEG tuned/untuned integration tests passed with zero skips.
+- Documentation link/anchor/fence/newline/whitespace validation and `git diff --check` passed.
+  No performance run, benchmark, numerical oracle, package/archive action, or final full
+  repository build was run.
+- Independent Class C review found one P2 empty-handoff authentication defect. Remediation
+  `1718b28a` authenticates exact partition and compatibility before optional-decision inspection
+  or route forcing; final re-review returned `APPROVE` with zero remaining findings.

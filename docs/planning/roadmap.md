@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Task 0056 Ready; 0055 and 0052 Complete; 0054 historical | [Metal 0056](backends/metal/tasks/0056-deterministic-dual-route-catalog-and-fixed-route-identity.md) is the sole Ready frontier: catalog all 115 schema-13 kinds across deterministic MPSGraph/custom states, centralize one fixed prepared-route identity, and add internal result-set route forcing without changing the `34/81` capability matrix, fixed routes, public API, or performance authority. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0056; 0054 historical; no Metal task is Ready | [Metal 0056](backends/metal/tasks/0056-deterministic-dual-route-catalog-and-fixed-route-identity.md) landed the exhaustive 115-kind structural catalog, one fixed prepared-route identity, and package-private result-set forcing at `4f35576c` plus approved remediation `1718b28a` without changing the `34/81` capability matrix, fixed routes, public API, cache, or performance authority. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -214,16 +214,17 @@ thirteen export names, typed CPU/Metal transfer, identity 14, independent valida
 metadata. Capability remains exactly 34 executable and 81 registered unsupported kinds.
 
 [Metal 0056](backends/metal/tasks/0056-deterministic-dual-route-catalog-and-fixed-route-identity.md)
-is Ready from clean base `5b80d37c585f7e8579856678b84cf4d52cbb2397`. Its normative
+is Complete at implementation `4f35576c`, conformance correction `4a5cbdef`, and final approved
+remediation `1718b28a`. Its normative
 [per-wire evidence audit](backends/metal/tasks/0056-route-evidence-audit.md) gives every catalog row
 an exact installed-SDK selector or finite selector composition and current Model
-semantic/signature source. This remains a zero-capability internal architecture task: totals are
-MPSGraph `76 DIRECT + 34 COMPOSED + 5 UNAVAILABLE` and custom
+semantic/signature source. The landed zero-capability catalog totals are MPSGraph
+`76 DIRECT + 34 COMPOSED + 5 UNAVAILABLE` and custom
 `16 AVAILABLE + 99 PENDING + 0 UNAVAILABLE-WITH-PROOF`. Each prepared plan retains one current
-route wire before declaration/finalization; schema-13 validation, capability, lifecycle, buffers,
-completion, and publication remain shared. Package-private tests force only approved routes and
-compare each independently with Model result sets. Current production decisions remain fixed. No
-device/oracle/timing/benchmark/public API/hot fallback/retry/runtime autotune is authorized; local
+route wire before finalization; schema-13 validation, capability, lifecycle, buffers, completion,
+and publication remain shared. Package-private tests force only freshly authenticated approved
+routes and compare each independently with Model result sets. Production decisions remain fixed.
+No device/oracle/timing/benchmark/public API/hot fallback/retry/runtime autotune was added; local
 timing remains diagnostic only, and the existing cold authenticated handoff is only a future
 controlled-autotune seam.
 
@@ -505,10 +506,10 @@ Metal 0025 remains Complete at reviewed revision `f88066e3`; its schema-11/versi
 historical. Blocked 0026–0027/0030–0037/0039–0040 changed no executable capability. Complete 0041
 changes no capability. Metal 0042 still exposes only bounded singleton-NEG local tuning. Historical
 0051 and planning-only 0053 added no current wire. Metal 0052, superseded historical audit 0054,
-and zero-new-kind foundation 0055 are Complete; Metal 0047/0051/0053 remain Blocked. Task 0055
-landed type wires `1..6`, variable node cardinality, typed transfer, ABI 5/schema 13, and identity
-14 without changing capability. Task 0056 is Ready for catalog/identity architecture only; no
-backend task may define Model semantics.
+and zero-new-kind foundations 0055 and 0056 are Complete; Metal 0047/0051/0053 remain Blocked.
+Task 0055 landed type wires `1..6`, variable node cardinality, typed transfer, ABI 5/schema 13, and
+identity 14 without changing capability. Task 0056 landed the catalog/fixed-identity architecture
+without changing capability or Model authority; no backend task may define Model semantics.
 
 Complete Model 0028 owns bounded reduction exact-zero sign freedom; Complete Metal 0020
 implements that rule under accelerator only. Blocked Metal 0018 retains its unchanged historical
@@ -610,11 +611,11 @@ matrix with narrowing, or infer capability from registered schema.
 - Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
   0017, Trace 0003, and Metal
   0015/0019/0020/0021/0022/0023/0024/0025/0038/0041/0042/0043/0044/0045/0046/0048/0049/0050/0054/
-  0055 are Complete. Metal 0016–0018, 0026–0027, 0030–0037, planning-only 0039, failed-gate 0040,
-  provider-gated 0047, historical consumed-oracle 0051, and proof/review-gated planning successor
-  0053 remain Blocked under their recorded contracts. Task 0052 is Complete; Task 0054 remains its
-  exact historical pre-cutover inventory. Task 0055 is the completed zero-new-capability
-  foundation. Task 0056 is the sole Ready Metal task.
+  0055/0056 are Complete. Metal 0016–0018, 0026–0027, 0030–0037, planning-only 0039, failed-gate
+  0040, provider-gated 0047, historical consumed-oracle 0051, and proof/review-gated planning
+  successor 0053 remain Blocked under their recorded contracts. Task 0052 is Complete; Task 0054
+  remains its exact historical pre-cutover inventory. Tasks 0055 and 0056 are the completed
+  zero-new-capability foundation and catalog/identity architecture. No Metal task is Ready.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -628,13 +629,13 @@ matrix with narrowing, or infer capability from registered schema.
 
 ## Nearest next step
 
-Metal 0056 is the sole Ready Metal task. It consumes Task 0055's private
-ABI-5/schema-13/six-carrier/cardinality/typed-transfer/identity/package foundation and adds only an
+No Metal task is Ready. Complete Metal 0056 consumes Task 0055's private
+ABI-5/schema-13/six-carrier/cardinality/typed-transfer/identity/package foundation and lands only an
 exhaustive internal two-route catalog, one immutable prepared-route identity, shared validation/
 lifecycle/buffer/publication boundaries, and package-private result-set forcing. It does not widen
-capability, change current routes, run a device oracle or benchmark, expose a public knob, retry or
-fall back at Runtime, or treat local timing as authority. Metal 0053 remains independently Blocked
-on concrete source, complete-domain proof, and review.
+capability, change current routes, expose a public knob, retry or fall back at Runtime, or treat
+local timing as authority. Metal 0053 remains independently Blocked on concrete source,
+complete-domain proof, and review.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
@@ -662,9 +663,9 @@ barrier, completed-state `RunResult` resource/publication lease, and one system-
 context per integration without adding an asynchronous API, physical-device selector, multi-device
 execution, identity change, cross-device behavior, or general output/workspace pool. Historical
 Metal 0051 and planning-only successor 0053 preserve
-those boundaries and own no production scope. Complete Task 0055 preserves the same synchronous,
-single-default-device, direct-target lifecycle; Ready Task 0056 must preserve it as shared route
-lifecycle and publication behavior.
+those boundaries and own no production scope. Complete Tasks 0055 and 0056 preserve the same
+synchronous, single-default-device, direct-target lifecycle as the shared fixed-route lifecycle
+and publication behavior.
 
 Metal 0050 is Complete. Its final program verification built the current dylib, applied the fixed
 ad-hoc identifier, packaged and independently verified it, created and permission-preservingly
@@ -749,7 +750,7 @@ gradient obligations. Unblocking requires a conforming custom or proved selector
 complete five-input/two-output/caller-INT64 schema, native lifecycle, and proof.
 
 Schema 13, operation wires `1..115`, attributes `0..41`, local types `1..6`, ABI 5, and
-version-fourteen identities are landed by Complete Task 0055. Ready Task 0056 consumes that
+version-fourteen identities are landed by Complete Task 0055. Complete Task 0056 consumes that
 foundation without capability widening; Metal 0053 consumes it independently but remains Blocked
 before any future production cutover. Metal 0026/0027 remain separately finalized Blocked.
 Documentation/audit-only Metal 0038 is Complete. Planning-only Metal 0039 is Blocked on Draft Model

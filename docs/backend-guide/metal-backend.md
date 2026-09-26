@@ -72,6 +72,12 @@ session-local decision can select the other valid route for an eligible singleto
 prepare-time implementation-domain boundary: it is not capability narrowing, CPU fallback,
 retry, repartitioning, or a performance-superiority claim.
 
+The three identities are one closed package-private prepared-route enum. It owns candidate wires
+`1`, `2`, and `3` and the two-value `CUSTOM_KERNEL`/`MPSGRAPH` family; the candidate batch delegates
+wire encoding to that identity rather than maintaining another wire table. Every returned plan
+retains one non-null final identity. Finalization, trace metadata, cold binding, and execution read
+that retained identity and cannot replace it.
+
 ## Prerequisites
 
 Java uses JDK 26 Foreign Function and Memory (FFM) APIs. The native bridge requires an
@@ -107,8 +113,8 @@ device discovery.
 
 The public Java surface contains `MetalCapabilityProvider`, `MetalBackendConfiguration`,
 `MetalBackendIntegration`, and `MetalTraceObserver`. Contexts, physical storage, preparers,
-finalizers, schedules, executable recipes, native handles, Objective-C objects, MPSGraph types,
-and the custom route remain internal.
+finalizers, schedules, executable recipes, the structural route catalog, prepared-route identity,
+test-only route forcing, native handles, Objective-C objects, and MPSGraph types remain internal.
 
 ### Completion and device topology
 
@@ -213,6 +219,17 @@ Accelerator MATMUL requires two positive static rank-two FLOAT32 inputs, exact c
 output Shapes, canonical output, and canonical or exact transpose layout operands. Strict MATMUL
 is false. Availability and hard backend requirements remain separate Planning facts.
 
+The package-private `MetalOperationRouteCatalog` separately describes every one of the 115
+schema-thirteen `NodeKind` values. Exhaustive enum switching yields shared immutable entries with
+closed MPSGraph state/reason and custom-kernel state/reason values: MPSGraph totals are
+`76 DIRECT / 34 COMPOSED / 5 UNAVAILABLE`; custom totals are
+`16 AVAILABLE / 99 PENDING / 0 UNAVAILABLE_WITH_PROOF`. The normative
+[per-wire evidence audit](../planning/backends/metal/tasks/0056-route-evidence-audit.md) supplies
+the exact installed-SDK selector or finite composition and current Model source for every row.
+This catalog performs no capability admission and no selection. It is never consulted by Runtime;
+all 81 registered-but-nonexecutable kinds remain capability-false even when the catalog records a
+structurally direct or composed MPSGraph realization.
+
 After Planning creates one maximal Metal partition, analysis walks nodes in partition order with
 explicit unavailable, canonical, and affine-view states. Every view input must resolve to an
 earlier admitted affine producer in that exact partition; every graph feed is canonical;
@@ -257,15 +274,24 @@ object identity. Target compatibility also contains a fresh private nonce from t
 `MetalDeviceContext`; version-thirteen and earlier decisions fail closed.
 
 Metal can construct an absent- or present-decision `BackendPartitionTuningHandoff`. Fresh analysis
-always regenerates the current batch. A present decision is accepted only when the exact partition,
-candidate schema, workload fingerprint, context session, and candidate membership all match;
-stale or foreign values fail closed rather than reverting to the heuristic. Absence uses the
-existing heuristic without cache lookup or measurement.
+always regenerates the current batch. Every supplied handoff is accepted only when the exact
+partition, candidate schema, workload fingerprint, and context session match. An absent decision
+then uses the existing heuristic without cache lookup or measurement; a present decision must
+additionally name a current candidate. Stale or foreign values fail closed rather than reverting
+to the heuristic.
 
 After authentication, `CUSTOM_SINGLE_NEG` declares one feed buffer, one target buffer, and no
 workspace. `CUSTOM_TASK0052` declares every feed, target, and internal logical-value buffer plus one
 address workspace. MPSGraph declares its feed and target buffers plus one address workspace. A
 larger supported singleton has only the MPSGraph candidate; analysis does not reject or split it.
+
+Package-private tests can require one exact route only after ordinary lowering, capability
+admission, semantic validation, candidate regeneration, and any supplied handoff authentication
+have succeeded. The required route must already be a member of that fresh exact batch. Thus both
+approved singleton-NEG routes can traverse the same finalization/lifecycle/publication path
+independently, while Task-0052 MPSGraph forcing, singleton Task-0052 forcing, stale or foreign
+handoffs, and unsupported operations fail before native creation. No public configuration,
+integration, Engine, tuning, or Runtime input exposes this test seam.
 
 ### Session decision codec and limitations
 
@@ -289,6 +315,13 @@ MPSGraph-only, mixed-owner, and multiple-partition plans remain ineligible. Meta
 or hit a persistent workload-cache entry, and its complete-plan phase never touches the supplied
 model-plan path. Cross-session Metal reuse still requires a separately authorized stable
 device/library fingerprint.
+
+Schema-thirteen workload bytes and workload compatibility remain route-neutral. Candidate and
+decision bytes retain route wires `1..3`, route-policy version fourteen, and the target session.
+Prepared plans and native resources are route-specific. A future executable-cache key would
+therefore require the tuple `(workload compatibility, route wire, route-policy version, target
+session)` rather than a workload digest alone. The repository has no persistent Metal executable
+cache, and this catalog/identity refactor adds none.
 
 ### Finalization and persistent ownership
 

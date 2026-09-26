@@ -544,3 +544,11 @@ keeps comparison BOOL values as direct targets, and declares every internal logi
 Task-0052 whole-program route. It preserves typed ingress, target and internal byte geometry,
 window/index obligations, and the profile in the schema-thirteen/version-fourteen route identity
 without widening capability.
+
+Metal's one closed prepared-route identity owns the existing candidate wires `1..3` and the
+MPSGraph/custom-kernel family. Candidate serialization delegates to it. A returned plan retains one
+final route before finalization; finalization and Runtime cannot reselect it. The separate
+package-private 115-kind structural catalog is descriptive cold metadata, not admission or route
+approval. Its package-private forcing seam is test-only, runs normal capability and fresh-handoff
+authentication first, and accepts only a route already present in the exact regenerated candidate
+batch.

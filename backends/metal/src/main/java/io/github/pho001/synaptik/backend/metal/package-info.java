@@ -40,6 +40,17 @@
  * produces canonical geometry. Metal lowers one complete profile-homogeneous partition as a typed
  * whole-partition program during preparation.</p>
  *
+ * <p>A package-private exhaustive catalog describes all 115 schema-thirteen operation kinds as
+ * MPSGraph {@code DIRECT}, {@code COMPOSED}, or {@code UNAVAILABLE} and custom-kernel
+ * {@code AVAILABLE}, {@code PENDING}, or {@code UNAVAILABLE_WITH_PROOF}, with closed source
+ * reasons. It is cold descriptive metadata only: capability remains authoritative and the catalog
+ * is never consulted by Runtime. One package-private canonical prepared-route identity owns the
+ * stable candidate wires {@code 1..3} and the MPSGraph/custom-kernel family. Every plan retains
+ * exactly one such identity before finalization; candidate encoding delegates to it, and
+ * finalization, tracing, cold binding, and execution never replace it. Package-private tests may
+ * force only a route already approved by the freshly validated exact candidate batch. Production
+ * exposes no force, selector, fallback, retry, or hot route decision.</p>
+ *
  * <p>{@link io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration} names one explicit
  * native bridge. {@link io.github.pho001.synaptik.backend.metal.MetalBackendIntegration} opens and
  * owns one default-device native context and supplies availability, partition preparation,

@@ -14,9 +14,10 @@ coverage does not widen execution capability: the native bridge and Java capabil
 continue to execute exactly the existing operations `1..34`, subject to their existing numerical
 profile, type, Shape, and topology restrictions. A structurally valid registered operation outside
 that set returns the dedicated unsupported-operation status rather than masquerading as malformed
-input. Candidate and route identity are version 14. The sole current prepared-plan route kind
-remains the existing deterministic MPSGraph/custom-program choice; schema 13 adds no route
-selection, autotuning, fallback, telemetry, or performance authority.
+input. Candidate and route identity are version 14. Java owns exactly three prepared-route
+identities: custom singleton NEG wire 1, MPSGraph wire 2, and Task-0052 custom-program wire 3.
+Schema 13 carries no route label, and the exhaustive Java structural catalog adds no native route
+selection, capability, autotuning, fallback, telemetry, or performance authority.
 
 ```text
 Java analysis -> choose fixed whole-partition route -> declare every exact resource
