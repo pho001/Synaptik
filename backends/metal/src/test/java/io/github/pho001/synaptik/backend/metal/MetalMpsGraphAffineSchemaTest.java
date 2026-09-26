@@ -60,7 +60,7 @@ class MetalMpsGraphAffineSchemaTest {
     }
 
     @Test
-    void JavaPreflightAuthenticatesOnlyLocalRankTwoTransposes() {
+    void JavaPreflightAuthenticatesLocalTransposesOnlyOnCustomRoute() {
         var direct = MetalMpsGraphProgram.Node.matmul(0, 1, 2);
 
         long[][] directShapes = {{2, 3}, {3, 4}, {2, 4}};
@@ -76,7 +76,9 @@ class MetalMpsGraphAffineSchemaTest {
                 MetalMpsGraphProgram.Node.permutation(0, 2, List.of(1, 0)),
                 MetalMpsGraphProgram.Node.permutation(1, 3, List.of(1, 0)),
                 MetalMpsGraphProgram.Node.matmul(2, 3, 4)));
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks(transposedShapes), dimensions(transposedShapes), transposed), transposed, new int[] {0, 1}, new int[] {4}, MetalPreparedRoute.MPSGRAPH);
+        assertThrows(IllegalArgumentException.class, () ->
+                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks(transposedShapes), dimensions(transposedShapes), transposed), transposed, new int[] {0, 1}, new int[] {4}, MetalPreparedRoute.MPSGRAPH));
+        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks(transposedShapes), dimensions(transposedShapes), transposed), transposed, new int[] {0, 1}, new int[] {4}, MetalPreparedRoute.CUSTOM_PROGRAM);
 
         long[][] malformedShapes = {
             {6}, {3, 4}, {2, 3}, {2, 4}

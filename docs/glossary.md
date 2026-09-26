@@ -2504,10 +2504,10 @@ representation for the same exact projected context and sole CPU partition. It a
 exact authenticated Phase-1 result. These two batches answer different questions; treating the local
 batch as a plan batch would incorrectly repeat local route search.
 
-The profile-qualified Metal batch is session-scoped. It contains only `CUSTOM_SINGLE_NEG` and
-`MPSGRAPH` configurations complete for the validated partition and profile. Compatibility,
-candidate, and route-policy schemas are version sixteen, and no private field crosses the
-marker-role boundary.
+The profile-qualified Metal batch is session-scoped. It contains only the complete
+`CUSTOM_SINGLE_NEG`, `CUSTOM_PROGRAM`, and `MPSGRAPH` configurations valid for the exact partition
+and profile. Compatibility, candidate, and route-policy schemas are version seventeen, and no
+private field crosses the marker-role boundary.
 
 ### Complete-plan candidate
 

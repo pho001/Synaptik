@@ -21,12 +21,14 @@ import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
 import io.github.pho001.synaptik.model.operation.index.GatherNdKind;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterNdKind;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.PadKind;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.loss.LossKind;
 import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
@@ -56,10 +58,11 @@ import java.util.Optional;
  * After final graph optimization has fixed the surviving topology, the allowlisted computation
  * families below may choose canonical contiguous logical result geometry because their outputs
  * are materialized values rather than storage views. {@link ContiguousKind#CONTIGUOUS} explicitly
- * requests the same geometry. Affine/view operations such as reshape, expand, permute, squeeze,
- * slice extraction, and scalar select are deliberately excluded: their output offset and strides
- * must be derived from the input or remain unresolved. Unknown future operation kinds therefore
- * fail closed instead of silently acquiring geometry.</p>
+ * requests the same geometry. Affine/view operations such as reshape, expand, permute, and
+ * squeeze are excluded from canonical closure; after materialized inputs are closed, a second
+ * topological phase derives their exact offset and strides with {@link LayoutInference}. Slice
+ * extraction and scalar select remain unresolved. Unknown future operation kinds therefore fail
+ * closed instead of silently acquiring geometry.</p>
  *
  * <p>An explicit compile-time splat graph input may also use canonical geometry because it has no
  * caller binding whose descriptor must remain exact. Caller-bindable inputs, dynamic shapes, and
@@ -110,6 +113,9 @@ final class StaticResultLogicalLayoutClosure {
                 changed |= closeValue(selectedValues, valueId,
                         node.id() + " output[" + outputIndex + "] " + valueId);
             }
+        }
+        for (CompiledNode node : graph.nodes()) {
+            changed |= closeAffineResult(selectedValues, node);
         }
 
         if (!changed) {
@@ -180,6 +186,44 @@ final class StaticResultLogicalLayoutClosure {
                 || kind instanceof AggregateReductionKind
                 || kind instanceof CumulativeScanKind;
     }
+    private static boolean closeAffineResult(
+            Map<ValueId, GraphValue> selectedValues, CompiledNode node) {
+        OperationKind kind = node.operation().kind();
+        if (!(kind instanceof ShapeTransformKind || kind instanceof AxisTransformKind)
+                || node.inputs().size() != 1
+                || node.outputs().size() != 1) {
+            return false;
+        }
+        ValueId outputId = node.outputs().getFirst();
+        TensorDescriptor output = selectedValues.get(outputId).descriptor();
+        TensorDescriptor input = selectedValues.get(node.inputs().getFirst()).descriptor();
+        if (!output.shape().isFullyStatic()
+                || output.layout().isPresent()
+                || input.layout().isEmpty()) {
+            return false;
+        }
+        TensorDescriptor inferred;
+        try {
+            inferred = LayoutInference.infer(node.operation(), List.of(input))
+                    .outputs()
+                    .getFirst();
+        } catch (ArithmeticException failure) {
+            throw new IllegalArgumentException(
+                    "cannot derive static affine result logical layout for "
+                            + node.id() + " output " + outputId,
+                    failure);
+        }
+        if (inferred.layout().isEmpty()
+                || inferred.dataType() != output.dataType()
+                || !inferred.shape().equals(output.shape())) {
+            return false;
+        }
+        TensorDescriptor closed = new TensorDescriptor(
+                output.dataType(), output.shape(), inferred.layout(), output.requiresGrad());
+        selectedValues.put(outputId, new GraphValue(outputId, closed));
+        return true;
+    }
+
 
     private static boolean closeValue(
             Map<ValueId, GraphValue> selectedValues, ValueId valueId, String context) {

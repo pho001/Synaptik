@@ -6,17 +6,19 @@ import io.github.pho001.synaptik.model.tensor.TensorProducer;
 /**
  * Builds the closed role-aware floating {@code MATMUL} first-order formulas.
  *
- * <p>The four vector/matrix rank pairings use only public Tensor rank edits, permutation,
- * multiplication, matrix multiplication, sum-to-Shape, and floating cast operations. Batch
- * broadcasting is reversed independently for each selected operand, then an ordinary cast
- * converts a promoted cotangent to the selected operand type when needed. Preflight owns
- * promotion, rank, contraction, batch, output-Shape, attribute, and policy validation.</p>
+ * <p>The four vector/matrix rank pairings use only public Tensor rank edits, explicit contiguous
+ * materialization of rank edits, permutation, multiplication, matrix multiplication,
+ * sum-to-Shape, and floating cast operations. Batch broadcasting is reversed independently for
+ * each selected operand, then an ordinary cast converts a promoted cotangent to the selected
+ * operand type when needed. Preflight owns promotion, rank, contraction, batch, output-Shape,
+ * attribute, and policy validation.</p>
  *
- * <p>For output cotangent {@code g}, left {@code l}, right {@code r}, and
- * {@code T(v)} denoting a swap of the final two axes, the four cases are: vector/vector
- * {@code [g * r, g * l]}; vector/matrix
- * {@code [squeeze(expandDims(g) @ T(r)), expandDims(l) @ expandDims(g)]};
- * matrix/vector {@code [expandDims(g) @ expandDims(r), T(l) @ g]}; and matrix/matrix
+ * <p>For output cotangent {@code g}, left {@code l}, right {@code r},
+ * {@code T(v)} denoting a swap of the final two axes, and {@code C(v)} denoting explicit
+ * contiguous materialization, the four cases are: vector/vector {@code [g * r, g * l]};
+ * vector/matrix
+ * {@code [C(squeeze(C(expandDims(g)) @ T(r))), C(expandDims(l)) @ C(expandDims(g))]};
+ * matrix/vector {@code [C(expandDims(g)) @ C(expandDims(r)), T(l) @ g]}; and matrix/matrix
  * {@code [g @ T(r), T(l) @ g]}. Each selected result is reduced with
  * {@code sumToShape(operand.shape())} when batch broadcasting occurred and is then cast once when
  * its promoted type differs from the selected operand. An unselected role remains {@code null}.
@@ -59,20 +61,24 @@ final class LinearAlgebraGradientRules {
             if (selectedInputs[0]) {
                 int insertionAxis = gradient.descriptor().shape().rank() - 1;
                 leftGradient = gradient.expandDims(insertionAxis)
+                        .contiguous()
                         .matmul(swapLastTwo(right))
                         .squeeze(insertionAxis)
+                        .contiguous()
                         .sumToShape(left.descriptor().shape());
             }
             if (selectedInputs[1]) {
                 int insertionAxis = gradient.descriptor().shape().rank() - 1;
                 rightGradient = left.expandDims(1)
-                        .matmul(gradient.expandDims(insertionAxis))
+                        .contiguous()
+                        .matmul(gradient.expandDims(insertionAxis).contiguous())
                         .sumToShape(right.descriptor().shape());
             }
         } else if (rightRank == 1) {
             if (selectedInputs[0]) {
                 leftGradient = gradient.expandDims(gradient.descriptor().shape().rank())
-                        .matmul(right.expandDims(0))
+                        .contiguous()
+                        .matmul(right.expandDims(0).contiguous())
                         .sumToShape(left.descriptor().shape());
             }
             if (selectedInputs[1]) {

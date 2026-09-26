@@ -1486,8 +1486,15 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             return false;
         }
         TensorDescriptor input = inputs.getFirst();
-        if (!affineInput(input)
-                || !geometry(output)
+        DataType carrierType = input.dataType();
+        boolean carrierPermute = operation.kind() == AxisTransformKind.PERMUTE
+                && (carrierType == DataType.FLOAT32
+                        || carrierType == DataType.BFLOAT16
+                        || carrierType == DataType.INT32
+                        || carrierType == DataType.INT64);
+        if ((!carrierPermute && carrierType != DataType.FLOAT32)
+                || !affineInput(input, carrierType)
+                || !geometry(output, carrierType, false)
                 || input.requiresGrad() != output.requiresGrad()) {
             return false;
         }
@@ -1611,6 +1618,16 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             return false;
         }
         return output.layout().orElseThrow().equals(expected);
+    }
+
+    private static boolean affineInput(TensorDescriptor descriptor, DataType dataType) {
+        if (!geometry(descriptor, dataType, false)) {
+            return false;
+        }
+        LayoutDescriptor layout = descriptor.layout().orElseThrow();
+        return layout.storageOffset() == 0L
+                && (layout.equals(LayoutDescriptor.contiguous(descriptor.shape()))
+                        || layout.isView());
     }
 
     private static boolean supportsContiguous(

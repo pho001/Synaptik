@@ -1034,7 +1034,7 @@ class MetalNegRouteCandidateGeneratorTest {
                     rewriteInt(first, 4, 12), current.batch()).isEmpty(),
                     "checksummed version-twelve decisions must fail closed");
             assertTrue(codec.decodeDecision(
-                    rewriteInt(first, 4, 15), current.batch()).isEmpty(),
+                    rewriteInt(first, 4, 16), current.batch()).isEmpty(),
                     "checksummed version-sixteen decisions must fail closed");
             assertTrue(codec.decodeDecision(rewriteInt(first, 8, 99), current.batch()).isEmpty());
             assertTrue(codec.decodeDecision(

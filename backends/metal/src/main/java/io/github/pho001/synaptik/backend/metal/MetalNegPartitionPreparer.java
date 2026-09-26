@@ -548,7 +548,9 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 || output.dataType() != DataType.FLOAT32
                 || left.shape().rank() != 2
                 || right.shape().rank() != 2
-                || output.shape().rank() != 2;
+                || output.shape().rank() != 2
+                || !left.layout().orElseThrow().isContiguous()
+                || !right.layout().orElseThrow().isContiguous();
     }
 
     private static boolean isExactLocalTranspose(

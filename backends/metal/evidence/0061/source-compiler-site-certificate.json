@@ -7,11 +7,12 @@
   },
   "foundationSource": {
     "path": "native/metal-macos-arm64/src/synaptik_metal_foundation.m",
-    "sha256": "723e08de873b27476265ec39b25a0e46f37a11cb316f06fbc58b252d7a36d702"
+    "sha256": "b7b428ddc0b9e3e6c4c8ddc55409bb9ec0e5ab22c258a0e858d4b6499e5e7a48"
   },
   "compilerSite": {
     "runtimeCompiler": "MTLDevice.newLibraryWithSource",
     "mathMode": "MTLMathModeSafe",
+    "fastMathRequested": false,
     "offlineMetalCompilerAvailable": false,
     "offlineCompilerProbe": "xcrun --find metal exited 72: utility metal is not a developer tool or in PATH"
   },
@@ -29,10 +30,61 @@
     "reassociationSites": 0,
     "pretruncationSites": 0
   },
+  "siteInventory": [
+    {
+      "id": "left-load",
+      "operation": "raw 16-bit or 32-bit load_word",
+      "floatingArithmetic": false,
+      "proof": "The load returns integer bits; no floating conversion, rounding, or contributor filter occurs."
+    },
+    {
+      "id": "right-load",
+      "operation": "raw 16-bit or 32-bit load_word",
+      "floatingArithmetic": false,
+      "proof": "The load returns integer bits; no floating conversion, rounding, or contributor filter occurs."
+    },
+    {
+      "id": "bfloat16-widen",
+      "operation": "uint(word) << 16 followed by as_type<float>",
+      "floatingArithmetic": false,
+      "proof": "Bit placement exactly reconstructs the represented BFLOAT16 value as FLOAT32, including sign, zero, subnormal, infinity, and NaN payload bits."
+    },
+    {
+      "id": "ordered-fma",
+      "operation": "fma(leftValue, rightValue, accumulator)",
+      "floatingArithmetic": true,
+      "proof": "This is the sole floating arithmetic source site. The loop visits each contraction index once in increasing order and assigns each fused result to the next accumulator."
+    },
+    {
+      "id": "result-store",
+      "operation": "as_type<uint> followed by raw store_word",
+      "floatingArithmetic": false,
+      "proof": "The FLOAT32 result bits are stored without a numeric conversion or pre-truncation."
+    }
+  ],
+  "contributorProof": {
+    "loopInitialization": "contraction = 0",
+    "loopCondition": "contraction < m.inputExtents[0]",
+    "loopAdvance": "++contraction",
+    "contributorUse": "exactly one matmul_offsets_0061 lookup, two raw loads, and one matmul_fma_0061 call per iteration",
+    "noDrop": "There is no floating predicate, early continue, finite-only branch, zero filter, or alternate accumulator update.",
+    "noReassociation": "The source exposes one accumulator dependency chain and requests MTLMathModeSafe; no fast-math mode, reduction primitive, parallel partial sum, or independent accumulator exists.",
+    "noPretruncation": "FLOAT32 operands and accumulator remain FLOAT32 through the sole fused site; BFLOAT16 inputs are widened by exact bit placement before that site."
+  },
+  "specialValueProof": {
+    "daz": "A subnormal operand reaches the sole fma as its exact represented FLOAT32 value or, where the device applies DAZ, as same-sign zero; no source transform admits any third value.",
+    "ftz": "A subnormal fma result reaches the next accumulation/store exactly or, where the device applies FTZ, as same-sign zero; no source transform admits any third value.",
+    "nan": "NaN operands and invalid fused operations propagate through the sole safe-mode fma to a NaN class; raw bit store performs no finite substitution.",
+    "infinity": "Infinity operands retain IEEE fused-operation class behavior. For finite operands and accumulator, an infinity result can arise only from overflow of the fused mathematical result.",
+    "signedZero": "Raw loads and BFLOAT16 widening preserve input zero signs. The safe-mode fma determines the IEEE result sign, including cancellation, a DAZ-normalized zero product, and addition to the signed accumulator; the raw store preserves that result sign.",
+    "finalNonemptyZeroSignFreedom": "When the final nonempty contraction accumulator is exactly zero after the permitted site rules, the Model admits either published zero sign. The raw store publishes the device-selected fma zero bits and cannot substitute a nonzero value.",
+    "finiteContributorPreservation": "Every finite contributor participates in the ordered fma chain even when its product is zero, subnormal, overflows, or follows a prior non-finite accumulator."
+  },
   "proof": {
     "nativeBuild": "native/metal-macos-arm64/build.sh completed successfully",
     "runtimeCompilationAndExecution": "MetalMpsGraphMatmulNativeTest custom FLOAT32 and both mixed-order cases passed on Apple M3 Max",
     "publicExecution": "EngineExplicitCompositionMetalIntegrationTest.publicMetalEngineRunsGeneralMatmulPromotionAndBatchedGradientDomain passed",
-    "limitation": "No offline Metal compiler or disassembler was installed; this certificate therefore binds the audited source and runtime MTLMathModeSafe compiler site rather than an offline AIR disassembly."
+    "specialValueCorroboration": "MetalMpsGraphMatmulNativeTest.customFloatMatmulPublishesOnlyPermittedSpecialClasses covers infinity, signaling-NaN input, signed zero, minimum subnormal exact-or-permitted-zero publication, and finite overflow.",
+    "limitation": "No offline Metal compiler or disassembler was installed; the proof is therefore bound to the audited source and the explicit runtime MTLMathModeSafe compiler site rather than an offline AIR disassembly."
   }
 }

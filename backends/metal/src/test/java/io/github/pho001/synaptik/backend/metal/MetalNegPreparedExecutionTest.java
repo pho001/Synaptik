@@ -1593,7 +1593,7 @@ class MetalNegPreparedExecutionTest {
             BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
                     analyze(fixture, context, NumericalProfile.ACCELERATOR);
             MetalNegPreparationPlan plan = analysis.plan();
-            assertEquals(MetalPreparedRoute.MPSGRAPH, plan.route());
+            assertEquals(MetalPreparedRoute.CUSTOM_PROGRAM, plan.route());
             assertEquals(List.of(
                     MetalMpsGraphProgram.NodeKind.PERMUTE,
                     MetalMpsGraphProgram.NodeKind.PERMUTE,
@@ -1618,27 +1618,37 @@ class MetalNegPreparedExecutionTest {
                     plan.valueStates());
 
             try (var left = context.createBuffer(24);
+                    var transposedLeftBuffer = context.createBuffer(24);
                     var right = context.createBuffer(48);
+                    var transposedRightBuffer = context.createBuffer(48);
                     var output = context.createBuffer(32);
-                    var workspace = addressWorkspace(context, left, right, output);
+                    var workspace = addressWorkspace(
+                            context,
+                            left,
+                            transposedLeftBuffer,
+                            right,
+                            transposedRightBuffer,
+                            output,
+                            output);
                     var resource = context.createMpsGraphExecutable(plan)) {
                 resource.run(
-                        2,
-                        workspace.segment().asSlice(0, 2L * Long.BYTES),
+                        5,
+                        workspace.segment().asSlice(0, 5L * Long.BYTES),
                         1,
-                        workspace.segment().asSlice(2L * Long.BYTES, Long.BYTES));
+                        workspace.segment().asSlice(5L * Long.BYTES, Long.BYTES));
                 resource.run(
-                        2,
-                        workspace.segment().asSlice(0, 2L * Long.BYTES),
+                        5,
+                        workspace.segment().asSlice(0, 5L * Long.BYTES),
                         1,
-                        workspace.segment().asSlice(2L * Long.BYTES, Long.BYTES));
+                        workspace.segment().asSlice(5L * Long.BYTES, Long.BYTES));
                 assertEquals(1, api.executableCreates.get());
                 assertEquals(2, api.runCalls.get());
                 assertArrayEquals(
                         plan.graphProgram().encodedProgramImage(
                                 plan.programValueDescriptors(),
                                 plan.feedValueIndices(),
-                                plan.targetValueIndices()),
+                                plan.targetValueIndices(),
+                                MetalPreparedRoute.CUSTOM_PROGRAM),
                         api.createdProgramImage);
             }
             assertEquals(1, api.executableReleases.get());

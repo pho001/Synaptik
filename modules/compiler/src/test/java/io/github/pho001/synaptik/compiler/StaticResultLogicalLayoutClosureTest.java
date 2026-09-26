@@ -25,6 +25,7 @@ import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementw
 import io.github.pho001.synaptik.model.operation.index.SelectAttrs;
 import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
@@ -72,7 +73,7 @@ final class StaticResultLogicalLayoutClosureTest {
     }
 
     @Test
-    void leavesAffineViewFamiliesUnresolvedAndPreservesOffsetAndZeroStrideInputs() {
+    void derivesAffineViewFamiliesFromResolvedInputsAndLeavesOtherViewsUnresolved() {
         Shape matrix = Shape.of(2, 3);
         LayoutDescriptor offset = LayoutDescriptor.of(matrix, new long[] {3, 1}, 5, true);
         LayoutDescriptor zeroStride = LayoutDescriptor.of(
@@ -104,13 +105,56 @@ final class StaticResultLogicalLayoutClosureTest {
 
         ValidatedGraph result = StaticResultLogicalLayoutClosure.close(source);
 
-        assertSame(source, result);
+        assertNotSame(source, result);
         assertEquals(offset, result.graph().values().get(0).descriptor().layout().orElseThrow());
         assertEquals(zeroStride,
                 result.graph().values().get(1).descriptor().layout().orElseThrow());
-        for (int output = 2; output <= 6; output++) {
-            assertTrue(result.graph().values().get(output).descriptor().layout().isEmpty());
-        }
+        assertEquals(
+                LayoutDescriptor.of(Shape.of(3, 2), new long[] {1, 3}, 5, true),
+                result.graph().values().get(2).descriptor().layout().orElseThrow());
+        assertEquals(
+                LayoutDescriptor.of(Shape.of(6), new long[] {1}, 5, true),
+                result.graph().values().get(3).descriptor().layout().orElseThrow());
+        assertEquals(
+                LayoutDescriptor.of(matrix, new long[] {0, 1}, 0, true),
+                result.graph().values().get(4).descriptor().layout().orElseThrow());
+        assertTrue(result.graph().values().get(5).descriptor().layout().isEmpty());
+        assertTrue(result.graph().values().get(6).descriptor().layout().isEmpty());
+    }
+
+    @Test
+    void derivesRankEditAfterClosingItsMaterializedInputInTheSamePass() {
+        Shape matrix = Shape.of(1, 3);
+        Shape vector = Shape.of(3);
+        CompiledNode materialized = node(
+                25,
+                UnaryElementwiseKind.NEG,
+                NoOperationAttrs.INSTANCE,
+                List.of(0),
+                List.of(1));
+        CompiledNode squeeze = node(
+                26,
+                AxisTransformKind.SQUEEZE,
+                new AxisTransformAttrs(0),
+                List.of(1),
+                List.of(2));
+        CompiledGraphModel graph = graph(
+                List.of(resolved(matrix, LayoutDescriptor.contiguous(matrix)),
+                        unresolved(matrix),
+                        unresolved(vector)),
+                List.of(materialized, squeeze),
+                List.of(0),
+                List.of(2));
+
+        ValidatedGraph result = StaticResultLogicalLayoutClosure.close(validated(
+                graph, Map.of(), Map.of(id(0), new TensorId(202))));
+
+        assertEquals(
+                LayoutDescriptor.contiguous(matrix),
+                result.graph().values().get(1).descriptor().layout().orElseThrow());
+        assertEquals(
+                LayoutDescriptor.of(vector, new long[] {1}, 0, true),
+                result.graph().values().get(2).descriptor().layout().orElseThrow());
     }
 
     @Test

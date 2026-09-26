@@ -550,10 +550,6 @@ abstract class MetalNativeApi implements AutoCloseable {
             boolean containsCustomOperation = graphProgram.nodes().stream()
                     .anyMatch(node -> node.kind().isCustomProgramOperation()
                             || usesCustomMatmul(node, types, valueRanks));
-            if (route == MetalPreparedRoute.CUSTOM_PROGRAM && !containsCustomOperation) {
-                throw new IllegalArgumentException(
-                        "custom Metal program route requires a custom operation");
-            }
             if (route == MetalPreparedRoute.MPSGRAPH
                     && graphProgram.nodes().stream().anyMatch(node -> {
                         int wire = node.kind().wireIdentity();
@@ -756,6 +752,14 @@ abstract class MetalNativeApi implements AutoCloseable {
                                     "Metal MATMUL affine inputs must be authenticated local"
                                             + " last-two-axis transposes");
                         }
+                        boolean transposedInput = localTranspose[left] || localTranspose[right];
+                        if (transposedInput) {
+                            containsCustomOperation = true;
+                            if (route == MetalPreparedRoute.MPSGRAPH) {
+                                throw new IllegalArgumentException(
+                                        "transposed MATMUL requires the custom program route");
+                            }
+                        }
                         requireShape(
                                 matmulMatches(
                                         left, right, output, valueRanks, valueDimensions),
@@ -829,14 +833,26 @@ abstract class MetalNativeApi implements AutoCloseable {
                             "UNFOLD_AXIS attributes and output shape disagree");
                 }
                 switch (node.kind()) {
-                    case NEG, ABS, CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS,
-                            SQUEEZE, SUM, MEAN, REDUCTION_MIN, REDUCTION_MAX,
+                    case NEG, ABS, CONTIGUOUS, RESHAPE, EXPAND, EXPAND_DIMS, SQUEEZE, SUM, MEAN,
+                            REDUCTION_MIN, REDUCTION_MAX,
                             SCALAR_MIN, SCALAR_MAX, CLAMP, CUM_SUM, CUM_PROD, UNFOLD_AXIS,
                             SCALAR_ADD, SCALAR_SUB, SCALAR_MUL, SCALAR_DIV, SCALAR_POW,
                             RECIPROCAL, LOG, LOG1P, EXPM1, ERF, SQRT, RSQRT, FLOOR, CEIL, SIGN,
                             RELU, TANH, GELU, GELU_TANH_APPROXIMATION, SILU -> {
                         requireType(types, left, ValueType.FLOAT32);
                         requireType(types, output, ValueType.FLOAT32);
+                    }
+                    case PERMUTE -> {
+                        if (types[left] != types[output]
+                                || types[left] != ValueType.FLOAT32
+                                        && types[left] != ValueType.BFLOAT16
+                                        && types[left] != ValueType.INT32
+                                        && types[left] != ValueType.INT64
+                                || values.get(left).requiresGrad()
+                                        != values.get(output).requiresGrad()) {
+                            throw new IllegalArgumentException(
+                                    "PERMUTE has an unsupported carrier or gradient metadata");
+                        }
                     }
                     case PROD -> {
                         if (types[left] != types[output]
@@ -1013,6 +1029,10 @@ abstract class MetalNativeApi implements AutoCloseable {
                 used[left] = true;
                 used[output] = true;
                 produced[output] = true;
+            }
+            if (route == MetalPreparedRoute.CUSTOM_PROGRAM && !containsCustomOperation) {
+                throw new IllegalArgumentException(
+                        "custom Metal program route requires a custom operation");
             }
             boolean[] targeted = new boolean[valueCount];
             for (int target : targets) {

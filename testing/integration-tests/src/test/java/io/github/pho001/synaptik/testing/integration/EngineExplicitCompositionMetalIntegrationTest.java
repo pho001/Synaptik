@@ -19,21 +19,21 @@ import io.github.pho001.synaptik.engine.EngineMixedOwnerTestAccess;
 import io.github.pho001.synaptik.engine.InferenceSession;
 import io.github.pho001.synaptik.engine.ModelAutotuningPreparation;
 import io.github.pho001.synaptik.engine.ModelAutotuningRequest;
-import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphPhase;
 import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
-import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
-import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import io.github.pho001.synaptik.model.tensor.Tensor;
@@ -1774,8 +1774,9 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     descriptor(Shape.of(3)), arena, 1, 2, 3);
             Tensor vectorRight = nativeTensor(
                     descriptor(Shape.of(3)), arena, 4, 5, 6);
-            Tensor mixedLeft = nativeBfloatTensor(
-                    Shape.of(2, 2), arena, 1, 2, 3, 4);
+            Tensor mixedSource = nativeBfloatTensor(
+                    Shape.of(2, 2), arena, 1, 3, 2, 4);
+            Tensor mixedLeft = mixedSource.permute(1, 0);
             Tensor mixedRight = nativeTensor(
                     descriptor(Shape.of(2, 1)), arena, 5, 6);
             Tensor batchedLeft = nativeTensor(
@@ -1792,6 +1793,28 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     arena,
                     1, 1, 1, 1, 1, 1, 1, 1);
             Tensor batched = batchedLeft.matmul(batchedRight);
+            Tensor explicitSource = nativeTensor(
+                    descriptor(Shape.of(3, 2)), arena, 1, 4, 2, 5, 3, 6);
+            Tensor explicitRight = nativeTensor(
+                    descriptor(Shape.of(3, 1)), arena, 1, 10, 100);
+            Tensor nestedLeft = nativeTensor(
+                    descriptor(Shape.of(2, 2)), arena, 1.25f, 2, 3, 4);
+            Tensor nestedRight = nativeTensor(
+                    descriptor(Shape.of(2, 2)), arena, 1, 0, 0, 1);
+            Tensor linearWeight = nativeTensor(
+                    descriptor(Shape.of(2, 3)), arena, 1, 0, 1, 0, 1, 1);
+            Tensor vectorMatrixLeft = nativeTensor(
+                    descriptor(Shape.of(3), true), arena, 1, 2, 3);
+            Tensor vectorMatrixRight = nativeTensor(
+                    descriptor(Shape.of(3, 2), true), arena, 1, 2, 3, 4, 5, 6);
+            Tensor vectorMatrixSeed = nativeTensor(
+                    descriptor(Shape.of(2)), arena, 1, 10);
+            Tensor matrixVectorLeft = nativeTensor(
+                    descriptor(Shape.of(2, 3), true), arena, 1, 2, 3, 4, 5, 6);
+            Tensor matrixVectorRight = nativeTensor(
+                    descriptor(Shape.of(3), true), arena, 1, 2, 3);
+            Tensor matrixVectorSeed = nativeTensor(
+                    descriptor(Shape.of(2)), arena, 1, 10);
 
             try (Engine.Builder builder = Engine.builder()) {
                 builder.numericalProfile(NumericalProfile.ACCELERATOR);
@@ -1806,7 +1829,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             EngineMixedOwnerTestAccess.partitionOwners(forward));
                     try (InferenceSession session = engine.session(forward);
                             var result = session.run(List.of(
-                                    vectorLeft, vectorRight, mixedLeft, mixedRight))) {
+                                    vectorLeft, vectorRight, mixedSource, mixedRight))) {
                         assertPublication(result, 0, 32);
                         assertPublication(result, 1, 17, 39);
                     }
@@ -1834,16 +1857,73 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                                 result, 2,
                                 22, 22, 26, 26, 30, 30);
                     }
+
+                    var composed = engine.compile(List.of(
+                            explicitSource.permute(1, 0).matmul(explicitRight),
+                            nestedLeft.matmul(nestedRight).floor(),
+                            batchedLeft.linear(linearWeight)));
+                    assertEquals(
+                            List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(composed));
+                    try (InferenceSession session = engine.session(composed);
+                            var result = session.run(List.of(
+                                    explicitSource,
+                                    explicitRight,
+                                    nestedLeft,
+                                    nestedRight,
+                                    batchedLeft,
+                                    linearWeight))) {
+                        assertPublication(result, 0, 321, 654);
+                        assertPublication(result, 1, 1, 2, 3, 4);
+                        assertPublication(
+                                result, 2,
+                                4, 5, 10, 11,
+                                16, 17, 22, 23);
+                    }
+
+                    Tensor vectorMatrix = vectorMatrixLeft.matmul(vectorMatrixRight);
+                    var vectorMatrixGradients = engine.compile(
+                            List.of(vectorMatrix),
+                            List.of(vectorMatrixSeed),
+                            List.of(vectorMatrixLeft, vectorMatrixRight));
+                    assertEquals(
+                            List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(vectorMatrixGradients));
+                    try (InferenceSession session = engine.session(vectorMatrixGradients);
+                            var result = session.run(List.of(
+                                    vectorMatrixSeed, vectorMatrixRight, vectorMatrixLeft))) {
+                        assertPublication(result, 0, 22, 28);
+                        assertPublication(result, 1, 21, 43, 65);
+                        assertPublication(result, 2, 1, 10, 2, 20, 3, 30);
+                    }
+
+                    Tensor matrixVector = matrixVectorLeft.matmul(matrixVectorRight);
+                    var matrixVectorGradients = engine.compile(
+                            List.of(matrixVector),
+                            List.of(matrixVectorSeed),
+                            List.of(matrixVectorLeft, matrixVectorRight));
+                    assertEquals(
+                            List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(matrixVectorGradients));
+                    try (InferenceSession session = engine.session(matrixVectorGradients);
+                            var result = session.run(List.of(
+                                    matrixVectorSeed, matrixVectorRight, matrixVectorLeft))) {
+                        assertPublication(result, 0, 14, 32);
+                        assertPublication(result, 1, 1, 2, 3, 10, 20, 30);
+                        assertPublication(result, 2, 41, 52, 63);
+                    }
                 }
             }
 
-            Tensor intLeft = nativeIntTensor(
-                    Shape.of(1, 2), arena, Integer.MAX_VALUE, 2);
+            Tensor intLeftSource = nativeIntTensor(
+                    Shape.of(2, 1), arena, Integer.MAX_VALUE, 2);
+            Tensor intLeft = intLeftSource.permute(1, 0);
             Tensor intRight = nativeIntTensor(Shape.of(2, 1), arena, 2, 3);
             Tensor promotedLeft = nativeIntTensor(Shape.of(1, 2), arena, -2, 3);
             Tensor promotedRight = nativeLongTensor(
                     Shape.of(2, 1), arena, Long.MAX_VALUE, 3);
             try (Engine.Builder builder = Engine.builder()) {
+                builder.numericalProfile(NumericalProfile.ACCELERATOR);
                 builder.takeOwnership(MetalBackendIntegration.open(
                         new MetalBackendConfiguration(library)));
                 try (Engine engine = builder.build()) {
@@ -1855,7 +1935,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             EngineMixedOwnerTestAccess.partitionOwners(compiled));
                     try (InferenceSession session = engine.session(compiled);
                             var result = session.run(List.of(
-                                    intLeft, intRight, promotedLeft, promotedRight))) {
+                                    intLeftSource, intRight, promotedLeft, promotedRight))) {
                         ByteBuffer intResult = result.materialize(
                                 result.publications().get(0), Integer.BYTES).bytes();
                         ByteBuffer longResult = result.materialize(
@@ -1867,6 +1947,81 @@ final class EngineExplicitCompositionMetalIntegrationTest {
             }
         }
     }
+    @Test
+    void publicMetalOnlyRejectsEveryExcludedMatmulTypeProfileGradientAndLayoutForm() {
+        Path library = configuredMetalLibrary();
+        try (Arena arena = Arena.ofShared()) {
+            Tensor floatLeft = nativeTensor(
+                    descriptor(Shape.of(2, 2)), arena, 1, 2, 3, 4);
+            Tensor floatRight = nativeTensor(
+                    descriptor(Shape.of(2, 1)), arena, 5, 6);
+            Tensor bfloatLeft = nativeBfloatTensor(
+                    Shape.of(2, 2), arena, 1, 2, 3, 4);
+            Tensor bfloatRight = nativeBfloatTensor(
+                    Shape.of(2, 1), arena, 5, 6);
+            Tensor mixedGradientLeft = nativeBfloatTensor(
+                    Shape.of(2, 2), true, arena, 1, 2, 3, 4);
+            Tensor doubleLeft = nativeDoubleTensor(
+                    Shape.of(2, 2), arena, 1, 2, 3, 4);
+            Tensor doubleRight = nativeDoubleTensor(
+                    Shape.of(2, 1), arena, 5, 6);
+            Shape zeroLeftShape = Shape.of(2, 0);
+            Shape zeroRightShape = Shape.of(0, 1);
+            Tensor zeroLeft = symbolic(new TensorDescriptor(
+                    DataType.FLOAT32,
+                    zeroLeftShape,
+                    Optional.of(LayoutDescriptor.contiguous(zeroLeftShape)),
+                    false));
+            Tensor zeroRight = symbolic(new TensorDescriptor(
+                    DataType.FLOAT32,
+                    zeroRightShape,
+                    Optional.of(LayoutDescriptor.contiguous(zeroRightShape)),
+                    false));
+            Shape forgedShape = Shape.of(2, 2);
+            Tensor forgedLayout = symbolic(new TensorDescriptor(
+                    DataType.FLOAT32,
+                    forgedShape,
+                    Optional.of(LayoutDescriptor.of(
+                            forgedShape, new long[] {3, 1}, 0L, true)),
+                    false));
+
+            try (Engine.Builder builder = Engine.builder()) {
+                builder.takeOwnership(MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library)));
+                try (Engine engine = builder.build()) {
+                    assertThrows(
+                            IllegalStateException.class,
+                            () -> engine.compile(List.of(floatLeft.matmul(floatRight))),
+                            "strict floating MATMUL has no Metal fallback");
+                }
+            }
+
+            try (Engine.Builder builder = Engine.builder()) {
+                builder.numericalProfile(NumericalProfile.ACCELERATOR);
+                builder.takeOwnership(MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library)));
+                try (Engine engine = builder.build()) {
+                    assertThrows(
+                            IllegalStateException.class,
+                            () -> engine.compile(List.of(bfloatLeft.matmul(bfloatRight))));
+                    assertThrows(
+                            IllegalStateException.class,
+                            () -> engine.compile(List.of(doubleLeft.matmul(doubleRight))));
+                    assertThrows(
+                            IllegalStateException.class,
+                            () -> engine.compile(List.of(
+                                    mixedGradientLeft.matmul(floatRight))));
+                    assertThrows(
+                            IllegalStateException.class,
+                            () -> engine.compile(List.of(zeroLeft.matmul(zeroRight))));
+                    assertThrows(
+                            IllegalStateException.class,
+                            () -> engine.compile(List.of(forgedLayout.matmul(floatRight))));
+                }
+            }
+        }
+    }
+
 
 
     private static void assertMatmulGradientGraph(
@@ -2705,11 +2860,16 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
     private static Tensor nativeBfloatTensor(
             Shape shape, Arena arena, float... values) {
+        return nativeBfloatTensor(shape, false, arena, values);
+    }
+
+    private static Tensor nativeBfloatTensor(
+            Shape shape, boolean requiresGrad, Arena arena, float... values) {
         TensorDescriptor descriptor = new TensorDescriptor(
                 DataType.BFLOAT16,
                 shape,
                 Optional.of(LayoutDescriptor.contiguous(shape)),
-                false);
+                requiresGrad);
         var segment = arena.allocate(
                 Math.multiplyExact(values.length, Short.BYTES), Short.BYTES);
         for (int index = 0; index < values.length; index++) {
@@ -2723,6 +2883,29 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 Optional.empty(),
                 Optional.of(new MemorySegmentStorage(
                         DataType.BFLOAT16, values.length, segment)));
+    }
+
+    private static Tensor nativeDoubleTensor(
+            Shape shape, Arena arena, double... values) {
+        TensorDescriptor descriptor = new TensorDescriptor(
+                DataType.FLOAT64,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                false);
+        var segment = arena.allocate(
+                Math.multiplyExact(values.length, Double.BYTES), Double.BYTES);
+        for (int index = 0; index < values.length; index++) {
+            segment.setAtIndex(ValueLayout.JAVA_DOUBLE, index, values[index]);
+        }
+        return TensorFactory.create(
+                descriptor,
+                Optional.empty(),
+                Optional.of(new MemorySegmentStorage(
+                        DataType.FLOAT64, values.length, segment)));
+    }
+
+    private static Tensor symbolic(TensorDescriptor descriptor) {
+        return TensorFactory.create(descriptor, Optional.empty(), Optional.empty());
     }
 
 

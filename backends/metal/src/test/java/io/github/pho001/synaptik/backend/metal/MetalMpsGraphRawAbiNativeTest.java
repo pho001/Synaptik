@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.backend.metal;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -393,6 +394,196 @@ class MetalMpsGraphRawAbiNativeTest {
                     rewriteInt(image, referencesOffset + 7 * Integer.BYTES, 0), image.length));
         }
     }
+    @Test
+    void task0061AuthenticatesTransposeStorageAndMatmulGradientMetadataInBothPreflights()
+            throws Throwable {
+        Path library = configuredLibrary();
+        var sourceShape = io.github.pho001.synaptik.model.shape.Shape.of(3, 2);
+        var transposeShape = io.github.pho001.synaptik.model.shape.Shape.of(2, 3);
+        var source = new MetalMpsGraphProgram.ValueDescriptor(
+                DataType.FLOAT32, sourceShape.toLongArray(), false);
+        var transpose = new MetalMpsGraphProgram.ValueDescriptor(
+                DataType.FLOAT32,
+                transposeShape.toLongArray(),
+                java.util.Optional.of(
+                        io.github.pho001.synaptik.model.layout.LayoutDescriptor.of(
+                                transposeShape, new long[] {1, 2}, 0L, true)),
+                false,
+                true);
+        var right = new MetalMpsGraphProgram.ValueDescriptor(
+                DataType.FLOAT32, new long[] {3, 4}, false);
+        var output = new MetalMpsGraphProgram.ValueDescriptor(
+                DataType.FLOAT32, new long[] {2, 4}, false);
+        var permute = MetalMpsGraphProgram.Node.permutation(0, 1, List.of(1, 0));
+        var matmul = MetalMpsGraphProgram.Node.generic(
+                MetalMpsGraphProgram.NodeKind.MATMUL,
+                new int[] {1, 2},
+                new int[] {3},
+                MetalMpsGraphProgram.AttributeKind.NONE,
+                new long[0]);
+        var program = new MetalMpsGraphProgram(List.of(permute, matmul));
+        List<MetalMpsGraphProgram.ValueDescriptor> values =
+                List.of(source, transpose, right, output);
+        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                NumericalProfile.ACCELERATOR,
+                values,
+                program,
+                new int[] {0, 2},
+                new int[] {3},
+                MetalPreparedRoute.CUSTOM_PROGRAM);
+        byte[] valid = program.encodedProgramImage(
+                values, new int[] {0, 2}, new int[] {3}, MetalPreparedRoute.CUSTOM_PROGRAM);
+
+        int transposeDescriptor =
+                MetalMpsGraphProgram.HEADER_BYTES + MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES;
+        int dimensionCount = readInt(valid, 20);
+        int referenceCount = readInt(valid, 24);
+        int strideCount = readInt(valid, 44);
+        int dimensionsOffset = nodeOffset(4)
+                + 2 * MetalMpsGraphProgram.NODE_DESCRIPTOR_BYTES;
+        int stridesOffset = dimensionsOffset + dimensionCount * Long.BYTES;
+        int referencesOffset = stridesOffset + strideCount * Long.BYTES;
+        int attributesOffset = referencesOffset + referenceCount * Integer.BYTES;
+        int transposeStrideIndex = readInt(valid, transposeDescriptor + 12);
+
+        try (RawAbi abi = new RawAbi(library)) {
+            assertEquals(0, abi.create(valid, valid.length));
+            assertEquals(1, abi.create(
+                    rewriteInt(valid, transposeDescriptor + 16, 6), valid.length),
+                    "non-dense provenance cannot authenticate an alias");
+            assertEquals(1, abi.create(
+                    rewriteInt(valid, transposeDescriptor + 16, 10), valid.length),
+                    "dense storage must carry view provenance");
+
+            byte[] offsetForgery = rewriteLong(
+                    rewriteLong(valid, transposeDescriptor + 24, 1L),
+                    transposeDescriptor + 32,
+                    7L);
+            assertEquals(1, abi.create(offsetForgery, offsetForgery.length));
+
+            byte[] strideForgery = rewriteInt(valid, transposeDescriptor + 20, 1);
+            strideForgery = rewriteLong(
+                    strideForgery,
+                    stridesOffset + transposeStrideIndex * Long.BYTES,
+                    3L);
+            strideForgery = rewriteLong(
+                    strideForgery,
+                    stridesOffset + (transposeStrideIndex + 1) * Long.BYTES,
+                    1L);
+            assertEquals(1, abi.create(strideForgery, strideForgery.length));
+            assertEquals(1, abi.create(
+                    rewriteLong(valid, transposeDescriptor + 32, 5L), valid.length));
+
+            byte[] wrongPermutation =
+                    rewriteLong(valid, attributesOffset + Long.BYTES, 0L);
+            wrongPermutation = rewriteLong(
+                    wrongPermutation, attributesOffset + 2 * Long.BYTES, 1L);
+            assertEquals(1, abi.create(wrongPermutation, wrongPermutation.length));
+            int transposeDimensionIndex = readInt(valid, transposeDescriptor + 8);
+            assertNotEquals(0, abi.create(
+                    rewriteLong(
+                            valid,
+                            dimensionsOffset + transposeDimensionIndex * Long.BYTES,
+                            3L),
+                    valid.length));
+            assertEquals(1, abi.create(
+                    rewriteInt(
+                            valid,
+                            transposeDescriptor,
+                            MetalMpsGraphProgram.dataTypeWire(DataType.INT32)),
+                    valid.length));
+            assertNotEquals(0, abi.create(
+                    rewriteLong(valid, dimensionsOffset, Long.MAX_VALUE), valid.length));
+            assertEquals(1, abi.create(
+                    rewriteInt(valid, transposeDescriptor + 16, 15), valid.length),
+                    "PERMUTE and MATMUL gradient metadata must be preserved exactly");
+
+            var direct = new MetalMpsGraphProgram(List.of(matmulNode(0, 1, 2)));
+            List<MetalMpsGraphProgram.ValueDescriptor> directValues =
+                    List.of(descriptor(2, 3), descriptor(3, 4), descriptor(2, 4));
+            byte[] directImage = direct.encodedProgramImage(
+                    directValues, new int[] {0, 1}, new int[] {2});
+            assertEquals(0, abi.create(directImage, directImage.length));
+            assertEquals(1, abi.create(
+                    rewriteInt(
+                            directImage,
+                            MetalMpsGraphProgram.HEADER_BYTES + 16,
+                            readInt(directImage, MetalMpsGraphProgram.HEADER_BYTES + 16) | 1),
+                    directImage.length),
+                    "FLOAT32 MATMUL output grad must equal the input-grad OR");
+            List<List<MetalMpsGraphProgram.ValueDescriptor>> noGradientDomains = List.of(
+                    List.of(
+                            new MetalMpsGraphProgram.ValueDescriptor(
+                                    DataType.INT32, new long[] {2, 3}, false),
+                            new MetalMpsGraphProgram.ValueDescriptor(
+                                    DataType.INT64, new long[] {3, 4}, false),
+                            new MetalMpsGraphProgram.ValueDescriptor(
+                                    DataType.INT64, new long[] {2, 4}, false)),
+                    List.of(
+                            new MetalMpsGraphProgram.ValueDescriptor(
+                                    DataType.BFLOAT16, new long[] {2, 3}, false),
+                            new MetalMpsGraphProgram.ValueDescriptor(
+                                    DataType.FLOAT32, new long[] {3, 4}, false),
+                            new MetalMpsGraphProgram.ValueDescriptor(
+                                    DataType.FLOAT32, new long[] {2, 4}, false)));
+            for (List<MetalMpsGraphProgram.ValueDescriptor> domain : noGradientDomains) {
+                byte[] image = direct.encodedProgramImage(
+                        domain,
+                        new int[] {0, 1},
+                        new int[] {2},
+                        MetalPreparedRoute.CUSTOM_PROGRAM);
+                assertEquals(0, abi.create(image, image.length));
+                assertEquals(1, abi.create(
+                        rewriteInt(
+                                image,
+                                MetalMpsGraphProgram.HEADER_BYTES + 16,
+                                readInt(image, MetalMpsGraphProgram.HEADER_BYTES + 16) | 1),
+                        image.length),
+                        domain.getFirst().dataType() + " MATMUL must reject gradient flags");
+            }
+        }
+
+        var wrongStride = new MetalMpsGraphProgram.ValueDescriptor(
+                DataType.FLOAT32,
+                transposeShape.toLongArray(),
+                java.util.Optional.of(
+                        io.github.pho001.synaptik.model.layout.LayoutDescriptor.of(
+                                transposeShape, new long[] {3, 1}, 0L, true)),
+                false,
+                true);
+        var wrongOffset = new MetalMpsGraphProgram.ValueDescriptor(
+                DataType.FLOAT32,
+                transposeShape.toLongArray(),
+                java.util.Optional.of(
+                        io.github.pho001.synaptik.model.layout.LayoutDescriptor.of(
+                                transposeShape, new long[] {1, 2}, 1L, true)),
+                false,
+                true);
+        for (MetalMpsGraphProgram.ValueDescriptor forged : List.of(wrongStride, wrongOffset)) {
+            assertThrows(IllegalArgumentException.class, () ->
+                    MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                            NumericalProfile.ACCELERATOR,
+                            List.of(source, forged, right, output),
+                            program,
+                            new int[] {0, 2},
+                            new int[] {3},
+                            MetalPreparedRoute.CUSTOM_PROGRAM));
+        }
+        var direct = new MetalMpsGraphProgram(List.of(matmulNode(0, 1, 2)));
+        assertThrows(IllegalArgumentException.class, () ->
+                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                        NumericalProfile.ACCELERATOR,
+                        List.of(
+                                new MetalMpsGraphProgram.ValueDescriptor(
+                                        DataType.FLOAT32, new long[] {2, 3}, true),
+                                descriptor(3, 4),
+                                descriptor(2, 4)),
+                        direct,
+                        new int[] {0, 1},
+                        new int[] {2},
+                        MetalPreparedRoute.MPSGRAPH));
+    }
+
 
     private static byte[] validNegImage() {
         var program = new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.neg(0, 1)));
@@ -443,6 +634,14 @@ class MetalMpsGraphRawAbiNativeTest {
     private static MetalMpsGraphProgram.ValueDescriptor descriptor(long... dimensions) {
         return new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, dimensions, false);
     }
+    private static MetalMpsGraphProgram.Node matmulNode(int left, int right, int output) {
+        return MetalMpsGraphProgram.Node.matmul(left, right, output);
+    }
+
+    private static int readInt(byte[] source, int offset) {
+        return ByteBuffer.wrap(source).order(ByteOrder.LITTLE_ENDIAN).getInt(offset);
+    }
+
 
     private static ScalarCase scalarCase(MetalMpsGraphProgram.NodeKind kind) {
         DataType[] inputTypes;

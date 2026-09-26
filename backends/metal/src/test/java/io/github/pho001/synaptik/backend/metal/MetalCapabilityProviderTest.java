@@ -59,6 +59,7 @@ import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import java.util.List;
@@ -1094,6 +1095,19 @@ class MetalCapabilityProviderTest {
                         new PermutationAttrs(List.of(0, 2, 1))),
                 List.of(descriptor(Shape.of(2, 3, 5), true)),
                 List.of(transposed))));
+        for (DataType carrier :
+                List.of(DataType.BFLOAT16, DataType.INT32, DataType.INT64)) {
+            TensorDescriptor carrierTranspose =
+                    transposeCandidate(carrier, Shape.of(2, 3), false);
+            assertTrue(provider.supports(new OperationCapabilityQuery(
+                    NumericalProfile.ACCELERATOR,
+                    new Operation(
+                            AxisTransformKind.PERMUTE,
+                            new PermutationAttrs(List.of(1, 0))),
+                    List.of(typed(carrier, Shape.of(3, 2), false)),
+                    List.of(carrierTranspose))),
+                    carrier + " local MATMUL transpose carrier");
+        }
 
         for (NumericalProfile profile : NumericalProfile.values()) {
             for (DataType leftType : List.of(DataType.INT32, DataType.INT64)) {
@@ -1138,6 +1152,36 @@ class MetalCapabilityProviderTest {
                     mixedRight,
                     mixedOutput));
         }
+        assertFalse(supportsMatmul(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                typed(DataType.BFLOAT16, Shape.of(2, 3), true),
+                typed(DataType.FLOAT32, Shape.of(3, 4), false),
+                typed(DataType.FLOAT32, Shape.of(2, 4), true)));
+        assertFalse(supportsMatmul(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                typed(DataType.BFLOAT16, Shape.of(2, 3), false),
+                typed(DataType.BFLOAT16, Shape.of(3, 4), false),
+                typed(DataType.BFLOAT16, Shape.of(2, 4), false)));
+        assertFalse(supportsMatmul(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                typed(DataType.BFLOAT16, Shape.of(2, 3), true),
+                typed(DataType.BFLOAT16, Shape.of(3, 4), false),
+                typed(DataType.BFLOAT16, Shape.of(2, 4), true)));
+        assertFalse(supportsMatmul(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                typed(DataType.FLOAT64, Shape.of(2, 3), false),
+                typed(DataType.FLOAT32, Shape.of(3, 4), false),
+                typed(DataType.FLOAT64, Shape.of(2, 4), false)));
+        assertFalse(supportsMatmul(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                typed(DataType.FLOAT64, Shape.of(2, 3), true),
+                typed(DataType.FLOAT32, Shape.of(3, 4), false),
+                typed(DataType.FLOAT64, Shape.of(2, 4), true)));
 
         assertFalse(supportsMatmul(
                 NumericalProfile.ACCELERATOR,
@@ -1169,6 +1213,33 @@ class MetalCapabilityProviderTest {
                 descriptor(Shape.of(2, 0), true),
                 descriptor(Shape.of(0, 4), false),
                 output));
+        assertFalse(supportsMatmul(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                descriptor(Shape.scalar(), false),
+                descriptor(Shape.of(1), false),
+                descriptor(Shape.scalar(), false)));
+        assertFalse(supportsMatmul(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                descriptor(Shape.of(2, 2, 3), false),
+                descriptor(Shape.of(3, 3, 4), false),
+                descriptor(Shape.of(3, 2, 4), false)));
+        DynamicDimension dynamic = new DynamicDimension("N");
+        assertFalse(supportsMatmul(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                new TensorDescriptor(
+                        DataType.FLOAT32,
+                        Shape.ofDimensions(dynamic, new StaticDimension(3)),
+                        Optional.empty(),
+                        false),
+                descriptor(Shape.of(3, 4), false),
+                new TensorDescriptor(
+                        DataType.FLOAT32,
+                        Shape.ofDimensions(dynamic, new StaticDimension(4)),
+                        Optional.empty(),
+                        false)));
         TensorDescriptor unauthenticated = new TensorDescriptor(
                 DataType.FLOAT32,
                 Shape.of(2, 3),
