@@ -92,8 +92,10 @@
  * self-describing route-bearing image over stable type wires {@code 1..6}, operation wires
  * {@code 1..115}, and attribute wires {@code 0..41}. Native structural recipes execute exactly
  * wires {@code 1..34}, {@code 38}, {@code 40..54}, {@code 56..63}, and {@code 65..68}; production
- * capability remains exactly 45 operations: wires {@code 1..34}, {@code 40..45}, {@code 51}, and
- * {@code 60..63}. Backend-local workload, exact-policy, candidate, compatibility, route-policy, and
- * codec identities are version fifteen.</p>
+ * capability is exactly 50 operations: wires {@code 1..34}, {@code 40..49}, {@code 51..52}, and
+ * {@code 60..63}. Wires {@code 46..49} and {@code 52} require ACCELERATOR, canonical positive-rank
+ * FLOAT32 no-gradient input and output, and preserve exact scalar raw words. Backend-local
+ * workload, exact-policy, candidate, compatibility, route-policy, and codec identities remain
+ * version fifteen.</p>
  */
 package io.github.pho001.synaptik.backend.metal;

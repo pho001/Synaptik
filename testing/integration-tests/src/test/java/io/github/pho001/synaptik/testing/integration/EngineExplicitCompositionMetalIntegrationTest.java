@@ -45,6 +45,7 @@ import java.lang.reflect.Proxy;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -553,6 +554,73 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         }
     }
 
+
+    @Test
+    void acceleratorMetalEngineRunsNoGradScalarArithmeticAndReciprocal() {
+        Path library = configuredMetalLibrary();
+        int[] inputBits = {
+            0x3f80_0000, 0xc020_0000, 0x0000_0000,
+            0x8000_0000, 0x0000_0001, 0x8000_0001,
+            0x7f80_0000, 0xff80_0000, 0x7fc1_2345
+        };
+        int[] scalarBits = {
+            0x0000_0000, 0x8000_0000,
+            0x0000_0001, 0x8000_0001,
+            0x7f80_0000, 0xff80_0000,
+            0x7fc1_2345, 0xff81_2346
+        };
+        List<ObservedTrace> events = new CopyOnWriteArrayList<>();
+        try (Arena arena = Arena.ofShared();
+                Engine.Builder builder = Engine.builder()) {
+            builder.numericalProfile(NumericalProfile.ACCELERATOR);
+            builder.takeOwnership(MetalBackendIntegration.open(
+                    new MetalBackendConfiguration(library), traceCollector(events)));
+            try (Engine engine = builder.build()) {
+                Tensor input = nativeTensorBits(
+                        descriptor(Shape.of(3, 3)), arena, inputBits);
+                MemorySegment inputBytes = ((MemorySegmentStorage)
+                        input.hostStorage().orElseThrow()).segment();
+                List<Tensor> publications = new ArrayList<>();
+                for (int scalarBit : scalarBits) {
+                    ScalarValue scalar = ScalarValue.float32(
+                            Float.intBitsToFloat(scalarBit));
+                    publications.add(input.add(scalar));
+                    publications.add(input.sub(scalar));
+                    publications.add(input.mul(scalar));
+                    publications.add(input.div(scalar));
+                }
+                publications.add(input.reciprocal());
+                var compiled = engine.compile(publications);
+                assertEquals(
+                        List.of("metal"),
+                        EngineMixedOwnerTestAccess.partitionOwners(compiled));
+                try (InferenceSession session = engine.session(compiled)) {
+                    assertEquals(1, events.size());
+                    assertEquals("PREPARE", events.getFirst().phase());
+                    assertEquals(
+                            "GRAPH_EXECUTABLE",
+                            enumName(component(events.getFirst().payload(), "route")));
+                    try (var first = session.run(List.of(input))) {
+                        assertNoGradScalarResults(first, inputBits, scalarBits);
+                    }
+                    try (var repeated = session.run(List.of(input))) {
+                        assertNoGradScalarResults(repeated, inputBits, scalarBits);
+                    }
+                    assertArrayEquals(inputBits, inputBytes.toArray(ValueLayout.JAVA_INT));
+                }
+
+                Tensor gradInput = nativeTensorBits(
+                        descriptor(Shape.of(3, 3), true), arena, inputBits);
+                IllegalStateException failure = assertThrows(
+                        IllegalStateException.class,
+                        () -> engine.compile(List.of(
+                                gradInput.add(ScalarValue.float32(2.0f)),
+                                gradInput.reciprocal())));
+                assertTrue(failure.getMessage().contains(
+                        "no hard-eligible backend is available for ownership selection"));
+            }
+        }
+    }
 
     @Test
     void cpuFreeMetalEngineRunsExactInt32GatherAndBoolOneHotWithBoundsErrors() {
@@ -1532,6 +1600,55 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     private static boolean isNaN(int bits) {
         return (bits & 0x7f800000) == 0x7f800000
                 && (bits & 0x007fffff) != 0;
+    }
+
+    private static void assertNoGradScalarResults(
+            io.github.pho001.synaptik.engine.RunResult result,
+            int[] inputBits,
+            int[] scalarBits) {
+        BinaryArithmeticKind[] kinds = {
+            BinaryArithmeticKind.ADD,
+            BinaryArithmeticKind.SUB,
+            BinaryArithmeticKind.MUL,
+            BinaryArithmeticKind.DIV
+        };
+        assertEquals(scalarBits.length * kinds.length + 1, result.resultCount());
+        int publication = 0;
+        for (int scalar : scalarBits) {
+            for (BinaryArithmeticKind kind : kinds) {
+                int[] actual = rawBits(
+                        result.materialize(
+                                result.publications().get(publication),
+                                Math.multiplyExact(
+                                        (long) inputBits.length,
+                                        Integer.BYTES)).bytes(),
+                        inputBits.length);
+                for (int lane = 0; lane < inputBits.length; lane++) {
+                    assertAcceleratorAllowed(
+                            kind,
+                            inputBits[lane],
+                            scalar,
+                            actual[lane],
+                            "scalar=0x" + Integer.toHexString(scalar)
+                                    + " publication=" + publication
+                                    + " lane=" + lane);
+                }
+                publication++;
+            }
+        }
+        int[] reciprocal = rawBits(
+                result.materialize(
+                        result.publications().get(publication),
+                        Math.multiplyExact((long) inputBits.length, Integer.BYTES)).bytes(),
+                inputBits.length);
+        for (int lane = 0; lane < inputBits.length; lane++) {
+            assertAcceleratorAllowed(
+                    BinaryArithmeticKind.DIV,
+                    0x3f80_0000,
+                    inputBits[lane],
+                    reciprocal[lane],
+                    "reciprocal lane=" + lane);
+        }
     }
 
     private static void assertRemainingExactUnaryResults(

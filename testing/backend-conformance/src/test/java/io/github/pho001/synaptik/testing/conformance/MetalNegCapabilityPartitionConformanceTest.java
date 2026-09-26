@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider;
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphPhase;
@@ -20,6 +21,8 @@ import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
@@ -70,7 +73,7 @@ final class MetalNegCapabilityPartitionConformanceTest {
                             List.of(matrix))),
                     "strict " + kind);
             assertEquals(
-                    exactRawUnary(kind),
+                    exactRawUnary(kind) || kind == UnaryElementwiseKind.RECIPROCAL,
                     provider.supports(query(
                             NumericalProfile.ACCELERATOR,
                             operation(kind),
@@ -95,6 +98,32 @@ final class MetalNegCapabilityPartitionConformanceTest {
                     operation(kind),
                     List.of(matrix, row),
                     List.of(matrix))));
+        }
+        for (ScalarElementwiseKind kind : ScalarElementwiseKind.values()) {
+            Operation scalarOperation = kind == ScalarElementwiseKind.CLAMP
+                    ? null
+                    : new Operation(
+                            kind,
+                            new ScalarValueAttrs(ScalarValue.float32(2.0f)));
+            if (scalarOperation == null) continue;
+            assertFalse(provider.supports(query(
+                    NumericalProfile.STRICT_IEEE,
+                    scalarOperation,
+                    List.of(matrix),
+                    List.of(matrix))), "strict " + kind);
+            assertEquals(
+                    kind == ScalarElementwiseKind.ADD
+                            || kind == ScalarElementwiseKind.SUB
+                            || kind == ScalarElementwiseKind.MUL
+                            || kind == ScalarElementwiseKind.DIV
+                            || kind == ScalarElementwiseKind.MIN
+                            || kind == ScalarElementwiseKind.MAX,
+                    provider.supports(query(
+                            NumericalProfile.ACCELERATOR,
+                            scalarOperation,
+                            List.of(matrix),
+                            List.of(matrix))),
+                    "accelerator " + kind);
         }
         TensorDescriptor cube = descriptor(Shape.of(2, 3, 4));
         TensorDescriptor scalar = descriptor(Shape.scalar());

@@ -60,8 +60,11 @@ import java.util.Objects;
  * logic is entirely no-grad, and WHERE propagates the branch gradient OR after branch-first then
  * condition broadcasting.
  * {@code ACCELERATOR} additionally admits tensor {@code ADD}/{@code SUB}/{@code MUL}/{@code DIV},
- * canonical FLOAT32 {@code SUM}/{@code MEAN}/{@code SUM_TO_SHAPE}, and positive static rank-two
- * FLOAT32 {@code MATMUL}. MATMUL accepts each
+ * canonical FLOAT32 {@code SUM}/{@code MEAN}/{@code SUM_TO_SHAPE}, positive static rank-two
+ * FLOAT32 {@code MATMUL}, and canonical positive-rank FLOAT32 no-gradient scalar
+ * {@code ADD}/{@code SUB}/{@code MUL}/{@code DIV} and {@code RECIPROCAL}. Scalar arithmetic
+ * retains the exact FLOAT32 raw attribute and operand order; reciprocal is exact {@code 1 / input}.
+ * MATMUL accepts each
  * operand only as canonical or as the exact rank-two transpose layout that complete-partition
  * analysis must authenticate to a local {@code PERMUTE [1,0]} producer from a canonical source.
  * Its output is canonical and carries the logical OR of the operand gradient flags. Strict MATMUL
@@ -188,7 +191,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                     return supportsComparison(operation, inputs, output, comparison);
                 }
                 if (operation.kind() instanceof ScalarElementwiseKind scalar) {
-                    return supportsScalarExtreme(operation, inputs, output, scalar);
+                    return supportsScalar(operation, inputs, output, scalar);
+                }
+                if (operation.kind() == UnaryElementwiseKind.RECIPROCAL) {
+                    return supportsNoGradReciprocal(operation, inputs, output);
                 }
                 if (operation.kind() instanceof CumulativeScanKind scan) {
                     return supportsScan(operation, inputs, output, scan);
@@ -449,13 +455,17 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 && ShapeBroadcast.broadcast(left.shape(), right.shape()).equals(output.shape());
     }
 
-    private static boolean supportsScalarExtreme(
+    private static boolean supportsScalar(
             Operation operation,
             List<TensorDescriptor> inputs,
             TensorDescriptor output,
             ScalarElementwiseKind kind) {
         if (inputs.size() != 1
-                || (kind != ScalarElementwiseKind.MIN
+                || (kind != ScalarElementwiseKind.ADD
+                        && kind != ScalarElementwiseKind.SUB
+                        && kind != ScalarElementwiseKind.MUL
+                        && kind != ScalarElementwiseKind.DIV
+                        && kind != ScalarElementwiseKind.MIN
                         && kind != ScalarElementwiseKind.MAX
                         && kind != ScalarElementwiseKind.CLAMP)) {
             return false;
@@ -468,6 +478,19 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             }
         } else if (!(operation.attrs() instanceof ScalarValueAttrs attrs)
                 || attrs.value().dataType() != DataType.FLOAT32) {
+            return false;
+        }
+        TensorDescriptor input = inputs.getFirst();
+        return canonical(input)
+                && canonical(output)
+                && !input.requiresGrad()
+                && !output.requiresGrad()
+                && input.shape().equals(output.shape());
+    }
+
+    private static boolean supportsNoGradReciprocal(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        if (operation.attrs() != NoOperationAttrs.INSTANCE || inputs.size() != 1) {
             return false;
         }
         TensorDescriptor input = inputs.getFirst();

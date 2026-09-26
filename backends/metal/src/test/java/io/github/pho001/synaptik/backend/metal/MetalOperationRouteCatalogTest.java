@@ -51,8 +51,8 @@ class MetalOperationRouteCatalogTest {
                     kind.name());
         }
 
-        assertEquals(76, direct);
-        assertEquals(34, composed);
+        assertEquals(75, direct);
+        assertEquals(35, composed);
         assertEquals(5, unavailable);
         assertEquals(27, customAvailable);
         assertEquals(88, customPending);
@@ -116,19 +116,19 @@ class MetalOperationRouteCatalogTest {
                 MetalOperationRouteCatalog.MpsGraphState.COMPOSED,
                 MetalOperationRouteCatalog.MpsGraphReason.MC_SCALAR,
                 MetalOperationRouteCatalog.CustomKernelState.PENDING,
-                MetalOperationRouteCatalog.CustomKernelReason.CP_SCALAR_GRADIENT);
+                MetalOperationRouteCatalog.CustomKernelReason.CP_POINT);
+        assertCatalog(
+                MetalMpsGraphProgram.NodeKind.RECIPROCAL,
+                MetalOperationRouteCatalog.MpsGraphState.COMPOSED,
+                MetalOperationRouteCatalog.MpsGraphReason.MC_UNARY,
+                MetalOperationRouteCatalog.CustomKernelState.PENDING,
+                MetalOperationRouteCatalog.CustomKernelReason.CP_POINT);
         assertCatalog(
                 MetalMpsGraphProgram.NodeKind.LOG,
                 MetalOperationRouteCatalog.MpsGraphState.DIRECT,
                 MetalOperationRouteCatalog.MpsGraphReason.MD_ARITH,
                 MetalOperationRouteCatalog.CustomKernelState.PENDING,
                 MetalOperationRouteCatalog.CustomKernelReason.CP_ELEMENTARY);
-        assertCatalog(
-                MetalMpsGraphProgram.NodeKind.RECIPROCAL,
-                MetalOperationRouteCatalog.MpsGraphState.DIRECT,
-                MetalOperationRouteCatalog.MpsGraphReason.MD_ARITH,
-                MetalOperationRouteCatalog.CustomKernelState.PENDING,
-                MetalOperationRouteCatalog.CustomKernelReason.CP_RECURSIVE_SITES);
         assertCatalog(
                 MetalMpsGraphProgram.NodeKind.LOG1P,
                 MetalOperationRouteCatalog.MpsGraphState.COMPOSED,

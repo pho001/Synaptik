@@ -71,7 +71,6 @@ final class MetalOperationRouteCatalog {
         CA_0057,
         CA_0058,
         CP_POINT,
-        CP_SCALAR_GRADIENT,
         CP_POWER,
         CP_ELEMENTARY,
         CP_RECURSIVE_SITES,
@@ -130,12 +129,15 @@ final class MetalOperationRouteCatalog {
                 CustomKernelState.PENDING, CustomKernelReason.CP_CONTRACT),
         DIRECT_PRED_PENDING_POINT(MpsGraphState.DIRECT, MpsGraphReason.MD_PRED,
                 CustomKernelState.PENDING, CustomKernelReason.CP_POINT),
-        COMPOSED_SCALAR_PENDING_GRADIENT(MpsGraphState.COMPOSED,
+        COMPOSED_SCALAR_PENDING_POINT(MpsGraphState.COMPOSED,
                 MpsGraphReason.MC_SCALAR, CustomKernelState.PENDING,
-                CustomKernelReason.CP_SCALAR_GRADIENT),
+                CustomKernelReason.CP_POINT),
         COMPOSED_SCALAR_PENDING_POWER(MpsGraphState.COMPOSED,
                 MpsGraphReason.MC_SCALAR, CustomKernelState.PENDING,
                 CustomKernelReason.CP_POWER),
+        COMPOSED_UNARY_PENDING_POINT(MpsGraphState.COMPOSED,
+                MpsGraphReason.MC_UNARY, CustomKernelState.PENDING,
+                CustomKernelReason.CP_POINT),
         COMPOSED_UNARY_PENDING_ELEMENTARY(MpsGraphState.COMPOSED,
                 MpsGraphReason.MC_UNARY, CustomKernelState.PENDING,
                 CustomKernelReason.CP_ELEMENTARY),
@@ -256,7 +258,8 @@ final class MetalOperationRouteCatalog {
             case ABS, EXP, SIGMOID -> Entry.DIRECT_ARITH_PENDING_POINT;
             case FLOOR, CEIL, SIGN, RELU -> Entry.DIRECT_ARITH_CUSTOM_0058;
             case LOG, ERF, SQRT, TANH -> Entry.DIRECT_ARITH_PENDING_ELEMENTARY;
-            case RECIPROCAL, RSQRT -> Entry.DIRECT_ARITH_PENDING_RECURSIVE;
+            case RECIPROCAL -> Entry.COMPOSED_UNARY_PENDING_POINT;
+            case RSQRT -> Entry.DIRECT_ARITH_PENDING_RECURSIVE;
             case SUM, MEAN, PROD, ALL, ANY, VARIANCE ->
                     Entry.DIRECT_REDUCE_PENDING_AGGREGATE;
             case MATMUL -> Entry.DIRECT_MATMUL_PENDING_CONTRACT;
@@ -273,7 +276,7 @@ final class MetalOperationRouteCatalog {
             case IS_FINITE, IS_NAN, IS_INF, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT, WHERE ->
                     Entry.DIRECT_PRED_CUSTOM_0057;
             case SCALAR_ADD, SCALAR_SUB, SCALAR_MUL, SCALAR_DIV ->
-                    Entry.COMPOSED_SCALAR_PENDING_GRADIENT;
+                    Entry.COMPOSED_SCALAR_PENDING_POINT;
             case SCALAR_POW -> Entry.COMPOSED_SCALAR_PENDING_POWER;
             case LOG1P, EXPM1 -> Entry.COMPOSED_UNARY_PENDING_ELEMENTARY;
             case GELU, GELU_TANH_APPROXIMATION, SILU ->

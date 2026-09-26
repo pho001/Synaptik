@@ -127,7 +127,7 @@ class MetalRemainingElementwiseNativeTest {
     }
 
     @Test
-    void everyBlockedCatalogRecipeCreatesRunsAndClosesOnlyThroughTheRawFixture() {
+    void everyRemainingBlockedCatalogRecipeCreatesRunsAndClosesOnlyThroughTheRawFixture() {
         Path library = configuredLibrary();
         int[] input = bits(0.25f, 0.5f, 1.0f, 2.0f);
         int[] exponent = bits(2.0f, 2.0f, 2.0f, 2.0f);
@@ -140,21 +140,17 @@ class MetalRemainingElementwiseNativeTest {
                 List.of(input, exponent));
         assertEquals(outputWords, tensorPow.length);
 
-        for (MetalMpsGraphProgram.NodeKind kind : List.of(
-                MetalMpsGraphProgram.NodeKind.SCALAR_ADD,
-                MetalMpsGraphProgram.NodeKind.SCALAR_SUB,
-                MetalMpsGraphProgram.NodeKind.SCALAR_MUL,
-                MetalMpsGraphProgram.NodeKind.SCALAR_DIV,
-                MetalMpsGraphProgram.NodeKind.SCALAR_POW)) {
-            int[] output = NonProductionStructuralFixture.executeDirect(
-                    library, NumericalProfile.ACCELERATOR,
-                    scalar(kind, 0, 1, Float.floatToRawIntBits(2.0f)),
-                    List.of(value(outputWords), value(outputWords)), List.of(input));
-            assertEquals(outputWords, output.length, kind.name());
-        }
+        int[] scalarPow = NonProductionStructuralFixture.executeDirect(
+                library, NumericalProfile.ACCELERATOR,
+                scalar(
+                        MetalMpsGraphProgram.NodeKind.SCALAR_POW,
+                        0,
+                        1,
+                        Float.floatToRawIntBits(2.0f)),
+                List.of(value(outputWords), value(outputWords)), List.of(input));
+        assertEquals(outputWords, scalarPow.length);
 
         for (MetalMpsGraphProgram.NodeKind kind : List.of(
-                MetalMpsGraphProgram.NodeKind.RECIPROCAL,
                 MetalMpsGraphProgram.NodeKind.LOG,
                 MetalMpsGraphProgram.NodeKind.LOG1P,
                 MetalMpsGraphProgram.NodeKind.EXPM1,
@@ -197,8 +193,7 @@ class MetalRemainingElementwiseNativeTest {
                 MetalMpsGraphProgram.NodeKind.SCALAR_ADD,
                 MetalMpsGraphProgram.NodeKind.SCALAR_SUB,
                 MetalMpsGraphProgram.NodeKind.SCALAR_MUL,
-                MetalMpsGraphProgram.NodeKind.SCALAR_DIV,
-                MetalMpsGraphProgram.NodeKind.SCALAR_POW)) {
+                MetalMpsGraphProgram.NodeKind.SCALAR_DIV)) {
             digests.add(digestImage(
                     new MetalMpsGraphProgram(List.of(scalar(kind, 0, 1, 0x3f80_0000))),
                     List.of(value(4), value(4)), new int[] {0}, new int[] {1}));
@@ -211,6 +206,10 @@ class MetalRemainingElementwiseNativeTest {
                 new MetalMpsGraphProgram(List.of(scalar(
                         MetalMpsGraphProgram.NodeKind.SCALAR_ADD, 0, 1, 0x3f80_0000))),
                 List.of(value(2, 2), value(2, 2)), new int[] {0}, new int[] {1}));
+        digests.add(digestImage(
+                new MetalMpsGraphProgram(List.of(unary(
+                        MetalMpsGraphProgram.NodeKind.RECIPROCAL, 0, 1))),
+                List.of(value(4), value(4)), new int[] {0}, new int[] {1}));
         digests.add(digestImage(
                 new MetalMpsGraphProgram(List.of(binary(
                         MetalMpsGraphProgram.NodeKind.ADD, 0, 1, 2))),

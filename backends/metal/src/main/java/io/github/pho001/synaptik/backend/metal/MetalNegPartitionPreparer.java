@@ -61,11 +61,12 @@ import java.util.Optional;
  * replacement SCATTER_ELEMENTS, and exact classification/BOOL-logic/WHERE domain. Under
  * {@code ACCELERATOR}, it additionally accepts existing arithmetic, reduction, and rank-two
  * MATMUL plus the exact Task-0052 comparisons, tensor/scalar extrema, clamp, reduction extrema,
- * and cumulative scans. An affine MATMUL operand is authenticated to the exact earlier local
- * rank-two {@code PERMUTE [1,0]} on that consuming edge. Schema-fourteen lowering emits one
- * bounded self-describing image over the stable type wires 1..6, complete operation registry
- * 1..115, attribute registry 0..41, and explicit prepared route. Production capability is exactly
- * 45 operation kinds; the additional structural recipes remain inaccessible to this analysis.
+ * cumulative scans, no-gradient scalar ADD/SUB/MUL/DIV, and no-gradient RECIPROCAL. An affine
+ * MATMUL operand is authenticated to the exact earlier local rank-two {@code PERMUTE [1,0]} on
+ * that consuming edge. Schema-fourteen lowering emits one bounded self-describing image over the
+ * stable type wires 1..6, complete operation registry 1..115, attribute registry 0..41, and
+ * explicit prepared route. Production capability is exactly 50 operation kinds; the additional
+ * structural recipes remain inaccessible to this analysis.
  * Graph feeds are canonical and explicitly typed. Rank-zero values participate only where the
  * existing non-BOOL operation capability permits them. Exact BOOL results may feed the newly
  * admitted logic and selection nodes or cross owner boundaries.
@@ -519,6 +520,14 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         if (kind == UnaryElementwiseKind.ABS) {
             return MetalMpsGraphProgram.Node.abs(inputs[0], output);
         }
+        if (kind == UnaryElementwiseKind.RECIPROCAL) {
+            return MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.RECIPROCAL,
+                    inputs,
+                    new int[] {output},
+                    MetalMpsGraphProgram.AttributeKind.NONE,
+                    new long[0]);
+        }
         if (kind == UnaryElementwiseKind.FLOOR
                 || kind == UnaryElementwiseKind.CEIL
                 || kind == UnaryElementwiseKind.SIGN
@@ -595,10 +604,18 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         Float.floatToRawIntBits(attrs.maxValue().float32Value()));
             }
             ScalarValueAttrs attrs = (ScalarValueAttrs) operation.attrs();
-            MetalMpsGraphProgram.NodeKind nodeKind = scalar == ScalarElementwiseKind.MIN
-                    ? MetalMpsGraphProgram.NodeKind.SCALAR_MIN
-                    : MetalMpsGraphProgram.NodeKind.SCALAR_MAX;
-            return MetalMpsGraphProgram.Node.scalarExtreme(
+            MetalMpsGraphProgram.NodeKind nodeKind = switch (scalar) {
+                case ADD -> MetalMpsGraphProgram.NodeKind.SCALAR_ADD;
+                case SUB -> MetalMpsGraphProgram.NodeKind.SCALAR_SUB;
+                case MUL -> MetalMpsGraphProgram.NodeKind.SCALAR_MUL;
+                case DIV -> MetalMpsGraphProgram.NodeKind.SCALAR_DIV;
+                case MIN -> MetalMpsGraphProgram.NodeKind.SCALAR_MIN;
+                case MAX -> MetalMpsGraphProgram.NodeKind.SCALAR_MAX;
+                case POW -> throw new IllegalArgumentException(
+                        "unsupported Metal scalar operation: " + scalar);
+                case CLAMP -> throw new IllegalStateException("CLAMP handled above");
+            };
+            return MetalMpsGraphProgram.Node.scalarValue(
                     nodeKind,
                     inputs[0],
                     output,

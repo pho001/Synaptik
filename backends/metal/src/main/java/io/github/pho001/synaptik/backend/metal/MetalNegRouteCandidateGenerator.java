@@ -21,10 +21,11 @@ import java.util.Optional;
  *
  * <p>The workload fingerprint uses only versioned semantics and structural positions, including
  * the cold numerical profile, schema-fourteen program image, exact logical descriptors, ordered
- * edges, explicit value states, target sets, dense represented-order geometry, ABI identity, and
- * typed splats. Graph-local identities, partition object identity, native handles, measurements,
- * and cache state are excluded. Generation is cold, thread-safe, deterministic, and performs no
- * native work.</p>
+ * edges, explicit value states, target sets, dense represented-order geometry, ABI identity,
+ * typed splats, and the scalar-composition source wire, exact raw constant, rank-one
+ * {@code [1]} shape, operand order, and primitive opcode. Graph-local identities, partition object
+ * identity, native handles, measurements, and cache state are excluded. Generation is cold,
+ * thread-safe, deterministic, and performs no native work.</p>
  */
 final class MetalNegRouteCandidateGenerator {
     private static final long UINT32_MAX = 0xffff_ffffL;

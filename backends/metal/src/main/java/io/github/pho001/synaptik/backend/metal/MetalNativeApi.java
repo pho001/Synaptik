@@ -573,14 +573,44 @@ abstract class MetalNativeApi implements AutoCloseable {
                     throw new IllegalArgumentException(
                             "Metal MPSGraph node outputs must be unique and not feeds");
                 }
+                if ((node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_ADD
+                                || node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_SUB
+                                || node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_MUL
+                                || node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_DIV
+                                || node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_POW)
+                        && node.attributeWords()[0]
+                                != MetalMpsGraphProgram.dataTypeWire(DataType.FLOAT32)) {
+                    throw new IllegalArgumentException(
+                            "Metal scalar arithmetic requires an exact FLOAT32 scalar");
+                }
+                if ((node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_ADD
+                                || node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_SUB
+                                || node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_MUL
+                                || node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_DIV
+                                || node.kind() == MetalMpsGraphProgram.NodeKind.RECIPROCAL)
+                        && (values.get(left).requiresGrad()
+                                || values.get(output).requiresGrad())) {
+                    throw new IllegalArgumentException(
+                            "Metal scalar arithmetic and reciprocal require no-grad values");
+                }
                 switch (node.kind()) {
                     case NEG, ABS, CONTIGUOUS, SCALAR_MIN, SCALAR_MAX, CLAMP, CUM_SUM, CUM_PROD,
-                            SCALAR_ADD, SCALAR_SUB, SCALAR_MUL, SCALAR_DIV, SCALAR_POW,
-                            RECIPROCAL, LOG, LOG1P, EXPM1, ERF, SQRT, RSQRT,
+                            SCALAR_POW, LOG, LOG1P, EXPM1, ERF, SQRT, RSQRT,
                             TANH, GELU, GELU_TANH_APPROXIMATION, SILU ->
                             requireShape(
                                     sameShape(left, output, valueRanks, valueDimensions),
                                     node.kind() + " input/output shapes must match exactly");
+                    case SCALAR_ADD, SCALAR_SUB, SCALAR_MUL, SCALAR_DIV, RECIPROCAL ->
+                            requireShape(
+                                    valueRanks[left] >= 1
+                                            && valueRanks[output] >= 1
+                                            && sameShape(
+                                                    left,
+                                                    output,
+                                                    valueRanks,
+                                                    valueDimensions),
+                                    node.kind()
+                                            + " input/output must be no-grad matching positive ranks");
                     case FLOOR, CEIL, SIGN, RELU ->
                             requireShape(
                                     valueRanks[left] >= 1

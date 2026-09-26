@@ -136,7 +136,7 @@ class MetalMpsGraphAffineSchemaTest {
         for (int index = 0; index < kinds.size(); index++) {
             assertEquals(20 + index, kinds.get(index).wireIdentity());
         }
-        var scalar = MetalMpsGraphProgram.Node.scalarExtreme(
+        var scalar = MetalMpsGraphProgram.Node.scalarValue(
                 MetalMpsGraphProgram.NodeKind.SCALAR_MIN,
                 0,
                 1,
@@ -155,7 +155,7 @@ class MetalMpsGraphAffineSchemaTest {
                 java.util.Arrays.stream(scan.attributeWords()).boxed().toList());
 
         assertThrows(IllegalArgumentException.class, () ->
-                MetalMpsGraphProgram.Node.scalarExtreme(
+                MetalMpsGraphProgram.Node.scalarValue(
                         MetalMpsGraphProgram.NodeKind.CLAMP, 0, 1, 0));
         assertThrows(IllegalArgumentException.class, () ->
                 MetalMpsGraphProgram.Node.scan(

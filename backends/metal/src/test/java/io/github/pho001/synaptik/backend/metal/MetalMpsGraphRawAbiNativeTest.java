@@ -147,6 +147,94 @@ class MetalMpsGraphRawAbiNativeTest {
             }
         }
     }
+    @Test
+    void javaAndNativeRejectGradOrScalarShapeForAdmittedScalarRecipes() throws Throwable {
+        Path library = configuredLibrary();
+        try (RawAbi abi = new RawAbi(library)) {
+            for (MetalMpsGraphProgram.NodeKind kind : List.of(
+                    MetalMpsGraphProgram.NodeKind.SCALAR_ADD,
+                    MetalMpsGraphProgram.NodeKind.SCALAR_SUB,
+                    MetalMpsGraphProgram.NodeKind.SCALAR_MUL,
+                    MetalMpsGraphProgram.NodeKind.SCALAR_DIV,
+                    MetalMpsGraphProgram.NodeKind.RECIPROCAL)) {
+                MetalMpsGraphProgram.Node node = kind == MetalMpsGraphProgram.NodeKind.RECIPROCAL
+                        ? MetalMpsGraphProgram.Node.generic(
+                                kind,
+                                new int[] {0},
+                                new int[] {1},
+                                MetalMpsGraphProgram.AttributeKind.NONE,
+                                new long[0])
+                        : MetalMpsGraphProgram.Node.scalarValue(
+                                kind, 0, 1, 0x8000_0001);
+                var program = new MetalMpsGraphProgram(List.of(node));
+                List<MetalMpsGraphProgram.ValueDescriptor> grad = List.of(
+                        new MetalMpsGraphProgram.ValueDescriptor(
+                                DataType.FLOAT32, new long[] {4}, true),
+                        new MetalMpsGraphProgram.ValueDescriptor(
+                                DataType.FLOAT32, new long[] {4}, true));
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                                NumericalProfile.ACCELERATOR,
+                                grad,
+                                program,
+                                new int[] {0},
+                                new int[] {1},
+                                MetalPreparedRoute.MPSGRAPH));
+                byte[] gradImage = program.encodedProgramImage(
+                        grad, new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH);
+                assertEquals(1, abi.create(gradImage, gradImage.length), kind + " grad");
+
+                List<MetalMpsGraphProgram.ValueDescriptor> rankZero =
+                        List.of(scalarDescriptor(DataType.FLOAT32), scalarDescriptor(DataType.FLOAT32));
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                                NumericalProfile.ACCELERATOR,
+                                rankZero,
+                                program,
+                                new int[] {0},
+                                new int[] {1},
+                                MetalPreparedRoute.MPSGRAPH));
+                byte[] scalarImage = program.encodedProgramImage(
+                        rankZero,
+                        new int[] {0},
+                        new int[] {1},
+                        MetalPreparedRoute.MPSGRAPH);
+                assertEquals(8, abi.create(scalarImage, scalarImage.length), kind + " rank zero");
+                if (kind != MetalMpsGraphProgram.NodeKind.RECIPROCAL) {
+                    var wrongScalarType = new MetalMpsGraphProgram(List.of(
+                            MetalMpsGraphProgram.Node.generic(
+                                    kind,
+                                    new int[] {0},
+                                    new int[] {1},
+                                    MetalMpsGraphProgram.AttributeKind.SCALAR_VALUE,
+                                    new long[] {2L, 0x8000_0001L})));
+                    List<MetalMpsGraphProgram.ValueDescriptor> values =
+                            List.of(descriptor(4), descriptor(4));
+                    assertThrows(
+                            IllegalArgumentException.class,
+                            () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                                    NumericalProfile.ACCELERATOR,
+                                    values,
+                                    wrongScalarType,
+                                    new int[] {0},
+                                    new int[] {1},
+                                    MetalPreparedRoute.MPSGRAPH));
+                    byte[] wrongTypeImage = wrongScalarType.encodedProgramImage(
+                            values,
+                            new int[] {0},
+                            new int[] {1},
+                            MetalPreparedRoute.MPSGRAPH);
+                    assertEquals(
+                            1,
+                            abi.create(wrongTypeImage, wrongTypeImage.length),
+                            kind + " scalar type");
+                }
+            }
+        }
+    }
+
 
 
     @Test

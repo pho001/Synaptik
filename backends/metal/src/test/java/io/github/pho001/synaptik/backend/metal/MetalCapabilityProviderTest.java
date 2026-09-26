@@ -56,15 +56,10 @@ import org.junit.jupiter.api.Test;
 class MetalCapabilityProviderTest {
     private final MetalCapabilityProvider provider = new MetalCapabilityProvider();
     @Test
-    void registeredWireCapabilityLedgerClosesAtFortyFiveTrueAndSeventyFalse() {
+    void registeredWireCapabilityLedgerClosesAtFiftyTrueAndSixtyFiveFalse() {
         java.util.Set<MetalMpsGraphProgram.NodeKind> structuralOnly = java.util.Set.of(
                 MetalMpsGraphProgram.NodeKind.TENSOR_POW,
-                MetalMpsGraphProgram.NodeKind.SCALAR_ADD,
-                MetalMpsGraphProgram.NodeKind.SCALAR_SUB,
-                MetalMpsGraphProgram.NodeKind.SCALAR_MUL,
-                MetalMpsGraphProgram.NodeKind.SCALAR_DIV,
                 MetalMpsGraphProgram.NodeKind.SCALAR_POW,
-                MetalMpsGraphProgram.NodeKind.RECIPROCAL,
                 MetalMpsGraphProgram.NodeKind.LOG,
                 MetalMpsGraphProgram.NodeKind.LOG1P,
                 MetalMpsGraphProgram.NodeKind.EXPM1,
@@ -75,13 +70,13 @@ class MetalCapabilityProviderTest {
                 MetalMpsGraphProgram.NodeKind.GELU,
                 MetalMpsGraphProgram.NodeKind.GELU_TANH_APPROXIMATION,
                 MetalMpsGraphProgram.NodeKind.SILU);
-        assertEquals(17, structuralOnly.size());
+        assertEquals(12, structuralOnly.size());
         long trueRows = java.util.Arrays.stream(MetalMpsGraphProgram.NodeKind.values())
                 .filter(MetalMpsGraphProgram.NodeKind::executable)
                 .filter(kind -> !structuralOnly.contains(kind))
                 .count();
-        assertEquals(45L, trueRows);
-        assertEquals(70L, MetalMpsGraphProgram.NodeKind.values().length - trueRows);
+        assertEquals(50L, trueRows);
+        assertEquals(65L, MetalMpsGraphProgram.NodeKind.values().length - trueRows);
         structuralOnly.forEach(kind -> assertTrue(kind.executable(), kind.name()));
         assertFalse(MetalMpsGraphProgram.NodeKind.EXP.executable());
         assertFalse(MetalMpsGraphProgram.NodeKind.SIGMOID.executable());
@@ -128,7 +123,8 @@ class MetalCapabilityProviderTest {
                     provider.supports(unaryQuery(
                             NumericalProfile.STRICT_IEEE, kind, matrix, matrix)),
                     "strict " + kind);
-            assertEquals(exactRawUnary(kind),
+            assertEquals(
+                    exactRawUnary(kind) || kind == UnaryElementwiseKind.RECIPROCAL,
                     provider.supports(unaryQuery(
                             NumericalProfile.ACCELERATOR, kind, matrix, matrix)),
                     "accelerator " + kind);
@@ -260,30 +256,76 @@ class MetalCapabilityProviderTest {
         }
     }
     @Test
-    void scalarArithmeticAndReciprocalRemainClosedForBothGradientsAndProfiles() {
-        for (NumericalProfile profile : NumericalProfile.values()) {
-            for (boolean requiresGrad : List.of(false, true)) {
-                TensorDescriptor value = descriptor(Shape.of(2, 3), requiresGrad);
-                for (ScalarElementwiseKind kind : List.of(
-                        ScalarElementwiseKind.ADD,
-                        ScalarElementwiseKind.SUB,
-                        ScalarElementwiseKind.MUL,
-                        ScalarElementwiseKind.DIV,
-                        ScalarElementwiseKind.POW)) {
-                    assertFalse(provider.supports(new OperationCapabilityQuery(
-                            profile,
-                            new Operation(
-                                    kind,
-                                    new ScalarValueAttrs(ScalarValue.float32(2.0f))),
-                            List.of(value),
-                            List.of(value))),
-                            profile + " " + requiresGrad + " " + kind);
-                }
-                assertFalse(provider.supports(unaryQuery(
-                        profile, UnaryElementwiseKind.RECIPROCAL, value, value)),
-                        profile + " " + requiresGrad + " RECIPROCAL");
-            }
+    void scalarArithmeticAndReciprocalAdmitOnlyAcceleratorNoGradOccurrences() {
+        TensorDescriptor noGrad = descriptor(Shape.of(2, 3), false);
+        TensorDescriptor grad = descriptor(Shape.of(2, 3), true);
+        for (ScalarElementwiseKind kind : List.of(
+                ScalarElementwiseKind.ADD,
+                ScalarElementwiseKind.SUB,
+                ScalarElementwiseKind.MUL,
+                ScalarElementwiseKind.DIV)) {
+            Operation operation = new Operation(
+                    kind,
+                    new ScalarValueAttrs(ScalarValue.float32(
+                            Float.intBitsToFloat(0x8000_0001))));
+            assertTrue(provider.supports(new OperationCapabilityQuery(
+                    NumericalProfile.ACCELERATOR,
+                    operation,
+                    List.of(noGrad),
+                    List.of(noGrad))), kind.name());
+            assertFalse(provider.supports(new OperationCapabilityQuery(
+                    NumericalProfile.STRICT_IEEE,
+                    operation,
+                    List.of(noGrad),
+                    List.of(noGrad))), "strict " + kind);
+            assertFalse(provider.supports(new OperationCapabilityQuery(
+                    NumericalProfile.ACCELERATOR,
+                    operation,
+                    List.of(grad),
+                    List.of(grad))), "grad " + kind);
+            assertFalse(provider.supports(new OperationCapabilityQuery(
+                    NumericalProfile.ACCELERATOR,
+                    operation,
+                    List.of(noGrad),
+                    List.of(grad))), "mismatched grad " + kind);
         }
+        Operation scalarPow = new Operation(
+                ScalarElementwiseKind.POW,
+                new ScalarValueAttrs(ScalarValue.float32(2.0f)));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                scalarPow,
+                List.of(noGrad),
+                List.of(noGrad))));
+        assertTrue(provider.supports(unaryQuery(
+                NumericalProfile.ACCELERATOR,
+                UnaryElementwiseKind.RECIPROCAL,
+                noGrad,
+                noGrad)));
+        assertFalse(provider.supports(unaryQuery(
+                NumericalProfile.STRICT_IEEE,
+                UnaryElementwiseKind.RECIPROCAL,
+                noGrad,
+                noGrad)));
+        assertFalse(provider.supports(unaryQuery(
+                NumericalProfile.ACCELERATOR,
+                UnaryElementwiseKind.RECIPROCAL,
+                grad,
+                grad)));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                new Operation(
+                        ScalarElementwiseKind.ADD,
+                        new ScalarValueAttrs(ScalarValue.float64(1.0))),
+                List.of(typed(DataType.FLOAT64)),
+                List.of(typed(DataType.FLOAT64)))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                new Operation(
+                        ScalarElementwiseKind.ADD,
+                        new ScalarValueAttrs(ScalarValue.float32(1.0f))),
+                List.of(descriptor(Shape.scalar(), false)),
+                List.of(descriptor(Shape.scalar(), false)))));
     }
 
 
@@ -563,9 +605,6 @@ class MetalCapabilityProviderTest {
             }
         }
         assertFalse(provider.supports(new OperationCapabilityQuery(NumericalProfile.ACCELERATOR, new Operation(BinaryComparisonKind.GREATER_THAN, NoOperationAttrs.INSTANCE), List.of(valid, valid), List.of(valid))));
-        assertFalse(provider.supports(new OperationCapabilityQuery(NumericalProfile.ACCELERATOR, new Operation(
-                ScalarElementwiseKind.ADD,
-                new ScalarValueAttrs(ScalarValue.float32(1.0f))), List.of(valid), List.of(valid))));
         assertFalse(provider.supports(query(
                 NumericalProfile.STRICT_IEEE, typed(DataType.FLOAT64), typed(DataType.FLOAT64))));
         assertFalse(provider.supports(query(

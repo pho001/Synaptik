@@ -379,7 +379,7 @@ final class MetalMpsGraphProgram {
                     AttributeKind.WINDOW_AXIS,
                     new long[] {Integer.toUnsignedLong(axis), size, step});
         }
-        static Node scalarExtreme(NodeKind kind, int input, int output, int rawBits) {
+        static Node scalarValue(NodeKind kind, int input, int output, int rawBits) {
             return new Node(kind, new int[] {input}, new int[] {output}, AttributeKind.SCALAR_VALUE,
                     new long[] {1L, Integer.toUnsignedLong(rawBits)});
         }
@@ -824,6 +824,52 @@ final class MetalMpsGraphProgram {
             MetalPreparedRoute route) {
         Objects.requireNonNull(digest, "digest");
         digest.update(encodedProgramImage(values, feeds, targets, route));
+        for (Node node : nodes) {
+            switch (node.kind()) {
+                case SCALAR_ADD, SCALAR_SUB, SCALAR_MUL, SCALAR_DIV -> {
+                    updateDigestInt(digest, 0x53434c52); // SCLR
+                    updateDigestInt(digest, node.kind().wireIdentity());
+                    updateDigestInt(digest, scalarPrimitive(node.kind()).wireIdentity());
+                    updateDigestInt(digest, 1); // input is primary, scalar is secondary
+                    updateDigestInt(digest, dataTypeWire(DataType.FLOAT32));
+                    updateDigestInt(digest, 1); // rank
+                    updateDigestInt(digest, 1); // sole extent
+                    updateDigestInt(digest, Float.BYTES);
+                    updateDigestInt(digest, (int) node.attributeWords[1]);
+                }
+                case RECIPROCAL -> {
+                    updateDigestInt(digest, 0x52435052); // RCPR
+                    updateDigestInt(digest, node.kind().wireIdentity());
+                    updateDigestInt(digest, NodeKind.DIV.wireIdentity());
+                    updateDigestInt(digest, 2); // scalar one is primary, input is secondary
+                    updateDigestInt(digest, dataTypeWire(DataType.FLOAT32));
+                    updateDigestInt(digest, 1); // rank
+                    updateDigestInt(digest, 1); // sole extent
+                    updateDigestInt(digest, Float.BYTES);
+                    updateDigestInt(digest, 0x3f80_0000);
+                }
+                default -> {
+                    // The schema image completely binds every other lowering.
+                }
+            }
+        }
+    }
+
+    private static NodeKind scalarPrimitive(NodeKind kind) {
+        return switch (kind) {
+            case SCALAR_ADD -> NodeKind.ADD;
+            case SCALAR_SUB -> NodeKind.SUB;
+            case SCALAR_MUL -> NodeKind.MUL;
+            case SCALAR_DIV -> NodeKind.DIV;
+            default -> throw new IllegalArgumentException("not scalar arithmetic: " + kind);
+        };
+    }
+
+    private static void updateDigestInt(MessageDigest digest, int value) {
+        digest.update((byte) (value >>> 24));
+        digest.update((byte) (value >>> 16));
+        digest.update((byte) (value >>> 8));
+        digest.update((byte) value);
     }
 
     private Layout layout(List<ValueDescriptor> values, int[] feeds, int[] targets) {
