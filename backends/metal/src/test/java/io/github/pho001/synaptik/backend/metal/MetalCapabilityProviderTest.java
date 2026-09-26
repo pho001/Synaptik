@@ -30,12 +30,16 @@ import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
+import io.github.pho001.synaptik.model.operation.index.ScatterNdAttrs;
+import io.github.pho001.synaptik.model.operation.index.ScatterNdKind;
 import io.github.pho001.synaptik.model.operation.index.SelectAttrs;
 import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Fold3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
@@ -79,18 +83,18 @@ class MetalCapabilityProviderTest {
                 MetalMpsGraphProgram.NodeKind.GELU_TANH_APPROXIMATION,
                 MetalMpsGraphProgram.NodeKind.SILU,
                 MetalMpsGraphProgram.NodeKind.SCATTER_ADD,
-                MetalMpsGraphProgram.NodeKind.SCATTER_ND,
-                MetalMpsGraphProgram.NodeKind.SLICE_UPDATE,
-                MetalMpsGraphProgram.NodeKind.FOLD_AXIS,
-                MetalMpsGraphProgram.NodeKind.FOLD2D,
-                MetalMpsGraphProgram.NodeKind.FOLD3D);
+                MetalMpsGraphProgram.NodeKind.LOG_SUM_EXP,
+                MetalMpsGraphProgram.NodeKind.VARIANCE,
+                MetalMpsGraphProgram.NodeKind.STANDARD_DEVIATION,
+                MetalMpsGraphProgram.NodeKind.L1_NORM,
+                MetalMpsGraphProgram.NodeKind.L2_NORM);
         assertEquals(18, structuralOnly.size());
         long trueRows = java.util.Arrays.stream(MetalMpsGraphProgram.NodeKind.values())
                 .filter(MetalMpsGraphProgram.NodeKind::executable)
                 .filter(kind -> !structuralOnly.contains(kind))
                 .count();
-        assertEquals(61L, trueRows);
-        assertEquals(54L, MetalMpsGraphProgram.NodeKind.values().length - trueRows);
+        assertEquals(69L, trueRows);
+        assertEquals(46L, MetalMpsGraphProgram.NodeKind.values().length - trueRows);
         structuralOnly.forEach(kind -> assertTrue(kind.executable(), kind.name()));
         assertFalse(MetalMpsGraphProgram.NodeKind.EXP.executable());
         assertFalse(MetalMpsGraphProgram.NodeKind.SIGMOID.executable());
@@ -209,6 +213,121 @@ class MetalCapabilityProviderTest {
                 new Operation(CastKind.CAST, new CastAttrs(DataType.BOOL)),
                 List.of(typed(DataType.FLOAT32, Shape.of(2), true)),
                 List.of(typed(DataType.BOOL, Shape.of(2), false)))));
+    }
+
+    @Test
+    void task0060AdvertisesOnlyExactReplacementNonoverlapAndLogicalAggregateDomains() {
+        var scatterNone = new Operation(
+                ScatterNdKind.SCATTER_ND, new ScatterNdAttrs(0, ScatterReduction.NONE));
+        var scatterAdd = new Operation(
+                ScatterNdKind.SCATTER_ND, new ScatterNdAttrs(0, ScatterReduction.ADD));
+        var signedSlice = new Operation(
+                SliceKind.SLICE_UPDATE,
+                new SliceAttrs(List.of(3L), List.of(2L), List.of(0), List.of(-2L)));
+        var foldAxis = new Operation(
+                WindowTransformKind.FOLD_AXIS, new FoldAxisAttrs(1, 4, 2));
+        var overlappingAxis = new Operation(
+                WindowTransformKind.FOLD_AXIS, new FoldAxisAttrs(1, 4, 1));
+        var paddedCeil2d = new Window2dAttrs(2, 2, 2, 2, 1, 1, 1, 1, true);
+        var paddedCeil3d =
+                new Window3dAttrs(2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, true);
+        var fold2d = new Operation(
+                WindowTransformKind.FOLD2D,
+                new Fold2dAttrs(Shape.of(1, 1, 3, 3), paddedCeil2d));
+        var fold3d = new Operation(
+                WindowTransformKind.FOLD3D,
+                new Fold3dAttrs(Shape.of(1, 1, 3, 3, 3), paddedCeil3d));
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            for (DataType type : DataType.values()) {
+                for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
+                    assertTrue(provider.supports(new OperationCapabilityQuery(
+                            profile,
+                            scatterNone,
+                            List.of(
+                                    typed(type, Shape.of(3), false),
+                                    typed(indexType, Shape.of(2, 1), false),
+                                    typed(type, Shape.of(2), false)),
+                            List.of(typed(type, Shape.of(3), false)))));
+                }
+                assertFalse(provider.supports(new OperationCapabilityQuery(
+                        profile,
+                        scatterAdd,
+                        List.of(
+                                typed(type, Shape.of(3), false),
+                                typed(DataType.INT32, Shape.of(2, 1), false),
+                                typed(type, Shape.of(2), false)),
+                        List.of(typed(type, Shape.of(3), false)))));
+                assertTrue(provider.supports(new OperationCapabilityQuery(
+                        profile,
+                        signedSlice,
+                        List.of(
+                                typed(type, Shape.of(4), false),
+                                typed(type, Shape.of(2), false)),
+                        List.of(typed(type, Shape.of(4), false)))));
+                assertFalse(provider.supports(new OperationCapabilityQuery(
+                        profile,
+                        new Operation(
+                                SliceKind.SLICE_UPDATE,
+                                new SliceAttrs(
+                                        List.of(0L), List.of(0L), List.of(0), List.of(1L))),
+                        List.of(
+                                typed(type, Shape.of(4), false),
+                                typed(type, Shape.of(0), false)),
+                        List.of(typed(type, Shape.of(4), false)))));
+                assertTrue(provider.supports(new OperationCapabilityQuery(
+                        profile,
+                        foldAxis,
+                        List.of(typed(type, Shape.of(2, 2, 2), false)),
+                        List.of(typed(type, Shape.of(2, 4), false)))));
+                assertFalse(provider.supports(new OperationCapabilityQuery(
+                        profile,
+                        overlappingAxis,
+                        List.of(typed(type, Shape.of(2, 3, 2), false)),
+                        List.of(typed(type, Shape.of(2, 4), false)))));
+                assertTrue(provider.supports(new OperationCapabilityQuery(
+                        profile,
+                        fold2d,
+                        List.of(typed(type, Shape.of(1, 4, 9), false)),
+                        List.of(typed(type, Shape.of(1, 1, 3, 3), false)))));
+                assertTrue(provider.supports(new OperationCapabilityQuery(
+                        profile,
+                        fold3d,
+                        List.of(typed(type, Shape.of(1, 8, 27), false)),
+                        List.of(typed(type, Shape.of(1, 1, 3, 3, 3), false)))));
+            }
+            for (DataType type : List.of(DataType.INT32, DataType.INT64)) {
+                assertTrue(provider.supports(new OperationCapabilityQuery(
+                        profile,
+                        new Operation(AggregateReductionKind.PROD, NoOperationAttrs.INSTANCE),
+                        List.of(typed(type, Shape.of(2, 3), false)),
+                        List.of(typed(type, Shape.scalar(), false)))));
+                assertTrue(provider.supports(new OperationCapabilityQuery(
+                        profile,
+                        new Operation(
+                                AggregateReductionKind.PROD,
+                                new MultiAxisReductionAttrs(List.of(), false)),
+                        List.of(typed(type, Shape.scalar(), false)),
+                        List.of(typed(type, Shape.scalar(), false)))));
+            }
+            for (AggregateReductionKind kind :
+                    List.of(AggregateReductionKind.ALL, AggregateReductionKind.ANY)) {
+                assertTrue(provider.supports(new OperationCapabilityQuery(
+                        profile,
+                        new Operation(kind, new MultiAxisReductionAttrs(List.of(), false)),
+                        List.of(typed(DataType.BOOL, Shape.of(2, 3), false)),
+                        List.of(typed(DataType.BOOL, Shape.of(2, 3), false)))));
+            }
+            assertFalse(provider.supports(new OperationCapabilityQuery(
+                    profile,
+                    new Operation(AggregateReductionKind.PROD, NoOperationAttrs.INSTANCE),
+                    List.of(typed(DataType.FLOAT32, Shape.of(2), false)),
+                    List.of(typed(DataType.FLOAT32, Shape.scalar(), false)))));
+            assertFalse(provider.supports(new OperationCapabilityQuery(
+                    profile,
+                    new Operation(AggregateReductionKind.ALL, NoOperationAttrs.INSTANCE),
+                    List.of(typed(DataType.INT32, Shape.of(2), false)),
+                    List.of(typed(DataType.INT32, Shape.scalar(), false)))));
+        }
     }
 
     @Test

@@ -344,6 +344,82 @@ class MetalMpsGraphIndexingNativeTest {
     }
 
     @Test
+    void task0060ScatterNdPreflightsAllTuplesBeforeCopyOrReplacement() {
+        Path library = configuredLibrary();
+        MetalNativeApi api = MetalNativeApi.open(library);
+        MetalNativeApi.Handle context = null;
+        MetalNativeApi.Handle executable = null;
+        var buffers = new ArrayList<MetalNativeApi.Handle>();
+        int[] dataBits = {
+            0x8000_0000, 0x7fc1_2345, 0x0000_0001,
+            0xffc5_4321, 0x8000_0001, 0x3f80_0000
+        };
+        int[] updateBits = {0x7fa2_2222, 0xffa3_3333, 0x7f80_0000, 0xff80_0000};
+        try {
+            context = api.createContext();
+            var program = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.SCATTER_ND,
+                            new int[] {0, 1, 2},
+                            new int[] {3},
+                            MetalMpsGraphProgram.AttributeKind.SCATTER_ND,
+                            new long[] {1, 1})));
+            var values = List.of(
+                    descriptor(io.github.pho001.synaptik.model.datatype.DataType.FLOAT32, 2, 3),
+                    descriptor(io.github.pho001.synaptik.model.datatype.DataType.INT64, 2, 2, 1),
+                    descriptor(io.github.pho001.synaptik.model.datatype.DataType.FLOAT32, 2, 2),
+                    descriptor(io.github.pho001.synaptik.model.datatype.DataType.FLOAT32, 2, 3));
+            executable = api.createMpsGraphExecutable(
+                    context,
+                    NumericalProfile.STRICT_IEEE,
+                    values,
+                    program,
+                    new int[] {0, 1, 2},
+                    new int[] {3},
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            for (var value : values) buffers.add(api.createBuffer(context, value.byteCount()));
+            uploadInts(api, buffers.get(0), dataBits);
+            uploadLongs(api, buffers.get(1), new long[] {0, 2, 1, 0});
+            uploadInts(api, buffers.get(2), updateBits);
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment allValues = arena.allocate(ADDRESS, buffers.size());
+                for (int index = 0; index < buffers.size(); index++) {
+                    allValues.setAtIndex(ADDRESS, index, buffers.get(index).carrier());
+                }
+                MemorySegment target = arena.allocate(ADDRESS);
+                target.set(ADDRESS, 0L, buffers.get(3).carrier());
+                api.runExecutable(executable, buffers.size(), allValues, 1, target);
+                assertArrayEquals(new int[] {
+                    updateBits[0], dataBits[1], updateBits[1],
+                    updateBits[3], updateBits[2], dataBits[5]
+                }, downloadInts(api, buffers.get(3), 6));
+
+                fill(api, buffers.get(3), 6L * Integer.BYTES, SENTINEL);
+                uploadLongs(api, buffers.get(1), new long[] {1, 1, 1, 0});
+                assertRangeFailure(
+                        api, executable, buffers.size(), allValues, 1, target);
+                assertFilled(downloadBytes(api, buffers.get(3), 6 * Integer.BYTES), SENTINEL);
+                assertArrayEquals(dataBits, downloadInts(api, buffers.get(0), 6));
+                assertArrayEquals(updateBits, downloadInts(api, buffers.get(2), 4));
+
+                uploadLongs(api, buffers.get(1), new long[] {0, 3, 1, 0});
+                assertRangeFailure(
+                        api, executable, buffers.size(), allValues, 1, target);
+                assertFilled(downloadBytes(api, buffers.get(3), 6 * Integer.BYTES), SENTINEL);
+                assertArrayEquals(dataBits, downloadInts(api, buffers.get(0), 6));
+                assertArrayEquals(updateBits, downloadInts(api, buffers.get(2), 4));
+            }
+        } finally {
+            for (int index = buffers.size(); index-- > 0;) {
+                api.releaseBuffer(buffers.get(index));
+            }
+            if (executable != null) api.releaseExecutable(executable);
+            if (context != null) api.releaseContext(context);
+            api.close();
+        }
+    }
+
+    @Test
     void realUnfoldAxisMapsOverlapAndTailWithExactFloat32BitsWithoutMutatingInput() {
         Path library = configuredLibrary();
         MetalNativeApi api = MetalNativeApi.open(library);

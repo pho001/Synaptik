@@ -111,6 +111,69 @@ class MetalBoolNativeTest {
     }
 
     @Test
+    void task0060LogicalReductionsValidateBoolIngressBeforeEitherDispatch() {
+        Path library = configuredLibrary();
+        MetalNativeApi api = MetalNativeApi.open(library);
+        MetalNativeApi.Handle context = null;
+        MetalNativeApi.Handle executable = null;
+        var buffers = new ArrayList<MetalNativeApi.Handle>();
+        int[] targets = {1, 2};
+        try {
+            context = api.createContext();
+            var program = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.reduction(
+                            MetalMpsGraphProgram.NodeKind.ALL,
+                            0,
+                            1,
+                            MetalMpsGraphProgram.ReductionForm.SINGLE_AXIS,
+                            List.of(1),
+                            false),
+                    MetalMpsGraphProgram.Node.reduction(
+                            MetalMpsGraphProgram.NodeKind.ANY,
+                            0,
+                            2,
+                            MetalMpsGraphProgram.ReductionForm.SINGLE_AXIS,
+                            List.of(0),
+                            false)));
+            List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
+                    value(DataType.BOOL, 2, 3),
+                    value(DataType.BOOL, 2),
+                    value(DataType.BOOL, 3));
+            executable = api.createMpsGraphExecutable(
+                    context,
+                    NumericalProfile.STRICT_IEEE,
+                    values,
+                    program,
+                    new int[] {0},
+                    targets,
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            for (var descriptor : values) {
+                buffers.add(api.createBuffer(context, descriptor.byteCount()));
+            }
+            upload(api, buffers.get(0), new byte[] {1, 1, 0, 0, 0, 1});
+            runCustom(api, executable, buffers, targets);
+            assertArrayEquals(new byte[] {0, 0}, download(api, buffers.get(1), 2));
+            assertArrayEquals(new byte[] {1, 1, 1}, download(api, buffers.get(2), 3));
+
+            upload(api, buffers.get(0), new byte[] {1, 1, 0, 0, 2, 1});
+            fill(api, buffers.get(1), 2L, (byte) 0x5a);
+            fill(api, buffers.get(2), 3L, (byte) 0x5a);
+            MetalNativeApi.Handle retained = executable;
+            assertThrows(
+                    MetalNativeApi.NativeFailure.class,
+                    () -> runCustom(api, retained, buffers, targets));
+            assertArrayEquals(new byte[] {0x5a, 0x5a}, download(api, buffers.get(1), 2));
+            assertArrayEquals(
+                    new byte[] {0x5a, 0x5a, 0x5a}, download(api, buffers.get(2), 3));
+        } finally {
+            for (int index = buffers.size(); index-- > 0;) api.releaseBuffer(buffers.get(index));
+            if (executable != null) api.releaseExecutable(executable);
+            if (context != null) api.releaseContext(context);
+            api.close();
+        }
+    }
+
+    @Test
     void directMpsGraphCandidateExecutesEveryAuditedBoolSelector() {
         Path library = configuredLibrary();
         for (NumericalProfile profile : NumericalProfile.values()) {

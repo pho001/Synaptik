@@ -54,11 +54,11 @@ class MetalOperationRouteCatalogTest {
         assertEquals(75, direct);
         assertEquals(35, composed);
         assertEquals(5, unavailable);
-        assertEquals(38, customAvailable);
-        assertEquals(77, customPending);
+        assertEquals(46, customAvailable);
+        assertEquals(69, customPending);
         assertEquals(0, customUnavailableWithProof);
-        assertEquals(79, executable);
-        assertEquals(36, kinds.length - executable);
+        assertEquals(87, executable);
+        assertEquals(28, kinds.length - executable);
         assertThrows(NullPointerException.class, () -> MetalOperationRouteCatalog.entry(null));
     }
 
@@ -176,7 +176,11 @@ class MetalOperationRouteCatalogTest {
         }
 
         assertTrue(MetalMpsGraphProgram.NodeKind.CAST.executable());
-        assertFalse(MetalMpsGraphProgram.NodeKind.LOG_SUM_EXP.executable());
+        assertTrue(MetalMpsGraphProgram.NodeKind.LOG_SUM_EXP.executable());
+        assertTrue(MetalMpsGraphProgram.NodeKind.VARIANCE.executable());
+        assertTrue(MetalMpsGraphProgram.NodeKind.STANDARD_DEVIATION.executable());
+        assertTrue(MetalMpsGraphProgram.NodeKind.L1_NORM.executable());
+        assertTrue(MetalMpsGraphProgram.NodeKind.L2_NORM.executable());
         assertFalse(MetalMpsGraphProgram.NodeKind.DROPOUT.executable());
         assertTrue(MetalMpsGraphProgram.NodeKind.NEG.executable());
         assertTrue(MetalMpsGraphProgram.NodeKind.GT.executable());

@@ -843,6 +843,177 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
+    void task0060PublicEngineRunsExactReplacementFoldsAndAggregateReductions()
+            throws Exception {
+        Path library = configuredMetalLibrary();
+        int[] dataBits = {0x80000000, 0x7fc12345, 0x7f800000, 0x80000001};
+        int[] updateBits = {0x00000000, 0xffc54321};
+        int[] foldAxisBits = {0x00000001, 0x80000001, 0x7f812345, 0xff854321};
+        int[] fold2dBits = {0x80000000, 0x00000000, 0x7fc00041, 0xff800000};
+        int[] fold3dBits = {
+            0x00000001, 0x80000001, 0x7f800000, 0xff800000,
+            0x7fc00042, 0xffc00043, 0x3f800000, 0xbf800000
+        };
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            try (Arena arena = Arena.ofShared();
+                    Engine.Builder builder = Engine.builder()) {
+                builder.numericalProfile(profile);
+                builder.takeOwnership(MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library)));
+                try (Engine engine = builder.build()) {
+                    Tensor data = nativeTensorBits(
+                            descriptor(Shape.of(4)), arena, dataBits);
+                    Tensor indices = nativeLongTensor(Shape.of(2, 1), arena, 3, 1);
+                    Tensor updates = nativeTensorBits(
+                            descriptor(Shape.of(2)), arena, updateBits);
+                    Tensor foldAxis = nativeTensorBits(
+                            descriptor(Shape.of(2, 2)), arena, foldAxisBits);
+                    Tensor fold2d = nativeTensorBits(
+                            descriptor(Shape.of(1, 4, 1)), arena, fold2dBits);
+                    Tensor fold3d = nativeTensorBits(
+                            descriptor(Shape.of(1, 8, 1)), arena, fold3dBits);
+                    Tensor products = nativeIntTensor(
+                            Shape.of(2, 2), arena, Integer.MAX_VALUE, 2, -3, 4);
+                    Tensor booleans = nativeBoolTensor(
+                            Shape.of(2, 2), arena, 1, 1, 0, 1);
+                    Window2dAttrs window2d =
+                            new Window2dAttrs(2, 2, 2, 2, 0, 0, 1, 1, false);
+                    Window3dAttrs window3d =
+                            new Window3dAttrs(
+                                    2, 2, 2, 2, 2, 2, 0, 0, 0, 1, 1, 1, false);
+                    List<Tensor> publications = List.of(
+                            data.scatterNd(indices, updates),
+                            data.sliceUpdate(
+                                    updates,
+                                    new long[] {3},
+                                    new int[] {0},
+                                    new long[] {-2}),
+                            data.sliceUpdate(updates, Shape.of(1)),
+                            foldAxis.foldAxis(0, 4, 2),
+                            fold2d.fold2d(Shape.of(1, 1, 2, 2), window2d),
+                            fold3d.fold3d(Shape.of(1, 1, 2, 2, 2), window3d),
+                            products.prod(1),
+                            products.prod(new int[0]),
+                            booleans.all(1),
+                            booleans.any(0),
+                            booleans.all(new int[0]));
+                    var compiled = engine.compile(publications);
+                    assertEquals(
+                            List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(compiled));
+                    List<Tensor> inputs = List.of(
+                            data, indices, updates, foldAxis, fold2d, fold3d, products, booleans);
+                    try (InferenceSession session = engine.session(compiled);
+                            InferenceSession independent = engine.session(compiled)) {
+                        try (var first = session.run(inputs)) {
+                            assertTask0060PublicResults(
+                                    first,
+                                    dataBits,
+                                    updateBits,
+                                    foldAxisBits,
+                                    fold2dBits,
+                                    fold3dBits);
+                        }
+                        try (var repeated = session.run(inputs)) {
+                            assertTask0060PublicResults(
+                                    repeated,
+                                    dataBits,
+                                    updateBits,
+                                    foldAxisBits,
+                                    fold2dBits,
+                                    fold3dBits);
+                        }
+                        try (var separate = independent.run(inputs)) {
+                            assertTask0060PublicResults(
+                                    separate,
+                                    dataBits,
+                                    updateBits,
+                                    foldAxisBits,
+                                    fold2dBits,
+                                    fold3dBits);
+                        }
+                        MemorySegment indexBytes = ((MemorySegmentStorage)
+                                indices.hostStorage().orElseThrow()).segment();
+                        indexBytes.setAtIndex(ValueLayout.JAVA_LONG, 1, 3L);
+                        assertThrows(RuntimeException.class, () -> session.run(inputs));
+                        indexBytes.setAtIndex(ValueLayout.JAVA_LONG, 1, 1L);
+                        indexBytes.setAtIndex(ValueLayout.JAVA_LONG, 0, 4L);
+                        assertThrows(RuntimeException.class, () -> session.run(inputs));
+                        indexBytes.setAtIndex(ValueLayout.JAVA_LONG, 0, 3L);
+                        try (var recovered = session.run(inputs)) {
+                            assertTask0060PublicResults(
+                                    recovered,
+                                    dataBits,
+                                    updateBits,
+                                    foldAxisBits,
+                                    fold2dBits,
+                                    fold3dBits);
+                        }
+
+
+                        CountDownLatch ready = new CountDownLatch(2);
+                        CountDownLatch start = new CountDownLatch(1);
+                        try (var executor = Executors.newFixedThreadPool(2)) {
+                            var left = executor.submit(() -> {
+                                ready.countDown();
+                                start.await();
+                                try (var result = session.run(inputs)) {
+                                    assertTask0060PublicResults(
+                                            result,
+                                            dataBits,
+                                            updateBits,
+                                            foldAxisBits,
+                                            fold2dBits,
+                                            fold3dBits);
+                                }
+                                return null;
+                            });
+                            var right = executor.submit(() -> {
+                                ready.countDown();
+                                start.await();
+                                try (var result = session.run(inputs)) {
+                                    assertTask0060PublicResults(
+                                            result,
+                                            dataBits,
+                                            updateBits,
+                                            foldAxisBits,
+                                            fold2dBits,
+                                            fold3dBits);
+                                }
+                                return null;
+                            });
+                            assertTrue(ready.await(10, TimeUnit.SECONDS));
+                            start.countDown();
+                            left.get(30, TimeUnit.SECONDS);
+                            right.get(30, TimeUnit.SECONDS);
+                        }
+                    }
+                    assertArrayEquals(
+                            dataBits,
+                            ((MemorySegmentStorage) data.hostStorage().orElseThrow())
+                                    .segment().toArray(ValueLayout.JAVA_INT));
+                    assertArrayEquals(
+                            updateBits,
+                            ((MemorySegmentStorage) updates.hostStorage().orElseThrow())
+                                    .segment().toArray(ValueLayout.JAVA_INT));
+                    assertArrayEquals(
+                            new long[] {3, 1},
+                            ((MemorySegmentStorage) indices.hostStorage().orElseThrow())
+                                    .segment().toArray(ValueLayout.JAVA_LONG));
+                    assertArrayEquals(
+                            new int[] {Integer.MAX_VALUE, 2, -3, 4},
+                            ((MemorySegmentStorage) products.hostStorage().orElseThrow())
+                                    .segment().toArray(ValueLayout.JAVA_INT));
+                    assertArrayEquals(
+                            new byte[] {1, 1, 0, 1},
+                            ((MemorySegmentStorage) booleans.hostStorage().orElseThrow())
+                                    .segment().toArray(ValueLayout.JAVA_BYTE));
+                }
+            }
+        }
+    }
+
+    @Test
     void task0059PublicEngineRunsEveryAdmittedCastIndexAndLayoutOperation()
             throws Exception {
         Path library = configuredMetalLibrary();
@@ -2231,6 +2402,44 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         }
     }
 
+
+    private static void assertTask0060PublicResults(
+            io.github.pho001.synaptik.engine.RunResult result,
+            int[] data,
+            int[] updates,
+            int[] foldAxis,
+            int[] fold2d,
+            int[] fold3d) {
+        assertEquals(11, result.resultCount());
+        int[] replacement = {data[0], updates[1], data[2], updates[0]};
+        assertRawBits(result.materialize(
+                result.publications().get(0), 4L * Integer.BYTES).bytes(), replacement);
+        assertRawBits(result.materialize(
+                result.publications().get(1), 4L * Integer.BYTES).bytes(), replacement);
+        assertRawBits(
+                result.materialize(
+                        result.publications().get(2), 4L * Integer.BYTES).bytes(),
+                new int[] {data[0], updates[0], updates[1], data[3]});
+        assertRawBits(result.materialize(
+                result.publications().get(3), 4L * Integer.BYTES).bytes(), foldAxis);
+        assertRawBits(result.materialize(
+                result.publications().get(4), 4L * Integer.BYTES).bytes(), fold2d);
+        assertRawBits(result.materialize(
+                result.publications().get(5), 8L * Integer.BYTES).bytes(), fold3d);
+
+        ByteBuffer product = result.materialize(
+                result.publications().get(6), 2L * Integer.BYTES).bytes();
+        assertEquals(-2, product.getInt());
+        assertEquals(-12, product.getInt());
+        ByteBuffer productIdentity = result.materialize(
+                result.publications().get(7), 4L * Integer.BYTES).bytes();
+        for (int expected : new int[] {Integer.MAX_VALUE, 2, -3, 4}) {
+            assertEquals(expected, productIdentity.getInt());
+        }
+        assertBoolPublication(result, 8, 1, 0);
+        assertBoolPublication(result, 9, 1, 1);
+        assertBoolPublication(result, 10, 1, 1, 0, 1);
+    }
 
     private static void assertTask0059PublicResults(
             io.github.pho001.synaptik.engine.RunResult result) {
