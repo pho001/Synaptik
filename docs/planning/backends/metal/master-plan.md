@@ -140,9 +140,9 @@ Training-to-Metal optimizer bridge.
   exhaustive dual-route catalog and immutable prepared-route identity landed with zero capability,
   device, oracle, timing, benchmark, public-API, or autotuning change. Task 0057 is Complete at
   implementation `e5d9d5c7` plus approved validation remediation `7a3bb072`.
-  Task 0058 is Active from clean base `118aedca` for the remaining elementwise arithmetic
-  structural recipes and exact raw `FLOOR`/`CEIL`/`SIGN`/`RELU`; reviewed scalar/reciprocal
-  compositions remain fail-closed.
+  Task 0058 is Complete at implementation `13a2e540` plus evidence/contracts `ac261e88`.
+  It adds the remaining elementwise structural recipes and exact raw
+  `FLOOR`/`CEIL`/`SIGN`/`RELU`; reviewed scalar/reciprocal compositions remain fail-closed.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
   requirements. Metal 0017 remains Blocked under its old accelerator-reduction contract.
@@ -335,7 +335,7 @@ before extracting a package or widening another type.
 | 0055 | [Private Metal schema, type, and cardinality foundation](tasks/0055-private-schema-type-cardinality-foundation.md) | Complete | 0052 Complete; 0054 historical audit; current 115-kind Model signatures and approved planning base `b7b9bab8d099539977c7fefc4c69b9f53db7592b` | Every concurrent Metal capability/schema/native ABI/type/transfer/identity/package scope during implementation | None | Implemented atomically at `ddeff1b2` with no dual decoder and zero new capability kinds | Focused Java/CPU/Metal/native/package/typed-transfer/public Engine checks; no timing and no second full repository build | Replaced the 160-byte record with one bounded schema-13 image; landed ABI 5, type wires `1..6`, operation wires `1..115`, attributes `0..41`, cardinality, BOOL/INT/rank-zero structure, all-six transfer, identity 14, and exact thirteen exports. |
 | 0056 | [Deterministic dual-route catalog and fixed route identity](tasks/0056-deterministic-dual-route-catalog-and-fixed-route-identity.md) | Complete | 0055 Complete at `ddeff1b2`; signed-32 image remediation `ce569b65`; ABI/schema documentation remediations `486ff493` and `5b80d37c`; current 115-kind Model and installed MPSGraph SDK headers | Every concurrent Metal capability/schema/native/candidate/codec/preparation/finalization/execution/test/documentation scope; 0053 proof/oracle work | None | Implemented at `4f35576c`; conformance correction `4a5cbdef`; P2 empty-handoff remediation `1718b28a`; final independent Class C `APPROVE` with zero remaining findings | Exhaustive 115-kind/count, fixed identity/wire/codec, forcing/result-set/no-fallback, `34/81` capability, native export/schema, public Engine, Javadoc, architecture, and documentation checks passed; explicit direction required no final full build | Landed deterministic internal dual-route metadata and fixed plan identity while preserving every current production route and only the existing future controlled-autotune seam. |
 | 0057 | [Exact BOOL classification, logic, and WHERE](tasks/0057-exact-bool-classification-logic-where.md) | Complete | 0052, 0055, and 0056 Complete; exact Model classification/logical/WHERE semantics; Compiler/Prepare/Runtime/Engine contracts; ADR 0022 | Every concurrent Metal capability/schema/native/generated-kernel/candidate/codec/route/preparation/finalization/buffer/publication/trace/test/package/documentation scope; any resumed 0053 work | None | Planning `8927a0f2` → implementation `e5d9d5c7` → approved validation remediation `7a3bb072` | Native/export/package; focused Metal/schema/malformed controls; `41/74` capability; exact raw-bit/truth-table/broadcast/WHERE; public no-skip Engine route/liveness proof; final Class C approval; docs/diff; no timing or full build | Adds wires `40..45` and `51` under both profiles through fixed `CUSTOM_PROGRAM`, retains forceable singleton MPSGraph structure, excludes wire `73`, advances schema/identities to 14/15, and preserves ABI 5 with thirteen exports. |
-| 0058 | [Remaining elementwise arithmetic](tasks/0058-remaining-elementwise-arithmetic.md) | Active | 0015, 0052, 0055, 0056, and 0057 Complete; Task-0011 blocker evidence; current Model recursive result-set contracts; Compiler/Prepare/Runtime/Engine contracts | Every concurrent Metal capability/schema/native/custom-source/catalog/candidate/route/preparation/resource/publication/test/package/documentation scope; any resumed 0053 work | None | Plan `6181299a` from clean `118aedca` → plan-review remediation → exact all-word raw proof → Gate-A implementation → all structural recipes → public proof/review/docs | All-`2^32` proof/checker; native/package/export; exact `45/70` capability; forced structural/fail-closed; mixed custom/MPSGraph liveness; public no-skip Engine; final Class C approval; no timing or full build | Adds exact raw `FLOOR`/`CEIL`/`SIGN`/`RELU`; records scalar `ADD/SUB/MUL/DIV` and `RECIPROCAL` blocked by gradient/public-primitive obligations; implements every scoped MPSGraph recipe while keeping unproved power/elementary/recursive rows false and Task-0053 `EXP`/`SIGMOID` untouched. |
+| 0058 | [Remaining elementwise arithmetic](tasks/0058-remaining-elementwise-arithmetic.md) | Complete | 0015, 0052, 0055, 0056, and 0057 Complete; Task-0011 blocker evidence; current Model recursive result-set contracts; Compiler/Prepare/Runtime/Engine contracts | Every concurrent Metal capability/schema/native/custom-source/catalog/candidate/route/preparation/resource/publication/test/package/documentation scope; any resumed 0053 work | None | Plan `6181299a` from clean `118aedca` → plan review `c6145b09` → implementation `13a2e540` → evidence/contracts `ac261e88` → cumulative Class C approval with zero P0/P1/P2 | All-`2^32` proof/checker; native/package/export; exact `45/70` capability; forced structural/fail-closed; mixed custom/MPSGraph liveness; public no-skip Engine; final Class C approval; no timing or full build | Adds exact raw `FLOOR`/`CEIL`/`SIGN`/`RELU`; records scalar `ADD/SUB/MUL/DIV` and `RECIPROCAL` blocked by gradient/public-primitive obligations; implements every scoped MPSGraph recipe while keeping unproved power/elementary/recursive rows false and Task-0053 `EXP`/`SIGMOID` untouched. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -377,7 +377,7 @@ Completed profile spine and serial successors:
 
 `0052 (Complete) + 0054 (historical inventory) + current source -> 0055 (Complete foundation) -> 0056 (Complete deterministic dual-route catalog) -> {0053 (Blocked), 0057 (Complete)}`
 
-`0057 (Complete) + approved tensor arithmetic/result-set contracts -> 0058 (Active remaining elementwise arithmetic)`
+`0057 (Complete) + approved tensor arithmetic/result-set contracts -> 0058 (Complete remaining elementwise arithmetic)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -481,11 +481,11 @@ another.
   until its external GPU-hosted-runner gate is resolved. Blocked Task 0051 is historical and owns no
   future source, oracle, or production work. Task 0053 is Blocked on the unavailable constructive-
   real proof bridge; its retained candidate and evidence remain fail-closed. Complete Task 0057
-  owns the exact BOOL classification/logic/WHERE production cutover. Active Task 0058 serially owns
-  the remaining elementwise-arithmetic catalog and exact raw `FLOOR`/`CEIL`/`SIGN`/`RELU`;
-  reviewed scalar/reciprocal compositions remain fail-closed. It must not change Task-0053
-  `EXP`/`SIGMOID`. Local timing remains
-  unauthorized. Complete Task 0052 owns its landed accelerator-only capability/preparation/
+  owns the exact BOOL classification/logic/WHERE production cutover. Complete Task 0058 owns the
+  remaining elementwise-arithmetic catalog and exact raw `FLOOR`/`CEIL`/`SIGN`/`RELU`; reviewed
+  scalar/reciprocal compositions remain fail-closed, and Task-0053 `EXP`/`SIGMOID` is unchanged.
+  Local timing remains unauthorized. Complete Task 0052 owns its landed accelerator-only
+  capability/preparation/
   execution/test/documentation cutover and immutable evidence. Task 0057 generalizes its native
   whole-program route to the shared exact custom-program identity without changing Task-0052
   semantics. Task-0052 opaque candidates remain domain-blocked.
@@ -507,7 +507,7 @@ another.
   0042 retains its reviewed tuning collaborations and Engine integration. Task 0044 changed neither
   production surface.
 - Blocked Metal 0016–0018, 0026–0027, 0030–0037, 0039–0040, 0051, and 0053 have no active
-  production write scope. Task 0058 is the sole active Metal production frontier after Task 0057.
+  production write scope. No Metal production task is Ready after Complete Task 0058.
   Model 0028 owns the reduction semantic contract, Complete Model 0029 owns the MATMUL
   final-publication semantic contract, and Complete Metal 0021–0025 retain their reviewed
   implementations.

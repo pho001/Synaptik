@@ -2,9 +2,10 @@
 
 ## Status
 
-Active
+Complete
 
-Planned from clean base `118aedca`. The planning revision is recorded before any production edit.
+Planned from clean base `118aedca` at `6181299a`, reviewed at `c6145b09`, implemented at
+`13a2e540`, and documented at `ac261e88`.
 
 ## Change class
 
@@ -248,3 +249,8 @@ The focused Metal Javadoc generation, final native build, fixed ad-hoc signature
 native verifier, and Gradle package verifier passed. The packaged Mach-O retains ABI 5, schema 14
 manifest metadata, the fixed identifier, and exactly thirteen audited exports. No timing,
 benchmark, autotuning, fallback, retry, or final full repository build was run.
+
+The independent cumulative Class C rereview approved the clean checkpoint with zero P0/P1/P2
+findings. It verified the exhaustive Gate-A proof, public/lifecycle/custom route, fail-closed
+Gates B/C/D and Task-0053 isolation, `45/70` capability, `62/53` structural registry,
+schema 14, identity 15, ABI 5, route wire 3, and thirteen exports.
