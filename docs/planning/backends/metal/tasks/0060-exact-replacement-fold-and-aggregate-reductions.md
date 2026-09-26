@@ -3,8 +3,9 @@
 ## Status
 
 Complete. Planning landed at `dd94e492`, implementation at `d06db07e`, focused native/public
-Engine proof at `eda09533`, and backend/native documentation at `62f18cd8`. The final independent
-cumulative Class C review of `dd94e492..62f18cd8` returned `APPROVE` with zero P0/P1/P2.
+Engine proof at `eda09533`, backend/native documentation at `62f18cd8`, and final fold-domain/count
+remediation at `a4fe4754`. Independent cumulative re-review of `55cdebc3..a4fe4754` returned
+`APPROVE` with zero P0/P1/P2.
 
 ## Change class
 
@@ -147,5 +148,5 @@ blockers, never hidden behind MPSGraph availability or a narrowed test.
   publications for every newly admitted operation kind.
 - The dylib was rebuilt, ad-hoc signed with the fixed identifier, packaged, independently verified,
   and consumed by the public Engine proof from the verified package path. Metal Javadocs passed.
-- Per request, no final full repository build was run. Independent cumulative Class C review
-  returned `APPROVE` with zero P0/P1/P2.
+- Per request, no final full repository build was run. Independent cumulative re-review of
+  `55cdebc3..a4fe4754` returned `APPROVE` with zero P0/P1/P2.

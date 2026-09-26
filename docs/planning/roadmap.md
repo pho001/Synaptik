@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0060; 0053 Blocked | [Metal 0060](backends/metal/tasks/0060-exact-replacement-fold-and-aggregate-reductions.md) completed at plan `dd94e492`, implementation `d06db07e`, proof `eda09533`, and docs `62f18cd8`; independent cumulative Class C review returned `APPROVE` with zero P0/P1/P2. Current capability is `69/46`, structural execution `87/28`, schema 15, identity 16, ABI 5, and thirteen exports. No Metal production task is Ready. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0060; 0053 Blocked | [Metal 0060](backends/metal/tasks/0060-exact-replacement-fold-and-aggregate-reductions.md) completed at plan `dd94e492`, implementation `d06db07e`, proof `eda09533`, docs `62f18cd8`, and fold-domain/count remediation `a4fe4754`; independent cumulative re-review returned `APPROVE` with zero P0/P1/P2. Current capability is `69/46`, structural execution `87/28`, schema 15, identity 16, ABI 5, and thirteen exports. No Metal production task is Ready. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -659,13 +659,13 @@ matrix with narrowing, or infer capability from registered schema.
 ## Nearest next step
 
 Metal Task 0060 is Complete from clean `f3ad5e12`: plan `dd94e492`, implementation `d06db07e`,
-native/public Engine proof `eda09533`, and documentation `62f18cd8`. Independent cumulative Class C
-review of `dd94e492..62f18cd8` returned `APPROVE` with zero P0/P1/P2. Production admits only
-`SCATTER_ND/NONE` with complete pre-write bounds and global uniqueness, exact signed/crop
-`SLICE_UPDATE`, structurally non-overlapping FLOAT64/FLOAT32/BFLOAT16 copy/zero-fill folds, modular
-integer PROD, and exact BOOL ALL/ANY. Capability is `69 true / 46 false`; eight aggregate MPSGraph
-recipes make
-structural execution `87 / 28` without widening production. Additive SCATTER_ADD, all scatter
+native/public Engine proof `eda09533`, documentation `62f18cd8`, and fold-domain/count remediation
+`a4fe4754`. Independent cumulative re-review of `55cdebc3..a4fe4754` returned `APPROVE` with zero
+P0/P1/P2. Production admits only `SCATTER_ND/NONE` with complete pre-write bounds and global
+uniqueness, exact signed/crop `SLICE_UPDATE`, structurally non-overlapping FLOAT64/FLOAT32/BFLOAT16
+copy/zero-fill folds, modular integer PROD, and exact BOOL ALL/ANY. Capability is
+`69 true / 46 false`; eight aggregate MPSGraph recipes make structural execution `87 / 28` without
+widening production. Additive SCATTER_ADD, all scatter
 reduction variants, overlapping folds, ARG extrema, and floating PROD/log-sum-exp/variance/
 standard-deviation/norm production remain false with explicit blockers; pool wires `97..100`
 remain deferred. Schema 15, identity 16, ABI 5, and thirteen exports remain fixed. No Metal
