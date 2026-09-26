@@ -148,6 +148,93 @@ class MetalMpsGraphRawAbiNativeTest {
         }
     }
     @Test
+    void task0059JavaAndNativeRejectMalformedCastTypeAndAttributeImages() throws Throwable {
+        Path library = configuredLibrary();
+        var node = MetalMpsGraphProgram.Node.generic(
+                MetalMpsGraphProgram.NodeKind.CAST,
+                new int[] {0},
+                new int[] {1},
+                MetalMpsGraphProgram.AttributeKind.CAST_TARGET,
+                new long[] {6});
+        var program = new MetalMpsGraphProgram(List.of(node));
+        List<MetalMpsGraphProgram.ValueDescriptor> valid = List.of(
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.INT32, new long[] {4}, false),
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.INT64, new long[] {4}, false));
+        List<MetalMpsGraphProgram.ValueDescriptor> wrongOutput = List.of(
+                valid.getFirst(),
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.FLOAT32, new long[] {4}, false));
+        try (RawAbi abi = new RawAbi(library)) {
+            for (MetalPreparedRoute route :
+                    List.of(MetalPreparedRoute.CUSTOM_PROGRAM, MetalPreparedRoute.MPSGRAPH)) {
+                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                        NumericalProfile.STRICT_IEEE,
+                        valid,
+                        program,
+                        new int[] {0},
+                        new int[] {1},
+                        route);
+                byte[] validImage = program.encodedProgramImage(
+                        valid, new int[] {0}, new int[] {1}, route);
+                assertEquals(0, abi.create(validImage, validImage.length));
+
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                                NumericalProfile.STRICT_IEEE,
+                                wrongOutput,
+                                program,
+                                new int[] {0},
+                                new int[] {1},
+                                route));
+                byte[] wrongTypeImage = program.encodedProgramImage(
+                        wrongOutput, new int[] {0}, new int[] {1}, route);
+                assertEquals(1, abi.create(wrongTypeImage, wrongTypeImage.length));
+
+                byte[] wrongAttribute = rewriteInt(
+                        validImage, nodeOffset(2) + Integer.BYTES, 0);
+                assertEquals(1, abi.create(wrongAttribute, wrongAttribute.length));
+            }
+        }
+    }
+
+    @Test
+    void task0059JavaAndNativeRejectIntegerImageUnfoldCarriers() throws Throwable {
+        Path library = configuredLibrary();
+        var node = MetalMpsGraphProgram.Node.generic(
+                MetalMpsGraphProgram.NodeKind.UNFOLD2D,
+                new int[] {0},
+                new int[] {1},
+                MetalMpsGraphProgram.AttributeKind.WINDOW_2D,
+                new long[] {2, 2, 1, 1, 0, 0, 1, 1, 0});
+        var program = new MetalMpsGraphProgram(List.of(node));
+        List<MetalMpsGraphProgram.ValueDescriptor> integers = List.of(
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.INT32, new long[] {1, 1, 2, 2}, false),
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.INT32, new long[] {1, 4, 1}, false));
+        try (RawAbi abi = new RawAbi(library)) {
+            for (MetalPreparedRoute route :
+                    List.of(MetalPreparedRoute.CUSTOM_PROGRAM, MetalPreparedRoute.MPSGRAPH)) {
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                                NumericalProfile.STRICT_IEEE,
+                                integers,
+                                program,
+                                new int[] {0},
+                                new int[] {1},
+                                route));
+                byte[] image = program.encodedProgramImage(
+                        integers, new int[] {0}, new int[] {1}, route);
+                assertEquals(1, abi.create(image, image.length));
+            }
+        }
+    }
+
+    @Test
     void javaAndNativeRejectGradOrScalarShapeForAdmittedScalarRecipes() throws Throwable {
         Path library = configuredLibrary();
         try (RawAbi abi = new RawAbi(library)) {
@@ -203,29 +290,23 @@ class MetalMpsGraphRawAbiNativeTest {
                         MetalPreparedRoute.MPSGRAPH);
                 assertEquals(8, abi.create(scalarImage, scalarImage.length), kind + " rank zero");
                 if (kind != MetalMpsGraphProgram.NodeKind.RECIPROCAL) {
-                    var wrongScalarType = new MetalMpsGraphProgram(List.of(
-                            MetalMpsGraphProgram.Node.generic(
+                    assertThrows(
+                            IllegalArgumentException.class,
+                            () -> MetalMpsGraphProgram.Node.generic(
                                     kind,
                                     new int[] {0},
                                     new int[] {1},
                                     MetalMpsGraphProgram.AttributeKind.SCALAR_VALUE,
-                                    new long[] {2L, 0x8000_0001L})));
+                                    new long[] {2L, 0x8000_0001L}));
                     List<MetalMpsGraphProgram.ValueDescriptor> values =
                             List.of(descriptor(4), descriptor(4));
-                    assertThrows(
-                            IllegalArgumentException.class,
-                            () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
-                                    NumericalProfile.ACCELERATOR,
-                                    values,
-                                    wrongScalarType,
-                                    new int[] {0},
-                                    new int[] {1},
-                                    MetalPreparedRoute.MPSGRAPH));
-                    byte[] wrongTypeImage = wrongScalarType.encodedProgramImage(
+                    byte[] validImage = program.encodedProgramImage(
                             values,
                             new int[] {0},
                             new int[] {1},
                             MetalPreparedRoute.MPSGRAPH);
+                    byte[] wrongTypeImage = rewriteLong(
+                            validImage, validImage.length - 2 * Long.BYTES, 2L);
                     assertEquals(
                             1,
                             abi.create(wrongTypeImage, wrongTypeImage.length),

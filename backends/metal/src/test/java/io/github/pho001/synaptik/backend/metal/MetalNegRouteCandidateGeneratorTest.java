@@ -19,6 +19,8 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
 import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
@@ -195,6 +197,29 @@ class MetalNegRouteCandidateGeneratorTest {
                                     .plan()
                                     .route());
                 }
+            }
+            assertEquals(0, api.nativeAllocations.get());
+        }
+    }
+
+    @Test
+    void task0059CastKeepsOneFixedCustomProductionCandidate() {
+        TestNativeApi api = new TestNativeApi();
+        try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
+            long identity = 205_000L;
+            for (NumericalProfile profile : NumericalProfile.values()) {
+                Workload workload = operationWorkload(
+                        device,
+                        identity++,
+                        profile,
+                        new Operation(CastKind.CAST, new CastAttrs(DataType.INT64)),
+                        List.of(canonical(DataType.INT32, Shape.of(2, 3))),
+                        canonical(DataType.INT64, Shape.of(2, 3)));
+                Generated generated = generated(workload, 2);
+                assertSame(MetalPreparedRoute.CUSTOM_PROGRAM, generated.analysis().plan().route());
+                assertEquals(
+                        List.of(MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM),
+                        generated.batch().candidates());
             }
             assertEquals(0, api.nativeAllocations.get());
         }

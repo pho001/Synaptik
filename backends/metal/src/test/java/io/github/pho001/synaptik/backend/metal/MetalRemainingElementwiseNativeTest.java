@@ -108,6 +108,756 @@ class MetalRemainingElementwiseNativeTest {
     }
 
     @Test
+    void task0059CustomProgramExecutesEveryExactRawMovementRecipe() {
+        Path library = configuredLibrary();
+        int[] data = {
+            0x8000_0000, 0x7fc1_2345, 0x0000_0001,
+            0x3f80_0000, 0xffc5_4321, 0x8000_0001
+        };
+        int fill = 0x7fa2_2222;
+        var program = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.GATHER_ELEMENTS,
+                        new int[] {0, 1}, new int[] {2},
+                        MetalMpsGraphProgram.AttributeKind.AXIS, new long[] {1}),
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.GATHER_ND,
+                        new int[] {0, 3}, new int[] {4},
+                        MetalMpsGraphProgram.AttributeKind.GATHER_ND, new long[] {0}),
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.SELECT,
+                        new int[] {0}, new int[] {5},
+                        MetalMpsGraphProgram.AttributeKind.SELECT, new long[] {0, 1}),
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.PAD,
+                        new int[] {0}, new int[] {6},
+                        MetalMpsGraphProgram.AttributeKind.PAD,
+                        new long[] {2, 0, 1, 0, 1, 1, Integer.toUnsignedLong(fill)}),
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.SLICE,
+                        new int[] {0}, new int[] {7},
+                        MetalMpsGraphProgram.AttributeKind.SLICE,
+                        new long[] {1, 2, 2, 1, -1}),
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.CONCAT,
+                        new int[] {0, 0}, new int[] {8},
+                        MetalMpsGraphProgram.AttributeKind.AXIS, new long[] {0}),
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.STACK,
+                        new int[] {0, 0}, new int[] {9},
+                        MetalMpsGraphProgram.AttributeKind.AXIS, new long[] {0}),
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.TILE,
+                        new int[] {0}, new int[] {10},
+                        MetalMpsGraphProgram.AttributeKind.TILE, new long[] {2, 1, 2}),
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.UNFOLD2D,
+                        new int[] {11}, new int[] {12},
+                        MetalMpsGraphProgram.AttributeKind.WINDOW_2D,
+                        new long[] {2, 2, 1, 1, 0, 0, 1, 1, 0}),
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.UNFOLD3D,
+                        new int[] {13}, new int[] {14},
+                        MetalMpsGraphProgram.AttributeKind.WINDOW_3D,
+                        new long[] {2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0}),
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.CAST,
+                        new int[] {15}, new int[] {16},
+                        MetalMpsGraphProgram.AttributeKind.CAST_TARGET, new long[] {6})));
+        List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
+                typed(DataType.FLOAT32, 2, 3),
+                typed(DataType.INT32, 2, 2),
+                typed(DataType.FLOAT32, 2, 2),
+                typed(DataType.INT64, 2, 1),
+                typed(DataType.FLOAT32, 2, 3),
+                typed(DataType.FLOAT32, 3),
+                typed(DataType.FLOAT32, 2, 5),
+                typed(DataType.FLOAT32, 2, 2),
+                typed(DataType.FLOAT32, 4, 3),
+                typed(DataType.FLOAT32, 2, 2, 3),
+                typed(DataType.FLOAT32, 2, 6),
+                typed(DataType.FLOAT32, 1, 1, 2, 2),
+                typed(DataType.FLOAT32, 1, 4, 1),
+                typed(DataType.FLOAT32, 1, 1, 2, 2, 2),
+                typed(DataType.FLOAT32, 1, 8, 1),
+                typed(DataType.INT32, 3),
+                typed(DataType.INT64, 3));
+        int[] targets = {2, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16};
+        List<int[]> actual = executeCustom(
+                library,
+                NumericalProfile.STRICT_IEEE,
+                program,
+                values,
+                new int[] {0, 1, 3, 11, 13, 15},
+                targets,
+                List.of(
+                        data,
+                        new int[] {2, 0, 1, 1},
+                        new int[] {1, 0, 0, 0},
+                        new int[] {0x8000_0000, 0x7fc1_2345, 0x0000_0001, 0x3f80_0000},
+                        new int[] {
+                            0x8000_0000, 0x7fc1_2345, 0x0000_0001, 0x3f80_0000,
+                            0xffc5_4321, 0x8000_0001, 0x7f80_0000, 0xff80_0000
+                        },
+                        new int[] {-1, Integer.MIN_VALUE, 7}));
+        assertArrayEquals(new int[] {
+            data[2], data[0], data[4], data[4]
+        }, actual.get(0));
+        assertArrayEquals(new int[] {
+            data[3], data[4], data[5], data[0], data[1], data[2]
+        }, actual.get(1));
+        assertArrayEquals(new int[] {data[3], data[4], data[5]}, actual.get(2));
+        assertArrayEquals(new int[] {
+            fill, data[0], data[1], data[2], fill,
+            fill, data[3], data[4], data[5], fill
+        }, actual.get(3));
+        assertArrayEquals(new int[] {data[2], data[1], data[5], data[4]}, actual.get(4));
+        assertArrayEquals(concat(data, data), actual.get(5));
+        assertArrayEquals(concat(data, data), actual.get(6));
+        assertArrayEquals(new int[] {
+            data[0], data[1], data[2], data[0], data[1], data[2],
+            data[3], data[4], data[5], data[3], data[4], data[5]
+        }, actual.get(7));
+        assertArrayEquals(
+                new int[] {0x8000_0000, 0x7fc1_2345, 0x0000_0001, 0x3f80_0000},
+                actual.get(8));
+        assertArrayEquals(new int[] {
+            0x8000_0000, 0x7fc1_2345, 0x0000_0001, 0x3f80_0000,
+            0xffc5_4321, 0x8000_0001, 0x7f80_0000, 0xff80_0000
+        }, actual.get(9));
+        assertArrayEquals(new int[] {
+            -1, -1, Integer.MIN_VALUE, -1, 7, 0
+        }, actual.get(10));
+    }
+
+    @Test
+    void task0059CopyRecipesPreserveEveryCarrierWidthUnderBothProfiles() {
+        Path library = configuredLibrary();
+        for (DataType carrier : DataType.values()) {
+            byte[] source = task0059CarrierWords(carrier);
+            long fill = task0059FillWord(carrier);
+            int width = carrier.byteWidth();
+            var program = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.GATHER_ELEMENTS,
+                            new int[] {0, 1}, new int[] {2},
+                            MetalMpsGraphProgram.AttributeKind.AXIS, new long[] {1}),
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.GATHER_ND,
+                            new int[] {0, 3}, new int[] {4},
+                            MetalMpsGraphProgram.AttributeKind.GATHER_ND, new long[] {0}),
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.PAD,
+                            new int[] {0}, new int[] {5},
+                            MetalMpsGraphProgram.AttributeKind.PAD,
+                            new long[] {
+                                2, 0, 1, 0, 1,
+                                MetalMpsGraphProgram.dataTypeWire(carrier), fill
+                            }),
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.CONCAT,
+                            new int[] {0, 0}, new int[] {6},
+                            MetalMpsGraphProgram.AttributeKind.AXIS, new long[] {0}),
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.STACK,
+                            new int[] {0, 0}, new int[] {7},
+                            MetalMpsGraphProgram.AttributeKind.AXIS, new long[] {0}),
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.TILE,
+                            new int[] {0}, new int[] {8},
+                            MetalMpsGraphProgram.AttributeKind.TILE, new long[] {2, 1, 2})));
+            List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
+                    typed(carrier, 2, 3),
+                    typed(DataType.INT32, 2, 2),
+                    typed(carrier, 2, 2),
+                    typed(DataType.INT64, 2, 1),
+                    typed(carrier, 2, 3),
+                    typed(carrier, 2, 5),
+                    typed(carrier, 4, 3),
+                    typed(carrier, 2, 2, 3),
+                    typed(carrier, 2, 6));
+            byte[] sourceAndFill = concatBytes(
+                    source, task0059ScalarBytes(fill, width));
+            List<byte[]> expected = List.of(
+                    selectElements(source, width, 2, 0, 4, 4),
+                    selectElements(source, width, 3, 4, 5, 0, 1, 2),
+                    selectElements(sourceAndFill, width, 6, 0, 1, 2, 6, 6, 3, 4, 5, 6),
+                    concatBytes(source, source),
+                    concatBytes(source, source),
+                    selectElements(source, width, 0, 1, 2, 0, 1, 2, 3, 4, 5, 3, 4, 5));
+            for (NumericalProfile profile : NumericalProfile.values()) {
+                List<byte[]> actual = executeCustomBytes(
+                        library,
+                        profile,
+                        program,
+                        values,
+                        new int[] {0, 1, 3},
+                        new int[] {2, 4, 5, 6, 7, 8},
+                        List.of(
+                                source,
+                                bytes32(2, 0, 1, 1),
+                                bytes64(1, 0)));
+                assertEquals(expected.size(), actual.size());
+                for (int index = 0; index < expected.size(); index++) {
+                    assertArrayEquals(
+                            expected.get(index),
+                            actual.get(index),
+                            carrier + " " + profile + " target " + index);
+                }
+            }
+        }
+    }
+
+    @Test
+    void task0059CastWhitelistPreservesAllNineteenProvedCarrierPairs() {
+        Path library = configuredLibrary();
+        DataType[] carriers = {
+            DataType.FLOAT64,
+            DataType.FLOAT32,
+            DataType.BFLOAT16,
+            DataType.INT64,
+            DataType.INT32,
+            DataType.BOOL
+        };
+        List<byte[]> feeds = List.of(
+                bytes64(0L, Long.MIN_VALUE, 0x7ff8_0000_0000_0042L,
+                        Double.doubleToRawLongBits(1.5)),
+                bytes32(0, Integer.MIN_VALUE, 0x7fc1_2345,
+                        Float.floatToRawIntBits(-2.0f)),
+                bytes16(0, 0x8000, 0x7fc1, 0xbf80),
+                bytes64(0L, Long.MIN_VALUE, 7L, -1L),
+                bytes32(0, Integer.MIN_VALUE, 7, -1),
+                new byte[] {0, 1, 1, 0});
+        var nodes = new ArrayList<MetalMpsGraphProgram.Node>();
+        var values = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>();
+        for (DataType carrier : carriers) values.add(typed(carrier, 4));
+        var targets = new ArrayList<Integer>();
+        var expected = new ArrayList<byte[]>();
+
+        for (int source = 0; source < carriers.length; source++) {
+            targets.add(values.size());
+            values.add(typed(carriers[source], 4));
+            nodes.add(castNode(source, targets.getLast(), carriers[source]));
+            expected.add(feeds.get(source));
+        }
+        for (int target = 0; target < carriers.length - 1; target++) {
+            targets.add(values.size());
+            values.add(typed(carriers[target], 4));
+            nodes.add(castNode(5, targets.getLast(), carriers[target]));
+            expected.add(switch (carriers[target]) {
+                case FLOAT64 -> bytes64(0L,
+                        Double.doubleToRawLongBits(1.0),
+                        Double.doubleToRawLongBits(1.0), 0L);
+                case FLOAT32 -> bytes32(0,
+                        Float.floatToRawIntBits(1.0f),
+                        Float.floatToRawIntBits(1.0f), 0);
+                case BFLOAT16 -> bytes16(0, 0x3f80, 0x3f80, 0);
+                case INT64 -> bytes64(0L, 1L, 1L, 0L);
+                case INT32 -> bytes32(0, 1, 1, 0);
+                case BOOL -> throw new AssertionError();
+            });
+        }
+        for (int source = 0; source < carriers.length - 1; source++) {
+            targets.add(values.size());
+            values.add(typed(DataType.BOOL, 4));
+            nodes.add(castNode(source, targets.getLast(), DataType.BOOL));
+            expected.add(source < 3
+                    ? new byte[] {0, 0, 1, 1}
+                    : new byte[] {0, 1, 1, 1});
+        }
+        targets.add(values.size());
+        values.add(typed(DataType.INT64, 4));
+        nodes.add(castNode(4, targets.getLast(), DataType.INT64));
+        expected.add(bytes64(0L, Integer.MIN_VALUE, 7L, -1L));
+        targets.add(values.size());
+        values.add(typed(DataType.INT32, 4));
+        nodes.add(castNode(3, targets.getLast(), DataType.INT32));
+        expected.add(bytes32(0, 0, 7, -1));
+        targets.add(values.size());
+        values.add(typed(DataType.FLOAT32, 4));
+        nodes.add(castNode(2, targets.getLast(), DataType.FLOAT32));
+        expected.add(bytes32(0, Integer.MIN_VALUE, 0x7fc1_0000, 0xbf80_0000));
+
+        List<byte[]> actual = executeCustomBytes(
+                library,
+                NumericalProfile.STRICT_IEEE,
+                new MetalMpsGraphProgram(nodes),
+                values,
+                new int[] {0, 1, 2, 3, 4, 5},
+                targets.stream().mapToInt(Integer::intValue).toArray(),
+                feeds);
+        assertEquals(19, actual.size());
+        for (int index = 0; index < expected.size(); index++) {
+            assertArrayEquals(expected.get(index), actual.get(index), "cast pair " + index);
+        }
+    }
+
+    @Test
+    void task0059ExhaustsEveryBfloat16WordForWideningAndBooleanClassification() {
+        Path library = configuredLibrary();
+        int count = 1 << 16;
+        byte[] source = new byte[count * Short.BYTES];
+        byte[] widened = new byte[count * Integer.BYTES];
+        byte[] classified = new byte[count];
+        ByteBuffer sourceWords = ByteBuffer.wrap(source).order(ByteOrder.nativeOrder());
+        ByteBuffer widenedWords = ByteBuffer.wrap(widened).order(ByteOrder.nativeOrder());
+        for (int word = 0; word < count; word++) {
+            sourceWords.putShort((short) word);
+            widenedWords.putInt(word << 16);
+            classified[word] = (byte) ((word & 0x7fff) == 0 ? 0 : 1);
+        }
+        var program = new MetalMpsGraphProgram(List.of(
+                castNode(0, 1, DataType.FLOAT32),
+                castNode(0, 2, DataType.BOOL)));
+        List<byte[]> actual = executeCustomBytes(
+                library,
+                NumericalProfile.STRICT_IEEE,
+                program,
+                List.of(
+                        typed(DataType.BFLOAT16, count),
+                        typed(DataType.FLOAT32, count),
+                        typed(DataType.BOOL, count)),
+                new int[] {0},
+                new int[] {1, 2},
+                List.of(source));
+        assertArrayEquals(widened, actual.get(0));
+        assertArrayEquals(classified, actual.get(1));
+    }
+
+    @Test
+    void task0059ChecksIntegerCastBoundariesAndDeterministicFullWordCorpus() {
+        Path library = configuredLibrary();
+        int count = 4096;
+        byte[] ints = new byte[count * Integer.BYTES];
+        byte[] longs = new byte[count * Long.BYTES];
+        byte[] widened = new byte[count * Long.BYTES];
+        byte[] narrowed = new byte[count * Integer.BYTES];
+        byte[] intBool = new byte[count];
+        byte[] longBool = new byte[count];
+        ByteBuffer intInput = ByteBuffer.wrap(ints).order(ByteOrder.nativeOrder());
+        ByteBuffer longInput = ByteBuffer.wrap(longs).order(ByteOrder.nativeOrder());
+        ByteBuffer expectedWidened = ByteBuffer.wrap(widened).order(ByteOrder.nativeOrder());
+        ByteBuffer expectedNarrowed = ByteBuffer.wrap(narrowed).order(ByteOrder.nativeOrder());
+        int intWord = 0x3141_5926;
+        long longWord = 0x2718_2818_2845_9045L;
+        for (int index = 0; index < count; index++) {
+            intWord = intWord * 1_664_525 + 1_013_904_223;
+            longWord = longWord * 6_364_136_223_846_793_005L
+                    + 1_442_695_040_888_963_407L;
+            int currentInt = switch (index) {
+                case 0 -> 0;
+                case 1 -> Integer.MIN_VALUE;
+                case 2 -> Integer.MAX_VALUE;
+                case 3 -> -1;
+                default -> intWord;
+            };
+            long currentLong = switch (index) {
+                case 0 -> 0L;
+                case 1 -> Long.MIN_VALUE;
+                case 2 -> Long.MAX_VALUE;
+                case 3 -> -1L;
+                default -> longWord;
+            };
+            intInput.putInt(currentInt);
+            longInput.putLong(currentLong);
+            expectedWidened.putLong(currentInt);
+            expectedNarrowed.putInt((int) currentLong);
+            intBool[index] = (byte) (currentInt == 0 ? 0 : 1);
+            longBool[index] = (byte) (currentLong == 0L ? 0 : 1);
+        }
+        List<byte[]> actual = executeCustomBytes(
+                library,
+                NumericalProfile.STRICT_IEEE,
+                new MetalMpsGraphProgram(List.of(
+                        castNode(0, 2, DataType.INT64),
+                        castNode(1, 3, DataType.INT32),
+                        castNode(0, 4, DataType.BOOL),
+                        castNode(1, 5, DataType.BOOL))),
+                List.of(
+                        typed(DataType.INT32, count),
+                        typed(DataType.INT64, count),
+                        typed(DataType.INT64, count),
+                        typed(DataType.INT32, count),
+                        typed(DataType.BOOL, count),
+                        typed(DataType.BOOL, count)),
+                new int[] {0, 1},
+                new int[] {2, 3, 4, 5},
+                List.of(ints, longs));
+        assertArrayEquals(widened, actual.get(0));
+        assertArrayEquals(narrowed, actual.get(1));
+        assertArrayEquals(intBool, actual.get(2));
+        assertArrayEquals(longBool, actual.get(3));
+    }
+
+    @Test
+    void task0059EveryStructuralMpsGraphRecipeCreatesRunsAndClosesThroughRawFixture() {
+        Path library = configuredLibrary();
+        int[] data = bits(1, 2, 3, 4, 5, 6);
+        int[] image2d = bits(1, 2, 3, 4);
+        int[] image3d = bits(1, 2, 3, 4, 5, 6, 7, 8);
+
+        assertArrayEquals(
+                new int[] {-1, -1, 7, 0},
+                NonProductionStructuralFixture.executeDirect(
+                        library,
+                        NumericalProfile.STRICT_IEEE,
+                        MetalMpsGraphProgram.Node.generic(
+                                MetalMpsGraphProgram.NodeKind.CAST,
+                                new int[] {0}, new int[] {1},
+                                MetalMpsGraphProgram.AttributeKind.CAST_TARGET,
+                                new long[] {6}),
+                        List.of(typed(DataType.INT32, 2), typed(DataType.INT64, 2)),
+                        List.of(new int[] {-1, 7})));
+        assertEquals(4, NonProductionStructuralFixture.executeDirect(
+                library,
+                NumericalProfile.STRICT_IEEE,
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.GATHER_ELEMENTS,
+                        new int[] {0, 1}, new int[] {2},
+                        MetalMpsGraphProgram.AttributeKind.AXIS, new long[] {1}),
+                List.of(
+                        typed(DataType.FLOAT32, 2, 3),
+                        typed(DataType.INT32, 2, 2),
+                        typed(DataType.FLOAT32, 2, 2)),
+                List.of(data, new int[] {2, 0, 1, 1})).length);
+        assertEquals(6, NonProductionStructuralFixture.executeDirect(
+                library,
+                NumericalProfile.STRICT_IEEE,
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.SCATTER_ADD,
+                        new int[] {0, 1, 2}, new int[] {3},
+                        MetalMpsGraphProgram.AttributeKind.AXIS, new long[] {1}),
+                List.of(
+                        typed(DataType.FLOAT32, 2, 3),
+                        typed(DataType.INT32, 2, 2),
+                        typed(DataType.FLOAT32, 2, 2),
+                        typed(DataType.FLOAT32, 2, 3)),
+                List.of(data, new int[] {2, 0, 1, 1}, bits(10, 20, 30, 40))).length);
+        assertEquals(6, NonProductionStructuralFixture.executeDirect(
+                library,
+                NumericalProfile.STRICT_IEEE,
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.GATHER_ND,
+                        new int[] {0, 1}, new int[] {2},
+                        MetalMpsGraphProgram.AttributeKind.GATHER_ND, new long[] {0}),
+                List.of(
+                        typed(DataType.FLOAT32, 2, 3),
+                        typed(DataType.INT32, 2, 1),
+                        typed(DataType.FLOAT32, 2, 3)),
+                List.of(data, new int[] {1, 0})).length);
+        assertEquals(6, NonProductionStructuralFixture.executeDirect(
+                library,
+                NumericalProfile.STRICT_IEEE,
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.SCATTER_ND,
+                        new int[] {0, 1, 2}, new int[] {3},
+                        MetalMpsGraphProgram.AttributeKind.SCATTER_ND,
+                        new long[] {0, 2}),
+                List.of(
+                        typed(DataType.FLOAT32, 2, 3),
+                        typed(DataType.INT32, 2, 1),
+                        typed(DataType.FLOAT32, 2, 3),
+                        typed(DataType.FLOAT32, 2, 3)),
+                List.of(data, new int[] {1, 0}, bits(10, 20, 30, 40, 50, 60))).length);
+        assertEquals(3, NonProductionStructuralFixture.executeDirect(
+                library,
+                NumericalProfile.STRICT_IEEE,
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.SELECT,
+                        new int[] {0}, new int[] {1},
+                        MetalMpsGraphProgram.AttributeKind.SELECT, new long[] {0, 1}),
+                List.of(typed(DataType.FLOAT32, 2, 3), typed(DataType.FLOAT32, 3)),
+                List.of(data)).length);
+        assertEquals(10, NonProductionStructuralFixture.executeDirect(
+                library,
+                NumericalProfile.STRICT_IEEE,
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.PAD,
+                        new int[] {0}, new int[] {1},
+                        MetalMpsGraphProgram.AttributeKind.PAD,
+                        new long[] {2, 0, 1, 0, 1, 1, 0}),
+                List.of(typed(DataType.FLOAT32, 2, 3), typed(DataType.FLOAT32, 2, 5)),
+                List.of(data)).length);
+        assertEquals(4, NonProductionStructuralFixture.executeDirect(
+                library,
+                NumericalProfile.STRICT_IEEE,
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.SLICE,
+                        new int[] {0}, new int[] {1},
+                        MetalMpsGraphProgram.AttributeKind.SLICE,
+                        new long[] {1, 1, 2, 1, 1}),
+                List.of(typed(DataType.FLOAT32, 2, 3), typed(DataType.FLOAT32, 2, 2)),
+                List.of(data)).length);
+        assertEquals(6, NonProductionStructuralFixture.executeDirect(
+                library,
+                NumericalProfile.STRICT_IEEE,
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.SLICE_UPDATE,
+                        new int[] {0, 1}, new int[] {2},
+                        MetalMpsGraphProgram.AttributeKind.SLICE,
+                        new long[] {1, 1, 2, 1, 1}),
+                List.of(
+                        typed(DataType.FLOAT32, 2, 3),
+                        typed(DataType.FLOAT32, 2, 2),
+                        typed(DataType.FLOAT32, 2, 3)),
+                List.of(data, bits(10, 20, 30, 40))).length);
+        assertEquals(12, NonProductionStructuralFixture.executeDirect(
+                library,
+                NumericalProfile.STRICT_IEEE,
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.CONCAT,
+                        new int[] {0, 1}, new int[] {2},
+                        MetalMpsGraphProgram.AttributeKind.AXIS, new long[] {0}),
+                List.of(
+                        typed(DataType.FLOAT32, 2, 3),
+                        typed(DataType.FLOAT32, 2, 3),
+                        typed(DataType.FLOAT32, 4, 3)),
+                List.of(data, data)).length);
+        assertEquals(12, NonProductionStructuralFixture.executeDirect(
+                library,
+                NumericalProfile.STRICT_IEEE,
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.STACK,
+                        new int[] {0, 1}, new int[] {2},
+                        MetalMpsGraphProgram.AttributeKind.AXIS, new long[] {0}),
+                List.of(
+                        typed(DataType.FLOAT32, 2, 3),
+                        typed(DataType.FLOAT32, 2, 3),
+                        typed(DataType.FLOAT32, 2, 2, 3)),
+                List.of(data, data)).length);
+        assertEquals(12, NonProductionStructuralFixture.executeDirect(
+                library,
+                NumericalProfile.STRICT_IEEE,
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.TILE,
+                        new int[] {0}, new int[] {1},
+                        MetalMpsGraphProgram.AttributeKind.TILE, new long[] {2, 1, 2}),
+                List.of(typed(DataType.FLOAT32, 2, 3), typed(DataType.FLOAT32, 2, 6)),
+                List.of(data)).length);
+        assertEquals(3, NonProductionStructuralFixture.executeDirect(
+                library,
+                NumericalProfile.STRICT_IEEE,
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.FOLD_AXIS,
+                        new int[] {0}, new int[] {1},
+                        MetalMpsGraphProgram.AttributeKind.WINDOW_AXIS,
+                        new long[] {1, 2, 1}),
+                List.of(typed(DataType.FLOAT32, 1, 2, 2), typed(DataType.FLOAT32, 1, 3)),
+                List.of(bits(1, 2, 3, 4))).length);
+        long[] window2d = {2, 2, 1, 1, 0, 0, 1, 1, 0};
+        assertEquals(4, NonProductionStructuralFixture.executeDirect(
+                library,
+                NumericalProfile.STRICT_IEEE,
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.UNFOLD2D,
+                        new int[] {0}, new int[] {1},
+                        MetalMpsGraphProgram.AttributeKind.WINDOW_2D, window2d),
+                List.of(
+                        typed(DataType.FLOAT32, 1, 1, 2, 2),
+                        typed(DataType.FLOAT32, 1, 4, 1)),
+                List.of(image2d)).length);
+        assertEquals(4, NonProductionStructuralFixture.executeDirect(
+                library,
+                NumericalProfile.STRICT_IEEE,
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.FOLD2D,
+                        new int[] {0}, new int[] {1},
+                        MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_2D,
+                        new long[] {4, 1, 1, 2, 2, 2, 2, 1, 1, 0, 0, 1, 1, 0}),
+                List.of(
+                        typed(DataType.FLOAT32, 1, 4, 1),
+                        typed(DataType.FLOAT32, 1, 1, 2, 2)),
+                List.of(image2d)).length);
+        long[] window3d = {2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0};
+        assertEquals(8, NonProductionStructuralFixture.executeDirect(
+                library,
+                NumericalProfile.STRICT_IEEE,
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.UNFOLD3D,
+                        new int[] {0}, new int[] {1},
+                        MetalMpsGraphProgram.AttributeKind.WINDOW_3D, window3d),
+                List.of(
+                        typed(DataType.FLOAT32, 1, 1, 2, 2, 2),
+                        typed(DataType.FLOAT32, 1, 8, 1)),
+                List.of(image3d)).length);
+        assertEquals(8, NonProductionStructuralFixture.executeDirect(
+                library,
+                NumericalProfile.STRICT_IEEE,
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.FOLD3D,
+                        new int[] {0}, new int[] {1},
+                        MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_3D,
+                        new long[] {
+                            5, 1, 1, 2, 2, 2,
+                            2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0
+                        }),
+                List.of(
+                        typed(DataType.FLOAT32, 1, 8, 1),
+                        typed(DataType.FLOAT32, 1, 1, 2, 2, 2)),
+                List.of(image3d)).length);
+    }
+
+    @Test
+    void task0059CropRankSixteenAndExtremeSliceStridesRemainExecutable() {
+        Path library = configuredLibrary();
+        var crop = MetalMpsGraphProgram.Node.generic(
+                MetalMpsGraphProgram.NodeKind.SLICE,
+                new int[] {0}, new int[] {1},
+                MetalMpsGraphProgram.AttributeKind.CROP_TO_SHAPE,
+                new long[] {2, 1, 2, 2, 0, 1});
+        List<MetalMpsGraphProgram.ValueDescriptor> cropValues = List.of(
+                typed(DataType.FLOAT32, 2, 3),
+                typed(DataType.FLOAT32, 1, 2));
+        assertArrayEquals(
+                bits(2, 3),
+                NonProductionStructuralFixture.executeDirect(
+                        library,
+                        NumericalProfile.STRICT_IEEE,
+                        crop,
+                        cropValues,
+                        List.of(bits(1, 2, 3, 4, 5, 6))));
+        assertArrayEquals(
+                bits(2, 3),
+                executeCustom(
+                        library,
+                        NumericalProfile.STRICT_IEEE,
+                        new MetalMpsGraphProgram(List.of(crop)),
+                        cropValues,
+                        new int[] {0},
+                        new int[] {1},
+                        List.of(bits(1, 2, 3, 4, 5, 6))).getFirst());
+
+        long[] singletonShape = new long[16];
+        Arrays.fill(singletonShape, 1L);
+        long[] rankSixteenSlice = new long[65];
+        rankSixteenSlice[0] = 16L;
+        for (int axis = 0; axis < 16; axis++) {
+            rankSixteenSlice[1 + axis] = 0L;
+            rankSixteenSlice[17 + axis] = 1L;
+            rankSixteenSlice[33 + axis] = axis;
+            rankSixteenSlice[49 + axis] = 1L;
+        }
+        var fullRankSlice = MetalMpsGraphProgram.Node.generic(
+                MetalMpsGraphProgram.NodeKind.SLICE,
+                new int[] {0}, new int[] {1},
+                MetalMpsGraphProgram.AttributeKind.SLICE,
+                rankSixteenSlice);
+        List<MetalMpsGraphProgram.ValueDescriptor> singletonValues = List.of(
+                typed(DataType.FLOAT32, singletonShape),
+                typed(DataType.FLOAT32, singletonShape));
+        assertArrayEquals(
+                bits(7),
+                NonProductionStructuralFixture.executeDirect(
+                        library,
+                        NumericalProfile.STRICT_IEEE,
+                        fullRankSlice,
+                        singletonValues,
+                        List.of(bits(7))));
+        assertArrayEquals(
+                bits(7),
+                executeCustom(
+                        library,
+                        NumericalProfile.STRICT_IEEE,
+                        new MetalMpsGraphProgram(List.of(fullRankSlice)),
+                        singletonValues,
+                        new int[] {0},
+                        new int[] {1},
+                        List.of(bits(7))).getFirst());
+
+        for (long[] attributes : List.of(
+                new long[] {1, 1, 1, 0, Long.MAX_VALUE},
+                new long[] {1, 0, 1, 0, Long.MIN_VALUE + 1L})) {
+            assertArrayEquals(
+                    bits(attributes[1] == 0L ? 11 : 13),
+                    NonProductionStructuralFixture.executeDirect(
+                            library,
+                            NumericalProfile.STRICT_IEEE,
+                            MetalMpsGraphProgram.Node.generic(
+                                    MetalMpsGraphProgram.NodeKind.SLICE,
+                                    new int[] {0}, new int[] {1},
+                                    MetalMpsGraphProgram.AttributeKind.SLICE,
+                                    attributes),
+                            List.of(
+                                    typed(DataType.FLOAT32, 2),
+                                    typed(DataType.FLOAT32, 1)),
+                            List.of(bits(11, 13))));
+        }
+    }
+
+    @Test
+    void task0059WindowRecipesHonorCeilDepthMaskingAndWideGeometry() {
+        Path library = configuredLibrary();
+        assertArrayEquals(
+                bits(1, 0, 0, 0),
+                NonProductionStructuralFixture.executeDirect(
+                        library,
+                        NumericalProfile.STRICT_IEEE,
+                        MetalMpsGraphProgram.Node.generic(
+                                MetalMpsGraphProgram.NodeKind.UNFOLD2D,
+                                new int[] {0}, new int[] {1},
+                                MetalMpsGraphProgram.AttributeKind.WINDOW_2D,
+                                new long[] {1, 1, 3, 3, 0, 0, 1, 1, 1}),
+                        List.of(
+                                typed(DataType.FLOAT32, 1, 1, 2, 2),
+                                typed(DataType.FLOAT32, 1, 1, 4)),
+                        List.of(bits(1, 2, 3, 4))));
+        assertArrayEquals(
+                bits(1, 0, 0, 0),
+                NonProductionStructuralFixture.executeDirect(
+                        library,
+                        NumericalProfile.STRICT_IEEE,
+                        MetalMpsGraphProgram.Node.generic(
+                                MetalMpsGraphProgram.NodeKind.FOLD2D,
+                                new int[] {0}, new int[] {1},
+                                MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_2D,
+                                new long[] {
+                                    4, 1, 1, 2, 2,
+                                    1, 1, 3, 3, 0, 0, 1, 1, 1
+                                }),
+                        List.of(
+                                typed(DataType.FLOAT32, 1, 1, 4),
+                                typed(DataType.FLOAT32, 1, 1, 2, 2)),
+                        List.of(bits(1, 2, 3, 4))));
+        assertArrayEquals(
+                bits(7),
+                NonProductionStructuralFixture.executeDirect(
+                        library,
+                        NumericalProfile.STRICT_IEEE,
+                        MetalMpsGraphProgram.Node.generic(
+                                MetalMpsGraphProgram.NodeKind.FOLD3D,
+                                new int[] {0}, new int[] {1},
+                                MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_3D,
+                                new long[] {
+                                    5, 1, 1, 1, 1, 1,
+                                    1, 1, 1, 1, 1, 1,
+                                    1, 0, 0, 1, 1, 1, 0
+                                }),
+                        List.of(
+                                typed(DataType.FLOAT32, 1, 1, 3),
+                                typed(DataType.FLOAT32, 1, 1, 1, 1, 1)),
+                        List.of(bits(5, 7, 11))));
+        long wide = 1L << 32;
+        assertArrayEquals(
+                bits(5),
+                NonProductionStructuralFixture.executeDirect(
+                        library,
+                        NumericalProfile.STRICT_IEEE,
+                        MetalMpsGraphProgram.Node.generic(
+                                MetalMpsGraphProgram.NodeKind.FOLD3D,
+                                new int[] {0}, new int[] {1},
+                                MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_3D,
+                                new long[] {
+                                    5, 1, 1, 1, 1, 1,
+                                    2, 1, 1, wide, 1, 1,
+                                    wide, 0, 0, wide, 1, 1, 0
+                                }),
+                        List.of(
+                                typed(DataType.FLOAT32, 1, 2, 2),
+                                typed(DataType.FLOAT32, 1, 1, 1, 1, 1)),
+                        List.of(bits(1, 2, 3, 4))));
+    }
+
+    @Test
     void directMpsGraphCandidatesRemainForceableForAllFourExactRawOperations() {
         Path library = configuredLibrary();
         int[] ordinary = bits(-2.5f, -0.0f, 0.0f, 1.25f, 4.0f);
@@ -273,6 +1023,50 @@ class MetalRemainingElementwiseNativeTest {
         }
     }
 
+    private static List<byte[]> executeCustomBytes(
+            Path library,
+            NumericalProfile profile,
+            MetalMpsGraphProgram program,
+            List<MetalMpsGraphProgram.ValueDescriptor> values,
+            int[] feeds,
+            int[] targets,
+            List<byte[]> feedBytes) {
+        MetalNativeApi api = MetalNativeApi.open(library);
+        MetalNativeApi.Handle context = null;
+        MetalNativeApi.Handle executable = null;
+        var buffers = new ArrayList<MetalNativeApi.Handle>();
+        try {
+            context = api.createContext();
+            executable = api.createMpsGraphExecutable(
+                    context, profile, values, program, feeds, targets,
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            for (var value : values) buffers.add(api.createBuffer(context, value.byteCount()));
+            for (int index = 0; index < feeds.length; index++) {
+                assertEquals(values.get(feeds[index]).byteCount(), feedBytes.get(index).length);
+                uploadBytes(api, buffers.get(feeds[index]), feedBytes.get(index));
+            }
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment addresses = arena.allocate(ADDRESS, buffers.size());
+                for (int index = 0; index < buffers.size(); index++)
+                    addresses.setAtIndex(ADDRESS, index, buffers.get(index).carrier());
+                MemorySegment outputs = arena.allocate(ADDRESS, targets.length);
+                for (int index = 0; index < targets.length; index++)
+                    outputs.setAtIndex(ADDRESS, index, buffers.get(targets[index]).carrier());
+                api.runExecutable(
+                        executable, buffers.size(), addresses, targets.length, outputs);
+            }
+            var result = new ArrayList<byte[]>(targets.length);
+            for (int target : targets)
+                result.add(downloadBytes(api, buffers.get(target), values.get(target).byteCount()));
+            return List.copyOf(result);
+        } finally {
+            for (int index = buffers.size(); index-- > 0;) api.releaseBuffer(buffers.get(index));
+            if (executable != null) api.releaseExecutable(executable);
+            if (context != null) api.releaseContext(context);
+            api.close();
+        }
+    }
+
     private static final class NonProductionStructuralFixture {
         private NonProductionStructuralFixture() {}
 
@@ -344,8 +1138,120 @@ class MetalRemainingElementwiseNativeTest {
                 new long[] {1L, Integer.toUnsignedLong(rawBits)});
     }
 
+    private static MetalMpsGraphProgram.Node castNode(
+            int input, int output, DataType target) {
+        return MetalMpsGraphProgram.Node.generic(
+                MetalMpsGraphProgram.NodeKind.CAST,
+                new int[] {input},
+                new int[] {output},
+                MetalMpsGraphProgram.AttributeKind.CAST_TARGET,
+                new long[] {switch (target) {
+                    case FLOAT32 -> 1L;
+                    case INT32 -> 2L;
+                    case BOOL -> 3L;
+                    case FLOAT64 -> 4L;
+                    case BFLOAT16 -> 5L;
+                    case INT64 -> 6L;
+                }});
+    }
+
     private static MetalMpsGraphProgram.ValueDescriptor value(long... dimensions) {
         return new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, dimensions, false);
+    }
+
+    private static MetalMpsGraphProgram.ValueDescriptor typed(
+            DataType type, long... dimensions) {
+        return new MetalMpsGraphProgram.ValueDescriptor(type, dimensions, false);
+    }
+
+    private static byte[] task0059CarrierWords(DataType carrier) {
+        return switch (carrier) {
+            case FLOAT64 -> bytes64(
+                    0x8000_0000_0000_0000L,
+                    0x7ff8_0000_0000_0042L,
+                    0x0000_0000_0000_0001L,
+                    0x3ff0_0000_0000_0000L,
+                    0xfff8_0000_0000_1234L,
+                    0x8000_0000_0000_0001L);
+            case FLOAT32 -> bytes32(
+                    0x8000_0000, 0x7fc1_2345, 0x0000_0001,
+                    0x3f80_0000, 0xffc5_4321, 0x8000_0001);
+            case BFLOAT16 -> bytes16(0x8000, 0x7fc1, 0x0001, 0x3f80, 0xffc5, 0x8001);
+            case INT64 -> bytes64(
+                    Long.MIN_VALUE, Long.MAX_VALUE, -1L, 0L, 1L, 0x0123_4567_89ab_cdefL);
+            case INT32 -> bytes32(
+                    Integer.MIN_VALUE, Integer.MAX_VALUE, -1, 0, 1, 0x1234_5678);
+            case BOOL -> new byte[] {0, 1, 0, 1, 1, 0};
+        };
+    }
+
+    private static long task0059FillWord(DataType carrier) {
+        return switch (carrier) {
+            case FLOAT64 -> 0xfff8_0000_0000_5678L;
+            case FLOAT32 -> Integer.toUnsignedLong(0xffa2_2222);
+            case BFLOAT16 -> 0xffa2L;
+            case INT64 -> 0x7654_3210_fedc_ba98L;
+            case INT32 -> Integer.toUnsignedLong(0x8765_4321);
+            case BOOL -> 1L;
+        };
+    }
+
+    private static byte[] task0059ScalarBytes(long word, int width) {
+        ByteBuffer bytes = ByteBuffer.allocate(Long.BYTES).order(ByteOrder.nativeOrder());
+        bytes.putLong(word);
+        return Arrays.copyOf(bytes.array(), width);
+    }
+
+    private static byte[] selectElements(byte[] source, int width, int... ordinals) {
+        byte[] result = new byte[Math.multiplyExact(width, ordinals.length)];
+        for (int index = 0; index < ordinals.length; index++) {
+            System.arraycopy(
+                    source,
+                    Math.multiplyExact(ordinals[index], width),
+                    result,
+                    Math.multiplyExact(index, width),
+                    width);
+        }
+        return result;
+    }
+
+    private static byte[] concatBytes(byte[]... parts) {
+        int length = 0;
+        for (byte[] part : parts) length = Math.addExact(length, part.length);
+        byte[] result = new byte[length];
+        int offset = 0;
+        for (byte[] part : parts) {
+            System.arraycopy(part, 0, result, offset, part.length);
+            offset += part.length;
+        }
+        return result;
+    }
+
+    private static byte[] bytes64(long... values) {
+        ByteBuffer bytes = ByteBuffer.allocate(values.length * Long.BYTES)
+                .order(ByteOrder.nativeOrder());
+        for (long value : values) bytes.putLong(value);
+        return bytes.array();
+    }
+
+    private static byte[] bytes32(int... values) {
+        ByteBuffer bytes = ByteBuffer.allocate(values.length * Integer.BYTES)
+                .order(ByteOrder.nativeOrder());
+        for (int value : values) bytes.putInt(value);
+        return bytes.array();
+    }
+
+    private static byte[] bytes16(int... values) {
+        ByteBuffer bytes = ByteBuffer.allocate(values.length * Short.BYTES)
+                .order(ByteOrder.nativeOrder());
+        for (int value : values) bytes.putShort((short) value);
+        return bytes.array();
+    }
+
+    private static int[] concat(int[] left, int[] right) {
+        int[] result = Arrays.copyOf(left, left.length + right.length);
+        System.arraycopy(right, 0, result, left.length, right.length);
+        return result;
     }
 
     private static int[] bits(float... values) {
@@ -391,6 +1297,25 @@ class MetalRemainingElementwiseNativeTest {
             int[] words = new int[bytes / Integer.BYTES];
             for (int index = 0; index < words.length; index++) words[index] = bufferBytes.getInt();
             return words;
+        }
+    }
+
+    private static void uploadBytes(
+            MetalNativeApi api, MetalNativeApi.Handle buffer, byte[] bytes) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment source = arena.allocate(bytes.length, 1L);
+            MemorySegment.copy(bytes, 0, source, JAVA_BYTE, 0L, bytes.length);
+            api.upload(buffer, 0L, source, bytes.length);
+        }
+    }
+
+    private static byte[] downloadBytes(
+            MetalNativeApi api, MetalNativeApi.Handle buffer, long byteCount) {
+        int bytes = Math.toIntExact(byteCount);
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment target = arena.allocate(bytes, 1L);
+            api.download(buffer, 0L, target, bytes);
+            return target.toArray(JAVA_BYTE);
         }
     }
 

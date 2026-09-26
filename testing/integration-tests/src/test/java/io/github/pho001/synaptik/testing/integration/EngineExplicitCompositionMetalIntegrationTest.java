@@ -27,6 +27,8 @@ import io.github.pho001.synaptik.model.graph.GraphPhase;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
@@ -835,6 +837,167 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                                 expected);
                     }
                     assertArrayEquals(inputBits, inputBytes.toArray(ValueLayout.JAVA_INT));
+                }
+            }
+        }
+    }
+
+    @Test
+    void task0059PublicEngineRunsEveryAdmittedCastIndexAndLayoutOperation()
+            throws Exception {
+        Path library = configuredMetalLibrary();
+        try (Arena arena = Arena.ofShared();
+                Engine.Builder builder = Engine.builder()) {
+            builder.takeOwnership(MetalBackendIntegration.open(
+                    new MetalBackendConfiguration(library)));
+            try (Engine engine = builder.build()) {
+                Tensor matrix = nativeTensor(
+                        descriptor(Shape.of(2, 3)), arena, 1, 2, 3, 4, 5, 6);
+                Tensor indices = nativeIntTensor(
+                        Shape.of(2, 2), arena, 2, 0, 1, 1);
+                Tensor ndIndices = nativeIntTensor(Shape.of(2, 1), arena, 1, 0);
+                Tensor image2d = nativeTensor(
+                        descriptor(Shape.of(1, 1, 2, 2)), arena, 1, 2, 3, 4);
+                Tensor image3d = nativeTensor(
+                        descriptor(Shape.of(1, 1, 2, 2, 2)),
+                        arena, 1, 2, 3, 4, 5, 6, 7, 8);
+                Tensor scalarInt = nativeIntTensor(Shape.scalar(), arena, 7);
+                Tensor scalar = nativeTensor(descriptor(Shape.scalar()), arena, 7);
+                Tensor vector = nativeTensor(descriptor(Shape.of(3)), arena, 10, 20, 30);
+                Tensor scalarNdIndex = nativeIntTensor(Shape.of(1), arena, 1);
+                Window2dAttrs window2d =
+                        new Window2dAttrs(2, 2, 1, 1, 0, 0, 1, 1, false);
+                Window3dAttrs window3d =
+                        new Window3dAttrs(
+                                2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, false);
+                List<Tensor> publications = List.of(
+                        indices.cast(DataType.INT64),
+                        matrix.gatherElements(indices, -1),
+                        matrix.gatherNd(ndIndices),
+                        matrix.pad(
+                                new long[] {0, 1},
+                                new long[] {0, 1},
+                                ScalarValue.float32(-0.0f)),
+                        Tensor.concat(-2, matrix, matrix),
+                        Tensor.stack(-3, matrix, matrix),
+                        matrix.tile(1, 2),
+                        image2d.unfold2d(window2d, ScalarValue.float32(-0.0f)),
+                        image3d.unfold3d(window3d, ScalarValue.float32(-0.0f)),
+                        scalarInt.cast(DataType.INT64),
+                        scalar.pad(new long[0], new long[0], ScalarValue.float32(-0.0f)),
+                        scalar.tile(),
+                        Tensor.stack(0, scalar, scalar),
+                        vector.gatherNd(scalarNdIndex));
+                var compiled = engine.compile(publications);
+                assertEquals(
+                        List.of("metal"),
+                        EngineMixedOwnerTestAccess.partitionOwners(compiled));
+                List<Tensor> inputs = List.of(
+                        matrix,
+                        indices,
+                        ndIndices,
+                        image2d,
+                        image3d,
+                        scalarInt,
+                        scalar,
+                        vector,
+                        scalarNdIndex);
+
+                InferenceSession session = engine.session(compiled);
+                try (InferenceSession independent = engine.session(compiled)) {
+                    try (var first = session.run(inputs)) {
+                        assertTask0059PublicResults(first);
+                        assertEquals(
+                                first.resultCount(),
+                                new HashSet<>(EngineMixedOwnerTestAccess
+                                        .runOwnedIdentities(first)
+                                        .publications()).size());
+                    }
+                    try (var repeated = session.run(inputs)) {
+                        assertTask0059PublicResults(repeated);
+                    }
+                    try (var separate = independent.run(inputs)) {
+                        assertTask0059PublicResults(separate);
+                    }
+
+                    CountDownLatch ready = new CountDownLatch(2);
+                    CountDownLatch start = new CountDownLatch(1);
+                    try (var executor = Executors.newFixedThreadPool(2)) {
+                        var left = executor.submit(() -> {
+                            ready.countDown();
+                            start.await();
+                            try (var result = session.run(inputs)) {
+                                assertTask0059PublicResults(result);
+                            }
+                            return null;
+                        });
+                        var right = executor.submit(() -> {
+                            ready.countDown();
+                            start.await();
+                            try (var result = session.run(inputs)) {
+                                assertTask0059PublicResults(result);
+                            }
+                            return null;
+                        });
+                        assertTrue(ready.await(10, TimeUnit.SECONDS));
+                        start.countDown();
+                        left.get(30, TimeUnit.SECONDS);
+                        right.get(30, TimeUnit.SECONDS);
+                    }
+                } finally {
+                    session.close();
+                }
+                assertTrue(session.isClosed());
+                assertThrows(IllegalStateException.class, () -> session.run(inputs));
+            }
+        }
+    }
+
+    @Test
+    void task0059PublicGatherFailuresReportExactAxesForBothIndexWidths() {
+        Path library = configuredMetalLibrary();
+        try (Arena arena = Arena.ofShared();
+                Engine.Builder builder = Engine.builder()) {
+            builder.takeOwnership(MetalBackendIntegration.open(
+                    new MetalBackendConfiguration(library)));
+            try (Engine engine = builder.build()) {
+                Tensor data = nativeTensor(
+                        descriptor(Shape.of(2, 3)), arena, 1, 2, 3, 4, 5, 6);
+                Tensor elementIndices = nativeIntTensor(
+                        Shape.of(2, 2), arena, 2, 0, 1, 1);
+                Tensor ndIndices = nativeLongTensor(Shape.of(2, 1), arena, 1, 0);
+                MemorySegment elementBytes = ((MemorySegmentStorage)
+                        elementIndices.hostStorage().orElseThrow()).segment();
+                MemorySegment ndBytes = ((MemorySegmentStorage)
+                        ndIndices.hostStorage().orElseThrow()).segment();
+                var compiled = engine.compile(List.of(
+                        data.gatherElements(elementIndices, 1),
+                        data.gatherNd(ndIndices)));
+                assertEquals(
+                        List.of("metal"),
+                        EngineMixedOwnerTestAccess.partitionOwners(compiled));
+
+                elementBytes.setAtIndex(ValueLayout.JAVA_INT, 1, -1);
+                try (InferenceSession session = engine.session(compiled)) {
+                    IndexOutOfBoundsException failure = assertThrows(
+                            IndexOutOfBoundsException.class,
+                            () -> session.run(List.of(data, elementIndices, ndIndices)));
+                    assertEquals(
+                            "GATHER_ELEMENTS index at logical position 1 for data axis 1"
+                                    + " is out of bounds: value=-1, extent=3",
+                            failure.getMessage());
+                }
+
+                elementBytes.setAtIndex(ValueLayout.JAVA_INT, 1, 0);
+                ndBytes.setAtIndex(ValueLayout.JAVA_LONG, 1, 2L);
+                try (InferenceSession session = engine.session(compiled)) {
+                    IndexOutOfBoundsException failure = assertThrows(
+                            IndexOutOfBoundsException.class,
+                            () -> session.run(List.of(data, elementIndices, ndIndices)));
+                    assertEquals(
+                            "GATHER_ND index at logical position 1 for data axis 0"
+                                    + " is out of bounds: value=2, extent=2",
+                            failure.getMessage());
                 }
             }
         }
@@ -2069,6 +2232,30 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
 
+    private static void assertTask0059PublicResults(
+            io.github.pho001.synaptik.engine.RunResult result) {
+        assertEquals(14, result.resultCount());
+        ByteBuffer cast = result.materialize(
+                result.publications().getFirst(), 4L * Long.BYTES).bytes();
+        for (long value : new long[] {2, 0, 1, 1}) {
+            assertEquals(value, cast.getLong());
+        }
+        assertPublication(result, 1, 3, 1, 5, 5);
+        assertPublication(result, 2, 4, 5, 6, 1, 2, 3);
+        assertPublication(result, 3, -0.0f, 1, 2, 3, -0.0f, -0.0f, 4, 5, 6, -0.0f);
+        assertPublication(result, 4, 1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6);
+        assertPublication(result, 5, 1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6);
+        assertPublication(result, 6, 1, 2, 3, 1, 2, 3, 4, 5, 6, 4, 5, 6);
+        assertPublication(result, 7, 1, 2, 3, 4);
+        assertPublication(result, 8, 1, 2, 3, 4, 5, 6, 7, 8);
+        assertEquals(7L, result.materialize(
+                result.publications().get(9), Long.BYTES).bytes().getLong());
+        assertPublication(result, 10, 7);
+        assertPublication(result, 11, 7);
+        assertPublication(result, 12, 7, 7);
+        assertPublication(result, 13, 20);
+    }
+
     private static void assertAffineResults(
             InferenceSession session, List<Tensor> inputs, List<int[]> expected) {
         try (var result = session.run(inputs)) {
@@ -2157,6 +2344,24 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 Optional.empty(),
                 Optional.of(new MemorySegmentStorage(
                         DataType.INT32, values.length, segment)));
+    }
+
+    private static Tensor nativeLongTensor(Shape shape, Arena arena, long... values) {
+        TensorDescriptor descriptor = new TensorDescriptor(
+                DataType.INT64,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                false);
+        var segment = arena.allocate(
+                Math.multiplyExact(values.length, Long.BYTES), Long.BYTES);
+        for (int index = 0; index < values.length; index++) {
+            segment.setAtIndex(ValueLayout.JAVA_LONG, index, values[index]);
+        }
+        return TensorFactory.create(
+                descriptor,
+                Optional.empty(),
+                Optional.of(new MemorySegmentStorage(
+                        DataType.INT64, values.length, segment)));
     }
 
     private static Tensor nativeBoolTensor(Shape shape, Arena arena, int... values) {

@@ -2247,6 +2247,64 @@ class MetalNegPreparedExecutionTest {
     }
 
     @Test
+    void preparedSplatsUploadEveryCarrierWidthExactlyOnce() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        List<ScalarValue> scalars = List.of(
+                ScalarValue.float64(Double.longBitsToDouble(0x7ff8_0000_0000_0042L)),
+                ScalarValue.float32(Float.intBitsToFloat(0xffc0_0042)),
+                ScalarValue.bfloat16Bits((short) 0x8001),
+                ScalarValue.int32(Integer.MIN_VALUE),
+                ScalarValue.int64(Long.MIN_VALUE + 7L),
+                ScalarValue.bool(true));
+        try {
+            for (ScalarValue scalar : scalars) {
+                int width = scalar.dataType().byteWidth();
+                MetalPreparedSplatResource resource =
+                        MetalPreparedSplatResource.create(context, width * 3L, scalar);
+                var binding = resource.newRunBinding();
+                try (Arena arena = Arena.ofConfined()) {
+                    MemorySegment downloaded = arena.allocate(width * 3L, width);
+                    MetalPreparedSplatResource.readableBuffer(binding)
+                            .download(0L, downloaded, 0L, width * 3L);
+                    for (long index = 0L; index < 3L; index++) {
+                        switch (scalar.dataType()) {
+                            case FLOAT64 -> assertEquals(
+                                    Double.doubleToRawLongBits(scalar.float64Value()),
+                                    downloaded.getAtIndex(
+                                            java.lang.foreign.ValueLayout.JAVA_LONG, index));
+                            case FLOAT32 -> assertEquals(
+                                    Float.floatToRawIntBits(scalar.float32Value()),
+                                    downloaded.getAtIndex(JAVA_INT, index));
+                            case BFLOAT16 -> assertEquals(
+                                    scalar.bfloat16Bits(),
+                                    downloaded.getAtIndex(
+                                            java.lang.foreign.ValueLayout.JAVA_SHORT, index));
+                            case INT32 -> assertEquals(
+                                    scalar.int32Value(),
+                                    downloaded.getAtIndex(JAVA_INT, index));
+                            case INT64 -> assertEquals(
+                                    scalar.int64Value(),
+                                    downloaded.getAtIndex(
+                                            java.lang.foreign.ValueLayout.JAVA_LONG, index));
+                            case BOOL -> assertEquals(
+                                    (byte) 1,
+                                    downloaded.getAtIndex(JAVA_BYTE, index));
+                        }
+                    }
+                } finally {
+                    binding.close();
+                    resource.close();
+                }
+            }
+            assertEquals(scalars.size(), api.bufferCreates.get());
+            assertEquals(scalars.size(), api.uploads.get());
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
     void positiveRankSplatsArePreparedOnceAndOutputsStayIsolatedAcrossRuns()
             throws Exception {
         RecordingNativeApi api = new RecordingNativeApi();

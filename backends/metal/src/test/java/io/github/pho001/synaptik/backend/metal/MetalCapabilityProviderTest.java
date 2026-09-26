@@ -13,6 +13,8 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
 import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
@@ -28,6 +30,8 @@ import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
+import io.github.pho001.synaptik.model.operation.index.SelectAttrs;
+import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
@@ -37,6 +41,10 @@ import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
+import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
@@ -56,7 +64,7 @@ import org.junit.jupiter.api.Test;
 class MetalCapabilityProviderTest {
     private final MetalCapabilityProvider provider = new MetalCapabilityProvider();
     @Test
-    void registeredWireCapabilityLedgerClosesAtFiftyTrueAndSixtyFiveFalse() {
+    void registeredWireCapabilityLedgerClosesAtFiftyNineTrueAndFiftySixFalse() {
         java.util.Set<MetalMpsGraphProgram.NodeKind> structuralOnly = java.util.Set.of(
                 MetalMpsGraphProgram.NodeKind.TENSOR_POW,
                 MetalMpsGraphProgram.NodeKind.SCALAR_POW,
@@ -69,19 +77,98 @@ class MetalCapabilityProviderTest {
                 MetalMpsGraphProgram.NodeKind.TANH,
                 MetalMpsGraphProgram.NodeKind.GELU,
                 MetalMpsGraphProgram.NodeKind.GELU_TANH_APPROXIMATION,
-                MetalMpsGraphProgram.NodeKind.SILU);
-        assertEquals(12, structuralOnly.size());
+                MetalMpsGraphProgram.NodeKind.SILU,
+                MetalMpsGraphProgram.NodeKind.SELECT,
+                MetalMpsGraphProgram.NodeKind.SLICE,
+                MetalMpsGraphProgram.NodeKind.SCATTER_ADD,
+                MetalMpsGraphProgram.NodeKind.SCATTER_ND,
+                MetalMpsGraphProgram.NodeKind.SLICE_UPDATE,
+                MetalMpsGraphProgram.NodeKind.FOLD_AXIS,
+                MetalMpsGraphProgram.NodeKind.FOLD2D,
+                MetalMpsGraphProgram.NodeKind.FOLD3D);
+        assertEquals(20, structuralOnly.size());
         long trueRows = java.util.Arrays.stream(MetalMpsGraphProgram.NodeKind.values())
                 .filter(MetalMpsGraphProgram.NodeKind::executable)
                 .filter(kind -> !structuralOnly.contains(kind))
                 .count();
-        assertEquals(50L, trueRows);
-        assertEquals(65L, MetalMpsGraphProgram.NodeKind.values().length - trueRows);
+        assertEquals(59L, trueRows);
+        assertEquals(56L, MetalMpsGraphProgram.NodeKind.values().length - trueRows);
         structuralOnly.forEach(kind -> assertTrue(kind.executable(), kind.name()));
         assertFalse(MetalMpsGraphProgram.NodeKind.EXP.executable());
         assertFalse(MetalMpsGraphProgram.NodeKind.SIGMOID.executable());
     }
 
+
+    @Test
+    void task0059AdvertisesExactlyNineteenCastPairsAndKeepsViewOnlyMovementFalse() {
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            for (DataType source : DataType.values()) {
+                for (DataType target : DataType.values()) {
+                    boolean expected = source == target
+                            || source == DataType.BOOL
+                            || target == DataType.BOOL
+                            || source == DataType.INT32 && target == DataType.INT64
+                            || source == DataType.INT64 && target == DataType.INT32
+                            || source == DataType.BFLOAT16 && target == DataType.FLOAT32;
+                    assertEquals(
+                            expected,
+                            provider.supports(new OperationCapabilityQuery(
+                                    profile,
+                                    new Operation(CastKind.CAST, new CastAttrs(target)),
+                                    List.of(typed(source, Shape.of(2), false)),
+                                    List.of(typed(target, Shape.of(2), false)))),
+                            source + " -> " + target + " " + profile);
+                }
+            }
+        }
+        TensorDescriptor data = typed(DataType.FLOAT32, Shape.of(2, 3), false);
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                new Operation(SelectKind.SELECT, new SelectAttrs(0, 0)),
+                List.of(data),
+                List.of(typed(DataType.FLOAT32, Shape.of(3), false)))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                new Operation(
+                        SliceKind.SLICE,
+                        new SliceAttrs(List.of(1L), List.of(2L), List.of(1), List.of(1L))),
+                List.of(data),
+                List.of(typed(DataType.FLOAT32, Shape.of(2, 2), false)))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                new Operation(CastKind.CAST, new CastAttrs(DataType.BOOL)),
+                List.of(typed(DataType.FLOAT32, Shape.of(2), true)),
+                List.of(typed(DataType.BOOL, Shape.of(2), false)))));
+    }
+
+    @Test
+    void task0059BothImageUnfoldKindsAcceptOnlyModelLegalFloatingCarriers() {
+        var window2d = new Window2dAttrs(2, 2, 1, 1, 0, 0, 1, 1, false);
+        var window3d = new Window3dAttrs(2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, false);
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            for (DataType type : DataType.values()) {
+                boolean expected = type == DataType.FLOAT64
+                        || type == DataType.FLOAT32
+                        || type == DataType.BFLOAT16;
+                assertEquals(
+                        expected,
+                        provider.supports(new OperationCapabilityQuery(
+                                profile,
+                                new Operation(WindowTransformKind.UNFOLD2D, window2d),
+                                List.of(typed(type, Shape.of(1, 1, 2, 2), false)),
+                                List.of(typed(type, Shape.of(1, 4, 1), false)))),
+                        "UNFOLD2D " + type + " " + profile);
+                assertEquals(
+                        expected,
+                        provider.supports(new OperationCapabilityQuery(
+                                profile,
+                                new Operation(WindowTransformKind.UNFOLD3D, window3d),
+                                List.of(typed(type, Shape.of(1, 1, 2, 2, 2), false)),
+                                List.of(typed(type, Shape.of(1, 8, 1), false)))),
+                        "UNFOLD3D " + type + " " + profile);
+            }
+        }
+    }
 
     @Test
     void enforcesClosedStrictAndAcceleratorCapabilityMatrices() {
