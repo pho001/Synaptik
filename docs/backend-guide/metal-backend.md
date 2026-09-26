@@ -243,19 +243,18 @@ consuming a caller position. Existing shared `GraphPreparation` tests independen
 chain `CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
 Once stable values, states, feeds, targets, checked byte geometry, and typed node records are known,
-analysis creates a version-thirteen candidate batch and workload fingerprint. Partitions without a
+analysis creates a version-fourteen candidate batch and workload fingerprint. Partitions without a
 Task-0052 node retain the ordinary MPSGraph candidate, with the existing bounded singleton-NEG
 alternative where eligible. Any partition containing a Task-0052 node has exactly the fixed
 `CUSTOM_TASK0052` whole-program candidate; tuning cannot replace it with MPSGraph or split it.
 
-The version-thirteen canonical workload fingerprint covers the explicit numerical-profile wire,
-schema-twelve typed nodes and attributes, ordered input edges, reduction and scan forms, affine and
-indexing state, authenticated local-transpose provenance, explicit value states, complete tensor
-descriptors and logical layouts, target and internal-value sets, exact scalar/splat bits,
-logical-boundary roles, policy/candidate/route schemas, native node schema, and ABI version. It
-encodes structural positions rather than graph object identity. Target compatibility also contains
-a fresh private nonce from the exact `MetalDeviceContext`; version-twelve and earlier decisions
-fail closed.
+The version-fourteen canonical workload fingerprint covers the explicit numerical-profile wire,
+the schema-thirteen program image, ordered input and output references, all typed attributes,
+affine/indexing states, authenticated local-transpose provenance, complete tensor descriptors and
+logical layouts, target and internal-value sets, exact scalar/splat bits, logical-boundary roles,
+policy/candidate/route schemas, and ABI version. It encodes structural positions rather than graph
+object identity. Target compatibility also contains a fresh private nonce from the exact
+`MetalDeviceContext`; version-thirteen and earlier decisions fail closed.
 
 Metal can construct an absent- or present-decision `BackendPartitionTuningHandoff`. Fresh analysis
 always regenerates the current batch. A present decision is accepted only when the exact partition,
@@ -263,21 +262,22 @@ candidate schema, workload fingerprint, context session, and candidate membershi
 stale or foreign values fail closed rather than reverting to the heuristic. Absence uses the
 existing heuristic without cache lookup or measurement.
 
-After authentication, the custom route declares one feed buffer, one target buffer, and no
-workspace. MPSGraph declares its feed and target buffers plus one address workspace. A larger
-supported singleton has only the MPSGraph candidate; analysis does not reject or split it.
+After authentication, `CUSTOM_SINGLE_NEG` declares one feed buffer, one target buffer, and no
+workspace. `CUSTOM_TASK0052` declares every feed, target, and internal logical-value buffer plus one
+address workspace. MPSGraph declares its feed and target buffers plus one address workspace. A
+larger supported singleton has only the MPSGraph candidate; analysis does not reject or split it.
 
 ### Session decision codec and limitations
 
-The package-private version-twelve Metal codec produces bounded canonical compatibility, candidate,
-and checksummed decision bytes. Decode rejects wrong magic, schema, session scope, numerical
-profile, malformed or truncated content, trailing or corrupt bytes, changed workload or context,
-and unknown or pruned candidates. The bytes contain no native handle or executable. Version-eleven
-and earlier codec bytes and cross-profile decisions fail closed even when their trailing checksum
-is otherwise valid.
+The package-private version-fourteen Metal codec produces bounded canonical compatibility,
+candidate, and checksummed decision bytes. Decode rejects wrong magic, schema, session scope,
+numerical profile, malformed or truncated content, trailing or corrupt bytes, changed workload or
+context, and unknown or pruned candidates. The bytes contain no native handle or executable.
+Version-thirteen and earlier codec bytes and cross-profile decisions fail closed even when their
+trailing checksum is otherwise valid.
 
 The public `MetalLocalWorkloadTuning` retained by `MetalBackendIntegration` wraps this codec and
-candidate generator without changing their version-twelve bytes. It returns a handoff only for an
+candidate generator without changing their version-fourteen bytes. It returns a handoff only for an
 exact singleton NEG whose complete ordered candidate list is `[CUSTOM_SINGLE_NEG, MPSGRAPH]`.
 `MetalCompletePlanTuning` authenticates the exact Phase-1 association and exposes one complete-plan
 candidate fixed to that selected route. Both collaborations use opaque exact-owner/batch values,
@@ -485,10 +485,10 @@ t = SUM(x)
 publish c, t
 ```
 
-Preparation lowers the normalized axis and binding-resolved sum-to-Shape target into typed
-schema-twelve records. `m`, `a`, `s`, and `c` remain positive-rank canonical values, so they may
-compose inside the partition. The scalar `t` is a direct target and cannot feed another node. One
-run publishes `c = [[71, 78, 85, 92], [83, 90, 97, 104]]` plus `t = 300`; local materialization of
+Preparation lowers the normalized axis and binding-resolved sum-to-Shape target into the bounded
+schema-thirteen program image. `m`, `a`, `s`, and `c` remain positive-rank canonical values, so they
+may compose inside the partition. The scalar `t` is a direct target and cannot feed another node.
+One run publishes `c = [[71, 78, 85, 92], [83, 90, 97, 104]]` plus `t = 300`; local materialization of
 `t` copies exactly four bytes. Strict ownership rejects the same reduction graph before native
 creation, and CPU/Metal transfer does not become scalar-capable.
 
@@ -699,13 +699,13 @@ repetition matrix ran.
 
 Current validation composes:
 
-- focused capability, schema-twelve/native-preflight, raw-bit native execution, route-identity,
+- focused capability, schema-thirteen/native-preflight, raw-bit native execution, route-identity,
   backend-conformance, and CPU-free public Engine tests proving the exact bounded two-profile
   UNFOLD_AXIS domain, wire `19`, typed `WINDOW_AXIS=6`, schema rejection, overlap/tail mapping,
   input preservation, and same-partition composition;
 - current generic lifecycle, prepared-byte-geometry, target publication, reuse, concurrency, close,
-  malformed-record, and indexing diagnostics without duplicating their matrices for one wire;
-- a rebuilt arm64 dylib inspected for exactly thirteen exports, ABI `4`, required framework
+  malformed-image, and indexing diagnostics without duplicating their matrices for one wire;
+- a rebuilt arm64 dylib inspected for exactly thirteen exports, ABI `5`, required framework
   linkage, and absence of the old NEG-only create symbol;
 - focused real-device native and Engine proof of exact signed-zero, subnormal, infinity, and
   quiet/signaling-NaN raw-bit movement with unchanged input;
@@ -765,13 +765,14 @@ depends on Engine.
 An explicitly composed Engine may mix CPU and Metal partitions. Shared Prepare assigns one
 representation position per participating owner; Metal contributes its exact buffer/workspace
 creators. Engine inserts a direct CPU-to-Metal upload or Metal-to-CPU download once for each
-distinct destination owner immediately before its first consumer. The current path accepts only
-fully static canonical contiguous `FLOAT32` and performs no conversion, retry, fallback, or
-on-demand discovery. A persistent Metal splat binding is accepted only as a Metal read source; it
-cannot be an upload destination. Runtime executes only the resulting direct prepared references.
+distinct destination owner immediately before its first consumer. The current path accepts fully
+static canonical contiguous `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, and `BOOL` without
+conversion, retry, fallback, or on-demand discovery. A persistent Metal splat binding is accepted
+only as a Metal read source; it cannot be an upload destination. Runtime executes only the
+resulting direct prepared references.
 
 For one exact singleton NEG Metal plan, public `prepareTuned(...)` measures the complete two-route
-local batch, authenticates the selected version-twelve decision, then correctness-checks and times
+local batch, authenticates the selected version-fourteen decision, then correctness-checks and times
 one complete-plan candidate fixed to that route. The returned production recipe is freshly
 prepared after representative cleanup. Metal policy, producer, and decision-codec identities are
 adapter-owned and distinct from CPU identities; existing CPU bytes and behavior remain unchanged.

@@ -2547,10 +2547,10 @@ decision contains no measurement, cache representation, executable, provider, na
 physical resource, or Runtime state.
 
 The profile-qualified Metal decision follows the same owner-defined pattern with a bounded
-checksummed version-twelve session codec. Fresh Metal analysis regenerates current profile/topology
-facts and accepts a selection only when schema, workload, exact context session, and candidate
-identity match. Decode rejects malformed, corrupt, trailing, stale, foreign-session, version-eleven
-and earlier, cross-profile, and unknown-candidate bytes. These bytes are not a persistent
+checksummed version-fourteen session codec. Fresh Metal analysis regenerates current profile/
+topology facts and accepts a selection only when schema, workload, exact context session, and
+candidate identity match. Decode rejects malformed, corrupt, trailing, stale, foreign-session,
+version-thirteen and earlier, cross-profile, and unknown-candidate bytes. These bytes are not a
 workload-cache artifact and have no current `tools/tuning` adapter.
 
 The generic Phase-2 tool may persist a decision only when its producer declares persistent reuse,

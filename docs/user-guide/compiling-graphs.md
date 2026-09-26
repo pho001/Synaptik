@@ -92,12 +92,13 @@ eligible owner.
 ## Limitations
 
 Current public composition supports fixed CPU execution and explicit CPU/Metal mixed-owner
-execution. Cross-owner values must be fully static canonical contiguous `FLOAT32`; BOOL comparison
-targets and scalar reductions remain Metal-local publications. Task-0052 partitions execute
+execution. Fully static canonical contiguous cross-owner values may use `FLOAT64`, `FLOAT32`,
+`BFLOAT16`, `INT32`, `INT64`, or `BOOL`; BOOL comparison targets and scalar reductions remain
+Metal-local publications when their operation contracts require it. Task-0052 partitions execute
 through one fixed custom whole-program call with declared run-owned intermediates and direct
-targets. ABI v4, thirteen exports, and 160-byte records remain fixed. Schema 12 retains operation
-wires `1..19` and attributes `0..6`, appends Task-0052 wires `20..34` and attributes `7..9`, and
-uses version-thirteen identities. Every unlisted occurrence remains fail-closed.
+targets. ABI 5 retains thirteen exports and consumes one bounded schema-13 program image with type
+wires `1..6`, operation wires `1..115`, attributes `0..41`, and version-fourteen identities.
+Registry presence does not widen capability; unsupported operations fail closed.
 
 Model construction leaves Conv2d and Conv3d result layouts unresolved; Compiler closes
 only eligible fully static final convolution

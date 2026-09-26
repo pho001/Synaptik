@@ -542,5 +542,5 @@ the existing arithmetic/reduction/MATMUL rows and the exact Task-0052 comparison
 scalar/clamp, reduction-extrema, and scan rows. The preparer authenticates local MATMUL transposes,
 keeps comparison BOOL values as direct targets, and declares every internal logical value for a
 Task-0052 whole-program route. It preserves typed ingress, target and internal byte geometry,
-window/index obligations, and the profile in schema-twelve/version-thirteen route identity without
-widening CPU/Metal transfer.
+window/index obligations, and the profile in the schema-thirteen/version-fourteen route identity
+without widening capability.
