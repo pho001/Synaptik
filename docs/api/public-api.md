@@ -38,17 +38,18 @@ and `DIV`; canonical positive-rank no-gradient FLOAT32 `RECIPROCAL`; canonical `
 positive static rank-two `MATMUL` with canonical or authenticated local-transpose operands. Scalar
 arithmetic uses exact four-byte raw rank-one constants in source operand order; reciprocal uses one
 exact `+1.0f / input` division. Strict rejects every accelerator-only row before native
-preparation. BOOL feeds, consumers, and CPU/Metal transfer remain unsupported.
-Every graph feed and direct `NEG` or `ABS` operand/output is a canonical contiguous non-view. Affine
-operations under either profile may consume exact zero-offset views produced earlier in the same
-maximal Metal partition, retain their exact logical view descriptors, and privately write dense
-represented-order targets. Accelerator MATMUL may consume only an exact local rank-two
-`PERMUTE [1,0]` view or canonical operand and produces canonical state; the transpose may otherwise
-be published or used by another valid affine consumer. `CONTIGUOUS` converts available canonical
-or local affine-view state to canonical state before a subsequent canonical-only operation. Exact
-authenticated affine publications and locally produced scalar reduction targets may materialize to
-detached canonical host bytes; the latter uses exactly four bytes. Caller ingress and cross-owner
-transfer remain positive-rank and canonical-non-view-only.
+preparation. Graph feeds and public transfer boundaries support all six carriers. Exact
+Task-0059 SELECT/SLICE feeds and intermediates may use authenticated positive-stride,
+non-overlapping storage layouts with nonzero offsets and holes; other canonical-only operations
+retain their documented descriptor restrictions. Affine operations under either profile may
+consume exact zero-offset views produced earlier in the same maximal Metal partition. Accelerator
+MATMUL may consume only an exact local rank-two `PERMUTE [1,0]` view or canonical operand and
+produces canonical state; the transpose may otherwise be published or used by another valid affine
+consumer. `CONTIGUOUS` converts available canonical or local affine-view state to canonical state
+before a subsequent canonical-only operation. Canonical and exact authenticated SELECT/SLICE
+publications for all six carriers may materialize to detached canonical host bytes. Caller ingress
+preserves exact physical storage bytes; cross-owner transfer accepts rank-0..16 static canonical or
+positive-stride non-overlapping layouts with checked physical spans.
 `Engine.builder()` is the public explicit composition root for
 opened CPU and Metal integrations. It freezes their Planning inputs in registration order and
 supports a complete non-empty plan only when every partition has one exact registered owner. The
@@ -1280,7 +1281,8 @@ deterministic representation position per participating owner, and obtains exact
 creators. Engine assembles execution occurrences in partition order, inserting one immutable
 transfer per logical value and distinct destination owner immediately before that owner's first
 consumer, then appends the dense publication suffix. Current CPU/Metal transfer is direct native
-host-staged, fully static canonical contiguous `FLOAT32` in either direction.
+host-staged in either direction for all six carriers over exact rank-0..16 static canonical or
+positive-stride non-overlapping layouts with checked physical spans.
 
 An inference session owns one hidden prepared handle; direct `prepare(...)` exposes the standalone
 owner. Both retain direct non-owning adapters in caller-input and publication occurrence order

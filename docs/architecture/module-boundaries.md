@@ -3,13 +3,13 @@
 This document explains the module responsibilities established by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract is authoritative when a summary here is incomplete.
 
 The boundaries apply to both implemented and planned modules. Model, Backend Contract, Planning,
-Compiler, Runtime, Prepare, Engine, CPU, and the profile-qualified Metal
-ABS/NEG/affine/tensor-binary/reduction/rank-two-MATMUL routes have substantive implementations;
-Config and Trace are partial.
+Compiler, Runtime, Prepare, Engine, CPU, and the profile-qualified Metal execution domain have
+substantive implementations; Config and Trace are partial.
 The current public execution path supports fixed CPU ownership and explicit CPU/Metal composition,
-including mixed-owner schedules with bounded bidirectional static contiguous `FLOAT32` transfer.
-Other concrete backends, broader transfer domains, and most extensions remain planned or
-incomplete. The [roadmap](../planning/roadmap.md) records exact delivery status.
+including mixed-owner schedules with bounded bidirectional all-six-carrier transfer over exact
+rank-0..16 static canonical or positive-stride non-overlapping layouts. Other concrete backends,
+conversion-based transfer, and most extensions remain planned or incomplete. The
+[roadmap](../planning/roadmap.md) records exact delivery status.
 
 ## Shared modules
 
@@ -204,7 +204,8 @@ Concrete backends never depend on Engine.
 The fixed standard factory and public builder are explicit composition, not generic registration
 or discovery. The builder prepares non-empty single-owner or mixed CPU/Metal plans through one
 shared transaction. Mixed values use one deterministic representation per participating owner and
-exact static canonical contiguous `FLOAT32` transfer; this does not imply a general conversion or
+exact rank-0..16 static transfer for all six carriers over canonical or positive-stride
+non-overlapping layouts with checked physical spans; this does not imply a general conversion or
 fallback system.
 
 The builder adapts current CPU model autotuning and the exact singleton-NEG Metal workflow without

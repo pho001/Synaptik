@@ -320,7 +320,10 @@ public final class CpuBackendIntegration implements AutoCloseable {
                                 activeStrides[index]));
             }
             return layout.referencedElementSpan()
-                    == Math.addExact(layout.storageOffset(), covered);
+                    == Math.addExact(layout.storageOffset(), covered)
+                    && Math.multiplyExact(
+                            layout.referencedElementSpan(),
+                            descriptor.dataType().byteWidth()) > 0L;
         } catch (ArithmeticException overflow) {
             return false;
         }

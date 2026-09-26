@@ -22,14 +22,15 @@ analysis context, explicit schedule assembly, complete schedule validation, and 
 the reusable prepared-execution root.
 The CPU backend supplies broad physical allocation, preparation, and access for
 `Engine.standard()` and explicit composition. Metal supplies bounded MPSGraph and custom-kernel
-profile-qualified `FLOAT32` routes plus explicit native configuration, host ingress,
-materialization, and close. `Engine.builder()` currently registers opened CPU and/or Metal
-integrations and composes their non-empty partition sets through one shared preparation. It
-preflights every owner and required directed transfer before backend analysis, then captures direct
-per-input, executable, transfer, and publication references. Current CPU/Metal transfer is bounded
-to fully static canonical contiguous `FLOAT32`; CUDA and broader conversion/transfer composition
-remain later work. The lifecycle flow therefore combines current foundations with selected later
-stages, and each focused section states its implementation status.
+profile-qualified routes plus explicit native configuration, host ingress, materialization, and
+close. `Engine.builder()` currently registers opened CPU and/or Metal integrations and composes
+their non-empty partition sets through one shared preparation. It preflights every owner and
+required directed transfer before backend analysis, then captures direct per-input, executable,
+transfer, and publication references. Current CPU/Metal transfer covers all six model data types
+over exact rank-0..16 static canonical or positive-stride non-overlapping storage layouts with a
+checked physical span; CUDA and conversion-based transfer composition remain later work. The
+lifecycle flow therefore combines current foundations with selected later stages, and each focused
+section states its implementation status.
 [ADR 0011](../design/decisions/0011-per-run-runtime-resource-ownership.md) defines the
 resource-ownership and cold-binding architecture.
 [ADR 0013](../design/decisions/0013-prepared-execution-persistent-resource-lifecycle.md) defines
@@ -297,9 +298,10 @@ distinct destination owner immediately before that owner's first consumer, and t
 publication suffix.
 
 A missing owner, no planned partition, or an unsupported transfer fails before backend analysis.
-The current CPU/Metal path supports exact native-host-staged transfer in both directions only for
-positive rank-1..16 fully static canonical contiguous `FLOAT32` with checked element and byte
-geometry. It performs no conversion, retry, fallback, heap staging, or owner substitution.
+The current CPU/Metal path supports exact native-host-staged transfer in both directions for all
+six carriers over rank-0..16 fully static canonical or positive-stride non-overlapping layouts with
+checked physical byte spans. It performs no conversion, retry, fallback, heap staging, or owner
+substitution.
 
 Once `GraphPreparation` returns, the registry map has no execution role. The outward prepared
 handle captures direct non-owning adapter references in caller-input and publication occurrence

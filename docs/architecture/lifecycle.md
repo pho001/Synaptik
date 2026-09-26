@@ -5,9 +5,10 @@ This document explains the compile, prepare, run, and training lifecycles define
 The ordinary public lifecycle is runnable through `Engine.standard()` for fixed CPU ownership and
 through `Engine.builder()` for explicit CPU/Metal ownership. Builder preparation composes
 single-owner or mixed-owner partitions through deterministic owner-indexed representations and
-explicit bidirectional transfer for the bounded static canonical contiguous `FLOAT32` domain.
-The public Training extension now layers one optimizer/session owner over that same Engine
-compile, prepare, run, publication, and materialization path. CUDA execution remains planned.
+explicit bidirectional transfer for all six model data types over exact rank-0..16 static
+canonical or positive-stride non-overlapping storage layouts. The public Training extension now
+layers one optimizer/session owner over that same Engine compile, prepare, run, publication, and
+materialization path. CUDA execution remains planned.
 The [roadmap](../planning/roadmap.md) records delivery status.
 
 ## State across the lifecycle
@@ -251,8 +252,9 @@ frozen registry. Before any backend analysis, it rejects a missing owner or unsu
 transfer pair. Shared Prepare then analyzes and finalizes every partition, assigns one logical slot
 plus one deterministic representation position per participating owner, collects backend physical
 creation contributions, and assembles explicit execution, transfer, and publication occurrences.
-Current CPU/Metal transfers are exact fully static canonical contiguous `FLOAT32`; there is no
-retry, owner substitution, conversion, heap staging, or CPU fallback.
+Current CPU/Metal transfers cover all six carriers over exact rank-0..16 static canonical or
+positive-stride non-overlapping layouts with checked physical spans; there is no retry, owner
+substitution, conversion, heap staging, or CPU fallback.
 
 An inference session owns one hidden prepared handle; a standalone prepared Engine handle exposes
 that ownership directly. Both keep direct non-owning adapter references in caller-input and

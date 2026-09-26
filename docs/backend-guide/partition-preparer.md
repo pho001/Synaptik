@@ -510,9 +510,10 @@ persistent-resource transfer, but the concrete backend owns the physical mechani
 owns the per-run state. Fixed CPU `Engine.standard()`, explicit CPU/Metal builder composition
 including bounded mixed-owner schedules, and advanced CPU composition are current; generic plugin
 registration and executable persistence are not. Mixed CPU/Metal values have deterministic
-owner-indexed representations and exact static canonical contiguous `FLOAT32` transfer recipes.
-The current CPU complete-plan tuning producer is session-scoped, so Phase 2 does not persist or
-reuse a complete prepared plan across sessions.
+owner-indexed representations and exact all-six-carrier, rank-0..16 static canonical or positive-
+stride non-overlapping storage-layout transfer recipes with checked physical spans. The current CPU
+complete-plan tuning producer is session-scoped, so Phase 2 does not persist or reuse a complete
+prepared plan across sessions.
 
 The separate tuning tool provides bounded local measurement, selection, reusable workload-cache
 persistence, and rich evidence around the opaque handoff. Current Engine composition supplies the

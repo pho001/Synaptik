@@ -288,9 +288,9 @@ partial value list; cleanup still runs, with a distinct cleanup failure suppress
 failure. Engine close waits for an admitted call through cleanup, while a call that loses
 admission fails before argument inspection. Current support requires one non-empty plan whose
 owners have exact registered adapters. Single-owner plans remain supported; mixed CPU/Metal plans
-must stay inside the positive rank-1..16 fully static canonical contiguous `FLOAT32` transfer
-domain. The aggregate limit is not a bound on inputs, Runtime allocation, workspaces, object
-overhead, defensive copies, or peak memory. Use
+must stay inside the all-six-carrier rank-0..16 fully static canonical or positive-stride
+non-overlapping transfer domain with checked physical spans. The aggregate limit is not a bound on
+inputs, Runtime allocation, workspaces, object overhead, defensive copies, or peak memory. Use
 `compile -> session -> run -> materialize` for ordinary repeated runs or selective output copies.
 Each session run intentionally continues to require caller-supplied logical inputs. The lower-level
 `compile -> prepare -> run` lifecycle remains available when direct prepared-handle ownership is

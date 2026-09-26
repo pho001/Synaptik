@@ -56,8 +56,8 @@ opened CPU and Metal integrations. `Engine.session(...)` prepares one compiled g
 exposes repeated or concurrent runs through the same prepared execution and existing result
 lifecycle. Ordinary preparation composes non-empty plans across registered owners, with
 deterministic owner-indexed representations and explicit direct CPU-to-Metal and Metal-to-CPU
-transfers for fully static canonical contiguous values of all six current data types at ranks
-`0..16`.
+transfers for all six current data types over fully static rank-0..16 canonical or positive-stride
+non-overlapping layouts with checked physical spans.
 CPU realizes both numerical profiles through identical exact behavior and routes. Model defines
 `STRICT_IEEE` as the unchanged current contract and `ACCELERATOR` as its total recursive
 `FLOAT32` superset; that semantic reach does not imply backend support. Metal execution remains

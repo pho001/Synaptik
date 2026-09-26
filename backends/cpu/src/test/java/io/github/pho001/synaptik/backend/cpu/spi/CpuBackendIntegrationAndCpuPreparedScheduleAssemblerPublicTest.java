@@ -211,6 +211,27 @@ final class CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest {
         assertThrows(IllegalStateException.class, integration::scheduleAssembler);
     }
 
+    @Test
+    void storageLayoutTransferPredicateFailsClosedOnByteExtentOverflow() {
+        Shape shape = Shape.of(1);
+        TensorDescriptor overflow = new TensorDescriptor(
+                DataType.FLOAT64,
+                shape,
+                Optional.of(LayoutDescriptor.of(
+                        shape, new long[] {1L}, Long.MAX_VALUE - 1L, true)),
+                false);
+        try (CpuBackendIntegration integration = CpuBackendIntegration.open();
+                Arena arena = Arena.ofConfined();
+                var representation = integration.borrow(new MemorySegmentStorage(
+                        DataType.FLOAT64, 1L, arena.allocate(Double.BYTES, Double.BYTES)))) {
+            assertFalse(integration.acceptsStorageLayoutTransfer(
+                    representation, overflow, false));
+            assertThrows(IllegalArgumentException.class,
+                    () -> integration.bindStorageLayoutTransfer(
+                            representation, overflow, false));
+        }
+    }
+
     private static CompileArtifacts cpuArtifacts(CpuBackendIntegration integration) {
         Tensor input = leaf();
         return compile(List.of(input.contiguous()), List.of(integration.capabilityProvider()),

@@ -21,15 +21,16 @@ prepared once, run repeatedly with isolated invocation state, and materialized a
 values. One-shot forward computation and a bounded scalar-objective backward convenience are also
 current. The public Training extension now adds one reusable Engine-backed scalar training
 session, persistent SGD, gradient accumulation, and detached in-memory state over its bounded
-shareable-native parameter domain. Metal executes its exact profile-qualified static `FLOAT32`
-domains: both profiles admit NEG/ABS/affine/`CONTIGUOUS`; accelerator additionally admits tensor
-binary/reduction/MATMUL; and an eligible singleton NEG under either profile can use the custom
-route. Mixed CPU/Metal plans use explicit bidirectional transfer for fully static positive-rank
-canonical contiguous `FLOAT32` intermediates. A
-standard-Metal convenience, generic plugin registration/discovery, broader Metal and transfer
-coverage, CUDA, broader optimizers, durable persistence, and generic graph/plan tuning remain
-planned. Each
-focused page distinguishes current contracts from those future capabilities.
+shareable-native parameter domain. Metal executes its exact profile-qualified static domains:
+common capability includes exact movement, affine, indexing, classification, BOOL logic, WHERE,
+and raw-bit elementwise rows; accelerator adds the admitted arithmetic, reduction, scan, and
+rank-two MATMUL rows. Eligible singleton NEG may use the custom route, while admitted Task-0059
+movement uses the shared custom-program route. Mixed CPU/Metal plans use explicit bidirectional
+transfer for all six model data types over exact rank-0..16 static canonical or positive-stride
+non-overlapping layouts with checked physical spans. A standard-Metal convenience, generic plugin
+registration/discovery, CUDA, broader optimizers, durable persistence, and generic graph/plan
+tuning remain planned. Each focused page distinguishes current contracts from those future
+capabilities.
 
 ## Contributor guides
 

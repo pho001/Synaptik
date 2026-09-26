@@ -191,17 +191,17 @@ exact floor-count rank-plus-one Shape, repeats overlapping source representation
 tails, applies no padding, and leaves input storage unchanged. Metal validates every index before
 selector dispatch or target writes; scatter completes its bounds pass before complete-target
 uniqueness. Bounds and duplicates publish the exact Model exception text in stable node and
-row-major ordinal order, and targets and inputs remain unchanged on failure. Canonical caller
-ingress accepts exact `FLOAT32` and `INT32`; locally produced canonical `BOOL` may publish as exact
-zero/one bytes, while CPU/Metal transfer remains canonical `FLOAT32` only. Accelerator Metal
+row-major ordinal order, and targets and inputs remain unchanged on failure. Metal caller ingress,
+authenticated SELECT/SLICE publication, and CPU/Metal transfer cover all six carriers over their
+exact supported descriptors. Cross-owner values may be rank-zero through rank-sixteen and use a
+canonical or positive-stride non-overlapping storage layout with a checked physical span; BOOL
+validates logical zero/one bytes while leaving storage holes uninterpreted. Accelerator Metal
 additionally executes tensor binary/reduction and positive static rank-two MATMUL partitions;
 strict Metal rejects those additions. Metal window, indexing, and reduction execution are forward
-backend routes; a positive-rank result may compose locally, while a scalar reduction result is a
-direct target with four-byte local materialization. Accelerator MATMUL also executes the
-Compiler-generated explicitly seeded first-order formulas for both canonical rank-two operands
-through exact local transposes beneath the existing shape-restoration boundaries. This narrow path
-introduces no complete window/indexing backward, scalar-loss, implicit-seed, batched-MATMUL, or
-general Metal training claim.
+backend routes. Accelerator MATMUL also executes the Compiler-generated explicitly seeded first-
+order formulas for both canonical rank-two operands through exact local transposes beneath the
+existing shape-restoration boundaries. This narrow path introduces no complete window/indexing
+backward, scalar-loss, implicit-seed, batched-MATMUL, or general Metal training claim.
 
 `AxisTransformKind.PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` are current semantic identities.
 `PermutationAttrs` stores a complete normalized output-to-input axis permutation, while

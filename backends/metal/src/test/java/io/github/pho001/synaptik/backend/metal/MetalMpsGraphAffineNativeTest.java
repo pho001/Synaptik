@@ -262,6 +262,27 @@ class MetalMpsGraphAffineNativeTest {
                 assertFalse(integration.acceptsStorageLayoutTransfer(
                         threeElements, overlapping));
             }
+            Shape overflowShape = Shape.of(1);
+            TensorDescriptor overflow = new TensorDescriptor(
+                    DataType.FLOAT64,
+                    overflowShape,
+                    java.util.Optional.of(LayoutDescriptor.of(
+                            overflowShape,
+                            new long[] {1L},
+                            Long.MAX_VALUE - 1L,
+                            true)),
+                    false);
+            try (BufferRepresentation oneElement = integration.borrow(
+                    new MemorySegmentStorage(
+                            DataType.FLOAT64,
+                            1L,
+                            arena.allocate(Double.BYTES, Double.BYTES)))) {
+                assertFalse(integration.acceptsStorageLayoutTransfer(oneElement, overflow));
+                assertThrows(IllegalArgumentException.class,
+                        () -> integration.bindStorageLayoutDownload(oneElement, overflow));
+                assertThrows(IllegalArgumentException.class,
+                        () -> integration.bindStorageLayoutUpload(oneElement, overflow));
+            }
             assertThrows(
                     IllegalArgumentException.class,
                     () -> LayoutDescriptor.of(shape, new long[] {-1, 1}, 0L, true));

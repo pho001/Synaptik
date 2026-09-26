@@ -876,11 +876,11 @@ depends on Engine.
 An explicitly composed Engine may mix CPU and Metal partitions. Shared Prepare assigns one
 representation position per participating owner; Metal contributes its exact buffer/workspace
 creators. Engine inserts a direct CPU-to-Metal upload or Metal-to-CPU download once for each
-distinct destination owner immediately before its first consumer. The current path accepts fully
-static canonical contiguous `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, and `BOOL` without
-conversion, retry, fallback, or on-demand discovery. A persistent Metal splat binding is accepted
-only as a Metal read source; it cannot be an upload destination. Runtime executes only the
-resulting direct prepared references.
+distinct destination owner immediately before its first consumer. The current path accepts all
+six carriers over fully static rank-0..16 canonical or positive-stride non-overlapping layouts
+with checked physical spans, without conversion, retry, fallback, or on-demand discovery. A
+persistent Metal splat binding is accepted only as a Metal read source; it cannot be an upload
+destination. Runtime executes only the resulting direct prepared references.
 
 For one exact singleton NEG Metal plan, public `prepareTuned(...)` measures the complete two-route
 local batch, authenticates the selected version-sixteen decision, then correctness-checks and times

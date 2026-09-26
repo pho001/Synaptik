@@ -222,24 +222,27 @@ fairness, queue multiplicity, or throughput. There is no async/cancel/timeout AP
 enumeration or selection, multi-device scheduling, cross-device migration/coherence, failover, or
 hot-plug contract. See [ADR 0020](../../design/decisions/0020-synchronous-single-default-device-metal-execution.md).
 
-The current cross-owner transfer capability is deliberately exact: positive rank-1..16 fully
-static canonical contiguous `FLOAT32` buffers with checked element and byte geometry may move CPU
-to Metal by uploading from a live CPU native representation, or Metal to CPU by downloading into
-one. CPU owns the native host staging representation and its per-run lifetime; Metal owns the
-device-buffer type check and native copy. Both backends validate descriptor, byte extent, context,
-openness, and current-thread access during cold binding. The bound transfer retains direct typed
-references and performs exactly one native copy when invoked. Other ranks, zero extents, data
-types, layouts, directions, conversion, canonical-byte materialization, and heap staging are
-unsupported and must fail before backend analysis.
+The current cross-owner transfer capability is deliberately exact: rank-0..16 fully static
+descriptors for all six model data types may move CPU to Metal or Metal to CPU when their resolved
+layout has positive extents, positive strides, no overlapping logical positions, and one checked
+physical referenced span. Canonical contiguous layouts are the simplest member of that domain;
+supported SELECT/SLICE layouts may carry a nonzero storage offset and holes. The transfer copies
+the complete physical span without conversion, preserving prefix and gap bytes as well as logical
+represented bits.
 
-A locally produced canonical rank-zero `FLOAT32` reduction target may materialize through the
-owning Metal integration as exactly four detached canonical bytes. It remains ineligible as a
-caller feed or cross-owner transfer value and may not widen the transfer predicate above.
+CPU owns the live native host staging representation and its per-run lifetime; Metal owns the
+device-buffer type check and native copy. Both backends validate descriptor, exact byte extent,
+context, openness, and current-thread access during cold binding. BOOL descriptor-aware download
+stages and validates every logical byte before committing any destination mutation; prefix and gap
+bytes are not interpreted. The bound transfer retains direct typed references and performs exactly
+one native copy when invoked. Unresolved, empty, zero- or negative-stride, overlapping, span-
+inconsistent, or byte-overflowing layouts, conversion, heap staging, and unsupported directions
+fail before backend analysis.
 
-Canonical caller-host ingress into an owned Metal partition accepts exact positive-rank
-`FLOAT32` and `INT32` values with no conversion. A locally produced canonical `BOOL` target may
-materialize through the owning Metal integration as exact one-byte elements. These local paths do
-not widen the cross-owner transfer capability, which remains canonical positive-rank `FLOAT32`.
+Local Metal publication uses the same checked geometry for authenticated storage-layout targets
+and also supports canonical rank-zero through rank-sixteen targets for all six carriers. Caller
+host ingress preserves exact represented storage bytes; descriptor-aware execution, transfer, and
+publication paths validate logical BOOL values without treating storage holes as BOOL elements.
 
 The current common-profile Metal movement domain also includes bounded canonical FLOAT32
 `UNFOLD_AXIS`. Its input rank is 1..15, size is 1..16, step is positive, size does not exceed the

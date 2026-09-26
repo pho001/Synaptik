@@ -432,14 +432,15 @@ no retry, implicit CPU fallback, recompilation, owner substitution, or normalize
 
 Before analysis, Engine derives every cross-owner edge from `LogicalMemoryRequirement` producer
 and consumer partitions and validates the exact ordered source/destination adapter pair, tensor
-descriptor, layout, data type, and byte geometry. Unsupported direction, representation,
-layout, data type, or size fails closed before backend analysis or persistent-resource acquisition.
-The currently supported heterogeneous transfer domain is CPU to Metal and Metal to CPU for
-positive rank-1..16 fully static canonical contiguous `FLOAT32` values within Metal's supported
-canonical operation domains and with checked element and byte geometry. It performs no conversion.
-The CPU run-owned native representation is the reusable host staging storage: CPU to Metal uploads
-its exact bytes, while Metal to CPU downloads into it. No per-element object, canonical-byte
-materialization, or additional hot-path copy is permitted.
+descriptor, layout, data type, and byte geometry. Unsupported direction, representation, layout,
+data type, or size fails closed before backend analysis or persistent-resource acquisition. The
+currently supported heterogeneous transfer domain is CPU to Metal and Metal to CPU for all six
+carriers over rank-0..16 fully static canonical or positive-stride non-overlapping layouts with
+checked physical spans. It performs no conversion. The CPU run-owned native representation is the
+reusable host staging storage: CPU to Metal uploads its exact physical bytes, while Metal to CPU
+downloads through cold-bound staging for BOOL validation and commits only after all logical bytes
+pass. No per-element object, canonical-byte materialization, or additional non-BOOL hot-path copy
+is permitted.
 
 One complete Engine preparation supplies one shared schedule assembler. Each exact owner adapter
 contributes only the representation and workspace creators for positions assigned to that owner.

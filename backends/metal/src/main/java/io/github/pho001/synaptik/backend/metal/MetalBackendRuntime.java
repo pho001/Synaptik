@@ -146,14 +146,15 @@ final class MetalBackendRuntime implements AutoCloseable {
     /**
      * Creates one Metal-owned input representation from caller-owned host storage.
      *
-     * <p>The upload is complete before return. All six model data types transfer their exact
-     * native represented bytes. BOOL is validated as zero-or-one before native mutation. The
-     * representation retains the storage as a non-owning borrow and owns only its Metal buffer.</p>
+     * <p>The upload is complete before return. All six model data types transfer their exact raw
+     * physical storage bytes. This descriptor-free borrow does not interpret BOOL bytes: later
+     * descriptor-aware execution, transfer, and publication paths validate logical BOOL positions
+     * while leaving prefix and gap bytes uninterpreted. The representation retains the storage as
+     * a non-owning borrow and owns only its Metal buffer.</p>
      *
      * @param storage non-null live accessible host storage; never closed here
      * @return a new non-null Metal buffer representation owned by the caller
      * @throws NullPointerException if {@code storage} is {@code null}
-     * @throws IllegalArgumentException if BOOL storage contains a byte other than zero or one
      * @throws IllegalStateException if storage or the Metal context is closed or inaccessible
      * @throws RuntimeException if native allocation or upload fails
      * @throws Error if allocation, upload, or rollback reports a fatal failure
@@ -236,6 +237,10 @@ final class MetalBackendRuntime implements AutoCloseable {
     /**
      * Cold-binds one exact Metal source to a physical storage-layout download action.
      *
+     * <p>BOOL allocates one automatically managed private native staging span during this cold
+     * bind. The reusable action serializes access to that span, validates every logical BOOL byte,
+     * and commits only after complete validation. Its hot invocation allocates nothing.</p>
+     *
      * @param representation non-null candidate source
      * @param descriptor non-null exact logical descriptor
      * @return non-null immutable action capturing the exact typed source
@@ -252,10 +257,11 @@ final class MetalBackendRuntime implements AutoCloseable {
         if (descriptor.dataType() != DataType.BOOL) {
             return destination -> metal.download(0L, destination, 0L, byteCount);
         }
+        MemorySegment staging = Arena.ofAuto().allocate(byteCount, 1L);
+        Object stagingLock = new Object();
         return destination -> {
             requireWritableNativeStorage(destination, byteCount);
-            try (Arena arena = Arena.ofConfined()) {
-                MemorySegment staging = arena.allocate(byteCount, 1L);
+            synchronized (stagingLock) {
                 metal.download(0L, staging, 0L, byteCount);
                 validateBooleanElements(staging, descriptor);
                 MemorySegment.copy(staging, 0L, destination, 0L, byteCount);
@@ -419,7 +425,10 @@ final class MetalBackendRuntime implements AutoCloseable {
                                 activeStrides[index]));
             }
             return layout.referencedElementSpan()
-                    == Math.addExact(layout.storageOffset(), covered);
+                    == Math.addExact(layout.storageOffset(), covered)
+                    && Math.multiplyExact(
+                            layout.referencedElementSpan(),
+                            descriptor.dataType().byteWidth()) > 0L;
         } catch (ArithmeticException overflow) {
             return false;
         }

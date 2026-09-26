@@ -245,10 +245,11 @@ public final class MetalBackendIntegration implements AutoCloseable {
     /**
      * Cold-binds one exact readable Metal source to a physical storage-layout download.
      *
-     * <p>Non-BOOL transfers download the physical referenced span directly. BOOL first downloads
-     * into private staging, validates every logical element, and only then commits the complete
-     * span to the supplied host destination, so malformed device BOOL cannot partially publish.
-     * A live backend-issued immutable prepared-splat binding is an eligible source.</p>
+     * <p>Non-BOOL transfers download the physical referenced span directly. BOOL cold binding
+     * allocates one private automatically managed native staging span; each hot call downloads
+     * there, validates every logical element, and only then commits the complete span to the
+     * supplied host destination, so malformed device BOOL cannot partially publish. A live
+     * backend-issued immutable prepared-splat binding is an eligible source.</p>
      *
      * @param representation non-null exact readable source representation
      * @param descriptor non-null exact supported static rank-0..16 storage descriptor

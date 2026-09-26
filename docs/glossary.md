@@ -87,8 +87,9 @@ buffer-transfer, and publication scheduling plus shared runner execution are cur
 contracts. Advanced CPU representation-level composition and ordinary fixed CPU or explicit
 CPU/Metal composition are current. Ordinary mixed-owner preparation assigns one logical slot and
 one deterministic physical representation per participating owner, composes backend physical
-contributions, and schedules explicit exact static canonical contiguous `FLOAT32` CPU/Metal
-transfers. Public detached output materialization uses the adapter captured for each publication.
+contributions, and schedules explicit rank-0..16 static all-six-carrier CPU/Metal transfers over
+canonical or positive-stride non-overlapping layouts. Public detached output materialization uses
+the adapter captured for each publication.
 The Runtime executable contract itself is current; a Prepare finalizer constructs a backend
 subclass against its assigned slot and representation position.
 
@@ -1066,9 +1067,9 @@ duplicate identities fail, and compile-time Planning receives the frozen provide
 Composition is not backend discovery, a public or global registry, a Runtime service locator, or
 a fallback chain. Current ordinary preparation accepts non-empty single-owner or mixed CPU/Metal
 plans, assigns one logical slot plus deterministic owner-indexed representations, and schedules
-bounded bidirectional static canonical contiguous `FLOAT32` transfer. Prepared handles retain
-direct adapters per input and publication occurrence, so run and materialization do not consult
-the registry.
+bounded bidirectional rank-0..16 static transfer for all six carriers over canonical or positive-
+stride non-overlapping layouts with checked physical spans. Prepared handles retain direct adapters
+per input and publication occurrence, so run and materialization do not consult the registry.
 
 ### Backend availability snapshot / `BackendAvailabilitySnapshot`
 
@@ -2439,10 +2440,11 @@ for the synchronous copy. The operation neither selects a publication nor perfor
 conversion, synchronization, Tensor construction, or cross-backend materialization. Completed
 Engine task 0004 composes that inward SPI behind
 `RunResult.materialize(publication, maximumBytes)` and wraps each fresh copy in an immutable
-`HostTensorValue`. Explicit Metal composition supplies its own canonical `FLOAT32` download,
-including exactly four bytes for a locally produced scalar reduction target; this is
-selected-adapter materialization, not a cross-backend transfer promise. Metal caller ingress and
-CPU/Metal transfer remain positive-rank. See
+`HostTensorValue`. Explicit Metal composition supplies canonical and authenticated storage-layout
+downloads for all six carriers, including locally produced scalar targets and nonzero-offset,
+positive-stride SELECT/SLICE targets. This is selected-adapter materialization; the separate
+CPU/Metal transfer contract supports the same six carriers over rank-0..16 static canonical or
+positive-stride non-overlapping layouts. See
 [canonical caller-owned host snapshots](backend-guide/cpu-backend.md#canonical-caller-owned-host-snapshots).
 
 ### Canonical workload signature
@@ -2735,13 +2737,13 @@ backends do not own public tensor semantics or global graph compilation. CPU sup
 portable and optional native routes. Metal supplies package-private storage and prepared execution
 for exact canonical positive-shape `FLOAT32` NEG/ABS/affine/`CONTIGUOUS` under both profiles and
 accelerator-only canonical tensor `ADD`/`SUB`/`MUL`/`DIV`, canonical `FLOAT32`
-`SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two MATMUL. Reduction rank-zero publication
-is local-only; only positive-rank values may use the cross-owner transfer domain. Exact
-singleton-NEG partitions with one feed, one target, and `1..UINT32_MAX` elements may use the custom
-pipeline under either profile; every ABS partition and every other supported Metal partition uses
-one typed whole-partition MPSGraph executable. Strict binary/reduction/MATMUL is CPU-owned when CPU
-is registered and unsupported by a Metal-only composition. CUDA remains an identity without
-concrete execution behavior. See [Module boundaries](architecture/module-boundaries.md).
+`SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two MATMUL. Cross-owner transfer admits
+rank-zero and positive-rank values for all six carriers over exact supported storage layouts.
+Exact singleton-NEG partitions with one feed, one target, and `1..UINT32_MAX` elements may use the
+custom pipeline under either profile; every ABS partition and every other supported Metal partition
+uses one typed whole-partition MPSGraph executable. Strict binary/reduction/MATMUL is CPU-owned
+when CPU is registered and unsupported by a Metal-only composition. CUDA remains an identity
+without concrete execution behavior. See [Module boundaries](architecture/module-boundaries.md).
 
 ### Cumulative scan
 

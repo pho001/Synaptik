@@ -3935,11 +3935,12 @@ cross-type CAST SIMD, dynamic layout, vector affine/scatter/fold/ordering execut
 native fallback, hardware-intrinsic guarantee, or performance result is implemented or promised.
 Public `Engine.Builder` can register CPU alone or beside Metal, while `Engine.standard()` remains
 fixed CPU-only. Ordinary composition can execute mixed CPU/Metal plans by assigning one physical
-representation per participating owner and scheduling direct native host-staged transfers for
-fully static canonical contiguous `FLOAT32` values. Generic plugin composition, conversion, and
-broader transfer domains remain unsupported. Ordinary provider tests
-prove Java validation and exact ABI forwarding, not installed-library numerical correctness. The
-native checkpoint proves only its selected binary and fixed cases.
+representation per participating owner and scheduling direct native-host-staged transfer for all
+six carriers over exact rank-0..16 static canonical or positive-stride non-overlapping layouts
+with checked physical spans. Generic plugin composition and conversion-based transfer remain
+unsupported. Ordinary provider tests prove Java validation and exact ABI forwarding, not
+installed-library numerical correctness. The native checkpoint proves only its selected binary
+and fixed cases.
 Future CPU work must compare optimized routes with a scalar reference through backend-conformance
 tests and keep benchmarks reproducible.
 
