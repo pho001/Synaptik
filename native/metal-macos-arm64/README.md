@@ -312,6 +312,18 @@ already-compiled resource internally; Java performs no per-node downcall. There 
 retry, fallback, or hot compilation. Comparison targets are canonical one-byte BOOL values; scalar,
 reduction, and scan metadata retain exact raw words and mode state.
 
+## Task-0053 proof-gated source
+
+`src/task0053_candidate.metal` and `src/task0053_integer_core.h` retain the proposed raw-word
+integer/fixed-point `EXP` and stable `SIGMOID` kernels. The latter is the single algorithm source
+included directly by the C checker model and deterministically expanded by
+`generate-task0053-header.py --check` into the embedded NSString. The host has the corresponding
+private wire/function/dispatch metadata, but it keeps
+`task0053_domain_approved` false and returns status `13` for either structurally valid operation.
+The unapproved source is therefore not appended to the active Task-0052 library, no Java capability
+or route identity includes it, and ordinary preparation cannot compile or execute it. This dormant
+integration is evidence for Task 0053, not current execution capability.
+
 ## Ownership and concurrency
 
 A successful create transfers one retained handle to Java, and its matching release consumes that

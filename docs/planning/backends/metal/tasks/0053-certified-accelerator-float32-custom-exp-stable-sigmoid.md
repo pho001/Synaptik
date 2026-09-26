@@ -496,6 +496,29 @@ source/proof identity, compiler-site, prepared-route, native lifecycle, and no-f
 
 ## Result
 
-Execution is active from exact clean base `fa9387e0`. The pinned proof toolchain is available; no
-proof, device run, capability, or production approval is claimed until retained artifacts close
-every acceptance criterion.
+Execution remains In progress from exact clean base `fa9387e0`. One shared integer core is expanded
+into the MSL NSString and included directly by the C checker model, eliminating the duplicate
+algorithm. Its signed-magnitude conversion, shifts, products, additions/subtractions, table index,
+and pack paths are explicitly guarded or saturating outside the admitted range. Retained evidence
+also includes MPFR-generated table and class/one-rounding thresholds, a Sollya degree-six
+polynomial interval, structural Lean launch/classification proofs, source/header/host audits, and
+deterministic manifests. The partitioned checker visited all
+`2^32` raw words with exact class counts, zero unresolved inputs, zero EXP/stable-SIGMOID/site
+failures, and maximum ordinary EXP ordered distance one at input `0x33800000`
+(`0x3f800000` candidate versus `0x3f800001` reference). That PASS is independent corroboration,
+not proof-root authorization.
+
+The source and dormant host mappings are integrated fail closed. Native creation returns
+unsupported-operation status for `EXP=55` and `SIGMOID=64`; the candidate source is not appended to
+the active Task-0052 library, and Java capability, catalog availability, prepared-route identity,
+schema, ABI, and public behavior are unchanged. No device execution, timing, benchmark, route
+selection, or production approval occurred.
+
+The exact open numerical theorem is recorded in
+`backends/metal/evidence/0053/manifests/proof-status.json`: pinned Lean must connect the exact
+integer candidate and generated constants/certificates through every Q48/Q32 quotient, residual,
+Horner, reconstruction, threshold, tie, and pack site to universal EXP class and inclusive
+distance-`<=5` membership, then prove both materialized stable-SIGMOID ADD/DIV branches. The
+compiled-MSL site audit also remains unavailable without a standalone compiler, and independent
+review plus the proof-first device smoke remain blocked. EXP/SIGMOID are not certified, available,
+executable, or capability-true.

@@ -78,6 +78,16 @@ wire encoding to that identity rather than maintaining another wire table. Every
 retains one non-null final identity. Finalization, trace metadata, cold binding, and execution read
 that retained identity and cannot replace it.
 
+Task 0053 retains a proposed integer-only raw-word `EXP` and stable `SIGMOID` candidate plus
+independent MPFR/Sollya/Lean evidence. MSL embedding and the C checker model consume one shared
+guarded integer core, so the checker no longer exercises a duplicate algorithm. The candidate is
+not one of these three route identities: the numerical Lean DOMAIN-PASS theorem connecting the
+exact integer source/constants to the complete Model result
+sets is still open, and a standalone compiled-MSL floating-site audit is unavailable. Java
+capability and catalog availability therefore remain false, the native parser returns unsupported
+operation for both registered structural wires, and the dormant source is not appended to the
+active Task-0052 library. The all-word checker is corroboration, not proof-kernel authorization.
+
 ## Prerequisites
 
 Java uses JDK 26 Foreign Function and Memory (FFM) APIs. The native bridge requires an

@@ -428,11 +428,15 @@ packaged/extracted-Metal repository build from exact revision `2c6326a9`. Detail
 after its consumed regression oracle: direct EXP and its composed SIGMOID are domain-blocked, the
 remaining candidates failed, and its invocation is never rerun.
 [0053](tasks/0053-certified-accelerator-float32-custom-exp-stable-sigmoid.md) supersedes 0051 for
-new EXP/SIGMOID work and is In progress. Its raw-bit integer/fixed-point source, constants,
-complete raw-word/rank-`1..16` proof, independent checker, and independent approval gate capability
-and one newly authorized no-skip device smoke. A sole correct custom survivor needs no timing or
-comparison. MPSGraph candidates remain structural and domain-blocked without their own proof;
-local timing is never run or used as route authority.
+new EXP/SIGMOID work and remains In progress. It now retains an integer-only raw-word candidate,
+generated constants, Sollya interval, structural Lean proof, source audit, and an independent
+partitioned check of every `2^32` word with zero unresolved/failures and maximum ordinary distance
+one. That checker is corroboration, not the proof root. The universally quantified numerical Lean
+theorem linking the exact integer source/constants and every rounding/reconstruction site to EXP
+distance `<=5` and materialized stable-SIGMOID site membership remains open; compiled-MSL audit,
+review, and device smoke therefore remain blocked. Native integration returns unsupported operation
+and does not append the candidate source to the active library; capability/catalog/route are
+unchanged. MPSGraph candidates remain structural and domain-blocked. Local timing is never run.
 [0052](tasks/0052-accelerator-float32-comparisons-extrema-scans.md) is Complete: all retained
 semantic, numerical, and structural facts passed; routes were frozen; and the atomic production
 cutover landed. Its timings remain diagnostics only. Opaque routes remain domain-blocked and

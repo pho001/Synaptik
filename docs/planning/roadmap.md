@@ -177,16 +177,17 @@ CPU requires no migration because its exact realizations remain valid members of
 set.
 
 [Metal 0053](backends/metal/tasks/0053-certified-accelerator-float32-custom-exp-stable-sigmoid.md)
-supersedes 0051 for all new EXP/SIGMOID work while preserving that historical record. Its custom
-EXP is a raw-bit integer/fixed-point candidate requiring kernel-checked proof over all raw words,
-DAZ, overflow/underflow, range reduction, table/index and approximation bounds, integer
-reconstruction/FTZ, inclusive ordinary EXP distance `<=5`, and rank-`1..16` launch/index coverage.
-Stable SIGMOID must be proved recursively from exact guard/NEG, the approved EXP, and materialized
-integer ADD/DIV sites, never by a final envelope. Current opaque direct/inherited MPSGraph routes
-remain structural `DOMAIN-BLOCKED` candidates; selector presence, samples, and timing provide no
-correctness approval. Capability and device execution stay closed until proof, independent
-all-word checking, source/compiler audit, and review pass. One correct custom survivor needs no
-cost comparison. Local timing is not run and has no authority.
+supersedes 0051 for all new EXP/SIGMOID work while preserving that historical record. It now
+retains an integer-only raw-word candidate, MPFR constants/partitions, a Sollya interval,
+structural Lean proof, source audit, and an independent partitioned check of all `2^32` words with
+zero unresolved/failures and maximum ordinary EXP distance one. That PASS is corroboration only.
+The universally quantified numerical Lean theorem must still connect the exact integer source and
+certificates through every Q48/Q32 rounding/reconstruction/pack site to complete EXP class and
+inclusive distance-`<=5` semantics, then prove each materialized stable-SIGMOID ADD/DIV site.
+Compiled-MSL inspection, independent review, and the proof-first device smoke remain blocked.
+Native integration returns unsupported operation and leaves Java capability, catalog availability,
+and route identity unchanged. Opaque MPSGraph routes remain structural `DOMAIN-BLOCKED`
+candidates. Local timing is not run and has no authority.
 
 [Metal 0052](backends/metal/tasks/0052-accelerator-float32-comparisons-extrema-scans.md)
 is Complete for six FLOAT32 comparisons, tensor/scalar/clamp/reduction extrema, and
@@ -626,11 +627,11 @@ matrix with narrowing, or infer capability from registered schema.
 ## Nearest next step
 
 Task 0053 is the active Metal frontier. It consumes Complete Task 0056's exhaustive internal
-catalog and immutable route identity plus Task 0055's ABI-5/schema-13 foundation. Its integer-only
-raw-word source, proof package, all-word checker, source/site audit, and fail-closed integration are
-In progress. Capability and device execution remain closed until proof and independent review;
-opaque MPSGraph candidates cannot be forced. A single correct custom survivor needs no comparison.
-No local timing, benchmark, fallback, retry, runtime selection, or final full build is authorized.
+catalog and immutable route identity plus Task 0055's ABI-5/schema-13 foundation. Candidate source,
+generated constants, structural proof, source audit, and all-word corroboration are retained. The
+exact integer numerical Lean theorem is now the active obligation; capability and device execution
+remain closed, and opaque MPSGraph candidates cannot be forced. No local timing, benchmark,
+fallback, retry, runtime selection, or final full build is authorized.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
