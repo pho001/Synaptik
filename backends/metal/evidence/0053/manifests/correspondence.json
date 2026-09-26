@@ -3,6 +3,7 @@
   "authoritativeAlgorithmSource": "native/metal-macos-arm64/src/task0053_integer_core.h",
   "metalTemplate": "native/metal-macos-arm64/src/task0053_candidate.metal",
   "cModelRelation": "model/task0053_model.c directly includes the authoritative algorithm source and adds export wrappers only",
+  "leanModelRelation": "proof/Task0053Integer.lean defines the exact Nat/Int algorithm and checked arithmetic lemmas; a theorem relating that definition to authoritativeAlgorithmSource remains open",
   "correspondence": [
     {
       "obligation": "raw binary32 classification and DAZ/FTZ policy",
@@ -16,8 +17,22 @@
       "metal": ["task0053_raw_to_q48", "task0053_round_signed_div", "task0053_mul_q32", "task0053_pack_q31"],
       "model": ["task0053_model_exp"],
       "checker": ["reference_exp", "ordered_distance"],
-      "proof": [],
-      "status": "OPEN_NUMERICAL_DOMAIN_THEOREM"
+      "proof": [
+        "Task0053.Generated.algebraic_table_checks",
+        "Task0053.Generated.directed_table_words_match",
+        "Task0053.Integer.roundDivEvenNat_error",
+        "Task0053.Integer.roundDivEvenNat_monotone",
+        "Task0053.Integer.roundShiftEven_monotone",
+        "Task0053.Integer.saturatingShiftLeft_monotone",
+        "Task0053.Integer.magnitudeToQ48_monotone_same_exponent",
+        "Task0053.Integer.rangeQuotientMagnitude_constant_between",
+        "Task0053.Partitions.positive_partition_covers",
+        "Task0053.Partitions.negative_partition_covers",
+        "Task0053.Partitions.positive_partition_disjoint",
+        "Task0053.Partitions.negative_partition_disjoint"
+      ],
+      "leanDefinitions": ["Task0053.Integer.expCandidate"],
+      "status": "OPEN_TRANSCENDENTAL_AND_SOURCE_EQUIVALENCE_THEOREMS"
     },
     {
       "obligation": "stable materialized SIGMOID graph",
@@ -25,7 +40,8 @@
       "model": ["task0053_model_add_one", "task0053_model_divide_positive", "task0053_model_sigmoid"],
       "checker": ["reference_add_one", "reference_divide_positive", "run_worker"],
       "proof": [],
-      "status": "OPEN_NUMERICAL_DOMAIN_THEOREM"
+      "leanDefinitions": ["Task0053.Integer.sigmoidCandidate"],
+      "status": "OPEN_RNE_OR_FTZ_SITE_MEMBERSHIP_THEOREM"
     },
     {
       "obligation": "rank 1..16 launch mapping and guard",

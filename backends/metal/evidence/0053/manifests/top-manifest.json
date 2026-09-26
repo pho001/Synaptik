@@ -17,12 +17,20 @@
       "sha256": "576690d96f9b1144bb868a0d3b2958ad7d022fbf22d519f63b94b287e083cea5"
     },
     {
+      "path": "backends/metal/evidence/0053/generated/directed-certificates.json",
+      "sha256": "469db6572f3c6ac5ce3bc56b76ef247703b58ee58bef5644b973cdda5b627c3a"
+    },
+    {
       "path": "backends/metal/evidence/0053/generated/polynomial-report.txt",
       "sha256": "619b6cb7ab3b43b9895cad8094241d470d212f44bdc81bac3f324d0eee8844e9"
     },
     {
+      "path": "backends/metal/evidence/0053/generated/quotient-partitions.json",
+      "sha256": "bec8160c68ac0493ca421236eeb8875d5f981bbbf0a86c8d3a0a0a75d5e3391a"
+    },
+    {
       "path": "backends/metal/evidence/0053/generated/source-audit.json",
-      "sha256": "9ed0daebd0ed117cefceac3028bdf0c39d1cb81d4cbdeaea51434de80e40324a"
+      "sha256": "119158359056110102f139921cc035af71129eadfd881dce6934c5d0fb3423b9"
     },
     {
       "path": "backends/metal/evidence/0053/generated/task0053_constants.h",
@@ -34,7 +42,7 @@
     },
     {
       "path": "backends/metal/evidence/0053/manifests/correspondence.json",
-      "sha256": "cf1ea12c83f4398497efb32ee79d7dce8ab3df891bc01cbdb5307062b5175d60"
+      "sha256": "00412ce16bd09036ff6f4103c5e01dc79d7b4a6ba4a096701aada51f235757fd"
     },
     {
       "path": "backends/metal/evidence/0053/manifests/launch.json",
@@ -42,7 +50,7 @@
     },
     {
       "path": "backends/metal/evidence/0053/manifests/proof-status.json",
-      "sha256": "678b5d43cc1237a1b2da8ab084aeeb3aecfaf4c5bd6d30345aad64f55d72ac09"
+      "sha256": "b8e67ab2d5fc93ee60c5f662f919dc55130b0a18bbd48d4c8f686ce3bae37c9d"
     },
     {
       "path": "backends/metal/evidence/0053/manifests/sites.json",
@@ -62,7 +70,15 @@
     },
     {
       "path": "backends/metal/evidence/0053/proof/Task0053Generated.lean",
-      "sha256": "e6941941c11d5f9575937dacf0c434c7c14a4299ee7dde9bcd06ab59d593600f"
+      "sha256": "801fea3f80474cdaa23e28fef66e6432e2b1780d3fc487318319fc11a3e7cdf8"
+    },
+    {
+      "path": "backends/metal/evidence/0053/proof/Task0053Integer.lean",
+      "sha256": "da1cd6ff478036091c0f9b5ca90cc8431f94e65c3db95e0b563235f4e159d132"
+    },
+    {
+      "path": "backends/metal/evidence/0053/proof/Task0053Partitions.lean",
+      "sha256": "b721b063d7bc453c24d6caac81d20dc646d519b35cd290441c8757909bfcec52"
     },
     {
       "path": "backends/metal/evidence/0053/proof/Task0053Structural.lean",
@@ -74,7 +90,7 @@
     },
     {
       "path": "backends/metal/evidence/0053/run-proof.sh",
-      "sha256": "173c2b1253a3d1176b6b84f2fb68a221d86536664eb98ea7ab8ebcf915c484dc"
+      "sha256": "6b7a79df24c05552d01dba1663a01eca3c6ec608d189196147475ea6cbfc1d1b"
     },
     {
       "path": "backends/metal/evidence/0053/tools/assert_proof_gate.py",
@@ -82,15 +98,23 @@
     },
     {
       "path": "backends/metal/evidence/0053/tools/audit_source.py",
-      "sha256": "cf5d96f69f95cf4f25113f77b4caf1738fb59c76f56c6cb2f696af921ac56581"
+      "sha256": "deb6f24efa340273b520949bba7a9b84c6f114c9993f6230ec3c28fe6f678cb2"
     },
     {
       "path": "backends/metal/evidence/0053/tools/generate_constants.c",
-      "sha256": "f28e96d6cf05e195f2a49e0695fb53916454b432b4e2c03ded15576f262830f5"
+      "sha256": "c5e911d8227f6f05321fcd05d338c72557222bb10de18d0570c5cb7136c9d9e2"
     },
     {
       "path": "backends/metal/evidence/0053/tools/generate_lean_constants.py",
-      "sha256": "2995883ba2ecd0ad5be7d626de39f8fe5ddd2505a7f58df136ed8ca2f725bf09"
+      "sha256": "0b672f67818deb8c1b022a3bf8bd7a4f313f5e7f002a66c31aee0d76f329c20b"
+    },
+    {
+      "path": "backends/metal/evidence/0053/tools/generate_lean_partitions.py",
+      "sha256": "1f76b6a6fd474db4e0f0009b783426bd4d974c59a578ac620c129d5e940d2db0"
+    },
+    {
+      "path": "backends/metal/evidence/0053/tools/generate_partitions.py",
+      "sha256": "a26ad308359388bfbaad9b8628e2c33caf8cf5d13c3acddcb0e1224d8f907b47"
     },
     {
       "path": "backends/metal/evidence/0053/tools/verify_toolchain.py",

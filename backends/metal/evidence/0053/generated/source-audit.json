@@ -1,7 +1,8 @@
 {
-  "audit": "task0053-source-host-v2",
+  "audit": "task0053-source-host-v3",
   "compiledSiteAudit": "PENDING_NO_STANDALONE_MSL_COMPILER",
   "constantsSha256": "4a600e1b21a236b43ae13571a9270690b92f8b1c1a4392f4fb7cd13ae3a4eb18",
+  "directedCertificatesSha256": "469db6572f3c6ac5ce3bc56b76ef247703b58ee58bef5644b973cdda5b627c3a",
   "domainApproval": "BLOCKED",
   "embeddedHeaderSha256": "c1f4bf5b94fb27de8c699a7d492a9e69687acb85f8d5de53747ee6ddd550f54c",
   "embedderSha256": "8687de4966396f69d8c77731cfea5ad9aa00c79e75a458064f07c0e0acc9c9f1",
@@ -17,6 +18,7 @@
   "missingSourceTokens": [],
   "modelSha256": "88e44de24050db489d6f7c34711400f844e9d7de04b5c6cbdb0a7e6c6fcc2927",
   "nativeActivation": "BLOCKED_UNSUPPORTED_OPERATION",
+  "quotientPartitionsSha256": "bec8160c68ac0493ca421236eeb8875d5f981bbbf0a86c8d3a0a0a75d5e3391a",
   "singleSourceCModel": "PASS",
   "sourceAudit": "PASS",
   "sourceSha256": "d6a89170275415838cc52a110f9380a2d2fbadc62a2e99d9735d38444fa599c7",

@@ -16,6 +16,8 @@ HOST = NATIVE / "src" / "synaptik_metal_foundation.m"
 EMBEDDER = NATIVE / "generate-task0053-header.py"
 REPORT = EVIDENCE / "generated" / "source-audit.json"
 CONSTANTS = EVIDENCE / "generated" / "task0053_constants.h"
+DIRECTED_CERTIFICATES = EVIDENCE / "generated" / "directed-certificates.json"
+QUOTIENT_PARTITIONS = EVIDENCE / "generated" / "quotient-partitions.json"
 MODEL = EVIDENCE / "model" / "task0053_model.c"
 
 
@@ -142,7 +144,9 @@ def main() -> None:
     if missing_host:
         failures.append("missing host integration identity")
     report = {
-        "audit": "task0053-source-host-v2",
+        "audit": "task0053-source-host-v3",
+        "directedCertificatesSha256": digest(DIRECTED_CERTIFICATES),
+        "quotientPartitionsSha256": digest(QUOTIENT_PARTITIONS),
         "sourceSha256": digest(SOURCE),
         "integerCoreSha256": digest(CORE),
         "expandedMslSourceSha256": digest_text(source),

@@ -514,11 +514,26 @@ the active Task-0052 library, and Java capability, catalog availability, prepare
 schema, ABI, and public behavior are unchanged. No device execution, timing, benchmark, route
 selection, or production approval occurred.
 
-The exact open numerical theorem is recorded in
-`backends/metal/evidence/0053/manifests/proof-status.json`: pinned Lean must connect the exact
-integer candidate and generated constants/certificates through every Q48/Q32 quotient, residual,
-Horner, reconstruction, threshold, tie, and pack site to universal EXP class and inclusive
-distance-`<=5` membership, then prove both materialized stable-SIGMOID ADD/DIV branches. The
-compiled-MSL site audit also remains unavailable without a standalone compiler, and independent
-review plus the proof-first device smoke remain blocked. EXP/SIGMOID are not certified, available,
-executable, or capability-true.
+The no-axiom Lean checkpoint now retains an exact Nat/Int definition of the candidate, proves
+nearest-even division error and monotonicity, monotonic fixed-point decode/shift behavior, and
+boundary examples, and kernel-replays the generated table intervals as exact rational enclosures of
+the positive roots satisfying `y^128 = 2^i`. A generated 32,778-record sign/exponent/quotient
+certificate is checked in the kernel for endpoint quotients and same-exponent intervals; generic
+Lean theorems prove that its contiguous positive and negative interval lists cover their complete
+active magnitude ranges and are disjoint. MPFR and Sollya remain generators/corroboration only.
+
+That retained finite certificate is not sufficient for a sound mathematical-EXP theorem in the
+pinned environment. No constructive-real or equivalent rational-Cauchy exponential development is
+available to bridge a checked rational Taylor enclosure to mathematical `exp`, prove
+`exp(x + y) = exp(x) * exp(y)` and the `ln(2)/128` reduction identity, and carry those semantics
+through the Q48/Q32 polynomial, reconstruction, and binary32 rounding result. The exact external
+blocker is a pinned no-axiom library or formal lemma set providing that bridge. Source-to-Lean
+semantic equivalence and the stable-SIGMOID materialized ADD/DIV RNE-or-FTZ membership theorem also
+remain open.
+
+The open obligations are recorded in
+`backends/metal/evidence/0053/manifests/proof-status.json`. The compiled-MSL site audit remains
+unavailable without a standalone compiler. An independent read-only checkpoint review reported no
+P0/P1/P2 findings and accepted these artifacts as fail-closed evidence only, explicitly not
+`DOMAIN-PASS`. Required independent domain approval and the proof-first device smoke remain blocked.
+EXP/SIGMOID are not certified, available, executable, or capability-true.

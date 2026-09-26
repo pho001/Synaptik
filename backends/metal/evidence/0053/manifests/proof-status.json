@@ -8,10 +8,13 @@
   "closedObligations": {
     "deterministicSourceEmbedding": "PASS",
     "sharedMslCIntegerCore": "PASS",
-    "mpfrGeneratedConstantsAndPartitions": "PASS",
-    "sollyaPolynomialInterval": "PASS",
-    "sourceFloatingSiteAudit": "PASS",
-    "structuralLeanProof": "PASS"
+    "generatedConstantsAndFinitePartitions": "PASS",
+    "kernelReplayedAlgebraicTableEnclosures": "PASS",
+    "kernelCheckedIntegerRoundingAndMonotonicity": "PASS",
+    "kernelCheckedQuotientPartitionEndpointCoverageDisjointness": "PASS",
+    "sourceIntegerSiteAudit": "PASS",
+    "structuralLeanProof": "PASS",
+    "independentFailClosedCheckpointReview": "PASS_NO_DOMAIN_APPROVAL"
   },
   "corroboration": {
     "allBinary32ModelCheck": "PASS",
@@ -20,14 +23,20 @@
     "maximumOrderedDistance": 1,
     "expFailures": 0,
     "sigmoidOrSiteFailures": 0,
-    "authority": "independent corroboration only; not the proof root"
+    "authority": "independent corroboration only; not the proof root",
+    "sollyaPolynomialInterval": "PASS_CORROBORATION_ONLY"
   },
   "openObligations": {
     "kernelCheckedNumericalDomainTheorem": "OPEN",
+    "constructiveExpSemanticsBridge": "BLOCKED_NO_PINNED_CONSTRUCTIVE_REAL_EXP_LIBRARY_OR_FORMAL_SERIES_IDENTITY_LEMMAS",
+    "sourceToLeanSemanticEquivalence": "OPEN",
+    "universalPolynomialReconstructionAndPackingBound": "OPEN",
+    "sigmoidRneOrFtzSiteMembership": "OPEN",
     "compiledMslFloatingSiteAudit": "PENDING_NO_STANDALONE_MSL_COMPILER",
-    "independentReview": "PENDING",
+    "independentDomainReview": "BLOCKED_ON_NUMERICAL_THEOREM",
     "proofFirstDeviceSmoke": "BLOCKED"
   },
-  "smallestUnresolvedTheorem": "For every raw binary32 word, prove in the pinned Lean kernel that the exact integer implementation corresponding to task0053_candidate.metal returns an allowed EXP result within five ordered normal-result encodings of correctly rounded real exp (with declared NaN, DAZ, FTZ, overflow, and infinity choices), and that both materialized stable-SIGMOID branches have each ADD and DIV result in the Model acceptance set. The theorem must connect the generated MPFR table/threshold constants and Sollya polynomial interval through every Q48/Q32 quotient, residual, Horner, reconstruction, tie, threshold, and pack rounding site.",
+  "checkpointConclusion": "The retained finite certificate now supports no-axiom kernel proofs of exact integer rounding error/monotonicity, algebraic table enclosures, and universal quotient-partition coverage/disjointness. It does not by itself support a sound mathematical-exp theorem.",
+  "smallestUnresolvedTheorem": "Provide a pinned no-axiom constructive-real or equivalent rational-Cauchy development proving the exponential series enclosure rule, exp(x+y)=exp(x)*exp(y), the ln(2)/128 range-reduction identity, and the connection from those semantics through the fixed Q48/Q32 polynomial/reconstruction error to correctly rounded binary32 EXP. Then prove source-to-Lean equivalence and the stable-SIGMOID materialized ADD/DIV RNE-or-FTZ site-membership theorem.",
   "activationGate": "BLOCKED until the numerical theorem, compiled-site audit, independent review, and proof-first device smoke are all PASS"
 }
