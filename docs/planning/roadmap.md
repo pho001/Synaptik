@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Task 0058 Complete; 0053 Blocked | [Metal 0058](backends/metal/tasks/0058-remaining-elementwise-arithmetic.md) retains exact raw `FLOOR`/`CEIL`/`SIGN`/`RELU` and admits only ACCELERATOR canonical positive-rank FLOAT32 no-gradient scalar `ADD/SUB/MUL/DIV` and `RECIPROCAL`. Implementation `5ab9c44c` plus contracts/evidence `63c070cc` reached `50 true / 65 false`; independent cumulative Class C review approved with zero P0/P1/P2. Task 0053 is untouched. No Metal task is Ready. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Task 0059 Ready and active; 0058 Complete; 0053 Blocked | [Metal 0059](backends/metal/tasks/0059-casts-layout-indexing.md) owns only remaining wire `39` and wires `69..84` from clean `67d68071`. Its frozen target is exact `61 true / 54 false` capability and `79 / 36` structural coverage through proved CAST carrier pairs, read-only indexing, and copy-only layout, with scatter/slice-update/fold/gradient/dynamic/unproved-conversion domains false. Schema 14, identity 15, ABI 5, and thirteen exports remain fixed unless encoded bytes genuinely change. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -325,6 +325,8 @@ The active semantic and Metal serial DAG is:
 `Metal 0052 (Complete) -> Metal 0055 (Complete) -> Metal 0056 (Complete) -> {Metal 0053 (Blocked), Metal 0057 (Complete)}`
 
 `Metal 0057 (Complete) + approved tensor arithmetic/result-set contracts -> Metal 0058 (Complete)`
+
+`Metal 0058 (Complete) + current cast/layout/indexing contracts -> Metal 0059 (Ready and active)`
 
 `Metal 0022/0023/0024/0025 (Complete) + finalized evidence through Metal 0037 -> Metal 0038 (Complete)`
 
@@ -649,13 +651,15 @@ matrix with narrowing, or infer capability from registered schema.
 
 ## Nearest next step
 
-Metal Task 0058 is Complete. It consumes Task 0057's schema-14, identity-15, shared
-`CUSTOM_PROGRAM` route and Task 0056's exhaustive catalog without changing ABI 5 or its thirteen
-exports. It retains exact raw/integer `FLOOR`/`CEIL`/`SIGN`/`RELU` and admits only ACCELERATOR
-canonical positive-rank FLOAT32 no-gradient scalar `ADD/SUB/MUL/DIV` and `RECIPROCAL`, reaching
-`50 true / 65 false`. Every scoped MPSGraph recipe remains structural, while power, unproved
-elementary/transcendental, and recursively blocked composite rows remain false. Task-0053
-`EXP`/`SIGMOID` are untouched. No Metal task is Ready.
+Metal Task 0059 is Ready and active from clean `67d68071`. It inventories exactly `CAST` wire 39,
+indexing wires `69..73`, and layout wires `74..84`; already approved layout/indexing wires `6..19`
+are regression scope and must not be duplicated. The frozen production target is exact `61 true /
+54 false`: bounded proved CAST carrier pairs, exact read-only indexing, and exact copy-only layout.
+Scatter, slice update, folds, gradient-bearing occurrences, dynamic/empty/view descriptors, and
+unproved CAST pairs remain explicitly false. All seventeen wires receive structural MPSGraph
+recipes for exact `79 / 36` structural coverage. Schema 14, identity 15, ABI 5, and thirteen exports
+remain fixed unless encoded bytes genuinely change; no fallback, retry, timing, autotuning, or final
+full build is authorized. Task-0053 `EXP`/`SIGMOID` remain untouched.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
