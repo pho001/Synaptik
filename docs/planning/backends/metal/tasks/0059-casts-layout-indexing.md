@@ -2,10 +2,10 @@
 
 ## Status
 
-Complete.
-Planning was frozen at `c6442b20` and the explicit unfold-padding contract at `645d6e23`.
-Implementation landed at `08bf68bb`, focused proof at `a4926b52`, and independent cumulative
-Class C review approved every reported P0/P1/P2 remediation.
+Reopened for the schema/layout representation cutover required to admit `SELECT` and `SLICE`.
+The earlier schema-14 implementation remains the audited baseline at `08bf68bb` with focused proof
+at `a4926b52`; the reopened work is not Complete until the new schema-15 implementation, focused
+proof, independent cumulative review, and final evidence are committed.
 
 ## Change class
 
@@ -99,13 +99,33 @@ Shapes/attributes and no gradients.
 Every route writes fresh canonical output storage and preserves all inputs. No raw movement
 operation may use a typed MPSGraph selector as its production correctness argument.
 
-### Gate D: explicit blockers
+### Gate D: schema-15 resolved-layout indexing
+
+Admit `SELECT` and `SLICE` through the existing exact raw-movement custom family for all six
+carriers, with fully static input and output Shapes, positive input and output rank, positive
+extents, and `requiresGrad=false` throughout. Caller-negative axes and SELECT indices must already
+be normalized by Model; the executable image accepts only normalized attributes. SELECT removes
+one axis and maps each dense represented-order output coordinate to the exact dense represented-
+order input coordinate. SLICE implements Model-normalized starts, lengths, axes, and signed
+nonzero steps, including negative steps.
+
+Schema 15 encodes every logical layout fact needed to validate and publish these materialized
+results: Shape rank and dimensions, optional-layout presence, every resolved element stride,
+element storage offset, derived layout kind, view flag, and referenced element span. Native code
+independently recomputes and validates kind/span geometry and the exact SELECT/SLICE layout
+transformation. Resolved positive-step views retain their exact nonzero offsets and noncontiguous
+strides; unresolved negative-step results remain explicitly unresolved. Physical result buffers
+are fresh dense represented-order materializations, authenticated to the exact logical descriptor
+for publication; this neither aliases nor mutates the input. Authenticated materialization applies
+to all six carrier types and does not require zero logical storage offset.
+
+The clean cutover changes schema 14 to schema 15 and identity 15 to identity 16. There is one
+schema-15 encoder/decoder and no schema-14 compatibility reader, alias, migration shim, or dual
+path. Native ABI remains 5 and the export signature/count remains unchanged.
+
+### Gate E: explicit blockers
 
 The following remain capability-false under both profiles:
-
-- `SELECT` and `SLICE`, because public Model construction intentionally retains resolved view
-  layout and the unchanged schema-14 executable image carries no view strides/offsets; admitting a
-  canonical-output raw kernel would violate publication layout and no-alias semantics;
 - `SCATTER_ADD` and `SCATTER_ND`, because duplicate membership/order-independent reductions,
   replacement uniqueness, per-type reduction semantics, and gradient-bearing domains are not all
   proved by a single systematic route;
@@ -114,8 +134,8 @@ The following remain capability-false under both profiles:
 - `FOLD_AXIS`, `FOLD2D`, and `FOLD3D`, because overlap accumulation is arithmetic and inherits the
   duplicate/reduction result-set and gradient blockers; and
 - every otherwise exact new operation occurrence with gradient-bearing metadata, a dynamic or empty
-  descriptor, an affine-view input, an unproved CAST pair, unsupported variadic cardinality, or
-  malformed/noncanonical attributes.
+  descriptor, rank-zero SELECT/SLICE result, an unproved CAST pair, unsupported variadic
+  cardinality, or malformed attributes/layout geometry.
 
 Do not special-case a nonoverlap geometry to make a blocked reduction kind true. Do not use
 atomics, encounter order, tolerance, selector success, or ordinary-value output as proof.
@@ -162,11 +182,17 @@ runtime probing, timing, benchmarking, autotuning, or device-dependent choice.
 
 ## Schema, identity, ABI, lifecycle, and errors
 
-Retain schema 14, operation wires `1..115`, type wires `1..6`, attribute wires `0..41`, identity
-15, native ABI 5, and exactly thirteen exports because Java already encodes every in-scope node and
-attribute. Extending the native decoder to consume existing bytes is not a schema change. If and
-only if encoded image bytes genuinely must change, stop and perform one clean version cutover with
-no compatibility reader, alias, or dual decoder.
+The reopened inventory found that schema 14 encoded only type, Shape rank, dimension-pool offset,
+and gradient flag for each value; it carried no layout-presence, stride, storage-offset, kind, view,
+or referenced-span fact. The publication path authenticated only FLOAT32, zero-offset affine
+outputs before downloading the dense represented-order buffer. That representation cannot publish
+the exact Model descriptors produced by SELECT and positive-step SLICE.
+
+Perform one clean schema-15/identity-16 cutover. The schema-15 value descriptor and shared stride
+pool encode the complete optional logical layout listed in Gate D while retaining operation wires
+`1..115`, type wires `1..6`, attribute wires `0..41`, native ABI 5, and exactly thirteen exports.
+Every image offset/count calculation is checked and schema 14 is rejected exactly; there is no
+compatibility reader.
 
 Native parsing independently validates every later attribute kind used here, canonical unused
 fields, counts, rank bounds, positive dimensions, signed attribute words, carrier compatibility,
@@ -202,10 +228,10 @@ immutability, and direct assigned-output publication.
 7. Commit implementation and focused evidence, request an independent cumulative Class C review,
    remediate every P0/P1/P2, rerun affected focused checks, and mark Complete only after approval.
 
-Expected production capability is exactly `59 true / 56 false`: nine newly true operation kinds
-(`CAST`, two read-only indexing kinds, and six copy-only layout kinds). The public no-skip gate
-keeps view-only `SELECT` and `SLICE` false without weakening their independently executable
-structural MPSGraph recipes.
+Expected production capability after the reopened cutover is exactly `61 true / 54 false`: the
+previous nine newly true operation kinds plus `SELECT` and `SLICE`. The structural ledger remains
+exactly `79 executable / 36 nonexecutable`; their structural MPSGraph recipes are independent of
+the fixed custom production route.
 
 ## Completion evidence
 
