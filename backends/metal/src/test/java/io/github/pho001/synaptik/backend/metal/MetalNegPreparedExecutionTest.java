@@ -1647,6 +1647,36 @@ class MetalNegPreparedExecutionTest {
         }
         assertEquals(1, api.contextReleases.get());
     }
+    @Test
+    void generalGeometryMatmulSelectsCustomProgramBeforeResourceDeclaration() {
+        Fixture fixture = batchedMatmulFixture();
+        RecordingNativeApi api = new RecordingNativeApi();
+        try (MetalDeviceContext context = MetalDeviceContext.open(api)) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> analyze(fixture, context, NumericalProfile.STRICT_IEEE));
+            BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
+                    analyze(fixture, context, NumericalProfile.ACCELERATOR);
+            MetalNegPreparationPlan plan = analysis.plan();
+            assertEquals(MetalPreparedRoute.CUSTOM_PROGRAM, plan.route());
+            assertEquals(
+                    List.of(MetalMpsGraphProgram.NodeKind.MATMUL),
+                    plan.graphProgram().nodes().stream()
+                            .map(MetalMpsGraphProgram.Node::kind)
+                            .toList());
+            assertEquals(List.of(fixture.v0(), fixture.v1()), plan.feedValueIds());
+            assertEquals(List.of(fixture.v2()), plan.targetValueIds());
+            assertTrue(plan.internalValueIds().isEmpty());
+            assertEquals(
+                    List.of(fixture.v0(), fixture.v1(), fixture.v2()),
+                    analysis.requirements().stream()
+                            .filter(PreparationResourceRequirement.Buffer.class::isInstance)
+                            .map(PreparationResourceRequirement.Buffer.class::cast)
+                            .map(PreparationResourceRequirement.Buffer::valueId)
+                            .toList());
+        }
+        assertEquals(1, api.contextReleases.get());
+    }
+
 
     @Test
     void acceleratorReductionsLowerTypedFormsAndReuseOnePreparedExecutable() {
@@ -3738,6 +3768,34 @@ class MetalNegPreparedExecutionTest {
         return new Fixture(
                 partition, nodes, values, requirements, v0, v1, v2, v3, v4, v4);
     }
+    private static Fixture batchedMatmulFixture() {
+        TensorDescriptor left = descriptor(Shape.of(2, 2, 3));
+        TensorDescriptor right = descriptor(Shape.of(1, 3, 4));
+        TensorDescriptor output = descriptor(Shape.of(2, 2, 4));
+        ValueId v0 = new ValueId(32_100);
+        ValueId v1 = new ValueId(32_101);
+        ValueId v2 = new ValueId(32_102);
+        CompiledNode node = new CompiledNode(
+                new NodeId(32_100),
+                new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE),
+                List.of(v0, v1),
+                List.of(v2));
+        PlannedPartition partition = new PlannedPartition(
+                MetalCapabilityProvider.METAL_BACKEND_ID, List.of(node.id()));
+        return new Fixture(
+                partition,
+                List.of(node),
+                List.of(
+                        new GraphValue(v0, left),
+                        new GraphValue(v1, right),
+                        new GraphValue(v2, output)),
+                List.of(
+                        requirement(v0, left, Optional.empty(), List.of(partition), false),
+                        requirement(v1, right, Optional.empty(), List.of(partition), false),
+                        requirement(v2, output, Optional.of(partition), List.of(), true)),
+                v0, v1, v2, v2, v2, v2);
+    }
+
 
     private static Fixture reductionFixture() {
         TensorDescriptor input = descriptor(Shape.of(2, 3, 4));

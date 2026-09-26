@@ -30,25 +30,28 @@
  * attributes, and bounds validation before any indexed write. They use one fixed custom-program
  * route with no fallback, retry, timing, or autotuning.
  * {@code ACCELERATOR} additionally admits tensor {@code ADD}, {@code SUB}, {@code MUL},
- * {@code DIV}, {@code MIN}, and {@code MAX}; all six
- * binary comparisons with canonical one-byte {@code BOOL} output; exact FLOAT32 scalar
- * {@code MIN}, {@code MAX}, and fused {@code CLAMP}; canonical {@code FLOAT32} {@code SUM},
- * {@code MEAN}, {@code MIN}, {@code MAX}, and binding-resolved {@code SUM_TO_SHAPE}; all four
- * exclusive/reverse modes of {@code CUM_SUM} and {@code CUM_PROD}; and positive static rank-two
- * {@code FLOAT32} {@code MATMUL}. Reductions support full, normalized single-axis, ordered
- * normalized multi-axis including empty, and exact keep-dimensions forms; reduction inputs remain
- * positive-rank while their target may be rank zero. Canonical host ingress/materialization and
- * bidirectional CPU/Metal transfer accept ranks {@code 0..16} for all six public data types with
- * exact widths; transfer additionally accepts resolved positive-stride non-overlapping storage
- * layouts and rejects unresolved, zero-stride, negative-stride, or overlapping geometry. Logical
- * BOOL bytes are validated while layout holes remain uninterpreted. Exact BOOL operation ingress
- * is restricted further to positive-rank canonical bytes; custom outputs are written as
- * exact zero or one, and owned MPSGraph ONE_HOT output is validated by its typed selector contract.
- * Accelerator binary inputs and outputs are canonical dense non-views and use exact right-aligned
- * broadcasting.
- * Each MATMUL operand is canonical or the authenticated exact local rank-two
- * {@code PERMUTE [1,0]} of a canonical source; its output is canonical. Strict MATMUL remains
- * unsupported. A partition containing any shared exact custom node selects one fixed custom
+ * {@code DIV}, {@code MIN}, and {@code MAX}; all six binary comparisons with canonical one-byte
+ * {@code BOOL} output; exact FLOAT32 scalar {@code MIN}, {@code MAX}, and fused {@code CLAMP};
+ * canonical {@code FLOAT32} {@code SUM}, {@code MEAN}, {@code MIN}, {@code MAX}, and
+ * binding-resolved {@code SUM_TO_SHAPE}; all four exclusive/reverse modes of {@code CUM_SUM} and
+ * {@code CUM_PROD}; and every positive-static FLOAT32 {@code MATMUL} vector, matrix, batched, and
+ * right-aligned broadcast geometry. Both profiles admit no-gradient INT32/INT64 MATMUL pairs with
+ * INT64-dominant promotion and modular result arithmetic. Accelerator additionally admits
+ * no-gradient BFLOAT16/FLOAT32 and FLOAT32/BFLOAT16 operands with FLOAT32 result. Reductions support
+ * full, normalized single-axis, ordered normalized multi-axis including empty, and exact
+ * keep-dimensions forms; reduction inputs remain positive-rank while their target may be rank
+ * zero. Canonical host ingress/materialization and bidirectional CPU/Metal transfer accept ranks
+ * {@code 0..16} for all six public data types with exact widths; transfer additionally accepts
+ * resolved positive-stride non-overlapping storage layouts and rejects unresolved, zero-stride,
+ * negative-stride, or overlapping geometry. Logical BOOL bytes are validated while layout holes
+ * remain uninterpreted. Exact BOOL operation ingress is restricted further to positive-rank
+ * canonical bytes; custom outputs are written as exact zero or one, and owned MPSGraph ONE_HOT
+ * output is validated by its typed selector contract. Accelerator binary inputs and outputs are
+ * canonical dense non-views and use exact right-aligned broadcasting. Each MATMUL operand is
+ * canonical or the authenticated exact local identity-prefix, last-two-axis {@code PERMUTE} of a
+ * canonical source; its output is canonical. FLOAT32 output gradient metadata is the operand OR;
+ * integral and mixed-carrier rows are no-grad. A partition containing any shared exact custom node
+ * or a MATMUL outside the retained direct rank-two FLOAT32 MPSGraph slice selects one fixed custom
  * whole-program resource: fixed custom kernels and cold-compiled nested existing-node executables
  * consume the stable declared value table in program order behind one Java/native run call.
  * Every logical intermediate is an assigned run-owned buffer; targets remain the direct assigned
@@ -118,7 +121,7 @@
  * {@code 1..115}, attribute wires {@code 0..41}, and complete optional storage-layout geometry.
  * Native structural execution covers exactly 87 wires and leaves 28 nonexecutable. Production
  * capability is exactly 69 operation kinds and 46 remain false. Backend-local workload,
- * exact-policy, candidate, compatibility, route-policy, and codec identities remain version
- * sixteen; schema fourteen and identity version fifteen fail closed.</p>
+ * exact-policy, candidate, compatibility, route-policy, and codec identities are version
+ * seventeen; schema fourteen and identity version sixteen fail closed.</p>
  */
 package io.github.pho001.synaptik.backend.metal;

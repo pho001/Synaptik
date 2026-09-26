@@ -8,11 +8,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.file.Path;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphMatmulNativeTest {
@@ -34,6 +40,115 @@ class MetalMpsGraphMatmulNativeTest {
             }
             api.close();
         }
+    }
+    @Test
+    void customGeneralFloatingDomainRunsVectorBatchBroadcastAndBothMixedOrders() {
+        Path library = configuredLibrary();
+        var program = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.matmul(0, 1, 2),
+                MetalMpsGraphProgram.Node.matmul(3, 4, 5),
+                MetalMpsGraphProgram.Node.matmul(6, 7, 8),
+                MetalMpsGraphProgram.Node.matmul(9, 10, 11)));
+        List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
+                typed(DataType.FLOAT32, 3),
+                typed(DataType.FLOAT32, 3),
+                typed(DataType.FLOAT32),
+                typed(DataType.FLOAT32, 2, 2, 3),
+                typed(DataType.FLOAT32, 1, 3, 2),
+                typed(DataType.FLOAT32, 2, 2, 2),
+                typed(DataType.BFLOAT16, 2, 2),
+                typed(DataType.FLOAT32, 2, 1),
+                typed(DataType.FLOAT32, 2, 1),
+                typed(DataType.FLOAT32, 2, 2),
+                typed(DataType.BFLOAT16, 2, 1),
+                typed(DataType.FLOAT32, 2, 1));
+        List<byte[]> actual = executeCustom(
+                library,
+                NumericalProfile.ACCELERATOR,
+                program,
+                values,
+                new int[] {0, 1, 3, 4, 6, 7, 9, 10},
+                new int[] {2, 5, 8, 11},
+                List.of(
+                        floatBytes(1, 2, 3),
+                        floatBytes(4, 5, 6),
+                        floatBytes(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12),
+                        floatBytes(1, 0, 0, 1, 1, 1),
+                        bfloatBytes(1, 2, 3, 4),
+                        floatBytes(5, 6),
+                        floatBytes(1, 2, 3, 4),
+                        bfloatBytes(5, 6)));
+        assertArrayEquals(floatBytes(32), actual.get(0));
+        assertArrayEquals(floatBytes(4, 5, 10, 11, 16, 17, 22, 23), actual.get(1));
+        assertArrayEquals(floatBytes(17, 39), actual.get(2));
+        assertArrayEquals(floatBytes(17, 39), actual.get(3));
+    }
+
+    @Test
+    void customIntegralDomainRunsAllPromotionsWithModularOverflowUnderStrictProfile() {
+        Path library = configuredLibrary();
+        var program = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.matmul(0, 1, 2),
+                MetalMpsGraphProgram.Node.matmul(3, 4, 5),
+                MetalMpsGraphProgram.Node.matmul(6, 7, 8),
+                MetalMpsGraphProgram.Node.matmul(9, 10, 11)));
+        List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
+                typed(DataType.INT32, 1, 2), typed(DataType.INT32, 2, 1),
+                typed(DataType.INT32, 1, 1),
+                typed(DataType.INT32, 1, 2), typed(DataType.INT64, 2, 1),
+                typed(DataType.INT64, 1, 1),
+                typed(DataType.INT64, 1, 2), typed(DataType.INT32, 2, 1),
+                typed(DataType.INT64, 1, 1),
+                typed(DataType.INT64, 1, 2), typed(DataType.INT64, 2, 1),
+                typed(DataType.INT64, 1, 1));
+        List<byte[]> actual = executeCustom(
+                library,
+                NumericalProfile.STRICT_IEEE,
+                program,
+                values,
+                new int[] {0, 1, 3, 4, 6, 7, 9, 10},
+                new int[] {2, 5, 8, 11},
+                List.of(
+                        intBytes(Integer.MAX_VALUE, 2), intBytes(2, 3),
+                        intBytes(-2, 3), longBytes(Long.MAX_VALUE, 3),
+                        longBytes(-2, 3), intBytes(Integer.MAX_VALUE, 3),
+                        longBytes(Long.MAX_VALUE, 2), longBytes(2, 3)));
+        assertArrayEquals(intBytes(4), actual.get(0));
+        assertArrayEquals(longBytes(11), actual.get(1));
+        assertArrayEquals(longBytes(-4_294_967_285L), actual.get(2));
+        assertArrayEquals(longBytes(4), actual.get(3));
+    }
+
+    @Test
+    void customRankThreeMatmulLoadsAuthenticatedTransposeFromPhysicalSource() {
+        Path library = configuredLibrary();
+        var program = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.permutation(0, 2, List.of(0, 2, 1)),
+                MetalMpsGraphProgram.Node.matmul(2, 1, 3)));
+        Shape transposeShape = Shape.of(2, 2, 3);
+        var affine = new MetalMpsGraphProgram.ValueDescriptor(
+                DataType.FLOAT32,
+                transposeShape.toLongArray(),
+                Optional.of(LayoutDescriptor.of(
+                        transposeShape, new long[] {6, 1, 2}, 0L, true)),
+                false,
+                true);
+        List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
+                typed(DataType.FLOAT32, 2, 3, 2),
+                typed(DataType.FLOAT32, 3, 1),
+                affine,
+                typed(DataType.FLOAT32, 2, 2, 1));
+        List<byte[]> actual = executeCustom(
+                library,
+                NumericalProfile.ACCELERATOR,
+                program,
+                values,
+                new int[] {0, 1},
+                new int[] {3},
+                List.of(
+                        floatBytes(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12),
+                        floatBytes(1, 10, 100)));
+        assertArrayEquals(floatBytes(531, 642, 1197, 1308), actual.getFirst());
     }
 
     private static void runEveryForm(
@@ -199,6 +314,123 @@ class MetalMpsGraphMatmulNativeTest {
                 api.releaseExecutable(executable);
             }
         }
+    }
+
+    private static Path configuredLibrary() {
+        String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
+        assumeTrue(configured != null && !configured.isBlank(),
+                "SYNAPTIK_METAL_TEST_LIBRARY is not set");
+        return Path.of(configured).toAbsolutePath().normalize();
+    }
+
+    private static MetalMpsGraphProgram.ValueDescriptor typed(
+            DataType type, long... dimensions) {
+        return new MetalMpsGraphProgram.ValueDescriptor(type, dimensions, false);
+    }
+
+    private static List<byte[]> executeCustom(
+            Path library,
+            NumericalProfile profile,
+            MetalMpsGraphProgram program,
+            List<MetalMpsGraphProgram.ValueDescriptor> values,
+            int[] feeds,
+            int[] targets,
+            List<byte[]> feedBytes) {
+        MetalNativeApi api = MetalNativeApi.open(library);
+        MetalNativeApi.Handle context = null;
+        MetalNativeApi.Handle executable = null;
+        var buffers = new ArrayList<MetalNativeApi.Handle>();
+        try {
+            context = api.createContext();
+            executable = api.createMpsGraphExecutable(
+                    context, profile, values, program, feeds, targets,
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            for (var value : values) {
+                MetalNativeApi.Handle buffer = api.createBuffer(context, value.byteCount());
+                buffers.add(buffer);
+                byte[] poison = new byte[Math.toIntExact(value.byteCount())];
+                java.util.Arrays.fill(poison, (byte) 0xa5);
+                uploadBytes(api, buffer, poison);
+            }
+            for (int index = 0; index < feeds.length; index++) {
+                assertEquals(values.get(feeds[index]).byteCount(), feedBytes.get(index).length);
+                uploadBytes(api, buffers.get(feeds[index]), feedBytes.get(index));
+            }
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment addresses = arena.allocate(ADDRESS, buffers.size());
+                for (int index = 0; index < buffers.size(); index++) {
+                    addresses.setAtIndex(ADDRESS, index, buffers.get(index).carrier());
+                }
+                MemorySegment outputs = arena.allocate(ADDRESS, targets.length);
+                for (int index = 0; index < targets.length; index++) {
+                    outputs.setAtIndex(
+                            ADDRESS, index, buffers.get(targets[index]).carrier());
+                }
+                api.runExecutable(
+                        executable, buffers.size(), addresses, targets.length, outputs);
+            }
+            var result = new ArrayList<byte[]>(targets.length);
+            for (int target : targets) {
+                result.add(downloadBytes(
+                        api, buffers.get(target), values.get(target).byteCount()));
+            }
+            return List.copyOf(result);
+        } finally {
+            for (int index = buffers.size(); index-- > 0;) {
+                api.releaseBuffer(buffers.get(index));
+            }
+            if (executable != null) api.releaseExecutable(executable);
+            if (context != null) api.releaseContext(context);
+            api.close();
+        }
+    }
+
+    private static void uploadBytes(
+            MetalNativeApi api, MetalNativeApi.Handle buffer, byte[] bytes) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment source = arena.allocate(bytes.length, 1);
+            source.copyFrom(MemorySegment.ofArray(bytes));
+            api.upload(buffer, 0L, source, source.byteSize());
+        }
+    }
+
+    private static byte[] downloadBytes(
+            MetalNativeApi api, MetalNativeApi.Handle buffer, long byteCount) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment target = arena.allocate(byteCount, 1);
+            api.download(buffer, 0L, target, target.byteSize());
+            return target.toArray(java.lang.foreign.ValueLayout.JAVA_BYTE);
+        }
+    }
+
+    private static byte[] floatBytes(float... values) {
+        ByteBuffer bytes = ByteBuffer.allocate(values.length * Float.BYTES)
+                .order(ByteOrder.nativeOrder());
+        for (float value : values) bytes.putInt(Float.floatToRawIntBits(value));
+        return bytes.array();
+    }
+
+    private static byte[] bfloatBytes(float... values) {
+        ByteBuffer bytes = ByteBuffer.allocate(values.length * Short.BYTES)
+                .order(ByteOrder.nativeOrder());
+        for (float value : values) {
+            bytes.putShort((short) (Float.floatToRawIntBits(value) >>> 16));
+        }
+        return bytes.array();
+    }
+
+    private static byte[] intBytes(int... values) {
+        ByteBuffer bytes = ByteBuffer.allocate(values.length * Integer.BYTES)
+                .order(ByteOrder.nativeOrder());
+        for (int value : values) bytes.putInt(value);
+        return bytes.array();
+    }
+
+    private static byte[] longBytes(long... values) {
+        ByteBuffer bytes = ByteBuffer.allocate(values.length * Long.BYTES)
+                .order(ByteOrder.nativeOrder());
+        for (long value : values) bytes.putLong(value);
+        return bytes.array();
     }
 
     private static boolean isEitherZero(int bits) {

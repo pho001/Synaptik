@@ -45,7 +45,9 @@ class MetalOperationRouteCatalogTest {
             }
             if (kind.executable()) executable++;
             assertEquals(
-                    kind == MetalMpsGraphProgram.NodeKind.NEG || kind.isCustomProgramOperation(),
+                    kind == MetalMpsGraphProgram.NodeKind.NEG
+                            || kind == MetalMpsGraphProgram.NodeKind.MATMUL
+                            || kind.isCustomProgramOperation(),
                     entry.customKernelState()
                             == MetalOperationRouteCatalog.CustomKernelState.AVAILABLE,
                     kind.name());
@@ -54,8 +56,8 @@ class MetalOperationRouteCatalogTest {
         assertEquals(75, direct);
         assertEquals(35, composed);
         assertEquals(5, unavailable);
-        assertEquals(46, customAvailable);
-        assertEquals(69, customPending);
+        assertEquals(47, customAvailable);
+        assertEquals(68, customPending);
         assertEquals(0, customUnavailableWithProof);
         assertEquals(87, executable);
         assertEquals(28, kinds.length - executable);
@@ -147,6 +149,12 @@ class MetalOperationRouteCatalogTest {
                 MetalOperationRouteCatalog.MpsGraphReason.MD_CAST,
                 MetalOperationRouteCatalog.CustomKernelState.AVAILABLE,
                 MetalOperationRouteCatalog.CustomKernelReason.CA_0059);
+        assertCatalog(
+                MetalMpsGraphProgram.NodeKind.MATMUL,
+                MetalOperationRouteCatalog.MpsGraphState.DIRECT,
+                MetalOperationRouteCatalog.MpsGraphReason.MD_MATMUL,
+                MetalOperationRouteCatalog.CustomKernelState.AVAILABLE,
+                MetalOperationRouteCatalog.CustomKernelReason.CA_0061);
         assertCatalog(
                 MetalMpsGraphProgram.NodeKind.LOG_SUM_EXP,
                 MetalOperationRouteCatalog.MpsGraphState.COMPOSED,

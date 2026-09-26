@@ -1,0 +1,38 @@
+{
+  "task": "0061-general-static-matmul-domain",
+  "status": "accepted",
+  "kernelSource": {
+    "path": "native/metal-macos-arm64/src/synaptik_task0061_matmul_kernels.h",
+    "sha256": "764b83a48f73e4efbeea19b9b804ebfd0d1a6a215848770151784620ce558e2e"
+  },
+  "foundationSource": {
+    "path": "native/metal-macos-arm64/src/synaptik_metal_foundation.m",
+    "sha256": "723e08de873b27476265ec39b25a0e46f37a11cb316f06fbc58b252d7a36d702"
+  },
+  "compilerSite": {
+    "runtimeCompiler": "MTLDevice.newLibraryWithSource",
+    "mathMode": "MTLMathModeSafe",
+    "offlineMetalCompilerAvailable": false,
+    "offlineCompilerProbe": "xcrun --find metal exited 72: utility metal is not a developer tool or in PATH"
+  },
+  "floatingContract": {
+    "carriers": [
+      "FLOAT32 x FLOAT32 -> FLOAT32",
+      "BFLOAT16 x FLOAT32 -> FLOAT32",
+      "FLOAT32 x BFLOAT16 -> FLOAT32"
+    ],
+    "contributorOrder": "strictly increasing logical contraction index",
+    "operationPerContributor": "one explicit metal::fma(left, right, accumulator)",
+    "initialAccumulator": "+0.0f",
+    "bfloat16Widening": "raw 16-bit word shifted left by 16 and bit-cast to float",
+    "sourceFmaSites": 1,
+    "reassociationSites": 0,
+    "pretruncationSites": 0
+  },
+  "proof": {
+    "nativeBuild": "native/metal-macos-arm64/build.sh completed successfully",
+    "runtimeCompilationAndExecution": "MetalMpsGraphMatmulNativeTest custom FLOAT32 and both mixed-order cases passed on Apple M3 Max",
+    "publicExecution": "EngineExplicitCompositionMetalIntegrationTest.publicMetalEngineRunsGeneralMatmulPromotionAndBatchedGradientDomain passed",
+    "limitation": "No offline Metal compiler or disassembler was installed; this certificate therefore binds the audited source and runtime MTLMathModeSafe compiler site rather than an offline AIR disassembly."
+  }
+}

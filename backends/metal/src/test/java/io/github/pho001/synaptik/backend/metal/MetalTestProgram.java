@@ -32,9 +32,32 @@ final class MetalTestProgram {
                 var contiguous =
                         io.github.pho001.synaptik.model.layout.LayoutDescriptor.contiguous(
                                 resolvedShape);
+                long[] affineStrides = contiguous.strides();
+                for (MetalMpsGraphProgram.Node node : program.nodes()) {
+                    if (node.outputIndex() == value
+                            && node.kind() == MetalMpsGraphProgram.NodeKind.PERMUTE) {
+                        int source = node.firstInputIndex();
+                        long[] sourceShape = new long[ranks[source]];
+                        System.arraycopy(
+                                dimensions,
+                                source * MetalMpsGraphProgram.MAX_RANK,
+                                sourceShape,
+                                0,
+                                sourceShape.length);
+                        long[] sourceStrides =
+                                io.github.pho001.synaptik.model.layout.LayoutDescriptor.contiguous(
+                                        io.github.pho001.synaptik.model.shape.Shape.of(sourceShape))
+                                        .strides();
+                        long[] axes = node.attributeValues();
+                        affineStrides = new long[axes.length];
+                        for (int axis = 0; axis < axes.length; axis++) {
+                            affineStrides[axis] = sourceStrides[Math.toIntExact(axes[axis])];
+                        }
+                    }
+                }
                 var layout = states[value] == MetalMpsGraphProgram.ValueState.AFFINE_VIEW
                         ? io.github.pho001.synaptik.model.layout.LayoutDescriptor.of(
-                                resolvedShape, contiguous.strides(), 0L, true)
+                                resolvedShape, affineStrides, 0L, true)
                         : contiguous;
                 result.add(new MetalMpsGraphProgram.ValueDescriptor(
                         types[value],

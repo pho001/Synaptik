@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.backend.metal;
 
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
+import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -16,11 +17,13 @@ import java.util.Optional;
  * Retains the immutable, shape-specialized lowering and route facts for one whole supported Metal
  * partition.
  *
- * <p>The retained numerical profile closes the operation domain: both profiles admit NEG, ABS,
- * affine transforms, and CONTIGUOUS, while accelerator additionally admits tensor ADD, SUB, MUL,
- * DIV, the admitted reductions, and rank-two MATMUL. An affine MATMUL input must be the exact local
- * rank-two transpose authenticated on that consuming edge; the same affine value may otherwise be
- * consumed or published normally. Value indices, explicit canonical/affine-view states, typed
+ * <p>The retained numerical profile closes the operation domain: both profiles admit the common
+ * exact rows and no-gradient promoted INT32/INT64 MATMUL, while accelerator additionally admits
+ * its arithmetic/reduction rows, general positive-static FLOAT32 MATMUL, and no-gradient mixed
+ * BFLOAT16/FLOAT32 MATMUL. An affine MATMUL input must be the exact local identity-prefix,
+ * last-two-axis transpose authenticated on that consuming edge; the same affine value may
+ * otherwise be consumed or published normally. Value indices, explicit canonical/affine-view
+ * states, typed
  * MPSGraph nodes, feeds, targets, and declarations are already in their stable ABI order. The
  * route is either the safe heuristic, a freshly authenticated session-compatible decision, or an
  * approved package-private test force, and is fixed before this plan's declarations escape
@@ -216,10 +219,14 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             }
         }
         boolean containsCustomOperation = this.graphProgram.nodes().stream()
-                .anyMatch(node -> node.kind().isCustomProgramOperation());
+                .anyMatch(node -> node.kind().isCustomProgramOperation()
+                        || usesCustomMatmul(node, this.descriptors));
         boolean containsCustomOnlyOperation = this.graphProgram.nodes().stream()
-                .mapToInt(node -> node.kind().wireIdentity())
-                .anyMatch(wire -> wire >= 20 && wire <= 34);
+                .anyMatch(node -> {
+                    int wire = node.kind().wireIdentity();
+                    return wire >= 20 && wire <= 34
+                            || usesCustomMatmul(node, this.descriptors);
+                });
         if ((this.route == MetalPreparedRoute.CUSTOM_SINGLE_NEG
                         && (partitionDag.nodes().size() != 1
                                 || this.graphProgram.nodes().getFirst().kind()
@@ -249,6 +256,20 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             }
         }
     }
+    private static boolean usesCustomMatmul(
+            MetalMpsGraphProgram.Node node, List<TensorDescriptor> descriptors) {
+        if (node.kind() != MetalMpsGraphProgram.NodeKind.MATMUL) return false;
+        TensorDescriptor left = descriptors.get(node.firstInputIndex());
+        TensorDescriptor right = descriptors.get(node.secondInputIndex());
+        TensorDescriptor output = descriptors.get(node.outputIndex());
+        return left.dataType() != DataType.FLOAT32
+                || right.dataType() != DataType.FLOAT32
+                || output.dataType() != DataType.FLOAT32
+                || left.shape().rank() != 2
+                || right.shape().rank() != 2
+                || output.shape().rank() != 2;
+    }
+
     /** @return exact immutable graph-wide numerical-profile identity */
     NumericalProfile numericalProfile() { return numericalProfile; }
 

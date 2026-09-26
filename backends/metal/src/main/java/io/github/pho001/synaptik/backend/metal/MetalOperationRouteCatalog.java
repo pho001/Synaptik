@@ -72,6 +72,7 @@ final class MetalOperationRouteCatalog {
         CA_0058,
         CA_0059,
         CA_0060,
+        CA_0061,
         CP_POINT,
         CP_POWER,
         CP_ELEMENTARY,
@@ -115,8 +116,8 @@ final class MetalOperationRouteCatalog {
                 CustomKernelState.PENDING, CustomKernelReason.CP_AGGREGATE),
         DIRECT_REDUCE_CUSTOM_0060(MpsGraphState.DIRECT, MpsGraphReason.MD_REDUCE,
                 CustomKernelState.AVAILABLE, CustomKernelReason.CA_0060),
-        DIRECT_MATMUL_PENDING_CONTRACT(MpsGraphState.DIRECT, MpsGraphReason.MD_MATMUL,
-                CustomKernelState.PENDING, CustomKernelReason.CP_CONTRACT),
+        DIRECT_MATMUL_CUSTOM_0061(MpsGraphState.DIRECT, MpsGraphReason.MD_MATMUL,
+                CustomKernelState.AVAILABLE, CustomKernelReason.CA_0061),
         DIRECT_INDEX_PENDING_MOVE(MpsGraphState.DIRECT, MpsGraphReason.MD_INDEX,
                 CustomKernelState.PENDING, CustomKernelReason.CP_MOVE),
         DIRECT_INDEX_CUSTOM_0059(MpsGraphState.DIRECT, MpsGraphReason.MD_INDEX,
@@ -295,7 +296,7 @@ final class MetalOperationRouteCatalog {
             case RSQRT -> Entry.DIRECT_ARITH_PENDING_RECURSIVE;
             case SUM, MEAN, VARIANCE -> Entry.DIRECT_REDUCE_PENDING_AGGREGATE;
             case PROD, ALL, ANY -> Entry.DIRECT_REDUCE_CUSTOM_0060;
-            case MATMUL -> Entry.DIRECT_MATMUL_PENDING_CONTRACT;
+            case MATMUL -> Entry.DIRECT_MATMUL_CUSTOM_0061;
             case GATHER, ONE_HOT, SCATTER_ELEMENTS, SCATTER_ADD ->
                     Entry.DIRECT_INDEX_PENDING_MOVE;
             case SCATTER_ND -> Entry.DIRECT_INDEX_CUSTOM_0060;

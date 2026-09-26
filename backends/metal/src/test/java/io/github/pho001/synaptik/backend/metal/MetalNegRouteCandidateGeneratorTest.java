@@ -690,9 +690,7 @@ class MetalNegRouteCandidateGeneratorTest {
                                     1,
                                     MetalMpsGraphProgram.ReductionForm.MULTI_AXIS,
                                     List.of(1),
-                                    false))),
-                    new MetalMpsGraphProgram(List.of(
-                            MetalMpsGraphProgram.Node.matmul(0, 0, 1))));
+                                    false))));
             for (MetalMpsGraphProgram changedRecord : changedRecords) {
                 MetalNegPreparationPlan changed = copyPlan(
                         plan,
@@ -703,6 +701,17 @@ class MetalNegRouteCandidateGeneratorTest {
                         identity,
                         generate(baselineWorkload, changed).compatibility().workload());
             }
+            MetalNegPreparationPlan matmul = copyPlan(
+                    plan,
+                    List.of(
+                            canonical(Shape.of(3, 3)),
+                            canonical(Shape.of(3, 3))),
+                    new MetalMpsGraphProgram(List.of(
+                            MetalMpsGraphProgram.Node.matmul(0, 0, 1))),
+                    new long[] {36});
+            assertNotEquals(
+                    identity,
+                    generate(baselineWorkload, matmul).compatibility().workload());
 
             assertNotEquals(
                     workloadSignature(reductionWorkload(
@@ -941,8 +950,8 @@ class MetalNegRouteCandidateGeneratorTest {
                     route.wireIdentity()).orElseThrow());
             assertArrayEquals(new byte[] {
                     0x4d, 0x4e, 0x43, 0x41,
-                    0x00, 0x00, 0x00, 0x10,
-                    0x00, 0x00, 0x00, 0x10,
+                    0x00, 0x00, 0x00, 0x11,
+                    0x00, 0x00, 0x00, 0x11,
                     0x00, 0x00, 0x00, (byte) route.wireIdentity()
             }, codec.encodeCandidate(candidate));
         }
@@ -964,14 +973,14 @@ class MetalNegRouteCandidateGeneratorTest {
                     MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
                     current.batch().compatibility(), MetalNegTuningBatch.Candidate.MPSGRAPH);
             var codec = new MetalNegTuningCodec();
-            assertEquals(16, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
-            assertEquals(16, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
-            assertEquals(16, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
+            assertEquals(17, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
+            assertEquals(17, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
+            assertEquals(17, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
             byte[] first = codec.encodeDecision(decision);
-            assertEquals(16, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
-            assertEquals(16, current.batch().compatibility().schemaVersion());
-            assertEquals(16, current.batch().compatibility().candidateSchemaVersion());
-            assertEquals(16, current.batch().compatibility().routePolicyVersion());
+            assertEquals(17, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
+            assertEquals(17, current.batch().compatibility().schemaVersion());
+            assertEquals(17, current.batch().compatibility().candidateSchemaVersion());
+            assertEquals(17, current.batch().compatibility().routePolicyVersion());
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());

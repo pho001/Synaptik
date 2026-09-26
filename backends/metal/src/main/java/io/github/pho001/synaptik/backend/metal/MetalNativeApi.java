@@ -548,7 +548,8 @@ abstract class MetalNativeApi implements AutoCloseable {
                 }
             }
             boolean containsCustomOperation = graphProgram.nodes().stream()
-                    .anyMatch(node -> node.kind().isCustomProgramOperation());
+                    .anyMatch(node -> node.kind().isCustomProgramOperation()
+                            || usesCustomMatmul(node, types, valueRanks));
             if (route == MetalPreparedRoute.CUSTOM_PROGRAM && !containsCustomOperation) {
                 throw new IllegalArgumentException(
                         "custom Metal program route requires a custom operation");
@@ -556,7 +557,8 @@ abstract class MetalNativeApi implements AutoCloseable {
             if (route == MetalPreparedRoute.MPSGRAPH
                     && graphProgram.nodes().stream().anyMatch(node -> {
                         int wire = node.kind().wireIdentity();
-                        return wire >= 20 && wire <= 34;
+                        return wire >= 20 && wire <= 34
+                                || usesCustomMatmul(node, types, valueRanks);
                     })) {
                 throw new IllegalArgumentException(
                         "custom-only operations have no approved direct MPSGraph route");
@@ -710,15 +712,8 @@ abstract class MetalNativeApi implements AutoCloseable {
                         boolean matches = permutationMatches(
                                 node, left, output, valueRanks, valueDimensions);
                         requireShape(matches, "PERMUTE attributes and output shape disagree");
-                        long[] attributes = node.attributeValues();
-                        boolean exactLocalTranspose =
-                                states[left] == MetalMpsGraphProgram.ValueState.CANONICAL
-                                        && valueRanks[left] == 2
-                                        && valueRanks[output] == 2
-                                        && node.attributeCount() == 2
-                                        && attributes[0] == 1L
-                                        && attributes[1] == 0L;
-                        localTranspose[output] = exactLocalTranspose;
+                        localTranspose[output] = exactLocalTranspose(
+                                node, left, output, states, valueRanks, values);
                     }
                     case EXPAND_DIMS -> requireShape(
                             expandDimsMatches(node, left, output, valueRanks, valueDimensions),
@@ -745,11 +740,12 @@ abstract class MetalNativeApi implements AutoCloseable {
                                     "statistical reduction attributes and output shape disagree");
                     case MATMUL -> {
                         requireIndex(right, valueCount, "second node input");
-                        if (valueRanks[right] == 0
+                        if (valueRanks[left] == 0
+                                || valueRanks[right] == 0
                                 || !node.kind().accepts(states[right])) {
                             throw new IllegalArgumentException(
-                                    "Metal MATMUL second input must be positive-rank canonical"
-                                            + " or an affine view");
+                                    "Metal MATMUL inputs must be positive-rank canonical"
+                                            + " or affine views");
                         }
                         if ((states[left] == MetalMpsGraphProgram.ValueState.AFFINE_VIEW
                                         && !localTranspose[left])
@@ -758,12 +754,12 @@ abstract class MetalNativeApi implements AutoCloseable {
                                         && !localTranspose[right])) {
                             throw new IllegalArgumentException(
                                     "Metal MATMUL affine inputs must be authenticated local"
-                                            + " rank-two transposes");
+                                            + " last-two-axis transposes");
                         }
                         requireShape(
                                 matmulMatches(
                                         left, right, output, valueRanks, valueDimensions),
-                                "MATMUL shapes must be exact positive rank-two contraction");
+                                "MATMUL shapes must be exact positive static contraction");
                         used[right] = true;
                     }
                     case GATHER -> {
@@ -877,11 +873,13 @@ abstract class MetalNativeApi implements AutoCloseable {
                         requireType(types, auxiliary, ValueType.FLOAT32);
                         requireType(types, output, ValueType.FLOAT32);
                     }
-                    case ADD, SUB, MUL, DIV, TENSOR_POW, TENSOR_MIN, TENSOR_MAX, MATMUL -> {
+                    case ADD, SUB, MUL, DIV, TENSOR_POW, TENSOR_MIN, TENSOR_MAX -> {
                         requireType(types, left, ValueType.FLOAT32);
                         requireType(types, right, ValueType.FLOAT32);
                         requireType(types, output, ValueType.FLOAT32);
                     }
+                    case MATMUL -> validateMatmulTypesAndGradients(
+                            numericalProfile, left, right, output, types, values);
                     case GT, GE, LT, LE, EQ, NE -> {
                         requireType(types, left, ValueType.FLOAT32);
                         requireType(types, right, ValueType.FLOAT32);
@@ -1525,6 +1523,93 @@ abstract class MetalNativeApi implements AutoCloseable {
             }
         }
 
+        private static boolean usesCustomMatmul(
+                MetalMpsGraphProgram.Node node, ValueType[] types, int[] ranks) {
+            if (node.kind() != MetalMpsGraphProgram.NodeKind.MATMUL) return false;
+            int left = node.firstInputIndex();
+            int right = node.secondInputIndex();
+            int output = node.outputIndex();
+            return types[left] != ValueType.FLOAT32
+                    || types[right] != ValueType.FLOAT32
+                    || types[output] != ValueType.FLOAT32
+                    || ranks[left] != 2
+                    || ranks[right] != 2
+                    || ranks[output] != 2;
+        }
+
+        private static boolean exactLocalTranspose(
+                MetalMpsGraphProgram.Node node,
+                int input,
+                int output,
+                MetalMpsGraphProgram.ValueState[] states,
+                int[] ranks,
+                List<MetalMpsGraphProgram.ValueDescriptor> values) {
+            int rank = ranks[input];
+            if (states[input] != MetalMpsGraphProgram.ValueState.CANONICAL
+                    || rank < 2
+                    || ranks[output] != rank
+                    || node.attributeCount() != rank) {
+                return false;
+            }
+            long[] axes = node.attributeValues();
+            for (int axis = 0; axis < rank - 2; axis++) {
+                if (axes[axis] != axis) return false;
+            }
+            if (axes[rank - 2] != rank - 1 || axes[rank - 1] != rank - 2) return false;
+            MetalMpsGraphProgram.ValueDescriptor descriptor = values.get(output);
+            if (!descriptor.densePhysical()) return false;
+            long[] sourceShape = descriptor.dimensions();
+            long swap = sourceShape[rank - 2];
+            sourceShape[rank - 2] = sourceShape[rank - 1];
+            sourceShape[rank - 1] = swap;
+            long[] sourceStrides = LayoutDescriptor.contiguous(Shape.of(sourceShape)).strides();
+            long[] outputStrides = sourceStrides.clone();
+            outputStrides[rank - 2] = sourceStrides[rank - 1];
+            outputStrides[rank - 1] = sourceStrides[rank - 2];
+            LayoutDescriptor expected =
+                    LayoutDescriptor.of(
+                            Shape.of(descriptor.dimensions()), outputStrides, 0L, true);
+            return descriptor.layout().filter(expected::equals).isPresent();
+        }
+
+        private static void validateMatmulTypesAndGradients(
+                NumericalProfile profile,
+                int left,
+                int right,
+                int output,
+                ValueType[] types,
+                List<MetalMpsGraphProgram.ValueDescriptor> values) {
+            ValueType leftType = types[left];
+            ValueType rightType = types[right];
+            ValueType outputType = types[output];
+            boolean leftGrad = values.get(left).requiresGrad();
+            boolean rightGrad = values.get(right).requiresGrad();
+            boolean outputGrad = values.get(output).requiresGrad();
+            boolean integral = (leftType == ValueType.INT32 || leftType == ValueType.INT64)
+                    && (rightType == ValueType.INT32 || rightType == ValueType.INT64);
+            if (integral) {
+                ValueType promoted =
+                        leftType == ValueType.INT64 || rightType == ValueType.INT64
+                                ? ValueType.INT64 : ValueType.INT32;
+                if (outputType == promoted && !leftGrad && !rightGrad && !outputGrad) return;
+            } else if (profile == NumericalProfile.ACCELERATOR
+                    && leftType == ValueType.FLOAT32
+                    && rightType == ValueType.FLOAT32
+                    && outputType == ValueType.FLOAT32
+                    && outputGrad == (leftGrad || rightGrad)) {
+                return;
+            } else if (profile == NumericalProfile.ACCELERATOR
+                    && outputType == ValueType.FLOAT32
+                    && (leftType == ValueType.BFLOAT16 && rightType == ValueType.FLOAT32
+                            || leftType == ValueType.FLOAT32
+                                    && rightType == ValueType.BFLOAT16)
+                    && !leftGrad && !rightGrad && !outputGrad) {
+                return;
+            }
+            throw new IllegalArgumentException(
+                    "MATMUL type, profile, and gradient metadata are incompatible");
+        }
+
         private static boolean profileAllows(
                 NumericalProfile numericalProfile, MetalMpsGraphProgram.NodeKind kind) {
             if (!kind.executable()) return false;
@@ -1536,7 +1621,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                             IS_FINITE, IS_NAN, IS_INF, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT,
                             WHERE, CAST, GATHER_ELEMENTS, SCATTER_ADD, GATHER_ND, SCATTER_ND,
                             SELECT, PAD, SLICE, SLICE_UPDATE, CONCAT, STACK, TILE, FOLD_AXIS,
-                            UNFOLD2D, FOLD2D, UNFOLD3D, FOLD3D, PROD, ALL, ANY -> true;
+                            UNFOLD2D, FOLD2D, UNFOLD3D, FOLD3D, PROD, ALL, ANY, MATMUL -> true;
                     default -> false;
                 };
                 case ACCELERATOR -> true;
@@ -1549,15 +1634,47 @@ abstract class MetalNativeApi implements AutoCloseable {
                 int output,
                 int[] ranks,
                 long[] dimensions) {
-            if (ranks[left] != 2 || ranks[right] != 2 || ranks[output] != 2) {
-                return false;
-            }
+            int leftRank = ranks[left];
+            int rightRank = ranks[right];
+            int outputRank = ranks[output];
+            if (leftRank < 1 || rightRank < 1) return false;
+            int leftBatchRank = Math.max(0, leftRank - 2);
+            int rightBatchRank = Math.max(0, rightRank - 2);
+            int batchRank = Math.max(leftBatchRank, rightBatchRank);
+            int expectedOutputRank = batchRank
+                    + (leftRank > 1 ? 1 : 0)
+                    + (rightRank > 1 ? 1 : 0);
+            if (outputRank != expectedOutputRank) return false;
             int leftRow = left * MAX_RANK;
             int rightRow = right * MAX_RANK;
             int outputRow = output * MAX_RANK;
-            return dimensions[leftRow + 1] == dimensions[rightRow]
-                    && dimensions[outputRow] == dimensions[leftRow]
-                    && dimensions[outputRow + 1] == dimensions[rightRow + 1];
+            long leftContract = dimensions[leftRow + leftRank - 1];
+            long rightContract =
+                    dimensions[rightRow + (rightRank == 1 ? 0 : rightRank - 2)];
+            if (leftContract != rightContract) return false;
+            for (int axis = 0; axis < batchRank; axis++) {
+                int leftAxis = axis - (batchRank - leftBatchRank);
+                int rightAxis = axis - (batchRank - rightBatchRank);
+                long leftExtent =
+                        leftAxis < 0 ? 1L : dimensions[leftRow + leftAxis];
+                long rightExtent =
+                        rightAxis < 0 ? 1L : dimensions[rightRow + rightAxis];
+                if (leftExtent != rightExtent && leftExtent != 1L && rightExtent != 1L) {
+                    return false;
+                }
+                if (dimensions[outputRow + axis] != Math.max(leftExtent, rightExtent)) {
+                    return false;
+                }
+            }
+            int outputAxis = batchRank;
+            if (leftRank > 1
+                    && dimensions[outputRow + outputAxis++]
+                            != dimensions[leftRow + leftRank - 2]) {
+                return false;
+            }
+            return rightRank == 1
+                    || dimensions[outputRow + outputAxis]
+                            == dimensions[rightRow + rightRank - 1];
         }
 
         private static boolean gatherMatches(

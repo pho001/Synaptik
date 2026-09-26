@@ -61,6 +61,7 @@ import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAtt
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
+import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
@@ -85,19 +86,22 @@ import java.util.Objects;
  * logic is entirely no-grad, and WHERE propagates the branch gradient OR after branch-first then
  * condition broadcasting.
  * {@code ACCELERATOR} additionally admits tensor {@code ADD}/{@code SUB}/{@code MUL}/{@code DIV},
- * canonical FLOAT32 {@code SUM}/{@code MEAN}/{@code SUM_TO_SHAPE}, positive static rank-two
- * FLOAT32 {@code MATMUL}, and canonical positive-rank FLOAT32 no-gradient scalar
- * {@code ADD}/{@code SUB}/{@code MUL}/{@code DIV} and {@code RECIPROCAL}. Scalar arithmetic
- * retains the exact FLOAT32 raw attribute and operand order; reciprocal is exact {@code 1 / input}.
- * MATMUL accepts each
- * operand only as canonical or as the exact rank-two transpose layout that complete-partition
- * analysis must authenticate to a local {@code PERMUTE [1,0]} producer from a canonical source.
- * Its output is canonical and carries the logical OR of the operand gradient flags. Strict MATMUL
- * remains unsupported. Accelerator reductions admit full, normalized single-axis, ordered
- * normalized multi-axis (including empty-axis identity), and binding-resolved sum-to-Shape forms.
- * The exact Task-0060 integral PROD and BOOL ALL/ANY domain below is profile-common. Other strict
- * reductions remain unsupported. Reduction inputs are canonical with positive dimensions;
- * canonical outputs may be rank zero only as locally produced reduction results.
+ * canonical FLOAT32 {@code SUM}/{@code MEAN}/{@code SUM_TO_SHAPE}, every positive-static
+ * FLOAT32 {@code MATMUL} vector, matrix, batched, and right-aligned broadcast geometry, and
+ * canonical positive-rank FLOAT32 no-gradient scalar {@code ADD}/{@code SUB}/{@code MUL}/{@code
+ * DIV} and {@code RECIPROCAL}. Scalar arithmetic retains the exact FLOAT32 raw attribute and
+ * operand order; reciprocal is exact {@code 1 / input}. Both profiles admit no-gradient
+ * INT32/INT64 MATMUL pairs with INT64-dominant promotion and modular result arithmetic.
+ * Accelerator also admits no-gradient BFLOAT16/FLOAT32 and FLOAT32/BFLOAT16 operands with a
+ * FLOAT32 result. BFLOAT16/BFLOAT16 and every FLOAT64-result pair remain unsupported.
+ * Each MATMUL operand is canonical or the exact identity-prefix, last-two-axis transpose layout
+ * that complete-partition analysis authenticates to a local {@code PERMUTE} from a canonical
+ * source. FLOAT32 output gradient metadata is the exact operand OR; integral and mixed-carrier
+ * rows are no-grad. Accelerator reductions admit full, normalized single-axis, ordered normalized
+ * multi-axis (including empty-axis identity), and binding-resolved sum-to-Shape forms. The exact
+ * Task-0060 integral PROD and BOOL ALL/ANY domain below is profile-common. Other strict reductions
+ * remain unsupported. Reduction inputs are canonical with positive dimensions; canonical outputs
+ * may be rank zero only as locally produced reduction results.
  * Binary inputs and outputs are canonical dense non-views with exact right-aligned broadcasting. The six exact
  * unary descriptor pairs are canonical. An affine or contiguous input may be canonical or an
  * exact resolved zero-offset logical view; complete-partition analysis authenticates every
@@ -281,6 +285,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                             || reduction == AggregateReductionKind.ANY)) {
                 return supportsExactReduction(operation, inputs, output, reduction);
             }
+            if (operation.kind() == MatmulKind.MATMUL) {
+                return supportsMatmul(numericalProfile, operation, inputs, output);
+            }
             if (numericalProfile == NumericalProfile.ACCELERATOR) {
                 if (operation.kind() instanceof BinaryComparisonKind comparison) {
                     return supportsComparison(operation, inputs, output, comparison);
@@ -296,9 +303,6 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 }
                 if (operation.kind() instanceof AggregateReductionKind reduction) {
                     return supportsReduction(operation, inputs, output, reduction);
-                }
-                if (operation.kind() == MatmulKind.MATMUL) {
-                    return supportsMatmul(operation, inputs, output);
                 }
                 return supportsBinary(operation, inputs, output);
             }
@@ -1276,40 +1280,94 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     }
 
     private static boolean supportsMatmul(
-            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
-        if (operation.attrs() != NoOperationAttrs.INSTANCE || inputs.size() != 2) {
-            return false;
-        }
+            NumericalProfile numericalProfile,
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            TensorDescriptor output) {
+        if (operation.attrs() != NoOperationAttrs.INSTANCE || inputs.size() != 2) return false;
         TensorDescriptor left = inputs.get(0);
         TensorDescriptor right = inputs.get(1);
         if (!matmulInput(left)
                 || !matmulInput(right)
-                || !canonical(output)
-                || left.shape().rank() != 2
-                || right.shape().rank() != 2
-                || output.shape().rank() != 2
-                || output.requiresGrad() != (left.requiresGrad() || right.requiresGrad())) {
+                || !canonicalAny(output, true)
+                || output.requiresGrad() != (left.requiresGrad() || right.requiresGrad())
+                || !matmulShapeMatches(left, right, output)) {
             return false;
         }
+        DataType leftType = left.dataType();
+        DataType rightType = right.dataType();
+        DataType outputType = output.dataType();
+        boolean leftIntegral = leftType == DataType.INT32 || leftType == DataType.INT64;
+        boolean rightIntegral = rightType == DataType.INT32 || rightType == DataType.INT64;
+        if (leftIntegral && rightIntegral) {
+            DataType promoted = leftType == DataType.INT64 || rightType == DataType.INT64
+                    ? DataType.INT64 : DataType.INT32;
+            return outputType == promoted
+                    && !left.requiresGrad()
+                    && !right.requiresGrad()
+                    && !output.requiresGrad();
+        }
+        if (numericalProfile != NumericalProfile.ACCELERATOR || outputType != DataType.FLOAT32) {
+            return false;
+        }
+        if (leftType == DataType.FLOAT32 && rightType == DataType.FLOAT32) return true;
+        boolean mixedBfloat32 =
+                leftType == DataType.BFLOAT16 && rightType == DataType.FLOAT32
+                        || leftType == DataType.FLOAT32 && rightType == DataType.BFLOAT16;
+        return mixedBfloat32
+                && !left.requiresGrad()
+                && !right.requiresGrad()
+                && !output.requiresGrad();
+    }
+
+    private static boolean matmulShapeMatches(
+            TensorDescriptor left, TensorDescriptor right, TensorDescriptor output) {
         long[] leftShape = left.shape().toLongArray();
         long[] rightShape = right.shape().toLongArray();
         long[] outputShape = output.shape().toLongArray();
-        return leftShape[1] == rightShape[0]
-                && outputShape[0] == leftShape[0]
-                && outputShape[1] == rightShape[1];
+        int leftBatch = Math.max(0, leftShape.length - 2);
+        int rightBatch = Math.max(0, rightShape.length - 2);
+        int batchRank = Math.max(leftBatch, rightBatch);
+        int expectedRank = batchRank
+                + (leftShape.length > 1 ? 1 : 0)
+                + (rightShape.length > 1 ? 1 : 0);
+        long leftContract = leftShape[leftShape.length - 1];
+        long rightContract =
+                rightShape[rightShape.length == 1 ? 0 : rightShape.length - 2];
+        if (leftContract != rightContract || outputShape.length != expectedRank) return false;
+        for (int axis = 0; axis < batchRank; axis++) {
+            int leftAxis = axis - (batchRank - leftBatch);
+            int rightAxis = axis - (batchRank - rightBatch);
+            long leftExtent = leftAxis < 0 ? 1L : leftShape[leftAxis];
+            long rightExtent = rightAxis < 0 ? 1L : rightShape[rightAxis];
+            if (leftExtent != rightExtent && leftExtent != 1L && rightExtent != 1L) return false;
+            if (outputShape[axis] != Math.max(leftExtent, rightExtent)) return false;
+        }
+        int outputAxis = batchRank;
+        if (leftShape.length > 1 && outputShape[outputAxis++] != leftShape[leftShape.length - 2]) {
+            return false;
+        }
+        return rightShape.length == 1
+                || outputShape[outputAxis] == rightShape[rightShape.length - 1];
     }
 
     private static boolean matmulInput(TensorDescriptor descriptor) {
-        if (!geometry(descriptor) || descriptor.shape().rank() != 2) {
-            return false;
-        }
+        int rank = descriptor.shape().rank();
+        if (!geometry(descriptor, descriptor.dataType(), false)) return false;
         LayoutDescriptor layout = descriptor.layout().orElseThrow();
-        if (layout.equals(LayoutDescriptor.contiguous(descriptor.shape()))) {
-            return true;
-        }
-        long[] shape = descriptor.shape().toLongArray();
+        if (layout.equals(LayoutDescriptor.contiguous(descriptor.shape()))) return true;
+        if (rank < 2 || layout.storageOffset() != 0L || !layout.isView()) return false;
+        long[] logical = descriptor.shape().toLongArray();
+        long[] source = logical.clone();
+        long swap = source[rank - 2];
+        source[rank - 2] = source[rank - 1];
+        source[rank - 1] = swap;
+        long[] sourceStrides = LayoutDescriptor.contiguous(Shape.of(source)).strides();
+        long[] expected = sourceStrides.clone();
+        expected[rank - 2] = sourceStrides[rank - 1];
+        expected[rank - 1] = sourceStrides[rank - 2];
         return layout.equals(LayoutDescriptor.of(
-                descriptor.shape(), new long[] {1L, shape[0]}, 0L, true));
+                descriptor.shape(), expected, 0L, true));
     }
     private static boolean supportsExactReduction(
             Operation operation,

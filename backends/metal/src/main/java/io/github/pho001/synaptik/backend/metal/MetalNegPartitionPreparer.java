@@ -85,13 +85,16 @@ import java.util.Optional;
  * For both profiles, it walks explicit unavailable/canonical/affine-view states in node order for
  * the retained six exact unary operations, affine, CONTIGUOUS, UNFOLD_AXIS, GATHER, ONE_HOT,
  * replacement SCATTER_ELEMENTS, and exact classification/BOOL-logic/WHERE domain. Under
- * {@code ACCELERATOR}, it additionally accepts existing arithmetic, reduction, and rank-two
- * MATMUL plus the exact Task-0052 comparisons, tensor/scalar extrema, clamp, reduction extrema,
- * cumulative scans, no-gradient scalar ADD/SUB/MUL/DIV, and no-gradient RECIPROCAL. An affine
- * MATMUL operand is authenticated to the exact earlier local rank-two {@code PERMUTE [1,0]} on
- * that consuming edge. The profile-common Task-0060 domain adds exact replacement SCATTER_ND and
- * signed SLICE_UPDATE, non-overlapping FLOAT64/FLOAT32/BFLOAT16 FOLD_AXIS/FOLD2D/FOLD3D, modular
- * INT32/INT64 PROD, and canonical BOOL ALL/ANY. Schema-fifteen lowering emits one bounded
+ * {@code ACCELERATOR}, it additionally accepts existing arithmetic and reduction rows plus every
+ * positive-static FLOAT32 MATMUL vector, matrix, batched, and broadcast geometry and the exact
+ * Task-0052 comparisons, tensor/scalar extrema, clamp, reduction extrema, cumulative scans,
+ * no-gradient scalar ADD/SUB/MUL/DIV, and no-gradient RECIPROCAL. Both profiles also admit exact
+ * no-gradient promoted INT32/INT64 MATMUL; accelerator additionally admits no-gradient
+ * BFLOAT16/FLOAT32 mixed MATMUL. An affine MATMUL operand is authenticated to the exact earlier
+ * local identity-prefix, last-two-axis {@code PERMUTE} on that consuming edge. The profile-common
+ * Task-0060 domain adds exact replacement SCATTER_ND and signed SLICE_UPDATE, non-overlapping
+ * FLOAT64/FLOAT32/BFLOAT16 FOLD_AXIS/FOLD2D/FOLD3D, modular INT32/INT64 PROD, and canonical BOOL
+ * ALL/ANY. Schema-fifteen lowering emits one bounded
  * self-describing image over
  * stable type wires 1..6, complete operation registry 1..115, attribute registry 0..41, and the
  * explicit prepared route. Production capability is exactly 69 operation kinds; the additional
@@ -257,14 +260,9 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         "Metal node input value state is unavailable or incompatible");
             }
             programNodes.add(lowered);
-            boolean exactLocalTranspose =
-                    lowered.kind() == MetalMpsGraphProgram.NodeKind.PERMUTE
-                            && inputStates.getFirst()
-                                    == MetalMpsGraphProgram.ValueState.CANONICAL
-                            && inputDescriptors.getFirst().shape().rank() == 2
-                            && outputValue.descriptor().shape().rank() == 2
-                            && ((PermutationAttrs) node.operation().attrs())
-                                    .axes().equals(List.of(1, 0));
+            boolean exactLocalTranspose = isExactLocalTranspose(
+                    lowered, inputStates, inputDescriptors, outputValue.descriptor(),
+                    node.operation());
             localTranspose.put(outputId, exactLocalTranspose);
             states.put(outputId, lowered.kind().outputState());
         }
@@ -327,7 +325,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         long[] feedBytes = requiredBytes(feeds, graphValues, states);
         long[] targetBytes = requiredBytes(targets, graphValues, states);
         boolean containsCustomProgram = graphProgram.nodes().stream()
-                .anyMatch(node -> node.kind().isCustomProgramOperation());
+                .anyMatch(node -> usesCustomProgram(node, descriptors));
         long singletonElements = feedBytes.length == 1 ? feedBytes[0] / Float.BYTES : 0L;
         MetalPreparedRoute route = containsCustomProgram
                 ? MetalPreparedRoute.CUSTOM_PROGRAM
@@ -536,6 +534,61 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             result[index] = byteSize(values.get(id).descriptor(), states.get(id));
         }
         return result;
+    }
+
+    private static boolean usesCustomProgram(
+            MetalMpsGraphProgram.Node node, List<TensorDescriptor> descriptors) {
+        if (node.kind().isCustomProgramOperation()) return true;
+        if (node.kind() != MetalMpsGraphProgram.NodeKind.MATMUL) return false;
+        TensorDescriptor left = descriptors.get(node.firstInputIndex());
+        TensorDescriptor right = descriptors.get(node.secondInputIndex());
+        TensorDescriptor output = descriptors.get(node.outputIndex());
+        return left.dataType() != DataType.FLOAT32
+                || right.dataType() != DataType.FLOAT32
+                || output.dataType() != DataType.FLOAT32
+                || left.shape().rank() != 2
+                || right.shape().rank() != 2
+                || output.shape().rank() != 2;
+    }
+
+    private static boolean isExactLocalTranspose(
+            MetalMpsGraphProgram.Node lowered,
+            List<MetalMpsGraphProgram.ValueState> inputStates,
+            List<TensorDescriptor> inputs,
+            TensorDescriptor output,
+            Operation operation) {
+        if (lowered.kind() != MetalMpsGraphProgram.NodeKind.PERMUTE
+                || inputStates.getFirst() != MetalMpsGraphProgram.ValueState.CANONICAL
+                || !(operation.attrs() instanceof PermutationAttrs permutation)) {
+            return false;
+        }
+        int rank = inputs.getFirst().shape().rank();
+        if (rank < 2 || output.shape().rank() != rank || permutation.axes().size() != rank) {
+            return false;
+        }
+        for (int axis = 0; axis < rank - 2; axis++) {
+            if (permutation.axes().get(axis) != axis) return false;
+        }
+        if (permutation.axes().get(rank - 2) != rank - 1
+                || permutation.axes().get(rank - 1) != rank - 2) {
+            return false;
+        }
+        return output.layout().orElseThrow().equals(lastTwoTransposeLayout(output));
+    }
+
+    private static LayoutDescriptor lastTwoTransposeLayout(TensorDescriptor output) {
+        int rank = output.shape().rank();
+        long[] sourceShape = output.shape().toLongArray();
+        long swap = sourceShape[rank - 2];
+        sourceShape[rank - 2] = sourceShape[rank - 1];
+        sourceShape[rank - 1] = swap;
+        long[] sourceStrides =
+                LayoutDescriptor.contiguous(io.github.pho001.synaptik.model.shape.Shape.of(sourceShape))
+                        .strides();
+        long[] outputStrides = sourceStrides.clone();
+        outputStrides[rank - 2] = sourceStrides[rank - 1];
+        outputStrides[rank - 1] = sourceStrides[rank - 2];
+        return LayoutDescriptor.of(output.shape(), outputStrides, 0L, true);
     }
 
     private static MetalMpsGraphProgram.Node lower(

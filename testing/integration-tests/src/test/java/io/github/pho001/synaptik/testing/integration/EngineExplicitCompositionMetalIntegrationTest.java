@@ -1769,6 +1769,108 @@ final class EngineExplicitCompositionMetalIntegrationTest {
             }
         }
     }
+    @Test
+    void publicMetalEngineRunsGeneralMatmulPromotionAndBatchedGradientDomain() {
+        Path library = configuredMetalLibrary();
+        try (Arena arena = Arena.ofShared()) {
+            Tensor vectorLeft = nativeTensor(
+                    descriptor(Shape.of(3)), arena, 1, 2, 3);
+            Tensor vectorRight = nativeTensor(
+                    descriptor(Shape.of(3)), arena, 4, 5, 6);
+            Tensor mixedLeft = nativeBfloatTensor(
+                    Shape.of(2, 2), arena, 1, 2, 3, 4);
+            Tensor mixedRight = nativeTensor(
+                    descriptor(Shape.of(2, 1)), arena, 5, 6);
+            Tensor batchedLeft = nativeTensor(
+                    descriptor(Shape.of(2, 2, 3), true),
+                    arena,
+                    1, 2, 3, 4, 5, 6,
+                    7, 8, 9, 10, 11, 12);
+            Tensor batchedRight = nativeTensor(
+                    descriptor(Shape.of(1, 3, 2), true),
+                    arena,
+                    1, 0, 0, 1, 1, 1);
+            Tensor seed = nativeTensor(
+                    descriptor(Shape.of(2, 2, 2)),
+                    arena,
+                    1, 1, 1, 1, 1, 1, 1, 1);
+            Tensor batched = batchedLeft.matmul(batchedRight);
+
+            try (Engine.Builder builder = Engine.builder()) {
+                builder.numericalProfile(NumericalProfile.ACCELERATOR);
+                builder.takeOwnership(MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library)));
+                try (Engine engine = builder.build()) {
+                    var forward = engine.compile(List.of(
+                            vectorLeft.matmul(vectorRight),
+                            mixedLeft.matmul(mixedRight)));
+                    assertEquals(
+                            List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(forward));
+                    try (InferenceSession session = engine.session(forward);
+                            var result = session.run(List.of(
+                                    vectorLeft, vectorRight, mixedLeft, mixedRight))) {
+                        assertPublication(result, 0, 32);
+                        assertPublication(result, 1, 17, 39);
+                    }
+
+                    var gradients = engine.compile(
+                            List.of(batched),
+                            List.of(seed),
+                            List.of(batchedLeft, batchedRight));
+                    assertEquals(
+                            List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(gradients));
+                    try (InferenceSession session = engine.session(gradients);
+                            var result = session.run(List.of(
+                                    seed, batchedRight, batchedLeft))) {
+                        assertEquals(3, result.resultCount());
+                        assertPublication(
+                                result, 0,
+                                4, 5, 10, 11,
+                                16, 17, 22, 23);
+                        assertPublication(
+                                result, 1,
+                                1, 1, 2, 1, 1, 2,
+                                1, 1, 2, 1, 1, 2);
+                        assertPublication(
+                                result, 2,
+                                22, 22, 26, 26, 30, 30);
+                    }
+                }
+            }
+
+            Tensor intLeft = nativeIntTensor(
+                    Shape.of(1, 2), arena, Integer.MAX_VALUE, 2);
+            Tensor intRight = nativeIntTensor(Shape.of(2, 1), arena, 2, 3);
+            Tensor promotedLeft = nativeIntTensor(Shape.of(1, 2), arena, -2, 3);
+            Tensor promotedRight = nativeLongTensor(
+                    Shape.of(2, 1), arena, Long.MAX_VALUE, 3);
+            try (Engine.Builder builder = Engine.builder()) {
+                builder.takeOwnership(MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library)));
+                try (Engine engine = builder.build()) {
+                    var compiled = engine.compile(List.of(
+                            intLeft.matmul(intRight),
+                            promotedLeft.matmul(promotedRight)));
+                    assertEquals(
+                            List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(compiled));
+                    try (InferenceSession session = engine.session(compiled);
+                            var result = session.run(List.of(
+                                    intLeft, intRight, promotedLeft, promotedRight))) {
+                        ByteBuffer intResult = result.materialize(
+                                result.publications().get(0), Integer.BYTES).bytes();
+                        ByteBuffer longResult = result.materialize(
+                                result.publications().get(1), Long.BYTES).bytes();
+                        assertEquals(4, intResult.getInt());
+                        assertEquals(11L, longResult.getLong());
+                    }
+                }
+            }
+        }
+    }
+
 
     private static void assertMatmulGradientGraph(
             CompileArtifacts artifacts, Tensor left, Tensor right, Tensor seed) {
@@ -2604,6 +2706,28 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 Optional.of(new MemorySegmentStorage(
                         DataType.INT32, values.length, segment)));
     }
+    private static Tensor nativeBfloatTensor(
+            Shape shape, Arena arena, float... values) {
+        TensorDescriptor descriptor = new TensorDescriptor(
+                DataType.BFLOAT16,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                false);
+        var segment = arena.allocate(
+                Math.multiplyExact(values.length, Short.BYTES), Short.BYTES);
+        for (int index = 0; index < values.length; index++) {
+            segment.setAtIndex(
+                    ValueLayout.JAVA_SHORT,
+                    index,
+                    (short) (Float.floatToRawIntBits(values[index]) >>> 16));
+        }
+        return TensorFactory.create(
+                descriptor,
+                Optional.empty(),
+                Optional.of(new MemorySegmentStorage(
+                        DataType.BFLOAT16, values.length, segment)));
+    }
+
 
     private static Tensor nativeLongTensor(Shape shape, Arena arena, long... values) {
         TensorDescriptor descriptor = new TensorDescriptor(

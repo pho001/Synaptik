@@ -1044,87 +1044,142 @@ class MetalCapabilityProviderTest {
     }
 
     @Test
-    void acceleratorMatmulAdmitsOnlyExactRankTwoShapesAndTransposeCandidates() {
+    void matmulCapabilityMatchesGeneralStaticTypeProfileGradientAndLayoutContract() {
+        Operation matmul = new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE);
         TensorDescriptor left = descriptor(Shape.of(2, 3), true);
         TensorDescriptor right = descriptor(Shape.of(3, 4), false);
         TensorDescriptor output = descriptor(Shape.of(2, 4), true);
-        Operation matmul = new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE);
-        assertTrue(provider.supports(new OperationCapabilityQuery(
-                NumericalProfile.ACCELERATOR,
-                matmul,
-                List.of(left, right),
-                List.of(output))));
-        assertFalse(provider.supports(new OperationCapabilityQuery(
-                NumericalProfile.STRICT_IEEE,
-                matmul,
-                List.of(left, right),
-                List.of(output))));
+        assertTrue(supportsMatmul(
+                NumericalProfile.ACCELERATOR, matmul, left, right, output));
+        assertFalse(supportsMatmul(
+                NumericalProfile.STRICT_IEEE, matmul, left, right, output));
 
-        TensorDescriptor leftTranspose = transposeCandidate(Shape.of(2, 3), true);
-        TensorDescriptor rightTranspose = transposeCandidate(Shape.of(3, 4), false);
-        assertTrue(provider.supports(new OperationCapabilityQuery(
+        assertTrue(supportsMatmul(
                 NumericalProfile.ACCELERATOR,
                 matmul,
-                List.of(leftTranspose, rightTranspose),
-                List.of(output))));
+                descriptor(Shape.of(3), true),
+                descriptor(Shape.of(3), false),
+                descriptor(Shape.of(), true)));
+        assertTrue(supportsMatmul(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                descriptor(Shape.of(3), false),
+                descriptor(Shape.of(3, 4), false),
+                descriptor(Shape.of(4), false)));
+        assertTrue(supportsMatmul(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                descriptor(Shape.of(2, 3), false),
+                descriptor(Shape.of(3), false),
+                descriptor(Shape.of(2), false)));
+        assertTrue(supportsMatmul(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                descriptor(Shape.of(2, 5, 3), false),
+                descriptor(Shape.of(1, 3, 4), false),
+                descriptor(Shape.of(2, 5, 4), false)));
+
+        TensorDescriptor transposed =
+                transposeCandidate(DataType.FLOAT32, Shape.of(2, 5, 3), true);
+        assertTrue(supportsMatmul(
+                NumericalProfile.ACCELERATOR,
+                matmul,
+                transposed,
+                descriptor(Shape.of(3, 4), false),
+                descriptor(Shape.of(2, 5, 4), true)));
         assertTrue(provider.supports(new OperationCapabilityQuery(
                 NumericalProfile.ACCELERATOR,
                 new Operation(
                         AxisTransformKind.PERMUTE,
-                        new PermutationAttrs(List.of(1, 0))),
-                List.of(descriptor(Shape.of(3, 2), true)),
-                List.of(leftTranspose))));
+                        new PermutationAttrs(List.of(0, 2, 1))),
+                List.of(descriptor(Shape.of(2, 3, 5), true)),
+                List.of(transposed))));
 
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            for (DataType leftType : List.of(DataType.INT32, DataType.INT64)) {
+                for (DataType rightType : List.of(DataType.INT32, DataType.INT64)) {
+                    DataType result = leftType == DataType.INT64 || rightType == DataType.INT64
+                            ? DataType.INT64 : DataType.INT32;
+                    assertTrue(supportsMatmul(
+                            profile,
+                            matmul,
+                            typed(leftType, Shape.of(2, 3), false),
+                            typed(rightType, Shape.of(3, 4), false),
+                            typed(result, Shape.of(2, 4), false)),
+                            profile + " " + leftType + " x " + rightType);
+                    assertFalse(supportsMatmul(
+                            profile,
+                            matmul,
+                            typed(leftType, Shape.of(2, 3), false),
+                            typed(rightType, Shape.of(3, 4), false),
+                            typed(leftType, Shape.of(2, 4), false))
+                            && result != leftType);
+                }
+            }
+        }
+
+        for (List<DataType> pair : List.of(
+                List.of(DataType.BFLOAT16, DataType.FLOAT32),
+                List.of(DataType.FLOAT32, DataType.BFLOAT16))) {
+            TensorDescriptor mixedLeft = typed(pair.get(0), Shape.of(2, 3), false);
+            TensorDescriptor mixedRight = typed(pair.get(1), Shape.of(3, 4), false);
+            TensorDescriptor mixedOutput = typed(DataType.FLOAT32, Shape.of(2, 4), false);
+            assertTrue(supportsMatmul(
+                    NumericalProfile.ACCELERATOR,
+                    matmul,
+                    mixedLeft,
+                    mixedRight,
+                    mixedOutput));
+            assertFalse(supportsMatmul(
+                    NumericalProfile.STRICT_IEEE,
+                    matmul,
+                    mixedLeft,
+                    mixedRight,
+                    mixedOutput));
+        }
+
+        assertFalse(supportsMatmul(
                 NumericalProfile.ACCELERATOR,
                 matmul,
-                List.of(left, descriptor(Shape.of(2, 4), false)),
-                List.of(output))));
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+                left,
+                right,
+                descriptor(Shape.of(2, 4), false)));
+        assertFalse(supportsMatmul(
                 NumericalProfile.ACCELERATOR,
                 matmul,
-                List.of(left, right),
-                List.of(descriptor(Shape.of(2, 5), true)))));
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+                typed(DataType.BFLOAT16, Shape.of(2, 3), false),
+                typed(DataType.BFLOAT16, Shape.of(3, 4), false),
+                typed(DataType.FLOAT32, Shape.of(2, 4), false)));
+        assertFalse(supportsMatmul(
                 NumericalProfile.ACCELERATOR,
                 matmul,
-                List.of(left, right),
-                List.of(descriptor(Shape.of(2, 4), false)))));
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+                typed(DataType.FLOAT64, Shape.of(2, 3), false),
+                typed(DataType.FLOAT32, Shape.of(3, 4), false),
+                typed(DataType.FLOAT64, Shape.of(2, 4), false)));
+        assertFalse(supportsMatmul(
                 NumericalProfile.ACCELERATOR,
                 matmul,
-                List.of(
-                        new TensorDescriptor(
-                                DataType.FLOAT32,
-                                left.shape(),
-                                Optional.of(LayoutDescriptor.of(
-                                        left.shape(), new long[] {2, 1}, 0L, true)),
-                                true),
-                        right),
-                List.of(output))));
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+                left,
+                descriptor(Shape.of(2, 4), false),
+                output));
+        assertFalse(supportsMatmul(
                 NumericalProfile.ACCELERATOR,
                 matmul,
-                List.of(
-                        descriptor(Shape.of(2, 0), true),
-                        descriptor(Shape.of(0, 4), false)),
-                List.of(output))));
-        TensorDescriptor vector = descriptor(Shape.of(3), true);
-        assertFalse(provider.supports(new OperationCapabilityQuery(
-                NumericalProfile.ACCELERATOR,
-                matmul,
-                List.of(vector, right),
-                List.of(output))));
-        TensorDescriptor float64 = new TensorDescriptor(
-                DataType.FLOAT64,
+                descriptor(Shape.of(2, 0), true),
+                descriptor(Shape.of(0, 4), false),
+                output));
+        TensorDescriptor unauthenticated = new TensorDescriptor(
+                DataType.FLOAT32,
                 Shape.of(2, 3),
-                Optional.of(LayoutDescriptor.contiguous(Shape.of(2, 3))),
+                Optional.of(LayoutDescriptor.of(
+                        Shape.of(2, 3), new long[] {2, 1}, 0L, true)),
                 true);
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+        assertFalse(supportsMatmul(
                 NumericalProfile.ACCELERATOR,
                 matmul,
-                List.of(float64, right),
-                List.of(output))));
+                unauthenticated,
+                right,
+                output));
     }
 
     @Test
@@ -1380,14 +1435,33 @@ class MetalCapabilityProviderTest {
                 Optional.of(LayoutDescriptor.contiguous(shape)), requiresGrad);
     }
 
-    private static TensorDescriptor transposeCandidate(Shape shape, boolean requiresGrad) {
-        long[] dimensions = shape.toLongArray();
+    private static TensorDescriptor transposeCandidate(
+            DataType type, Shape shape, boolean requiresGrad) {
+        int rank = shape.rank();
+        long[] sourceDimensions = shape.toLongArray();
+        long swap = sourceDimensions[rank - 2];
+        sourceDimensions[rank - 2] = sourceDimensions[rank - 1];
+        sourceDimensions[rank - 1] = swap;
+        long[] sourceStrides =
+                LayoutDescriptor.contiguous(Shape.of(sourceDimensions)).strides();
+        long[] outputStrides = sourceStrides.clone();
+        outputStrides[rank - 2] = sourceStrides[rank - 1];
+        outputStrides[rank - 1] = sourceStrides[rank - 2];
         return new TensorDescriptor(
-                DataType.FLOAT32,
+                type,
                 shape,
-                Optional.of(LayoutDescriptor.of(
-                        shape, new long[] {1L, dimensions[0]}, 0L, true)),
+                Optional.of(LayoutDescriptor.of(shape, outputStrides, 0L, true)),
                 requiresGrad);
+    }
+
+    private boolean supportsMatmul(
+            NumericalProfile profile,
+            Operation operation,
+            TensorDescriptor left,
+            TensorDescriptor right,
+            TensorDescriptor output) {
+        return provider.supports(new OperationCapabilityQuery(
+                profile, operation, List.of(left, right), List.of(output)));
     }
 
     private static TensorDescriptor view(Shape shape, long... strides) {
