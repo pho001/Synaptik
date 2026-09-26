@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -588,6 +589,36 @@ class MetalNegRouteCandidateGeneratorTest {
     }
 
     @Test
+    void canonicalRouteIdentityOwnsStableCandidateWiresFamiliesAndBytes() {
+        assertEquals(3, MetalPreparedRoute.values().length);
+        assertSame(MetalPreparedRoute.Family.CUSTOM_KERNEL,
+                MetalPreparedRoute.CUSTOM_SINGLE_NEG.family());
+        assertSame(MetalPreparedRoute.Family.MPSGRAPH, MetalPreparedRoute.MPSGRAPH.family());
+        assertSame(MetalPreparedRoute.Family.CUSTOM_KERNEL,
+                MetalPreparedRoute.CUSTOM_TASK0052.family());
+
+        var codec = new MetalNegTuningCodec();
+        for (MetalNegTuningBatch.Candidate candidate : MetalNegTuningBatch.Candidate.values()) {
+            MetalPreparedRoute route = candidate.route();
+            assertEquals(route.wireIdentity(), candidate.wireIdentity());
+            assertSame(route, MetalPreparedRoute.fromWireIdentity(
+                    candidate.wireIdentity()).orElseThrow());
+            assertSame(candidate, MetalNegTuningBatch.Candidate.fromWireIdentity(
+                    route.wireIdentity()).orElseThrow());
+            assertArrayEquals(new byte[] {
+                    0x4d, 0x4e, 0x43, 0x41,
+                    0x00, 0x00, 0x00, 0x0e,
+                    0x00, 0x00, 0x00, 0x0e,
+                    0x00, 0x00, 0x00, (byte) route.wireIdentity()
+            }, codec.encodeCandidate(candidate));
+        }
+        assertTrue(MetalPreparedRoute.fromWireIdentity(0).isEmpty());
+        assertTrue(MetalPreparedRoute.fromWireIdentity(4).isEmpty());
+        assertTrue(MetalNegTuningBatch.Candidate.fromWireIdentity(0).isEmpty());
+        assertTrue(MetalNegTuningBatch.Candidate.fromWireIdentity(4).isEmpty());
+    }
+
+    @Test
     void codecIsCanonicalBoundedAndRejectsEveryDefensiveMismatch() {
         TestNativeApi api = new TestNativeApi();
         TestNativeApi otherApi = new TestNativeApi();
@@ -686,7 +717,7 @@ class MetalNegRouteCandidateGeneratorTest {
                     generator.absentHandoff(workload.context(), original.analysis().plan(), 2);
             var absentAnalysis = analyze(withInputs(workload,
                     new MetalNegAnalysisInputs(device, Optional.of(absent))).context());
-            assertEquals(MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG,
+            assertEquals(MetalPreparedRoute.CUSTOM_SINGLE_NEG,
                     absentAnalysis.plan().route());
             assertEquals(2, absentAnalysis.requirements().size());
 
@@ -695,7 +726,7 @@ class MetalNegRouteCandidateGeneratorTest {
                     MetalNegTuningBatch.Candidate.MPSGRAPH);
             var selectedAnalysis = analyze(withInputs(workload,
                     new MetalNegAnalysisInputs(device, Optional.of(selected))).context());
-            assertEquals(MetalNegPreparationPlan.Route.MPSGRAPH, selectedAnalysis.plan().route());
+            assertEquals(MetalPreparedRoute.MPSGRAPH, selectedAnalysis.plan().route());
             assertEquals(3, selectedAnalysis.requirements().size());
             assertTrue(selectedAnalysis.plan().addressWorkspace().isPresent());
             assertEquals(List.of(
@@ -712,6 +743,11 @@ class MetalNegRouteCandidateGeneratorTest {
                     MetalNegTuningBatch.Candidate.MPSGRAPH);
             assertThrows(IllegalArgumentException.class, () -> analyze(withInputs(workload,
                     new MetalNegAnalysisInputs(device, Optional.of(foreignDecision))).context()));
+            assertThrows(IllegalArgumentException.class,
+                    () -> new MetalNegPartitionPreparer().analyzeForTesting(
+                            withInputs(workload, new MetalNegAnalysisInputs(
+                                    device, Optional.of(foreignDecision))).context(),
+                            MetalPreparedRoute.CUSTOM_SINGLE_NEG));
 
             Workload changed = workload(device, 1000, Shape.of(9), false,
                     Optional.empty(), true, false, 1);
@@ -736,6 +772,9 @@ class MetalNegRouteCandidateGeneratorTest {
             var invalid = new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, invalidDag, valid.context().values(), valid.context().memoryRequirements(), valid.context().constants(), new MetalNegAnalysisInputs(device));
             assertThrows(IllegalArgumentException.class, () -> new MetalNegPartitionPreparer()
                     .analyze(invalid));
+            assertThrows(IllegalArgumentException.class,
+                    () -> new MetalNegPartitionPreparer().analyzeForTesting(
+                            invalid, MetalPreparedRoute.MPSGRAPH));
 
             Generated generated = generated(valid, 2);
             var executor = Executors.newFixedThreadPool(6);

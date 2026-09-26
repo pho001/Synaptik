@@ -86,6 +86,7 @@ import io.github.pho001.synaptik.trace.payload.BackendInvocationOutcome;
 import io.github.pho001.synaptik.trace.payload.BackendPreparationOutcome;
 import io.github.pho001.synaptik.trace.payload.TraceNativeStatusKind;
 import io.github.pho001.synaptik.trace.payload.TraceOutcomeStatus;
+import io.github.pho001.synaptik.trace.payload.TraceRouteKind;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.file.Path;
@@ -116,14 +117,14 @@ class MetalNegPreparedExecutionTest {
         try {
             SingleNegRoute maximum = singleNegRoute(
                     context, Shape.of(0xffff_ffffL), Optional.empty());
-            assertEquals(MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG,
+            assertEquals(MetalPreparedRoute.CUSTOM_SINGLE_NEG,
                     maximum.analysis().plan().route());
             assertEquals(2, maximum.analysis().requirements().size());
             assertTrue(maximum.analysis().plan().addressWorkspace().isEmpty());
 
             SingleNegRoute firstOversized = singleNegRoute(
                     context, Shape.of(0x1_0000_0000L), Optional.empty());
-            assertEquals(MetalNegPreparationPlan.Route.MPSGRAPH,
+            assertEquals(MetalPreparedRoute.MPSGRAPH,
                     firstOversized.analysis().plan().route());
             assertEquals(3, firstOversized.analysis().requirements().size());
             assertTrue(firstOversized.analysis().plan().addressWorkspace().isPresent());
@@ -134,7 +135,7 @@ class MetalNegPreparedExecutionTest {
 
             SingleNegRoute splat = singleNegRoute(
                     context, Shape.of(4), Optional.of(ScalarValue.float32(-2.0f)));
-            assertEquals(MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG,
+            assertEquals(MetalPreparedRoute.CUSTOM_SINGLE_NEG,
                     splat.analysis().plan().route());
             assertTrue(splat.analysis().plan().feedSplats().getFirst().isPresent());
             assertEquals(0, api.bufferCreates.get());
@@ -165,7 +166,7 @@ class MetalNegPreparedExecutionTest {
                     heuristic.partition(), batch, MetalNegTuningBatch.Candidate.MPSGRAPH);
             BackendPartitionAnalysis<MetalNegPreparationPlan> selected =
                     new MetalNegPartitionPreparer().analyze(new PrepareContext<>(io.github.pho001.synaptik.config.compile.NumericalProfile.STRICT_IEEE, source.partitionDag(), source.values(), source.memoryRequirements(), source.constants(), new MetalNegAnalysisInputs(context, Optional.of(handoff))));
-            assertEquals(MetalNegPreparationPlan.Route.MPSGRAPH, selected.plan().route());
+            assertEquals(MetalPreparedRoute.MPSGRAPH, selected.plan().route());
             assertEquals(3, selected.requirements().size());
             assertTrue(selected.plan().addressWorkspace().isPresent());
 
@@ -183,6 +184,167 @@ class MetalNegPreparedExecutionTest {
             }
         } finally {
             context.close();
+        }
+    }
+
+    @Test
+    void forcedSingletonRoutesIndependentlySatisfyTheStrictModelNegContractAndStayFixed() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        api.emulateSingletonMpsGraphNeg = true;
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        List<TraceEvent<? extends TracePayload>> customEvents = new CopyOnWriteArrayList<>();
+        List<TraceEvent<? extends TracePayload>> graphEvents = new CopyOnWriteArrayList<>();
+        SingleNegRoute customRoute = singleNegRoute(
+                context,
+                Shape.of(6),
+                Optional.empty(),
+                new MetalTraceProducer(customEvents::add),
+                MetalPreparedRoute.CUSTOM_SINGLE_NEG);
+        SingleNegRoute graphRoute = singleNegRoute(
+                context,
+                Shape.of(6),
+                Optional.empty(),
+                new MetalTraceProducer(graphEvents::add),
+                MetalPreparedRoute.MPSGRAPH);
+        PreparedExecution customExecution = null;
+        PreparedExecution graphExecution = null;
+        MetalBufferRepresentation input = null;
+        try {
+            assertSame(MetalPreparedRoute.CUSTOM_SINGLE_NEG,
+                    customRoute.analysis().plan().route());
+            assertSame(MetalPreparedRoute.MPSGRAPH, graphRoute.analysis().plan().route());
+            assertTrue(customRoute.analysis().plan().addressWorkspace().isEmpty());
+            assertTrue(graphRoute.analysis().plan().addressWorkspace().isPresent());
+
+            customExecution = prepareSingleExecution(context, customRoute);
+            graphExecution = prepareSingleExecution(context, graphRoute);
+            assertEquals(1, api.pipelineCreates.get());
+            assertEquals(1, api.executableCreates.get());
+            assertEquals(TraceRouteKind.CUSTOM_KERNEL,
+                    ((BackendPreparationOutcome) customEvents.getFirst().payload()).route());
+            assertEquals(TraceRouteKind.GRAPH_EXECUTABLE,
+                    ((BackendPreparationOutcome) graphEvents.getFirst().payload()).route());
+
+            input = context.createBuffer(6L * Float.BYTES);
+            uploadBits(input, 0x3f800000, 0xc0000000, 0x00000000,
+                    0x80000000, 0x7f800000, 0x7fc00000);
+            var runner = new PreparedExecutionRunner();
+            var customResult = runner.run(customExecution, List.of(input));
+            try (Arena arena = Arena.ofConfined()) {
+                assertNegated(
+                        (MetalBufferRepresentation) customResult.publicationRepresentation(0),
+                        new float[] {-1.0f, 2.0f, -0.0f, 0.0f,
+                                Float.NEGATIVE_INFINITY, Float.NaN},
+                        arena);
+            } finally {
+                customResult.close();
+            }
+            var graphResult = runner.run(graphExecution, List.of(input));
+            try (Arena arena = Arena.ofConfined()) {
+                assertNegated(
+                        (MetalBufferRepresentation) graphResult.publicationRepresentation(0),
+                        new float[] {-1.0f, 2.0f, -0.0f, 0.0f,
+                                Float.NEGATIVE_INFINITY, Float.NaN},
+                        arena);
+            } finally {
+                graphResult.close();
+            }
+
+            assertSame(MetalPreparedRoute.CUSTOM_SINGLE_NEG,
+                    customRoute.analysis().plan().route());
+            assertSame(MetalPreparedRoute.MPSGRAPH, graphRoute.analysis().plan().route());
+            assertEquals(1, api.customRunCalls.get());
+            assertEquals(1, api.runCalls.get());
+        } finally {
+            close(input);
+            close(graphExecution);
+            close(customExecution);
+            context.close();
+        }
+    }
+
+    @Test
+    void forcingRejectsEveryUnapprovedCurrentRouteBeforeNativeConstruction() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        try {
+            var preparer = new MetalNegPartitionPreparer();
+            assertThrows(IllegalArgumentException.class,
+                    () -> preparer.analyzeForTesting(
+                            task0052MinContext(context), MetalPreparedRoute.MPSGRAPH));
+            assertThrows(IllegalArgumentException.class,
+                    () -> preparer.analyzeForTesting(
+                            task0052MinContext(context),
+                            MetalPreparedRoute.CUSTOM_SINGLE_NEG));
+            assertThrows(IllegalArgumentException.class,
+                    () -> singleNegRoute(
+                            context,
+                            Shape.of(6),
+                            Optional.empty(),
+                            null,
+                            MetalPreparedRoute.CUSTOM_TASK0052));
+            assertEquals(0, api.pipelineCreates.get());
+            assertEquals(0, api.executableCreates.get());
+            assertEquals(0, api.customRunCalls.get());
+            assertEquals(0, api.runCalls.get());
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void forcedRouteCreateAndRunFailuresNeverAttemptTheOtherFamily() {
+        RecordingNativeApi customApi = new RecordingNativeApi();
+        customApi.pipelineCreateStatus = 12;
+        MetalDeviceContext customContext = MetalDeviceContext.open(customApi);
+        try {
+            SingleNegRoute customRoute = singleNegRoute(
+                    customContext,
+                    Shape.of(2),
+                    Optional.empty(),
+                    null,
+                    MetalPreparedRoute.CUSTOM_SINGLE_NEG);
+            FinalizationFixture customAssignment = finalization(customRoute.analysis());
+            assertThrows(
+                    MetalNativeApi.NativeFailure.class,
+                    () -> new MetalNegPartitionFinalizer(customContext)
+                            .finalizePartition(customAssignment.finalization()));
+            assertEquals(1, customApi.pipelineCreates.get());
+            assertEquals(0, customApi.executableCreates.get());
+            assertEquals(0, customApi.runCalls.get());
+        } finally {
+            customContext.close();
+        }
+
+        RecordingNativeApi graphApi = new RecordingNativeApi();
+        graphApi.runStatus = 17;
+        MetalDeviceContext graphContext = MetalDeviceContext.open(graphApi);
+        PreparedExecution graphExecution = null;
+        MetalBufferRepresentation input = null;
+        try {
+            SingleNegRoute graphRoute = singleNegRoute(
+                    graphContext,
+                    Shape.of(2),
+                    Optional.empty(),
+                    null,
+                    MetalPreparedRoute.MPSGRAPH);
+            graphExecution = prepareSingleExecution(graphContext, graphRoute);
+            input = graphContext.createBuffer(2L * Float.BYTES);
+            uploadBits(input, 0x3f800000, 0xc0000000);
+            PreparedExecution prepared = graphExecution;
+            MetalBufferRepresentation caller = input;
+            assertThrows(
+                    MetalNativeApi.NativeFailure.class,
+                    () -> new PreparedExecutionRunner().run(prepared, List.of(caller)));
+            assertSame(MetalPreparedRoute.MPSGRAPH, graphRoute.analysis().plan().route());
+            assertEquals(1, graphApi.executableCreates.get());
+            assertEquals(0, graphApi.pipelineCreates.get());
+            assertEquals(1, graphApi.runCalls.get());
+            assertEquals(0, graphApi.customRunCalls.get());
+        } finally {
+            close(input);
+            close(graphExecution);
+            graphContext.close();
         }
     }
 
@@ -1173,7 +1335,7 @@ class MetalNegPreparedExecutionTest {
         IndexingRoute splatRoute =
                 indexingRoute(context, Map.of(route.oneHotIndices(), ScalarValue.int32(2)));
         MetalNegPreparationPlan plan = route.analysis().plan();
-        assertEquals(MetalNegPreparationPlan.Route.MPSGRAPH, plan.route());
+        assertEquals(MetalPreparedRoute.MPSGRAPH, plan.route());
         assertEquals(
                 List.of(MetalMpsGraphProgram.NodeKind.GATHER,
                         MetalMpsGraphProgram.NodeKind.ONE_HOT),
@@ -1346,7 +1508,7 @@ class MetalNegPreparedExecutionTest {
             assertEquals(
                     NumericalProfile.ACCELERATOR,
                     plan.numericalProfile());
-            assertEquals(MetalNegPreparationPlan.Route.MPSGRAPH, plan.route());
+            assertEquals(MetalPreparedRoute.MPSGRAPH, plan.route());
             assertEquals(List.of(
                     MetalMpsGraphProgram.NodeKind.ADD,
                     MetalMpsGraphProgram.NodeKind.SUB,
@@ -1414,7 +1576,7 @@ class MetalNegPreparedExecutionTest {
             BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
                     analyze(fixture, context, NumericalProfile.ACCELERATOR);
             MetalNegPreparationPlan plan = analysis.plan();
-            assertEquals(MetalNegPreparationPlan.Route.MPSGRAPH, plan.route());
+            assertEquals(MetalPreparedRoute.MPSGRAPH, plan.route());
             assertEquals(List.of(
                     MetalMpsGraphProgram.NodeKind.PERMUTE,
                     MetalMpsGraphProgram.NodeKind.PERMUTE,
@@ -1483,7 +1645,7 @@ class MetalNegPreparedExecutionTest {
                     analyze(fixture, context, NumericalProfile.ACCELERATOR);
             MetalNegPreparationPlan plan = analysis.plan();
             assertEquals(NumericalProfile.ACCELERATOR, plan.numericalProfile());
-            assertEquals(MetalNegPreparationPlan.Route.MPSGRAPH, plan.route());
+            assertEquals(MetalPreparedRoute.MPSGRAPH, plan.route());
             assertEquals(List.of(
                     MetalMpsGraphProgram.NodeKind.MEAN,
                     MetalMpsGraphProgram.NodeKind.ABS,
@@ -2238,7 +2400,7 @@ class MetalNegPreparedExecutionTest {
         MetalBufferRepresentation caller = route.context().createBuffer(8);
         try (Arena arena = Arena.ofConfined()) {
             uploadBits(caller, 0x3F800000, 0xC0000000);
-            assertEquals(MetalNegPreparationPlan.Route.MPSGRAPH, route.plan().route());
+            assertEquals(MetalPreparedRoute.MPSGRAPH, route.plan().route());
             assertTrue(route.plan().feedSplats().getFirst().isEmpty());
             assertTrue(route.plan().feedSplats().subList(
                     1, route.plan().feedSplats().size()).stream().allMatch(Optional::isPresent));
@@ -2404,7 +2566,7 @@ class MetalNegPreparedExecutionTest {
                 splatSecond.close();
             }
 
-            assertEquals(MetalNegPreparationPlan.Route.MPSGRAPH, analyzed.get().route());
+            assertEquals(MetalPreparedRoute.MPSGRAPH, analyzed.get().route());
             var firstRun = runner.run(execution, List.of(input0, input1));
             Object firstOutput = firstRun.publicationRepresentation(0);
             try {
@@ -2444,7 +2606,7 @@ class MetalNegPreparedExecutionTest {
                     analyze(fixture, context);
             MetalNegPreparationPlan plan = analysis.plan();
 
-            assertEquals(MetalNegPreparationPlan.Route.MPSGRAPH, plan.route());
+            assertEquals(MetalPreparedRoute.MPSGRAPH, plan.route());
             assertEquals(fixture.feeds(), plan.feedValueIds());
             assertEquals(fixture.targets(), plan.targetValueIds());
             assertArrayEquals(new int[] {0, 2, 4, 6, 8}, plan.feedValueIndices());
@@ -3557,6 +3719,11 @@ class MetalNegPreparedExecutionTest {
 
     private static BackendPartitionAnalysis<MetalNegPreparationPlan> task0052MinRoute(
             MetalDeviceContext context) {
+        return new MetalNegPartitionPreparer().analyze(task0052MinContext(context));
+    }
+
+    private static PrepareContext<MetalNegAnalysisInputs> task0052MinContext(
+            MetalDeviceContext context) {
         TensorDescriptor descriptor = descriptor(Shape.of(2));
         ValueId left = new ValueId(10_010);
         ValueId right = new ValueId(10_011);
@@ -3568,7 +3735,7 @@ class MetalNegPreparedExecutionTest {
                 List.of(target));
         PlannedPartition partition = new PlannedPartition(
                 MetalCapabilityProvider.METAL_BACKEND_ID, List.of(node.id()));
-        return new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
+        return new PrepareContext<>(
                 NumericalProfile.ACCELERATOR,
                 new PartitionDag(partition, List.of(node)),
                 List.of(
@@ -3580,7 +3747,7 @@ class MetalNegPreparedExecutionTest {
                         requirement(right, descriptor, Optional.empty(), List.of(partition), false),
                         requirement(target, descriptor, Optional.of(partition), List.of(), true)),
                 Map.of(),
-                new MetalNegAnalysisInputs(context)));
+                new MetalNegAnalysisInputs(context));
     }
 
     private static TensorDescriptor typedDescriptor(DataType dataType, Shape shape) {
@@ -3590,7 +3757,7 @@ class MetalNegPreparedExecutionTest {
 
     private static SingleNegRoute singleNegRoute(
             MetalDeviceContext context, Shape shape, Optional<ScalarValue> splat) {
-        return singleNegRoute(context, shape, splat, null);
+        return singleNegRoute(context, shape, splat, null, null);
     }
 
     private static SingleNegRoute singleNegRoute(
@@ -3598,6 +3765,15 @@ class MetalNegPreparedExecutionTest {
             Shape shape,
             Optional<ScalarValue> splat,
             MetalTraceProducer traceProducer) {
+        return singleNegRoute(context, shape, splat, traceProducer, null);
+    }
+
+    private static SingleNegRoute singleNegRoute(
+            MetalDeviceContext context,
+            Shape shape,
+            Optional<ScalarValue> splat,
+            MetalTraceProducer traceProducer,
+            MetalPreparedRoute forcedRoute) {
         TensorDescriptor descriptor = descriptor(shape);
         ValueId feed = new ValueId(10_000);
         ValueId target = new ValueId(10_001);
@@ -3614,14 +3790,17 @@ class MetalNegPreparedExecutionTest {
         Map<ValueId, ScalarValue> constants = splat
                 .<Map<ValueId, ScalarValue>>map(value -> Map.of(feed, value))
                 .orElseGet(Map::of);
-        BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
-                new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
-                        NumericalProfile.STRICT_IEEE,
-                        new PartitionDag(partition, List.of(node)),
-                        values,
-                        requirements,
-                        constants,
-                        new MetalNegAnalysisInputs(context, traceProducer)));
+        var prepareContext = new PrepareContext<>(
+                NumericalProfile.STRICT_IEEE,
+                new PartitionDag(partition, List.of(node)),
+                values,
+                requirements,
+                constants,
+                new MetalNegAnalysisInputs(context, traceProducer));
+        var preparer = new MetalNegPartitionPreparer();
+        BackendPartitionAnalysis<MetalNegPreparationPlan> analysis = forcedRoute == null
+                ? preparer.analyze(prepareContext)
+                : preparer.analyzeForTesting(prepareContext, forcedRoute);
         return new SingleNegRoute(partition, feed, target, analysis);
     }
 
@@ -3663,7 +3842,11 @@ class MetalNegPreparedExecutionTest {
 
     private static PreparedExecution prepareSingleExecution(
             MetalDeviceContext context, Shape shape, Optional<ScalarValue> splat) {
-        SingleNegRoute route = singleNegRoute(context, shape, splat);
+        return prepareSingleExecution(context, singleNegRoute(context, shape, splat));
+    }
+
+    private static PreparedExecution prepareSingleExecution(
+            MetalDeviceContext context, SingleNegRoute route) {
         FinalizationFixture assignment = finalization(route.analysis());
         BackendPartitionFinalizationResult finalized = new MetalNegPartitionFinalizer(context)
                 .finalizePartition(assignment.finalization());
@@ -3947,6 +4130,7 @@ class MetalNegPreparedExecutionTest {
         private volatile int customRunStatus;
         private volatile boolean createNullHandle;
         private volatile boolean createHandleOnFailure;
+        private volatile boolean emulateSingletonMpsGraphNeg;
         private volatile int failBufferCreateCall = -1;
         private volatile int failUploadCall = -1;
         private volatile CountDownLatch runEntered = new CountDownLatch(0);
@@ -4021,6 +4205,23 @@ class MetalNegPreparedExecutionTest {
                     bits[index] = segment.getAtIndex(JAVA_INT_UNALIGNED, index);
                 }
                 inputRawBits.add(bits);
+            }
+            if (emulateSingletonMpsGraphNeg && runStatus == 0) {
+                if (inputHandles.size() != 1 || outputHandles.size() != 1) {
+                    throw new IllegalStateException("singleton NEG emulator requires one input/output");
+                }
+                byte[] input = buffers.get(inputHandles.getFirst());
+                byte[] output = buffers.get(outputHandles.getFirst());
+                if (input == null || output == null || input.length > output.length) {
+                    throw new IllegalStateException("singleton NEG emulator buffer mismatch");
+                }
+                MemorySegment inputSegment = MemorySegment.ofArray(input);
+                MemorySegment outputSegment = MemorySegment.ofArray(output);
+                for (long index = 0; index < input.length / Integer.BYTES; index++) {
+                    int bits = inputSegment.getAtIndex(JAVA_INT_UNALIGNED, index);
+                    outputSegment.setAtIndex(
+                            JAVA_INT_UNALIGNED, index, bits ^ 0x8000_0000);
+                }
             }
             runs.add(new RunObservation(inputHandles, outputHandles, inputs, inputRawBits,
                     bufferCreates.get(), uploads.get()));

@@ -58,7 +58,7 @@ final class MetalNegRouteCandidateGenerator {
         }
 
         var candidates = new ArrayList<MetalNegTuningBatch.Candidate>(2);
-        if (plan.route() == MetalNegPreparationPlan.Route.CUSTOM_TASK0052) {
+        if (plan.route() == MetalPreparedRoute.CUSTOM_TASK0052) {
             candidates.add(MetalNegTuningBatch.Candidate.CUSTOM_TASK0052);
         } else if (customCandidateIsValid(plan)) {
             candidates.add(MetalNegTuningBatch.Candidate.CUSTOM_SINGLE_NEG);

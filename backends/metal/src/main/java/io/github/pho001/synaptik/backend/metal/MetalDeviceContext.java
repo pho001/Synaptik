@@ -232,8 +232,8 @@ final class MetalDeviceContext implements AutoCloseable {
             throw new IllegalArgumentException(
                     "Metal MPSGraph executable plan belongs to another device context");
         }
-        if (plan.route() != MetalNegPreparationPlan.Route.MPSGRAPH
-                && plan.route() != MetalNegPreparationPlan.Route.CUSTOM_TASK0052) {
+        if (plan.route() != MetalPreparedRoute.MPSGRAPH
+                && plan.route() != MetalPreparedRoute.CUSTOM_TASK0052) {
             throw new IllegalArgumentException(
                     "Metal program executable requires a graph or Task-0052 custom route");
         }
@@ -248,12 +248,12 @@ final class MetalDeviceContext implements AutoCloseable {
                     plan.feedValueIndices(),
                     plan.targetValueIndices());
             long[] runInputBytes = plan.route()
-                    == MetalNegPreparationPlan.Route.CUSTOM_TASK0052
+                    == MetalPreparedRoute.CUSTOM_TASK0052
                     ? plan.materializedValueRequiredBytes()
                     : plan.feedRequiredBytes();
             return new MetalMpsGraphExecutableResource(
                     this, api, executable, lease, runInputBytes, plan.targetRequiredBytes(),
-                    plan.route() == MetalNegPreparationPlan.Route.CUSTOM_TASK0052);
+                    plan.route() == MetalPreparedRoute.CUSTOM_TASK0052);
         } catch (RuntimeException | Error failure) {
             if (executable != null) {
                 try {
@@ -285,7 +285,7 @@ final class MetalDeviceContext implements AutoCloseable {
     MetalNegKernelPipelineResource createNegKernelPipeline(MetalNegPreparationPlan plan) {
         Objects.requireNonNull(plan, "plan");
         if (plan.context() != this
-                || plan.route() != MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG) {
+                || plan.route() != MetalPreparedRoute.CUSTOM_SINGLE_NEG) {
             throw new IllegalArgumentException(
                     "Metal NEG custom pipeline plan route or context disagrees");
         }

@@ -54,7 +54,7 @@ final class MetalLocalWorkloadTuningTest {
             var trialPreparation = tuning.trialPreparation(batch, candidates.get(1));
             var trialInputs = (MetalNegAnalysisInputs) trialPreparation.backendInputs();
             assertSame(traceProducer, trialInputs.traceProducer());
-            assertEquals(MetalNegPreparationPlan.Route.MPSGRAPH,
+            assertEquals(MetalPreparedRoute.MPSGRAPH,
                     analyze(withInputs(singleton, trialInputs).context()).plan().route());
         }
     }

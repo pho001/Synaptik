@@ -22,31 +22,20 @@ import java.util.Optional;
  * rank-two transpose authenticated on that consuming edge; the same affine value may otherwise be
  * consumed or published normally. Value indices, explicit canonical/affine-view states, typed
  * MPSGraph nodes, feeds, targets, and declarations are already in their stable ABI order. The
- * route is either the safe heuristic or a freshly authenticated session-compatible decision, and
- * is fixed before this plan's declarations escape analysis. The plan contains no assigned slot,
- * tuning value, native executable, physical buffer, or per-run state. Affine targets retain exact
- * logical view descriptors alongside their full dense represented-order byte extents. The address
- * workspace is present only for MPSGraph. Primitive arrays are privately snapshotted and copied
- * when marshalled.</p>
+ * route is either the safe heuristic, a freshly authenticated session-compatible decision, or an
+ * approved package-private test force, and is fixed before this plan's declarations escape
+ * analysis. The plan contains no assigned slot, tuning value, native executable, physical buffer,
+ * or per-run state. Affine targets retain exact logical view descriptors alongside their full
+ * dense represented-order byte extents. The address workspace is absent only for the singleton
+ * custom NEG route. Primitive arrays are privately snapshotted and copied when marshalled.</p>
  */
 final class MetalNegPreparationPlan implements BackendPreparationPlan {
-    /** Closed private implementation choice made during analysis. */
-    enum Route {
-        /** Exact singleton NEG with one feed, one target, and {@code 1..UINT32_MAX} elements. */
-        CUSTOM_SINGLE_NEG,
-
-        /** Whole-partition Task-0052 custom program, selected whenever a wire 20..34 node occurs. */
-        CUSTOM_TASK0052,
-
-        /** Whole-partition typed MPSGraph route for programs without a Task-0052 node. */
-        MPSGRAPH
-    }
 
     private final NumericalProfile numericalProfile;
     private final PlannedPartition partition;
     private final PartitionDag partitionDag;
     private final MetalDeviceContext context;
-    private final Route route;
+    private final MetalPreparedRoute route;
     private final List<ValueId> valueIds;
     private final List<TensorDescriptor> descriptors;
     private final List<MetalMpsGraphProgram.ValueDescriptor> programValueDescriptors;
@@ -74,7 +63,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
      * @param partition exact non-null planned partition analyzed to produce this plan
      * @param partitionDag exact non-null partition topology retaining {@code partition}
      * @param context exact non-null Metal device context retained by identity
-     * @param route non-null closed implementation route selected during analysis
+     * @param route non-null canonical implementation route selected during analysis
      * @param valueIds non-null stable indexed value identities
      * @param descriptors non-null descriptors aligned with {@code valueIds}
      * @param valueStates non-null explicit validated states aligned with {@code valueIds}
@@ -87,7 +76,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
      * @param feedSplats non-null optional FLOAT32/INT32 splats aligned with feeds
      * @param feedSplatSources non-null source-owner facts aligned with feeds; a true entry requires
      *     a present splat
-     * @param addressWorkspace non-null optional workspace, present exactly for MPSGraph
+     * @param addressWorkspace non-null optional workspace, absent only for custom singleton NEG
      * @param feedRequiredBytes non-null required logical byte extents aligned with feeds
      * @param targetRequiredBytes non-null required logical byte extents aligned with targets
      * @throws NullPointerException if a required reference or list element is {@code null}
@@ -98,7 +87,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             PlannedPartition partition,
             PartitionDag partitionDag,
             MetalDeviceContext context,
-            Route route,
+            MetalPreparedRoute route,
             List<ValueId> valueIds,
             List<TensorDescriptor> descriptors,
             List<MetalMpsGraphProgram.ValueState> valueStates,
@@ -147,7 +136,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             PlannedPartition partition,
             PartitionDag partitionDag,
             MetalDeviceContext context,
-            Route route,
+            MetalPreparedRoute route,
             List<ValueId> valueIds,
             List<TensorDescriptor> descriptors,
             List<MetalMpsGraphProgram.ValueState> valueStates,
@@ -220,7 +209,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
         }
         boolean containsTask0052 = this.graphProgram.nodes().stream()
                 .anyMatch(node -> node.kind().isTask0052Custom());
-        if ((this.route == Route.CUSTOM_SINGLE_NEG
+        if ((this.route == MetalPreparedRoute.CUSTOM_SINGLE_NEG
                         && (partitionDag.nodes().size() != 1
                                 || this.graphProgram.nodes().getFirst().kind()
                                         != MetalMpsGraphProgram.NodeKind.NEG
@@ -228,15 +217,15 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
                                 || this.targetValueIds.size() != 1
                                 || !this.internalValueIds.isEmpty()
                                 || this.addressWorkspace.isPresent()))
-                || (this.route == Route.CUSTOM_TASK0052
+                || (this.route == MetalPreparedRoute.CUSTOM_TASK0052
                         && (!containsTask0052 || this.addressWorkspace.isEmpty()))
-                || (this.route == Route.MPSGRAPH
+                || (this.route == MetalPreparedRoute.MPSGRAPH
                         && (containsTask0052
                                 || !this.internalValueIds.isEmpty()
                                 || this.addressWorkspace.isEmpty()))) {
             throw new IllegalArgumentException("Metal route and workspace facts disagree");
         }
-        if (this.route == Route.CUSTOM_TASK0052) {
+        if (this.route == MetalPreparedRoute.CUSTOM_TASK0052) {
             boolean[] covered = new boolean[this.valueIds.size()];
             cover(covered, this.feedValueIndices);
             cover(covered, this.targetValueIndices);
@@ -256,7 +245,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     PartitionDag partitionDag() { return partitionDag; }
     MetalDeviceContext context() { return context; }
     /** @return the deterministic backend-private route selected before shared declarations */
-    Route route() { return route; }
+    MetalPreparedRoute route() { return route; }
     /** @return immutable trace facts, or {@code null} on the no-trace/disabled path */
     MetalTraceProducer.PreparedUnit traceUnit() { return traceUnit; }
     List<ValueId> valueIds() { return valueIds; }
@@ -274,7 +263,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     int[] internalValueIndices() { return internalValueIndices.clone(); }
     long[] internalRequiredBytes() { return internalRequiredBytes.clone(); }
     long[] materializedValueRequiredBytes() {
-        if (route != Route.CUSTOM_TASK0052) {
+        if (route != MetalPreparedRoute.CUSTOM_TASK0052) {
             throw new IllegalStateException("Metal plan is not a Task-0052 custom program");
         }
         long[] bytes = new long[valueIds.size()];
@@ -300,7 +289,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             long byteSize) {
         Objects.requireNonNull(valueId, "valueId");
         Objects.requireNonNull(descriptor, "descriptor");
-        if ((route != Route.MPSGRAPH && route != Route.CUSTOM_TASK0052)
+        if ((route != MetalPreparedRoute.MPSGRAPH && route != MetalPreparedRoute.CUSTOM_TASK0052)
                 || targetPosition < 0
                 || targetPosition >= targetValueIds.size()
                 || !targetValueIds.get(targetPosition).equals(valueId)
@@ -344,7 +333,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
      * @throws IllegalStateException if this plan selected MPSGraph
      */
     long customElementCount() {
-        if (route != Route.CUSTOM_SINGLE_NEG) {
+        if (route != MetalPreparedRoute.CUSTOM_SINGLE_NEG) {
             throw new IllegalStateException("Metal NEG plan did not select the custom route");
         }
         return feedRequiredBytes[0] / Float.BYTES;

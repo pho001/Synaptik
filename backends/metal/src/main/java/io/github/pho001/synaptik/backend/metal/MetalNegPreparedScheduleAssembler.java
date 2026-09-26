@@ -173,15 +173,15 @@ final class MetalNegPreparedScheduleAssembler
             }
             if (executable == null
                     || (executable.preparationPlan().route()
-                                    != MetalNegPreparationPlan.Route.MPSGRAPH
+                                    != MetalPreparedRoute.MPSGRAPH
                             && executable.preparationPlan().route()
-                                    != MetalNegPreparationPlan.Route.CUSTOM_TASK0052)) {
+                                    != MetalPreparedRoute.CUSTOM_TASK0052)) {
                 throw new IllegalArgumentException(
                         "Metal workspace has no exact program executable");
             }
             MetalNegPreparationPlan executablePlan = executable.preparationPlan();
             int pointerCount = executablePlan.route()
-                    == MetalNegPreparationPlan.Route.CUSTOM_TASK0052
+                    == MetalPreparedRoute.CUSTOM_TASK0052
                     ? Math.addExact(
                             executablePlan.valueIds().size(),
                             executablePlan.targetValueIds().size())
@@ -335,10 +335,10 @@ final class MetalNegPreparedScheduleAssembler
         for (ValueId internal : plan.internalValueIds()) requireAssignment(assignments, internal);
 
         List<PreparedRepresentationPlan.WorkspaceCreator> workspaceCreators;
-        if (plan.route() == MetalNegPreparationPlan.Route.MPSGRAPH
-                || plan.route() == MetalNegPreparationPlan.Route.CUSTOM_TASK0052) {
+        if (plan.route() == MetalPreparedRoute.MPSGRAPH
+                || plan.route() == MetalPreparedRoute.CUSTOM_TASK0052) {
             int pointerCount = plan.route()
-                    == MetalNegPreparationPlan.Route.CUSTOM_TASK0052
+                    == MetalPreparedRoute.CUSTOM_TASK0052
                     ? Math.addExact(plan.valueIds().size(), plan.targetValueIds().size())
                     : Math.addExact(
                             plan.feedValueIds().size(), plan.targetValueIds().size());

@@ -26,36 +26,39 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
     /** Stable complete private route configurations. */
     enum Candidate {
         /** One-node, one-feed, one-target custom FLOAT32 NEG configuration. */
-        CUSTOM_SINGLE_NEG(1, MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG),
+        CUSTOM_SINGLE_NEG(MetalPreparedRoute.CUSTOM_SINGLE_NEG),
         /** Whole-partition typed MPSGraph profile-qualified operation configuration. */
-        MPSGRAPH(2, MetalNegPreparationPlan.Route.MPSGRAPH),
+        MPSGRAPH(MetalPreparedRoute.MPSGRAPH),
         /** Fixed whole-partition Task-0052 custom-program configuration. */
-        CUSTOM_TASK0052(3, MetalNegPreparationPlan.Route.CUSTOM_TASK0052);
+        CUSTOM_TASK0052(MetalPreparedRoute.CUSTOM_TASK0052);
 
-        private final int wireIdentity;
-        private final MetalNegPreparationPlan.Route route;
+        private final MetalPreparedRoute route;
 
-        Candidate(int wireIdentity, MetalNegPreparationPlan.Route route) {
-            this.wireIdentity = wireIdentity;
-            this.route = route;
+        Candidate(MetalPreparedRoute route) {
+            this.route = Objects.requireNonNull(route, "route");
         }
 
-        /** @return stable positive schema-local identity */
-        int wireIdentity() { return wireIdentity; }
+        /** @return stable positive identity owned by the canonical prepared route */
+        int wireIdentity() { return route.wireIdentity(); }
 
-        /** @return exact package-private preparation route represented by this candidate */
-        MetalNegPreparationPlan.Route route() { return route; }
+        /** @return exact canonical preparation route represented by this candidate */
+        MetalPreparedRoute route() { return route; }
 
         /**
-         * Resolves one schema-local identity.
+         * Resolves one schema-local identity through the canonical route owner.
          *
          * @param wireIdentity encoded positive identity
          * @return matching candidate, or empty for an unknown identity
          */
         static Optional<Candidate> fromWireIdentity(int wireIdentity) {
-            return Arrays.stream(values())
-                    .filter(candidate -> candidate.wireIdentity == wireIdentity)
-                    .findFirst();
+            Optional<MetalPreparedRoute> resolved =
+                    MetalPreparedRoute.fromWireIdentity(wireIdentity);
+            if (resolved.isEmpty()) return Optional.empty();
+            return Optional.of(switch (resolved.orElseThrow()) {
+                case CUSTOM_SINGLE_NEG -> CUSTOM_SINGLE_NEG;
+                case MPSGRAPH -> MPSGRAPH;
+                case CUSTOM_TASK0052 -> CUSTOM_TASK0052;
+            });
         }
     }
 

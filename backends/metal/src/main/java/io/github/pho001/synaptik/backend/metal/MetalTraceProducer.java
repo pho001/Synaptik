@@ -50,7 +50,7 @@ final class MetalTraceProducer {
      * @return immutable trace facts, or {@code null} when tracing is disabled or exhausted
      */
     PreparedUnit prepareUnit(
-            NumericalProfile numericalProfile, MetalNegPreparationPlan.Route route) {
+            NumericalProfile numericalProfile, MetalPreparedRoute route) {
         if (!enabled.get()) {
             return null;
         }
@@ -275,9 +275,9 @@ final class MetalTraceProducer {
         };
     }
 
-    private static TraceRouteKind mapRoute(MetalNegPreparationPlan.Route route) {
-        return switch (Objects.requireNonNull(route, "route")) {
-            case CUSTOM_SINGLE_NEG, CUSTOM_TASK0052 -> TraceRouteKind.CUSTOM_KERNEL;
+    private static TraceRouteKind mapRoute(MetalPreparedRoute route) {
+        return switch (Objects.requireNonNull(route, "route").family()) {
+            case CUSTOM_KERNEL -> TraceRouteKind.CUSTOM_KERNEL;
             case MPSGRAPH -> TraceRouteKind.GRAPH_EXECUTABLE;
         };
     }

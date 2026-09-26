@@ -53,7 +53,7 @@ final class MetalCompletePlanTuningTest {
             var preparation = complete.selectedPreparation(batch, selected);
             var inputs = (MetalNegAnalysisInputs) preparation.backendInputs();
             assertSame(traceProducer, inputs.traceProducer());
-            assertEquals(MetalNegPreparationPlan.Route.MPSGRAPH,
+            assertEquals(MetalPreparedRoute.MPSGRAPH,
                     analyze(withInputs(singleton, inputs).context()).plan().route());
 
             var customDecision = local.selectedDecision(localBatch, localCandidates.getFirst());

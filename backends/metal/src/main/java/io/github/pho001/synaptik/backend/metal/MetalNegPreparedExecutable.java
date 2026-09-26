@@ -223,7 +223,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
     protected boolean acceptsWorkspaceRepresentation(
             int selectionIndex, WorkspaceRepresentation representation) {
         int pointerCount = preparationPlan.route()
-                == MetalNegPreparationPlan.Route.CUSTOM_TASK0052
+                == MetalPreparedRoute.CUSTOM_TASK0052
                 ? Math.addExact(requiredBytes.length, targetCount)
                 : requiredBytes.length;
         return mpsGraphResource != null
@@ -247,7 +247,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             return new CustomBoundInvocation(
                     runState, preparationPlan, customResource, input, output);
         }
-        if (preparationPlan.route() == MetalNegPreparationPlan.Route.CUSTOM_TASK0052) {
+        if (preparationPlan.route() == MetalPreparedRoute.CUSTOM_TASK0052) {
             return bindTask0052Program(runState, bufferRepresentations, workspaceRepresentations);
         }
         var workspace = (AddressWorkspace) workspaceRepresentations[0];

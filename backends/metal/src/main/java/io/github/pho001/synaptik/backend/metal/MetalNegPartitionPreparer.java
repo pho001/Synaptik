@@ -68,9 +68,11 @@ import java.util.Optional;
  * heuristic, while a present decision must authenticate against the current schema, workload,
  * profile, session target, and candidate identity. Any Task-0052 node fixes the whole partition
  * to its custom program route before exact declarations, including a declared run-owned buffer
- * for every internal logical value. Published affine views retain
- * logical descriptors while declarations use full dense represented-order byte geometry.
- * Analysis allocates no physical resource and never changes partition ownership or capability.</p>
+ * for every internal logical value. Package-private tests may force only another candidate already
+ * approved by that freshly validated batch; production has no corresponding input or switch.
+ * Published affine views retain logical descriptors while declarations use full dense represented-
+ * order byte geometry. Analysis allocates no physical resource and never changes partition
+ * ownership or capability.</p>
  */
 final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         MetalNegAnalysisInputs, MetalNegPreparationPlan> {
@@ -88,6 +90,30 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
     @Override
     public BackendPartitionAnalysis<MetalNegPreparationPlan> analyze(
             PrepareContext<MetalNegAnalysisInputs> context) {
+        return analyzeInternal(context, null);
+    }
+
+    /**
+     * Exercises an exact currently approved route without exposing a production selector.
+     *
+     * <p>The ordinary analysis, capability checks, candidate regeneration, and any supplied
+     * handoff authentication complete first. The force succeeds only when the exact route is a
+     * member of that freshly generated batch; otherwise analysis fails before native creation.</p>
+     *
+     * @param context non-null complete partition-local facts and borrowed Metal context
+     * @param forcedRoute non-null exact route to require
+     * @return non-null analysis retaining the exact planned partition and forced route
+     * @throws NullPointerException if an argument is {@code null}
+     * @throws IllegalArgumentException if normal analysis rejects the partition or the route is
+     *     not currently approved for it
+     */
+    BackendPartitionAnalysis<MetalNegPreparationPlan> analyzeForTesting(
+            PrepareContext<MetalNegAnalysisInputs> context, MetalPreparedRoute forcedRoute) {
+        return analyzeInternal(context, Objects.requireNonNull(forcedRoute, "forcedRoute"));
+    }
+
+    private BackendPartitionAnalysis<MetalNegPreparationPlan> analyzeInternal(
+            PrepareContext<MetalNegAnalysisInputs> context, MetalPreparedRoute forcedRoute) {
         Objects.requireNonNull(context, "context");
         NumericalProfile numericalProfile = context.numericalProfile();
         if (!context.partition().owner().equals(MetalCapabilityProvider.METAL_BACKEND_ID)) {
@@ -261,8 +287,8 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         boolean containsTask0052 = graphProgram.nodes().stream()
                 .anyMatch(node -> node.kind().isTask0052Custom());
         long singletonElements = feedBytes.length == 1 ? feedBytes[0] / Float.BYTES : 0L;
-        MetalNegPreparationPlan.Route route = containsTask0052
-                ? MetalNegPreparationPlan.Route.CUSTOM_TASK0052
+        MetalPreparedRoute route = containsTask0052
+                ? MetalPreparedRoute.CUSTOM_TASK0052
                 : nodeCount == 1
                         && graphProgram.nodes().getFirst().kind()
                                 == MetalMpsGraphProgram.NodeKind.NEG
@@ -270,10 +296,10 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         && targets.size() == 1
                         && singletonElements >= 1L
                         && singletonElements <= UINT32_MAX
-                        ? MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG
-                        : MetalNegPreparationPlan.Route.MPSGRAPH;
+                        ? MetalPreparedRoute.CUSTOM_SINGLE_NEG
+                        : MetalPreparedRoute.MPSGRAPH;
         var internalValues = new ArrayList<ValueId>();
-        if (route == MetalNegPreparationPlan.Route.CUSTOM_TASK0052) {
+        if (route == MetalPreparedRoute.CUSTOM_TASK0052) {
             for (ValueId valueId : valueIds) {
                 if (!feeds.contains(valueId) && !targets.contains(valueId)) {
                     internalValues.add(valueId);
@@ -329,6 +355,15 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                             "Metal NEG tuning decision is incompatible"))
                     .route();
         }
+        if (forcedRoute != null) {
+            boolean approved = freshBatch.candidates().stream()
+                    .anyMatch(candidate -> candidate.route() == forcedRoute);
+            if (!approved) {
+                throw new IllegalArgumentException(
+                        "forced Metal route is not approved for this partition");
+            }
+            route = forcedRoute;
+        }
 
         Optional<PreparationResourceRequirement.Workspace> selectedWorkspace = workspace(
                 route, feeds.size(), targets.size(), valueIds.size());
@@ -352,12 +387,12 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
     }
 
     private static Optional<PreparationResourceRequirement.Workspace> workspace(
-            MetalNegPreparationPlan.Route route,
+            MetalPreparedRoute route,
             int feedCount,
             int targetCount,
             int valueCount) {
-        if (route == MetalNegPreparationPlan.Route.CUSTOM_SINGLE_NEG) return Optional.empty();
-        long pointerCount = route == MetalNegPreparationPlan.Route.CUSTOM_TASK0052
+        if (route == MetalPreparedRoute.CUSTOM_SINGLE_NEG) return Optional.empty();
+        long pointerCount = route == MetalPreparedRoute.CUSTOM_TASK0052
                 ? Math.addExact((long) valueCount, targetCount)
                 : Math.addExact((long) feedCount, targetCount);
         long workspaceBytes = Math.multiplyExact(pointerCount, Long.BYTES);
