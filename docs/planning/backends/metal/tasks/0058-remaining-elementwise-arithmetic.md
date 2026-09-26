@@ -51,35 +51,31 @@ independent reference/class partition, prove that the partitions cover the entir
 overlap or omission, check every transition boundary, and record reproducible source, command, and
 digest. Production code and checker must not share one unchecked transform implementation.
 
-### Gate B: scalar basic arithmetic
+### Gate B: scalar basic arithmetic — blocked after plan review
 
-Assess `SCALAR_ADD`, `SCALAR_SUB`, `SCALAR_MUL`, and `SCALAR_DIV` only under `ACCELERATOR
-FLOAT32`. Promotion is allowed only if the implementation is a literal recursive member of the
-already-approved tensor `ADD/SUB/MUL/DIV` result set:
+`SCALAR_ADD`, `SCALAR_SUB`, `SCALAR_MUL`, and `SCALAR_DIV` remain capability false in both
+profiles during Task 0058. The intended ACCELERATOR composition fails a public primitive
+precondition: existing tensor `ADD/SUB/MUL/DIV` capability requires left input, right input, and
+output `requiresGrad` flags to be equal, while a semantic scalar constant is non-grad and scalar
+operations must preserve either source gradient flag. Marking a constant grad-eligible, silently
+bypassing the public primitive capability, or narrowing scalar support to no-grad occurrences would
+not prove the complete scalar occurrence domain.
 
-- materialize the exact scalar attribute bits into a declared full-Shape internal tensor with a
-  fixed raw integer splat kernel;
-- invoke the corresponding already-approved ordered two-placeholder tensor primitive once, with the
-  input on the left and scalar tensor on the right;
-- preserve same Shape, canonical layout, rank `1..16`, exact `FLOAT32 ScalarValueAttrs`, and equal
-  input/output `requiresGrad`; and
-- reuse Task 0015's one-site ACCELERATOR DAZ/FTZ/rounding set without adding a final tolerance,
-  algebraic rewrite, constant folding, scalar MPSGraph selector assumption, fallback, or special
-  dispatch.
+The historical Task-0011 constant-tensor selector path remains independent blocker evidence:
+`maxFinite/maxFinite -> 0` and `+infinity/maxFinite -> NaN` are outside the approved set. No
+production splat, nested primitive, or custom scalar arithmetic route is added. The structural
+MPSGraph recipe still binds the distinct scalar wire, exact `ScalarValueAttrs` type/raw bits,
+ordered input/scalar operands, and output Shape in the schema image and fingerprint; this prevents
+scalar/tensor identity collision or hidden operand folding without claiming correctness.
 
-The historical Task-0011 constant-tensor selector path remains blocker evidence: especially
-`maxFinite/maxFinite -> 0` and `+infinity/maxFinite -> NaN` are outside the approved set. A route
-that cannot demonstrate the same two-runtime-tensor primitive semantics stays capability false.
-`STRICT_IEEE` scalar arithmetic stays false because the binary primitives are not strict-approved.
+### Gate C: reciprocal — blocked after plan review
 
-### Gate C: reciprocal
-
-Assess `RECIPROCAL` only under `ACCELERATOR FLOAT32`. Promotion requires a declared exact
-full-Shape `+1.0f` raw splat followed by the approved ordered tensor `DIV(1,x)` primitive. The
-result must therefore be a recursive member of the Model `1/x` set at the single division site,
-including signed zero, infinity, NaN class, DAZ, FTZ, and zero-sign rules. Strict capability stays
-false. If the approved primitive cannot be reused without a different site, hidden constant fold,
-or result-set widening, `RECIPROCAL` remains false.
+`RECIPROCAL` remains capability false in both profiles during Task 0058. A semantic `DIV(1,x)`
+composition has the same gradient mismatch: the exact `+1.0f` constant is non-grad, while existing
+tensor `DIV` capability requires both operands and output to have equal `requiresGrad`. The direct
+selector also retains Task-0006 special-class failures. No legal complete-domain recursive route is
+therefore available, and production may not bypass primitive capability or narrow the occurrence
+domain.
 
 ### Gate D: structural-only blockers
 
@@ -112,27 +108,24 @@ from capability:
   `GELU_TANH_APPROXIMATION`, and `x*sigmoid(x)` for `SILU`.
 
 Blocked recipes are package-private/raw-ABI structural candidates only. Production Planning and
-preparation reject them before native creation. Their tests force the MPSGraph route through the
-bounded internal test seam, prove exact selector/operand/attribute/shape wiring and lifecycle, and
-must not reinterpret outputs as correctness evidence.
+preparation reject them before native creation. Their explicit nonproduction raw-image fixture
+bypasses capability only inside tests, forces the MPSGraph route, and proves exact
+selector/operand/attribute/Shape wiring and lifecycle. Output observations are never correctness
+evidence. Image/digest tests distinguish every scalar wire and raw attribute bit pattern from each
+other and from the corresponding tensor primitive.
 
 ## Custom catalog and mixed-program design
 
-- Add one systematic Task-0058 exact custom family for `FLOOR/CEIL/SIGN/RELU`, exact scalar splat,
-  and, only after Gates B/C pass, scalar arithmetic/reciprocal recipes.
-- Retain explicit pending states for unsafe operations with closed reasons distinguishing unproved
-  power, irreducible elementary, and recursive-site obligations. Do not group them under an
-  implication that source absence alone is the blocker.
-- Keep `CUSTOM_PROGRAM` as stable private route wire `3`. Newly true operations select it
+- Add one systematic Task-0058 exact custom family only for `FLOOR/CEIL/SIGN/RELU`.
+- Retain explicit pending states for unsafe operations with closed reasons distinguishing scalar
+  gradient/primitive mismatch, unproved power, irreducible elementary, and recursive-site
+  obligations. Do not group them under an implication that source absence alone is the blocker.
+- Keep `CUSTOM_PROGRAM` as stable private route wire `3`. The four newly true operations select it
   deterministically in production; eligible singleton direct MPSGraph candidates remain
   independently forceable only package-private.
-- A scalar or reciprocal custom program declares the splat tensor as an internal value and resource,
-  runs one exact raw splat step, then one cold nested MPSGraph tensor primitive. Every internal value
-  participates in liveness; there is no hidden buffer, host materialization, per-node route switch,
-  repartitioning, or retry.
 - Mixed programs may combine Task-0052 comparisons/extrema/scans, Task-0057 BOOL/WHERE, the four new
-  exact raw unary nodes, approved scalar/reciprocal nodes, and existing exact nested MPSGraph nodes
-  under one preparation-fixed recipe.
+  exact raw unary nodes, and existing exact nested MPSGraph nodes under one preparation-fixed
+  recipe. There is no scalar/reciprocal splat or hidden internal primitive.
 
 ## Schema, identity, ABI, and lifecycle
 
@@ -155,8 +148,8 @@ selection, cache-policy change, or autotuning is authorized.
    ownership and explicit blocker reasons.
 3. Add Java capability/lowering/preflight and native custom execution for Gate A, including direct
    MPSGraph structural candidates.
-4. Implement the exact declared splat resource and nested primitive route; adjudicate Gates B and C
-   against Task 0015 and Task 0011 evidence. Promote only gates whose recursive membership passes.
+4. Record Gates B/C fail-closed from the reviewed gradient/public-primitive and historical numerical
+   evidence; implement their scalar/direct structural recipes only.
 5. Implement every remaining direct/composed MPSGraph structural recipe without capability widening.
 6. Complete mixed-program liveness, native malformed controls, candidate forcing, lifecycle,
    publication, trace, and public Engine coverage.
@@ -174,19 +167,19 @@ selection, cache-policy change, or autotuning is authorized.
   `+1`, and every exponent/integer transition; minimum normals; largest exactly integral and first
   fractional-transition magnitudes; finite extrema; infinities; and signed quiet/signaling NaNs with
   multiple payloads.
-- For every promoted scalar/reciprocal operation: exact scalar/splat raw bits, ordered operands,
-  Task-0011 gross-error controls, Task-0015 DAZ/FTZ membership, rank `1` and `16`, gradients,
-  repeated/fan-out/mixed use, and strict/profile rejection.
-- For every blocked operation: catalog recipe and raw forced MPSGraph create/run/close coverage on
-  representative safe ordinary inputs, plus public capability and forced production-preparation
-  rejection before native creation. Output observations are non-authoritative structural evidence.
-- Public no-skip `Engine` smoke against the fresh dylib for every newly true operation, sole Metal
-  ownership, mixed `CUSTOM_PROGRAM` raw/splat/nested-MPSGraph execution, exact outputs, direct
+- For blocked scalar/reciprocal rows: exact scalar type/raw-bit/operand-order image and fingerprint
+  drift tests, Task-0011/0006 blocker controls, capability rejection for both gradient flags and
+  profiles, and production-preparation rejection before native creation.
+- For every blocked operation: catalog recipe and explicit nonproduction raw-image forced MPSGraph
+  create/run/close coverage on representative safe ordinary inputs. The fixture is inaccessible to
+  production and output observations are non-authoritative structural evidence.
+- Public no-skip `Engine` smoke against the fresh dylib for all four newly true operations, sole
+  Metal ownership, mixed `CUSTOM_PROGRAM` raw/nested-MPSGraph execution, exact outputs, direct
   publication, repeated and concurrent independent sessions, caller-input preservation, close/run,
   and recovery after pre-invocation rejection.
-- Backend conformance matrix with exact final true/false counts, both profiles, rank-zero/rank-17,
-  dtype/layout/attrs/Shape/gradient exclusions, and explicit unchanged false rows for wires `38`,
-  `50`, `53..59`, and `65..68` except any Gate-C `52` promotion.
+- Backend conformance matrix with exactly `45 true / 70 false = 115`, both profiles,
+  rank-zero/rank-17, dtype/layout/attrs/Shape/gradient exclusions, and explicit unchanged false
+  rows for wires `38`, `46..50`, `52..59`, and `65..68`.
 - Focused Javadoc, architecture, package, documentation, and `git diff --check`. Do not run timing,
   benchmarks, or a final full repository build.
 
@@ -215,5 +208,5 @@ Complete only after every scoped structural recipe exists, every unsupported row
 all admitted operations have complete result-set proof and production/public execution, the exact
 raw checker and lifecycle/resource obligations pass, the local package is verified, documentation is
 current, commits are clean, and an independent cumulative Class C review approves with zero
-P0/P1/P2 findings. A failed Gate B or C is a recorded exact blocker, not permission to narrow input
-values or weaken Model semantics.
+P0/P1/P2 findings. Gates B and C are recorded exact blockers; they do not permit occurrence
+narrowing, synthetic gradient metadata, or a hidden primitive-capability bypass.

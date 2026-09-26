@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Task 0058 Active; 0057 Complete; 0053 Blocked | [Metal 0058](backends/metal/tasks/0058-remaining-elementwise-arithmetic.md) owns the remaining elementwise structural recipes, exact raw discrete unary implementation, and gated scalar/reciprocal composition from clean `118aedca`. Task 0053 remains fail-closed and untouched. No timing or final full build is authorized. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Task 0058 Active; 0057 Complete; 0053 Blocked | [Metal 0058](backends/metal/tasks/0058-remaining-elementwise-arithmetic.md) owns the remaining elementwise structural recipes and exact raw discrete unary implementation from plan `6181299a`; reviewed scalar/reciprocal compositions remain fail-closed. Task 0053 is untouched. No timing or final full build is authorized. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -234,12 +234,13 @@ through fixed custom raw/integer production semantics plus independently forceab
 MPSGraph structural candidates; wire `73 SELECT` is excluded. ABI 5 and the thirteen exports
 remain fixed while the route-bearing image and identities advance to schema 14 and version 15.
 
-[Metal 0058](backends/metal/tasks/0058-remaining-elementwise-arithmetic.md) is Active from clean
-base `118aedca`. It must implement every remaining elementwise arithmetic MPSGraph recipe, prove
-exact raw `FLOOR`/`CEIL`/`SIGN`/`RELU` over all binary32 words, and promote scalar
-`ADD/SUB/MUL/DIV` or `RECIPROCAL` only through declared exact splats plus recursively approved
-tensor primitives. Power, unproved elementary/transcendental, and recursively blocked composite
-rows remain capability false. `EXP`/`SIGMOID` remain Task-0053-owned and untouched.
+[Metal 0058](backends/metal/tasks/0058-remaining-elementwise-arithmetic.md) is Active from plan
+`6181299a` on clean base `118aedca`. It implements every remaining elementwise arithmetic MPSGraph
+recipe and proves exact raw `FLOOR`/`CEIL`/`SIGN`/`RELU` over all binary32 words. Plan review
+keeps scalar `ADD/SUB/MUL/DIV` and `RECIPROCAL` false because a non-grad constant cannot satisfy
+the approved tensor primitive's equal-gradient precondition. Power, unproved elementary/
+transcendental, and recursively blocked composite rows remain false. `EXP`/`SIGMOID` remain
+Task-0053-owned and untouched.
 
 [CPU 0017](backends/cpu/tasks/0017-explicit-accelerator-numerical-profile-realization.md) is
 Complete at implementation `372a8b98`. For every backend, capability/behavior under
@@ -648,10 +649,10 @@ matrix with narrowing, or infer capability from registered schema.
 
 Metal Task 0058 is the sole active production frontier. It consumes Task 0057's schema-14,
 identity-15, shared `CUSTOM_PROGRAM` route and Task 0056's exhaustive catalog without changing ABI
-5 or its thirteen exports. Its mandatory gain is exact raw/integer `FLOOR`/`CEIL`/`SIGN`/`RELU`;
-scalar basic arithmetic and `RECIPROCAL` may become accelerator capability only if declared exact
-splats plus approved tensor primitives prove recursive Model membership. Every scoped MPSGraph
-recipe is implemented structurally, while power, unproved elementary/transcendental, and recursively
+5 or its thirteen exports. Its capability gain is exactly raw/integer
+`FLOOR`/`CEIL`/`SIGN`/`RELU`, reaching `45 true / 70 false`. Reviewed scalar basic arithmetic and
+`RECIPROCAL` remain blocked by gradient/public-primitive obligations. Every scoped MPSGraph recipe
+is implemented structurally, while power, unproved elementary/transcendental, and recursively
 blocked composite rows remain false. Task-0053 `EXP`/`SIGMOID` are untouched. No timing, benchmark,
 fallback, retry, runtime selection, autotuning, or final full build is authorized.
 
