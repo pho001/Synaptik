@@ -233,9 +233,9 @@ final class MetalDeviceContext implements AutoCloseable {
                     "Metal MPSGraph executable plan belongs to another device context");
         }
         if (plan.route() != MetalPreparedRoute.MPSGRAPH
-                && plan.route() != MetalPreparedRoute.CUSTOM_TASK0052) {
+                && plan.route() != MetalPreparedRoute.CUSTOM_PROGRAM) {
             throw new IllegalArgumentException(
-                    "Metal program executable requires a graph or Task-0052 custom route");
+                    "Metal program executable requires an MPSGraph or custom-program route");
         }
         ChildLease lease = acquireChildLease();
         MetalNativeApi.Handle executable = null;
@@ -246,14 +246,15 @@ final class MetalDeviceContext implements AutoCloseable {
                     plan.programValueDescriptors(),
                     plan.graphProgram(),
                     plan.feedValueIndices(),
-                    plan.targetValueIndices());
+                    plan.targetValueIndices(),
+                    plan.route());
             long[] runInputBytes = plan.route()
-                    == MetalPreparedRoute.CUSTOM_TASK0052
+                    == MetalPreparedRoute.CUSTOM_PROGRAM
                     ? plan.materializedValueRequiredBytes()
                     : plan.feedRequiredBytes();
             return new MetalMpsGraphExecutableResource(
                     this, api, executable, lease, runInputBytes, plan.targetRequiredBytes(),
-                    plan.route() == MetalPreparedRoute.CUSTOM_TASK0052);
+                    plan.route() == MetalPreparedRoute.CUSTOM_PROGRAM);
         } catch (RuntimeException | Error failure) {
             if (executable != null) {
                 try {

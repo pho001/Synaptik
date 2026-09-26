@@ -17,11 +17,11 @@ import java.util.Optional;
  */
 final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
     /** Current candidate and decision meaning. */
-    static final int CANDIDATE_SCHEMA_VERSION = 14;
+    static final int CANDIDATE_SCHEMA_VERSION = 15;
     /** Current canonical workload/target compatibility meaning. */
-    static final int COMPATIBILITY_SCHEMA_VERSION = 14;
+    static final int COMPATIBILITY_SCHEMA_VERSION = 15;
     /** Current exact profile-qualified Metal operation-composition policy meaning. */
-    static final int ROUTE_POLICY_VERSION = 14;
+    static final int ROUTE_POLICY_VERSION = 15;
 
     /** Stable complete private route configurations. */
     enum Candidate {
@@ -29,8 +29,8 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
         CUSTOM_SINGLE_NEG(MetalPreparedRoute.CUSTOM_SINGLE_NEG),
         /** Whole-partition typed MPSGraph profile-qualified operation configuration. */
         MPSGRAPH(MetalPreparedRoute.MPSGRAPH),
-        /** Fixed whole-partition Task-0052 custom-program configuration. */
-        CUSTOM_TASK0052(MetalPreparedRoute.CUSTOM_TASK0052);
+        /** Fixed whole-partition exact custom-program configuration. */
+        CUSTOM_PROGRAM(MetalPreparedRoute.CUSTOM_PROGRAM);
 
         private final MetalPreparedRoute route;
 
@@ -57,7 +57,7 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
             return Optional.of(switch (resolved.orElseThrow()) {
                 case CUSTOM_SINGLE_NEG -> CUSTOM_SINGLE_NEG;
                 case MPSGRAPH -> MPSGRAPH;
-                case CUSTOM_TASK0052 -> CUSTOM_TASK0052;
+                case CUSTOM_PROGRAM -> CUSTOM_PROGRAM;
             });
         }
     }
@@ -72,7 +72,7 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
         private final byte[] bytes;
 
         /**
-         * Snapshots canonical schema-thirteen workload-fingerprint bytes.
+         * Snapshots canonical schema-fourteen workload-fingerprint bytes.
          *
          * <p>The bytes include the stable explicit numerical-profile wire identity, so otherwise
          * equal workloads under different profiles cannot share workload identity.</p>

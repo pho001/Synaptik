@@ -4,7 +4,7 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Test-only conversion of legacy shape fixtures into explicit schema-thirteen descriptors. */
+/** Test-only conversion of legacy shape fixtures into explicit schema-fourteen descriptors. */
 final class MetalTestProgram {
     private MetalTestProgram() {}
 
@@ -57,6 +57,26 @@ final class MetalTestProgram {
                     require(result, parent, node.firstInputIndex(), DataType.FLOAT32);
                     require(result, parent, node.secondInputIndex(), DataType.FLOAT32);
                     require(result, parent, node.outputIndex(), DataType.BOOL);
+                }
+                case IS_FINITE, IS_NAN, IS_INF -> {
+                    require(result, parent, node.firstInputIndex(), DataType.FLOAT32);
+                    require(result, parent, node.outputIndex(), DataType.BOOL);
+                }
+                case LOGICAL_AND, LOGICAL_OR -> {
+                    require(result, parent, node.firstInputIndex(), DataType.BOOL);
+                    require(result, parent, node.secondInputIndex(), DataType.BOOL);
+                    require(result, parent, node.outputIndex(), DataType.BOOL);
+                }
+                case LOGICAL_NOT -> {
+                    require(result, parent, node.firstInputIndex(), DataType.BOOL);
+                    require(result, parent, node.outputIndex(), DataType.BOOL);
+                }
+                case WHERE -> {
+                    int[] inputs = node.inputs();
+                    require(result, parent, inputs[0], DataType.BOOL);
+                    require(result, parent, inputs[1], DataType.FLOAT32);
+                    require(result, parent, inputs[2], DataType.FLOAT32);
+                    require(result, parent, node.outputIndex(), DataType.FLOAT32);
                 }
                 default -> {
                     for (int input : node.inputs()) require(result, parent, input, DataType.FLOAT32);

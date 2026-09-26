@@ -20,7 +20,7 @@ import java.util.Optional;
  * Generates complete, stable, budget-bounded Metal supported-operation route candidates.
  *
  * <p>The workload fingerprint uses only versioned semantics and structural positions, including
- * the cold numerical profile, schema-thirteen program image, exact logical descriptors, ordered
+ * the cold numerical profile, schema-fourteen program image, exact logical descriptors, ordered
  * edges, explicit value states, target sets, dense represented-order geometry, ABI identity, and
  * typed splats. Graph-local identities, partition object identity, native handles, measurements,
  * and cache state are excluded. Generation is cold, thread-safe, deterministic, and performs no
@@ -28,8 +28,8 @@ import java.util.Optional;
  */
 final class MetalNegRouteCandidateGenerator {
     private static final long UINT32_MAX = 0xffff_ffffL;
-    private static final int WORKLOAD_SIGNATURE_VERSION = 14;
-    private static final int EXACT_DEFAULT_POLICY = 14;
+    private static final int WORKLOAD_SIGNATURE_VERSION = 15;
+    private static final int EXACT_DEFAULT_POLICY = 15;
 
     /**
      * Generates every currently valid complete candidate up to a positive budget.
@@ -58,8 +58,11 @@ final class MetalNegRouteCandidateGenerator {
         }
 
         var candidates = new ArrayList<MetalNegTuningBatch.Candidate>(2);
-        if (plan.route() == MetalPreparedRoute.CUSTOM_TASK0052) {
-            candidates.add(MetalNegTuningBatch.Candidate.CUSTOM_TASK0052);
+        if (plan.route() == MetalPreparedRoute.CUSTOM_PROGRAM) {
+            candidates.add(MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM);
+            if (directPredicateCandidateIsValid(plan)) {
+                candidates.add(MetalNegTuningBatch.Candidate.MPSGRAPH);
+            }
         } else if (customCandidateIsValid(plan)) {
             candidates.add(MetalNegTuningBatch.Candidate.CUSTOM_SINGLE_NEG);
             candidates.add(MetalNegTuningBatch.Candidate.MPSGRAPH);
@@ -92,6 +95,18 @@ final class MetalNegRouteCandidateGenerator {
         return feedBytes >= Float.BYTES
                 && feedBytes % Float.BYTES == 0L
                 && feedBytes / Float.BYTES <= UINT32_MAX;
+    }
+
+    /** Returns whether one exact predicate occurrence has a direct structural MPSGraph candidate. */
+    private static boolean directPredicateCandidateIsValid(MetalNegPreparationPlan plan) {
+        if (plan.partitionDag().nodes().size() != 1
+                || plan.graphProgram().nodes().size() != 1
+                || plan.targetValueIds().size() != 1
+                || !plan.internalValueIds().isEmpty()) {
+            return false;
+        }
+        int wire = plan.graphProgram().nodes().getFirst().kind().wireIdentity();
+        return wire >= 40 && wire <= 45 || wire == 51;
     }
 
     /**
@@ -157,9 +172,13 @@ final class MetalNegRouteCandidateGenerator {
             valuePositions.put(valueIds.get(index), index);
         }
         updateInt(digest, context.nodes().size());
+        updateInt(digest, plan.route().wireIdentity());
+        MetalPreparedRoute imageRoute = plan.route() == MetalPreparedRoute.CUSTOM_SINGLE_NEG
+                ? MetalPreparedRoute.MPSGRAPH
+                : plan.route();
         plan.graphProgram().updateDigest(
                 digest, plan.programValueDescriptors(),
-                plan.feedValueIndices(), plan.targetValueIndices());
+                plan.feedValueIndices(), plan.targetValueIndices(), imageRoute);
         updateInt(digest, plan.valueStates().size());
         for (MetalMpsGraphProgram.ValueState state : plan.valueStates()) {
             updateInt(digest, state.wireIdentity());

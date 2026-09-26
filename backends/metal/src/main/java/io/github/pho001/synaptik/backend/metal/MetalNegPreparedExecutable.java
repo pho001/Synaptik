@@ -24,9 +24,10 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
  *
  * <p>Selections are feeds, targets, and declared internal logical values in stable order. Cold
  * binding validates context-local buffer representations and byte extents, then creates one
- * route-specific bound invocation. Ordinary MPSGraph and the Task-0052 custom whole-program route
- * retain direct slices of a run-owned native-address workspace and write direct assigned targets.
- * The Task-0052 workspace carries the stable complete value table plus target aliases; every
+ * route-specific bound invocation. Ordinary MPSGraph and the shared exact custom whole-program
+ * route retain direct slices of a run-owned native-address workspace and write direct assigned
+ * targets. The custom-program workspace carries the stable complete value table plus target
+ * aliases; every
  * intermediate is a declared run-owned output selection. The dedicated singleton-NEG resource
  * retains direct typed input/output references and has no workspace. Hot Java execution makes
  * exactly one matching native call and performs no lookup, graph inspection, route selection,
@@ -223,7 +224,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
     protected boolean acceptsWorkspaceRepresentation(
             int selectionIndex, WorkspaceRepresentation representation) {
         int pointerCount = preparationPlan.route()
-                == MetalPreparedRoute.CUSTOM_TASK0052
+                == MetalPreparedRoute.CUSTOM_PROGRAM
                 ? Math.addExact(requiredBytes.length, targetCount)
                 : requiredBytes.length;
         return mpsGraphResource != null
@@ -247,8 +248,8 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             return new CustomBoundInvocation(
                     runState, preparationPlan, customResource, input, output);
         }
-        if (preparationPlan.route() == MetalPreparedRoute.CUSTOM_TASK0052) {
-            return bindTask0052Program(runState, bufferRepresentations, workspaceRepresentations);
+        if (preparationPlan.route() == MetalPreparedRoute.CUSTOM_PROGRAM) {
+            return bindCustomProgram(runState, bufferRepresentations, workspaceRepresentations);
         }
         var workspace = (AddressWorkspace) workspaceRepresentations[0];
         var inputBuffers = new MetalBufferRepresentation[inputCount];
@@ -276,7 +277,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                 inputCount, inputs, outputCount, outputs);
     }
 
-    private BoundInvocation bindTask0052Program(
+    private BoundInvocation bindCustomProgram(
             RunState runState,
             BufferRepresentation[] bufferRepresentations,
             WorkspaceRepresentation[] workspaceRepresentations) {
@@ -307,7 +308,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             for (int previous = 0; previous < value; previous++) {
                 if (valueBuffers[previous].executionHandle().carrier().address() == handle) {
                     throw new IllegalArgumentException(
-                            "Metal Task-0052 materialized value buffers must not alias");
+                            "Metal custom-program materialized value buffers must not alias");
                 }
             }
             workspace.set(value, buffer.executionHandle());

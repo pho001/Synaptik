@@ -28,8 +28,14 @@ class MetalMpsGraphRawAbiNativeTest {
 
             assertEquals(1, abi.create(rewriteInt(valid, 0, 0), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, 4, 12), valid.length));
+            assertEquals(1, abi.create(rewriteInt(valid, 4, 13), valid.length));
+            assertEquals(1, abi.create(
+                    rewriteInt(rewriteInt(valid, 4, 13), 40, 0), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, 8, valid.length - 1), valid.length));
+            assertEquals(1, abi.create(rewriteInt(valid, 40, 0), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, 40, 1), valid.length));
+            assertEquals(1, abi.create(rewriteInt(valid, 40, 4), valid.length));
+            assertEquals(1, abi.create(rewriteInt(valid, 44, 1), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, nodeOffset(2), 116), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, nodeOffset(2) + 4, 3), valid.length));
             assertEquals(1, abi.create(valid, valid.length - 1));

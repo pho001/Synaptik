@@ -404,13 +404,13 @@ unchanged strict set and total recursive `FLOAT32` accelerator superset; every d
 transports, queries, or realizes that meaning without reinterpreting it. CPU realizes both profiles
 identically. Metal's common exact occurrence domain under both profiles contains only canonical
 FLOAT32 `NEG`/`ABS`; `RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`; `CONTIGUOUS`; bounded
-`UNFOLD_AXIS`; exact FLOAT32-data/INT32-index `GATHER`; INT32-to-BOOL `ONE_HOT`; and
-FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. `ACCELERATOR` additionally admits tensor FLOAT32
-`ADD`/`SUB`/`MUL`/`DIV`/`MIN`/`MAX`, all six comparisons, scalar MIN/MAX/CLAMP,
-SUM/MEAN/MIN/MAX/SUM_TO_SHAPE, every CUM_SUM/CUM_PROD mode, and positive static rank-two
-MATMUL with authenticated local transpose operands. Strict capability remains an accelerator
-subset; every other occurrence fails closed before route selection. ABI 5 retains thirteen exports
-and accepts one bounded schema-13 program image over type wires `1..6`, operation wires `1..115`,
-and attribute wires `0..41`; backend identities are version fourteen. Structural registry
-coverage and all-six typed transfer do not widen the existing operation capability. Runtime
-executes the prepared result with no profile branch.
+`UNFOLD_AXIS`; exact FLOAT32-data/INT32-index `GATHER`; INT32-to-BOOL `ONE_HOT`;
+FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`; FLOAT32 classification; BOOL logic; and FLOAT32
+WHERE. `ACCELERATOR` additionally admits tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`/`MIN`/`MAX`, all
+six comparisons, scalar MIN/MAX/CLAMP, SUM/MEAN/MIN/MAX/SUM_TO_SHAPE, every CUM_SUM/CUM_PROD mode,
+and positive static rank-two MATMUL with authenticated local transpose operands. Strict capability
+remains an accelerator subset; every other occurrence fails closed before route selection. ABI 5
+retains thirteen exports and accepts one bounded schema-14 route-bearing program image over type
+wires `1..6`, operation wires `1..115`, and attribute wires `0..41`; backend identities are
+version fifteen. Structural registry coverage and all-six typed transfer do not widen the exact
+operation capability. Runtime executes the prepared result with no profile branch.

@@ -3,7 +3,7 @@ package io.github.pho001.synaptik.backend.metal;
 import java.util.Objects;
 
 /**
- * Describes the current structural route state of every schema-thirteen Metal operation kind.
+ * Describes the current structural route state of every schema-fourteen Metal operation kind.
  *
  * <p>This package-private catalog is cold descriptive metadata. It neither admits an occurrence
  * nor approves an implementation route: {@link MetalCapabilityProvider} remains the capability
@@ -68,6 +68,7 @@ final class MetalOperationRouteCatalog {
     enum CustomKernelReason {
         CA_NEG,
         CA_0052,
+        CA_0057,
         CP_POINT,
         CP_MOVE,
         CP_CONTRACT,
@@ -101,6 +102,8 @@ final class MetalOperationRouteCatalog {
                 CustomKernelReason.CP_MOVE),
         DIRECT_PRED_CUSTOM_0052(MpsGraphState.DIRECT, MpsGraphReason.MD_PRED,
                 CustomKernelState.AVAILABLE, CustomKernelReason.CA_0052),
+        DIRECT_PRED_CUSTOM_0057(MpsGraphState.DIRECT, MpsGraphReason.MD_PRED,
+                CustomKernelState.AVAILABLE, CustomKernelReason.CA_0057),
         DIRECT_ARITH_CUSTOM_0052(MpsGraphState.DIRECT, MpsGraphReason.MD_ARITH,
                 CustomKernelState.AVAILABLE, CustomKernelReason.CA_0052),
         COMPOSED_SCALAR_CUSTOM_0052(MpsGraphState.COMPOSED, MpsGraphReason.MC_SCALAR,
@@ -217,7 +220,7 @@ final class MetalOperationRouteCatalog {
     /**
      * Returns the shared descriptive entry for one exact registered operation kind.
      *
-     * @param kind non-null schema-thirteen node kind
+     * @param kind non-null schema-fourteen node kind
      * @return non-null shared immutable catalog entry
      * @throws NullPointerException if {@code kind} is {@code null}
      */
@@ -244,7 +247,7 @@ final class MetalOperationRouteCatalog {
             case SCALED_DOT_PRODUCT_ATTENTION -> Entry.DIRECT_ATTENTION_PENDING_CONTRACT;
             case CONV2D, CONV3D -> Entry.DIRECT_CONV_PENDING_CONTRACT;
             case IS_FINITE, IS_NAN, IS_INF, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT, WHERE ->
-                    Entry.DIRECT_PRED_PENDING_POINT;
+                    Entry.DIRECT_PRED_CUSTOM_0057;
             case SCALAR_ADD, SCALAR_SUB, SCALAR_MUL, SCALAR_DIV, SCALAR_POW ->
                     Entry.COMPOSED_SCALAR_PENDING_POINT;
             case LOG1P, EXPM1, GELU, GELU_TANH_APPROXIMATION, SILU ->

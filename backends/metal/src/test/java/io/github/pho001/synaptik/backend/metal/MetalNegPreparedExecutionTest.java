@@ -282,7 +282,7 @@ class MetalNegPreparedExecutionTest {
                             Shape.of(6),
                             Optional.empty(),
                             null,
-                            MetalPreparedRoute.CUSTOM_TASK0052));
+                            MetalPreparedRoute.CUSTOM_PROGRAM));
             assertEquals(0, api.pipelineCreates.get());
             assertEquals(0, api.executableCreates.get());
             assertEquals(0, api.customRunCalls.get());
@@ -1124,7 +1124,7 @@ class MetalNegPreparedExecutionTest {
                     IllegalArgumentException.class, () -> executable.bind(boundState));
 
             assertEquals(
-                    "Metal Task-0052 materialized value buffers must not alias",
+                    "Metal custom-program materialized value buffers must not alias",
                     failure.getMessage());
             assertEquals(0, api.runCalls.get());
         } finally {

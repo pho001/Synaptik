@@ -5,19 +5,21 @@
 This directory builds the local application binary interface (ABI) used by the Synaptik Metal
 backend on Apple-silicon macOS. ABI version 5 retains the same thirteen context, shared-storage
 buffer, executable, and bounded custom singleton-`NEG` exports. Its graph creator accepts one
-bounded schema-13 program image. The image carries explicit value types and complete variable
-cardinality, operation, attribute, reference, dimension, and gradient metadata; no native type or
-shape inference is part of the boundary.
+bounded schema-14 program image. The image carries an explicit fixed route plus value types and
+complete variable-cardinality operation, attribute, reference, dimension, and gradient metadata;
+no native type or shape inference is part of the boundary.
 
 The schema registry reserves operation wires `1..115` and attribute wires `0..41`. That structural
 coverage does not widen execution capability: the native bridge and Java capability declaration
-continue to execute exactly the existing operations `1..34`, subject to their existing numerical
-profile, type, Shape, and topology restrictions. A structurally valid registered operation outside
-that set returns the dedicated unsupported-operation status rather than masquerading as malformed
-input. Candidate and route identity are version 14. Java owns exactly three prepared-route
-identities: custom singleton NEG wire 1, MPSGraph wire 2, and Task-0052 custom-program wire 3.
-Schema 13 carries no route label, and the exhaustive Java structural catalog adds no native route
-selection, capability, autotuning, fallback, telemetry, or performance authority.
+execute exactly 41 operations: wires `1..34`, FLOAT32 classification wires `40..42`, BOOL logic
+wires `43..45`, and FLOAT32 `WHERE` wire `51`, subject to their exact numerical-profile, type,
+Shape, and topology restrictions. A structurally valid registered operation outside that set
+returns the dedicated unsupported-operation status rather than masquerading as malformed input.
+Candidate and route identity are version 15. Java owns exactly three prepared-route identities:
+custom singleton NEG wire 1, MPSGraph wire 2, and shared custom-program wire 3. Schema 14 embeds
+wire 2 or 3 in each graph image; schema 13 and every other route value fail closed. The exhaustive
+Java structural catalog adds no native route selection, capability, autotuning, fallback,
+telemetry, or performance authority.
 
 ```text
 Java analysis -> choose fixed whole-partition route -> declare every exact resource
@@ -60,7 +62,7 @@ package and independently verify the final signed bytes:
 The ignored `build/package-v1/macos-arm64/` directory contains exactly the signed dylib,
 `manifest.json`, and `SHA256SUMS`. The canonical schema-1 manifest records the final dylib's
 relative name, size, SHA-256, platform, architecture, macOS 26.0 minimum, install name, empty
-rpath set, ABI 5, node schema 13, required frameworks, and fixed ad-hoc identifier. It contains no
+rpath set, ABI 5, node schema 14, required frameworks, and fixed ad-hoc identifier. It contains no
 time, host, absolute path, source revision, product version, SDK version, Team ID, notarization,
 provenance, or release field. Packaging the same exact signed input produces byte-identical
 manifest and checksum files.
@@ -155,7 +157,7 @@ int32_t synaptik_metal_mpsgraph_executable_create(
     void **out_executable);
 ```
 
-`program` is one canonical little-endian schema-13 image of at most `INT32_MAX` bytes:
+`program` is one canonical little-endian schema-14 image of at most `INT32_MAX` bytes:
 
 ```text
 64-byte header
@@ -167,12 +169,12 @@ zero u32 alignment word when required
 attribute_word_count × u64 attribute words
 ```
 
-The 16 header words are magic `SM13` (`0x33314d53`), schema `13`, total byte count, value count,
-node count, feed count, target count, dimension count, reference count, attribute-word count, and
-six reserved zero words. A value descriptor is
-`{type, rank, dimension_offset, flags}`. Stable type wires are `1=FLOAT32`, `2=INT32`, `3=BOOL`,
-`4=FLOAT64`, `5=BFLOAT16`, and `6=INT64`; rank is `0..16`; flag bit zero is `requiresGrad`; all
-other flag bits are zero. A node descriptor is
+The 16 header words are retained magic `SM13` (`0x33314d53`), schema `14`, total byte count, value
+count, node count, feed count, target count, dimension count, reference count, attribute-word
+count, fixed route (`2=MPSGRAPH` or `3=CUSTOM_PROGRAM`), and five reserved zero words. A value
+descriptor is `{type, rank, dimension_offset, flags}`. Stable type wires are `1=FLOAT32`,
+`2=INT32`, `3=BOOL`, `4=FLOAT64`, `5=BFLOAT16`, and `6=INT64`; rank is `0..16`; flag bit zero is
+`requiresGrad`; all other flag bits are zero. A node descriptor is
 `{operation, attribute_kind, input_offset, input_count, output_offset, output_count,
 attribute_offset, attribute_word_count}`.
 
@@ -187,12 +189,12 @@ and wrong schema versions fail closed as invalid arguments. A well-formed regist
 outside current execution capability returns status 13. Java separately authenticates numerical
 profile compatibility and rejects every profile-incompatible program before native creation.
 
-The executable operation domain remains wires `1..34`: `NEG`, arithmetic, affine view operations,
-`CONTIGUOUS`, `ABS`, reductions, `MATMUL`, `GATHER`, `ONE_HOT`, `SCATTER_ELEMENTS`,
-`UNFOLD_AXIS`, comparisons, tensor/scalar extrema, `CLAMP`, reduction extrema, and cumulative
-scans. Existing positive-rank requirements still apply where operation semantics require them
-(including reduction inputs, indexing operations, and `MATMUL`); scalar values are otherwise
-represented directly rather than through inferred exceptions.
+The executable operation domain is wires `1..34`, `40..45`, and `51`: `NEG`, arithmetic, affine
+view operations, `CONTIGUOUS`, `ABS`, reductions, `MATMUL`, `GATHER`, `ONE_HOT`,
+`SCATTER_ELEMENTS`, `UNFOLD_AXIS`, comparisons, tensor/scalar extrema, `CLAMP`, reduction extrema,
+cumulative scans, FLOAT32 classification, BOOL logic, and FLOAT32 `WHERE`. Existing positive-rank
+requirements still apply where operation semantics require them. The seven new operations require
+canonical rank `1..16`; scalar values remain outside that domain.
 
 ### Status values
 
@@ -229,7 +231,11 @@ value, ordered addition, subtraction, multiplication, division, reduction sum, r
 `gatherWithUpdatesTensor:indicesTensor:axis:batchDimensions:name:`,
 `oneHotWithIndicesTensor:depth:dataType:onValue:offValue:name:`,
 `scatterAlongAxis:withDataTensor:updatesTensor:indicesTensor:mode:name:` with
-`MPSGraphScatterModeSet`, or `matrixMultiplicationWithPrimaryTensor:secondaryTensor:name:`.
+`MPSGraphScatterModeSet`, `isFiniteWithTensor:name:`, `isNaNWithTensor:name:`,
+`isInfiniteWithTensor:name:`, `logicalANDWithPrimaryTensor:secondaryTensor:name:`,
+`logicalORWithPrimaryTensor:secondaryTensor:name:`, `logicalNOTWithTensor:name:`,
+`selectWithPredicateTensor:truePredicateTensor:falsePredicateTensor:name:`, or
+`matrixMultiplicationWithPrimaryTensor:secondaryTensor:name:`.
 UNFOLD_AXIS creates size-many strided slices in ascending window-offset order, appends a singleton
 final dimension to each, and concatenates that ordered list along the final dimension. `GATHER`
 uses zero batch dimensions; `ONE_HOT` uses exact `BOOL` scalar constants one and zero.
@@ -293,24 +299,27 @@ once during analysis and is never retried, replaced, or
 repartitioned in finalization or execution. This private implementation-domain boundary is not
 capability narrowing, tuning, fallback, or a performance claim.
 
-## Task-0052 custom whole-program execution
+## Shared exact custom whole-program execution
 
-Any schema-13 program containing a Task-0052 wire uses one retained custom-program handle.
-Creation compiles only the fifteen fixed reviewed Metal kernels with `MTLMathModeSafe`, creates one
-immutable pipeline and metadata buffer per custom node, and cold-compiles each interleaved existing
-node as a typed one-node MPSGraph executable. Java declares and assigns a run-owned buffer for
-every logical intermediate and a native-address workspace for the stable value table plus direct
-target aliases. No source text, function name, route identifier, hidden intermediate, or
-input-dependent choice crosses the ABI.
+Any schema-14 program containing a Task-0052 wire or one of wires `40..45` and `51` uses one
+retained custom-program handle. Creation compiles only the 22 fixed reviewed Metal kernels with
+`MTLMathModeSafe`, creates one immutable pipeline and metadata buffer per custom node, and
+cold-compiles each interleaved existing node as a typed one-node MPSGraph executable. Java declares
+and assigns a run-owned buffer for every logical intermediate and a native-address workspace for
+the stable value table plus direct target aliases. The fixed route crosses in the authenticated
+schema image; no source text, function name, hidden intermediate, or input-dependent choice crosses
+the ABI.
 
 One Java/native run call authenticates the complete value table and exact direct targets, rejects
 one physical buffer reused by distinct live value entries, and preserves each target's required
-output alias to its own table entry. The hot native route consumes supplied handles directly
-without allocating a mirror collection, executes stable program order, and submits consecutive
-custom nodes through one framework command buffer. Interleaved existing nodes execute their
-already-compiled resource internally; Java performs no per-node downcall. There is no host staging,
-retry, fallback, or hot compilation. Comparison targets are canonical one-byte BOOL values; scalar,
-reduction, and scan metadata retain exact raw words and mode state.
+output alias to its own table entry. Before any dispatch or write, it scans every caller BOOL feed
+consumed by a BOOL-domain node and rejects every byte other than zero or one. The hot native route
+consumes supplied handles directly without allocating a mirror collection, executes stable program
+order, and submits consecutive custom nodes through one framework command buffer. Interleaved
+existing nodes execute their already-compiled resource internally; Java performs no per-node
+downcall. Classification inspects raw FLOAT32 words, logic writes exact zero/one bytes, and WHERE
+copies the selected branch word without floating arithmetic. There is no host staging, retry,
+fallback, or hot compilation.
 
 ## Task-0053 proof-gated source
 
@@ -320,7 +329,7 @@ included directly by the C checker model and deterministically expanded by
 `generate-task0053-header.py --check` into the embedded NSString. The host has the corresponding
 private wire/function/dispatch metadata, but it keeps
 `task0053_domain_approved` false and returns status `13` for either structurally valid operation.
-The unapproved source is therefore not appended to the active Task-0052 library, no Java capability
+The unapproved source is therefore not appended to the active shared exact custom library, no Java capability
 or route identity includes it, and ordinary preparation cannot compile or execute it. This dormant
 integration is evidence for Task 0053, not current execution capability.
 

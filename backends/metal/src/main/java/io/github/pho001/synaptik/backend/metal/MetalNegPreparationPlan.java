@@ -207,8 +207,11 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
                         "Metal source splat requires an exact scalar value");
             }
         }
-        boolean containsTask0052 = this.graphProgram.nodes().stream()
-                .anyMatch(node -> node.kind().isTask0052Custom());
+        boolean containsCustomOperation = this.graphProgram.nodes().stream()
+                .anyMatch(node -> node.kind().isCustomProgramOperation());
+        boolean containsCustomOnlyOperation = this.graphProgram.nodes().stream()
+                .mapToInt(node -> node.kind().wireIdentity())
+                .anyMatch(wire -> wire >= 20 && wire <= 34);
         if ((this.route == MetalPreparedRoute.CUSTOM_SINGLE_NEG
                         && (partitionDag.nodes().size() != 1
                                 || this.graphProgram.nodes().getFirst().kind()
@@ -217,15 +220,15 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
                                 || this.targetValueIds.size() != 1
                                 || !this.internalValueIds.isEmpty()
                                 || this.addressWorkspace.isPresent()))
-                || (this.route == MetalPreparedRoute.CUSTOM_TASK0052
-                        && (!containsTask0052 || this.addressWorkspace.isEmpty()))
+                || (this.route == MetalPreparedRoute.CUSTOM_PROGRAM
+                        && (!containsCustomOperation || this.addressWorkspace.isEmpty()))
                 || (this.route == MetalPreparedRoute.MPSGRAPH
-                        && (containsTask0052
+                        && (containsCustomOnlyOperation
                                 || !this.internalValueIds.isEmpty()
                                 || this.addressWorkspace.isEmpty()))) {
             throw new IllegalArgumentException("Metal route and workspace facts disagree");
         }
-        if (this.route == MetalPreparedRoute.CUSTOM_TASK0052) {
+        if (this.route == MetalPreparedRoute.CUSTOM_PROGRAM) {
             boolean[] covered = new boolean[this.valueIds.size()];
             cover(covered, this.feedValueIndices);
             cover(covered, this.targetValueIndices);
@@ -263,8 +266,8 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     int[] internalValueIndices() { return internalValueIndices.clone(); }
     long[] internalRequiredBytes() { return internalRequiredBytes.clone(); }
     long[] materializedValueRequiredBytes() {
-        if (route != MetalPreparedRoute.CUSTOM_TASK0052) {
-            throw new IllegalStateException("Metal plan is not a Task-0052 custom program");
+        if (route != MetalPreparedRoute.CUSTOM_PROGRAM) {
+            throw new IllegalStateException("Metal plan is not a custom program");
         }
         long[] bytes = new long[valueIds.size()];
         place(bytes, feedValueIndices, feedRequiredBytes);
@@ -289,7 +292,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             long byteSize) {
         Objects.requireNonNull(valueId, "valueId");
         Objects.requireNonNull(descriptor, "descriptor");
-        if ((route != MetalPreparedRoute.MPSGRAPH && route != MetalPreparedRoute.CUSTOM_TASK0052)
+        if ((route != MetalPreparedRoute.MPSGRAPH && route != MetalPreparedRoute.CUSTOM_PROGRAM)
                 || targetPosition < 0
                 || targetPosition >= targetValueIds.size()
                 || !targetValueIds.get(targetPosition).equals(valueId)

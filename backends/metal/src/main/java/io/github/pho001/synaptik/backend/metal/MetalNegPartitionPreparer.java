@@ -10,10 +10,13 @@ import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
+import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ClampRangeAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
+import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
 import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
 import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
@@ -54,23 +57,24 @@ import java.util.Optional;
  * <p>The deterministic analysis assigns stable native value indices, retains every node kind and
  * ordered operand, and derives unique feeds and targets before selecting a closed private route.
  * For both profiles, it walks explicit unavailable/canonical/affine-view states in node order for
- * the retained NEG/ABS, affine, CONTIGUOUS, UNFOLD_AXIS, GATHER, ONE_HOT, and replacement
- * SCATTER_ELEMENTS domain. Under {@code ACCELERATOR}, it additionally accepts existing arithmetic,
- * reduction, and rank-two MATMUL plus the exact Task-0052 comparisons, tensor/scalar extrema,
- * clamp, reduction extrema, and cumulative scans. An affine MATMUL operand is authenticated to the
- * exact earlier local rank-two {@code PERMUTE [1,0]} on that consuming edge. Schema-thirteen
- * lowering emits one bounded self-describing image over the stable type wires 1..6, complete
- * operation registry 1..115, and attribute registry 0..41; the current executable capability
- * remains exactly the existing operations 1..34. Graph feeds are canonical and explicitly typed.
- * Rank-zero values participate where the existing operation capability permits them. BOOL results
- * may be direct or cross-owner targets but cannot feed a current Metal operation. Analysis freshly
- * regenerates the complete candidate batch. Every supplied handoff authenticates its exact
- * partition, schema, workload, profile, and session target; an absent decision preserves the
- * singleton-NEG heuristic, while a present decision must additionally authenticate its candidate
- * identity. Any Task-0052 node fixes the whole partition
- * to its custom program route before exact declarations, including a declared run-owned buffer
- * for every internal logical value. Package-private tests may force only another candidate already
- * approved by that freshly validated batch; production has no corresponding input or switch.
+ * the retained NEG/ABS, affine, CONTIGUOUS, UNFOLD_AXIS, GATHER, ONE_HOT, replacement
+ * SCATTER_ELEMENTS, and exact classification/BOOL-logic/WHERE domain. Under {@code ACCELERATOR},
+ * it additionally accepts existing arithmetic, reduction, and rank-two MATMUL plus the exact
+ * Task-0052 comparisons, tensor/scalar extrema, clamp, reduction extrema, and cumulative scans.
+ * An affine MATMUL operand is authenticated to the exact earlier local rank-two
+ * {@code PERMUTE [1,0]} on that consuming edge. Schema-fourteen lowering emits one bounded
+ * self-describing image over the stable type wires 1..6, complete operation registry 1..115,
+ * attribute registry 0..41, and explicit prepared route. The current executable capability is
+ * exactly 41 operation kinds. Graph feeds are canonical and explicitly typed. Rank-zero values
+ * participate only where the existing non-BOOL operation capability permits them. Exact BOOL
+ * results may feed the newly admitted logic and selection nodes or cross owner boundaries.
+ * Analysis freshly regenerates the complete candidate batch. Every supplied handoff authenticates
+ * its exact partition, schema, workload, profile, and session target; an absent decision preserves
+ * the singleton-NEG heuristic, while a present decision must additionally authenticate its
+ * candidate identity. Any shared custom-program node fixes the whole partition to its custom
+ * program route before exact declarations, including a declared run-owned buffer for every
+ * internal logical value. Package-private tests may force only another candidate already approved
+ * by that freshly validated batch; production has no corresponding input or switch.
  * Published affine views retain logical descriptors while declarations use full dense represented-
  * order byte geometry. Analysis allocates no physical resource and never changes partition
  * ownership or capability.</p>
@@ -285,11 +289,11 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         int[] targetIndices = indices(targets, valueIndexes);
         long[] feedBytes = requiredBytes(feeds, graphValues);
         long[] targetBytes = requiredBytes(targets, graphValues);
-        boolean containsTask0052 = graphProgram.nodes().stream()
-                .anyMatch(node -> node.kind().isTask0052Custom());
+        boolean containsCustomProgram = graphProgram.nodes().stream()
+                .anyMatch(node -> node.kind().isCustomProgramOperation());
         long singletonElements = feedBytes.length == 1 ? feedBytes[0] / Float.BYTES : 0L;
-        MetalPreparedRoute route = containsTask0052
-                ? MetalPreparedRoute.CUSTOM_TASK0052
+        MetalPreparedRoute route = containsCustomProgram
+                ? MetalPreparedRoute.CUSTOM_PROGRAM
                 : nodeCount == 1
                         && graphProgram.nodes().getFirst().kind()
                                 == MetalMpsGraphProgram.NodeKind.NEG
@@ -300,7 +304,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         ? MetalPreparedRoute.CUSTOM_SINGLE_NEG
                         : MetalPreparedRoute.MPSGRAPH;
         var internalValues = new ArrayList<ValueId>();
-        if (route == MetalPreparedRoute.CUSTOM_TASK0052) {
+        if (route == MetalPreparedRoute.CUSTOM_PROGRAM) {
             for (ValueId valueId : valueIds) {
                 if (!feeds.contains(valueId) && !targets.contains(valueId)) {
                     internalValues.add(valueId);
@@ -397,7 +401,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             int targetCount,
             int valueCount) {
         if (route == MetalPreparedRoute.CUSTOM_SINGLE_NEG) return Optional.empty();
-        long pointerCount = route == MetalPreparedRoute.CUSTOM_TASK0052
+        long pointerCount = route == MetalPreparedRoute.CUSTOM_PROGRAM
                 ? Math.addExact((long) valueCount, targetCount)
                 : Math.addExact((long) feedCount, targetCount);
         long workspaceBytes = Math.multiplyExact(pointerCount, Long.BYTES);
@@ -467,7 +471,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
 
     private static boolean canonicalFeed(TensorDescriptor descriptor) {
         DataType dataType = descriptor.dataType();
-        return (dataType == DataType.FLOAT32 || dataType == DataType.INT32)
+        return (dataType == DataType.FLOAT32 || dataType == DataType.INT32 || dataType == DataType.BOOL)
                 && descriptor.layout().isPresent()
                 && descriptor.layout().orElseThrow().equals(
                         LayoutDescriptor.contiguous(descriptor.shape()));
@@ -513,6 +517,31 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         }
         if (kind == UnaryElementwiseKind.ABS) {
             return MetalMpsGraphProgram.Node.abs(inputs[0], output);
+        }
+        if (kind instanceof FloatingClassificationKind classification) {
+            MetalMpsGraphProgram.NodeKind nodeKind = switch (classification) {
+                case IS_FINITE -> MetalMpsGraphProgram.NodeKind.IS_FINITE;
+                case IS_NAN -> MetalMpsGraphProgram.NodeKind.IS_NAN;
+                case IS_INF -> MetalMpsGraphProgram.NodeKind.IS_INF;
+            };
+            return MetalMpsGraphProgram.Node.generic(
+                    nodeKind, inputs, new int[] {output},
+                    MetalMpsGraphProgram.AttributeKind.NONE, new long[0]);
+        }
+        if (kind instanceof BooleanLogicalKind logical) {
+            MetalMpsGraphProgram.NodeKind nodeKind = switch (logical) {
+                case AND -> MetalMpsGraphProgram.NodeKind.LOGICAL_AND;
+                case OR -> MetalMpsGraphProgram.NodeKind.LOGICAL_OR;
+                case NOT -> MetalMpsGraphProgram.NodeKind.LOGICAL_NOT;
+            };
+            return MetalMpsGraphProgram.Node.generic(
+                    nodeKind, inputs, new int[] {output},
+                    MetalMpsGraphProgram.AttributeKind.NONE, new long[0]);
+        }
+        if (kind == WhereSelectionKind.WHERE) {
+            return MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.WHERE, inputs, new int[] {output},
+                    MetalMpsGraphProgram.AttributeKind.NONE, new long[0]);
         }
         if (kind instanceof BinaryComparisonKind comparison) {
             MetalMpsGraphProgram.NodeKind nodeKind = switch (comparison) {

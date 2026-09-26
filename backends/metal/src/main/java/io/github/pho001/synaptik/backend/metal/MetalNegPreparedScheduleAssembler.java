@@ -175,13 +175,13 @@ final class MetalNegPreparedScheduleAssembler
                     || (executable.preparationPlan().route()
                                     != MetalPreparedRoute.MPSGRAPH
                             && executable.preparationPlan().route()
-                                    != MetalPreparedRoute.CUSTOM_TASK0052)) {
+                                    != MetalPreparedRoute.CUSTOM_PROGRAM)) {
                 throw new IllegalArgumentException(
                         "Metal workspace has no exact program executable");
             }
             MetalNegPreparationPlan executablePlan = executable.preparationPlan();
             int pointerCount = executablePlan.route()
-                    == MetalPreparedRoute.CUSTOM_TASK0052
+                    == MetalPreparedRoute.CUSTOM_PROGRAM
                     ? Math.addExact(
                             executablePlan.valueIds().size(),
                             executablePlan.targetValueIds().size())
@@ -336,9 +336,9 @@ final class MetalNegPreparedScheduleAssembler
 
         List<PreparedRepresentationPlan.WorkspaceCreator> workspaceCreators;
         if (plan.route() == MetalPreparedRoute.MPSGRAPH
-                || plan.route() == MetalPreparedRoute.CUSTOM_TASK0052) {
+                || plan.route() == MetalPreparedRoute.CUSTOM_PROGRAM) {
             int pointerCount = plan.route()
-                    == MetalPreparedRoute.CUSTOM_TASK0052
+                    == MetalPreparedRoute.CUSTOM_PROGRAM
                     ? Math.addExact(plan.valueIds().size(), plan.targetValueIds().size())
                     : Math.addExact(
                             plan.feedValueIds().size(), plan.targetValueIds().size());

@@ -77,15 +77,15 @@ class MetalMpsGraphAffineNativeTest {
                             3,
                             4,
                             new long[] {4, 6})))), new MetalMpsGraphProgram(List.of(
-                    MetalMpsGraphProgram.Node.permutation(
-                            0, 1, List.of(2, 0, 1)),
-                    MetalMpsGraphProgram.Node.contiguous(1, 2),
-                    MetalMpsGraphProgram.Node.neg(2, 3),
-                    MetalMpsGraphProgram.Node.targetShape(
-                            MetalMpsGraphProgram.NodeKind.RESHAPE,
-                            3,
-                            4,
-                            new long[] {4, 6}))), new int[] {0}, new int[] {1, 2, 3, 4});
+                                MetalMpsGraphProgram.Node.permutation(
+            0, 1, List.of(2, 0, 1)),
+                                MetalMpsGraphProgram.Node.contiguous(1, 2),
+                                MetalMpsGraphProgram.Node.neg(2, 3),
+                                MetalMpsGraphProgram.Node.targetShape(
+            MetalMpsGraphProgram.NodeKind.RESHAPE,
+            3,
+            4,
+            new long[] {4, 6}))), new int[] {0}, new int[] {1, 2, 3, 4}, MetalPreparedRoute.MPSGRAPH);
             input = api.createBuffer(context, 96L);
             for (int target = 0; target < 4; target++) {
                 outputs.add(api.createBuffer(context, 96L));
@@ -200,7 +200,7 @@ class MetalMpsGraphAffineNativeTest {
             long[] dimensions = new long[32];
             System.arraycopy(test.inputShape(), 0, dimensions, 0, test.inputShape().length);
             System.arraycopy(test.outputShape(), 0, dimensions, 16, test.outputShape().length);
-            executable = api.createMpsGraphExecutable(context, NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(ranks, dimensions, new MetalMpsGraphProgram(List.of(test.node()))), new MetalMpsGraphProgram(List.of(test.node())), new int[] {0}, new int[] {1});
+            executable = api.createMpsGraphExecutable(context, NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(ranks, dimensions, new MetalMpsGraphProgram(List.of(test.node()))), new MetalMpsGraphProgram(List.of(test.node())), new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH);
             input = api.createBuffer(context, inputBytes);
             output = api.createBuffer(context, outputBytes);
             try (Arena arena = Arena.ofConfined()) {

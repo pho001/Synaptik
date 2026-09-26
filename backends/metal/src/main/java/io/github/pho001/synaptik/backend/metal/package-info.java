@@ -7,10 +7,12 @@
  * {@code CONTIGUOUS} canonicalization barrier, canonical FLOAT32 {@code UNFOLD_AXIS} materializing
  * one normalized axis into exact floor-count windows with a trailing size axis, canonical
  * positive-rank {@code FLOAT32} data {@code GATHER} with canonical {@code INT32} indices,
- * canonical positive-rank {@code INT32}-to-{@code BOOL} {@code ONE_HOT}, and canonical
- * positive-rank {@code SCATTER_ELEMENTS} replacement with ordered
- * {@code FLOAT32}/{@code INT32}/{@code FLOAT32} data, indices, and updates. UNFOLD_AXIS is bounded
- * to input ranks {@code 1..15} and sizes {@code 1..16}, requires a positive step and
+ * canonical positive-rank {@code INT32}-to-{@code BOOL} {@code ONE_HOT}, canonical positive-rank
+ * {@code SCATTER_ELEMENTS} replacement with ordered {@code FLOAT32}/{@code INT32}/{@code FLOAT32}
+ * data, indices, and updates, exact FLOAT32 classification, BOOL logic, and FLOAT32 {@code WHERE}.
+ * The seven BOOL-domain operations require canonical rank {@code 1..16}, right-aligned logic
+ * broadcasting, and branch-first then condition WHERE broadcasting. UNFOLD_AXIS is bounded to
+ * input ranks {@code 1..15} and sizes {@code 1..16}, requires a positive step and
  * size-at-most-axis extent, returns a fresh canonical rank-plus-one value, and preserves exact
  * represented FLOAT32 bits. Scatter accepts only {@code ScatterReduction.NONE}, returns a
  * canonical data-shaped value, preserves exact represented bits, and validates complete bounds
@@ -24,23 +26,25 @@
  * normalized multi-axis including empty, and exact keep-dimensions forms; reduction inputs remain
  * positive-rank while their target may be rank zero. Canonical host ingress/materialization and
  * bidirectional CPU/Metal transfer accept ranks {@code 0..16} for all six public data types with
- * exact widths, canonical non-view geometry, and strict BOOL-byte validation. This transfer
- * foundation does not widen Metal operation capability: current BOOL operation feeds/consumers
- * remain unsupported. Accelerator binary inputs and outputs are canonical dense non-views and use
- * exact right-aligned broadcasting.
+ * exact widths, canonical non-view geometry, and strict BOOL-byte validation. Exact BOOL operation
+ * ingress is restricted further to positive-rank canonical bytes; custom outputs are written as
+ * exact zero or one, and owned MPSGraph ONE_HOT output is validated by its typed selector contract.
+ * Accelerator binary inputs and outputs are canonical dense non-views and use exact right-aligned
+ * broadcasting.
  * Each MATMUL operand is canonical or the authenticated exact local rank-two
  * {@code PERMUTE [1,0]} of a canonical source; its output is canonical. Strict MATMUL remains
- * unsupported. A partition containing any Task-0052 node selects one fixed custom whole-program
- * resource: fixed custom kernels and cold-compiled nested existing-node executables consume the
- * stable declared value table in program order behind one Java/native run call. Every logical
- * intermediate is an assigned run-owned buffer; targets remain the direct assigned buffers.
+ * unsupported. A partition containing any shared exact custom node selects one fixed custom
+ * whole-program resource: fixed custom kernels and cold-compiled nested existing-node executables
+ * consume the stable declared value table in program order behind one Java/native run call.
+ * Every logical intermediate is an assigned run-owned buffer; targets remain the direct assigned
+ * buffers.
  * Every direct {@code NEG} or {@code ABS} operand/output and graph feed is canonical;
  * affine inputs may also be exact resolved zero-offset views produced earlier in the same maximal
  * partition. Affine outputs retain their exact Model view geometry, while {@code CONTIGUOUS}
  * produces canonical geometry. Metal lowers one complete profile-homogeneous partition as a typed
  * whole-partition program during preparation.</p>
  *
- * <p>A package-private exhaustive catalog describes all 115 schema-thirteen operation kinds as
+ * <p>A package-private exhaustive catalog describes all 115 schema-fourteen operation kinds as
  * MPSGraph {@code DIRECT}, {@code COMPOSED}, or {@code UNAVAILABLE} and custom-kernel
  * {@code AVAILABLE}, {@code PENDING}, or {@code UNAVAILABLE_WITH_PROOF}, with closed source
  * reasons. It is cold descriptive metadata only: capability remains authoritative and the catalog

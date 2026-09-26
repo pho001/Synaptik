@@ -314,29 +314,29 @@ one identical exact matrix and unchanged routes.
 Metal's common exact occurrence domain under both profiles contains only canonical FLOAT32
 `NEG`/`ABS`; `RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`; `CONTIGUOUS`; bounded canonical
 FLOAT32 `UNFOLD_AXIS`; canonical positive-rank FLOAT32 data `GATHER` with canonical INT32 indices;
-positive-rank INT32-to-BOOL `ONE_HOT`; and canonical positive-rank
-FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. Its accelerator-only set adds tensor FLOAT32
-`ADD`/`SUB`/`MUL`/`DIV`/`MIN`/`MAX`; all six FLOAT32 comparisons with canonical BOOL output;
-exact FLOAT32 scalar `MIN`/`MAX`/`CLAMP`; canonical FLOAT32 `SUM`, `MEAN`, `MIN`, `MAX`, and
-binding-resolved `SUM_TO_SHAPE` over their exact full, normalized single-axis, ordered
-multi-axis including empty, and keep-dimensions forms; every exclusive/reverse mode of FLOAT32
-`CUM_SUM` and `CUM_PROD`; and positive static rank-two FLOAT32 MATMUL with exact contraction
-geometry and canonical or authenticated local rank-two-transpose operands. Strict capability is a
-subset because every common occurrence has the same answer under accelerator; strict rejects every
-accelerator-only addition. BOOL operation feeds and consumers remain unsupported. Canonical
-CPU/Metal transfer supports all six current data types at ranks `0..16` without widening that
-operation matrix.
+positive-rank INT32-to-BOOL `ONE_HOT`; canonical positive-rank FLOAT32/INT32/FLOAT32
+`SCATTER_ELEMENTS/NONE`; FLOAT32 classification; BOOL logic; and FLOAT32 `WHERE`. Its
+accelerator-only set adds tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`/`MIN`/`MAX`; all six FLOAT32
+comparisons with canonical BOOL output; exact FLOAT32 scalar `MIN`/`MAX`/`CLAMP`; canonical FLOAT32
+`SUM`, `MEAN`, `MIN`, `MAX`, and binding-resolved `SUM_TO_SHAPE` over their exact full, normalized
+single-axis, ordered multi-axis including empty, and keep-dimensions forms; every
+exclusive/reverse mode of FLOAT32 `CUM_SUM` and `CUM_PROD`; and positive static rank-two FLOAT32
+MATMUL with exact contraction geometry and canonical or authenticated local rank-two-transpose
+operands. Strict capability is a subset because every common occurrence has the same answer under
+accelerator; strict rejects every accelerator-only addition. Canonical CPU/Metal transfer supports
+all six current data types at ranks `0..16`; BOOL operation consumers are restricted to the exact
+positive-rank logic/WHERE domain.
 
 Accelerator operations must produce only results admitted by Model's total recursive FLOAT32
 exact/discrete, primitive, aggregate, and composite-inheritance floors. Every other
 profile/operation occurrence fails closed before route selection; transporting profile identity
-never authorizes a result outside the Model-owned set. The Task-0052 slice is realized by fifteen
-fixed reviewed safe-math kernels behind one whole-program native invocation, with declared assigned
-buffers for every logical value and no hidden materialization, host staging, hot compilation,
-retry, or fallback.
+never authorizes a result outside the Model-owned set. The shared custom-program slice is realized
+by 22 fixed reviewed safe-math/raw-word/integer kernels behind one whole-program native invocation,
+with declared assigned buffers for every logical value and no hidden materialization, host staging,
+hot compilation, retry, or fallback.
 
-The package uses ABI 5 with the same thirteen exports. Node schema 13 is one bounded
-self-describing image over type wires `1..6`, operation wires `1..115`, and attribute wires
-`0..41`; the registry is structural vocabulary while only the existing 34 kinds are executable.
-Workload, exact-policy, candidate, compatibility, route-policy, and codec identities are version
-fourteen; the complete-plan wrapper remains version one.
+The package uses ABI 5 with the same thirteen exports. Node schema 14 is one bounded
+self-describing, route-bearing image over type wires `1..6`, operation wires `1..115`, and
+attribute wires `0..41`; the registry is structural vocabulary while exactly 41 kinds are
+executable. Workload, exact-policy, candidate, compatibility, route-policy, and codec identities
+are version fifteen; the complete-plan wrapper remains version one.

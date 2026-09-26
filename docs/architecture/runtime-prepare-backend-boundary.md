@@ -645,12 +645,12 @@ subset, prove its complete route results fall inside Model's recursive set, and 
 identity in every reusable plan/cache boundary. CPU admits both profiles through identical exact
 routes. Metal's common exact occurrence domain under both profiles contains only canonical
 FLOAT32 `NEG`/`ABS`; `RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`; `CONTIGUOUS`; bounded
-`UNFOLD_AXIS`; exact FLOAT32-data/INT32-index `GATHER`; INT32-to-BOOL `ONE_HOT`; and
-FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. Accelerator additionally admits the exact
-Task-0052 comparison/extrema/scalar/reduction-extrema/scan rows, existing tensor arithmetic and
-reductions, and bounded rank-two MATMUL. Every other occurrence fails closed before route
-selection. ABI 5 retains thirteen exports and consumes one bounded schema-13 image over type wires
-`1..6`, operation wires `1..115`, and attribute wires `0..41`; backend identities are version
-fourteen. Structural vocabulary and canonical all-six rank-`0..16` CPU/Metal transfer do not
-widen operation capability. Runtime therefore requires neither profile interpretation nor a policy
-lookup.
+`UNFOLD_AXIS`; exact FLOAT32-data/INT32-index `GATHER`; INT32-to-BOOL `ONE_HOT`;
+FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`; FLOAT32 classification; BOOL logic; and FLOAT32
+WHERE. Accelerator additionally admits the exact Task-0052 comparison/extrema/scalar/reduction-
+extrema/scan rows, existing tensor arithmetic and reductions, and bounded rank-two MATMUL. Every
+other occurrence fails closed before route selection. ABI 5 retains thirteen exports and consumes
+one bounded schema-14 route-bearing image over type wires `1..6`, operation wires `1..115`, and
+attribute wires `0..41`; backend identities are version fifteen. Structural vocabulary and
+canonical all-six rank-`0..16` CPU/Metal transfer do not widen operation capability. Runtime
+therefore requires neither profile interpretation nor a policy lookup.

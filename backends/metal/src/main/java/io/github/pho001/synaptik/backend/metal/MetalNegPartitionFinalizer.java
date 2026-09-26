@@ -204,7 +204,7 @@ final class MetalNegPartitionFinalizer
                     feedRepresentationIndices,
                     targetPlanIndices,
                     targetRepresentationIndices);
-            case MPSGRAPH, CUSTOM_TASK0052 -> finalizeMpsGraph(
+            case MPSGRAPH, CUSTOM_PROGRAM -> finalizeMpsGraph(
                     finalization,
                     plan,
                     feedPlanIndices,

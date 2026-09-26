@@ -37,7 +37,7 @@ class MetalMpsGraphIndexingNativeTest {
                     MetalMpsGraphProgram.Node.gather(0, 1, 2, 1),
                     MetalMpsGraphProgram.Node.oneHot(3, 4, 4)));
             long[][] shapes = {{2, 4}, {3}, {2, 3}, {3}, {3, 4}};
-            executable = api.createMpsGraphExecutable(context, NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(ranks(shapes), dimensions(shapes), program), program, new int[] {0, 1, 3}, new int[] {2, 4});
+            executable = api.createMpsGraphExecutable(context, NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(ranks(shapes), dimensions(shapes), program), program, new int[] {0, 1, 3}, new int[] {2, 4}, MetalPreparedRoute.MPSGRAPH);
 
             MetalNativeApi.Handle data = api.createBuffer(context, 8L * Integer.BYTES);
             MetalNativeApi.Handle gatherIndices = api.createBuffer(context, 3L * Integer.BYTES);
@@ -118,7 +118,7 @@ class MetalMpsGraphIndexingNativeTest {
             MetalMpsGraphProgram program = new MetalMpsGraphProgram(List.of(
                     MetalMpsGraphProgram.Node.scatterElements(0, 1, 2, 3, 1)));
             long[][] shapes = {{2, 3}, {2, 2}, {2, 2}, {2, 3}};
-            executable = api.createMpsGraphExecutable(context, NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(ranks(shapes), dimensions(shapes), program), program, new int[] {0, 1, 2}, new int[] {3});
+            executable = api.createMpsGraphExecutable(context, NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(ranks(shapes), dimensions(shapes), program), program, new int[] {0, 1, 2}, new int[] {3}, MetalPreparedRoute.MPSGRAPH);
 
             MetalNativeApi.Handle data = api.createBuffer(context, 6L * Integer.BYTES);
             MetalNativeApi.Handle indices = api.createBuffer(context, 4L * Integer.BYTES);
@@ -196,7 +196,7 @@ class MetalMpsGraphIndexingNativeTest {
             long[][] shapes = {{2, 6}, {2, 2, 3}};
             executable = api.createMpsGraphExecutable(context, NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(ranks(shapes), dimensions(shapes), new MetalMpsGraphProgram(List.of(
                     MetalMpsGraphProgram.Node.unfoldAxis(0, 1, 1, 3, 2)))), new MetalMpsGraphProgram(List.of(
-                    MetalMpsGraphProgram.Node.unfoldAxis(0, 1, 1, 3, 2))), new int[] {0}, new int[] {1});
+            MetalMpsGraphProgram.Node.unfoldAxis(0, 1, 1, 3, 2))), new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH);
             input = api.createBuffer(context, (long) inputBits.length * Integer.BYTES);
             output = api.createBuffer(context, (long) expected.length * Integer.BYTES);
             uploadInts(api, input, inputBits);

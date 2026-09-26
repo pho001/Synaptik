@@ -8,10 +8,13 @@ import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
+import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ClampRangeAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
+import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
 import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
 import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
@@ -49,8 +52,12 @@ import java.util.Objects;
  * and {@code ABS}, five FLOAT32 affine transforms, the explicit {@code CONTIGUOUS}
  * canonicalization barrier, bounded canonical FLOAT32 {@code UNFOLD_AXIS} materialization,
  * canonical positive-rank INT32 {@code GATHER} indices selecting FLOAT32 data, canonical
- * positive-rank INT32 {@code ONE_HOT} indices producing terminal BOOL values, and canonical
- * FLOAT32/INT32/FLOAT32 {@code SCATTER_ELEMENTS} replacement with unique valid targets.
+ * positive-rank INT32 {@code ONE_HOT} indices producing canonical BOOL values, canonical
+ * FLOAT32/INT32/FLOAT32 {@code SCATTER_ELEMENTS} replacement with unique valid targets, and the
+ * exact profile-common wires for FLOAT32 classification, BOOL logic, and FLOAT32 {@code WHERE}.
+ * The seven BOOL-domain operations require canonical positive rank {@code 1..16}; classification
+ * accepts either input gradient flag and produces no-grad BOOL, logic is entirely no-grad, and
+ * WHERE propagates the branch gradient OR after branch-first then condition broadcasting.
  * {@code ACCELERATOR} additionally admits tensor {@code ADD}/{@code SUB}/{@code MUL}/{@code DIV},
  * canonical FLOAT32 {@code SUM}/{@code MEAN}/{@code SUM_TO_SHAPE}, and positive static rank-two
  * FLOAT32 {@code MATMUL}. MATMUL accepts each
@@ -161,6 +168,15 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             if (operation.kind() instanceof ShapeTransformKind
                     || operation.kind() instanceof AxisTransformKind) {
                 return supportsAffine(operation, inputs, output);
+            }
+            if (operation.kind() instanceof FloatingClassificationKind classification) {
+                return supportsClassification(operation, inputs, output, classification);
+            }
+            if (operation.kind() instanceof BooleanLogicalKind logical) {
+                return supportsLogical(operation, inputs, output, logical);
+            }
+            if (operation.kind() == WhereSelectionKind.WHERE) {
+                return supportsWhere(operation, inputs, output);
             }
             if (numericalProfile == NumericalProfile.ACCELERATOR) {
                 if (operation.kind() instanceof BinaryComparisonKind comparison) {
@@ -311,6 +327,73 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 && canonical(output)
                 && input.shape().equals(output.shape())
                 && input.requiresGrad() == output.requiresGrad();
+    }
+
+    private static boolean supportsClassification(
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            TensorDescriptor output,
+            FloatingClassificationKind kind) {
+        if (operation.kind() != kind
+                || operation.attrs() != NoOperationAttrs.INSTANCE
+                || inputs.size() != 1) {
+            return false;
+        }
+        TensorDescriptor input = inputs.getFirst();
+        return canonical(input)
+                && canonicalTyped(output, DataType.BOOL)
+                && input.shape().equals(output.shape())
+                && !output.requiresGrad();
+    }
+
+    private static boolean supportsLogical(
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            TensorDescriptor output,
+            BooleanLogicalKind kind) {
+        if (operation.kind() != kind || operation.attrs() != NoOperationAttrs.INSTANCE) {
+            return false;
+        }
+        if (kind == BooleanLogicalKind.NOT) {
+            if (inputs.size() != 1) return false;
+            TensorDescriptor input = inputs.getFirst();
+            return canonicalTyped(input, DataType.BOOL)
+                    && canonicalTyped(output, DataType.BOOL)
+                    && !input.requiresGrad()
+                    && !output.requiresGrad()
+                    && input.shape().equals(output.shape());
+        }
+        if (inputs.size() != 2) return false;
+        TensorDescriptor left = inputs.get(0);
+        TensorDescriptor right = inputs.get(1);
+        return canonicalTyped(left, DataType.BOOL)
+                && canonicalTyped(right, DataType.BOOL)
+                && canonicalTyped(output, DataType.BOOL)
+                && !left.requiresGrad()
+                && !right.requiresGrad()
+                && !output.requiresGrad()
+                && ShapeBroadcast.broadcast(left.shape(), right.shape()).equals(output.shape());
+    }
+
+    private static boolean supportsWhere(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        if (operation.attrs() != NoOperationAttrs.INSTANCE || inputs.size() != 3) {
+            return false;
+        }
+        TensorDescriptor condition = inputs.get(0);
+        TensorDescriptor whenTrue = inputs.get(1);
+        TensorDescriptor whenFalse = inputs.get(2);
+        if (!canonicalTyped(condition, DataType.BOOL)
+                || !canonical(whenTrue)
+                || !canonical(whenFalse)
+                || !canonical(output)
+                || condition.requiresGrad()
+                || output.requiresGrad()
+                        != (whenTrue.requiresGrad() || whenFalse.requiresGrad())) {
+            return false;
+        }
+        var branchShape = ShapeBroadcast.broadcast(whenTrue.shape(), whenFalse.shape());
+        return ShapeBroadcast.broadcast(condition.shape(), branchShape).equals(output.shape());
     }
 
     private static boolean supportsBinary(

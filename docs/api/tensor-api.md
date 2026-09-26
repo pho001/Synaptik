@@ -117,14 +117,15 @@ ordinary Engine captures one profile for its lifetime and transports it through 
 capability, compile artifacts, Prepare, and backend identity. For any backend, strict capability
 and behavior are an accelerator subset for the same occurrence domain. CPU executes both profiles
 with the same exact current semantics. Metal's common exact domain contains canonical FLOAT32
-`NEG`/`ABS`; affine layouts; `CONTIGUOUS`; bounded `UNFOLD_AXIS`; exact typed GATHER, ONE_HOT, and
-SCATTER_ELEMENTS/NONE. Accelerator additionally admits tensor FLOAT32 ADD/SUB/MUL/DIV/MIN/MAX,
-all six FLOAT32 comparisons with BOOL outputs, scalar MIN/MAX/CLAMP, SUM/MEAN/MIN/MAX and
-SUM_TO_SHAPE reductions, every CUM_SUM/CUM_PROD mode, and positive static rank-two MATMUL.
-Every unlisted occurrence fails closed before route selection. Metal uses ABI 5 with the same
-thirteen exports and one bounded schema-13 program image. Operation wires `1..115`, attribute wires
-`0..41`, and type wires `1..6` cover current structural vocabulary; version-fourteen identities
-authenticate that meaning without widening capability.
+`NEG`/`ABS`; affine layouts; `CONTIGUOUS`; bounded `UNFOLD_AXIS`; exact typed GATHER, ONE_HOT,
+SCATTER_ELEMENTS/NONE, FLOAT32 classification, BOOL logic, and FLOAT32 WHERE. Accelerator
+additionally admits tensor FLOAT32 ADD/SUB/MUL/DIV/MIN/MAX, all six FLOAT32 comparisons with BOOL
+outputs, scalar MIN/MAX/CLAMP, SUM/MEAN/MIN/MAX and SUM_TO_SHAPE reductions, every
+CUM_SUM/CUM_PROD mode, and positive static rank-two MATMUL. Every unlisted occurrence fails closed
+before route selection. Metal uses ABI 5 with the same thirteen exports and one bounded schema-14
+route-bearing program image. Operation wires `1..115`, attribute wires `0..41`, and type wires
+`1..6` cover current structural vocabulary; version-fifteen identities authenticate that meaning
+without widening capability.
 Model remains the sole semantic owner of profile meaning.
 
 The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).

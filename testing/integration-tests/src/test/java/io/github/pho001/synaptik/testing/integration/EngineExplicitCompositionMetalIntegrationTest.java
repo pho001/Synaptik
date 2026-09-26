@@ -1555,6 +1555,131 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
+    void cpuFreeMetalRunsExactBoolMixedCustomProgramWithoutFallback() throws Exception {
+        Path library = configuredMetalLibrary();
+        List<ObservedTrace> events = new CopyOnWriteArrayList<>();
+        try (Arena arena = Arena.ofShared();
+                Engine.Builder builder = Engine.builder()) {
+            builder.numericalProfile(NumericalProfile.ACCELERATOR);
+            builder.takeOwnership(MetalBackendIntegration.open(
+                    new MetalBackendConfiguration(library), traceCollector(events)));
+            try (Engine engine = builder.build()) {
+                Tensor classified = nativeTensorBits(
+                        descriptor(Shape.of(2, 3)),
+                        arena,
+                        0x00000000,
+                        0x7f800000,
+                        0x7fc12345,
+                        0xff800000,
+                        0x3f800000,
+                        0x7f812345);
+                Tensor boolColumn = nativeBoolTensor(Shape.of(2, 1), arena, 1, 0);
+                Tensor boolRow = nativeBoolTensor(Shape.of(3), arena, 1, 0, 1);
+                Tensor trueBranch = nativeTensorBits(
+                        descriptor(Shape.of(2, 1)),
+                        arena,
+                        0x7fc12345,
+                        0x80000000);
+                Tensor falseBranch = nativeTensorBits(
+                        descriptor(Shape.of(1, 3)),
+                        arena,
+                        0x3f800000,
+                        0xffc54321,
+                        0x00000001);
+
+                Tensor finite = classified.isFinite();
+                Tensor nan = classified.isNaN();
+                Tensor infinite = classified.isInf();
+                Tensor conjunction = finite.logicalAnd(boolColumn);
+                Tensor disjunction = nan.logicalOr(boolRow);
+                Tensor negatedInfinite = infinite.logicalNot();
+                Tensor selected = Tensor.where(conjunction, trueBranch, falseBranch);
+                Tensor mixed = Tensor.where(disjunction, classified.neg(), classified);
+                var compiled = engine.compile(List.of(
+                        finite,
+                        nan,
+                        infinite,
+                        conjunction,
+                        disjunction,
+                        negatedInfinite,
+                        selected,
+                        mixed));
+                assertEquals(List.of("metal"),
+                        EngineMixedOwnerTestAccess.partitionOwners(compiled));
+                assertTrue(events.isEmpty(), "compile neither prepares nor probes a fallback");
+
+                try (InferenceSession session = engine.session(compiled)) {
+                    assertEquals(1, events.size());
+                    assertEquals("PREPARE", events.getFirst().phase());
+                    assertEquals("CUSTOM_KERNEL",
+                            enumName(component(events.getFirst().payload(), "route")));
+
+                    List<Tensor> canonicalInputs =
+                            List.of(classified, boolColumn, boolRow, trueBranch, falseBranch);
+                    try (var result = session.run(canonicalInputs)) {
+                        assertBoolPublication(result, 0, 1, 0, 0, 0, 1, 0);
+                        assertBoolPublication(result, 1, 0, 0, 1, 0, 0, 1);
+                        assertBoolPublication(result, 2, 0, 1, 0, 1, 0, 0);
+                        assertBoolPublication(result, 3, 1, 0, 0, 0, 0, 0);
+                        assertBoolPublication(result, 4, 1, 0, 1, 1, 0, 1);
+                        assertBoolPublication(result, 5, 1, 0, 1, 0, 1, 1);
+                        assertRawBits(
+                                result.materialize(
+                                        result.publications().get(6),
+                                        6L * Float.BYTES).bytes(),
+                                new int[] {
+                                    0x7fc12345,
+                                    0xffc54321,
+                                    0x00000001,
+                                    0x3f800000,
+                                    0xffc54321,
+                                    0x00000001
+                                });
+                        assertRawBits(
+                                result.materialize(
+                                        result.publications().get(7),
+                                        6L * Float.BYTES).bytes(),
+                                new int[] {
+                                    0x80000000,
+                                    0x7f800000,
+                                    0xffc12345,
+                                    0x7f800000,
+                                    0x3f800000,
+                                    0xff812345
+                                });
+                    }
+
+                    int eventsBeforeRejection = events.size();
+                    Tensor invalidBoolRow = nativeBoolTensor(Shape.of(3), arena, 1, 2, 1);
+                    assertThrows(
+                            RuntimeException.class,
+                            () -> {
+                                try (var ignored = session.run(List.of(
+                                        classified,
+                                        boolColumn,
+                                        invalidBoolRow,
+                                        trueBranch,
+                                        falseBranch))) {
+                                    // A successful result would violate canonical BOOL ingress.
+                                }
+                            });
+                    assertEquals(
+                            eventsBeforeRejection,
+                            events.size(),
+                            "canonical BOOL ingress fails before native invocation or fallback");
+
+                    try (var recovered = session.run(canonicalInputs)) {
+                        assertBoolPublication(recovered, 3, 1, 0, 0, 0, 0, 0);
+                    }
+                    Object recovery = events.getLast().payload();
+                    assertEquals("SUCCEEDED", enumName(component(recovery, "status")));
+                    assertEquals("CUSTOM_KERNEL", enumName(component(recovery, "route")));
+                }
+            }
+        }
+    }
+
+    @Test
     void cpuFreeAcceleratorMetalRunsTask0052CustomPartitionsThroughPublicEngine()
             throws Exception {
         Path library = configuredMetalLibrary();
@@ -1698,6 +1823,17 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 expected);
     }
 
+    private static void assertBoolPublication(
+            io.github.pho001.synaptik.engine.RunResult result,
+            int publicationIndex,
+            int... expected) {
+        ByteBuffer bytes = result.materialize(
+                result.publications().get(publicationIndex), expected.length).bytes();
+        for (int value : expected) {
+            assertEquals(value, Byte.toUnsignedInt(bytes.get()));
+        }
+    }
+
 
     private static void assertAffineResults(
             InferenceSession session, List<Tensor> inputs, List<int[]> expected) {
@@ -1787,6 +1923,23 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 Optional.empty(),
                 Optional.of(new MemorySegmentStorage(
                         DataType.INT32, values.length, segment)));
+    }
+
+    private static Tensor nativeBoolTensor(Shape shape, Arena arena, int... values) {
+        TensorDescriptor descriptor = new TensorDescriptor(
+                DataType.BOOL,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                false);
+        var segment = arena.allocate(values.length, 1);
+        for (int index = 0; index < values.length; index++) {
+            segment.setAtIndex(ValueLayout.JAVA_BYTE, index, (byte) values[index]);
+        }
+        return TensorFactory.create(
+                descriptor,
+                Optional.empty(),
+                Optional.of(new MemorySegmentStorage(
+                        DataType.BOOL, values.length, segment)));
     }
 
     private static ModelAutotuningRequest tuningRequest(

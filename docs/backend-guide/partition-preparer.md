@@ -536,14 +536,14 @@ combination before route analysis, preserves the strict-subset capability invari
 eligible route stays within Model's result set, and retains the profile in every plan and
 compatibility identity that could otherwise be reused. CPU admits both profiles with identical
 exact routes and distinct identities.
-Metal admits canonical NEG/ABS/affine/CONTIGUOUS, bounded FLOAT32 UNFOLD_AXIS, and exact typed
-GATHER, ONE_HOT, and SCATTER_ELEMENTS/NONE under both profiles. Accelerator additionally admits
-the existing arithmetic/reduction/MATMUL rows and the exact Task-0052 comparisons, extrema,
-scalar/clamp, reduction-extrema, and scan rows. The preparer authenticates local MATMUL transposes,
-keeps comparison BOOL values as direct targets, and declares every internal logical value for a
-Task-0052 whole-program route. It preserves typed ingress, target and internal byte geometry,
-window/index obligations, and the profile in the schema-thirteen/version-fourteen route identity
-without widening capability.
+Metal admits canonical NEG/ABS/affine/CONTIGUOUS, bounded FLOAT32 UNFOLD_AXIS, exact typed
+GATHER, ONE_HOT, SCATTER_ELEMENTS/NONE, FLOAT32 classification, BOOL logic, and FLOAT32 WHERE under
+both profiles. Accelerator additionally admits the existing arithmetic/reduction/MATMUL rows and
+the exact Task-0052 comparisons, extrema, scalar/clamp, reduction-extrema, and scan rows. The
+preparer authenticates local MATMUL transposes, keeps canonical BOOL values available to admitted
+logic/WHERE consumers, and declares every internal logical value for a shared custom-program
+route. It preserves typed ingress, target and internal byte geometry, window/index obligations,
+and the profile in the schema-fourteen/version-fifteen route identity without widening capability.
 
 Metal's one closed prepared-route identity owns the existing candidate wires `1..3` and the
 MPSGraph/custom-kernel family. Candidate serialization delegates to it. A returned plan retains one

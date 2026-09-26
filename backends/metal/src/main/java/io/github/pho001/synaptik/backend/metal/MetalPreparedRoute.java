@@ -18,8 +18,8 @@ enum MetalPreparedRoute {
     /** Whole-partition typed MPSGraph executable. */
     MPSGRAPH(2, Family.MPSGRAPH),
 
-    /** Whole-partition Task-0052 custom program. */
-    CUSTOM_TASK0052(3, Family.CUSTOM_KERNEL);
+    /** Whole-partition exact custom program shared by approved operation families. */
+    CUSTOM_PROGRAM(3, Family.CUSTOM_KERNEL);
 
     /** Closed implementation family used by trace and route-independent policy. */
     enum Family {
@@ -65,7 +65,7 @@ enum MetalPreparedRoute {
         return switch (wireIdentity) {
             case 1 -> Optional.of(CUSTOM_SINGLE_NEG);
             case 2 -> Optional.of(MPSGRAPH);
-            case 3 -> Optional.of(CUSTOM_TASK0052);
+            case 3 -> Optional.of(CUSTOM_PROGRAM);
             default -> Optional.empty();
         };
     }

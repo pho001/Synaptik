@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 
 class MetalOperationRouteCatalogTest {
     @Test
-    void exhaustivelyDescribesAllRegisteredOperationKindsWithoutChangingCapability() {
+    void exhaustivelyDescribesAllRegisteredOperationKindsAndExecutableCapability() {
         MetalMpsGraphProgram.NodeKind[] kinds = MetalMpsGraphProgram.NodeKind.values();
         assertEquals(115, kinds.length);
 
@@ -45,7 +45,7 @@ class MetalOperationRouteCatalogTest {
             }
             if (kind.executable()) executable++;
             assertEquals(
-                    kind == MetalMpsGraphProgram.NodeKind.NEG || kind.isTask0052Custom(),
+                    kind == MetalMpsGraphProgram.NodeKind.NEG || kind.isCustomProgramOperation(),
                     entry.customKernelState()
                             == MetalOperationRouteCatalog.CustomKernelState.AVAILABLE,
                     kind.name());
@@ -54,11 +54,11 @@ class MetalOperationRouteCatalogTest {
         assertEquals(76, direct);
         assertEquals(34, composed);
         assertEquals(5, unavailable);
-        assertEquals(16, customAvailable);
-        assertEquals(99, customPending);
+        assertEquals(23, customAvailable);
+        assertEquals(92, customPending);
         assertEquals(0, customUnavailableWithProof);
-        assertEquals(34, executable);
-        assertEquals(81, kinds.length - executable);
+        assertEquals(41, executable);
+        assertEquals(74, kinds.length - executable);
         assertThrows(NullPointerException.class, () -> MetalOperationRouteCatalog.entry(null));
     }
 
@@ -93,6 +93,12 @@ class MetalOperationRouteCatalogTest {
                 MetalOperationRouteCatalog.MpsGraphReason.MD_PRED,
                 MetalOperationRouteCatalog.CustomKernelState.AVAILABLE,
                 MetalOperationRouteCatalog.CustomKernelReason.CA_0052);
+        assertCatalog(
+                MetalMpsGraphProgram.NodeKind.IS_FINITE,
+                MetalOperationRouteCatalog.MpsGraphState.DIRECT,
+                MetalOperationRouteCatalog.MpsGraphReason.MD_PRED,
+                MetalOperationRouteCatalog.CustomKernelState.AVAILABLE,
+                MetalOperationRouteCatalog.CustomKernelReason.CA_0057);
         assertCatalog(
                 MetalMpsGraphProgram.NodeKind.CAST,
                 MetalOperationRouteCatalog.MpsGraphState.DIRECT,

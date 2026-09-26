@@ -1325,12 +1325,13 @@ losing earlier rollback suppression. Events contain only the bounded trace DTO f
 no native path, handle, Tensor value, shape, exception, free-form string, or generic map.
 
 Metal retains a custom route for an eligible singleton `NEG` under either profile. A supported
-ACCELERATOR partition containing any Task-0052 comparison/extrema/scalar/reduction-extrema/scan
-node uses the fixed custom whole-program resource with declared run-owned buffers and one
-synchronous Java/native invocation. Every other supported partition uses one typed whole-partition
-MPSGraph executable. The MATMUL domain also executes Compiler-generated explicitly seeded
-rank-two gradients for both operands through authenticated local transposes; this does not add
-scalar-loss or general training support.
+partition containing any Task-0052 node or exact FLOAT32 classification, BOOL logic, or FLOAT32
+WHERE node uses the fixed shared custom whole-program resource with declared run-owned buffers and
+one synchronous Java/native invocation. Existing MPSGraph-compatible nodes may remain nested in
+that recipe; there is no per-node fallback. Other supported partitions use one typed
+whole-partition MPSGraph executable. The MATMUL domain also executes Compiler-generated explicitly
+seeded rank-two gradients for both operands through authenticated local transposes; this does not
+add scalar-loss or general training support.
 
 `MetalLocalWorkloadTuning` publicly exposes opaque candidates, session compatibility, identities,
 decision encode/decode, and trial/selected `PartitionPreparation` for the exact two-route

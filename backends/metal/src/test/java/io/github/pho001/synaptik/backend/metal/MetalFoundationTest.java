@@ -515,9 +515,9 @@ class MetalFoundationTest {
         MetalMpsGraphProgram binary = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.binary(
                         MetalMpsGraphProgram.NodeKind.ADD, 0, 1, 2)));
-        assertThrows(IllegalArgumentException.class, () -> api.createMpsGraphExecutable(context, NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(new int[] {2, 1, 2}, binaryDimensions, binary), binary, new int[] {0, 1}, new int[] {2}));
+        assertThrows(IllegalArgumentException.class, () -> api.createMpsGraphExecutable(context, NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(new int[] {2, 1, 2}, binaryDimensions, binary), binary, new int[] {0, 1}, new int[] {2}, MetalPreparedRoute.MPSGRAPH));
         assertEquals(0, api.executableCreateCalls.get());
-        assertNotNull(api.createMpsGraphExecutable(context, NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(valid.ranks(), valid.dimensions(), valid.program()), valid.program(), valid.feeds(), valid.targets()));
+        assertNotNull(api.createMpsGraphExecutable(context, NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(valid.ranks(), valid.dimensions(), valid.program()), valid.program(), valid.feeds(), valid.targets(), MetalPreparedRoute.MPSGRAPH));
         assertEquals(1, api.executableCreateCalls.get());
     }
 
@@ -563,7 +563,7 @@ class MetalFoundationTest {
     private static void assertInvalidCreate(
             FakeNativeApi api, MetalNativeApi.Handle context, GraphCreate input) {
         int before = api.executableCreateCalls.get();
-        assertThrows(IllegalArgumentException.class, () -> api.createMpsGraphExecutable(context, NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(input.ranks(), input.dimensions(), input.program()), input.program(), input.feeds(), input.targets()));
+        assertThrows(IllegalArgumentException.class, () -> api.createMpsGraphExecutable(context, NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(input.ranks(), input.dimensions(), input.program()), input.program(), input.feeds(), input.targets(), MetalPreparedRoute.MPSGRAPH));
         assertEquals(before, api.executableCreateCalls.get());
     }
 

@@ -19,6 +19,9 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
+import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
+import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
 import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
@@ -100,6 +103,64 @@ class MetalNegRouteCandidateGeneratorTest {
             assertThrows(IllegalArgumentException.class,
                     () -> new MetalNegRouteCandidateGenerator().generate(
                             singleton.context(), generated.analysis().plan(), 0));
+            assertEquals(0, api.nativeAllocations.get());
+        }
+    }
+
+    @Test
+    void exactBoolOccurrencesLowerToFixedCustomProductionAndRemainDirectlyForceable() {
+        TestNativeApi api = new TestNativeApi();
+        try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
+            TensorDescriptor floats = canonical(DataType.FLOAT32, Shape.of(2, 3));
+            TensorDescriptor bools = canonical(DataType.BOOL, Shape.of(2, 3));
+            TensorDescriptor boolColumn = canonical(DataType.BOOL, Shape.of(2, 1));
+            TensorDescriptor boolRow = canonical(DataType.BOOL, Shape.of(3));
+            TensorDescriptor trueBranch = canonical(DataType.FLOAT32, Shape.of(2, 1));
+            TensorDescriptor falseBranch = canonical(DataType.FLOAT32, Shape.of(1, 3));
+            List<BoolCase> cases = List.of(
+                    new BoolCase(FloatingClassificationKind.IS_FINITE,
+                            List.of(floats), bools, MetalMpsGraphProgram.NodeKind.IS_FINITE),
+                    new BoolCase(FloatingClassificationKind.IS_NAN,
+                            List.of(floats), bools, MetalMpsGraphProgram.NodeKind.IS_NAN),
+                    new BoolCase(FloatingClassificationKind.IS_INF,
+                            List.of(floats), bools, MetalMpsGraphProgram.NodeKind.IS_INF),
+                    new BoolCase(BooleanLogicalKind.AND,
+                            List.of(boolColumn, boolRow), bools,
+                            MetalMpsGraphProgram.NodeKind.LOGICAL_AND),
+                    new BoolCase(BooleanLogicalKind.OR,
+                            List.of(boolColumn, boolRow), bools,
+                            MetalMpsGraphProgram.NodeKind.LOGICAL_OR),
+                    new BoolCase(BooleanLogicalKind.NOT,
+                            List.of(bools), bools, MetalMpsGraphProgram.NodeKind.LOGICAL_NOT),
+                    new BoolCase(WhereSelectionKind.WHERE,
+                            List.of(boolRow, trueBranch, falseBranch), floats,
+                            MetalMpsGraphProgram.NodeKind.WHERE));
+            long identity = 100_000L;
+            for (NumericalProfile profile : NumericalProfile.values()) {
+                for (BoolCase fixture : cases) {
+                    Workload workload = operationWorkload(
+                            device, identity++, profile,
+                            new Operation(fixture.kind(), NoOperationAttrs.INSTANCE),
+                            fixture.inputs(), fixture.output());
+                    Generated generated = generated(workload, 2);
+                    assertSame(MetalPreparedRoute.CUSTOM_PROGRAM,
+                            generated.analysis().plan().route());
+                    assertEquals(List.of(fixture.loweredKind()),
+                            generated.analysis().plan().graphProgram().nodes().stream()
+                                    .map(MetalMpsGraphProgram.Node::kind)
+                                    .toList());
+                    assertEquals(List.of(
+                            MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM,
+                            MetalNegTuningBatch.Candidate.MPSGRAPH),
+                            generated.batch().candidates());
+                    assertSame(MetalPreparedRoute.MPSGRAPH,
+                            new MetalNegPartitionPreparer()
+                                    .analyzeForTesting(
+                                            workload.context(), MetalPreparedRoute.MPSGRAPH)
+                                    .plan()
+                                    .route());
+                }
+            }
             assertEquals(0, api.nativeAllocations.get());
         }
     }
@@ -595,7 +656,7 @@ class MetalNegRouteCandidateGeneratorTest {
                 MetalPreparedRoute.CUSTOM_SINGLE_NEG.family());
         assertSame(MetalPreparedRoute.Family.MPSGRAPH, MetalPreparedRoute.MPSGRAPH.family());
         assertSame(MetalPreparedRoute.Family.CUSTOM_KERNEL,
-                MetalPreparedRoute.CUSTOM_TASK0052.family());
+                MetalPreparedRoute.CUSTOM_PROGRAM.family());
 
         var codec = new MetalNegTuningCodec();
         for (MetalNegTuningBatch.Candidate candidate : MetalNegTuningBatch.Candidate.values()) {
@@ -607,8 +668,8 @@ class MetalNegRouteCandidateGeneratorTest {
                     route.wireIdentity()).orElseThrow());
             assertArrayEquals(new byte[] {
                     0x4d, 0x4e, 0x43, 0x41,
-                    0x00, 0x00, 0x00, 0x0e,
-                    0x00, 0x00, 0x00, 0x0e,
+                    0x00, 0x00, 0x00, 0x0f,
+                    0x00, 0x00, 0x00, 0x0f,
                     0x00, 0x00, 0x00, (byte) route.wireIdentity()
             }, codec.encodeCandidate(candidate));
         }
@@ -630,14 +691,14 @@ class MetalNegRouteCandidateGeneratorTest {
                     MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
                     current.batch().compatibility(), MetalNegTuningBatch.Candidate.MPSGRAPH);
             var codec = new MetalNegTuningCodec();
-            assertEquals(14, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
-            assertEquals(14, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
-            assertEquals(14, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
+            assertEquals(15, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
+            assertEquals(15, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
+            assertEquals(15, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
             byte[] first = codec.encodeDecision(decision);
-            assertEquals(14, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
-            assertEquals(14, current.batch().compatibility().schemaVersion());
-            assertEquals(14, current.batch().compatibility().candidateSchemaVersion());
-            assertEquals(14, current.batch().compatibility().routePolicyVersion());
+            assertEquals(15, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
+            assertEquals(15, current.batch().compatibility().schemaVersion());
+            assertEquals(15, current.batch().compatibility().candidateSchemaVersion());
+            assertEquals(15, current.batch().compatibility().routePolicyVersion());
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());
@@ -923,6 +984,44 @@ class MetalNegRouteCandidateGeneratorTest {
                 Map.of(),
                 new MetalNegAnalysisInputs(device));
         return new Workload(context);
+    }
+
+    private static Workload operationWorkload(
+            MetalDeviceContext device,
+            long identityBase,
+            NumericalProfile profile,
+            Operation operation,
+            List<TensorDescriptor> inputDescriptors,
+            TensorDescriptor outputDescriptor) {
+        var inputs = new ArrayList<ValueId>(inputDescriptors.size());
+        var values = new ArrayList<GraphValue>(inputDescriptors.size() + 1);
+        for (int index = 0; index < inputDescriptors.size(); index++) {
+            ValueId input = new ValueId(identityBase + index);
+            inputs.add(input);
+            values.add(new GraphValue(input, inputDescriptors.get(index)));
+        }
+        ValueId output = new ValueId(identityBase + inputDescriptors.size());
+        values.add(new GraphValue(output, outputDescriptor));
+        CompiledNode node = new CompiledNode(
+                new NodeId(identityBase), operation, inputs, List.of(output));
+        PlannedPartition partition = new PlannedPartition(
+                MetalCapabilityProvider.METAL_BACKEND_ID, List.of(node.id()));
+        var requirements = new ArrayList<LogicalMemoryRequirement>(
+                inputDescriptors.size() + 1);
+        for (int index = 0; index < inputs.size(); index++) {
+            requirements.add(new LogicalMemoryRequirement(
+                    inputs.get(index), inputDescriptors.get(index), Optional.empty(),
+                    List.of(partition), false));
+        }
+        requirements.add(new LogicalMemoryRequirement(
+                output, outputDescriptor, Optional.of(partition), List.of(), true));
+        return new Workload(new PrepareContext<>(
+                profile,
+                new PartitionDag(partition, List.of(node)),
+                values,
+                requirements,
+                Map.of(),
+                new MetalNegAnalysisInputs(device)));
     }
 
     private static Workload scatterWorkload(
@@ -1255,6 +1354,12 @@ class MetalNegRouteCandidateGeneratorTest {
         changed[checksumOffset + 3] = (byte) crc;
         return changed;
     }
+
+    private record BoolCase(
+            io.github.pho001.synaptik.model.operation.OperationKind kind,
+            List<TensorDescriptor> inputs,
+            TensorDescriptor output,
+            MetalMpsGraphProgram.NodeKind loweredKind) { }
 
     record Workload(PrepareContext<MetalNegAnalysisInputs> context) { }
 

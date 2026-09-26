@@ -14,10 +14,13 @@ import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
+import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ClampRangeAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
+import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
 import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
 import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
@@ -794,6 +797,87 @@ class MetalCapabilityProviderTest {
                 descriptor(Shape.of(2, 3), true),
                 matrix,
                 matrix)), "requiresGrad stays excluded");
+    }
+
+    @Test
+    void admitsExactCanonicalBoolClassificationLogicAndWhereInBothProfiles() {
+        TensorDescriptor classifiedInput = typed(DataType.FLOAT32, Shape.of(2, 3), true);
+        TensorDescriptor boolMatrix = typed(DataType.BOOL, Shape.of(2, 3), false);
+        TensorDescriptor boolColumn = typed(DataType.BOOL, Shape.of(2, 1), false);
+        TensorDescriptor boolRow = typed(DataType.BOOL, Shape.of(3), false);
+        TensorDescriptor trueBranch = typed(DataType.FLOAT32, Shape.of(2, 1), true);
+        TensorDescriptor falseBranch = typed(DataType.FLOAT32, Shape.of(1, 3), false);
+        TensorDescriptor selected = typed(DataType.FLOAT32, Shape.of(2, 3), true);
+
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            for (FloatingClassificationKind kind : FloatingClassificationKind.values()) {
+                assertTrue(provider.supports(new OperationCapabilityQuery(
+                        profile,
+                        new Operation(kind, NoOperationAttrs.INSTANCE),
+                        List.of(classifiedInput),
+                        List.of(boolMatrix))), profile + " " + kind);
+            }
+            for (BooleanLogicalKind kind : List.of(
+                    BooleanLogicalKind.AND, BooleanLogicalKind.OR)) {
+                assertTrue(provider.supports(new OperationCapabilityQuery(
+                        profile,
+                        new Operation(kind, NoOperationAttrs.INSTANCE),
+                        List.of(boolColumn, boolRow),
+                        List.of(boolMatrix))), profile + " " + kind);
+            }
+            assertTrue(provider.supports(new OperationCapabilityQuery(
+                    profile,
+                    new Operation(BooleanLogicalKind.NOT, NoOperationAttrs.INSTANCE),
+                    List.of(boolMatrix),
+                    List.of(boolMatrix))));
+            assertTrue(provider.supports(new OperationCapabilityQuery(
+                    profile,
+                    new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE),
+                    List.of(boolRow, trueBranch, falseBranch),
+                    List.of(selected))));
+        }
+
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                new Operation(FloatingClassificationKind.IS_FINITE, NoOperationAttrs.INSTANCE),
+                List.of(classifiedInput),
+                List.of(typed(DataType.FLOAT32, Shape.of(2, 3), false)))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                new Operation(BooleanLogicalKind.AND, NoOperationAttrs.INSTANCE),
+                List.of(typed(DataType.FLOAT32, Shape.of(2, 1), false), boolRow),
+                List.of(boolMatrix))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE),
+                List.of(
+                        typed(DataType.BOOL, Shape.of(2), false),
+                        trueBranch,
+                        falseBranch),
+                List.of(selected))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE),
+                List.of(boolRow, trueBranch, falseBranch),
+                List.of(typed(DataType.FLOAT32, Shape.of(2, 3), false)))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE),
+                List.of(
+                        typed(DataType.BOOL, Shape.scalar(), false),
+                        trueBranch,
+                        falseBranch),
+                List.of(selected))),
+                "rank-zero BOOL constants stay outside the advertised Metal WHERE domain");
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE),
+                List.of(
+                        boolRow,
+                        typed(DataType.FLOAT32, Shape.scalar(), false),
+                        typed(DataType.FLOAT32, Shape.scalar(), false)),
+                List.of(typed(DataType.FLOAT32, Shape.scalar(), false)))),
+                "rank-zero FLOAT32 branches stay outside the advertised Metal WHERE domain");
     }
 
     @Test

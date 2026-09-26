@@ -11,9 +11,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-/** Immutable schema-thirteen Metal program and its canonical bounded image encoder. */
+/** Immutable schema-fourteen Metal program and its canonical bounded image encoder. */
 final class MetalMpsGraphProgram {
-    static final int SCHEMA_VERSION = 13;
+    static final int SCHEMA_VERSION = 14;
     static final int MAX_RANK = 16;
     static final int MAX_SELECTOR_EXPANSION = 16;
     static final int HEADER_BYTES = 64;
@@ -100,18 +100,18 @@ final class MetalMpsGraphProgram {
         CONV3D(37, 2, 3, 1, 1, AttributeKind.CONV_3D),
         TENSOR_POW(38, 2, 2, 1, 1, AttributeKind.NONE),
         CAST(39, 1, 1, 1, 1, AttributeKind.CAST_TARGET),
-        IS_FINITE(40, 1, 1, 1, 1, AttributeKind.NONE),
-        IS_NAN(41, 1, 1, 1, 1, AttributeKind.NONE),
-        IS_INF(42, 1, 1, 1, 1, AttributeKind.NONE),
-        LOGICAL_AND(43, 2, 2, 1, 1, AttributeKind.NONE),
-        LOGICAL_OR(44, 2, 2, 1, 1, AttributeKind.NONE),
-        LOGICAL_NOT(45, 1, 1, 1, 1, AttributeKind.NONE),
+        IS_FINITE(40, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
+        IS_NAN(41, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
+        IS_INF(42, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
+        LOGICAL_AND(43, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
+        LOGICAL_OR(44, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
+        LOGICAL_NOT(45, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         SCALAR_ADD(46, 1, 1, 1, 1, AttributeKind.SCALAR_VALUE),
         SCALAR_SUB(47, 1, 1, 1, 1, AttributeKind.SCALAR_VALUE),
         SCALAR_MUL(48, 1, 1, 1, 1, AttributeKind.SCALAR_VALUE),
         SCALAR_DIV(49, 1, 1, 1, 1, AttributeKind.SCALAR_VALUE),
         SCALAR_POW(50, 1, 1, 1, 1, AttributeKind.SCALAR_VALUE),
-        WHERE(51, 3, 3, 1, 1, AttributeKind.NONE),
+        WHERE(51, 3, 3, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         RECIPROCAL(52, 1, 1, 1, 1, AttributeKind.NONE),
         LOG(53, 1, 1, 1, 1, AttributeKind.NONE),
         LOG1P(54, 1, 1, 1, 1, AttributeKind.NONE),
@@ -217,7 +217,11 @@ final class MetalMpsGraphProgram {
         ValueState outputState() { return outputState; }
         boolean isAffine() { return outputState == ValueState.AFFINE_VIEW; }
         boolean executable() { return executable; }
-        boolean isTask0052Custom() { return wireIdentity >= 20 && wireIdentity <= 34; }
+        boolean isCustomProgramOperation() {
+            return wireIdentity >= 20 && wireIdentity <= 34
+                    || wireIdentity >= 40 && wireIdentity <= 45
+                    || wireIdentity == 51;
+        }
         boolean accepts(ValueState inputState) {
             return inputState == ValueState.CANONICAL
                     || (inputState == ValueState.AFFINE_VIEW && acceptsAffineView);
@@ -737,7 +741,7 @@ final class MetalMpsGraphProgram {
         int secondInputIndex() { return inputs.length >= 2 ? inputs[1] : NO_SECOND_INPUT; }
         int outputIndex() { return outputs[0]; }
         int auxiliary() {
-            if (kind == NodeKind.SCATTER_ELEMENTS) return inputs[2];
+            if (kind == NodeKind.SCATTER_ELEMENTS || kind == NodeKind.WHERE) return inputs[2];
             if (attributeKind == AttributeKind.REDUCTION) return Math.toIntExact(attributeWords[1]);
             return 0;
         }
@@ -782,24 +786,43 @@ final class MetalMpsGraphProgram {
 
     List<Node> nodes() { return nodes; }
 
-    MemorySegment encodeNative(Arena arena, List<ValueDescriptor> values, int[] feeds, int[] targets) {
+    MemorySegment encodeNative(
+            Arena arena,
+            List<ValueDescriptor> values,
+            int[] feeds,
+            int[] targets,
+            MetalPreparedRoute route) {
         Objects.requireNonNull(arena, "arena");
         Layout layout = layout(values, feeds, targets);
         MemorySegment segment = arena.allocate(layout.totalBytes, Long.BYTES);
-        write(segment.asByteBuffer().order(ByteOrder.LITTLE_ENDIAN), values, feeds, targets, layout);
+        write(segment.asByteBuffer().order(ByteOrder.LITTLE_ENDIAN),
+                values, feeds, targets, layout, route);
         return segment;
     }
 
     byte[] encodedProgramImage(List<ValueDescriptor> values, int[] feeds, int[] targets) {
+        return encodedProgramImage(values, feeds, targets, MetalPreparedRoute.MPSGRAPH);
+    }
+
+    byte[] encodedProgramImage(
+            List<ValueDescriptor> values,
+            int[] feeds,
+            int[] targets,
+            MetalPreparedRoute route) {
         Layout layout = layout(values, feeds, targets);
         ByteBuffer buffer = ByteBuffer.allocate(layout.totalBytes).order(ByteOrder.LITTLE_ENDIAN);
-        write(buffer, values, feeds, targets, layout);
+        write(buffer, values, feeds, targets, layout, route);
         return buffer.array();
     }
 
-    void updateDigest(MessageDigest digest, List<ValueDescriptor> values, int[] feeds, int[] targets) {
+    void updateDigest(
+            MessageDigest digest,
+            List<ValueDescriptor> values,
+            int[] feeds,
+            int[] targets,
+            MetalPreparedRoute route) {
         Objects.requireNonNull(digest, "digest");
-        digest.update(encodedProgramImage(values, feeds, targets));
+        digest.update(encodedProgramImage(values, feeds, targets, route));
     }
 
     private Layout layout(List<ValueDescriptor> values, int[] feeds, int[] targets) {
@@ -878,11 +901,17 @@ final class MetalMpsGraphProgram {
         }
     }
 
-    private void write(ByteBuffer out, List<ValueDescriptor> values, int[] feeds, int[] targets, Layout layout) {
+    private void write(ByteBuffer out, List<ValueDescriptor> values, int[] feeds, int[] targets,
+            Layout layout, MetalPreparedRoute route) {
+        Objects.requireNonNull(route, "route");
+        if (route == MetalPreparedRoute.CUSTOM_SINGLE_NEG) {
+            throw new IllegalArgumentException("singleton custom NEG does not use a program image");
+        }
         out.putInt(MAGIC).putInt(SCHEMA_VERSION).putInt(layout.totalBytes)
                 .putInt(values.size()).putInt(nodes.size()).putInt(feeds.length).putInt(targets.length)
-                .putInt(layout.dimensionCount).putInt(layout.referenceCount).putInt(layout.attributeCount);
-        for (int i = 0; i < 6; i++) out.putInt(0);
+                .putInt(layout.dimensionCount).putInt(layout.referenceCount).putInt(layout.attributeCount)
+                .putInt(route.wireIdentity());
+        for (int i = 0; i < 5; i++) out.putInt(0);
         int dimensionOffset = 0;
         for (ValueDescriptor value : values) {
             out.putInt(dataTypeWire(value.dataType())).putInt(value.rank()).putInt(dimensionOffset)

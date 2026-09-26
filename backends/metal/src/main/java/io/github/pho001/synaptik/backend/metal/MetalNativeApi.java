@@ -123,8 +123,8 @@ abstract class MetalNativeApi implements AutoCloseable {
      *
      * @param context non-null live context whose ownership remains with the caller
      * @param numericalProfile non-null cold plan profile used by Java fail-closed preflight
-     * @param values non-null explicit schema-thirteen value descriptors
-     * @param graphProgram non-null schema-thirteen typed node program
+     * @param values non-null explicit schema-fourteen value descriptors
+     * @param graphProgram non-null schema-fourteen typed node program
      * @param feedValueIndices non-null stable feed value indices
      * @param targetValueIndices non-null stable target value indices
      * @return a fresh non-null opaque executable handle owned by the caller
@@ -135,13 +135,14 @@ abstract class MetalNativeApi implements AutoCloseable {
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             MetalMpsGraphProgram graphProgram,
             int[] feedValueIndices,
-            int[] targetValueIndices) {
+            int[] targetValueIndices,
+            MetalPreparedRoute route) {
         Objects.requireNonNull(context, "context");
         MpsGraphExecutableAbi.validateCreate(
-                numericalProfile, values, graphProgram, feedValueIndices, targetValueIndices);
+                numericalProfile, values, graphProgram, feedValueIndices, targetValueIndices, route);
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment image =
-                    graphProgram.encodeNative(arena, values, feedValueIndices, targetValueIndices);
+            MemorySegment image = graphProgram.encodeNative(
+                    arena, values, feedValueIndices, targetValueIndices, route);
             NativeCreateResult result = Objects.requireNonNull(
                     createMpsGraphExecutableNative(context, image),
                     "native executable create result");
@@ -153,7 +154,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * Performs one already validated ABI-v5 program-image create invocation synchronously.
      *
      * @param context non-null live context whose ownership remains with the caller
-     * @param programImage exact readable schema-thirteen image, valid only for this call
+     * @param programImage exact readable schema-fourteen image, valid only for this call
      * @return non-null raw status/output-cell result for checked interpretation
      */
     abstract NativeCreateResult createMpsGraphExecutableNative(
@@ -185,7 +186,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      *
      * @param executable non-null live executable whose ownership remains with the caller
      * @param inputBuffers non-null stable input handles: feed order for MPSGraph, complete stable
-     *     value-table order for Task-0052 custom programs
+     *     value-table order for shared custom programs
      * @param outputBuffers non-null stable target-ordered live buffer handles
      * @throws RuntimeException if validation or synchronous execution fails
      */
@@ -485,12 +486,18 @@ abstract class MetalNativeApi implements AutoCloseable {
                 List<MetalMpsGraphProgram.ValueDescriptor> values,
                 MetalMpsGraphProgram graphProgram,
                 int[] feeds,
-                int[] targets) {
+                int[] targets,
+                MetalPreparedRoute route) {
             Objects.requireNonNull(numericalProfile, "numericalProfile");
             Objects.requireNonNull(values, "values");
             Objects.requireNonNull(graphProgram, "graphProgram");
             Objects.requireNonNull(feeds, "feedValueIndices");
             Objects.requireNonNull(targets, "targetValueIndices");
+            Objects.requireNonNull(route, "route");
+            if (route == MetalPreparedRoute.CUSTOM_SINGLE_NEG) {
+                throw new IllegalArgumentException(
+                        "singleton custom NEG does not use the program executable");
+            }
             int valueCount = values.size();
             if (valueCount == 0) {
                 throw new IllegalArgumentException("Metal MPSGraph value count must be positive");
@@ -537,6 +544,20 @@ abstract class MetalNativeApi implements AutoCloseable {
                             "Metal MPSGraph node kind is incompatible with numerical profile");
                 }
             }
+            boolean containsCustomOperation = graphProgram.nodes().stream()
+                    .anyMatch(node -> node.kind().isCustomProgramOperation());
+            if (route == MetalPreparedRoute.CUSTOM_PROGRAM && !containsCustomOperation) {
+                throw new IllegalArgumentException(
+                        "custom Metal program route requires a custom operation");
+            }
+            if (route == MetalPreparedRoute.MPSGRAPH
+                    && graphProgram.nodes().stream().anyMatch(node -> {
+                        int wire = node.kind().wireIdentity();
+                        return wire >= 20 && wire <= 34;
+                    })) {
+                throw new IllegalArgumentException(
+                        "custom-only operations have no approved direct MPSGraph route");
+            }
             for (MetalMpsGraphProgram.Node node : graphProgram.nodes()) {
                 int left = node.firstInputIndex();
                 int right = node.secondInputIndex();
@@ -553,12 +574,13 @@ abstract class MetalNativeApi implements AutoCloseable {
                             "Metal MPSGraph node outputs must be unique and not feeds");
                 }
                 switch (node.kind()) {
-                    case NEG, ABS, CONTIGUOUS, SCALAR_MIN, SCALAR_MAX, CLAMP, CUM_SUM, CUM_PROD ->
+                    case NEG, ABS, CONTIGUOUS, SCALAR_MIN, SCALAR_MAX, CLAMP, CUM_SUM, CUM_PROD,
+                            IS_FINITE, IS_NAN, IS_INF, LOGICAL_NOT ->
                             requireShape(
                                     sameShape(left, output, valueRanks, valueDimensions),
                                     node.kind() + " input/output shapes must match exactly");
                     case ADD, SUB, MUL, DIV, GT, GE, LT, LE, EQ, NE,
-                            TENSOR_MIN, TENSOR_MAX -> {
+                            TENSOR_MIN, TENSOR_MAX, LOGICAL_AND, LOGICAL_OR -> {
                         requireIndex(right, valueCount, "second node input");
                         if (!node.kind().accepts(states[right])) {
                             throw new IllegalArgumentException(
@@ -568,6 +590,22 @@ abstract class MetalNativeApi implements AutoCloseable {
                                 broadcastsTo(left, right, output, valueRanks, valueDimensions),
                                 "binary output must equal exact right-aligned broadcast");
                         used[right] = true;
+                    }
+                    case WHERE -> {
+                        requireIndex(right, valueCount, "true branch input");
+                        requireIndex(auxiliary, valueCount, "false branch input");
+                        if (!node.kind().accepts(states[right])
+                                || !node.kind().accepts(states[auxiliary])) {
+                            throw new IllegalArgumentException(
+                                    "WHERE inputs must be positive-rank canonical");
+                        }
+                        requireShape(
+                                broadcastsTo(right, auxiliary, output, valueRanks, valueDimensions)
+                                        && broadcastsTo(
+                                                left, output, output, valueRanks, valueDimensions),
+                                "WHERE output must equal branch-first and condition-second broadcast");
+                        used[right] = true;
+                        used[auxiliary] = true;
                     }
                     case RESHAPE -> {
                         requireShape(
@@ -679,6 +717,25 @@ abstract class MetalNativeApi implements AutoCloseable {
                             SQUEEZE, SUM, MEAN, REDUCTION_MIN, REDUCTION_MAX,
                             SCALAR_MIN, SCALAR_MAX, CLAMP, CUM_SUM, CUM_PROD, UNFOLD_AXIS -> {
                         requireType(types, left, ValueType.FLOAT32);
+                        requireType(types, output, ValueType.FLOAT32);
+                    }
+                    case IS_FINITE, IS_NAN, IS_INF -> {
+                        requireType(types, left, ValueType.FLOAT32);
+                        requireType(types, output, ValueType.BOOL);
+                    }
+                    case LOGICAL_NOT -> {
+                        requireType(types, left, ValueType.BOOL);
+                        requireType(types, output, ValueType.BOOL);
+                    }
+                    case LOGICAL_AND, LOGICAL_OR -> {
+                        requireType(types, left, ValueType.BOOL);
+                        requireType(types, right, ValueType.BOOL);
+                        requireType(types, output, ValueType.BOOL);
+                    }
+                    case WHERE -> {
+                        requireType(types, left, ValueType.BOOL);
+                        requireType(types, right, ValueType.FLOAT32);
+                        requireType(types, auxiliary, ValueType.FLOAT32);
                         requireType(types, output, ValueType.FLOAT32);
                     }
                     case ADD, SUB, MUL, DIV, TENSOR_MIN, TENSOR_MAX, MATMUL -> {
@@ -808,7 +865,9 @@ abstract class MetalNativeApi implements AutoCloseable {
             return switch (numericalProfile) {
                 case STRICT_IEEE -> switch (kind) {
                     case NEG, ABS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE,
-                            CONTIGUOUS, GATHER, ONE_HOT, SCATTER_ELEMENTS, UNFOLD_AXIS -> true;
+                            CONTIGUOUS, GATHER, ONE_HOT, SCATTER_ELEMENTS, UNFOLD_AXIS,
+                            IS_FINITE, IS_NAN, IS_INF, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT,
+                            WHERE -> true;
                     default -> false;
                 };
                 case ACCELERATOR -> true;
