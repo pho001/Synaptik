@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0059; 0053 Blocked | [Metal 0059](backends/metal/tasks/0059-casts-layout-indexing.md) completed from cutover plan `6478d249` through cumulative remediation `02a097eb`; independent Class C review returned `APPROVE` with zero P0/P1/P2. Production is exact `61 true / 54 false` and structural coverage is `79 / 36`. All-carrier SELECT and positive-step SLICE accept resolved positive-stride non-overlapping layouts; unresolved, zero/negative-stride, overlapping, out-of-span, gradient, scatter/slice-update/fold, dynamic, and unproved conversion domains remain false. Schema 15, identity 16, ABI 5, and thirteen exports are fixed. No Metal task is Ready. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Task 0060 Ready; Complete through Task 0059; 0053 Blocked | [Metal 0060](backends/metal/tasks/0060-exact-replacement-fold-and-aggregate-reductions.md) is the sole active production plan from clean `f3ad5e12`. It targets exact replacement SCATTER_ND/SLICE_UPDATE, non-overlap exact-copy folds, modular integer PROD, BOOL ALL/ANY, and eight aggregate MPSGraph structures: capability `69/46`, structural execution `87/28`. Additive SCATTER_ADD, overlap reductions, ARG extrema/ordering, advanced floating aggregates, and pool wires `97..100` remain false or deferred. Schema 15, identity 16, ABI 5, and thirteen exports remain fixed. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -327,6 +327,8 @@ The active semantic and Metal serial DAG is:
 `Metal 0057 (Complete) + approved tensor arithmetic/result-set contracts -> Metal 0058 (Complete)`
 
 `Metal 0058 (Complete) + current cast/layout/indexing contracts -> Metal 0059 (Complete)`
+
+`Metal 0059 (Complete) + current replacement/fold/aggregate contracts -> Metal 0060 (Ready)`
 
 `Metal 0022/0023/0024/0025 (Complete) + finalized evidence through Metal 0037 -> Metal 0038 (Complete)`
 
@@ -653,17 +655,17 @@ matrix with narrowing, or infer capability from registered schema.
 
 ## Nearest next step
 
-No Metal task is Ready. Metal Task 0059 completed from schema/layout cutover plan `6478d249`
-through implementation/proof `783eabe1`, package/docs remediation `ac0db5c4`, BOOL proof
-`536e52b8`, and cumulative review remediation `02a097eb`; independent Class C review of
-`6478d249..02a097eb` returned `APPROVE` with zero P0/P1/P2. Production is exact
-`61 true / 54 false`: the earlier nineteen CAST pairs, exact `GATHER_ELEMENTS`/`GATHER_ND`, six
-copy-only layout routes, plus all-carrier SELECT and positive-step SLICE over exact resolved
-positive-stride non-overlapping storage layouts. Unresolved, zero/negative-stride, overlapping,
-out-of-span, gradient-bearing, scatter, slice-update, fold, dynamic/empty, and unproved CAST
-domains remain false. Structural execution is exact `79 / 36`. Schema 15, identity 16, ABI 5, and
-thirteen exports are fixed; no fallback, retry, timing, autotuning, or final full build was used.
-Task-0053 `EXP`/`SIGMOID` remain untouched and Blocked.
+Metal Task 0060 is Ready from clean `f3ad5e12` and is the sole active Metal production scope. Its
+exact inventory is wires `70`, `72`, `76`, `80`, `82`, `84`, and `106..115`; pool wires
+`97..100` remain deferred. Production may admit only `SCATTER_ND/NONE` with complete bounds and
+global uniqueness, exact `SLICE_UPDATE`, structurally non-overlapping copy/zero-fill folds,
+modular integer PROD, and exact BOOL ALL/ANY. The target is `69 true / 46 false`. Additive
+SCATTER_ADD, all scatter reduction variants, overlapping folds, ARG extrema, and floating
+PROD/log-sum-exp/variance/standard-deviation/norm production remain false with explicit blockers.
+Eight forceable aggregate MPSGraph recipes target structural execution `87 / 28` without widening
+production. Schema 15, identity 16, ABI 5, and thirteen exports remain fixed. There is no fallback,
+retry, autotuning, timing, or final full repository build; implementation must finish with
+independent cumulative Class C approval and zero P0/P1/P2.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
