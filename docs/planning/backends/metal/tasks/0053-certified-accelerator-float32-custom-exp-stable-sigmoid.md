@@ -2,13 +2,16 @@
 
 ## Status
 
-In progress
+Blocked
 
-The user authorized execution after the schema-13 dual-route catalog and fixed-route identity
-landed. Full Xcode, local timing, and a comparative cost gate are not prerequisites. Installed
-offline tools are pinned to Lean `4.34.1` commit
-`5045d0056413266e57c625dcd7c365b10e377c52`, Sollya `8.0`, MPFI `1.5.4`, MPFR `4.2.2`, and GMP
-`6.3.0`. The retained proof manifest must bind their executable identities and exact commands.
+The retained finite certificate and integer-only raw-word candidate passed their structural,
+algebraic, source-audit, and independent all-`2^32` corroboration checkpoints, but no pinned
+no-axiom constructive-real exponential bridge is available to prove the required Taylor
+enclosures, exponential identities, range reduction, reconstruction error, and binary32 rounding.
+The independent checkpoint review found no P0/P1/P2 issue and explicitly did not grant
+`DOMAIN-PASS`. Production capability, compiled-MSL audit, and device execution therefore remain
+fail-closed. Work may resume only when that external proof prerequisite exists; Task 0057 is the
+active serialized Metal frontier.
 
 The concrete custom candidate uses raw-bit classification and integer/fixed-point arithmetic only;
 the native boundary may load and store raw words but may not rely on ungrounded GPU FLOAT32
@@ -496,7 +499,7 @@ source/proof identity, compiler-site, prepared-route, native lifecycle, and no-f
 
 ## Result
 
-Execution remains In progress from exact clean base `fa9387e0`. One shared integer core is expanded
+Execution is Blocked after the retained checkpoint from exact clean base `fa9387e0`. One shared integer core is expanded
 into the MSL NSString and included directly by the C checker model, eliminating the duplicate
 algorithm. Its signed-magnitude conversion, shifts, products, additions/subtractions, table index,
 and pack paths are explicitly guarded or saturating outside the admitted range. Retained evidence
