@@ -77,7 +77,9 @@ final class MetalNegCapabilityPartitionConformanceTest {
             boolean supported = kind == BinaryArithmeticKind.ADD
                     || kind == BinaryArithmeticKind.SUB
                     || kind == BinaryArithmeticKind.MUL
-                    || kind == BinaryArithmeticKind.DIV;
+                    || kind == BinaryArithmeticKind.DIV
+                    || kind == BinaryArithmeticKind.MIN
+                    || kind == BinaryArithmeticKind.MAX;
             assertFalse(provider.supports(query(
                     NumericalProfile.STRICT_IEEE,
                     operation(kind),
@@ -108,7 +110,9 @@ final class MetalNegCapabilityPartitionConformanceTest {
                     "strict " + kind);
             assertEquals(
                     kind == AggregateReductionKind.SUM
-                            || kind == AggregateReductionKind.MEAN,
+                            || kind == AggregateReductionKind.MEAN
+                            || kind == AggregateReductionKind.MIN
+                            || kind == AggregateReductionKind.MAX,
                     provider.supports(query(
                             NumericalProfile.ACCELERATOR,
                             full,
