@@ -226,6 +226,8 @@ closed MPSGraph state/reason and custom-kernel state/reason values: MPSGraph tot
 `16 AVAILABLE / 99 PENDING / 0 UNAVAILABLE_WITH_PROOF`. The normative
 [per-wire evidence audit](../planning/backends/metal/tasks/0056-route-evidence-audit.md) supplies
 the exact installed-SDK selector or finite composition and current Model source for every row.
+The closed MPSGraph reasons include a dedicated `MD_CAST` identity for wire 39, matching
+`SHAPE::castTensor:toType:name:` rather than classifying that selector as arithmetic.
 This catalog performs no capability admission and no selection. It is never consulted by Runtime;
 all 81 registered-but-nonexecutable kinds remain capability-false even when the catalog records a
 structurally direct or composed MPSGraph realization.

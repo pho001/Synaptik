@@ -96,7 +96,7 @@ class MetalOperationRouteCatalogTest {
         assertCatalog(
                 MetalMpsGraphProgram.NodeKind.CAST,
                 MetalOperationRouteCatalog.MpsGraphState.DIRECT,
-                MetalOperationRouteCatalog.MpsGraphReason.MD_ARITH,
+                MetalOperationRouteCatalog.MpsGraphReason.MD_CAST,
                 MetalOperationRouteCatalog.CustomKernelState.PENDING,
                 MetalOperationRouteCatalog.CustomKernelReason.CP_POINT);
         assertCatalog(

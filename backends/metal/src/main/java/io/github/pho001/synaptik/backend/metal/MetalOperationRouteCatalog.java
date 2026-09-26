@@ -29,6 +29,7 @@ final class MetalOperationRouteCatalog {
     /** Closed structural reason identities for the MPSGraph state. */
     enum MpsGraphReason {
         MD_ARITH,
+        MD_CAST,
         MD_PRED,
         MD_SHAPE,
         MD_REDUCE,
@@ -84,6 +85,8 @@ final class MetalOperationRouteCatalog {
         DIRECT_ARITH_CUSTOM_NEG(MpsGraphState.DIRECT, MpsGraphReason.MD_ARITH,
                 CustomKernelState.AVAILABLE, CustomKernelReason.CA_NEG),
         DIRECT_ARITH_PENDING_POINT(MpsGraphState.DIRECT, MpsGraphReason.MD_ARITH,
+                CustomKernelState.PENDING, CustomKernelReason.CP_POINT),
+        DIRECT_CAST_PENDING_POINT(MpsGraphState.DIRECT, MpsGraphReason.MD_CAST,
                 CustomKernelState.PENDING, CustomKernelReason.CP_POINT),
         DIRECT_SHAPE_PENDING_MOVE(MpsGraphState.DIRECT, MpsGraphReason.MD_SHAPE,
                 CustomKernelState.PENDING, CustomKernelReason.CP_MOVE),
@@ -221,7 +224,8 @@ final class MetalOperationRouteCatalog {
     static Entry entry(MetalMpsGraphProgram.NodeKind kind) {
         return switch (Objects.requireNonNull(kind, "kind")) {
             case NEG -> Entry.DIRECT_ARITH_CUSTOM_NEG;
-            case ADD, SUB, MUL, DIV, TENSOR_POW, CAST -> Entry.DIRECT_ARITH_PENDING_POINT;
+            case ADD, SUB, MUL, DIV, TENSOR_POW -> Entry.DIRECT_ARITH_PENDING_POINT;
+            case CAST -> Entry.DIRECT_CAST_PENDING_POINT;
             case RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, CONTIGUOUS,
                     PAD, SLICE, SLICE_UPDATE, CONCAT, TILE -> Entry.DIRECT_SHAPE_PENDING_MOVE;
             case ABS, RECIPROCAL, LOG, EXP, ERF, SQRT, RSQRT, FLOOR, CEIL, SIGN,

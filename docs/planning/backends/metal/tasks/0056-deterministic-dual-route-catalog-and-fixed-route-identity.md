@@ -5,11 +5,14 @@
 Complete
 
 Implemented at `4f35576c` with the focused conformance-matrix correction `4a5cbdef` and
-independent-review remediation `1718b28a`. The Class C reviewer found one P2 decision-empty
-handoff-authentication gap, verified the remediation and its foreign-session/changed-workload
-regressions, then returned final `APPROVE` with zero remaining findings. Task 0055 remains Complete
-at `ddeff1b2`; the signed-32 native program-image remediation remains Complete at `ce569b65`, and
-the ABI/schema documentation remediations remain Complete at `486ff493` plus `5b80d37c`.
+independent-review remediation `1718b28a`. The Class C reviewer found and approved remediation of
+one P2 decision-empty handoff-authentication gap. A follow-up external final review then found a
+separate P2 catalog-description mismatch: wire 39 used the arithmetic reason despite the normative
+`M-CAST` evidence and installed `SHAPE::castTensor:toType:name:` selector. The catalog, exhaustive
+test, and documentation now use the dedicated closed `MD_CAST` reason with no behavior or
+capability change. Task 0055 remains Complete at `ddeff1b2`; the signed-32 native program-image
+remediation remains Complete at `ce569b65`, and the ABI/schema documentation remediations remain
+Complete at `486ff493` plus `5b80d37c`.
 
 The normative [per-wire route-evidence audit](0056-route-evidence-audit.md) remains part of this
 task. It resolves every row to an exact installed-SDK selector or finite selector composition and
@@ -140,6 +143,7 @@ strings. The task document owns their exact interpretation.
 | Code | Exact structural reason |
 |---|---|
 | `MD-ARITH` | One named arithmetic selector matches an exact bounded occurrence. |
+| `MD-CAST` | The named cast selector maps the exact bounded dtype conversion. |
 | `MD-PRED` | One classification, comparison, logical, or conditional selector matches. |
 | `MD-SHAPE` | One reshape/broadcast/transpose/expand/squeeze/pad/slice/update/concat/tile selector matches; current `CONTIGUOUS` uses same-shape `reshapeTensor` materialization. |
 | `MD-REDUCE` | One reduction/mean/variance/cumulative selector matches; arg selectors require the cast composition code instead. |
@@ -229,7 +233,7 @@ Every wire `1..115` occurs exactly once. `M` is the MPSGraph state/reason; `C` i
 | 36 | `Conv2dKind.CONV2D` | `DIRECT / MD-CONV-BASE` | `PENDING / CP-CONTRACT` |
 | 37 | `Conv3dKind.CONV3D` | `DIRECT / MD-CONV-BASE` | `PENDING / CP-CONTRACT` |
 | 38 | `BinaryArithmeticKind.POW` | `DIRECT / MD-ARITH` | `PENDING / CP-POINT` |
-| 39 | `CastKind.CAST` | `DIRECT / MD-ARITH` | `PENDING / CP-POINT` |
+| 39 | `CastKind.CAST` | `DIRECT / MD-CAST` | `PENDING / CP-POINT` |
 | 40 | `FloatingClassificationKind.IS_FINITE` | `DIRECT / MD-PRED` | `PENDING / CP-POINT` |
 | 41 | `FloatingClassificationKind.IS_NAN` | `DIRECT / MD-PRED` | `PENDING / CP-POINT` |
 | 42 | `FloatingClassificationKind.IS_INF` | `DIRECT / MD-PRED` | `PENDING / CP-POINT` |
@@ -556,3 +560,7 @@ Task 0056 may become `Complete` only when:
 - Independent Class C review found one P2 empty-handoff authentication defect. Remediation
   `1718b28a` authenticates exact partition and compatibility before optional-decision inspection
   or route forcing; final re-review returned `APPROVE` with zero remaining findings.
+- Follow-up external final review found the separate wire-39 cast-reason mismatch. The dedicated
+  closed `MD_CAST` correction aligns the catalog with `M-CAST` and
+  `SHAPE::castTensor:toType:name:`; exhaustive catalog coverage still passes and capability remains
+  `34 true / 81 false`.
