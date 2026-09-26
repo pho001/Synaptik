@@ -2,10 +2,10 @@
 
 ## Status
 
-Complete
+Active
 
-Planned from clean base `118aedca` at `6181299a`, reviewed at `c6145b09`, implemented at
-`13a2e540`, and documented at `ac261e88`.
+The original bounded implementation completed through `5760901b`. A follow-on authorization
+reopens Task 0058 for the exact ACCELERATOR no-gradient scalar/reciprocal subset below.
 
 ## Change class
 
@@ -254,3 +254,28 @@ The independent cumulative Class C rereview approved the clean checkpoint with z
 findings. It verified the exhaustive Gate-A proof, public/lifecycle/custom route, fail-closed
 Gates B/C/D and Task-0053 isolation, `45/70` capability, `62/53` structural registry,
 schema 14, identity 15, ABI 5, route wire 3, and thirteen exports.
+
+## Authorized no-gradient scalar/reciprocal extension
+
+Admit wires `46 SCALAR_ADD`, `47 SCALAR_SUB`, `48 SCALAR_MUL`, `49 SCALAR_DIV`, and
+`52 RECIPROCAL` only for canonical positive-rank FLOAT32 ACCELERATOR occurrences whose input and
+output both have `requiresGrad=false`. Wire `50 SCALAR_POW` and every other blocker remain false.
+The exact full-Shape raw scalar (or raw `1.0f` numerator for reciprocal) is therefore also
+non-gradient and satisfies the already-approved tensor primitive's equal-gradient precondition
+without synthetic metadata, a hidden primitive bypass, or occurrence reinterpretation.
+
+Each lowering has exactly one approved tensor primitive site and no constant folding:
+`input op scalar` for scalar ADD/SUB/MUL/DIV, preserving source operand order, and `1/input` through
+tensor DIV for RECIPROCAL. Materialize the scalar as exact repeated raw FLOAT32 bytes at the full
+output Shape. The schema/program and workload identity must bind source wire, exact
+`ScalarValueAttrs` type/raw bits where present, Shape, operand order, generated splat bytes, and
+lowered primitive opcode. Retain schema 14 and identity 15 only if their existing encoded bytes
+already bind every fact; otherwise perform one clean version bump.
+
+Prove special scalar metadata for both zeros, signed subnormals, infinities, and NaNs; subtraction
+and division operand order; division by both zero signs; stale-identity rejection; public
+Metal-only Engine execution; and rejection of every `requiresGrad=true` occurrence before native
+creation. Update the capability ledger from `45/70` to exactly `50 true / 65 false`, preserve
+`62 executable / 53 nonexecutable` structural coverage, run focused verification without timing or
+a final full build, and obtain a fresh independent cumulative Class C approval before returning
+this task to Complete.
