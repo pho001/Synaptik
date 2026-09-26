@@ -584,16 +584,16 @@ abstract class MetalNativeApi implements AutoCloseable {
                     }
                     used[input] = true;
                 }
-                if (task0059Production(node.kind())) {
+                if (exactNoGradientProduction(node.kind())) {
                     for (int input : node.inputs()) {
                         if (values.get(input).requiresGrad()) {
                             throw new IllegalArgumentException(
-                                    "task 0059 production routes require no-grad inputs");
+                                    "exact production routes require no-grad inputs");
                         }
                     }
                     if (values.get(output).requiresGrad()) {
                         throw new IllegalArgumentException(
-                                "task 0059 production routes require no-grad outputs");
+                                "exact production routes require no-grad outputs");
                     }
                 }
                 if ((node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_ADD
@@ -733,6 +733,16 @@ abstract class MetalNativeApi implements AutoCloseable {
                                 reductionMatches(node, left, output, valueRanks, valueDimensions),
                                 "reduction attributes, count, and output shape disagree");
                     }
+                    case PROD, ALL, ANY, LOG_SUM_EXP, L1_NORM, L2_NORM ->
+                            requireShape(
+                                    reductionMatches(
+                                            node, left, output, valueRanks, valueDimensions),
+                                    "reduction attributes, count, and output shape disagree");
+                    case VARIANCE, STANDARD_DEVIATION ->
+                            requireShape(
+                                    statisticalReductionMatches(
+                                            node, left, output, valueRanks, valueDimensions),
+                                    "statistical reduction attributes and output shape disagree");
                     case MATMUL -> {
                         requireIndex(right, valueCount, "second node input");
                         if (valueRanks[right] == 0
@@ -796,6 +806,20 @@ abstract class MetalNativeApi implements AutoCloseable {
                         requireShape(
                                 task0059ShapeMatches(node, values),
                                 node.kind() + " attributes and output shape disagree");
+                        if (route == MetalPreparedRoute.CUSTOM_PROGRAM
+                                && node.kind() == MetalMpsGraphProgram.NodeKind.SCATTER_ND
+                                && node.attributeWords()[1] != 1L) {
+                            throw new IllegalArgumentException(
+                                    "custom SCATTER_ND requires replacement reduction");
+                        }
+                        if (route == MetalPreparedRoute.CUSTOM_PROGRAM
+                                && (node.kind() == MetalMpsGraphProgram.NodeKind.FOLD_AXIS
+                                        || node.kind() == MetalMpsGraphProgram.NodeKind.FOLD2D
+                                        || node.kind() == MetalMpsGraphProgram.NodeKind.FOLD3D)
+                                && !task0060NonOverlappingFold(node)) {
+                            throw new IllegalArgumentException(
+                                    "custom FOLD requires non-overlapping windows");
+                        }
                         if ((node.kind() == MetalMpsGraphProgram.NodeKind.SELECT
                                         || node.kind() == MetalMpsGraphProgram.NodeKind.SLICE)
                                 && !task0059LayoutMatches(node, values)) {
@@ -815,6 +839,22 @@ abstract class MetalNativeApi implements AutoCloseable {
                             SCALAR_ADD, SCALAR_SUB, SCALAR_MUL, SCALAR_DIV, SCALAR_POW,
                             RECIPROCAL, LOG, LOG1P, EXPM1, ERF, SQRT, RSQRT, FLOOR, CEIL, SIGN,
                             RELU, TANH, GELU, GELU_TANH_APPROXIMATION, SILU -> {
+                        requireType(types, left, ValueType.FLOAT32);
+                        requireType(types, output, ValueType.FLOAT32);
+                    }
+                    case PROD -> {
+                        if (types[left] != types[output]
+                                || types[left] != ValueType.INT32
+                                        && types[left] != ValueType.INT64) {
+                            throw new IllegalArgumentException(
+                                    "PROD requires one exact integer carrier");
+                        }
+                    }
+                    case ALL, ANY -> {
+                        requireType(types, left, ValueType.BOOL);
+                        requireType(types, output, ValueType.BOOL);
+                    }
+                    case LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, L1_NORM, L2_NORM -> {
                         requireType(types, left, ValueType.FLOAT32);
                         requireType(types, output, ValueType.FLOAT32);
                     }
@@ -901,11 +941,9 @@ abstract class MetalNativeApi implements AutoCloseable {
                         if (types[left] != types[auxiliary]
                                 || types[left] != types[output]
                                 || types[right] != ValueType.INT32
-                                && types[right] != ValueType.INT64
-                                || types[left] == ValueType.BOOL
-                                && node.attributeWords()[1] != 1L) {
+                                && types[right] != ValueType.INT64) {
                             throw new IllegalArgumentException(
-                                    "SCATTER_ND has incompatible data, update, index, or reduction types");
+                                    "SCATTER_ND has incompatible data, update, or index types");
                         }
                     }
                     case SLICE_UPDATE -> {
@@ -915,10 +953,11 @@ abstract class MetalNativeApi implements AutoCloseable {
                         }
                     }
                     case FOLD_AXIS, FOLD2D, FOLD3D -> {
+                        boolean mpsType = types[left] == ValueType.FLOAT32
+                                || types[left] == ValueType.FLOAT64
+                                || types[left] == ValueType.BFLOAT16;
                         if (types[left] != types[output]
-                                || types[left] != ValueType.FLOAT32
-                                && types[left] != ValueType.FLOAT64
-                                && types[left] != ValueType.BFLOAT16) {
+                                || route == MetalPreparedRoute.MPSGRAPH && !mpsType) {
                             throw new IllegalArgumentException(
                                     node.kind() + " has an unsupported carrier type");
                         }
@@ -1010,10 +1049,35 @@ abstract class MetalNativeApi implements AutoCloseable {
                 }
             }
         }
-        private static boolean task0059Production(MetalMpsGraphProgram.NodeKind kind) {
+        private static boolean task0060NonOverlappingFold(
+                MetalMpsGraphProgram.Node node) {
+            long[] words = node.attributeWords();
+            if (node.kind() == MetalMpsGraphProgram.NodeKind.FOLD_AXIS) {
+                return words[2] >= words[1];
+            }
+            int dimensions =
+                    node.kind() == MetalMpsGraphProgram.NodeKind.FOLD2D ? 2 : 3;
+            int offset = dimensions + 3;
+            try {
+                for (int spatial = 0; spatial < dimensions; spatial++) {
+                    long effective = Math.addExact(
+                            Math.multiplyExact(
+                                    words[offset + dimensions * 3 + spatial],
+                                    words[offset + spatial] - 1L),
+                            1L);
+                    if (words[offset + dimensions + spatial] < effective) return false;
+                }
+                return true;
+            } catch (ArithmeticException | IndexOutOfBoundsException exception) {
+                return false;
+            }
+        }
+
+        private static boolean exactNoGradientProduction(MetalMpsGraphProgram.NodeKind kind) {
             return switch (kind) {
-                case CAST, GATHER_ELEMENTS, GATHER_ND, SELECT, PAD, SLICE,
-                        CONCAT, STACK, TILE, UNFOLD2D, UNFOLD3D -> true;
+                case CAST, GATHER_ELEMENTS, GATHER_ND, SCATTER_ND, SELECT, PAD, SLICE,
+                        SLICE_UPDATE, CONCAT, STACK, TILE, FOLD_AXIS, UNFOLD2D, FOLD2D,
+                        UNFOLD3D, FOLD3D, PROD, ALL, ANY -> true;
                 default -> false;
             };
         }
@@ -1370,17 +1434,24 @@ abstract class MetalNativeApi implements AutoCloseable {
             int count = Math.toIntExact(words[0]);
             if (count > input.length) return null;
             long[] expected = input.clone();
+            boolean update =
+                    node.kind() == MetalMpsGraphProgram.NodeKind.SLICE_UPDATE;
             for (int item = 0; item < count; item++) {
                 long start = words[1 + item];
                 long length = words[1 + count + item];
                 int axis = Math.toIntExact(words[1 + count * 2 + item]);
                 long step = words[1 + count * 3 + item];
-                if (axis < 0 || axis >= input.length || start < 0 || length <= 0
-                        || step <= 0 || start >= input[axis]) {
+                if (axis < 0
+                        || axis >= input.length
+                        || start < 0L
+                        || length <= 0L
+                        || (!update && step <= 0L)
+                        || (update && step == 0L)
+                        || start >= input[axis]) {
                     return null;
                 }
-                long last = Math.addExact(start, Math.multiplyExact(length - 1, step));
-                if (last < 0 || last >= input[axis]) return null;
+                long last = Math.addExact(start, Math.multiplyExact(length - 1L, step));
+                if (last < 0L || last >= input[axis]) return null;
                 expected[axis] = length;
             }
             return expected;
@@ -1465,7 +1536,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                             IS_FINITE, IS_NAN, IS_INF, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT,
                             WHERE, CAST, GATHER_ELEMENTS, SCATTER_ADD, GATHER_ND, SCATTER_ND,
                             SELECT, PAD, SLICE, SLICE_UPDATE, CONCAT, STACK, TILE, FOLD_AXIS,
-                            UNFOLD2D, FOLD2D, UNFOLD3D, FOLD3D -> true;
+                            UNFOLD2D, FOLD2D, UNFOLD3D, FOLD3D, PROD, ALL, ANY -> true;
                     default -> false;
                 };
                 case ACCELERATOR -> true;
@@ -1726,6 +1797,51 @@ abstract class MetalNativeApi implements AutoCloseable {
             }
             return true;
         }
+        private static boolean statisticalReductionMatches(
+                MetalMpsGraphProgram.Node node,
+                int input,
+                int output,
+                int[] ranks,
+                long[] dimensions) {
+            long[] words = node.attributeWords();
+            if (words.length < 3L) return false;
+            int count;
+            try {
+                count = Math.toIntExact(words[0]);
+            } catch (ArithmeticException malformed) {
+                return false;
+            }
+            if (count < 0 || count > ranks[input] || words.length != count + 3) return false;
+            boolean keep = words[count + 1] == 1L;
+            if (!keep && words[count + 1] != 0L || words[count + 2] < 0L) return false;
+            boolean[] reduced = new boolean[ranks[input]];
+            long selected = 1L;
+            int inputRow = input * MAX_RANK;
+            try {
+                for (int index = 0; index < count; index++) {
+                    int axis = Math.toIntExact(words[index + 1]);
+                    if (axis < 0 || axis >= ranks[input] || reduced[axis]) return false;
+                    reduced[axis] = true;
+                    selected = Math.multiplyExact(selected, dimensions[inputRow + axis]);
+                }
+            } catch (ArithmeticException malformed) {
+                return false;
+            }
+            if (selected <= words[count + 2]) return false;
+            int expectedRank = keep ? ranks[input] : ranks[input] - count;
+            if (ranks[output] != expectedRank) return false;
+            int outputRow = output * MAX_RANK;
+            for (int source = 0, target = 0; source < ranks[input]; source++) {
+                if (reduced[source]) {
+                    if (keep && dimensions[outputRow + target++] != 1L) return false;
+                } else if (dimensions[outputRow + target++]
+                        != dimensions[inputRow + source]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
 
         private static boolean sameShape(
                 int first, int second, int[] ranks, long[] dimensions) {

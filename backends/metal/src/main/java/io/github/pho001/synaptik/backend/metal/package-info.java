@@ -102,14 +102,22 @@
  * observer error as a suppressed failure. The ordinary open overload creates no trace producer or
  * trace work.</p>
  *
+ * <p>Task 0060 adds exact profile-common no-gradient replacement SCATTER_ND and signed
+ * SLICE_UPDATE, non-overlapping FOLD_AXIS/FOLD2D/FOLD3D, modular INT32/INT64 PROD, and canonical
+ * BOOL ALL/ANY. Every replacement validates all indices and destination uniqueness before writes;
+ * every fold has one output writer and skips conceptual padding. Empty reduction axes are point
+ * identities without admitting zero-dimensional extents. LOG_SUM_EXP, VARIANCE,
+ * STANDARD_DEVIATION, L1_NORM, and L2_NORM have forceable structural recipes only and remain
+ * production-false.</p>
+ *
  * <p>The selected numerical profile participates in partition-plan, route, tuning,
  * decision-codec, and workload identity. Java rejects profile/schema mismatches before native
  * entry. ABI version five retains thirteen exports. Node schema version fifteen is one bounded
  * self-describing route-bearing image over stable type wires {@code 1..6}, operation wires
  * {@code 1..115}, attribute wires {@code 0..41}, and complete optional storage-layout geometry.
- * Native structural execution covers exactly 79 wires and leaves 36 nonexecutable. Production
- * capability is exactly 61 operation kinds and 54 remain false. Backend-local workload,
- * exact-policy, candidate, compatibility, route-policy, and codec identities are version sixteen;
- * schema fourteen and identity version fifteen fail closed.</p>
+ * Native structural execution covers exactly 87 wires and leaves 28 nonexecutable. Production
+ * capability is exactly 69 operation kinds and 46 remain false. Backend-local workload,
+ * exact-policy, candidate, compatibility, route-policy, and codec identities remain version
+ * sixteen; schema fourteen and identity version fifteen fail closed.</p>
  */
 package io.github.pho001.synaptik.backend.metal;

@@ -71,6 +71,7 @@ final class MetalOperationRouteCatalog {
         CA_0057,
         CA_0058,
         CA_0059,
+        CA_0060,
         CP_POINT,
         CP_POWER,
         CP_ELEMENTARY,
@@ -108,14 +109,20 @@ final class MetalOperationRouteCatalog {
                 CustomKernelState.PENDING, CustomKernelReason.CP_MOVE),
         DIRECT_SHAPE_CUSTOM_0059(MpsGraphState.DIRECT, MpsGraphReason.MD_SHAPE,
                 CustomKernelState.AVAILABLE, CustomKernelReason.CA_0059),
+        DIRECT_SHAPE_CUSTOM_0060(MpsGraphState.DIRECT, MpsGraphReason.MD_SHAPE,
+                CustomKernelState.AVAILABLE, CustomKernelReason.CA_0060),
         DIRECT_REDUCE_PENDING_AGGREGATE(MpsGraphState.DIRECT, MpsGraphReason.MD_REDUCE,
                 CustomKernelState.PENDING, CustomKernelReason.CP_AGGREGATE),
+        DIRECT_REDUCE_CUSTOM_0060(MpsGraphState.DIRECT, MpsGraphReason.MD_REDUCE,
+                CustomKernelState.AVAILABLE, CustomKernelReason.CA_0060),
         DIRECT_MATMUL_PENDING_CONTRACT(MpsGraphState.DIRECT, MpsGraphReason.MD_MATMUL,
                 CustomKernelState.PENDING, CustomKernelReason.CP_CONTRACT),
         DIRECT_INDEX_PENDING_MOVE(MpsGraphState.DIRECT, MpsGraphReason.MD_INDEX,
                 CustomKernelState.PENDING, CustomKernelReason.CP_MOVE),
         DIRECT_INDEX_CUSTOM_0059(MpsGraphState.DIRECT, MpsGraphReason.MD_INDEX,
                 CustomKernelState.AVAILABLE, CustomKernelReason.CA_0059),
+        DIRECT_INDEX_CUSTOM_0060(MpsGraphState.DIRECT, MpsGraphReason.MD_INDEX,
+                CustomKernelState.AVAILABLE, CustomKernelReason.CA_0060),
         COMPOSED_UNFOLD_AXIS_PENDING_MOVE(MpsGraphState.COMPOSED,
                 MpsGraphReason.MC_UNFOLD_AXIS, CustomKernelState.PENDING,
                 CustomKernelReason.CP_MOVE),
@@ -162,16 +169,24 @@ final class MetalOperationRouteCatalog {
         COMPOSED_FOLD_AXIS_PENDING_MOVE(MpsGraphState.COMPOSED,
                 MpsGraphReason.MC_FOLD_AXIS, CustomKernelState.PENDING,
                 CustomKernelReason.CP_MOVE),
+        COMPOSED_FOLD_AXIS_CUSTOM_0060(MpsGraphState.COMPOSED,
+                MpsGraphReason.MC_FOLD_AXIS, CustomKernelState.AVAILABLE,
+                CustomKernelReason.CA_0060),
         DIRECT_IM2COL_PENDING_MOVE(MpsGraphState.DIRECT, MpsGraphReason.MD_IM2COL,
                 CustomKernelState.PENDING, CustomKernelReason.CP_MOVE),
         DIRECT_IM2COL_CUSTOM_0059(MpsGraphState.DIRECT, MpsGraphReason.MD_IM2COL,
                 CustomKernelState.AVAILABLE, CustomKernelReason.CA_0059),
+        DIRECT_IM2COL_CUSTOM_0060(MpsGraphState.DIRECT, MpsGraphReason.MD_IM2COL,
+                CustomKernelState.AVAILABLE, CustomKernelReason.CA_0060),
         COMPOSED_WINDOW3D_PENDING_MOVE(MpsGraphState.COMPOSED,
                 MpsGraphReason.MC_WINDOW3D, CustomKernelState.PENDING,
                 CustomKernelReason.CP_MOVE),
         COMPOSED_WINDOW3D_CUSTOM_0059(MpsGraphState.COMPOSED,
                 MpsGraphReason.MC_WINDOW3D, CustomKernelState.AVAILABLE,
                 CustomKernelReason.CA_0059),
+        COMPOSED_WINDOW3D_CUSTOM_0060(MpsGraphState.COMPOSED,
+                MpsGraphReason.MC_WINDOW3D, CustomKernelState.AVAILABLE,
+                CustomKernelReason.CA_0060),
         COMPOSED_MSE_PENDING_AGGREGATE(MpsGraphState.COMPOSED, MpsGraphReason.MC_MSE,
                 CustomKernelState.PENDING, CustomKernelReason.CP_AGGREGATE),
         DIRECT_DENSE_CE_PENDING_AGGREGATE(MpsGraphState.DIRECT,
@@ -269,19 +284,21 @@ final class MetalOperationRouteCatalog {
             case ADD, SUB, MUL, DIV -> Entry.DIRECT_ARITH_PENDING_POINT;
             case TENSOR_POW -> Entry.DIRECT_ARITH_PENDING_POWER;
             case CAST -> Entry.DIRECT_CAST_CUSTOM_0059;
-            case RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, CONTIGUOUS,
-                    SLICE_UPDATE -> Entry.DIRECT_SHAPE_PENDING_MOVE;
+            case RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, CONTIGUOUS ->
+                    Entry.DIRECT_SHAPE_PENDING_MOVE;
+            case SLICE_UPDATE -> Entry.DIRECT_SHAPE_CUSTOM_0060;
             case PAD, SLICE, CONCAT, TILE -> Entry.DIRECT_SHAPE_CUSTOM_0059;
             case ABS, EXP, SIGMOID -> Entry.DIRECT_ARITH_PENDING_POINT;
             case FLOOR, CEIL, SIGN, RELU -> Entry.DIRECT_ARITH_CUSTOM_0058;
             case LOG, ERF, SQRT, TANH -> Entry.DIRECT_ARITH_PENDING_ELEMENTARY;
             case RECIPROCAL -> Entry.COMPOSED_UNARY_PENDING_POINT;
             case RSQRT -> Entry.DIRECT_ARITH_PENDING_RECURSIVE;
-            case SUM, MEAN, PROD, ALL, ANY, VARIANCE ->
-                    Entry.DIRECT_REDUCE_PENDING_AGGREGATE;
+            case SUM, MEAN, VARIANCE -> Entry.DIRECT_REDUCE_PENDING_AGGREGATE;
+            case PROD, ALL, ANY -> Entry.DIRECT_REDUCE_CUSTOM_0060;
             case MATMUL -> Entry.DIRECT_MATMUL_PENDING_CONTRACT;
-            case GATHER, ONE_HOT, SCATTER_ELEMENTS, SCATTER_ADD, SCATTER_ND ->
+            case GATHER, ONE_HOT, SCATTER_ELEMENTS, SCATTER_ADD ->
                     Entry.DIRECT_INDEX_PENDING_MOVE;
+            case SCATTER_ND -> Entry.DIRECT_INDEX_CUSTOM_0060;
             case GATHER_ELEMENTS, GATHER_ND -> Entry.DIRECT_INDEX_CUSTOM_0059;
             case UNFOLD_AXIS -> Entry.COMPOSED_UNFOLD_AXIS_PENDING_MOVE;
             case GT, GE, LT, LE, EQ, NE -> Entry.DIRECT_PRED_CUSTOM_0052;
@@ -301,10 +318,10 @@ final class MetalOperationRouteCatalog {
                     Entry.COMPOSED_UNARY_PENDING_RECURSIVE;
             case SELECT -> Entry.COMPOSED_SELECT_CUSTOM_0059;
             case STACK -> Entry.COMPOSED_STACK_CUSTOM_0059;
-            case FOLD_AXIS -> Entry.COMPOSED_FOLD_AXIS_PENDING_MOVE;
-            case FOLD2D -> Entry.DIRECT_IM2COL_PENDING_MOVE;
+            case FOLD_AXIS -> Entry.COMPOSED_FOLD_AXIS_CUSTOM_0060;
+            case FOLD2D -> Entry.DIRECT_IM2COL_CUSTOM_0060;
             case UNFOLD2D -> Entry.DIRECT_IM2COL_CUSTOM_0059;
-            case FOLD3D -> Entry.COMPOSED_WINDOW3D_PENDING_MOVE;
+            case FOLD3D -> Entry.COMPOSED_WINDOW3D_CUSTOM_0060;
             case UNFOLD3D -> Entry.COMPOSED_WINDOW3D_CUSTOM_0059;
             case MEAN_SQUARED_ERROR -> Entry.COMPOSED_MSE_PENDING_AGGREGATE;
             case DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS ->

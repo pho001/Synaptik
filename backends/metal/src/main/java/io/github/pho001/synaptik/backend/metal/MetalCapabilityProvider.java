@@ -28,6 +28,8 @@ import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
+import io.github.pho001.synaptik.model.operation.index.ScatterNdAttrs;
+import io.github.pho001.synaptik.model.operation.index.ScatterNdKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
@@ -44,6 +46,9 @@ import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
 import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Fold3dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.Unfold2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Unfold3dAttrs;
@@ -88,11 +93,12 @@ import java.util.Objects;
  * operand only as canonical or as the exact rank-two transpose layout that complete-partition
  * analysis must authenticate to a local {@code PERMUTE [1,0]} producer from a canonical source.
  * Its output is canonical and carries the logical OR of the operand gradient flags. Strict MATMUL
- * remains unsupported. Accelerator reductions admit only full, normalized single-axis, ordered
- * normalized multi-axis (including empty identity), and binding-resolved sum-to-Shape forms. Their
- * input is canonical positive-rank {@code 1..16}; canonical outputs may be rank zero only as
- * locally produced reduction results. Strict reductions remain unsupported. Binary inputs and
- * outputs are canonical dense non-views with exact right-aligned broadcasting. The six exact
+ * remains unsupported. Accelerator reductions admit full, normalized single-axis, ordered
+ * normalized multi-axis (including empty-axis identity), and binding-resolved sum-to-Shape forms.
+ * The exact Task-0060 integral PROD and BOOL ALL/ANY domain below is profile-common. Other strict
+ * reductions remain unsupported. Reduction inputs are canonical with positive dimensions;
+ * canonical outputs may be rank zero only as locally produced reduction results.
+ * Binary inputs and outputs are canonical dense non-views with exact right-aligned broadcasting. The six exact
  * unary descriptor pairs are canonical. An affine or contiguous input may be canonical or an
  * exact resolved zero-offset logical view; complete-partition analysis authenticates every
  * admitted view as a prior local affine result. Every admitted occurrence uses checked positive
@@ -112,8 +118,19 @@ import java.util.Objects;
  * storage-layout materializations. They require exact static positive-rank Shapes, resolved
  * positive-stride non-overlapping layouts, exact operation-derived offset/stride/span geometry,
  * normalized attributes, and no gradients. Unresolved, zero-stride, negative-stride, overlapping,
- * empty, gradient-bearing, scatter-reduction, slice-update, fold, and every unlisted conversion
- * occurrence remains unsupported.</p>
+ * empty, gradient-bearing, and every unlisted conversion occurrence remains unsupported.</p>
+ *
+ * <p>The profile-common Task-0060 domain additionally admits replacement-only SCATTER_ND and
+ * signed non-zero-step SLICE_UPDATE for all six carriers, including target-relative crop
+ * placement. Every scatter tuple is bounds-checked and globally destination-unique before any
+ * write. FOLD_AXIS, FOLD2D, and FOLD3D admit only statically proven non-overlapping windows, so
+ * every in-bounds contributor is a raw copy and every uncovered cell is the carrier's exact zero.
+ * Integral PROD admits INT32/INT64 modular multiplication; ALL and ANY admit canonical BOOL.
+ * Those reductions accept full, single-axis, and ordered multi-axis forms, including empty-axis
+ * identity on positive-dimensional and rank-zero tensors. All Task-0060 rows are static,
+ * canonical, no-gradient, and shape-exact. Zero-length slice updates, scatter reductions,
+ * colliding scatter destinations, overlapping folds, floating PROD, non-BOOL ALL/ANY, and
+ * LOG_SUM_EXP through L2_NORM remain production-false.</p>
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
     /**
@@ -197,6 +214,12 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             if (operation.kind() == SliceKind.SLICE) {
                 return supportsSlice(operation, inputs, output);
             }
+            if (operation.kind() == ScatterNdKind.SCATTER_ND) {
+                return supportsScatterNdReplacement(operation, inputs, output);
+            }
+            if (operation.kind() == SliceKind.SLICE_UPDATE) {
+                return supportsSliceUpdate(operation, inputs, output);
+            }
             if (operation.kind() == PadKind.PAD) {
                 return supportsPad(operation, inputs, output);
             }
@@ -209,6 +232,11 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             if (operation.kind() == WindowTransformKind.UNFOLD2D
                     || operation.kind() == WindowTransformKind.UNFOLD3D) {
                 return supportsImageUnfold(operation, inputs, output);
+            }
+            if (operation.kind() == WindowTransformKind.FOLD_AXIS
+                    || operation.kind() == WindowTransformKind.FOLD2D
+                    || operation.kind() == WindowTransformKind.FOLD3D) {
+                return supportsNonOverlappingFold(operation, inputs, output);
             }
             if (operation.kind() == AxisGatherKind.GATHER) {
                 return supportsGather(operation, inputs, output);
@@ -245,6 +273,12 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             }
             if (operation.kind() == WhereSelectionKind.WHERE) {
                 return supportsWhere(operation, inputs, output);
+            }
+            if (operation.kind() instanceof AggregateReductionKind reduction
+                    && (reduction == AggregateReductionKind.PROD
+                            || reduction == AggregateReductionKind.ALL
+                            || reduction == AggregateReductionKind.ANY)) {
+                return supportsExactReduction(operation, inputs, output, reduction);
             }
             if (numericalProfile == NumericalProfile.ACCELERATOR) {
                 if (operation.kind() instanceof BinaryComparisonKind comparison) {
@@ -694,6 +728,232 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         return java.util.Arrays.equals(expected, output.shape().toLongArray());
     }
 
+    private static boolean supportsScatterNdReplacement(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        if (!(operation.attrs() instanceof ScatterNdAttrs attrs)
+                || attrs.reduction() != ScatterReduction.NONE
+                || inputs.size() != 3) {
+            return false;
+        }
+        TensorDescriptor data = inputs.get(0);
+        TensorDescriptor indices = inputs.get(1);
+        TensorDescriptor updates = inputs.get(2);
+        if (!canonicalAny(data, false)
+                || !canonicalIndex(indices)
+                || !canonicalAny(updates, true)
+                || !canonicalAny(output, false)
+                || data.requiresGrad()
+                || indices.requiresGrad()
+                || updates.requiresGrad()
+                || output.requiresGrad()
+                || data.dataType() != updates.dataType()
+                || data.dataType() != output.dataType()
+                || !data.shape().equals(output.shape())) {
+            return false;
+        }
+        long[] dataShape = data.shape().toLongArray();
+        long[] indexShape = indices.shape().toLongArray();
+        int batch = attrs.batchDimensions();
+        if (indexShape.length == 0
+                || batch >= indexShape.length
+                || batch > dataShape.length) {
+            return false;
+        }
+        for (int axis = 0; axis < batch; axis++) {
+            if (dataShape[axis] != indexShape[axis]) return false;
+        }
+        long tupleWord = indexShape[indexShape.length - 1];
+        if (tupleWord < 1L || tupleWord > dataShape.length - batch) return false;
+        int tuple = Math.toIntExact(tupleWord);
+        long[] expected =
+                new long[indexShape.length - 1 + dataShape.length - batch - tuple];
+        System.arraycopy(indexShape, 0, expected, 0, indexShape.length - 1);
+        System.arraycopy(
+                dataShape,
+                batch + tuple,
+                expected,
+                indexShape.length - 1,
+                dataShape.length - batch - tuple);
+        return Arrays.equals(expected, updates.shape().toLongArray());
+    }
+
+    private static boolean supportsSliceUpdate(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        if (inputs.size() != 2) return false;
+        TensorDescriptor data = inputs.get(0);
+        TensorDescriptor updates = inputs.get(1);
+        if (!canonicalAny(data, false)
+                || !canonicalAny(updates, false)
+                || !canonicalAny(output, false)
+                || data.requiresGrad()
+                || updates.requiresGrad()
+                || output.requiresGrad()
+                || data.dataType() != updates.dataType()
+                || data.dataType() != output.dataType()
+                || !data.shape().equals(output.shape())) {
+            return false;
+        }
+        long[] dataShape = data.shape().toLongArray();
+        long[] expected;
+        if (operation.attrs() instanceof CropToShapeAttrs attrs) {
+            expected = attrs.targetShape().toLongArray();
+            long[] prefix = attrs.prefixShape().toLongArray();
+            if (expected.length != dataShape.length || prefix.length != dataShape.length) {
+                return false;
+            }
+            for (int axis = 0; axis < dataShape.length; axis++) {
+                if (prefix[axis] < 0L
+                        || Math.addExact(prefix[axis], expected[axis]) > dataShape[axis]) {
+                    return false;
+                }
+            }
+        } else if (operation.attrs() instanceof SliceAttrs attrs) {
+            if (attrs.axes().size() > dataShape.length) return false;
+            expected = dataShape.clone();
+            boolean[] seen = new boolean[dataShape.length];
+            for (int item = 0; item < attrs.axes().size(); item++) {
+                int axis = attrs.axes().get(item);
+                long start = attrs.starts().get(item);
+                long length = attrs.lengths().get(item);
+                long step = attrs.steps().get(item);
+                if (axis < 0
+                        || axis >= dataShape.length
+                        || seen[axis]
+                        || length < 0L
+                        || step == 0L
+                        || start < 0L
+                        || start > dataShape[axis]) {
+                    return false;
+                }
+                seen[axis] = true;
+                if (length == 0L) {
+                    expected[axis] = 0L;
+                    continue;
+                }
+                if (start == dataShape[axis]) return false;
+                long last = Math.addExact(start, Math.multiplyExact(length - 1L, step));
+                if (last < 0L || last >= dataShape[axis]) return false;
+                expected[axis] = length;
+            }
+        } else {
+            return false;
+        }
+        return Arrays.equals(expected, updates.shape().toLongArray());
+    }
+
+    private static boolean supportsNonOverlappingFold(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        if (inputs.size() != 1) return false;
+        TensorDescriptor input = inputs.getFirst();
+        if (!canonicalAny(input, false)
+                || !canonicalAny(output, false)
+                || input.requiresGrad()
+                || output.requiresGrad()
+                || input.dataType() != output.dataType()) {
+            return false;
+        }
+        long[] source = input.shape().toLongArray();
+        long[] target = output.shape().toLongArray();
+        if (operation.kind() == WindowTransformKind.FOLD_AXIS) {
+            if (!(operation.attrs() instanceof FoldAxisAttrs attrs)
+                    || source.length != target.length + 1
+                    || attrs.axis() >= target.length
+                    || target[attrs.axis()] != attrs.outputSize()) {
+                return false;
+            }
+            long size = source[source.length - 1];
+            if (attrs.step() < size || target[attrs.axis()] < size) return false;
+            long positions = (target[attrs.axis()] - size) / attrs.step() + 1L;
+            for (int axis = 0; axis < target.length; axis++) {
+                if (source[axis] != (axis == attrs.axis() ? positions : target[axis])) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (operation.kind() == WindowTransformKind.FOLD2D) {
+            if (!(operation.attrs() instanceof Fold2dAttrs attrs)
+                    || target.length != 4
+                    || source.length != 3
+                    || !attrs.outputShape().equals(output.shape())) {
+                return false;
+            }
+            Window2dAttrs window = attrs.window();
+            if (!nonOverlapping(
+                            window.kernelHeight(), window.dilationHeight(), window.strideHeight())
+                    || !nonOverlapping(
+                            window.kernelWidth(), window.dilationWidth(), window.strideWidth())) {
+                return false;
+            }
+            long kernelVolume =
+                    Math.multiplyExact(window.kernelHeight(), window.kernelWidth());
+            long positions = Math.multiplyExact(
+                    windowExtent(
+                            target[2],
+                            window.kernelHeight(),
+                            window.paddingHeight(),
+                            window.strideHeight(),
+                            window.dilationHeight(),
+                            window.ceilMode()),
+                    windowExtent(
+                            target[3],
+                            window.kernelWidth(),
+                            window.paddingWidth(),
+                            window.strideWidth(),
+                            window.dilationWidth(),
+                            window.ceilMode()));
+            return source[0] == target[0]
+                    && source[1] == Math.multiplyExact(target[1], kernelVolume)
+                    && source[2] == positions;
+        }
+        if (!(operation.attrs() instanceof Fold3dAttrs attrs)
+                || target.length != 5
+                || source.length != 3
+                || !attrs.outputShape().equals(output.shape())) {
+            return false;
+        }
+        Window3dAttrs window = attrs.window();
+        if (!nonOverlapping(window.kernelDepth(), window.dilationDepth(), window.strideDepth())
+                || !nonOverlapping(
+                        window.kernelHeight(), window.dilationHeight(), window.strideHeight())
+                || !nonOverlapping(
+                        window.kernelWidth(), window.dilationWidth(), window.strideWidth())) {
+            return false;
+        }
+        long kernelVolume = Math.multiplyExact(
+                Math.multiplyExact(window.kernelDepth(), window.kernelHeight()),
+                window.kernelWidth());
+        long positions = Math.multiplyExact(
+                Math.multiplyExact(
+                        windowExtent(
+                                target[2],
+                                window.kernelDepth(),
+                                window.paddingDepth(),
+                                window.strideDepth(),
+                                window.dilationDepth(),
+                                window.ceilMode()),
+                        windowExtent(
+                                target[3],
+                                window.kernelHeight(),
+                                window.paddingHeight(),
+                                window.strideHeight(),
+                                window.dilationHeight(),
+                                window.ceilMode())),
+                windowExtent(
+                        target[4],
+                        window.kernelWidth(),
+                        window.paddingWidth(),
+                        window.strideWidth(),
+                        window.dilationWidth(),
+                        window.ceilMode()));
+        return source[0] == target[0]
+                && source[1] == Math.multiplyExact(target[1], kernelVolume)
+                && source[2] == positions;
+    }
+
+    private static boolean nonOverlapping(long kernel, long dilation, long stride) {
+        return stride >= Math.addExact(Math.multiplyExact(dilation, kernel - 1L), 1L);
+    }
     private static long windowExtent(
             long input, long kernel, long padding, long stride, long dilation, boolean ceil) {
         long effective = Math.addExact(Math.multiplyExact(dilation, kernel - 1L), 1L);
@@ -1046,6 +1306,45 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         return layout.equals(LayoutDescriptor.of(
                 descriptor.shape(), new long[] {1L, shape[0]}, 0L, true));
     }
+    private static boolean supportsExactReduction(
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            TensorDescriptor output,
+            AggregateReductionKind kind) {
+        if (inputs.size() != 1) return false;
+        TensorDescriptor input = inputs.getFirst();
+        if (!canonicalAny(input, true)
+                || !canonicalAny(output, true)
+                || input.requiresGrad()
+                || output.requiresGrad()
+                || input.dataType() != output.dataType()) {
+            return false;
+        }
+        if (kind == AggregateReductionKind.PROD) {
+            if (input.dataType() != DataType.INT32 && input.dataType() != DataType.INT64) {
+                return false;
+            }
+        } else if (input.dataType() != DataType.BOOL) {
+            return false;
+        }
+        long[] inputShape = input.shape().toLongArray();
+        long[] expected;
+        if (operation.attrs() == NoOperationAttrs.INSTANCE) {
+            expected = new long[0];
+        } else if (operation.attrs() instanceof AxisReductionAttrs attrs) {
+            if (attrs.axis() >= inputShape.length) return false;
+            expected = reducedShape(inputShape, List.of(attrs.axis()), attrs.keepDimensions());
+        } else if (operation.attrs() instanceof MultiAxisReductionAttrs attrs) {
+            for (int axis : attrs.axes()) {
+                if (axis >= inputShape.length) return false;
+            }
+            expected = reducedShape(inputShape, attrs.axes(), attrs.keepDimensions());
+        } else {
+            return false;
+        }
+        return Arrays.equals(expected, output.shape().toLongArray());
+    }
+
 
 
     private static boolean supportsReduction(
@@ -1307,6 +1606,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         Math.multiplyExact(elements, descriptor.dataType().byteWidth());
         return true;
     }
+
 
     private static boolean canonicalReductionOutput(TensorDescriptor descriptor) {
         return geometry(descriptor, DataType.FLOAT32, true)

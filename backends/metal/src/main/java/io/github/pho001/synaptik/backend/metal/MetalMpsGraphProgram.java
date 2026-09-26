@@ -192,16 +192,24 @@ final class MetalMpsGraphProgram {
         RNN_TANH(103, 5, 6, 2, 2, AttributeKind.RECURRENT_DIRECTION),
         GRU_RESET_AFTER(104, 5, 6, 2, 2, AttributeKind.RECURRENT_DIRECTION),
         LSTM(105, 6, 7, 3, 3, AttributeKind.RECURRENT_DIRECTION),
-        PROD(106, 1, 1, 1, 1, AttributeKind.REDUCTION),
-        ALL(107, 1, 1, 1, 1, AttributeKind.REDUCTION),
-        ANY(108, 1, 1, 1, 1, AttributeKind.REDUCTION),
+        PROD(106, 1, 1, 1, 1, AttributeKind.REDUCTION,
+                ValueState.CANONICAL, false, true),
+        ALL(107, 1, 1, 1, 1, AttributeKind.REDUCTION,
+                ValueState.CANONICAL, false, true),
+        ANY(108, 1, 1, 1, 1, AttributeKind.REDUCTION,
+                ValueState.CANONICAL, false, true),
         ARG_MAX(109, 1, 1, 1, 1, AttributeKind.ARG_EXTREMA),
         ARG_MIN(110, 1, 1, 1, 1, AttributeKind.ARG_EXTREMA),
-        LOG_SUM_EXP(111, 1, 1, 1, 1, AttributeKind.REDUCTION),
-        VARIANCE(112, 1, 1, 1, 1, AttributeKind.STATISTICAL_REDUCTION),
-        STANDARD_DEVIATION(113, 1, 1, 1, 1, AttributeKind.STATISTICAL_REDUCTION),
-        L1_NORM(114, 1, 1, 1, 1, AttributeKind.REDUCTION),
-        L2_NORM(115, 1, 1, 1, 1, AttributeKind.REDUCTION);
+        LOG_SUM_EXP(111, 1, 1, 1, 1, AttributeKind.REDUCTION,
+                ValueState.CANONICAL, false, true),
+        VARIANCE(112, 1, 1, 1, 1, AttributeKind.STATISTICAL_REDUCTION,
+                ValueState.CANONICAL, false, true),
+        STANDARD_DEVIATION(113, 1, 1, 1, 1, AttributeKind.STATISTICAL_REDUCTION,
+                ValueState.CANONICAL, false, true),
+        L1_NORM(114, 1, 1, 1, 1, AttributeKind.REDUCTION,
+                ValueState.CANONICAL, false, true),
+        L2_NORM(115, 1, 1, 1, 1, AttributeKind.REDUCTION,
+                ValueState.CANONICAL, false, true);
 
         private final int wireIdentity;
         private final int minimumInputs;
@@ -255,10 +263,10 @@ final class MetalMpsGraphProgram {
                     || wireIdentity >= 60 && wireIdentity <= 63
                     || wireIdentity == 69
                     || wireIdentity == 71
-                    || wireIdentity >= 73 && wireIdentity <= 75
-                    || wireIdentity >= 77 && wireIdentity <= 79
-                    || wireIdentity == 81
-                    || wireIdentity == 83;
+                    || wireIdentity == 72
+                    || wireIdentity >= 73 && wireIdentity <= 76
+                    || wireIdentity >= 77 && wireIdentity <= 84
+                    || wireIdentity >= 106 && wireIdentity <= 108;
         }
         boolean accepts(ValueState inputState) {
             return inputState == ValueState.CANONICAL
@@ -304,7 +312,8 @@ final class MetalMpsGraphProgram {
             try {
                 for (long dimension : this.dimensions) {
                     if (dimension <= 0L) {
-                        throw new IllegalArgumentException("Metal value dimensions must be positive");
+                        throw new IllegalArgumentException(
+                                "Metal value dimensions must be positive");
                     }
                     elements = Math.multiplyExact(elements, dimension);
                 }
@@ -475,6 +484,27 @@ final class MetalMpsGraphProgram {
             words[2] = items.length;
             System.arraycopy(items, 0, words, 3, items.length);
             return new Node(kind, new int[] {input}, new int[] {output}, AttributeKind.REDUCTION, words);
+        }
+        static Node statisticalReduction(
+                NodeKind kind,
+                int input,
+                int output,
+                List<Integer> axes,
+                boolean keepDimensions,
+                long correction) {
+            Objects.requireNonNull(kind, "kind");
+            long[] items = longValues(Objects.requireNonNull(axes, "axes"));
+            long[] words = new long[items.length + 3];
+            words[0] = items.length;
+            System.arraycopy(items, 0, words, 1, items.length);
+            words[items.length + 1] = keepDimensions ? 1L : 0L;
+            words[items.length + 2] = correction;
+            return new Node(
+                    kind,
+                    new int[] {input},
+                    new int[] {output},
+                    AttributeKind.STATISTICAL_REDUCTION,
+                    words);
         }
         static Node sumToShape(int input, int output, long[] targetDimensions) {
             Objects.requireNonNull(targetDimensions, "targetDimensions");
@@ -676,10 +706,19 @@ final class MetalMpsGraphProgram {
         }
 
         private void validateCrop() {
-            int offset = validateShape(attributeWords, 0);
+            int targetRank = checkedCount(attributeWords, 0);
+            if (targetRank > MAX_RANK || attributeWords.length < 1 + targetRank) {
+                throw malformed();
+            }
+            for (int index = 1; index <= targetRank; index++) {
+                if (attributeWords[index] < 0L
+                        || attributeWords[index] == 0L && kind != NodeKind.SLICE_UPDATE) {
+                    throw malformed();
+                }
+            }
+            int offset = 1 + targetRank;
             int prefixRank = checkedCount(attributeWords, offset);
-            if (prefixRank != attributeWords[0]
-                    || prefixRank > MAX_RANK
+            if (prefixRank != targetRank
                     || offset + 1 + prefixRank != attributeWords.length) {
                 throw malformed();
             }
@@ -706,7 +745,11 @@ final class MetalMpsGraphProgram {
             }
             boolean[] seen = new boolean[MAX_RANK];
             for (int index = 0; index < count; index++) {
-                if (attributeWords[1 + count + index] <= 0L) throw malformed();
+                if (attributeWords[1 + count + index] < 0L
+                        || attributeWords[1 + count + index] == 0L
+                                && kind != NodeKind.SLICE_UPDATE) {
+                    throw malformed();
+                }
                 long axis = attributeWords[1 + count * 2 + index];
                 if (axis < 0L || axis >= MAX_RANK || seen[(int) axis]) throw malformed();
                 seen[(int) axis] = true;

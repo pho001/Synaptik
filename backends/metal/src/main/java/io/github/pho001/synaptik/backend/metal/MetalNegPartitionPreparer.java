@@ -27,6 +27,9 @@ import io.github.pho001.synaptik.model.operation.index.GatherNdKind;
 import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
+import io.github.pho001.synaptik.model.operation.index.ScatterNdAttrs;
+import io.github.pho001.synaptik.model.operation.index.ScatterNdKind;
+import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.model.operation.index.SelectAttrs;
 import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
@@ -42,6 +45,9 @@ import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
+import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Fold3dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
@@ -55,6 +61,7 @@ import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKin
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -82,14 +89,16 @@ import java.util.Optional;
  * MATMUL plus the exact Task-0052 comparisons, tensor/scalar extrema, clamp, reduction extrema,
  * cumulative scans, no-gradient scalar ADD/SUB/MUL/DIV, and no-gradient RECIPROCAL. An affine
  * MATMUL operand is authenticated to the exact earlier local rank-two {@code PERMUTE [1,0]} on
- * that consuming edge. Schema-fifteen lowering emits one bounded self-describing image over the
- * stable type wires 1..6, complete operation registry 1..115, attribute registry 0..41, and
- * explicit prepared route. Production capability is exactly 61 operation kinds; the additional
- * structural recipes remain inaccessible to this analysis.
- * Ordinary graph feeds are canonical and explicitly typed. SELECT/SLICE feeds may instead use the
- * exact supported resolved positive-stride non-overlapping storage layout. Rank-zero values
- * participate only where existing non-BOOL capability permits them. Exact BOOL results may feed
- * admitted logic and selection nodes or cross owner boundaries.
+ * that consuming edge. The profile-common Task-0060 domain adds exact replacement SCATTER_ND and
+ * signed SLICE_UPDATE, non-overlapping FOLD_AXIS/FOLD2D/FOLD3D, modular INT32/INT64 PROD, and
+ * canonical BOOL ALL/ANY. Schema-fifteen lowering emits one bounded self-describing image over
+ * stable type wires 1..6, complete operation registry 1..115, attribute registry 0..41, and the
+ * explicit prepared route. Production capability is exactly 69 operation kinds; the additional
+ * structural recipes remain inaccessible to this analysis. Ordinary graph feeds are canonical
+ * and explicitly typed. SELECT/SLICE feeds may instead use the exact supported resolved
+ * positive-stride non-overlapping storage layout. Rank-zero values participate only where exact
+ * capability permits them. Exact BOOL results may feed admitted logic and selection nodes or
+ * cross owner boundaries.
  * Analysis freshly regenerates the complete candidate batch. Every supplied handoff authenticates
  * its exact partition, schema, workload, profile, and session target; an absent decision preserves
  * the singleton-NEG heuristic, while a present decision must additionally authenticate its
@@ -225,7 +234,11 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             int outputIndex = index(
                     outputId, graphValues, valueIndexes, valueIds, descriptors);
             MetalMpsGraphProgram.Node lowered = lower(
-                    node.operation(), inputIndices, outputIndex);
+                    node.operation(),
+                    inputIndices,
+                    outputIndex,
+                    inputDescriptors,
+                    outputValue.descriptor());
             if (lowered.kind() == MetalMpsGraphProgram.NodeKind.MATMUL) {
                 for (int inputIndex = 0; inputIndex < inputStates.size(); inputIndex++) {
                     if (inputStates.get(inputIndex)
@@ -525,7 +538,11 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
     }
 
     private static MetalMpsGraphProgram.Node lower(
-            Operation operation, int[] inputs, int output) {
+            Operation operation,
+            int[] inputs,
+            int output,
+            List<TensorDescriptor> inputDescriptors,
+            TensorDescriptor outputDescriptor) {
         OperationKind kind = operation.kind();
         if (kind == CastKind.CAST) {
             CastAttrs attrs = (CastAttrs) operation.attrs();
@@ -548,6 +565,22 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     inputs, new int[] {output}, MetalMpsGraphProgram.AttributeKind.GATHER_ND,
                     new long[] {attrs.batchDimensions()});
         }
+        if (kind == ScatterNdKind.SCATTER_ND) {
+            ScatterNdAttrs attrs = (ScatterNdAttrs) operation.attrs();
+            long reduction = switch (attrs.reduction()) {
+                case NONE -> 1L;
+                case ADD -> 2L;
+                case MUL -> 3L;
+                case MAX -> 4L;
+                case MIN -> 5L;
+            };
+            return MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.SCATTER_ND,
+                    inputs,
+                    new int[] {output},
+                    MetalMpsGraphProgram.AttributeKind.SCATTER_ND,
+                    new long[] {attrs.batchDimensions(), reduction});
+        }
         if (kind == SelectKind.SELECT) {
             SelectAttrs attrs = (SelectAttrs) operation.attrs();
             return MetalMpsGraphProgram.Node.generic(
@@ -561,13 +594,21 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     inputs, new int[] {output}, MetalMpsGraphProgram.AttributeKind.PAD,
                     padWords((PadAttrs) operation.attrs()));
         }
-        if (kind == SliceKind.SLICE) {
+        if (kind == SliceKind.SLICE || kind == SliceKind.SLICE_UPDATE) {
+            boolean crop = operation.attrs() instanceof CropToShapeAttrs;
             long[] words = operation.attrs() instanceof SliceAttrs attrs
                     ? sliceWords(attrs)
                     : cropWords((CropToShapeAttrs) operation.attrs());
             return MetalMpsGraphProgram.Node.generic(
-                    MetalMpsGraphProgram.NodeKind.SLICE,
-                    inputs, new int[] {output}, MetalMpsGraphProgram.AttributeKind.SLICE, words);
+                    kind == SliceKind.SLICE
+                            ? MetalMpsGraphProgram.NodeKind.SLICE
+                            : MetalMpsGraphProgram.NodeKind.SLICE_UPDATE,
+                    inputs,
+                    new int[] {output},
+                    crop
+                            ? MetalMpsGraphProgram.AttributeKind.CROP_TO_SHAPE
+                            : MetalMpsGraphProgram.AttributeKind.SLICE,
+                    words);
         }
         if (kind instanceof TensorCompositionKind composition) {
             CompositionAxisAttrs attrs = (CompositionAxisAttrs) operation.attrs();
@@ -589,6 +630,35 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             return MetalMpsGraphProgram.Node.generic(
                     MetalMpsGraphProgram.NodeKind.TILE,
                     inputs, new int[] {output}, MetalMpsGraphProgram.AttributeKind.TILE, words);
+        }
+        if (kind == WindowTransformKind.FOLD_AXIS) {
+            FoldAxisAttrs attrs = (FoldAxisAttrs) operation.attrs();
+            long size = inputDescriptors.getFirst().shape().toLongArray()[
+                    inputDescriptors.getFirst().shape().rank() - 1];
+            return MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.FOLD_AXIS,
+                    inputs,
+                    new int[] {output},
+                    MetalMpsGraphProgram.AttributeKind.WINDOW_AXIS,
+                    new long[] {attrs.axis(), size, attrs.step()});
+        }
+        if (kind == WindowTransformKind.FOLD2D) {
+            Fold2dAttrs attrs = (Fold2dAttrs) operation.attrs();
+            return MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.FOLD2D,
+                    inputs,
+                    new int[] {output},
+                    MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_2D,
+                    foldWindowWords(outputDescriptor, windowWords(attrs.window(), null)));
+        }
+        if (kind == WindowTransformKind.FOLD3D) {
+            Fold3dAttrs attrs = (Fold3dAttrs) operation.attrs();
+            return MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.FOLD3D,
+                    inputs,
+                    new int[] {output},
+                    MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_3D,
+                    foldWindowWords(outputDescriptor, windowWords(attrs.window(), null)));
         }
         if (kind == WindowTransformKind.UNFOLD2D) {
             Object raw = operation.attrs();
@@ -757,10 +827,28 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 case MEAN -> MetalMpsGraphProgram.NodeKind.MEAN;
                 case MIN -> MetalMpsGraphProgram.NodeKind.REDUCTION_MIN;
                 case MAX -> MetalMpsGraphProgram.NodeKind.REDUCTION_MAX;
+                case PROD -> MetalMpsGraphProgram.NodeKind.PROD;
+                case ALL -> MetalMpsGraphProgram.NodeKind.ALL;
+                case ANY -> MetalMpsGraphProgram.NodeKind.ANY;
+                case LOG_SUM_EXP -> MetalMpsGraphProgram.NodeKind.LOG_SUM_EXP;
+                case VARIANCE -> MetalMpsGraphProgram.NodeKind.VARIANCE;
+                case STANDARD_DEVIATION -> MetalMpsGraphProgram.NodeKind.STANDARD_DEVIATION;
+                case L1_NORM -> MetalMpsGraphProgram.NodeKind.L1_NORM;
+                case L2_NORM -> MetalMpsGraphProgram.NodeKind.L2_NORM;
                 default -> throw new IllegalArgumentException(
                         "unsupported Metal reduction: " + reduction);
             };
-            if (operation.attrs() == io.github.pho001.synaptik.model.operation.NoOperationAttrs.INSTANCE) {
+            if (operation.attrs() instanceof StatisticalReductionAttrs attrs) {
+                return MetalMpsGraphProgram.Node.statisticalReduction(
+                        nodeKind,
+                        inputs[0],
+                        output,
+                        attrs.axes(),
+                        attrs.keepDimensions(),
+                        attrs.correction());
+            }
+            if (operation.attrs()
+                    == io.github.pho001.synaptik.model.operation.NoOperationAttrs.INSTANCE) {
                 return MetalMpsGraphProgram.Node.reduction(
                         nodeKind, inputs[0], output,
                         MetalMpsGraphProgram.ReductionForm.FULL, List.of(), false);
@@ -844,14 +932,11 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         if (target.length != prefix.length) {
             throw new IllegalArgumentException("Metal crop ranks must agree");
         }
-        long[] words = new long[1 + target.length * 4];
+        long[] words = new long[2 + target.length * 2];
         words[0] = target.length;
-        for (int axis = 0; axis < target.length; axis++) {
-            words[1 + axis] = prefix[axis];
-            words[1 + target.length + axis] = target[axis];
-            words[1 + target.length * 2 + axis] = axis;
-            words[1 + target.length * 3 + axis] = 1L;
-        }
+        System.arraycopy(target, 0, words, 1, target.length);
+        words[1 + target.length] = prefix.length;
+        System.arraycopy(prefix, 0, words, 2 + target.length, prefix.length);
         return words;
     }
 
@@ -894,6 +979,16 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             words[13] = scalar[0];
             words[14] = scalar[1];
         }
+        return words;
+    }
+
+    private static long[] foldWindowWords(
+            TensorDescriptor outputDescriptor, long[] windowWords) {
+        long[] shape = outputDescriptor.shape().toLongArray();
+        long[] words = new long[1 + shape.length + windowWords.length];
+        words[0] = shape.length;
+        System.arraycopy(shape, 0, words, 1, shape.length);
+        System.arraycopy(windowWords, 0, words, 1 + shape.length, windowWords.length);
         return words;
     }
 
