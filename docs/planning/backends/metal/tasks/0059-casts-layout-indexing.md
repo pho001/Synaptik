@@ -87,8 +87,11 @@ inputs/outputs.
   every buffer is explicitly declared, bound, fingerprinted, and live. Scalar STACK is included;
   scalar CONCAT remains invalid by the Model contract.
 - `TILE` implements whole-pattern per-axis repetition, not scalar run repetition.
-- `UNFOLD2D` and `UNFOLD3D` use exact coordinate maps and exact same-type zero padding. Both padded
-  and unpadded attribute variants are validated independently.
+- `UNFOLD2D` and `UNFOLD3D` use exact coordinate maps. Direct `Window2dAttrs`/`Window3dAttrs`
+  write represented positive zero for out-of-domain samples; explicit `Unfold2dAttrs`/
+  `Unfold3dAttrs` write the exact same-type raw `ScalarValue`, including NaN payload/sign,
+  infinity, signed zero, BOOL, and integer bits. Attribute type/raw bits participate in metadata,
+  fingerprinting, the independent coordinate-map oracle, and public raw-value evidence.
 
 Every route writes fresh canonical output storage and preserves all inputs. No raw movement
 operation may use a typed MPSGraph selector as its production correctness argument.
