@@ -191,7 +191,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         int value = preparationPlan.targetValueIndices()[targetPosition];
         var descriptor = preparationPlan.descriptors().get(value);
         long byteSize = preparationPlan.targetRequiredBytes()[targetPosition];
-        return preparationPlan.denseAffineProducerKind(
+        return preparationPlan.publicationProducerKind(
                         targetPosition, valueId, descriptor, byteSize)
                 .map(producerKind -> new MetalBufferRepresentation.DenseAffinePublication(
                         this,

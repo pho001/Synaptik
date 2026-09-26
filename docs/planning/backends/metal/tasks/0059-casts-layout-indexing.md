@@ -102,22 +102,24 @@ operation may use a typed MPSGraph selector as its production correctness argume
 ### Gate D: schema-15 resolved-layout indexing
 
 Admit `SELECT` and `SLICE` through the existing exact raw-movement custom family for all six
-carriers, with fully static input and output Shapes, positive input and output rank, positive
-extents, and `requiresGrad=false` throughout. Caller-negative axes and SELECT indices must already
-be normalized by Model; the executable image accepts only normalized attributes. SELECT removes
-one axis and maps each dense represented-order output coordinate to the exact dense represented-
-order input coordinate. SLICE implements Model-normalized starts, lengths, axes, and signed
-nonzero steps, including negative steps.
+carriers, with fully static positive-rank input and output Shapes, positive extents,
+`requiresGrad=false`, and resolved positive-stride non-overlapping storage layouts throughout.
+Caller-negative axes and SELECT indices must already be normalized by Model; the executable image
+accepts only normalized attributes. SELECT removes one axis. SLICE accepts normalized starts,
+lengths, axes, and strictly positive steps. Zero or negative steps, unresolved layouts, zero
+strides, overlapping geometry, and a referenced span inconsistent with the offset/strides fail
+closed; neither capability nor contextual partition admission promises those cases.
 
-Schema 15 encodes every logical layout fact needed to validate and publish these materialized
-results: Shape rank and dimensions, optional-layout presence, every resolved element stride,
-element storage offset, derived layout kind, view flag, and referenced element span. Native code
-independently recomputes and validates kind/span geometry and the exact SELECT/SLICE layout
-transformation. Resolved positive-step views retain their exact nonzero offsets and noncontiguous
-strides; unresolved negative-step results remain explicitly unresolved. Physical result buffers
-are fresh dense represented-order materializations, authenticated to the exact logical descriptor
-for publication; this neither aliases nor mutates the input. Authenticated materialization applies
-to all six carrier types and does not require zero logical storage offset.
+Schema 15 encodes every logical layout fact needed to validate, execute, transfer, and publish
+these materialized results: Shape rank and dimensions, optional-layout presence, every resolved
+element stride, element storage offset, derived layout kind, view flag, and referenced element
+span. Native code independently recomputes and validates kind/span geometry and the exact
+SELECT/SLICE layout transformation. Result buffers cover the complete physical referenced span.
+The custom kernels read and write only logical coordinates at their declared physical positions,
+so prefix canaries and layout holes remain unchanged. Internal values and cross-owner boundaries
+retain the same exact storage-layout contract; publication gathers logical elements in row-major
+order without rewriting the descriptor or assuming dense storage. This applies to all six carrier
+types and does not alias or mutate the input.
 
 The clean cutover changes schema 14 to schema 15 and identity 15 to identity 16. There is one
 schema-15 encoder/decoder and no schema-14 compatibility reader, alias, migration shim, or dual
@@ -214,8 +216,9 @@ immutability, and direct assigned-output publication.
    BOOL target behavior, partition INT32/INT64 sign-extension/narrowing/zero behavior with exact
    boundary and randomized full-word corroboration, and prove identity pairs by carrier-width copy.
 3. Prove raw coordinate maps against an independent CPU/Model oracle across every admitted kind,
-   every carrier width, scalar/rank boundaries, negative slice steps, padding, batch/suffix gather,
-   window padding/dilation/stride, and variadic placement.
+   every carrier width, scalar/rank boundaries, padding, batch/suffix gather, window
+   padding/dilation/stride, variadic placement, and positive slice steps; separately prove that
+   zero/negative steps and unresolved, zero-stride, overlapping, or out-of-span layouts fail closed.
 4. Run focused capability/catalog/schema/identity/malformed-native tests and assert the exact final
    ledger. No previously approved operation may change route or domain.
 5. Run public no-skip Metal-only Engine smokes for every admitted CAST, indexing, and layout kind,
@@ -233,26 +236,33 @@ previous nine newly true operation kinds plus `SELECT` and `SLICE`. The structur
 exactly `79 executable / 36 nonexecutable`; their structural MPSGraph recipes are independent of
 the fixed custom production route.
 
-## Completion evidence
+## Reopened completion evidence
 
-- Production capability is exactly `59 true / 56 false`: wires `39`, `69`, `71`, `74`, `77`,
-  `78`, `79`, `81`, and `83` are newly true under the frozen occurrence gates; the other eight
-  Task-0059 wires remain false for the recorded blockers.
-- Structural execution is exactly `79 executable / 36 nonexecutable`; catalog state is unchanged at
-  `75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE`, while the custom catalog is
+- Production capability is exactly `61 true / 54 false`: the prior nineteen CAST pairs, exact
+  `GATHER_ELEMENTS`/`GATHER_ND`, six copy-only layout routes, plus SELECT and positive-step SLICE.
+  The reduction/update/fold, gradient, unresolved, zero/negative-stride, overlapping, out-of-span,
+  empty/dynamic, and unproved conversion domains remain false.
+- Structural execution remains exactly `79 executable / 36 nonexecutable`; catalog state remains
+  `75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE` and custom state remains
   `38 AVAILABLE / 77 PENDING / 0 UNAVAILABLE_WITH_PROOF`.
-- Focused native and Java proof passed for all nineteen CAST pairs, every BFLOAT16 word, integer
-  boundary/full-word corpora, all carrier-width raw movement, both index widths, bounds-before-write,
-  internal produced indices, scalar policy, rank-sixteen attributes, signed extreme slice strides,
-  ceil-window tails, fold masking/wide geometry, mixed custom/nested programs, schema/malformed
-  controls, candidate identity, prepared resources, and exact ledgers.
-- No-skip public Metal Engine proof passed for every admitted kind, scalar results, exact
-  `GATHER_ELEMENTS`/`GATHER_ND` diagnostics, repeated and independent sessions, concurrent runs,
-  direct publication ownership, input preservation, no-alias results, and close ordering.
-- The rebuilt dylib was ad-hoc signed, locally packaged, and independently verified with ABI 5,
-  schema 14, identity 15, and exactly thirteen exports. The opt-in Gradle package verifier and
-  Metal Javadocs passed. Per plan, no final full repository build was run.
-- Independent cumulative Class C review approved the final source after confirming remediation of
-  staged internal-index validation, all-six-carrier feeds and splats, exact diagnostic replay,
-  nested MPS compaction, structural type/shape parity, zero-prefix crop, rank-sixteen attributes,
-  overflow-safe slices, ceil-tail windows, and masked 64-bit Fold3D depth geometry.
+- Schema 15 encodes 40-byte value descriptors plus the stride pool, offset, kind, view flag, and
+  referenced span. Java and native reject schema 14, malformed flags/kinds/spans, unresolved
+  layouts, zero/negative strides, and overlap. All backend-local identity versions are 16; version
+  15 fails closed. ABI 5 and exactly thirteen exports remain unchanged.
+- Real native SELECT-to-SLICE chaining passed for every carrier with nonzero offsets,
+  noncontiguous positive strides, exact represented bits, repeated execution, unchanged inputs,
+  and untouched prefix/gap canaries. Focused native schema, malformed-image, indexing,
+  rank-sixteen, and existing structural controls also passed.
+- Public storage-layout transfer covers SELECT and SLICE boundaries, preserves complete physical
+  spans, and rejects unresolved, zero-stride, negative-stride, and overlapping geometry.
+  Metal-to-CPU BOOL download stages and validates every logical byte before committing, so a
+  malformed device value leaves the caller destination unchanged.
+- The public Engine partition boundary admits a graph-input storage layout through forced
+  SELECT-to-SLICE owner boundaries and rejects unsupported transfer geometry. Authenticated
+  SELECT publication gathers exact canonical bits for all six carriers.
+- The dylib was rebuilt, fixed-signature ad-hoc signed, locally packaged, and independently
+  verified with ABI 5, schema 15, and thirteen exports. The complete Metal JVM suite, focused
+  real-native suites, CPU transfer API proof, Engine boundary proof, and changed-module Javadocs
+  passed. Per plan, no final full repository build was run.
+- Independent cumulative Class C review and any required P0/P1/P2 remediation remain before this
+  task may return to Complete.

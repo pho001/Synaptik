@@ -42,6 +42,8 @@ import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
+import io.github.pho001.synaptik.model.operation.index.SelectAttrs;
+import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
@@ -727,10 +729,10 @@ class MetalNegPreparedExecutionTest {
         var binding = executable.splatResource(route.feed()).orElseThrow().newRunBinding();
         TensorDescriptor descriptor = descriptor(Shape.of(2));
         try {
-            assertTrue(runtime.acceptsCanonicalTransfer(binding, descriptor));
+            assertTrue(runtime.acceptsStorageLayoutTransfer(binding, descriptor));
             try (Arena arena = Arena.ofConfined()) {
                 MemorySegment destination = arena.allocate(2L * Float.BYTES, Float.BYTES);
-                runtime.bindCanonicalDownload(binding, descriptor).accept(destination);
+                runtime.bindStorageLayoutDownload(binding, descriptor).accept(destination);
                 assertEquals(Float.floatToRawIntBits(-2.5f),
                         destination.getAtIndex(JAVA_INT, 0));
                 assertEquals(Float.floatToRawIntBits(-2.5f),
@@ -740,7 +742,7 @@ class MetalNegPreparedExecutionTest {
             assertEquals(Float.floatToRawIntBits(-2.5f),
                     java.nio.ByteBuffer.wrap(canonical).getInt(0));
             assertThrows(IllegalArgumentException.class,
-                    () -> runtime.bindCanonicalUpload(binding, descriptor));
+                    () -> runtime.bindStorageLayoutUpload(binding, descriptor));
 
             for (int index = finalized.resources().size() - 1; index >= 0; index--) {
                 finalized.resources().get(index).close();
@@ -755,7 +757,7 @@ class MetalNegPreparedExecutionTest {
             api.bufferReleaseFailures.add(deferredRelease);
             assertSame(deferredRelease,
                     assertThrows(RuntimeException.class, binding::close));
-            assertFalse(runtime.acceptsCanonicalTransfer(binding, descriptor));
+            assertFalse(runtime.acceptsStorageLayoutTransfer(binding, descriptor));
         } finally {
             binding.close();
             for (int index = finalized.resources().size() - 1; index >= 0; index--) {
@@ -768,7 +770,7 @@ class MetalNegPreparedExecutionTest {
     }
 
     @Test
-    void canonicalRankZeroTransfersAndPublicationCoverAllTypesAndRejectInvalidBoolBeforeUpload() {
+    void rankZeroStorageTransfersCoverAllTypesAndRejectInvalidBoolWithoutPartialPublish() {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
         MetalBackendRuntime runtime = new MetalBackendRuntime(context);
@@ -787,9 +789,9 @@ class MetalNegPreparedExecutionTest {
                         Optional.of(LayoutDescriptor.contiguous(Shape.scalar())),
                         false);
                 try (var representation = runtime.borrow(storage)) {
-                    assertTrue(runtime.acceptsCanonicalTransfer(representation, descriptor));
+                    assertTrue(runtime.acceptsStorageLayoutTransfer(representation, descriptor));
                     MemorySegment downloaded = arena.allocate(width, width);
-                    runtime.bindCanonicalDownload(representation, descriptor).accept(downloaded);
+                    runtime.bindStorageLayoutDownload(representation, descriptor).accept(downloaded);
                     for (int index = 0; index < width; index++) {
                         assertEquals(source.get(JAVA_BYTE, index),
                                 downloaded.get(JAVA_BYTE, index));
@@ -809,23 +811,30 @@ class MetalNegPreparedExecutionTest {
             MemorySegment invalidBool = arena.allocate(1L, 1L);
             invalidBool.set(JAVA_BYTE, 0L, (byte) 2);
             int uploadsBeforeInvalid = api.uploads.get();
-            assertThrows(IllegalArgumentException.class, () -> runtime.borrow(
-                    new MemorySegmentStorage(DataType.BOOL, 1L, invalidBool)));
-            assertEquals(uploadsBeforeInvalid, api.uploads.get());
-
-            MemorySegment validBool = arena.allocate(1L, 1L);
-            validBool.set(JAVA_BYTE, 0L, (byte) 1);
             TensorDescriptor boolDescriptor = new TensorDescriptor(
                     DataType.BOOL,
                     Shape.scalar(),
                     Optional.of(LayoutDescriptor.contiguous(Shape.scalar())),
                     false);
+            try (var invalidDevice = runtime.borrow(
+                    new MemorySegmentStorage(DataType.BOOL, 1L, invalidBool))) {
+                MemorySegment untouched = arena.allocate(1L, 1L);
+                untouched.set(JAVA_BYTE, 0L, (byte) 0x5a);
+                assertThrows(IllegalArgumentException.class,
+                        () -> runtime.bindStorageLayoutDownload(
+                                invalidDevice, boolDescriptor).accept(untouched));
+                assertEquals((byte) 0x5a, untouched.get(JAVA_BYTE, 0L));
+            }
+            assertEquals(uploadsBeforeInvalid + 1, api.uploads.get());
+
+            MemorySegment validBool = arena.allocate(1L, 1L);
+            validBool.set(JAVA_BYTE, 0L, (byte) 1);
             try (var destination = runtime.borrow(
                     new MemorySegmentStorage(DataType.BOOL, 1L, validBool))) {
                 assertThrows(IllegalArgumentException.class,
-                        () -> runtime.bindCanonicalUpload(destination, boolDescriptor)
+                        () -> runtime.bindStorageLayoutUpload(destination, boolDescriptor)
                                 .accept(invalidBool));
-                assertEquals(uploadsBeforeInvalid + 1, api.uploads.get());
+                assertEquals(uploadsBeforeInvalid + 2, api.uploads.get());
             }
         } finally {
             runtime.close();
@@ -2992,6 +3001,126 @@ class MetalNegPreparedExecutionTest {
             }
             runtime.close();
         }
+    }
+
+    @Test
+    void selectStoragePublicationGathersExactCanonicalBitsForAllCarriers() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        MetalBackendRuntime runtime = new MetalBackendRuntime(context);
+        try {
+            int ordinal = 0;
+            for (DataType type : DataType.values()) {
+                Shape inputShape = Shape.of(3, 4);
+                Shape outputShape = Shape.of(4);
+                LayoutDescriptor inputLayout =
+                        LayoutDescriptor.of(inputShape, new long[] {6, 1}, 2L, true);
+                LayoutDescriptor outputLayout =
+                        LayoutDescriptor.of(outputShape, new long[] {1}, 8L, true);
+                TensorDescriptor inputDescriptor = new TensorDescriptor(
+                        type, inputShape, Optional.of(inputLayout), false);
+                TensorDescriptor outputDescriptor = new TensorDescriptor(
+                        type, outputShape, Optional.of(outputLayout), false);
+                ValueId feed = new ValueId(700 + ordinal * 2L);
+                ValueId target = new ValueId(701 + ordinal * 2L);
+                CompiledNode node = new CompiledNode(
+                        new NodeId(700 + ordinal),
+                        new Operation(SelectKind.SELECT, new SelectAttrs(0, 1)),
+                        List.of(feed),
+                        List.of(target));
+                PlannedPartition partition = new PlannedPartition(
+                        MetalCapabilityProvider.METAL_BACKEND_ID, List.of(node.id()));
+                BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
+                        new MetalNegPartitionPreparer().analyze(new PrepareContext<>(
+                                NumericalProfile.STRICT_IEEE,
+                                new PartitionDag(partition, List.of(node)),
+                                List.of(
+                                        new GraphValue(feed, inputDescriptor),
+                                        new GraphValue(target, outputDescriptor)),
+                                List.of(
+                                        requirement(
+                                                feed,
+                                                inputDescriptor,
+                                                Optional.empty(),
+                                                List.of(partition),
+                                                false),
+                                        requirement(
+                                                target,
+                                                outputDescriptor,
+                                                Optional.of(partition),
+                                                List.of(),
+                                                true)),
+                                Map.of(),
+                                new MetalNegAnalysisInputs(context)));
+                FinalizationFixture assignment = finalization(analysis);
+                BackendPartitionFinalizationResult finalized =
+                        new MetalNegPartitionFinalizer(context)
+                                .finalizePartition(assignment.finalization());
+                MetalBufferRepresentation publication = null;
+                try {
+                    MetalNegPreparedExecutable executable =
+                            (MetalNegPreparedExecutable) finalized.executable();
+                    long spanBytes = Math.multiplyExact(
+                            outputLayout.referencedElementSpan(), type.byteWidth());
+                    publication = context.createBuffer(
+                            spanBytes,
+                            executable.denseAffinePublication(target).orElseThrow());
+                    try (Arena arena = Arena.ofConfined()) {
+                        MemorySegment physical =
+                                arena.allocate(spanBytes, type.byteWidth());
+                        physical.fill((byte) 0x5a);
+                        for (int element = 0; element < 4; element++) {
+                            for (int byteIndex = 0;
+                                    byteIndex < type.byteWidth();
+                                    byteIndex++) {
+                                byte value = type == DataType.BOOL
+                                        ? (byte) (element & 1)
+                                        : (byte) (0x20 + element * type.byteWidth()
+                                                + byteIndex);
+                                physical.set(
+                                        JAVA_BYTE,
+                                        Math.multiplyExact(8L + element, type.byteWidth())
+                                                + byteIndex,
+                                        value);
+                            }
+                        }
+                        publication.upload(0L, physical, 0L, spanBytes);
+                        long canonicalBytes = Math.multiplyExact(4L, type.byteWidth());
+                        byte[] canonical = runtime.copyToCanonicalHostBytes(
+                                publication, outputDescriptor, canonicalBytes);
+                        assertEquals(Math.toIntExact(canonicalBytes), canonical.length);
+                        for (int element = 0; element < 4; element++) {
+                            for (int byteIndex = 0;
+                                    byteIndex < type.byteWidth();
+                                    byteIndex++) {
+                                int sourceByte = type == DataType.BOOL
+                                                || java.nio.ByteOrder.nativeOrder()
+                                                        == java.nio.ByteOrder.BIG_ENDIAN
+                                        ? byteIndex : type.byteWidth() - 1 - byteIndex;
+                                assertEquals(
+                                        physical.get(
+                                                JAVA_BYTE,
+                                                Math.multiplyExact(
+                                                        8L + element, type.byteWidth())
+                                                        + sourceByte),
+                                        canonical[element * type.byteWidth() + byteIndex],
+                                        type + " element=" + element
+                                                + " byte=" + byteIndex);
+                            }
+                        }
+                    }
+                } finally {
+                    if (publication != null) publication.close();
+                    for (int index = finalized.resources().size() - 1; index >= 0; index--) {
+                        finalized.resources().get(index).close();
+                    }
+                }
+                ordinal++;
+            }
+        } finally {
+            runtime.close();
+        }
+        assertTrue(api.liveBufferHandles().isEmpty());
     }
 
     private static void assertNegated(

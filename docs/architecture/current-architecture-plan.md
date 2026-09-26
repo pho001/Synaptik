@@ -70,14 +70,16 @@ WHERE. Accelerator additionally admits canonical tensor FLOAT32
 exact scalar `MIN`/`MAX`/`CLAMP`, canonical `SUM`/`MEAN`/`MIN`/`MAX`/`SUM_TO_SHAPE`, every
 `CUM_SUM`/`CUM_PROD` mode, and positive static rank-two MATMUL. Strict capability remains an
 accelerator subset; every other occurrence fails closed before route selection. Canonical typed
-host ingress/publication and direct CPU/Metal transfer support all six data types at ranks `0..16`
-with strict BOOL-byte validation; BOOL operation consumption is limited to the exact positive-rank
-logic/WHERE domain. An eligible singleton NEG retains its dedicated custom route. Any partition
-containing a Task-0052 or new BOOL-domain node uses the fixed shared custom whole-program route
-with declared run-owned value buffers and one Java/native invocation. Current Metal uses ABI 5
-with the same thirteen exports and one bounded schema-14 route-bearing program image over type
-wires `1..6`, operation wires `1..115`, and attribute wires `0..41`; backend-local identities are
-version fifteen. Structural vocabulary does not widen the exact 41-kind executable capability.
+host ingress/publication and direct CPU/Metal transfer support all six data types at ranks `0..16`;
+transfer also accepts resolved positive-stride non-overlapping physical storage layouts and rejects
+unresolved, zero-stride, negative-stride, or overlapping geometry. BOOL validation visits logical
+elements only. Exact all-carrier SELECT and positive-step SLICE use that storage-layout contract.
+An eligible singleton NEG retains its dedicated custom route. Any partition containing a
+Task-0052, BOOL-domain, or Task-0059 custom node uses the fixed shared whole-program route with
+declared run-owned value buffers and one Java/native invocation. Current Metal uses ABI 5 with the
+same thirteen exports and one bounded schema-15 route-bearing program image over type wires
+`1..6`, operation wires `1..115`, and attribute wires `0..41`; backend-local identities are
+version sixteen. Structural coverage is `79 / 36`; production capability is exactly `61 / 54`.
 
 The Training extension now owns a public reusable
 Engine-backed scalar session with persistent SGD, accumulation, and detached in-memory state over

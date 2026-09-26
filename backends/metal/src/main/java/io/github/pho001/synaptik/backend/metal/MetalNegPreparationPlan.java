@@ -167,10 +167,18 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
         this.route = Objects.requireNonNull(route, "route");
         this.valueIds = List.copyOf(valueIds);
         this.descriptors = List.copyOf(descriptors);
-        this.programValueDescriptors = this.descriptors.stream()
-                .map(MetalMpsGraphProgram.ValueDescriptor::from)
-                .toList();
         this.valueStates = List.copyOf(valueStates);
+        if (this.descriptors.size() != this.valueStates.size()) {
+            throw new IllegalArgumentException(
+                    "Metal descriptor and value-state counts must match");
+        }
+        var encodedValues = new java.util.ArrayList<
+                MetalMpsGraphProgram.ValueDescriptor>(this.descriptors.size());
+        for (int value = 0; value < this.descriptors.size(); value++) {
+            encodedValues.add(MetalMpsGraphProgram.ValueDescriptor.from(
+                    this.descriptors.get(value), this.valueStates.get(value)));
+        }
+        this.programValueDescriptors = List.copyOf(encodedValues);
         this.graphProgram = Objects.requireNonNull(graphProgram, "graphProgram");
         this.feedValueIds = List.copyOf(feedValueIds);
         this.feedValueIndices = feedValueIndices.clone();
@@ -285,7 +293,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     long[] targetRequiredBytes() { return targetRequiredBytes.clone(); }
 
 
-    Optional<MetalMpsGraphProgram.NodeKind> denseAffineProducerKind(
+    Optional<MetalMpsGraphProgram.NodeKind> publicationProducerKind(
             int targetPosition,
             ValueId valueId,
             TensorDescriptor descriptor,
@@ -300,13 +308,15 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             return Optional.empty();
         }
         int value = targetValueIndices[targetPosition];
+        MetalMpsGraphProgram.ValueState state = valueStates.get(value);
         if (!descriptors.get(value).equals(descriptor)
-                || valueStates.get(value) != MetalMpsGraphProgram.ValueState.AFFINE_VIEW) {
+                || (state != MetalMpsGraphProgram.ValueState.AFFINE_VIEW
+                        && state != MetalMpsGraphProgram.ValueState.MATERIALIZED_LAYOUT)) {
             return Optional.empty();
         }
         for (MetalMpsGraphProgram.Node node : graphProgram.nodes()) {
             if (node.outputIndex() == value) {
-                return node.kind().isAffine()
+                return node.kind().publishesAuthenticatedLayout()
                         ? Optional.of(node.kind()) : Optional.empty();
             }
         }

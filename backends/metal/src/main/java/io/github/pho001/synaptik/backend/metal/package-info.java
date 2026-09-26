@@ -20,11 +20,15 @@
  * then target uniqueness before dispatch.
  * The common domain also includes the nineteen proved canonical no-gradient {@code CAST} carrier
  * pairs; exact raw {@code GATHER_ELEMENTS} and {@code GATHER_ND} over all six data carriers with
- * {@code INT32} or {@code INT64} indices; all-six-carrier {@code PAD}, {@code CONCAT},
- * {@code STACK}, and {@code TILE}; and floating-carrier {@code UNFOLD2D}/{@code UNFOLD3D}.
- * These routes require fully static canonical rank {@code 0..16} descriptors where Model permits
- * the rank, exact Model-derived Shapes and attributes, and bounds validation before any indexed
- * write. They use one fixed custom-program route with no fallback, retry, timing, or autotuning.
+ * {@code INT32} or {@code INT64} indices; all-six-carrier {@code SELECT}, positive-step
+ * {@code SLICE}, {@code PAD}, {@code CONCAT}, {@code STACK}, and {@code TILE}; and
+ * floating-carrier {@code UNFOLD2D}/{@code UNFOLD3D}. SELECT and SLICE require fully static,
+ * resolved, positive-stride, non-overlapping input and output storage layouts with exact
+ * offset/stride/span relationships; unresolved, zero-stride, negative-stride, overlapping, empty,
+ * or gradient-bearing occurrences remain false. The other routes require fully static canonical
+ * rank {@code 0..16} descriptors where Model permits the rank, exact Model-derived Shapes and
+ * attributes, and bounds validation before any indexed write. They use one fixed custom-program
+ * route with no fallback, retry, timing, or autotuning.
  * {@code ACCELERATOR} additionally admits tensor {@code ADD}, {@code SUB}, {@code MUL},
  * {@code DIV}, {@code MIN}, and {@code MAX}; all six
  * binary comparisons with canonical one-byte {@code BOOL} output; exact FLOAT32 scalar
@@ -35,8 +39,10 @@
  * normalized multi-axis including empty, and exact keep-dimensions forms; reduction inputs remain
  * positive-rank while their target may be rank zero. Canonical host ingress/materialization and
  * bidirectional CPU/Metal transfer accept ranks {@code 0..16} for all six public data types with
- * exact widths, canonical non-view geometry, and strict BOOL-byte validation. Exact BOOL operation
- * ingress is restricted further to positive-rank canonical bytes; custom outputs are written as
+ * exact widths; transfer additionally accepts resolved positive-stride non-overlapping storage
+ * layouts and rejects unresolved, zero-stride, negative-stride, or overlapping geometry. Logical
+ * BOOL bytes are validated while layout holes remain uninterpreted. Exact BOOL operation ingress
+ * is restricted further to positive-rank canonical bytes; custom outputs are written as
  * exact zero or one, and owned MPSGraph ONE_HOT output is validated by its typed selector contract.
  * Accelerator binary inputs and outputs are canonical dense non-views and use exact right-aligned
  * broadcasting.
@@ -47,14 +53,14 @@
  * consume the stable declared value table in program order behind one Java/native run call.
  * Every logical intermediate is an assigned run-owned buffer; targets remain the direct assigned
  * buffers.
- * Every direct {@code NEG}, {@code ABS}, {@code FLOOR}, {@code CEIL}, {@code SIGN}, or
- * {@code RELU} operand/output and graph feed is canonical; affine inputs may also be exact
- * resolved zero-offset views produced earlier in the same maximal partition. Affine outputs retain
- * their exact Model view geometry, while {@code CONTIGUOUS} produces canonical geometry. Metal
- * lowers one complete profile-homogeneous partition as a typed whole-partition program during
- * preparation.</p>
+ * Direct {@code NEG}, {@code ABS}, {@code FLOOR}, {@code CEIL}, {@code SIGN}, and {@code RELU}
+ * operands/outputs and their graph feeds are canonical. SELECT/SLICE may consume exact supported
+ * storage-layout feeds and produce materialized-layout values. Other affine inputs may be exact
+ * resolved zero-offset views produced earlier in the same maximal partition; their outputs retain
+ * exact Model view geometry. {@code CONTIGUOUS} produces canonical geometry. Metal lowers one
+ * complete profile-homogeneous partition as a typed whole-partition program during preparation.</p>
  *
- * <p>A package-private exhaustive catalog describes all 115 schema-fourteen operation kinds as
+ * <p>A package-private exhaustive catalog describes all 115 schema-fifteen operation kinds as
  * MPSGraph {@code DIRECT}, {@code COMPOSED}, or {@code UNAVAILABLE} and custom-kernel
  * {@code AVAILABLE}, {@code PENDING}, or {@code UNAVAILABLE_WITH_PROOF}, with closed source
  * reasons. It is cold descriptive metadata only: capability remains authoritative and the catalog
@@ -77,9 +83,11 @@
  * exposes one whole-plan candidate fixed to the selected route. Both collaborations use opaque
  * exact associations, fresh authoritative preparation, and session-only compatibility; they
  * perform no execution, measurement, cache input/output, or fallback-policy work. Exact prepared
- * affine-view targets may materialize from their authenticated backend-private dense
- * represented-order buffers without rewriting logical view descriptors. Engine uses those
- * contributions and typed binders for the bounded bidirectional CPU/Metal mixed-owner schedule.
+ * SELECT/SLICE targets materialize by gathering logical elements from authenticated backend-private
+ * physical storage using their exact positive strides and offset; unrelated prefix and gap bytes
+ * remain intact. Other prepared affine targets retain the existing dense represented-order
+ * publication path. Engine uses these contributions and typed binders for the bounded
+ * bidirectional CPU/Metal mixed-owner schedule.
  * Native internals remain package-private.
  * There is no library discovery, CPU fallback, or backend-global integration.</p>
  *
@@ -96,14 +104,12 @@
  *
  * <p>The selected numerical profile participates in partition-plan, route, tuning,
  * decision-codec, and workload identity. Java rejects profile/schema mismatches before native
- * entry. ABI version five retains thirteen exports. Node schema version fourteen is one bounded
+ * entry. ABI version five retains thirteen exports. Node schema version fifteen is one bounded
  * self-describing route-bearing image over stable type wires {@code 1..6}, operation wires
- * {@code 1..115}, and attribute wires {@code 0..41}. Native structural recipes execute exactly
- * wires {@code 1..34}, {@code 38}, {@code 40..54}, {@code 56..63}, and {@code 65..68}; production
- * capability is exactly 50 operations: wires {@code 1..34}, {@code 40..49}, {@code 51..52}, and
- * {@code 60..63}. Wires {@code 46..49} and {@code 52} require ACCELERATOR, canonical positive-rank
- * FLOAT32 no-gradient input and output, and preserve exact scalar raw words. Backend-local
- * workload, exact-policy, candidate, compatibility, route-policy, and codec identities remain
- * version fifteen.</p>
+ * {@code 1..115}, attribute wires {@code 0..41}, and complete optional storage-layout geometry.
+ * Native structural execution covers exactly 79 wires and leaves 36 nonexecutable. Production
+ * capability is exactly 61 operation kinds and 54 remain false. Backend-local workload,
+ * exact-policy, candidate, compatibility, route-policy, and codec identities are version sixteen;
+ * schema fourteen and identity version fifteen fail closed.</p>
  */
 package io.github.pho001.synaptik.backend.metal;

@@ -20,7 +20,7 @@ import java.util.Optional;
  * Generates complete, stable, budget-bounded Metal supported-operation route candidates.
  *
  * <p>The workload fingerprint uses only versioned semantics and structural positions, including
- * the cold numerical profile, schema-fourteen program image, exact logical descriptors, ordered
+ * the cold numerical profile, schema-fifteen program image, exact logical descriptors, ordered
  * edges, explicit value states, target sets, dense represented-order geometry, ABI identity,
  * typed splats, and the scalar-composition source wire, exact raw constant, rank-one
  * {@code [1]} shape, operand order, and primitive opcode. Graph-local identities, partition object
@@ -29,8 +29,8 @@ import java.util.Optional;
  */
 final class MetalNegRouteCandidateGenerator {
     private static final long UINT32_MAX = 0xffff_ffffL;
-    private static final int WORKLOAD_SIGNATURE_VERSION = 15;
-    private static final int EXACT_DEFAULT_POLICY = 15;
+    private static final int WORKLOAD_SIGNATURE_VERSION = 16;
+    private static final int EXACT_DEFAULT_POLICY = 16;
 
     /**
      * Generates every currently valid complete candidate up to a positive budget.

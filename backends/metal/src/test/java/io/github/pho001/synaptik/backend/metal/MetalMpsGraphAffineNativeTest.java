@@ -1,9 +1,11 @@
 package io.github.pho001.synaptik.backend.metal;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -153,29 +155,315 @@ class MetalMpsGraphAffineNativeTest {
     }
 
     @Test
-    void affineViewStillRejectsCrossOwnerTransferWhileCanonicalTransferRemainsAccepted() {
+    void publicSelectAndSliceBoundaryTransfersPreservePhysicalPrefixGapsAndLogicalPlacement() {
         Path library = configuredLibrary();
         try (Arena arena = Arena.ofConfined();
                 MetalBackendIntegration integration = MetalBackendIntegration.open(
-                        new MetalBackendConfiguration(library));
-                BufferRepresentation representation = integration.borrow(
-                        new MemorySegmentStorage(
-                                DataType.FLOAT32, 6L, arena.allocate(24L, Float.BYTES)))) {
-            Shape shape = Shape.of(2, 3);
-            TensorDescriptor canonical = new TensorDescriptor(
+                        new MetalBackendConfiguration(library))) {
+            Shape selectShape = Shape.of(4);
+            TensorDescriptor selectDescriptor = new TensorDescriptor(
                     DataType.FLOAT32,
-                    shape,
-                    java.util.Optional.of(LayoutDescriptor.contiguous(shape)),
+                    selectShape,
+                    java.util.Optional.of(
+                            LayoutDescriptor.of(selectShape, new long[] {1}, 4L, true)),
                     false);
-            TensorDescriptor affineView = new TensorDescriptor(
+            MemorySegment selectStorage = arena.allocate(8L * Integer.BYTES, Integer.BYTES);
+            for (int index = 0; index < 8; index++) {
+                selectStorage.setAtIndex(
+                        JAVA_INT, index, index < 4 ? 0x5a5a5a5a : ADVERSARIAL_BITS[index]);
+            }
+            try (BufferRepresentation select = integration.borrow(
+                    new MemorySegmentStorage(DataType.FLOAT32, 8L, selectStorage))) {
+                assertTrue(integration.acceptsStorageLayoutTransfer(
+                        select, selectDescriptor));
+                MemorySegment downloaded =
+                        arena.allocate(8L * Integer.BYTES, Integer.BYTES);
+                integration.bindStorageLayoutDownload(
+                        select, selectDescriptor).accept(downloaded);
+                for (int index = 0; index < 8; index++) {
+                    assertEquals(
+                            Integer.toUnsignedLong(selectStorage.getAtIndex(JAVA_INT, index)),
+                            Integer.toUnsignedLong(downloaded.getAtIndex(JAVA_INT, index)));
+                }
+            }
+
+            Shape sliceShape = Shape.of(2, 2);
+            TensorDescriptor sliceDescriptor = new TensorDescriptor(
+                    DataType.FLOAT32,
+                    sliceShape,
+                    java.util.Optional.of(
+                            LayoutDescriptor.of(sliceShape, new long[] {8, 2}, 5L, true)),
+                    false);
+            MemorySegment sliceStorage = arena.allocate(16L * Integer.BYTES, Integer.BYTES);
+            MemorySegment replacement = arena.allocate(16L * Integer.BYTES, Integer.BYTES);
+            for (int index = 0; index < 16; index++) {
+                sliceStorage.setAtIndex(JAVA_INT, index, 0x6b6b6b6b);
+                replacement.setAtIndex(JAVA_INT, index, 0x7c7c7c7c + index);
+            }
+            int[] logicalIndices = {5, 7, 13, 15};
+            for (int index = 0; index < logicalIndices.length; index++) {
+                sliceStorage.setAtIndex(
+                        JAVA_INT, logicalIndices[index], ADVERSARIAL_BITS[index]);
+            }
+            try (BufferRepresentation slice = integration.borrow(
+                    new MemorySegmentStorage(DataType.FLOAT32, 16L, sliceStorage))) {
+                assertTrue(integration.acceptsStorageLayoutTransfer(
+                        slice, sliceDescriptor));
+                integration.bindStorageLayoutUpload(
+                        slice, sliceDescriptor).accept(replacement);
+                MemorySegment downloaded =
+                        arena.allocate(16L * Integer.BYTES, Integer.BYTES);
+                integration.bindStorageLayoutDownload(
+                        slice, sliceDescriptor).accept(downloaded);
+                for (int index = 0; index < 16; index++) {
+                    assertEquals(
+                            Integer.toUnsignedLong(replacement.getAtIndex(JAVA_INT, index)),
+                            Integer.toUnsignedLong(downloaded.getAtIndex(JAVA_INT, index)));
+                }
+            }
+        }
+    }
+
+    @Test
+    void publicStorageTransferBoundaryRejectsUnresolvedZeroStrideAndOverlappingLayouts() {
+        Path library = configuredLibrary();
+        try (Arena arena = Arena.ofConfined();
+                MetalBackendIntegration integration = MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library))) {
+            Shape shape = Shape.of(2, 2);
+            TensorDescriptor unresolved = new TensorDescriptor(
+                    DataType.FLOAT32, shape, java.util.Optional.empty(), false);
+            TensorDescriptor broadcast = new TensorDescriptor(
                     DataType.FLOAT32,
                     shape,
                     java.util.Optional.of(
-                            LayoutDescriptor.of(shape, new long[] {3, 1}, 0L, true)),
+                            LayoutDescriptor.of(shape, new long[] {0, 1}, 0L, true)),
                     false);
+            TensorDescriptor overlapping = new TensorDescriptor(
+                    DataType.FLOAT32,
+                    shape,
+                    java.util.Optional.of(
+                            LayoutDescriptor.of(shape, new long[] {1, 1}, 0L, true)),
+                    false);
+            try (BufferRepresentation twoElements = integration.borrow(
+                            new MemorySegmentStorage(
+                                    DataType.FLOAT32,
+                                    2L,
+                                    arena.allocate(2L * Integer.BYTES, Integer.BYTES)));
+                    BufferRepresentation threeElements = integration.borrow(
+                            new MemorySegmentStorage(
+                                    DataType.FLOAT32,
+                                    3L,
+                                    arena.allocate(3L * Integer.BYTES, Integer.BYTES)))) {
+                assertFalse(integration.acceptsStorageLayoutTransfer(
+                        twoElements, unresolved));
+                assertFalse(integration.acceptsStorageLayoutTransfer(
+                        twoElements, broadcast));
+                assertFalse(integration.acceptsStorageLayoutTransfer(
+                        threeElements, overlapping));
+            }
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> LayoutDescriptor.of(shape, new long[] {-1, 1}, 0L, true));
+        }
+    }
 
-            assertTrue(integration.acceptsCanonicalTransfer(representation, canonical));
-            assertFalse(integration.acceptsCanonicalTransfer(representation, affineView));
+    @Test
+    void realSelectSliceChainUsesEncodedStorageForAllCarriersAndPreservesHoles() {
+        Path library = configuredLibrary();
+        MetalNativeApi api = MetalNativeApi.open(library);
+        MetalNativeApi.Handle context = null;
+        try {
+            context = api.createContext();
+            Shape inputShape = Shape.of(3, 4);
+            Shape selectShape = Shape.of(4);
+            Shape sliceShape = Shape.of(2);
+            LayoutDescriptor inputLayout =
+                    LayoutDescriptor.of(inputShape, new long[] {6, 1}, 2L, true);
+            LayoutDescriptor selectLayout =
+                    LayoutDescriptor.of(selectShape, new long[] {1}, 8L, true);
+            LayoutDescriptor sliceLayout =
+                    LayoutDescriptor.of(sliceShape, new long[] {2}, 8L, true);
+            var program = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.SELECT,
+                            new int[] {0},
+                            new int[] {1},
+                            MetalMpsGraphProgram.AttributeKind.SELECT,
+                            new long[] {0, 1}),
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.SLICE,
+                            new int[] {1},
+                            new int[] {2},
+                            MetalMpsGraphProgram.AttributeKind.SLICE,
+                            new long[] {1, 0, 2, 0, 2})));
+            for (DataType type : DataType.values()) {
+                runSelectSliceCarrier(
+                        api,
+                        context,
+                        type,
+                        inputShape,
+                        inputLayout,
+                        selectShape,
+                        selectLayout,
+                        sliceShape,
+                        sliceLayout,
+                        program);
+            }
+        } finally {
+            if (context != null) api.releaseContext(context);
+            api.close();
+        }
+    }
+
+    private static void runSelectSliceCarrier(
+            MetalNativeApi api,
+            MetalNativeApi.Handle context,
+            DataType type,
+            Shape inputShape,
+            LayoutDescriptor inputLayout,
+            Shape selectShape,
+            LayoutDescriptor selectLayout,
+            Shape sliceShape,
+            LayoutDescriptor sliceLayout,
+            MetalMpsGraphProgram program) {
+        int width = type.byteWidth();
+        long inputBytes = Math.multiplyExact(inputLayout.referencedElementSpan(), width);
+        long selectBytes = Math.multiplyExact(selectLayout.referencedElementSpan(), width);
+        long sliceBytes = Math.multiplyExact(sliceLayout.referencedElementSpan(), width);
+        var values = List.of(
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        type,
+                        inputShape.toLongArray(),
+                        java.util.Optional.of(inputLayout),
+                        false,
+                        false),
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        type,
+                        selectShape.toLongArray(),
+                        java.util.Optional.of(selectLayout),
+                        false,
+                        false),
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        type,
+                        sliceShape.toLongArray(),
+                        java.util.Optional.of(sliceLayout),
+                        false,
+                        false));
+        MetalNativeApi.Handle executable = null;
+        MetalNativeApi.Handle input = null;
+        MetalNativeApi.Handle selected = null;
+        MetalNativeApi.Handle sliced = null;
+        try {
+            executable = api.createMpsGraphExecutable(
+                    context,
+                    NumericalProfile.STRICT_IEEE,
+                    values,
+                    program,
+                    new int[] {0},
+                    new int[] {1, 2},
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            input = api.createBuffer(context, inputBytes);
+            selected = api.createBuffer(context, selectBytes);
+            sliced = api.createBuffer(context, sliceBytes);
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment source = arena.allocate(inputBytes, width);
+                MemorySegment selectedSentinel = arena.allocate(selectBytes, width);
+                MemorySegment slicedSentinel = arena.allocate(sliceBytes, width);
+                source.fill((byte) 0x5a);
+                selectedSentinel.fill((byte) 0x6b);
+                slicedSentinel.fill((byte) 0x7c);
+                for (int row = 0; row < 3; row++) {
+                    for (int column = 0; column < 4; column++) {
+                        long element = 2L + row * 6L + column;
+                        for (int byteIndex = 0; byteIndex < width; byteIndex++) {
+                            byte value = type == DataType.BOOL
+                                    ? (byte) ((row + column) & 1)
+                                    : (byte) (0x10 + row * 4 * width
+                                            + column * width + byteIndex);
+                            source.set(
+                                    JAVA_BYTE,
+                                    Math.multiplyExact(element, width) + byteIndex,
+                                    value);
+                        }
+                    }
+                }
+                api.upload(input, 0L, source, inputBytes);
+                MemorySegment inputs = arena.allocate(ADDRESS, 3);
+                MemorySegment outputs = arena.allocate(ADDRESS, 2);
+                inputs.setAtIndex(ADDRESS, 0L, input.carrier());
+                inputs.setAtIndex(ADDRESS, 1L, selected.carrier());
+                inputs.setAtIndex(ADDRESS, 2L, sliced.carrier());
+                outputs.setAtIndex(ADDRESS, 0L, selected.carrier());
+                outputs.setAtIndex(ADDRESS, 1L, sliced.carrier());
+                MemorySegment actualInput = arena.allocate(inputBytes, width);
+                MemorySegment actualSelected = arena.allocate(selectBytes, width);
+                MemorySegment actualSliced = arena.allocate(sliceBytes, width);
+                for (int iteration = 0; iteration < 2; iteration++) {
+                    api.upload(selected, 0L, selectedSentinel, selectBytes);
+                    api.upload(sliced, 0L, slicedSentinel, sliceBytes);
+                    api.runExecutable(executable, 3, inputs, 2, outputs);
+                    api.download(input, 0L, actualInput, inputBytes);
+                    api.download(selected, 0L, actualSelected, selectBytes);
+                    api.download(sliced, 0L, actualSliced, sliceBytes);
+                    assertRawBytesEqual(source, actualInput, inputBytes);
+                    for (long element = 0L;
+                            element < selectLayout.referencedElementSpan();
+                            element++) {
+                        int column = Math.toIntExact(element - 8L);
+                        boolean logical = column >= 0 && column < 4;
+                        for (int byteIndex = 0; byteIndex < width; byteIndex++) {
+                            byte expected = logical
+                                    ? source.get(
+                                            JAVA_BYTE,
+                                            Math.multiplyExact(8L + column, width)
+                                                    + byteIndex)
+                                    : (byte) 0x6b;
+                            assertEquals(
+                                    expected,
+                                    actualSelected.get(
+                                            JAVA_BYTE,
+                                            Math.multiplyExact(element, width) + byteIndex),
+                                    type + " SELECT element=" + element);
+                        }
+                    }
+                    for (long element = 0L;
+                            element < sliceLayout.referencedElementSpan();
+                            element++) {
+                        boolean logical = element == 8L || element == 10L;
+                        int column = element == 10L ? 2 : 0;
+                        for (int byteIndex = 0; byteIndex < width; byteIndex++) {
+                            byte expected = logical
+                                    ? source.get(
+                                            JAVA_BYTE,
+                                            Math.multiplyExact(8L + column, width)
+                                                    + byteIndex)
+                                    : (byte) 0x7c;
+                            assertEquals(
+                                    expected,
+                                    actualSliced.get(
+                                            JAVA_BYTE,
+                                            Math.multiplyExact(element, width) + byteIndex),
+                                    type + " SLICE element=" + element);
+                        }
+                    }
+                }
+            }
+        } finally {
+            if (sliced != null) api.releaseBuffer(sliced);
+            if (selected != null) api.releaseBuffer(selected);
+            if (input != null) api.releaseBuffer(input);
+            if (executable != null) api.releaseExecutable(executable);
+        }
+    }
+
+    private static void assertRawBytesEqual(
+            MemorySegment expected, MemorySegment actual, long byteCount) {
+        for (long offset = 0L; offset < byteCount; offset++) {
+            assertEquals(
+                    expected.get(JAVA_BYTE, offset),
+                    actual.get(JAVA_BYTE, offset),
+                    "raw byte offset=" + offset);
         }
     }
 

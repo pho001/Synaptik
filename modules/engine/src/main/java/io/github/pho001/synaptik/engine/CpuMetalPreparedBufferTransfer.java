@@ -14,11 +14,12 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
- * Immutable direct CPU/Metal canonical typed transfer recipe for one prepared logical value.
+ * Immutable direct CPU/Metal typed storage-layout transfer recipe for one prepared logical value.
  *
  * <p>Construction retains the exact two backend integrations and logical descriptor after checking
- * rank-0..16 static canonical contiguous geometry against the shared prepared memory slot. Cold
- * binding validates both concrete representations and captures one native CPU segment plus one
+ * rank-0..16 static, positive-stride, non-overlapping geometry against the shared prepared memory
+ * slot. Unresolved, zero-stride, negative-stride, overlapping, and overflowed layouts fail closed.
+ * Cold binding validates both concrete representations and captures one native CPU segment plus one
  * exact Metal upload or download action. The hot action performs no allocation, route search,
  * registry lookup, backend discovery, representation lookup, or validity mutation.</p>
  */
@@ -54,8 +55,8 @@ final class CpuMetalPreparedBufferTransfer extends PreparedBufferTransfer {
         long byteCount = transferByteCount(descriptor);
         if (byteCount < 0L) {
             throw new IllegalArgumentException(
-                    "CPU/Metal transfer requires rank-0..16 static canonical contiguous "
-                            + "geometry with a checked byte extent");
+                    "CPU/Metal transfer requires rank-0..16 static non-overlapping "
+                            + "positive-stride storage geometry with a checked byte extent");
         }
         if (memoryPlan.buffers().get(bufferIndex).byteSize() != byteCount) {
             throw new IllegalArgumentException(
@@ -64,11 +65,11 @@ final class CpuMetalPreparedBufferTransfer extends PreparedBufferTransfer {
     }
 
     /**
-     * Reports support for the exact mixed-owner canonical typed transfer geometry.
+     * Reports support for the exact mixed-owner typed storage transfer geometry.
      *
      * @param descriptor non-null exact logical descriptor
-     * @return whether it has rank 0..16, positive fully static extents, canonical contiguous
-     *     layout for any model data type, and a checked element and byte count
+     * @return whether it has rank 0..16, positive fully static extents, resolved non-overlapping
+     *     positive-stride layout for any model data type, and a checked physical byte span
      */
     static boolean supports(TensorDescriptor descriptor) {
         Objects.requireNonNull(descriptor, "descriptor");
@@ -81,23 +82,51 @@ final class CpuMetalPreparedBufferTransfer extends PreparedBufferTransfer {
                 || descriptor.layout().isEmpty()) {
             return -1L;
         }
-        long elementCount = 1L;
-        long byteCount;
+        long[] dimensions = descriptor.shape().toLongArray();
+        LayoutDescriptor layout = descriptor.layout().orElseThrow();
+        long[] strides = layout.strides();
+        long[] activeStrides = new long[strides.length];
+        long[] activeDimensions = new long[strides.length];
+        int active = 0;
         try {
-            for (long dimension : descriptor.shape().toLongArray()) {
-                if (dimension <= 0L) {
+            for (int axis = 0; axis < dimensions.length; axis++) {
+                if (dimensions[axis] <= 0L || strides[axis] <= 0L) {
                     return -1L;
                 }
-                elementCount = Math.multiplyExact(elementCount, dimension);
+                if (dimensions[axis] > 1L) {
+                    int insertion = active;
+                    while (insertion > 0
+                            && activeStrides[insertion - 1] > strides[axis]) {
+                        activeStrides[insertion] = activeStrides[insertion - 1];
+                        activeDimensions[insertion] = activeDimensions[insertion - 1];
+                        insertion--;
+                    }
+                    activeStrides[insertion] = strides[axis];
+                    activeDimensions[insertion] = dimensions[axis];
+                    active++;
+                }
             }
-            byteCount = Math.multiplyExact(elementCount, descriptor.dataType().byteWidth());
+            long covered = 1L;
+            for (int index = 0; index < active; index++) {
+                if (activeStrides[index] < covered) {
+                    return -1L;
+                }
+                covered = Math.addExact(
+                        covered,
+                        Math.multiplyExact(
+                                activeDimensions[index] - 1L,
+                                activeStrides[index]));
+            }
+            if (layout.referencedElementSpan()
+                    != Math.addExact(layout.storageOffset(), covered)) {
+                return -1L;
+            }
+            return Math.multiplyExact(
+                    layout.referencedElementSpan(),
+                    descriptor.dataType().byteWidth());
         } catch (ArithmeticException overflow) {
             return -1L;
         }
-        return descriptor.layout().orElseThrow().equals(
-                LayoutDescriptor.contiguous(descriptor.shape()))
-                ? byteCount
-                : -1L;
     }
 
     /** Creates one checked CPU-to-Metal upload recipe. */
@@ -143,9 +172,9 @@ final class CpuMetalPreparedBufferTransfer extends PreparedBufferTransfer {
     @Override
     protected boolean acceptsSourceBufferRepresentation(BufferRepresentation representation) {
         return switch (direction) {
-            case CPU_TO_METAL -> cpu.acceptsCanonicalTransfer(
+            case CPU_TO_METAL -> cpu.acceptsStorageLayoutTransfer(
                     representation, descriptor, false);
-            case METAL_TO_CPU -> metal.acceptsCanonicalTransfer(
+            case METAL_TO_CPU -> metal.acceptsStorageLayoutTransfer(
                     representation, descriptor);
         };
     }
@@ -154,9 +183,9 @@ final class CpuMetalPreparedBufferTransfer extends PreparedBufferTransfer {
     protected boolean acceptsDestinationBufferRepresentation(
             BufferRepresentation representation) {
         return switch (direction) {
-            case CPU_TO_METAL -> metal.acceptsCanonicalTransfer(
+            case CPU_TO_METAL -> metal.acceptsStorageLayoutTransfer(
                     representation, descriptor);
-            case METAL_TO_CPU -> cpu.acceptsCanonicalTransfer(
+            case METAL_TO_CPU -> cpu.acceptsStorageLayoutTransfer(
                     representation, descriptor, true);
         };
     }
@@ -170,15 +199,15 @@ final class CpuMetalPreparedBufferTransfer extends PreparedBufferTransfer {
         Consumer<MemorySegment> transfer;
         switch (direction) {
             case CPU_TO_METAL -> {
-                hostSegment = cpu.bindCanonicalTransfer(
+                hostSegment = cpu.bindStorageLayoutTransfer(
                         sourceRepresentation, descriptor, false);
-                transfer = metal.bindCanonicalUpload(
+                transfer = metal.bindStorageLayoutUpload(
                         destinationRepresentation, descriptor);
             }
             case METAL_TO_CPU -> {
-                hostSegment = cpu.bindCanonicalTransfer(
+                hostSegment = cpu.bindStorageLayoutTransfer(
                         destinationRepresentation, descriptor, true);
-                transfer = metal.bindCanonicalDownload(
+                transfer = metal.bindStorageLayoutDownload(
                         sourceRepresentation, descriptor);
             }
             default -> throw new AssertionError("unknown CPU/Metal transfer direction");

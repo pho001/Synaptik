@@ -197,7 +197,7 @@ class MetalMpsGraphIndexingNativeTest {
                             MetalMpsGraphProgram.NodeKind.CAST,
                             new int[] {1}, new int[] {2},
                             MetalMpsGraphProgram.AttributeKind.CAST_TARGET,
-                            new long[] {5}),
+                            new long[] {2}),
                     MetalMpsGraphProgram.Node.generic(
                             MetalMpsGraphProgram.NodeKind.GATHER_ELEMENTS,
                             new int[] {0, 2}, new int[] {3},

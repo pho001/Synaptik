@@ -2461,14 +2461,14 @@ compatibility projection, and Engine's representative execution are implemented.
 Engine path produces the sole occurrence-0/partition-0/weight-1 mapping. Model extraction and
 multiple-occurrence aggregation remain planned.
 
-The profile-qualified Metal instance is also implemented internally. Its version-fifteen
-fingerprint covers the exact `NumericalProfile`, bounded route-bearing node schema 14, operation
+The profile-qualified Metal instance is also implemented internally. Its version-sixteen
+fingerprint covers the exact `NumericalProfile`, bounded route-bearing node schema 15, operation
 wires `1..115`, attribute wires `0..41`, type wires `1..6`, ordered variable-cardinality
-inputs/outputs, ordered feed/target/value structure, descriptors, value states, exact attribute and
-splat bits, logical-boundary facts, candidate/route schemas, and native ABI. Target compatibility
-includes the exact live `MetalDeviceContext` session nonce; ABI version `5` is not a stable
-cross-session device fingerprint. It currently supports only backend-local construction and
-authentication, not the tools-owned workload cache.
+inputs/outputs, ordered feed/target/value structure, descriptors, complete storage layouts, value
+states, exact attribute and splat bits, logical-boundary facts, candidate/route schemas, and native
+ABI. Target compatibility includes the exact live `MetalDeviceContext` session nonce; ABI version
+`5` is not a stable cross-session device fingerprint. It currently supports only backend-local
+construction and authentication, not the tools-owned workload cache.
 
 ### Candidate generator
 
@@ -2507,7 +2507,7 @@ batch as a plan batch would incorrectly repeat local route search.
 
 The profile-qualified Metal batch is session-scoped. It contains only `CUSTOM_SINGLE_NEG` and
 `MPSGRAPH` configurations complete for the validated partition and profile. Compatibility,
-candidate, and route-policy schemas are version twelve, and no private field crosses the
+candidate, and route-policy schemas are version sixteen, and no private field crosses the
 marker-role boundary.
 
 ### Complete-plan candidate
@@ -2547,10 +2547,10 @@ decision contains no measurement, cache representation, executable, provider, na
 physical resource, or Runtime state.
 
 The profile-qualified Metal decision follows the same owner-defined pattern with a bounded
-checksummed version-fifteen session codec. Fresh Metal analysis regenerates current profile/
+checksummed version-sixteen session codec. Fresh Metal analysis regenerates current profile/
 topology facts and accepts a selection only when schema, workload, exact context session, and
 candidate identity match. Decode rejects malformed, corrupt, trailing, stale, foreign-session,
-version-fourteen and earlier, cross-profile, and unknown-candidate bytes. These bytes are not a
+version-fifteen and earlier, cross-profile, and unknown-candidate bytes. These bytes are not a
 workload-cache artifact and have no current `tools/tuning` adapter.
 
 The generic Phase-2 tool may persist a decision only when its producer declares persistent reuse,
@@ -5173,34 +5173,38 @@ implements the transactional finalizer handoff.
 ### Metal prepared executable
 
 The current Metal backend's package-private shape-specialized Runtime recipe for one complete
-maximal profile-homogeneous partition. Both profiles admit the exact canonical NEG/ABS, affine,
-canonicalization, bounded UNFOLD_AXIS, GATHER, ONE_HOT, replacement Scatter Elements, FLOAT32
-classification, BOOL logic, and FLOAT32 WHERE rows. ACCELERATOR additionally admits FLOAT32 tensor
+maximal profile-homogeneous partition. Both profiles admit the exact common unary, affine,
+canonicalization, indexing, BOOL-domain, and Task-0059 raw movement rows. The latter includes
+nineteen proved CAST pairs and all-carrier SELECT/positive-step SLICE over fully static resolved
+positive-stride non-overlapping storage layouts. ACCELERATOR additionally admits FLOAT32 tensor
 ADD/SUB/MUL/DIV/MIN/MAX, all six comparisons, scalar MIN/MAX/CLAMP,
-SUM/MEAN/MIN/MAX/SUM_TO_SHAPE, every CUM_SUM/CUM_PROD mode, and bounded rank-two MATMUL.
-Canonical typed transfer can move all six current carriers at ranks `0..16`; BOOL operation
-consumption is limited to the exact positive-rank logic/WHERE domain.
+SUM/MEAN/MIN/MAX/SUM_TO_SHAPE, every CUM_SUM/CUM_PROD mode, and bounded rank-two MATMUL. Direct
+typed transfer can move all six current carriers at ranks `0..16` through canonical or supported
+storage layouts; BOOL validation visits logical elements only.
 
-Metal analysis fixes stable value/node/feed/target order, lowers one bounded schema-14 route-bearing
-program image, generates a complete version-15 route batch, authenticates any supplied session
-decision, and fixes one private route before declaring resources. An eligible singleton NEG may
-use the dedicated custom pipeline. A partition containing any Task-0052 or new exact BOOL-domain
-node selects the fixed shared custom whole-program route; other supported partitions use MPSGraph.
-An exact singleton new node exposes MPSGraph only through package-private structural forcing.
-These choices add no fallback, retry, timing selection, or partition change.
+Metal analysis fixes stable value/node/feed/target order, lowers one bounded schema-15
+route-bearing program image, generates a complete version-16 route batch, authenticates any
+supplied session decision, and fixes one private route before declaring resources. An eligible
+singleton NEG may use the dedicated custom pipeline. A partition containing any Task-0052,
+BOOL-domain, or Task-0059 custom node selects the fixed shared custom whole-program route; other
+supported partitions use MPSGraph. An exact singleton new node exposes MPSGraph only through
+package-private structural forcing. These choices add no fallback, retry, timing selection, or
+partition change.
 
 Finalization compiles one persistent route resource and transfers it to `PreparedExecution`.
-Shared custom-program creation compiles the 22 fixed reviewed safe-math/raw-word/integer kernels
-plus cold nested existing-node executables. Every logical intermediate has a declared assigned
-run-owned Metal buffer; targets are direct assigned buffers; one address workspace carries the
-stable value table and target aliases. Hot Java execution makes one synchronous native invocation
-with no source text, host staging, hidden materialization, per-node downcall, retry, fallback, or
-compilation.
+Shared custom-program creation compiles the fixed reviewed safe-math/raw-word/integer/movement
+kernels plus cold nested existing-node executables. Every logical intermediate has a declared
+assigned run-owned Metal buffer; targets are direct assigned buffers; one address workspace carries
+the stable value table and target aliases. Hot Java execution makes one synchronous native
+invocation with no source text, host staging, hidden materialization, per-node downcall, retry,
+fallback, or compilation.
 
-Affine publications retain their logical view descriptors but use authenticated represented-order
-buffers. Locally produced scalar reduction targets materialize as four bytes and canonical BOOL
-targets as exact one-byte elements. Context child leases, transactional rollback, synchronous
-reuse, concurrent sessions, close rejection, and run-owned output/workspace isolation are retained.
+SELECT/SLICE publications gather logical elements from their authenticated physical storage using
+the exact offset and positive strides while ignoring untouched prefix/gap bytes. Other affine
+publications retain their logical view descriptors and authenticated represented-order buffers.
+Locally produced scalar reduction targets materialize as four bytes and canonical BOOL targets as
+exact one-byte elements. Context child leases, transactional rollback, synchronous reuse,
+concurrent sessions, close rejection, and run-owned output/workspace isolation are retained.
 
 ### Prepared executable / `PreparedExecutable`
 

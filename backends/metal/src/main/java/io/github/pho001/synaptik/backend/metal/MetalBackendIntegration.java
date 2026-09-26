@@ -186,8 +186,8 @@ public final class MetalBackendIntegration implements AutoCloseable {
     }
 
     /**
-     * Uploads caller-owned storage of any model data type into one Metal-owned borrowed-input
-     * representation without conversion. BOOL bytes must be zero or one.
+     * Uploads caller-owned raw storage into one Metal-owned borrowed-input representation without
+     * conversion. Descriptor-aware bind and execution paths validate logical BOOL elements.
      *
      * @param storage non-null live accessible storage retained but never closed
      * @return a new non-null Metal representation whose ownership transfers to the caller
@@ -203,69 +203,74 @@ public final class MetalBackendIntegration implements AutoCloseable {
 
     /**
      * Reports whether a nominal representation is the exact live readable Metal side of a
-     * prepared canonical transfer for any model data type.
+     * prepared storage-layout transfer for any model data type.
      *
-     * <p>A writable ordinary Metal representation and a backend-issued immutable prepared-splat
-     * binding may both be readable sources. This predicate alone does not authorize destination
-     * mutation; {@link #bindCanonicalUpload(BufferRepresentation, TensorDescriptor)} separately
-     * requires the ordinary writable representation.</p>
+     * <p>The admitted descriptor has positive static extents and a resolved, positive-stride,
+     * non-overlapping physical span. Unresolved, negative, zero-stride broadcast, and overlapping
+     * layouts are rejected at the boundary. A writable ordinary Metal representation and a
+     * backend-issued immutable prepared-splat binding may both be readable sources. This predicate
+     * alone does not authorize destination mutation; {@link #bindStorageLayoutUpload(
+     * BufferRepresentation, TensorDescriptor)} separately requires the ordinary writable
+     * representation.</p>
      *
      * @param representation non-null candidate Metal representation
      * @param descriptor non-null exact logical descriptor
      * @return whether readable representation, context, layout, data type, and byte extent match
      * @throws NullPointerException if an object argument is null
      */
-    public boolean acceptsCanonicalTransfer(
+    public boolean acceptsStorageLayoutTransfer(
             BufferRepresentation representation, TensorDescriptor descriptor) {
-        return runtime.acceptsCanonicalTransfer(representation, descriptor);
+        return runtime.acceptsStorageLayoutTransfer(representation, descriptor);
     }
 
     /**
-     * Cold-binds one exact writable Metal destination to a direct canonical native upload.
+     * Cold-binds one exact writable Metal destination to a physical storage-layout upload.
      *
-     * <p>The returned action retains the typed destination directly and allocates no staging
-     * storage. It validates BOOL source bytes on every invocation before native mutation. An
+     * <p>The returned action retains the typed destination directly. It validates only logical
+     * BOOL elements before native mutation, leaving prefix and gap bytes uninterpreted. An
      * immutable prepared-splat binding is always rejected as a destination.</p>
      *
      * @param representation non-null exact writable destination representation
-     * @param descriptor non-null exact static rank-0..16 canonical descriptor
-     * @return non-null immutable action retaining the typed destination and checked byte extent
+     * @param descriptor non-null exact supported static rank-0..16 storage descriptor
+     * @return non-null immutable action retaining the typed destination and checked physical span
      * @throws NullPointerException if an object argument is null
      * @throws IllegalArgumentException if type, mutability, context, layout, or byte extent is
      *     incompatible
      */
-    public Consumer<MemorySegment> bindCanonicalUpload(
+    public Consumer<MemorySegment> bindStorageLayoutUpload(
             BufferRepresentation representation, TensorDescriptor descriptor) {
-        return runtime.bindCanonicalUpload(representation, descriptor);
+        return runtime.bindStorageLayoutUpload(representation, descriptor);
     }
 
     /**
-     * Cold-binds one exact readable Metal source to a direct canonical native download.
+     * Cold-binds one exact readable Metal source to a physical storage-layout download.
      *
-     * <p>The returned action retains the typed source directly, performs exactly one download into
-     * the supplied live writable native host segment, and allocates no staging storage. A live
-     * backend-issued immutable prepared-splat binding is an eligible source.</p>
+     * <p>Non-BOOL transfers download the physical referenced span directly. BOOL first downloads
+     * into private staging, validates every logical element, and only then commits the complete
+     * span to the supplied host destination, so malformed device BOOL cannot partially publish.
+     * A live backend-issued immutable prepared-splat binding is an eligible source.</p>
      *
      * @param representation non-null exact readable source representation
-     * @param descriptor non-null exact static rank-0..16 canonical descriptor
-     * @return non-null immutable action retaining the typed source and checked byte extent
+     * @param descriptor non-null exact supported static rank-0..16 storage descriptor
+     * @return non-null immutable action retaining the typed source and checked physical span
      * @throws NullPointerException if an object argument is null
      * @throws IllegalArgumentException if type, context, layout, or byte extent is incompatible
      */
-    public Consumer<MemorySegment> bindCanonicalDownload(
+    public Consumer<MemorySegment> bindStorageLayoutDownload(
             BufferRepresentation representation, TensorDescriptor descriptor) {
-        return runtime.bindCanonicalDownload(representation, descriptor);
+        return runtime.bindStorageLayoutDownload(representation, descriptor);
     }
 
     /**
      * Downloads one live readable Metal representation into detached canonical host bytes.
      *
-     * <p>Canonical non-view rank-0..16 publications support all six model data types and use
-     * big-endian canonical element bytes. BOOL bytes are validated as zero or one. Exact
-     * positive-rank authenticated affine publication remains FLOAT32-only.</p>
+     * <p>Canonical non-view rank-0..16 publications and authenticated SELECT/SLICE storage-layout
+     * publications support all six model data types and use big-endian canonical element bytes.
+     * BOOL logical elements are validated as zero or one while layout holes remain uninterpreted.
+     * Other authenticated positive-rank affine publication remains FLOAT32-only.</p>
      *
      * @param representation non-null live representation owned by this integration
-     * @param descriptor non-null exact canonical descriptor or authenticated affine FLOAT32
+     * @param descriptor non-null exact canonical or authenticated publication descriptor
      * @param maximumBytes non-negative maximum canonical payload size
      * @return fresh non-null caller-owned row-major canonical bytes
      * @throws NullPointerException if an object argument is {@code null}

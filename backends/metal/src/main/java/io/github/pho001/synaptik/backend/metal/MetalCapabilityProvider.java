@@ -22,6 +22,8 @@ import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
 import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
 import io.github.pho001.synaptik.model.operation.index.GatherNdAttrs;
 import io.github.pho001.synaptik.model.operation.index.GatherNdKind;
+import io.github.pho001.synaptik.model.operation.index.SelectAttrs;
+import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
@@ -29,11 +31,14 @@ import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
+import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
+import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
@@ -56,6 +61,7 @@ import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import java.util.List;
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -102,9 +108,12 @@ import java.util.Objects;
  * directions, and BFLOAT16 to FLOAT32. GATHER_ELEMENTS and GATHER_ND preserve any of the six data
  * carriers and require canonical INT32 or INT64 indices. PAD, CONCAT, STACK, and TILE preserve any
  * carrier; UNFOLD2D and UNFOLD3D accept only Model-legal FLOAT64, FLOAT32, or BFLOAT16 inputs.
- * These raw movement routes require exact static Shapes and normalized attributes. View-only
- * SELECT/SLICE, scatter reductions, slice update, folds, gradients, empty or dynamic extents,
- * unresolved/noncanonical layouts, and every unlisted conversion remain unsupported.</p>
+ * SELECT and positive-step SLICE preserve all six carriers through authenticated physical
+ * storage-layout materializations. They require exact static positive-rank Shapes, resolved
+ * positive-stride non-overlapping layouts, exact operation-derived offset/stride/span geometry,
+ * normalized attributes, and no gradients. Unresolved, zero-stride, negative-stride, overlapping,
+ * empty, gradient-bearing, scatter-reduction, slice-update, fold, and every unlisted conversion
+ * occurrence remains unsupported.</p>
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
     /**
@@ -182,6 +191,12 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             if (operation.kind() == GatherNdKind.GATHER_ND) {
                 return supportsGatherNd(operation, inputs, output);
             }
+            if (operation.kind() == SelectKind.SELECT) {
+                return supportsSelect(operation, inputs, output);
+            }
+            if (operation.kind() == SliceKind.SLICE) {
+                return supportsSlice(operation, inputs, output);
+            }
             if (operation.kind() == PadKind.PAD) {
                 return supportsPad(operation, inputs, output);
             }
@@ -256,6 +271,172 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         } catch (IllegalArgumentException | ArithmeticException incompatible) {
             return false;
         }
+    }
+
+    private static boolean supportsSelect(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        if (!(operation.attrs() instanceof SelectAttrs attrs) || inputs.size() != 1) {
+            return false;
+        }
+        TensorDescriptor input = inputs.getFirst();
+        if (!supportedStorageLayout(input, 2)
+                || !supportedStorageLayout(output, 1)
+                || input.dataType() != output.dataType()
+                || input.requiresGrad()
+                || output.requiresGrad()) {
+            return false;
+        }
+        long[] inputShape = input.shape().toLongArray();
+        int axis = attrs.axis();
+        if (axis < 0 || axis >= inputShape.length
+                || attrs.index() < 0L || attrs.index() >= inputShape[axis]) {
+            return false;
+        }
+        long[] expectedShape = new long[inputShape.length - 1];
+        System.arraycopy(inputShape, 0, expectedShape, 0, axis);
+        System.arraycopy(inputShape, axis + 1, expectedShape, axis,
+                inputShape.length - axis - 1);
+        if (!Arrays.equals(expectedShape, output.shape().toLongArray())) {
+            return false;
+        }
+        LayoutDescriptor inputLayout = input.layout().orElseThrow();
+        long[] inputStrides = inputLayout.strides();
+        long[] expectedStrides = new long[inputStrides.length - 1];
+        System.arraycopy(inputStrides, 0, expectedStrides, 0, axis);
+        System.arraycopy(inputStrides, axis + 1, expectedStrides, axis,
+                inputStrides.length - axis - 1);
+        long offset = Math.addExact(
+                inputLayout.storageOffset(),
+                Math.multiplyExact(attrs.index(), inputStrides[axis]));
+        LayoutDescriptor expected =
+                LayoutDescriptor.of(output.shape(), expectedStrides, offset, true);
+        return output.layout().orElseThrow().equals(expected);
+    }
+
+    private static boolean supportsSlice(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        if (inputs.size() != 1) {
+            return false;
+        }
+        TensorDescriptor input = inputs.getFirst();
+        if (!supportedStorageLayout(input, 1)
+                || !supportedStorageLayout(output, 1)
+                || input.dataType() != output.dataType()
+                || input.requiresGrad()
+                || output.requiresGrad()
+                || input.shape().rank() != output.shape().rank()) {
+            return false;
+        }
+        long[] inputShape = input.shape().toLongArray();
+        long[] expectedShape = inputShape.clone();
+        long[] starts;
+        int[] axes;
+        long[] steps;
+        if (operation.attrs() instanceof SliceAttrs attrs) {
+            int count = attrs.axes().size();
+            starts = new long[count];
+            axes = new int[count];
+            steps = new long[count];
+            for (int index = 0; index < count; index++) {
+                int axis = attrs.axes().get(index);
+                long start = attrs.starts().get(index);
+                long length = attrs.lengths().get(index);
+                long step = attrs.steps().get(index);
+                if (axis < 0 || axis >= inputShape.length || length <= 0L || step <= 0L) {
+                    return false;
+                }
+                long last = Math.addExact(start, Math.multiplyExact(length - 1L, step));
+                if (start >= inputShape[axis] || last < 0L || last >= inputShape[axis]) {
+                    return false;
+                }
+                starts[index] = start;
+                axes[index] = axis;
+                steps[index] = step;
+                expectedShape[axis] = length;
+            }
+        } else if (operation.attrs() instanceof CropToShapeAttrs attrs) {
+            if (!attrs.targetShape().isFullyStatic()
+                    || !attrs.prefixShape().isFullyStatic()
+                    || attrs.targetShape().rank() != inputShape.length
+                    || attrs.prefixShape().rank() != inputShape.length) {
+                return false;
+            }
+            expectedShape = attrs.targetShape().toLongArray();
+            starts = attrs.prefixShape().toLongArray();
+            axes = new int[inputShape.length];
+            steps = new long[inputShape.length];
+            Arrays.fill(steps, 1L);
+            for (int axis = 0; axis < inputShape.length; axis++) {
+                axes[axis] = axis;
+                if (expectedShape[axis] <= 0L
+                        || starts[axis] < 0L
+                        || Math.addExact(starts[axis], expectedShape[axis])
+                                > inputShape[axis]) {
+                    return false;
+                }
+            }
+        } else {
+            return false;
+        }
+        if (!Arrays.equals(expectedShape, output.shape().toLongArray())) {
+            return false;
+        }
+        LayoutDescriptor inputLayout = input.layout().orElseThrow();
+        long[] expectedStrides = inputLayout.strides();
+        long offset = inputLayout.storageOffset();
+        for (int index = 0; index < axes.length; index++) {
+            int axis = axes[index];
+            long inputStride = expectedStrides[axis];
+            offset = Math.addExact(offset, Math.multiplyExact(starts[index], inputStride));
+            expectedStrides[axis] = Math.multiplyExact(inputStride, steps[index]);
+        }
+        LayoutDescriptor expected =
+                LayoutDescriptor.of(output.shape(), expectedStrides, offset, true);
+        return output.layout().orElseThrow().equals(expected);
+    }
+
+    static boolean supportedStorageLayout(TensorDescriptor descriptor, int minimumRank) {
+        int rank = descriptor.shape().rank();
+        if (!descriptor.shape().isFullyStatic()
+                || rank < minimumRank
+                || rank > MetalMpsGraphProgram.MAX_RANK
+                || descriptor.layout().isEmpty()) {
+            return false;
+        }
+        long[] dimensions = descriptor.shape().toLongArray();
+        LayoutDescriptor layout = descriptor.layout().orElseThrow();
+        long[] strides = layout.strides();
+        int[] order = new int[rank];
+        int count = 0;
+        long elements = 1L;
+        for (int axis = 0; axis < rank; axis++) {
+            long dimension = dimensions[axis];
+            if (dimension <= 0L || strides[axis] <= 0L) return false;
+            elements = Math.multiplyExact(elements, dimension);
+            if (dimension > 1L) {
+                int insertion = count;
+                while (insertion > 0
+                        && strides[order[insertion - 1]] > strides[axis]) {
+                    order[insertion] = order[insertion - 1];
+                    insertion--;
+                }
+                order[insertion] = axis;
+                count++;
+            }
+        }
+        long covered = 1L;
+        for (int index = 0; index < count; index++) {
+            int axis = order[index];
+            long stride = strides[axis];
+            if (stride < covered) return false;
+            covered = Math.addExact(
+                    covered, Math.multiplyExact(dimensions[axis] - 1L, stride));
+        }
+        long expectedSpan = Math.addExact(layout.storageOffset(), covered);
+        if (expectedSpan != layout.referencedElementSpan()) return false;
+        Math.multiplyExact(expectedSpan, descriptor.dataType().byteWidth());
+        Math.multiplyExact(elements, descriptor.dataType().byteWidth());
+        return true;
     }
 
     private static boolean supportsCast(

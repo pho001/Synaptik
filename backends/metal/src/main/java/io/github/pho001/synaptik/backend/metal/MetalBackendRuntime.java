@@ -4,7 +4,6 @@ import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
 import io.github.pho001.synaptik.backend.contract.BackendDeviceId;
 import io.github.pho001.synaptik.backend.contract.DeviceClass;
 import io.github.pho001.synaptik.model.datatype.DataType;
-import io.github.pho001.synaptik.model.layout.LayoutKind;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -165,9 +164,6 @@ final class MetalBackendRuntime implements AutoCloseable {
         if (!storage.isAlive() || !source.isAccessibleBy(Thread.currentThread())) {
             throw new IllegalStateException("host storage is not alive and accessible");
         }
-        if (storage.dataType() == DataType.BOOL) {
-            validateBooleanBytes(source, storage.byteSize());
-        }
         MetalBufferRepresentation buffer =
                 context.createBorrowedBuffer(storage.byteSize(), storage);
         try {
@@ -193,17 +189,17 @@ final class MetalBackendRuntime implements AutoCloseable {
 
     /**
      * Reports whether one nominal representation is an exact live Metal side of a prepared
-     * canonical transfer for any model data type.
+     * storage-layout transfer for any model data type.
      *
      * @param representation non-null candidate representation
      * @param descriptor non-null exact logical descriptor
      * @return whether representation type, context, layout, data type, and byte extent match
      */
-    boolean acceptsCanonicalTransfer(
+    boolean acceptsStorageLayoutTransfer(
             BufferRepresentation representation, TensorDescriptor descriptor) {
         Objects.requireNonNull(representation, "representation");
         Objects.requireNonNull(descriptor, "descriptor");
-        if (!isCanonicalTransfer(descriptor)) {
+        if (!isStorageTransfer(descriptor)) {
             return false;
         }
         long byteCount = transferByteCount(descriptor);
@@ -215,56 +211,69 @@ final class MetalBackendRuntime implements AutoCloseable {
     }
 
     /**
-     * Cold-binds one exact Metal destination to a direct canonical upload action.
+     * Cold-binds one exact Metal destination to a physical storage-layout upload action.
      *
      * @param representation non-null candidate destination
      * @param descriptor non-null exact logical descriptor
      * @return non-null immutable action capturing the exact typed destination
      */
-    Consumer<MemorySegment> bindCanonicalUpload(
+    Consumer<MemorySegment> bindStorageLayoutUpload(
             BufferRepresentation representation, TensorDescriptor descriptor) {
         if (!(representation instanceof MetalBufferRepresentation metal)
-                || !acceptsCanonicalTransfer(representation, descriptor)) {
+                || !acceptsStorageLayoutTransfer(representation, descriptor)) {
             throw new IllegalArgumentException(
-                    "Metal upload requires an exact writable canonical representation");
+                    "Metal upload requires an exact writable storage representation");
         }
         long byteCount = transferByteCount(descriptor);
         return source -> {
             if (descriptor.dataType() == DataType.BOOL) {
-                validateBooleanBytes(source, byteCount);
+                validateBooleanElements(source, descriptor);
             }
             metal.upload(0L, source, 0L, byteCount);
         };
     }
 
     /**
-     * Cold-binds one exact Metal source to a direct canonical download action.
+     * Cold-binds one exact Metal source to a physical storage-layout download action.
      *
      * @param representation non-null candidate source
      * @param descriptor non-null exact logical descriptor
      * @return non-null immutable action capturing the exact typed source
      */
-    Consumer<MemorySegment> bindCanonicalDownload(
+    Consumer<MemorySegment> bindStorageLayoutDownload(
             BufferRepresentation representation, TensorDescriptor descriptor) {
-        if (!acceptsCanonicalTransfer(representation, descriptor)) {
+        if (!acceptsStorageLayoutTransfer(representation, descriptor)) {
             throw new IllegalArgumentException(
-                    "Metal download requires an exact live canonical representation");
+                    "Metal download requires an exact live storage representation");
         }
         MetalBufferRepresentation metal =
                 MetalPreparedSplatResource.readableBuffer(representation);
         long byteCount = transferByteCount(descriptor);
-        return destination -> metal.download(0L, destination, 0L, byteCount);
+        if (descriptor.dataType() != DataType.BOOL) {
+            return destination -> metal.download(0L, destination, 0L, byteCount);
+        }
+        return destination -> {
+            requireWritableNativeStorage(destination, byteCount);
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment staging = arena.allocate(byteCount, 1L);
+                metal.download(0L, staging, 0L, byteCount);
+                validateBooleanElements(staging, descriptor);
+                MemorySegment.copy(staging, 0L, destination, 0L, byteCount);
+            }
+        };
     }
 
     /**
-     * Downloads one canonical publication of any model data type into row-major big-endian bytes.
+     * Downloads one canonical or authenticated storage-layout publication into row-major
+     * big-endian bytes.
      *
-     * <p>Canonical non-view rank-0..16 publications support all six model data types. BOOL bytes
-     * must be zero or one. The existing authenticated positive-rank affine publication remains
+     * <p>Canonical non-view rank-0..16 publications and authenticated SELECT/SLICE storage-layout
+     * publications support all six model data types. BOOL logical elements must be zero or one;
+     * prefix and gap bytes are not interpreted. Other authenticated affine publication remains
      * FLOAT32-only. The logical descriptor is validated but never rewritten.</p>
      *
      * @param representation non-null live representation owned by this context
-     * @param descriptor non-null exact canonical descriptor or authenticated affine FLOAT32
+     * @param descriptor non-null exact canonical or authenticated publication descriptor
      * @param maximumBytes non-negative caller byte ceiling
      * @return fresh non-null canonical bytes
      * @throws NullPointerException if an object argument is {@code null}
@@ -296,21 +305,22 @@ final class MetalBackendRuntime implements AutoCloseable {
                 && descriptor.shape().isFullyStatic()
                 && rank <= 16
                 && layout != null
-                && layout.kind() == LayoutKind.DENSE_CONTIGUOUS
-                && !layout.isView()
-                && layout.storageOffset() == 0L;
-        boolean authenticatedAffine = dataType == DataType.FLOAT32
-                && descriptor.shape().isFullyStatic()
-                && descriptor.shape().rank() >= 1
-                && descriptor.shape().rank() <= 16
+                && layout.equals(LayoutDescriptor.contiguous(descriptor.shape()));
+        boolean authenticatedPublication = descriptor.shape().isFullyStatic()
+                && rank >= 1
+                && rank <= 16
                 && layout != null
-                && layout.isView()
-                && layout.storageOffset() == 0L
-                && metal.authenticatesDenseAffinePublication(descriptor);
-        if (!canonical && !authenticatedAffine) {
+                && metal.authenticatesPublication(descriptor);
+        boolean storagePublication = authenticatedPublication
+                && metal.authenticatedPublicationUsesStorageLayout(descriptor);
+        if (!canonical && !authenticatedPublication) {
             throw new IllegalArgumentException(
                     "Metal materialization requires a canonical rank-0..16 descriptor"
-                            + " or authenticated affine FLOAT32");
+                            + " or authenticated layout publication");
+        }
+        if (storagePublication && !isStorageTransfer(descriptor)) {
+            throw new IllegalArgumentException(
+                    "authenticated storage publication has unsupported layout geometry");
         }
         long elements = 1L;
         for (long dimension : descriptor.shape().toLongArray()) {
@@ -320,30 +330,46 @@ final class MetalBackendRuntime implements AutoCloseable {
             }
             elements = Math.multiplyExact(elements, dimension);
         }
-        long byteCount = Math.multiplyExact(elements, dataType.byteWidth());
+        int width = dataType.byteWidth();
+        long byteCount = Math.multiplyExact(elements, width);
         if (byteCount > maximumBytes) {
             throw new IllegalArgumentException("canonical payload exceeds maximumBytes");
         }
-        int length = Math.toIntExact(byteCount);
-        if (metal.byteSize() < byteCount) {
+        long physicalByteCount = storagePublication
+                ? transferByteCount(descriptor)
+                : byteCount;
+        if (metal.byteSize() < physicalByteCount) {
             throw new IllegalArgumentException("Metal representation is smaller than descriptor");
         }
-        byte[] result = new byte[length];
+        byte[] result = new byte[Math.toIntExact(byteCount)];
+        long[] dimensions = descriptor.shape().toLongArray();
+        long[] strides = layout.strides();
         try (Arena arena = Arena.ofConfined()) {
-            int width = dataType.byteWidth();
-            MemorySegment staging = arena.allocate(byteCount, width);
-            metal.download(0L, staging, 0L, byteCount);
-            MemorySegment destination = MemorySegment.ofArray(result);
-            if (dataType == DataType.BOOL) {
-                validateBooleanBytes(staging, byteCount);
-                MemorySegment.copy(staging, 0L, destination, 0L, byteCount);
-            } else if (ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN || width == 1) {
-                MemorySegment.copy(staging, 0L, destination, 0L, byteCount);
-            } else {
-                for (long offset = 0L; offset < byteCount; offset += width) {
+            MemorySegment staging = arena.allocate(physicalByteCount, width);
+            metal.download(0L, staging, 0L, physicalByteCount);
+            for (long ordinal = 0L; ordinal < elements; ordinal++) {
+                long sourceElement = storagePublication
+                        ? storageElementIndex(
+                                ordinal, dimensions, strides, layout.storageOffset())
+                        : ordinal;
+                long sourceOffset = Math.multiplyExact(sourceElement, width);
+                long destinationOffset = Math.multiplyExact(ordinal, width);
+                if (dataType == DataType.BOOL) {
+                    byte value = staging.get(BYTE, sourceOffset);
+                    if (value != 0 && value != 1) {
+                        throw new IllegalArgumentException(
+                                "BOOL source contains a non-canonical byte");
+                    }
+                    result[Math.toIntExact(destinationOffset)] = value;
+                } else if (ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN || width == 1) {
                     for (int index = 0; index < width; index++) {
-                        destination.set(BYTE, offset + index,
-                                staging.get(BYTE, offset + width - 1L - index));
+                        result[Math.toIntExact(destinationOffset + index)] =
+                                staging.get(BYTE, sourceOffset + index);
+                    }
+                } else {
+                    for (int index = 0; index < width; index++) {
+                        result[Math.toIntExact(destinationOffset + index)] =
+                                staging.get(BYTE, sourceOffset + width - 1L - index);
                     }
                 }
             }
@@ -351,43 +377,110 @@ final class MetalBackendRuntime implements AutoCloseable {
         return result;
     }
 
-    private static boolean isCanonicalTransfer(TensorDescriptor descriptor) {
+    private static boolean isStorageTransfer(TensorDescriptor descriptor) {
         if (!descriptor.shape().isFullyStatic()
                 || descriptor.shape().rank() > 16
-                || descriptor.layout().isEmpty()
-                || !descriptor.layout().orElseThrow().equals(
-                        LayoutDescriptor.contiguous(descriptor.shape()))) {
+                || descriptor.layout().isEmpty()) {
             return false;
         }
+        long[] dimensions = descriptor.shape().toLongArray();
+        LayoutDescriptor layout = descriptor.layout().orElseThrow();
+        long[] strides = layout.strides();
+        long[] activeStrides = new long[strides.length];
+        long[] activeDimensions = new long[strides.length];
+        int active = 0;
         try {
-            transferByteCount(descriptor);
-            return true;
-        } catch (IllegalArgumentException | ArithmeticException invalid) {
+            for (int axis = 0; axis < dimensions.length; axis++) {
+                if (dimensions[axis] <= 0L || strides[axis] <= 0L) {
+                    return false;
+                }
+                if (dimensions[axis] > 1L) {
+                    int insertion = active;
+                    while (insertion > 0
+                            && activeStrides[insertion - 1] > strides[axis]) {
+                        activeStrides[insertion] = activeStrides[insertion - 1];
+                        activeDimensions[insertion] = activeDimensions[insertion - 1];
+                        insertion--;
+                    }
+                    activeStrides[insertion] = strides[axis];
+                    activeDimensions[insertion] = dimensions[axis];
+                    active++;
+                }
+            }
+            long covered = 1L;
+            for (int index = 0; index < active; index++) {
+                if (activeStrides[index] < covered) {
+                    return false;
+                }
+                covered = Math.addExact(
+                        covered,
+                        Math.multiplyExact(
+                                activeDimensions[index] - 1L,
+                                activeStrides[index]));
+            }
+            return layout.referencedElementSpan()
+                    == Math.addExact(layout.storageOffset(), covered);
+        } catch (ArithmeticException overflow) {
             return false;
         }
     }
 
     private static long transferByteCount(TensorDescriptor descriptor) {
         return Math.multiplyExact(
-                descriptor.shape().knownElementCount().orElseThrow(),
+                descriptor.layout().orElseThrow().referencedElementSpan(),
                 descriptor.dataType().byteWidth());
     }
 
-    private static void validateBooleanBytes(MemorySegment source, long byteCount) {
+    private static long storageElementIndex(
+            long ordinal, long[] dimensions, long[] strides, long storageOffset) {
+        long remaining = ordinal;
+        long storage = storageOffset;
+        for (int axis = dimensions.length - 1; axis >= 0; axis--) {
+            long coordinate = remaining % dimensions[axis];
+            remaining /= dimensions[axis];
+            storage = Math.addExact(storage, Math.multiplyExact(coordinate, strides[axis]));
+        }
+        return storage;
+    }
+
+    private static void validateBooleanElements(
+            MemorySegment source, TensorDescriptor descriptor) {
         Objects.requireNonNull(source, "source");
-        if (byteCount < 0L || source.byteSize() < byteCount) {
+        long byteCount = transferByteCount(descriptor);
+        if (source.byteSize() < byteCount) {
             throw new IllegalArgumentException("BOOL source is smaller than its transfer extent");
         }
         if (!source.isAccessibleBy(Thread.currentThread())) {
             throw new IllegalStateException("BOOL source is not accessible");
         }
-        for (long offset = 0L; offset < byteCount; offset++) {
-            byte value = source.get(BYTE, offset);
+        long[] dimensions = descriptor.shape().toLongArray();
+        long[] strides = descriptor.layout().orElseThrow().strides();
+        long elements = descriptor.shape().knownElementCount().orElseThrow();
+        long offset = descriptor.layout().orElseThrow().storageOffset();
+        for (long ordinal = 0L; ordinal < elements; ordinal++) {
+            byte value = source.get(
+                    BYTE, storageElementIndex(ordinal, dimensions, strides, offset));
             if (value != 0 && value != 1) {
                 throw new IllegalArgumentException("BOOL source contains a non-canonical byte");
             }
         }
     }
+
+    private static void requireWritableNativeStorage(
+            MemorySegment destination, long byteCount) {
+        Objects.requireNonNull(destination, "destination");
+        if (!destination.scope().isAlive()
+                || !destination.isAccessibleBy(Thread.currentThread())) {
+            throw new IllegalStateException(
+                    "transfer destination is not alive and accessible");
+        }
+        if (!destination.isNative() || destination.isReadOnly()
+                || destination.byteSize() < byteCount) {
+            throw new IllegalArgumentException(
+                    "transfer destination must be writable native storage of sufficient size");
+        }
+    }
+
 
     /**
      * Closes the native context owner; child prepared/run resources retain deferred context leases.

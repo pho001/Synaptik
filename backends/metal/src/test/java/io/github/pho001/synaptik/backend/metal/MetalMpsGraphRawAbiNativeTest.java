@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphRawAbiNativeTest {
     @Test
-    void nativeAbiFiveAcceptsCanonicalSchemaFourteenAndRejectsMalformedImages() throws Throwable {
+    void nativeAbiFiveAcceptsCanonicalSchemaFifteenAndRejectsMalformedImages() throws Throwable {
         Path library = configuredLibrary();
         try (RawAbi abi = new RawAbi(library)) {
             byte[] valid = validNegImage();
@@ -32,6 +32,7 @@ class MetalMpsGraphRawAbiNativeTest {
             assertEquals(1, abi.create(rewriteInt(valid, 0, 0), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, 4, 12), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, 4, 13), valid.length));
+            assertEquals(1, abi.create(rewriteInt(valid, 4, 14), valid.length));
             assertEquals(1, abi.create(
                     rewriteInt(rewriteInt(valid, 4, 13), 40, 0), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, 8, valid.length - 1), valid.length));
@@ -45,6 +46,45 @@ class MetalMpsGraphRawAbiNativeTest {
             assertEquals(1, abi.create(valid, Integer.MIN_VALUE));
             assertEquals(1, abi.create(
                     rewriteInt(valid, 8, Integer.MIN_VALUE), Integer.MIN_VALUE));
+        }
+    }
+
+    @Test
+    void nativeAbiFiveRejectsMalformedStorageLayoutDescriptors() throws Throwable {
+        Path library = configuredLibrary();
+        try (RawAbi abi = new RawAbi(library)) {
+            byte[] valid = validSelectStorageLayoutImage();
+            assertEquals(0, abi.create(valid, valid.length));
+
+            int inputDescriptor = MetalMpsGraphProgram.HEADER_BYTES;
+            int outputDescriptor =
+                    inputDescriptor + MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES;
+            int dimensionsOffset = nodeOffset(2) + MetalMpsGraphProgram.NODE_DESCRIPTOR_BYTES;
+            int stridesOffset = dimensionsOffset + 3 * Long.BYTES;
+            assertEquals(1, abi.create(
+                    rewriteInt(valid, inputDescriptor + 12, -1), valid.length));
+            assertEquals(1, abi.create(
+                    rewriteInt(valid, inputDescriptor + 16, 10), valid.length));
+            assertEquals(1, abi.create(
+                    rewriteInt(valid, inputDescriptor + 20, 1), valid.length));
+            assertEquals(1, abi.create(
+                    rewriteLong(valid, inputDescriptor + 24, -1L), valid.length));
+            assertEquals(1, abi.create(
+                    rewriteLong(valid, inputDescriptor + 32, 7L), valid.length));
+            assertEquals(8, abi.create(
+                    rewriteLong(valid, dimensionsOffset, 0L), valid.length));
+            assertEquals(1, abi.create(
+                    rewriteLong(valid, stridesOffset, 0L), valid.length));
+            assertEquals(1, abi.create(
+                    rewriteLong(valid, stridesOffset, -1L), valid.length));
+            assertEquals(1, abi.create(
+                    rewriteLong(
+                            rewriteLong(valid, stridesOffset, 1L),
+                            stridesOffset + Long.BYTES,
+                            1L),
+                    valid.length));
+            assertEquals(1, abi.create(
+                    rewriteInt(valid, outputDescriptor + 20, 1), valid.length));
         }
     }
 
@@ -345,6 +385,7 @@ class MetalMpsGraphRawAbiNativeTest {
             int referencesOffset = MetalMpsGraphProgram.HEADER_BYTES
                     + values.size() * MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES
                     + MetalMpsGraphProgram.NODE_DESCRIPTOR_BYTES
+                    + 8 * Long.BYTES
                     + 8 * Long.BYTES;
             assertEquals(1, abi.create(
                     rewriteInt(image, referencesOffset + 4 * Integer.BYTES, 3), image.length));
@@ -357,6 +398,38 @@ class MetalMpsGraphRawAbiNativeTest {
         var program = new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.neg(0, 1)));
         return program.encodedProgramImage(
                 List.of(descriptor(4), descriptor(4)), new int[] {0}, new int[] {1});
+    }
+
+    private static byte[] validSelectStorageLayoutImage() {
+        var inputShape = io.github.pho001.synaptik.model.shape.Shape.of(2, 3);
+        var outputShape = io.github.pho001.synaptik.model.shape.Shape.of(3);
+        var input = new MetalMpsGraphProgram.ValueDescriptor(
+                DataType.FLOAT32,
+                inputShape.toLongArray(),
+                java.util.Optional.of(
+                        io.github.pho001.synaptik.model.layout.LayoutDescriptor.of(
+                                inputShape, new long[] {4, 1}, 1L, true)),
+                false,
+                false);
+        var output = new MetalMpsGraphProgram.ValueDescriptor(
+                DataType.FLOAT32,
+                outputShape.toLongArray(),
+                java.util.Optional.of(
+                        io.github.pho001.synaptik.model.layout.LayoutDescriptor.of(
+                                outputShape, new long[] {1}, 5L, true)),
+                false,
+                false);
+        var select = MetalMpsGraphProgram.Node.generic(
+                MetalMpsGraphProgram.NodeKind.SELECT,
+                new int[] {0},
+                new int[] {1},
+                MetalMpsGraphProgram.AttributeKind.SELECT,
+                new long[] {0, 1});
+        return new MetalMpsGraphProgram(List.of(select)).encodedProgramImage(
+                List.of(input, output),
+                new int[] {0},
+                new int[] {1},
+                MetalPreparedRoute.CUSTOM_PROGRAM);
     }
 
     private static byte[] unaryImage(MetalMpsGraphProgram.NodeKind kind) {

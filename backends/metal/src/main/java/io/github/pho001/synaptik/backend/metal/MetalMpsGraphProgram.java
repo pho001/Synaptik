@@ -1,6 +1,9 @@
 package io.github.pho001.synaptik.backend.metal;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.layout.LayoutKind;
+import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -10,18 +13,24 @@ import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
-/** Immutable schema-fourteen Metal program and its canonical bounded image encoder. */
+/** Immutable schema-fifteen Metal program and its canonical bounded image encoder. */
 final class MetalMpsGraphProgram {
-    static final int SCHEMA_VERSION = 14;
+    static final int SCHEMA_VERSION = 15;
     static final int MAX_RANK = 16;
     static final int MAX_SELECTOR_EXPANSION = 16;
     static final int HEADER_BYTES = 64;
-    static final int VALUE_DESCRIPTOR_BYTES = 16;
+    static final int VALUE_DESCRIPTOR_BYTES = 40;
     static final int NODE_DESCRIPTOR_BYTES = 32;
-    static final int MAGIC = 0x33314d53; // little-endian bytes "SM13"
+    static final int MAGIC = 0x35314d53; // little-endian bytes "SM15"
     static final int NO_SECOND_INPUT = -1;
     static final int NO_AXIS = -1;
+
+    private static final int VALUE_REQUIRES_GRAD = 1;
+    private static final int VALUE_LAYOUT_PRESENT = 1 << 1;
+    private static final int VALUE_LAYOUT_VIEW = 1 << 2;
+    private static final int VALUE_DENSE_PHYSICAL = 1 << 3;
 
     enum AttributeKind {
         NONE(0), TARGET_SHAPE(1), PERMUTATION(2), AXIS(3), REDUCTION(4), DEPTH(5),
@@ -54,7 +63,7 @@ final class MetalMpsGraphProgram {
     }
 
     enum ValueState {
-        UNAVAILABLE(0), CANONICAL(1), AFFINE_VIEW(2);
+        UNAVAILABLE(0), CANONICAL(1), AFFINE_VIEW(2), MATERIALIZED_LAYOUT(3);
         private final int wireIdentity;
         ValueState(int wireIdentity) { this.wireIdentity = wireIdentity; }
         int wireIdentity() { return wireIdentity; }
@@ -139,11 +148,11 @@ final class MetalMpsGraphProgram {
         SCATTER_ND(72, 3, 3, 1, 1, AttributeKind.SCATTER_ND,
                 ValueState.CANONICAL, false, true),
         SELECT(73, 1, 1, 1, 1, AttributeKind.SELECT,
-                ValueState.CANONICAL, false, true),
+                ValueState.MATERIALIZED_LAYOUT, true, true),
         PAD(74, 1, 1, 1, 1, AttributeKind.PAD,
                 ValueState.CANONICAL, false, true),
         SLICE(75, 1, 1, 1, 1, AttributeKind.SLICE,
-                ValueState.CANONICAL, false, true),
+                ValueState.MATERIALIZED_LAYOUT, true, true),
         SLICE_UPDATE(76, 2, 2, 1, 1, AttributeKind.SLICE,
                 ValueState.CANONICAL, false, true),
         CONCAT(77, 1, Integer.MAX_VALUE, 1, 1, AttributeKind.AXIS,
@@ -232,6 +241,10 @@ final class MetalMpsGraphProgram {
         int maximumOutputs() { return maximumOutputs; }
         AttributeKind attributeKind() { return attributeKind; }
         ValueState outputState() { return outputState; }
+        boolean publishesAuthenticatedLayout() {
+            return outputState == ValueState.AFFINE_VIEW
+                    || outputState == ValueState.MATERIALIZED_LAYOUT;
+        }
         boolean isAffine() { return outputState == ValueState.AFFINE_VIEW; }
         boolean executable() { return executable; }
         boolean isCustomProgramOperation() {
@@ -249,7 +262,9 @@ final class MetalMpsGraphProgram {
         }
         boolean accepts(ValueState inputState) {
             return inputState == ValueState.CANONICAL
-                    || (inputState == ValueState.AFFINE_VIEW && acceptsAffineView);
+                    || (inputState == ValueState.AFFINE_VIEW && acceptsAffineView)
+                    || (inputState == ValueState.MATERIALIZED_LAYOUT
+                            && (this == SELECT || this == SLICE));
         }
         boolean acceptsCardinality(int inputs, int outputs) {
             if (this == LAYER_NORM && inputs == 2) return false;
@@ -261,11 +276,27 @@ final class MetalMpsGraphProgram {
     static final class ValueDescriptor {
         private final DataType dataType;
         private final long[] dimensions;
+        private final Optional<LayoutDescriptor> layout;
         private final boolean requiresGrad;
+        private final boolean densePhysical;
 
         ValueDescriptor(DataType dataType, long[] dimensions, boolean requiresGrad) {
+            this(dataType, dimensions,
+                    Optional.of(LayoutDescriptor.contiguous(
+                            Shape.of(Objects.requireNonNull(dimensions, "dimensions").clone()))),
+                    requiresGrad,
+                    false);
+        }
+
+        ValueDescriptor(
+                DataType dataType,
+                long[] dimensions,
+                Optional<LayoutDescriptor> layout,
+                boolean requiresGrad,
+                boolean densePhysical) {
             this.dataType = Objects.requireNonNull(dataType, "dataType");
             this.dimensions = Objects.requireNonNull(dimensions, "dimensions").clone();
+            this.layout = Objects.requireNonNull(layout, "layout");
             if (this.dimensions.length > MAX_RANK) {
                 throw new IllegalArgumentException("Metal value rank must be in 0..16");
             }
@@ -281,28 +312,97 @@ final class MetalMpsGraphProgram {
             } catch (ArithmeticException overflow) {
                 throw new IllegalArgumentException("Metal value byte geometry overflows", overflow);
             }
+            this.layout.ifPresent(resolved -> {
+                if (resolved.rank() != this.dimensions.length) {
+                    throw new IllegalArgumentException(
+                            "Metal value layout rank must match Shape rank");
+                }
+                LayoutDescriptor reconstructed = LayoutDescriptor.of(
+                        Shape.of(this.dimensions),
+                        resolved.strides(),
+                        resolved.storageOffset(),
+                        resolved.isView());
+                if (!resolved.equals(reconstructed)) {
+                    throw new IllegalArgumentException(
+                            "Metal value layout contains inconsistent derived geometry");
+                }
+            });
             this.requiresGrad = requiresGrad;
+            this.densePhysical = densePhysical;
         }
 
         static ValueDescriptor from(TensorDescriptor descriptor) {
+            return from(descriptor, ValueState.CANONICAL);
+        }
+
+        static ValueDescriptor from(TensorDescriptor descriptor, ValueState state) {
             Objects.requireNonNull(descriptor, "descriptor");
+            Objects.requireNonNull(state, "state");
             if (!descriptor.shape().isFullyStatic()) {
                 throw new IllegalArgumentException("Metal values must have fully static shapes");
             }
-            return new ValueDescriptor(descriptor.dataType(), descriptor.shape().toLongArray(),
-                    descriptor.requiresGrad());
+            return new ValueDescriptor(
+                    descriptor.dataType(),
+                    descriptor.shape().toLongArray(),
+                    descriptor.layout(),
+                    descriptor.requiresGrad(),
+                    state == ValueState.AFFINE_VIEW);
         }
 
         DataType dataType() { return dataType; }
         int rank() { return dimensions.length; }
         long[] dimensions() { return dimensions.clone(); }
+        Optional<LayoutDescriptor> layout() { return layout; }
         boolean requiresGrad() { return requiresGrad; }
+        boolean densePhysical() { return densePhysical; }
+        boolean supportsStorageLayout(int minimumRank) {
+            if (rank() < minimumRank || layout.isEmpty()) return false;
+            LayoutDescriptor resolved = layout.orElseThrow();
+            long[] strides = resolved.strides();
+            int[] order = new int[rank()];
+            int count = 0;
+            long covered = 1L;
+            try {
+                for (int axis = 0; axis < rank(); axis++) {
+                    if (strides[axis] <= 0L) return false;
+                    if (dimensions[axis] > 1L) {
+                        int insertion = count;
+                        while (insertion > 0
+                                && strides[order[insertion - 1]] > strides[axis]) {
+                            order[insertion] = order[insertion - 1];
+                            insertion--;
+                        }
+                        order[insertion] = axis;
+                        count++;
+                    }
+                }
+                for (int index = 0; index < count; index++) {
+                    int axis = order[index];
+                    if (strides[axis] < covered) return false;
+                    covered = Math.addExact(
+                            covered,
+                            Math.multiplyExact(dimensions[axis] - 1L, strides[axis]));
+                }
+                return resolved.referencedElementSpan()
+                        == Math.addExact(resolved.storageOffset(), covered);
+            } catch (ArithmeticException overflow) {
+                return false;
+            }
+        }
         long elementCount() {
             long result = 1L;
             for (long dimension : dimensions) result = Math.multiplyExact(result, dimension);
             return result;
         }
-        long byteCount() { return Math.multiplyExact(elementCount(), dataType.byteWidth()); }
+        long byteCount() {
+            long physicalElements = layout
+                    .filter(resolved -> !densePhysical
+                            && (resolved.kind() != LayoutKind.DENSE_CONTIGUOUS
+                                    || resolved.isView()))
+                    .map(LayoutDescriptor::referencedElementSpan)
+                    .orElseGet(this::elementCount);
+            return Math.multiplyExact(physicalElements, dataType.byteWidth());
+        }
     }
 
     static final class Node {
@@ -916,9 +1016,16 @@ final class MetalMpsGraphProgram {
         validateTopology(values.size(), feeds, targets);
         if (values.isEmpty() || targets.length == 0) throw new IllegalArgumentException("program values and targets must be non-empty");
         long dimensions = 0L;
+        long strides = 0L;
         long references = (long) feeds.length + targets.length;
         long attributes = 0L;
-        for (ValueDescriptor value : values) dimensions = Math.addExact(dimensions, Objects.requireNonNull(value, "value").rank());
+        for (ValueDescriptor value : values) {
+            ValueDescriptor checked = Objects.requireNonNull(value, "value");
+            dimensions = Math.addExact(dimensions, checked.rank());
+            if (checked.layout().isPresent()) {
+                strides = Math.addExact(strides, checked.rank());
+            }
+        }
         for (Node node : nodes) {
             references = Math.addExact(references, Math.addExact(node.inputs.length, node.outputs.length));
             attributes = Math.addExact(attributes, node.attributeWords.length);
@@ -927,14 +1034,21 @@ final class MetalMpsGraphProgram {
         bytes = Math.addExact(bytes, Math.multiplyExact((long) values.size(), VALUE_DESCRIPTOR_BYTES));
         bytes = Math.addExact(bytes, Math.multiplyExact((long) nodes.size(), NODE_DESCRIPTOR_BYTES));
         bytes = Math.addExact(bytes, Math.multiplyExact(dimensions, Long.BYTES));
+        bytes = Math.addExact(bytes, Math.multiplyExact(strides, Long.BYTES));
         bytes = Math.addExact(bytes, Math.multiplyExact(references, Integer.BYTES));
         if ((bytes & 7L) != 0L) bytes = Math.addExact(bytes, Integer.BYTES);
         bytes = Math.addExact(bytes, Math.multiplyExact(attributes, Long.BYTES));
         if (bytes > Integer.MAX_VALUE || dimensions > Integer.MAX_VALUE
-                || references > Integer.MAX_VALUE || attributes > Integer.MAX_VALUE) {
+                || strides > Integer.MAX_VALUE || references > Integer.MAX_VALUE
+                || attributes > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("Metal program image exceeds signed 32-bit bounds");
         }
-        return new Layout((int) bytes, (int) dimensions, (int) references, (int) attributes);
+        return new Layout(
+                (int) bytes,
+                (int) dimensions,
+                (int) strides,
+                (int) references,
+                (int) attributes);
     }
 
     private void validateTopology(int valueCount, int[] feeds, int[] targets) {
@@ -994,12 +1108,36 @@ final class MetalMpsGraphProgram {
         out.putInt(MAGIC).putInt(SCHEMA_VERSION).putInt(layout.totalBytes)
                 .putInt(values.size()).putInt(nodes.size()).putInt(feeds.length).putInt(targets.length)
                 .putInt(layout.dimensionCount).putInt(layout.referenceCount).putInt(layout.attributeCount)
-                .putInt(route.wireIdentity());
-        for (int i = 0; i < 5; i++) out.putInt(0);
+                .putInt(route.wireIdentity()).putInt(layout.strideCount);
+        for (int i = 0; i < 4; i++) out.putInt(0);
         int dimensionOffset = 0;
+        int strideOffset = 0;
         for (ValueDescriptor value : values) {
-            out.putInt(dataTypeWire(value.dataType())).putInt(value.rank()).putInt(dimensionOffset)
-                    .putInt(value.requiresGrad() ? 1 : 0);
+            Optional<LayoutDescriptor> optionalLayout = value.layout();
+            int flags = value.requiresGrad() ? VALUE_REQUIRES_GRAD : 0;
+            int currentStrideOffset = -1;
+            int kind = 0;
+            long storageOffset = 0L;
+            long referencedSpan = 0L;
+            if (optionalLayout.isPresent()) {
+                LayoutDescriptor resolved = optionalLayout.orElseThrow();
+                flags |= VALUE_LAYOUT_PRESENT;
+                if (resolved.isView()) flags |= VALUE_LAYOUT_VIEW;
+                if (value.densePhysical()) flags |= VALUE_DENSE_PHYSICAL;
+                currentStrideOffset = strideOffset;
+                strideOffset = Math.addExact(strideOffset, value.rank());
+                kind = layoutKindWire(resolved.kind());
+                storageOffset = resolved.storageOffset();
+                referencedSpan = resolved.referencedElementSpan();
+            }
+            out.putInt(dataTypeWire(value.dataType()))
+                    .putInt(value.rank())
+                    .putInt(dimensionOffset)
+                    .putInt(currentStrideOffset)
+                    .putInt(flags)
+                    .putInt(kind)
+                    .putLong(storageOffset)
+                    .putLong(referencedSpan);
             dimensionOffset = Math.addExact(dimensionOffset, value.rank());
         }
         int referenceOffset = Math.addExact(feeds.length, targets.length);
@@ -1013,6 +1151,11 @@ final class MetalMpsGraphProgram {
             attributeOffset = Math.addExact(attributeOffset, node.attributeWords.length);
         }
         for (ValueDescriptor value : values) for (long dimension : value.dimensions) out.putLong(dimension);
+        for (ValueDescriptor value : values) {
+            value.layout().ifPresent(resolved -> {
+                for (long stride : resolved.strides()) out.putLong(stride);
+            });
+        }
         for (int feed : feeds) out.putInt(feed);
         for (int target : targets) out.putInt(target);
         for (Node node : nodes) {
@@ -1035,5 +1178,19 @@ final class MetalMpsGraphProgram {
         };
     }
 
-    private record Layout(int totalBytes, int dimensionCount, int referenceCount, int attributeCount) {}
+    static int layoutKindWire(LayoutKind kind) {
+        return switch (Objects.requireNonNull(kind, "kind")) {
+            case DENSE_CONTIGUOUS -> 1;
+            case DENSE_WITH_OFFSET -> 2;
+            case STRIDED -> 3;
+            case BROADCAST_ZERO_STRIDE -> 4;
+        };
+    }
+
+    private record Layout(
+            int totalBytes,
+            int dimensionCount,
+            int strideCount,
+            int referenceCount,
+            int attributeCount) {}
 }

@@ -231,7 +231,7 @@ class MetalMpsGraphAffineSchemaTest {
     }
 
     @Test
-    void schemaFourteenProgramImageIsExactCarriesRouteAndAllSixDataTypeWires() {
+    void schemaFifteenProgramImageIsExactCarriesRouteAndAllSixDataTypeWires() {
         var program = new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.generic(
                 MetalMpsGraphProgram.NodeKind.CONCAT,
                 new int[] {0, 1, 2, 3, 4, 5},
@@ -249,10 +249,10 @@ class MetalMpsGraphAffineSchemaTest {
         byte[] actual = program.encodedProgramImage(
                 values, new int[] {0, 1, 2, 3, 4, 5}, new int[] {6});
 
-        ByteBuffer expected = ByteBuffer.allocate(304).order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer expected = ByteBuffer.allocate(504).order(ByteOrder.LITTLE_ENDIAN);
         expected.putInt(MetalMpsGraphProgram.MAGIC);
         expected.putInt(MetalMpsGraphProgram.SCHEMA_VERSION);
-        expected.putInt(304);
+        expected.putInt(504);
         expected.putInt(7);
         expected.putInt(1);
         expected.putInt(6);
@@ -261,14 +261,15 @@ class MetalMpsGraphAffineSchemaTest {
         expected.putInt(14);
         expected.putInt(1);
         expected.putInt(MetalPreparedRoute.MPSGRAPH.wireIdentity());
-        for (int reserved = 0; reserved < 5; reserved++) expected.putInt(0);
-        putValue(expected, 1, 2, 0, 0);
-        putValue(expected, 2, 0, 2, 0);
-        putValue(expected, 3, 0, 2, 0);
-        putValue(expected, 4, 0, 2, 0);
-        putValue(expected, 5, 0, 2, 0);
-        putValue(expected, 6, 0, 2, 0);
-        putValue(expected, 1, 2, 2, 1);
+        expected.putInt(4);
+        for (int reserved = 0; reserved < 4; reserved++) expected.putInt(0);
+        putValue(expected, 1, 2, 0, 0, 2, 1, 0L, 6L);
+        putValue(expected, 2, 0, 2, 2, 2, 1, 0L, 1L);
+        putValue(expected, 3, 0, 2, 2, 2, 1, 0L, 1L);
+        putValue(expected, 4, 0, 2, 2, 2, 1, 0L, 1L);
+        putValue(expected, 5, 0, 2, 2, 2, 1, 0L, 1L);
+        putValue(expected, 6, 0, 2, 2, 2, 1, 0L, 1L);
+        putValue(expected, 1, 2, 2, 2, 3, 1, 0L, 6L);
         expected.putInt(77);
         expected.putInt(3);
         expected.putInt(7);
@@ -281,6 +282,10 @@ class MetalMpsGraphAffineSchemaTest {
         expected.putLong(3);
         expected.putLong(2);
         expected.putLong(3);
+        expected.putLong(3);
+        expected.putLong(1);
+        expected.putLong(3);
+        expected.putLong(1);
         for (int reference : new int[] {0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 3, 4, 5, 6}) {
             expected.putInt(reference);
         }
@@ -289,11 +294,16 @@ class MetalMpsGraphAffineSchemaTest {
     }
 
     private static void putValue(
-            ByteBuffer buffer, int type, int rank, int dimensionOffset, int flags) {
+            ByteBuffer buffer, int type, int rank, int dimensionOffset, int strideOffset,
+            int flags, int kind, long storageOffset, long referencedSpan) {
         buffer.putInt(type);
         buffer.putInt(rank);
         buffer.putInt(dimensionOffset);
+        buffer.putInt(strideOffset);
         buffer.putInt(flags);
+        buffer.putInt(kind);
+        buffer.putLong(storageOffset);
+        buffer.putLong(referencedSpan);
     }
 
     private static void validate(long[][] shapes, MetalMpsGraphProgram.Node node) {

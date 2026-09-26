@@ -178,24 +178,28 @@ public final class CpuBackendIntegration implements AutoCloseable {
 
     /**
      * Reports whether one nominal representation can be cold-bound as exact native host staging
-     * for a prepared CPU/Metal transfer of any canonical model data type.
+     * for a prepared CPU/Metal storage-layout transfer of any model data type.
+     *
+     * <p>The admitted descriptor has positive static extents and a resolved, positive-stride,
+     * non-overlapping physical span. Unresolved, negative, zero-stride broadcast, and overlapping
+     * layouts are rejected at the boundary.</p>
      *
      * @param representation non-null candidate CPU representation
      * @param descriptor non-null exact logical descriptor
      * @param writable whether the transfer writes into the CPU representation
-     * @return {@code true} only for a live current-thread-accessible native, exact-size,
-     *     rank-0..16 canonical contiguous representation with matching type and mutability
+     * @return {@code true} only for a live current-thread-accessible native, exact-span,
+     *     rank-0..16 supported storage representation with matching type and mutability
      * @throws NullPointerException if an object argument is null
      * @throws IllegalStateException if this integration is closed
      */
-    public boolean acceptsCanonicalTransfer(
+    public boolean acceptsStorageLayoutTransfer(
             BufferRepresentation representation,
             TensorDescriptor descriptor,
             boolean writable) {
         composition.assertOpen();
         Objects.requireNonNull(representation, "representation");
         Objects.requireNonNull(descriptor, "descriptor");
-        if (!isCanonicalTransfer(descriptor)
+        if (!isStorageTransfer(descriptor)
                 || !(representation instanceof CpuBufferRepresentation cpu)
                 || cpu.dataType() != descriptor.dataType()
                 || !cpu.isAccessible()) {
@@ -210,24 +214,24 @@ public final class CpuBackendIntegration implements AutoCloseable {
     }
 
     /**
-     * Cold-binds one exact canonical CPU representation as reusable native host staging.
+     * Cold-binds one exact storage-layout CPU representation as reusable native host staging.
      *
      * @param representation non-null candidate CPU representation
      * @param descriptor non-null exact logical descriptor
      * @param writable whether the transfer will write into the returned segment
-     * @return the exact non-owning live native segment retained by the representation
+     * @return the exact non-owning live native physical-span segment retained by the representation
      * @throws NullPointerException if an object argument is null
      * @throws IllegalArgumentException if representation, type, layout, byte extent, native
      *     carrier, accessibility, or mutability is incompatible
      * @throws IllegalStateException if this integration or representation is closed
      */
-    public MemorySegment bindCanonicalTransfer(
+    public MemorySegment bindStorageLayoutTransfer(
             BufferRepresentation representation,
             TensorDescriptor descriptor,
             boolean writable) {
-        if (!acceptsCanonicalTransfer(representation, descriptor, writable)) {
+        if (!acceptsStorageLayoutTransfer(representation, descriptor, writable)) {
             throw new IllegalArgumentException(
-                    "CPU transfer requires an exact live native canonical representation");
+                    "CPU transfer requires an exact live native storage representation");
         }
         return ((CpuBufferRepresentation) representation).segment();
     }
@@ -274,17 +278,57 @@ public final class CpuBackendIntegration implements AutoCloseable {
         return composition.copyToCanonicalHostBytes(representation, descriptor, maximumBytes);
     }
 
-    private static boolean isCanonicalTransfer(TensorDescriptor descriptor) {
-        return descriptor.shape().isFullyStatic()
-                && descriptor.shape().rank() <= 16
-                && descriptor.layout().isPresent()
-                && descriptor.layout().orElseThrow().equals(
-                        LayoutDescriptor.contiguous(descriptor.shape()));
+    private static boolean isStorageTransfer(TensorDescriptor descriptor) {
+        if (!descriptor.shape().isFullyStatic()
+                || descriptor.shape().rank() > 16
+                || descriptor.layout().isEmpty()) {
+            return false;
+        }
+        long[] dimensions = descriptor.shape().toLongArray();
+        LayoutDescriptor layout = descriptor.layout().orElseThrow();
+        long[] strides = layout.strides();
+        long[] activeStrides = new long[strides.length];
+        long[] activeDimensions = new long[strides.length];
+        int active = 0;
+        try {
+            for (int axis = 0; axis < dimensions.length; axis++) {
+                if (dimensions[axis] <= 0L || strides[axis] <= 0L) {
+                    return false;
+                }
+                if (dimensions[axis] > 1L) {
+                    int insertion = active;
+                    while (insertion > 0
+                            && activeStrides[insertion - 1] > strides[axis]) {
+                        activeStrides[insertion] = activeStrides[insertion - 1];
+                        activeDimensions[insertion] = activeDimensions[insertion - 1];
+                        insertion--;
+                    }
+                    activeStrides[insertion] = strides[axis];
+                    activeDimensions[insertion] = dimensions[axis];
+                    active++;
+                }
+            }
+            long covered = 1L;
+            for (int index = 0; index < active; index++) {
+                if (activeStrides[index] < covered) {
+                    return false;
+                }
+                covered = Math.addExact(
+                        covered,
+                        Math.multiplyExact(
+                                activeDimensions[index] - 1L,
+                                activeStrides[index]));
+            }
+            return layout.referencedElementSpan()
+                    == Math.addExact(layout.storageOffset(), covered);
+        } catch (ArithmeticException overflow) {
+            return false;
+        }
     }
 
     private static long transferByteCount(TensorDescriptor descriptor) {
         return Math.multiplyExact(
-                descriptor.shape().knownElementCount().orElseThrow(),
+                descriptor.layout().orElseThrow().referencedElementSpan(),
                 descriptor.dataType().byteWidth());
     }
 

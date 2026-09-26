@@ -254,16 +254,17 @@ accelerator-positive. Return `false` for an unsupported profile/operation pair r
 ignoring the profile or inferring support from `DeviceClass`. The current CPU provider returns the
 same exact answer under `STRICT_IEEE` and `ACCELERATOR`.
 
-The current Metal provider admits canonical FLOAT32 `NEG`/`ABS`; affine layouts; `CONTIGUOUS`;
-bounded `UNFOLD_AXIS`; exact typed GATHER, ONE_HOT, SCATTER_ELEMENTS/NONE, FLOAT32 classification,
-BOOL logic, and FLOAT32 WHERE under both profiles. Accelerator additionally admits tensor FLOAT32
-ADD/SUB/MUL/DIV/MIN/MAX; all six comparisons; scalar MIN/MAX/CLAMP;
-SUM/MEAN/MIN/MAX/SUM_TO_SHAPE; CUM_SUM/CUM_PROD; and bounded rank-two MATMUL. Complete-partition
-analysis authenticates each affine MATMUL operand to its local producer and restricts BOOL values
-to canonical positive-rank classification/comparison/ONE_HOT/logic/WHERE compositions. The common
-dispatch precedes the profile branch, so every strict-positive answer remains accelerator-positive.
-Every unlisted occurrence is false; accelerator identity never means generic fast math. ABI 5
-retains the thirteen export names and consumes one bounded schema-14 route-bearing program image.
+The current Metal provider admits the exact common unary, affine, canonicalization, indexing,
+BOOL-domain, and Task-0059 raw movement rows under both profiles. Task-0059 includes nineteen
+proved CAST carrier pairs, exact typed GATHER_ELEMENTS/GATHER_ND, all-carrier copy operations, and
+all-carrier SELECT/positive-step SLICE with resolved positive-stride non-overlapping storage
+layouts. Accelerator additionally admits tensor FLOAT32 ADD/SUB/MUL/DIV/MIN/MAX; all six
+comparisons; scalar MIN/MAX/CLAMP; SUM/MEAN/MIN/MAX/SUM_TO_SHAPE; CUM_SUM/CUM_PROD; and bounded
+rank-two MATMUL. Complete-partition analysis authenticates each affine MATMUL operand to its local
+producer and restricts BOOL values to canonical positive-rank compositions. The common dispatch
+precedes the profile branch, so every strict-positive answer remains accelerator-positive. Every
+unlisted occurrence is false; accelerator identity never means generic fast math. ABI 5 retains
+the thirteen export names and consumes one bounded schema-15 route-bearing program image.
 Operation wires `1..115`, attribute wires `0..41`, and type wires `1..6` are structural vocabulary
-only; version-fifteen workload, policy, candidate, compatibility, route, and codec identities
+only; version-sixteen workload, policy, candidate, compatibility, route, and codec identities
 authenticate that meaning without adding capability.

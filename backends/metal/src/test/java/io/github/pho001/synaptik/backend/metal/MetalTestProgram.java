@@ -4,7 +4,7 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Test-only conversion of legacy shape fixtures into explicit schema-fourteen descriptors. */
+/** Test-only conversion of legacy shape fixtures into explicit schema-fifteen descriptors. */
 final class MetalTestProgram {
     private MetalTestProgram() {}
 
@@ -14,14 +14,39 @@ final class MetalTestProgram {
             throw new IllegalArgumentException("dimension fixture length");
         }
         DataType[] types = inferTypes(ranks.length, program);
-        var result = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>(ranks.length);
-        for (int value = 0; value < ranks.length; value++) {
-            long[] shape = new long[ranks[value]];
-            System.arraycopy(dimensions, value * MetalMpsGraphProgram.MAX_RANK,
-                    shape, 0, shape.length);
-            result.add(new MetalMpsGraphProgram.ValueDescriptor(types[value], shape, false));
+        MetalMpsGraphProgram.ValueState[] states =
+                new MetalMpsGraphProgram.ValueState[ranks.length];
+        java.util.Arrays.fill(states, MetalMpsGraphProgram.ValueState.CANONICAL);
+        for (MetalMpsGraphProgram.Node node : program.nodes()) {
+            for (int output : node.outputs()) {
+                states[output] = node.kind().outputState();
+            }
         }
-        return List.copyOf(result);
+        try {
+            var result = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>(ranks.length);
+            for (int value = 0; value < ranks.length; value++) {
+                long[] shape = new long[ranks[value]];
+                System.arraycopy(dimensions, value * MetalMpsGraphProgram.MAX_RANK,
+                        shape, 0, shape.length);
+                var resolvedShape = io.github.pho001.synaptik.model.shape.Shape.of(shape);
+                var contiguous =
+                        io.github.pho001.synaptik.model.layout.LayoutDescriptor.contiguous(
+                                resolvedShape);
+                var layout = states[value] == MetalMpsGraphProgram.ValueState.AFFINE_VIEW
+                        ? io.github.pho001.synaptik.model.layout.LayoutDescriptor.of(
+                                resolvedShape, contiguous.strides(), 0L, true)
+                        : contiguous;
+                result.add(new MetalMpsGraphProgram.ValueDescriptor(
+                        types[value],
+                        shape,
+                        java.util.Optional.of(layout),
+                        false,
+                        states[value] == MetalMpsGraphProgram.ValueState.AFFINE_VIEW));
+            }
+            return List.copyOf(result);
+        } catch (ArithmeticException overflow) {
+            throw new IllegalArgumentException("descriptor fixture geometry overflows", overflow);
+        }
     }
 
     private static DataType[] inferTypes(int valueCount, MetalMpsGraphProgram program) {

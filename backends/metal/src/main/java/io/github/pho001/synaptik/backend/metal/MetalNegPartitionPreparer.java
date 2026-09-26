@@ -82,12 +82,13 @@ import java.util.Optional;
  * MATMUL plus the exact Task-0052 comparisons, tensor/scalar extrema, clamp, reduction extrema,
  * cumulative scans, no-gradient scalar ADD/SUB/MUL/DIV, and no-gradient RECIPROCAL. An affine
  * MATMUL operand is authenticated to the exact earlier local rank-two {@code PERMUTE [1,0]} on
- * that consuming edge. Schema-fourteen lowering emits one bounded self-describing image over the
+ * that consuming edge. Schema-fifteen lowering emits one bounded self-describing image over the
  * stable type wires 1..6, complete operation registry 1..115, attribute registry 0..41, and
- * explicit prepared route. Production capability is exactly 50 operation kinds; the additional
+ * explicit prepared route. Production capability is exactly 61 operation kinds; the additional
  * structural recipes remain inaccessible to this analysis.
- * Graph feeds are canonical and explicitly typed. Rank-zero values participate only where the
- * existing non-BOOL operation capability permits them. Exact BOOL results may feed the newly
+ * Ordinary graph feeds are canonical and explicitly typed. SELECT/SLICE feeds may instead use the
+ * exact supported resolved positive-stride non-overlapping storage layout. Rank-zero values
+ * participate only where existing non-BOOL capability permits them. Exact BOOL results may feed
  * admitted logic and selection nodes or cross owner boundaries.
  * Analysis freshly regenerates the complete candidate batch. Every supplied handoff authenticates
  * its exact partition, schema, workload, profile, and session target; an absent decision preserves
@@ -96,9 +97,10 @@ import java.util.Optional;
  * program route before exact declarations, including a declared run-owned buffer for every
  * internal logical value. Package-private tests may force only another candidate already approved
  * by that freshly validated batch; production has no corresponding input or switch.
- * Published affine views retain logical descriptors while declarations use full dense represented-
- * order byte geometry. Analysis allocates no physical resource and never changes partition
- * ownership or capability.</p>
+ * Published SELECT/SLICE values retain logical storage layouts and declarations cover their full
+ * physical referenced spans; other affine views retain the existing dense represented-order
+ * geometry. Analysis allocates no physical resource and never changes partition ownership or
+ * capability.</p>
  */
 final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         MetalNegAnalysisInputs, MetalNegPreparationPlan> {
@@ -177,11 +179,12 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         throw new IllegalArgumentException(
                                 "Metal view producer must precede its consumer: " + inputId);
                     }
-                    if (!canonicalFeed(inputValue.descriptor())) {
+                    state = feedState(inputValue.descriptor());
+                    if (state == MetalMpsGraphProgram.ValueState.UNAVAILABLE) {
                         throw new IllegalArgumentException(
-                                "Metal graph feeds must be canonical: " + inputId);
+                                "Metal graph feeds require resolved positive non-overlapping"
+                                        + " storage geometry: " + inputId);
                     }
-                    state = MetalMpsGraphProgram.ValueState.CANONICAL;
                     states.put(inputId, state);
                     feeds.add(inputId);
                     localTranspose.put(inputId, false);
@@ -307,8 +310,8 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
 
         int[] feedIndices = indices(feeds, valueIndexes);
         int[] targetIndices = indices(targets, valueIndexes);
-        long[] feedBytes = requiredBytes(feeds, graphValues);
-        long[] targetBytes = requiredBytes(targets, graphValues);
+        long[] feedBytes = requiredBytes(feeds, graphValues, states);
+        long[] targetBytes = requiredBytes(targets, graphValues, states);
         boolean containsCustomProgram = graphProgram.nodes().stream()
                 .anyMatch(node -> node.kind().isCustomProgramOperation());
         long singletonElements = feedBytes.length == 1 ? feedBytes[0] / Float.BYTES : 0L;
@@ -332,7 +335,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             }
         }
         int[] internalIndices = indices(internalValues, valueIndexes);
-        long[] internalBytes = requiredBytes(internalValues, graphValues);
+        long[] internalBytes = requiredBytes(internalValues, graphValues, states);
         var declarations = new ArrayList<PreparationResourceRequirement.Buffer>(
                 feeds.size() + targets.size() + internalValues.size());
         for (int index = 0; index < feeds.size(); index++) {
@@ -489,10 +492,14 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         }
     }
 
-    private static boolean canonicalFeed(TensorDescriptor descriptor) {
-        return descriptor.layout().isPresent()
-                && descriptor.layout().orElseThrow().equals(
-                        LayoutDescriptor.contiguous(descriptor.shape()));
+    private static MetalMpsGraphProgram.ValueState feedState(TensorDescriptor descriptor) {
+        if (!MetalCapabilityProvider.supportedStorageLayout(descriptor, 0)) {
+            return MetalMpsGraphProgram.ValueState.UNAVAILABLE;
+        }
+        return descriptor.layout().orElseThrow().equals(
+                        LayoutDescriptor.contiguous(descriptor.shape()))
+                ? MetalMpsGraphProgram.ValueState.CANONICAL
+                : MetalMpsGraphProgram.ValueState.MATERIALIZED_LAYOUT;
     }
 
     private static int[] indices(List<ValueId> ids, Map<ValueId, Integer> indexes) {
@@ -505,10 +512,14 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         return result;
     }
 
-    private static long[] requiredBytes(List<ValueId> ids, Map<ValueId, GraphValue> values) {
+    private static long[] requiredBytes(
+            List<ValueId> ids,
+            Map<ValueId, GraphValue> values,
+            Map<ValueId, MetalMpsGraphProgram.ValueState> states) {
         long[] result = new long[ids.size()];
         for (int index = 0; index < result.length; index++) {
-            result[index] = byteSize(values.get(ids.get(index)).descriptor());
+            ValueId id = ids.get(index);
+            result[index] = byteSize(values.get(id).descriptor(), states.get(id));
         }
         return result;
     }
@@ -899,12 +910,24 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         return new long[] {MetalMpsGraphProgram.dataTypeWire(value.dataType()), bits};
     }
 
-    private static long byteSize(TensorDescriptor descriptor) {
-        long elements = 1L;
-        for (long dimension : descriptor.shape().toLongArray()) {
-            if (dimension <= 0L) throw new IllegalArgumentException(
-                    "Metal dimensions must be positive");
-            elements = Math.multiplyExact(elements, dimension);
+    private static long byteSize(
+            TensorDescriptor descriptor, MetalMpsGraphProgram.ValueState state) {
+        Objects.requireNonNull(state, "state");
+        long elements;
+        if (state == MetalMpsGraphProgram.ValueState.MATERIALIZED_LAYOUT) {
+            if (!MetalCapabilityProvider.supportedStorageLayout(descriptor, 0)) {
+                throw new IllegalArgumentException(
+                        "Metal storage-layout value has unsupported geometry");
+            }
+            elements = descriptor.layout().orElseThrow().referencedElementSpan();
+        } else {
+            elements = 1L;
+            for (long dimension : descriptor.shape().toLongArray()) {
+                if (dimension <= 0L) {
+                    throw new IllegalArgumentException("Metal dimensions must be positive");
+                }
+                elements = Math.multiplyExact(elements, dimension);
+            }
         }
         return Math.multiplyExact(elements, descriptor.dataType().byteWidth());
     }

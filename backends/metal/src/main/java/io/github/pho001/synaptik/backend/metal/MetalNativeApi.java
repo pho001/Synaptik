@@ -6,6 +6,8 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
@@ -124,8 +126,8 @@ abstract class MetalNativeApi implements AutoCloseable {
      *
      * @param context non-null live context whose ownership remains with the caller
      * @param numericalProfile non-null cold plan profile used by Java fail-closed preflight
-     * @param values non-null explicit schema-fourteen value descriptors
-     * @param graphProgram non-null schema-fourteen typed node program
+     * @param values non-null explicit schema-fifteen value descriptors
+     * @param graphProgram non-null schema-fifteen typed node program
      * @param feedValueIndices non-null stable feed value indices
      * @param targetValueIndices non-null stable target value indices
      * @return a fresh non-null opaque executable handle owned by the caller
@@ -155,7 +157,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * Performs one already validated ABI-v5 program-image create invocation synchronously.
      *
      * @param context non-null live context whose ownership remains with the caller
-     * @param programImage exact readable schema-fourteen image, valid only for this call
+     * @param programImage exact readable schema-fifteen image, valid only for this call
      * @return non-null raw status/output-cell result for checked interpretation
      */
     abstract NativeCreateResult createMpsGraphExecutableNative(
@@ -476,7 +478,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
     }
 
-    /** Exact Java preflight for the schema-fourteen typed Metal program create contract. */
+    /** Exact Java preflight for the schema-fifteen typed Metal program create contract. */
     static final class MpsGraphExecutableAbi {
         private static final int MAX_RANK = 16;
 
@@ -790,9 +792,17 @@ abstract class MetalNativeApi implements AutoCloseable {
                             "ONE_HOT depth and output shape disagree");
                     case CAST, GATHER_ELEMENTS, GATHER_ND, SCATTER_ADD, SCATTER_ND, SELECT, PAD,
                             SLICE, SLICE_UPDATE, CONCAT, STACK, TILE, FOLD_AXIS, UNFOLD2D, FOLD2D,
-                            UNFOLD3D, FOLD3D -> requireShape(
-                            task0059ShapeMatches(node, values),
-                            node.kind() + " attributes and output shape disagree");
+                            UNFOLD3D, FOLD3D -> {
+                        requireShape(
+                                task0059ShapeMatches(node, values),
+                                node.kind() + " attributes and output shape disagree");
+                        if ((node.kind() == MetalMpsGraphProgram.NodeKind.SELECT
+                                        || node.kind() == MetalMpsGraphProgram.NodeKind.SLICE)
+                                && !task0059LayoutMatches(node, values)) {
+                            throw new IllegalArgumentException(
+                                    node.kind() + " attributes and output layout disagree");
+                        }
+                    }
                     case UNFOLD_AXIS -> requireShape(
                             unfoldAxisMatches(
                                     node, left, output, valueRanks, valueDimensions),
@@ -1097,8 +1107,12 @@ abstract class MetalNativeApi implements AutoCloseable {
                     case SELECT -> {
                         int axis = Math.toIntExact(words[0]);
                         long index = words[1];
-                        if (axis < 0 || axis >= input.length
-                                || index < 0 || index >= input[axis]) yield false;
+                        if (input.length <= 1
+                                || output.length == 0
+                                || axis < 0
+                                || axis >= input.length
+                                || index < 0
+                                || index >= input[axis]) yield false;
                         long[] expected = new long[input.length - 1];
                         System.arraycopy(input, 0, expected, 0, axis);
                         System.arraycopy(input, axis + 1, expected, axis,
@@ -1118,7 +1132,10 @@ abstract class MetalNativeApi implements AutoCloseable {
                     }
                     case SLICE -> {
                         long[] region = task0059SliceRegion(node, input);
-                        yield region != null && Arrays.equals(region, output);
+                        yield input.length > 0
+                                && output.length > 0
+                                && region != null
+                                && Arrays.equals(region, output);
                     }
                     case SLICE_UPDATE -> {
                         long[] region = task0059SliceRegion(node, input);
@@ -1258,6 +1275,83 @@ abstract class MetalNativeApi implements AutoCloseable {
             }
         }
 
+        private static boolean task0059LayoutMatches(
+                MetalMpsGraphProgram.Node node,
+                List<MetalMpsGraphProgram.ValueDescriptor> values) {
+            try {
+                MetalMpsGraphProgram.ValueDescriptor input =
+                        values.get(node.firstInputIndex());
+                MetalMpsGraphProgram.ValueDescriptor output =
+                        values.get(node.outputIndex());
+                if (!input.supportsStorageLayout(
+                                node.kind() == MetalMpsGraphProgram.NodeKind.SELECT ? 2 : 1)
+                        || !output.supportsStorageLayout(1)) {
+                    return false;
+                }
+                if (node.kind() == MetalMpsGraphProgram.NodeKind.SELECT) {
+                    long[] words = node.attributeWords();
+                    int axis = Math.toIntExact(words[0]);
+                    LayoutDescriptor inputLayout = input.layout().orElseThrow();
+                    long[] inputStrides = inputLayout.strides();
+                    if (axis < 0 || axis >= inputStrides.length) return false;
+                    long[] strides = new long[inputStrides.length - 1];
+                    System.arraycopy(inputStrides, 0, strides, 0, axis);
+                    System.arraycopy(inputStrides, axis + 1, strides, axis,
+                            inputStrides.length - axis - 1);
+                    long offset = Math.addExact(
+                            inputLayout.storageOffset(),
+                            Math.multiplyExact(words[1], inputStrides[axis]));
+                    LayoutDescriptor expected = LayoutDescriptor.of(
+                            Shape.of(output.dimensions()), strides, offset, true);
+                    return output.layout().filter(expected::equals).isPresent();
+                }
+                if (node.kind() != MetalMpsGraphProgram.NodeKind.SLICE) return true;
+                long[] words = node.attributeWords();
+                long[] starts;
+                int[] axes;
+                long[] steps;
+                if (node.attributeKind()
+                        == MetalMpsGraphProgram.AttributeKind.CROP_TO_SHAPE) {
+                    int rank = Math.toIntExact(words[0]);
+                    int prefixOffset = 1 + rank;
+                    starts = Arrays.copyOfRange(
+                            words, prefixOffset + 1, prefixOffset + 1 + rank);
+                    axes = new int[rank];
+                    steps = new long[rank];
+                    Arrays.fill(steps, 1L);
+                    for (int axis = 0; axis < rank; axis++) axes[axis] = axis;
+                } else {
+                    int count = Math.toIntExact(words[0]);
+                    starts = Arrays.copyOfRange(words, 1, 1 + count);
+                    axes = new int[count];
+                    for (int index = 0; index < count; index++) {
+                        axes[index] = Math.toIntExact(words[1 + count * 2 + index]);
+                    }
+                    steps = Arrays.copyOfRange(
+                            words, 1 + count * 3, 1 + count * 4);
+                }
+                for (long step : steps) {
+                    if (step <= 0L) return false;
+                }
+                LayoutDescriptor inputLayout = input.layout().orElseThrow();
+                long[] strides = inputLayout.strides();
+                long offset = inputLayout.storageOffset();
+                for (int index = 0; index < axes.length; index++) {
+                    int axis = axes[index];
+                    if (axis < 0 || axis >= strides.length) return false;
+                    long inputStride = strides[axis];
+                    offset = Math.addExact(
+                            offset, Math.multiplyExact(starts[index], inputStride));
+                    strides[axis] = Math.multiplyExact(inputStride, steps[index]);
+                }
+                LayoutDescriptor expected = LayoutDescriptor.of(
+                        Shape.of(output.dimensions()), strides, offset, true);
+                return output.layout().filter(expected::equals).isPresent();
+            } catch (ArithmeticException | IndexOutOfBoundsException exception) {
+                return false;
+            }
+        }
+
         private static long[] task0059SliceRegion(
                 MetalMpsGraphProgram.Node node, long[] input) {
             long[] words = node.attributeWords();
@@ -1282,7 +1376,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                 int axis = Math.toIntExact(words[1 + count * 2 + item]);
                 long step = words[1 + count * 3 + item];
                 if (axis < 0 || axis >= input.length || start < 0 || length <= 0
-                        || start >= input[axis]) {
+                        || step <= 0 || start >= input[axis]) {
                     return null;
                 }
                 long last = Math.addExact(start, Math.multiplyExact(length - 1, step));

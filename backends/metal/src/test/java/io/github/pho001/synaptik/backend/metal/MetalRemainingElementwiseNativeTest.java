@@ -4,6 +4,7 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -137,7 +138,7 @@ class MetalRemainingElementwiseNativeTest {
                         MetalMpsGraphProgram.NodeKind.SLICE,
                         new int[] {0}, new int[] {7},
                         MetalMpsGraphProgram.AttributeKind.SLICE,
-                        new long[] {1, 2, 2, 1, -1}),
+                        new long[] {1, 1, 2, 1, 1}),
                 MetalMpsGraphProgram.Node.generic(
                         MetalMpsGraphProgram.NodeKind.CONCAT,
                         new int[] {0, 0}, new int[] {8},
@@ -170,9 +171,9 @@ class MetalRemainingElementwiseNativeTest {
                 typed(DataType.FLOAT32, 2, 2),
                 typed(DataType.INT64, 2, 1),
                 typed(DataType.FLOAT32, 2, 3),
-                typed(DataType.FLOAT32, 3),
+                viewTyped(DataType.FLOAT32, new long[] {3}, new long[] {1}, 3L),
                 typed(DataType.FLOAT32, 2, 5),
-                typed(DataType.FLOAT32, 2, 2),
+                viewTyped(DataType.FLOAT32, new long[] {2, 2}, new long[] {3, 1}, 1L),
                 typed(DataType.FLOAT32, 4, 3),
                 typed(DataType.FLOAT32, 2, 2, 3),
                 typed(DataType.FLOAT32, 2, 6),
@@ -206,12 +207,16 @@ class MetalRemainingElementwiseNativeTest {
         assertArrayEquals(new int[] {
             data[3], data[4], data[5], data[0], data[1], data[2]
         }, actual.get(1));
-        assertArrayEquals(new int[] {data[3], data[4], data[5]}, actual.get(2));
+        assertArrayEquals(
+                new int[] {0, 0, 0, data[3], data[4], data[5]},
+                actual.get(2));
         assertArrayEquals(new int[] {
             fill, data[0], data[1], data[2], fill,
             fill, data[3], data[4], data[5], fill
         }, actual.get(3));
-        assertArrayEquals(new int[] {data[2], data[1], data[5], data[4]}, actual.get(4));
+        assertArrayEquals(
+                new int[] {0, data[1], data[2], 0, data[4], data[5]},
+                actual.get(4));
         assertArrayEquals(concat(data, data), actual.get(5));
         assertArrayEquals(concat(data, data), actual.get(6));
         assertArrayEquals(new int[] {
@@ -559,15 +564,6 @@ class MetalRemainingElementwiseNativeTest {
                         typed(DataType.FLOAT32, 2, 3),
                         typed(DataType.FLOAT32, 2, 3)),
                 List.of(data, new int[] {1, 0}, bits(10, 20, 30, 40, 50, 60))).length);
-        assertEquals(3, NonProductionStructuralFixture.executeDirect(
-                library,
-                NumericalProfile.STRICT_IEEE,
-                MetalMpsGraphProgram.Node.generic(
-                        MetalMpsGraphProgram.NodeKind.SELECT,
-                        new int[] {0}, new int[] {1},
-                        MetalMpsGraphProgram.AttributeKind.SELECT, new long[] {0, 1}),
-                List.of(typed(DataType.FLOAT32, 2, 3), typed(DataType.FLOAT32, 3)),
-                List.of(data)).length);
         assertEquals(10, NonProductionStructuralFixture.executeDirect(
                 library,
                 NumericalProfile.STRICT_IEEE,
@@ -577,16 +573,6 @@ class MetalRemainingElementwiseNativeTest {
                         MetalMpsGraphProgram.AttributeKind.PAD,
                         new long[] {2, 0, 1, 0, 1, 1, 0}),
                 List.of(typed(DataType.FLOAT32, 2, 3), typed(DataType.FLOAT32, 2, 5)),
-                List.of(data)).length);
-        assertEquals(4, NonProductionStructuralFixture.executeDirect(
-                library,
-                NumericalProfile.STRICT_IEEE,
-                MetalMpsGraphProgram.Node.generic(
-                        MetalMpsGraphProgram.NodeKind.SLICE,
-                        new int[] {0}, new int[] {1},
-                        MetalMpsGraphProgram.AttributeKind.SLICE,
-                        new long[] {1, 1, 2, 1, 1}),
-                List.of(typed(DataType.FLOAT32, 2, 3), typed(DataType.FLOAT32, 2, 2)),
                 List.of(data)).length);
         assertEquals(6, NonProductionStructuralFixture.executeDirect(
                 library,
@@ -698,34 +684,8 @@ class MetalRemainingElementwiseNativeTest {
     }
 
     @Test
-    void task0059CropRankSixteenAndExtremeSliceStridesRemainExecutable() {
+    void task0059RankSixteenAndPositiveExtremeSliceRemainExecutable() {
         Path library = configuredLibrary();
-        var crop = MetalMpsGraphProgram.Node.generic(
-                MetalMpsGraphProgram.NodeKind.SLICE,
-                new int[] {0}, new int[] {1},
-                MetalMpsGraphProgram.AttributeKind.CROP_TO_SHAPE,
-                new long[] {2, 1, 2, 2, 0, 1});
-        List<MetalMpsGraphProgram.ValueDescriptor> cropValues = List.of(
-                typed(DataType.FLOAT32, 2, 3),
-                typed(DataType.FLOAT32, 1, 2));
-        assertArrayEquals(
-                bits(2, 3),
-                NonProductionStructuralFixture.executeDirect(
-                        library,
-                        NumericalProfile.STRICT_IEEE,
-                        crop,
-                        cropValues,
-                        List.of(bits(1, 2, 3, 4, 5, 6))));
-        assertArrayEquals(
-                bits(2, 3),
-                executeCustom(
-                        library,
-                        NumericalProfile.STRICT_IEEE,
-                        new MetalMpsGraphProgram(List.of(crop)),
-                        cropValues,
-                        new int[] {0},
-                        new int[] {1},
-                        List.of(bits(1, 2, 3, 4, 5, 6))).getFirst());
 
         long[] singletonShape = new long[16];
         Arrays.fill(singletonShape, 1L);
@@ -742,17 +702,11 @@ class MetalRemainingElementwiseNativeTest {
                 new int[] {0}, new int[] {1},
                 MetalMpsGraphProgram.AttributeKind.SLICE,
                 rankSixteenSlice);
+        long[] singletonStrides = new long[16];
+        Arrays.fill(singletonStrides, 1L);
         List<MetalMpsGraphProgram.ValueDescriptor> singletonValues = List.of(
                 typed(DataType.FLOAT32, singletonShape),
-                typed(DataType.FLOAT32, singletonShape));
-        assertArrayEquals(
-                bits(7),
-                NonProductionStructuralFixture.executeDirect(
-                        library,
-                        NumericalProfile.STRICT_IEEE,
-                        fullRankSlice,
-                        singletonValues,
-                        List.of(bits(7))));
+                viewTyped(DataType.FLOAT32, singletonShape, singletonStrides, 0L));
         assertArrayEquals(
                 bits(7),
                 executeCustom(
@@ -764,24 +718,51 @@ class MetalRemainingElementwiseNativeTest {
                         new int[] {1},
                         List.of(bits(7))).getFirst());
 
-        for (long[] attributes : List.of(
-                new long[] {1, 1, 1, 0, Long.MAX_VALUE},
-                new long[] {1, 0, 1, 0, Long.MIN_VALUE + 1L})) {
-            assertArrayEquals(
-                    bits(attributes[1] == 0L ? 11 : 13),
-                    NonProductionStructuralFixture.executeDirect(
-                            library,
-                            NumericalProfile.STRICT_IEEE,
-                            MetalMpsGraphProgram.Node.generic(
-                                    MetalMpsGraphProgram.NodeKind.SLICE,
-                                    new int[] {0}, new int[] {1},
-                                    MetalMpsGraphProgram.AttributeKind.SLICE,
-                                    attributes),
-                            List.of(
-                                    typed(DataType.FLOAT32, 2),
-                                    typed(DataType.FLOAT32, 1)),
-                            List.of(bits(11, 13))));
-        }
+        long[] positiveExtreme = {1, 1, 1, 0, Long.MAX_VALUE};
+        var positiveExtremeSlice = MetalMpsGraphProgram.Node.generic(
+                MetalMpsGraphProgram.NodeKind.SLICE,
+                new int[] {0}, new int[] {1},
+                MetalMpsGraphProgram.AttributeKind.SLICE,
+                positiveExtreme);
+        List<MetalMpsGraphProgram.ValueDescriptor> positiveExtremeValues = List.of(
+                typed(DataType.FLOAT32, 2),
+                viewTyped(
+                        DataType.FLOAT32,
+                        new long[] {1},
+                        new long[] {Long.MAX_VALUE},
+                        1L));
+        assertArrayEquals(
+                bits(0, 13),
+                executeCustom(
+                        library,
+                        NumericalProfile.STRICT_IEEE,
+                        new MetalMpsGraphProgram(List.of(positiveExtremeSlice)),
+                        positiveExtremeValues,
+                        new int[] {0},
+                        new int[] {1},
+                        List.of(bits(11, 13))).getFirst());
+        long[] negativeExtreme = {1, 0, 1, 0, Long.MIN_VALUE + 1L};
+        var negativeExtremeSlice = MetalMpsGraphProgram.Node.generic(
+                MetalMpsGraphProgram.NodeKind.SLICE,
+                new int[] {0}, new int[] {1},
+                MetalMpsGraphProgram.AttributeKind.SLICE,
+                negativeExtreme);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> executeCustom(
+                        library,
+                        NumericalProfile.STRICT_IEEE,
+                        new MetalMpsGraphProgram(List.of(negativeExtremeSlice)),
+                        List.of(
+                                typed(DataType.FLOAT32, 2),
+                                viewTyped(
+                                        DataType.FLOAT32,
+                                        new long[] {1},
+                                        new long[] {1},
+                                        0L)),
+                        new int[] {0},
+                        new int[] {1},
+                        List.of(bits(11, 13))));
     }
 
     @Test
@@ -1162,6 +1143,19 @@ class MetalRemainingElementwiseNativeTest {
     private static MetalMpsGraphProgram.ValueDescriptor typed(
             DataType type, long... dimensions) {
         return new MetalMpsGraphProgram.ValueDescriptor(type, dimensions, false);
+    }
+
+    private static MetalMpsGraphProgram.ValueDescriptor viewTyped(
+            DataType type, long[] dimensions, long[] strides, long offset) {
+        var shape = io.github.pho001.synaptik.model.shape.Shape.of(dimensions);
+        return new MetalMpsGraphProgram.ValueDescriptor(
+                type,
+                dimensions,
+                java.util.Optional.of(
+                        io.github.pho001.synaptik.model.layout.LayoutDescriptor.of(
+                                shape, strides, offset, true)),
+                false,
+                false);
     }
 
     private static byte[] task0059CarrierWords(DataType carrier) {

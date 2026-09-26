@@ -64,7 +64,7 @@ import org.junit.jupiter.api.Test;
 class MetalCapabilityProviderTest {
     private final MetalCapabilityProvider provider = new MetalCapabilityProvider();
     @Test
-    void registeredWireCapabilityLedgerClosesAtFiftyNineTrueAndFiftySixFalse() {
+    void registeredWireCapabilityLedgerClosesAtSixtyOneTrueAndFiftyFourFalse() {
         java.util.Set<MetalMpsGraphProgram.NodeKind> structuralOnly = java.util.Set.of(
                 MetalMpsGraphProgram.NodeKind.TENSOR_POW,
                 MetalMpsGraphProgram.NodeKind.SCALAR_POW,
@@ -78,21 +78,19 @@ class MetalCapabilityProviderTest {
                 MetalMpsGraphProgram.NodeKind.GELU,
                 MetalMpsGraphProgram.NodeKind.GELU_TANH_APPROXIMATION,
                 MetalMpsGraphProgram.NodeKind.SILU,
-                MetalMpsGraphProgram.NodeKind.SELECT,
-                MetalMpsGraphProgram.NodeKind.SLICE,
                 MetalMpsGraphProgram.NodeKind.SCATTER_ADD,
                 MetalMpsGraphProgram.NodeKind.SCATTER_ND,
                 MetalMpsGraphProgram.NodeKind.SLICE_UPDATE,
                 MetalMpsGraphProgram.NodeKind.FOLD_AXIS,
                 MetalMpsGraphProgram.NodeKind.FOLD2D,
                 MetalMpsGraphProgram.NodeKind.FOLD3D);
-        assertEquals(20, structuralOnly.size());
+        assertEquals(18, structuralOnly.size());
         long trueRows = java.util.Arrays.stream(MetalMpsGraphProgram.NodeKind.values())
                 .filter(MetalMpsGraphProgram.NodeKind::executable)
                 .filter(kind -> !structuralOnly.contains(kind))
                 .count();
-        assertEquals(59L, trueRows);
-        assertEquals(56L, MetalMpsGraphProgram.NodeKind.values().length - trueRows);
+        assertEquals(61L, trueRows);
+        assertEquals(54L, MetalMpsGraphProgram.NodeKind.values().length - trueRows);
         structuralOnly.forEach(kind -> assertTrue(kind.executable(), kind.name()));
         assertFalse(MetalMpsGraphProgram.NodeKind.EXP.executable());
         assertFalse(MetalMpsGraphProgram.NodeKind.SIGMOID.executable());
@@ -100,7 +98,7 @@ class MetalCapabilityProviderTest {
 
 
     @Test
-    void task0059AdvertisesExactlyNineteenCastPairsAndKeepsViewOnlyMovementFalse() {
+    void task0059AdvertisesCastSelectAndSliceWithoutOpeningUnsafeLayouts() {
         for (NumericalProfile profile : NumericalProfile.values()) {
             for (DataType source : DataType.values()) {
                 for (DataType target : DataType.values()) {
@@ -121,19 +119,91 @@ class MetalCapabilityProviderTest {
                 }
             }
         }
-        TensorDescriptor data = typed(DataType.FLOAT32, Shape.of(2, 3), false);
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            for (DataType type : DataType.values()) {
+                Shape dataShape = Shape.of(2, 3);
+                TensorDescriptor data = typed(type, dataShape, false);
+                Shape selectShape = Shape.of(3);
+                TensorDescriptor selected = new TensorDescriptor(
+                        type,
+                        selectShape,
+                        Optional.of(LayoutDescriptor.of(
+                                selectShape, new long[] {1}, 3L, true)),
+                        false);
+                assertTrue(provider.supports(new OperationCapabilityQuery(
+                        profile,
+                        new Operation(SelectKind.SELECT, new SelectAttrs(0, 1)),
+                        List.of(data),
+                        List.of(selected))), type + " SELECT " + profile);
+                Shape sliceShape = Shape.of(2, 2);
+                TensorDescriptor sliced = new TensorDescriptor(
+                        type,
+                        sliceShape,
+                        Optional.of(LayoutDescriptor.of(
+                                sliceShape, new long[] {3, 1}, 1L, true)),
+                        false);
+                assertTrue(provider.supports(new OperationCapabilityQuery(
+                        profile,
+                        new Operation(
+                                SliceKind.SLICE,
+                                new SliceAttrs(
+                                        List.of(1L), List.of(2L), List.of(1), List.of(1L))),
+                        List.of(data),
+                        List.of(sliced))), type + " SLICE " + profile);
+            }
+        }
+        Shape unsafeShape = Shape.of(2, 3);
+        TensorDescriptor unsafe = new TensorDescriptor(
+                DataType.FLOAT32,
+                unsafeShape,
+                Optional.of(LayoutDescriptor.of(
+                        unsafeShape, new long[] {1, 1}, 0L, true)),
+                false);
+        TensorDescriptor unresolved = new TensorDescriptor(
+                DataType.FLOAT32, unsafeShape, Optional.empty(), false);
+        TensorDescriptor selected = new TensorDescriptor(
+                DataType.FLOAT32,
+                Shape.of(3),
+                Optional.of(LayoutDescriptor.of(
+                        Shape.of(3), new long[] {1}, 0L, true)),
+                false);
         assertFalse(provider.supports(new OperationCapabilityQuery(
                 NumericalProfile.STRICT_IEEE,
                 new Operation(SelectKind.SELECT, new SelectAttrs(0, 0)),
-                List.of(data),
-                List.of(typed(DataType.FLOAT32, Shape.of(3), false)))));
+                List.of(unsafe),
+                List.of(selected))));
         assertFalse(provider.supports(new OperationCapabilityQuery(
-                NumericalProfile.ACCELERATOR,
+                NumericalProfile.STRICT_IEEE,
+                new Operation(SelectKind.SELECT, new SelectAttrs(0, 0)),
+                List.of(unresolved),
+                List.of(selected))));
+        TensorDescriptor broadcast = new TensorDescriptor(
+                DataType.FLOAT32,
+                unsafeShape,
+                Optional.of(LayoutDescriptor.of(
+                        unsafeShape, new long[] {0, 1}, 0L, true)),
+                false);
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
+                new Operation(SelectKind.SELECT, new SelectAttrs(0, 0)),
+                List.of(broadcast),
+                List.of(selected))));
+        TensorDescriptor negativeSliceOutput = new TensorDescriptor(
+                DataType.FLOAT32,
+                Shape.of(2, 2),
+                Optional.of(LayoutDescriptor.of(
+                        Shape.of(2, 2), new long[] {3, 1}, 1L, true)),
+                false);
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE,
                 new Operation(
                         SliceKind.SLICE,
-                        new SliceAttrs(List.of(1L), List.of(2L), List.of(1), List.of(1L))),
-                List.of(data),
-                List.of(typed(DataType.FLOAT32, Shape.of(2, 2), false)))));
+                        new SliceAttrs(
+                                List.of(2L), List.of(2L), List.of(1), List.of(-1L))),
+                List.of(typed(DataType.FLOAT32, unsafeShape, false)),
+                List.of(negativeSliceOutput))));
+        assertThrows(IllegalArgumentException.class, () -> new SliceAttrs(
+                List.of(0L), List.of(1L), List.of(0), List.of(0L)));
         assertFalse(provider.supports(new OperationCapabilityQuery(
                 NumericalProfile.STRICT_IEEE,
                 new Operation(CastKind.CAST, new CastAttrs(DataType.BOOL)),

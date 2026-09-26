@@ -81,13 +81,24 @@ final class MetalBufferRepresentation implements BufferRepresentation {
         return !closed && context == expected;
     }
 
-    /** Returns whether this live buffer is an authenticated dense target for the exact view. */
-    synchronized boolean authenticatesDenseAffinePublication(TensorDescriptor descriptor) {
+    /** Returns whether this live buffer is an authenticated target for the exact descriptor. */
+    synchronized boolean authenticatesPublication(TensorDescriptor descriptor) {
         Objects.requireNonNull(descriptor, "descriptor");
         return !closed
                 && denseAffinePublication != null
                 && denseAffinePublication.authenticates(
                         context, descriptor, logicalByteSize);
+    }
+
+    /** Returns whether authenticated publication bytes use the descriptor's physical storage. */
+    synchronized boolean authenticatedPublicationUsesStorageLayout(
+            TensorDescriptor descriptor) {
+        Objects.requireNonNull(descriptor, "descriptor");
+        return !closed
+                && denseAffinePublication != null
+                && denseAffinePublication.authenticates(
+                        context, descriptor, logicalByteSize)
+                && denseAffinePublication.usesStorageLayout();
     }
 
     /**
@@ -235,9 +246,10 @@ final class MetalBufferRepresentation implements BufferRepresentation {
     }
 
     /**
-     * Unforgeable outside this package: exact finalized-route evidence for one dense physical
-     * affine target whose public descriptor remains a logical view. Evidence binds the executable,
-     * plan, context, value identity, producer kind, target position, descriptor, and byte extent.
+     * Unforgeable outside this package: exact finalized-route evidence for one authenticated
+     * publication target. Ordinary affine producers use dense represented-order bytes; SELECT and
+     * SLICE use the descriptor's physical storage layout. Evidence binds the executable, plan,
+     * context, value identity, producer kind, target position, descriptor, and byte extent.
      */
     static final class DenseAffinePublication {
         private final MetalNegPreparedExecutable executable;
@@ -261,12 +273,12 @@ final class MetalBufferRepresentation implements BufferRepresentation {
             this.producerKind = Objects.requireNonNull(producerKind, "producerKind");
             this.descriptor = Objects.requireNonNull(descriptor, "descriptor");
             this.byteSize = byteSize;
-            if (plan.denseAffineProducerKind(
+            if (plan.publicationProducerKind(
                     targetPosition, valueId, descriptor, byteSize)
                     .filter(producerKind::equals)
                     .isEmpty()) {
                 throw new IllegalArgumentException(
-                        "Metal dense affine publication is not an exact finalized route target");
+                        "Metal publication is not an exact finalized route target");
             }
         }
 
@@ -278,10 +290,15 @@ final class MetalBufferRepresentation implements BufferRepresentation {
                     && plan.context() == context
                     && descriptor.equals(expectedDescriptor)
                     && byteSize == expectedByteSize
-                    && plan.denseAffineProducerKind(
+                    && plan.publicationProducerKind(
                             targetPosition, valueId, expectedDescriptor, expectedByteSize)
                             .filter(producerKind::equals)
                             .isPresent();
+        }
+
+        private boolean usesStorageLayout() {
+            return producerKind == MetalMpsGraphProgram.NodeKind.SELECT
+                    || producerKind == MetalMpsGraphProgram.NodeKind.SLICE;
         }
     }
 }

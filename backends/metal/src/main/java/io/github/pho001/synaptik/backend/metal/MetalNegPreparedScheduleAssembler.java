@@ -119,14 +119,13 @@ final class MetalNegPreparedScheduleAssembler
                                     descriptor.shape()));
             DataType dataType = descriptor == null ? null : descriptor.dataType();
             if (descriptor == null
-                    || !descriptor.shape().isFullyStatic()
-                    || descriptor.layout().isEmpty()
-                    || (dataType == DataType.FLOAT32
-                            ? !canonical && affinePublication.isEmpty()
-                            : !task0059Carrier(dataType) || !canonical)) {
+                    || !task0059Carrier(dataType)
+                    || (!canonical
+                            && affinePublication.isEmpty()
+                            && !MetalCapabilityProvider.supportedStorageLayout(descriptor, 0))) {
                 throw new IllegalArgumentException(
                         "Metal assigned buffer requires a supported canonical typed descriptor"
-                                + " or authenticated affine FLOAT32");
+                                + " or authenticated dense logical-layout publication");
             }
             PreparedRepresentationPlan.BufferPreparation preparation;
             if (affinePublication.isPresent()) {

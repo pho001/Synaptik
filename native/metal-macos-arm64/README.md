@@ -5,31 +5,33 @@
 This directory builds the local application binary interface (ABI) used by the Synaptik Metal
 backend on Apple-silicon macOS. ABI version 5 retains the same thirteen context, shared-storage
 buffer, executable, and bounded custom singleton-`NEG` exports. Its graph creator accepts one
-bounded schema-14 program image. The image carries an explicit fixed route plus value types and
-complete variable-cardinality operation, attribute, reference, dimension, and gradient metadata;
-no native type or shape inference is part of the boundary.
+bounded schema-15 program image. The image carries an explicit fixed route plus value types and
+complete variable-cardinality operation, attribute, reference, dimension, gradient, and optional
+storage-layout metadata; no native type, shape, or layout inference is part of the boundary.
 
 The schema registry reserves operation wires `1..115` and attribute wires `0..41`. The native graph
 creator has 79 structural recipes: wires `1..34`, `38..54`, `56..63`, and `65..84`.
-Structural-only raw fixtures do not widen capability. Java production capability is exactly 59
+Structural-only raw fixtures do not widen capability. Java production capability is exactly 61
 operation kinds. Task 0059 adds wire `39`, exact read-only indexing wires `69` and `71`, and exact
-copy-only layout wires `74`, `77..79`, `81`, and `83`; the other Task-0059 wires remain
-capability-false even though their structural MPSGraph recipes create and run. All admitted
-Task-0059 occurrences use static canonical no-gradient descriptors and the exact per-carrier,
-index-bound, Shape, attribute, and cardinality restrictions documented in the Metal backend guide.
-The remaining 56 production rows fail closed before native creation. A structurally valid
-registered operation without a native recipe returns the dedicated unsupported-operation status
-rather than masquerading as malformed input.
-Candidate and route identity are version 15. Java owns exactly three prepared-route identities:
-custom singleton NEG wire 1, MPSGraph wire 2, and shared custom-program wire 3. Schema 14 embeds
-wire 2 or 3 in each graph image; schema 13 and every other route value fail closed. The exhaustive
-Java structural catalog adds no native route selection, capability, autotuning, fallback,
+copy-only layout wires `73..75`, `77..79`, `81`, and `83`; the other Task-0059 wires remain
+capability-false even though their structural MPSGraph recipes create and run. Most admitted
+Task-0059 occurrences use static canonical no-gradient descriptors. SELECT and positive-step SLICE
+instead use fully static, positive-rank, positive-stride, non-overlapping storage layouts whose
+encoded offset, stride, kind, view flag, and referenced span exactly match the operation.
+Unresolved, zero-stride, negative-stride, overlapping, empty, or gradient-bearing SELECT/SLICE
+occurrences fail closed. The remaining 54 production rows fail closed before native creation. A
+structurally valid registered operation without a native recipe returns the dedicated
+unsupported-operation status rather than masquerading as malformed input.
+Candidate and route identity are version 16. Java owns exactly three prepared-route identities:
+custom singleton NEG wire 1, MPSGraph wire 2, and shared custom-program wire 3. Schema 15 embeds
+wire 2 or 3 in each graph image; schema 14 and every other schema or route value fail closed. The
+exhaustive Java structural catalog adds no native route selection, capability, autotuning, fallback,
 telemetry, or performance authority.
 
-For admitted Task-0059 nodes, the version-15 workload signature binds operation wire, source/target
+For admitted Task-0059 nodes, the version-16 workload signature binds operation wire, source/target
 carrier types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes,
-exact scalar bits, and variadic input order/count. Schema 14 and identity 15 do not change because
-the existing encoded image and decision bytes already carry those facts.
+exact scalar bits, variadic input order/count, and complete encoded storage-layout geometry. The
+schema-15 and identity-16 cutover has no compatibility reader or migration alias.
 
 ```text
 Java analysis -> choose fixed whole-partition route -> declare every exact resource
@@ -72,7 +74,7 @@ package and independently verify the final signed bytes:
 The ignored `build/package-v1/macos-arm64/` directory contains exactly the signed dylib,
 `manifest.json`, and `SHA256SUMS`. The canonical schema-1 manifest records the final dylib's
 relative name, size, SHA-256, platform, architecture, macOS 26.0 minimum, install name, empty
-rpath set, ABI 5, node schema 14, required frameworks, and fixed ad-hoc identifier. It contains no
+rpath set, ABI 5, node schema 15, required frameworks, and fixed ad-hoc identifier. It contains no
 time, host, absolute path, source revision, product version, SDK version, Team ID, notarization,
 provenance, or release field. Packaging the same exact signed input produces byte-identical
 manifest and checksum files.

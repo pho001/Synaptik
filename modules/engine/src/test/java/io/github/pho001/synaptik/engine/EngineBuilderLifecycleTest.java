@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.engine;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -21,6 +22,8 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.index.SelectKind;
+import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
@@ -37,6 +40,7 @@ import org.junit.jupiter.api.Test;
 final class EngineBuilderLifecycleTest {
     private static final BackendId FIRST = new BackendId("first");
     private static final BackendId SECOND = new BackendId("second");
+    private static final BackendId THIRD = new BackendId("third");
 
     @Test
     void numericalProfileDefaultsReassignsAndCapturesAcrossCompile() {
@@ -355,6 +359,73 @@ final class EngineBuilderLifecycleTest {
                 assertEquals(0, neg.analysisCount.get());
                 assertEquals(0, add.analysisCount.get());
             }
+        }
+    }
+
+    @Test
+    void publicGraphPartitionAdmissionCoversSelectAndSliceStorageBoundaries() {
+        Shape inputShape = Shape.of(3, 4);
+        TensorDescriptor inputDescriptor = new TensorDescriptor(
+                DataType.FLOAT32,
+                inputShape,
+                Optional.of(LayoutDescriptor.of(
+                        inputShape, new long[] {6, 1}, 2L, true)),
+                false);
+        Tensor input = TensorFactory.create(
+                inputDescriptor, Optional.empty(), Optional.empty());
+        Tensor selected = input.select(0, 1);
+        Tensor sliced = selected.sliceByLength(
+                new long[] {0}, new long[] {2}, new int[] {0}, new long[] {2});
+        Tensor output = sliced.neg();
+        assertTrue(CpuMetalPreparedBufferTransfer.supports(selected.descriptor()));
+        assertTrue(CpuMetalPreparedBufferTransfer.supports(sliced.descriptor()));
+
+        Shape rejectionShape = Shape.of(2, 2);
+        assertFalse(CpuMetalPreparedBufferTransfer.supports(new TensorDescriptor(
+                DataType.FLOAT32, rejectionShape, Optional.empty(), false)));
+        assertFalse(CpuMetalPreparedBufferTransfer.supports(new TensorDescriptor(
+                DataType.FLOAT32,
+                rejectionShape,
+                Optional.of(LayoutDescriptor.of(
+                        rejectionShape, new long[] {0, 1}, 0L, true)),
+                false)));
+        assertFalse(CpuMetalPreparedBufferTransfer.supports(new TensorDescriptor(
+                DataType.FLOAT32,
+                rejectionShape,
+                Optional.of(LayoutDescriptor.of(
+                        rejectionShape, new long[] {1, 1}, 0L, true)),
+                false)));
+        Shape emptyShape = Shape.of(0, 2);
+        assertFalse(CpuMetalPreparedBufferTransfer.supports(new TensorDescriptor(
+                DataType.FLOAT32,
+                emptyShape,
+                Optional.of(LayoutDescriptor.contiguous(emptyShape)),
+                false)));
+
+        RecordingEntry select = new RecordingEntry(
+                FIRST,
+                query -> query.operation().kind() == SelectKind.SELECT,
+                new ArrayList<>());
+        RecordingEntry slice = new RecordingEntry(
+                SECOND,
+                query -> query.operation().kind() == SliceKind.SLICE,
+                new ArrayList<>());
+        RecordingEntry neg = new RecordingEntry(
+                THIRD,
+                query -> query.operation().kind() == UnaryElementwiseKind.NEG,
+                new ArrayList<>());
+        select.transferSupport = CpuMetalPreparedBufferTransfer::supports;
+        slice.transferSupport = CpuMetalPreparedBufferTransfer::supports;
+        neg.transferSupport = CpuMetalPreparedBufferTransfer::supports;
+        try (Engine engine = Engine.builder()
+                .takeOwnership(select)
+                .takeOwnership(slice)
+                .takeOwnership(neg)
+                .build()) {
+            CompiledGraph compiled = engine.compile(List.of(output));
+            assertThrows(AssertionError.class, () -> engine.prepare(compiled));
+            assertEquals(1, select.analysisCount.get() + slice.analysisCount.get()
+                    + neg.analysisCount.get());
         }
     }
 
