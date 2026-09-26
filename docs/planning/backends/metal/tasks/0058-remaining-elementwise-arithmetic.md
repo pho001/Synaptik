@@ -52,31 +52,28 @@ independent reference/class partition, prove that the partitions cover the entir
 overlap or omission, check every transition boundary, and record reproducible source, command, and
 digest. Production code and checker must not share one unchecked transform implementation.
 
-### Gate B: scalar basic arithmetic — blocked after plan review
+### Original Gate B: scalar basic arithmetic — blocked before the extension
 
-`SCALAR_ADD`, `SCALAR_SUB`, `SCALAR_MUL`, and `SCALAR_DIV` remain capability false in both
-profiles during Task 0058. The intended ACCELERATOR composition fails a public primitive
-precondition: existing tensor `ADD/SUB/MUL/DIV` capability requires left input, right input, and
-output `requiresGrad` flags to be equal, while a semantic scalar constant is non-grad and scalar
-operations must preserve either source gradient flag. Marking a constant grad-eligible, silently
-bypassing the public primitive capability, or narrowing scalar support to no-grad occurrences would
-not prove the complete scalar occurrence domain.
+`SCALAR_ADD`, `SCALAR_SUB`, `SCALAR_MUL`, and `SCALAR_DIV` remained capability false in both
+profiles during the original bounded implementation because its scope required the complete
+gradient-bearing scalar domain while the exact semantic constant was non-gradient. Marking the
+constant grad-eligible or bypassing the public primitive was prohibited. The historical Task-0011
+constant-tensor selector evidence also showed results outside the approved set.
 
-The historical Task-0011 constant-tensor selector path remains independent blocker evidence:
-`maxFinite/maxFinite -> 0` and `+infinity/maxFinite -> NaN` are outside the approved set. No
-production splat, nested primitive, or custom scalar arithmetic route is added. The structural
-MPSGraph recipe still binds the distinct scalar wire, exact `ScalarValueAttrs` type/raw bits,
-ordered input/scalar operands, and output Shape in the schema image and fingerprint; this prevents
-scalar/tensor identity collision or hidden operand folding without claiming correctness.
+The later authorization explicitly narrows production to no-gradient input and output occurrences,
+where the no-gradient constant satisfies the primitive precondition. It supersedes this blocker
+only for FLOAT32 ACCELERATOR scalar `ADD/SUB/MUL/DIV`. The schema image and workload fingerprint
+still bind the distinct scalar wire, exact `ScalarValueAttrs` type/raw bits, ordered input/scalar
+operands, and Shape; no tensor identity collision or hidden folding is permitted.
 
-### Gate C: reciprocal — blocked after plan review
+### Original Gate C: reciprocal — blocked before the extension
 
-`RECIPROCAL` remains capability false in both profiles during Task 0058. A semantic `DIV(1,x)`
-composition has the same gradient mismatch: the exact `+1.0f` constant is non-grad, while existing
-tensor `DIV` capability requires both operands and output to have equal `requiresGrad`. The direct
-selector also retains Task-0006 special-class failures. No legal complete-domain recursive route is
-therefore available, and production may not bypass primitive capability or narrow the occurrence
-domain.
+`RECIPROCAL` remained capability false in both profiles during the original bounded implementation
+because the exact no-gradient `+1.0f` numerator could not satisfy the then-required complete
+gradient-bearing domain, while the direct selector retained Task-0006 special-class failures. The
+later authorization supersedes this blocker only for no-gradient FLOAT32 ACCELERATOR occurrences
+and requires the separately approved exact `+1.0f / input` division composition; the direct
+selector remains unauthorized.
 
 ### Gate D: structural-only blockers
 
@@ -260,17 +257,19 @@ schema 14, identity 15, ABI 5, route wire 3, and thirteen exports.
 Admit wires `46 SCALAR_ADD`, `47 SCALAR_SUB`, `48 SCALAR_MUL`, `49 SCALAR_DIV`, and
 `52 RECIPROCAL` only for canonical positive-rank FLOAT32 ACCELERATOR occurrences whose input and
 output both have `requiresGrad=false`. Wire `50 SCALAR_POW` and every other blocker remain false.
-The exact full-Shape raw scalar (or raw `1.0f` numerator for reciprocal) is therefore also
-non-gradient and satisfies the already-approved tensor primitive's equal-gradient precondition
-without synthetic metadata, a hidden primitive bypass, or occurrence reinterpretation.
+Materialize each semantic scalar directly as one exact four-byte raw FLOAT32 MPSGraph constant
+with Shape `[1]`; for reciprocal the raw word is `+1.0f`. The constant is no-gradient and the
+already-approved binary MPSGraph primitive broadcasts it against the input, with no Java/native
+full-Shape expansion, repeated-byte allocation, synthetic gradient metadata, hidden primitive
+bypass, or occurrence reinterpretation.
 
 Each lowering has exactly one approved tensor primitive site and no constant folding:
 `input op scalar` for scalar ADD/SUB/MUL/DIV, preserving source operand order, and `1/input` through
-tensor DIV for RECIPROCAL. Materialize the scalar as exact repeated raw FLOAT32 bytes at the full
-output Shape. The schema/program and workload identity must bind source wire, exact
-`ScalarValueAttrs` type/raw bits where present, Shape, operand order, generated splat bytes, and
-lowered primitive opcode. Retain schema 14 and identity 15 only if their existing encoded bytes
-already bind every fact; otherwise perform one clean version bump.
+tensor DIV for RECIPROCAL. The schema/program and workload identity must bind source wire, exact
+`ScalarValueAttrs` type/raw bits where present, rank-one `[1]` constant Shape, operand order,
+four-byte payload, input Shape, and lowered primitive opcode. Retain schema 14 and identity 15
+because existing encoded schema/candidate bytes do not change; extend the existing version-15
+workload digest with these derived lowering facts.
 
 Prove special scalar metadata for both zeros, signed subnormals, infinities, and NaNs; subtraction
 and division operand order; division by both zero signs; stale-identity rejection; public
@@ -279,3 +278,30 @@ creation. Update the capability ledger from `45/70` to exactly `50 true / 65 fal
 `62 executable / 53 nonexecutable` structural coverage, run focused verification without timing or
 a final full build, and obtain a fresh independent cumulative Class C approval before returning
 this task to Complete.
+
+### Extension implementation checkpoint
+
+Implementation `5ab9c44c` admits exactly wires `46..49` and `52` for ACCELERATOR canonical
+positive-rank FLOAT32 no-gradient input/output occurrences. Wire `50` and every other prior blocker
+remain false. The capability ledger is `50 true / 65 false`; structural coverage remains
+`62 executable / 53 nonexecutable`. The MPSGraph catalog is
+`75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE`; custom state remains
+`27 AVAILABLE / 88 PENDING / 0 UNAVAILABLE_WITH_PROOF`.
+
+Native lowering creates each scalar directly from its exact four raw bytes at Shape `[1]` and lets
+the one approved binary MPSGraph primitive broadcast it. Scalar arithmetic retains
+`input op scalar`; reciprocal uses exact `+1.0f` primary and input secondary for one division.
+Java and native preflight independently reject gradient-bearing values, rank-zero values, and a
+non-FLOAT32 scalar attribute. Schema 14, identity 15, ABI 5, route wire 3, and thirteen exports are
+unchanged. The existing version-15 workload digest now also binds the source wire, primitive wire,
+operand order, FLOAT32 type, rank-one extent, four-byte payload, exact scalar bits, and logical
+input Shape; encoded schema and candidate-decision bytes did not change.
+
+Focused capability/catalog/schema/route/fingerprint/native-malformed tests, backend conformance,
+and the public Metal-only Engine scenario passed against the rebuilt native library. The public
+scenario exercises both scalar zero signs, signed subnormals, infinities, quiet/signaling NaNs,
+SUB/DIV operand order, both zero denominators, reciprocal, repeated execution, input preservation,
+sole Metal ownership, and pre-native gradient rejection. Native build, fixed ad-hoc signing, and
+local package publication passed. No timing, benchmark, autotuning, fallback, retry, or final full
+repository build ran. Final package/export/Javadoc/documentation checks and the independent
+cumulative Class C rereview remain before completion.

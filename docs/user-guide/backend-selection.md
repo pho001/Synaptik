@@ -120,13 +120,14 @@ backend.
 profile explicitly. CPU executes either choice through the same exact capability and routes. Metal
 admits the common exact FLOAT32 baseline under both profiles: `NEG`, `ABS`, `RESHAPE`, `EXPAND`,
 `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`. Accelerator Metal additionally admits
-tensor `ADD`/`SUB`/`MUL`/`DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE` reductions, and positive
-static rank-two `MATMUL`; strict Metal rejects those additions. Full, single-axis, ordered
-multi-axis including empty, keep-dimensions, and binding-resolved sum-to-Shape forms are supported;
-masked and other reduction families are not. A locally produced scalar reduction result can be
-published as four bytes, but caller ingress and CPU/Metal transfer remain positive-rank. There is
-no fallback to strict or owner substitution after an accelerator request; every unsupported
-occurrence fails closed.
+tensor `ADD`/`SUB`/`MUL`/`DIV`, no-gradient canonical positive-rank FLOAT32 scalar
+`ADD`/`SUB`/`MUL`/`DIV` and `RECIPROCAL`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE` reductions, and
+positive static rank-two `MATMUL`; strict Metal rejects those additions. Full, single-axis,
+ordered multi-axis including empty, keep-dimensions, and binding-resolved sum-to-Shape forms are
+supported; masked and other reduction families are not. A locally produced scalar reduction
+result can be published as four bytes, but caller ingress and CPU/Metal transfer remain
+positive-rank. There is no fallback to strict or owner substitution after an accelerator request;
+every unsupported occurrence fails closed.
 
 ## Limitations
 

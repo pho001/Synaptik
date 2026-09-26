@@ -11,17 +11,23 @@ no native type or shape inference is part of the boundary.
 
 The schema registry reserves operation wires `1..115` and attribute wires `0..41`. The native graph
 creator has 62 structural recipes: wires `1..34`, `38`, `40..54`, `56..63`, and `65..68`.
-Structural-only raw fixtures do not widen capability. Java production capability is exactly 45
-operations: wires `1..34`, FLOAT32 classification wires `40..42`, BOOL logic wires `43..45`,
-FLOAT32 `WHERE` wire `51`, and exact raw discrete unary wires `60..63`, subject to exact profile,
-type, Shape, and topology restrictions. The remaining 70 production rows fail closed before native
-creation. A structurally valid registered operation without a native recipe returns the dedicated
-unsupported-operation status rather than masquerading as malformed input.
+Structural-only raw fixtures do not widen capability. Java production capability is exactly 50
+operations: wires `1..34`, FLOAT32 classification and BOOL logic wires `40..45`, ACCELERATOR
+no-gradient scalar arithmetic wires `46..49`, FLOAT32 `WHERE` wire `51`, ACCELERATOR no-gradient
+`RECIPROCAL` wire `52`, and exact raw discrete unary wires `60..63`, subject to exact profile,
+type, Shape, gradient, and topology restrictions. The remaining 65 production rows fail closed
+before native creation. A structurally valid registered operation without a native recipe returns
+the dedicated unsupported-operation status rather than masquerading as malformed input.
 Candidate and route identity are version 15. Java owns exactly three prepared-route identities:
 custom singleton NEG wire 1, MPSGraph wire 2, and shared custom-program wire 3. Schema 14 embeds
 wire 2 or 3 in each graph image; schema 13 and every other route value fail closed. The exhaustive
 Java structural catalog adds no native route selection, capability, autotuning, fallback,
 telemetry, or performance authority.
+
+For wires `46..49` and `52`, the version-15 workload signature additionally binds source wire,
+exact raw scalar or `+1.0f`, FLOAT32 type, rank-one `[1]` shape, operand order, primitive opcode,
+and logical input Shape. Schema 14 and identity 15 do not change because their encoded image and
+decision bytes are unchanged; the newly admitted recipes had no prior production identity.
 
 ```text
 Java analysis -> choose fixed whole-partition route -> declare every exact resource
@@ -191,20 +197,25 @@ and wrong schema versions fail closed as invalid arguments. A well-formed regist
 outside current execution capability returns status 13. Java separately authenticates numerical
 profile compatibility and rejects every profile-incompatible program before native creation.
 
-The production operation domain is wires `1..34`, `40..45`, `51`, and `60..63`: the existing
+The production operation domain is wires `1..34`, `40..49`, `51..52`, and `60..63`: the existing
 arithmetic, affine, indexing, reduction, MATMUL, comparison/extrema/scan, classification,
-BOOL/WHERE domain plus exact raw `FLOOR`, `CEIL`, `SIGN`, and `RELU`. Existing positive-rank
-requirements still apply where operation semantics require them; the four new exact operations
-require canonical FLOAT32 rank `1..16`, equal input/output Shape and gradient eligibility, and no
-attributes.
+BOOL/WHERE domain; exact raw `FLOOR`, `CEIL`, `SIGN`, and `RELU`; and the ACCELERATOR-only
+no-gradient scalar/reciprocal subset. Existing positive-rank requirements still apply where
+operation semantics require them. Scalar `ADD/SUB/MUL/DIV` and `RECIPROCAL` require canonical
+FLOAT32 rank `1..16`, equal input/output Shape, and no-gradient input and output. Each scalar
+arithmetic recipe creates one exact four-byte raw FLOAT32 MPSGraph constant with Shape `[1]` and
+applies exactly one corresponding binary primitive with the input primary and scalar secondary.
+`RECIPROCAL` creates exact raw `+1.0f` with Shape `[1]` and applies exactly one division with one
+primary and the input secondary. MPSGraph broadcasting supplies the output Shape; no full-tensor
+constant is materialized. The four exact raw discrete unaries require canonical FLOAT32 rank
+`1..16`, equal input/output Shape and gradient eligibility, and no attributes.
 
-Raw structural fixtures additionally create wires `38`, `46..50`, `52..54`, `56..59`, and
-`65..68` only under ACCELERATOR. They exercise direct power, exact raw scalar-data splats with
-ordered arithmetic, direct unary selectors, and the finite `LOG1P`, `EXPM1`, `GELU`,
-`GELU_TANH_APPROXIMATION`, and `SILU` compositions. These recipes are not production capability:
-power and elementary/recursive result sets remain unproved, while scalar basic arithmetic and
-`RECIPROCAL` cannot satisfy the current public primitive gradient contract. Java production
-preparation rejects them before native creation.
+Raw structural fixtures additionally create wires `38`, `50`, `53..54`, `56..59`, and `65..68`
+only under ACCELERATOR. They exercise direct power, scalar power with an exact raw rank-one splat,
+direct unary selectors, and the finite `LOG1P`, `EXPM1`, `GELU`, `GELU_TANH_APPROXIMATION`, and
+`SILU` compositions. These recipes are not production capability: power and
+elementary/recursive result sets remain unproved. Java production preparation rejects them before
+native creation.
 
 ### Status values
 

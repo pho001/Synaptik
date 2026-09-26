@@ -198,8 +198,10 @@ The following invariants must remain true:
   indices, positive-rank INT32-to-BOOL ONE_HOT, and canonical positive-rank
   FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE` replacement under both profiles; under
   `ACCELERATOR` it additionally realizes canonical tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`,
-  `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two MATMUL. Strict
-  binary/reduction/MATMUL and every other unsupported profile/operation pair fail closed. Metal
+  no-gradient canonical positive-rank FLOAT32 scalar `ADD`/`SUB`/`MUL`/`DIV` with exact raw scalar
+  constants, no-gradient `RECIPROCAL` as one `+1.0f / input` division, `SUM`/`MEAN`/`SUM_TO_SHAPE`,
+  and positive static rank-two MATMUL. Strict binary/scalar/reduction/MATMUL and every other
+  unsupported profile/operation pair fail closed. Metal
   UNFOLD_AXIS preserves addressed FLOAT32 representations in a fresh canonical output without
   mutating its source. Metal indexing validates complete bounds and scatter target uniqueness
   before dispatch or target writes and leaves targets unchanged on failure. Canonical cross-owner

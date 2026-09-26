@@ -21,24 +21,31 @@ logical view geometry. `CONTIGUOUS` has unchanged Shape and canonical output geo
 separate an affine view from every exact unary.
 
 `ACCELERATOR` additionally admits tensor `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, and `MAX`; all six
-binary comparisons; exact FLOAT32 scalar `MIN`, `MAX`, and fused `CLAMP`; canonical FLOAT32
-reductions; `CUM_SUM` and `CUM_PROD`; and positive static rank-two FLOAT32 `MATMUL`. Comparisons
+binary comparisons; exact FLOAT32 scalar `MIN`, `MAX`, fused `CLAMP`, and no-gradient
+`ADD`, `SUB`, `MUL`, and `DIV`; no-gradient `RECIPROCAL`; canonical FLOAT32 reductions; `CUM_SUM`
+and `CUM_PROD`; and positive static rank-two FLOAT32 `MATMUL`. Comparisons
 publish canonical one-byte BOOL. Extrema reductions join `SUM` and `MEAN` across full, normalized
 single-axis, ordered normalized multi-axis including the empty identity, and exact
 keep-dimensions forms; `SUM_TO_SHAPE` remains SUM-only. Scans accept every exclusive/reverse mode
 and preserve Shape. Binary operations have two canonical dense, zero-offset non-view inputs, and
 their output Shape is the exact right-aligned broadcast. Scalar operations and scans preserve
-Shape and retain exact FLOAT32 attribute words. MATMUL accepts canonical inputs or authenticated
-local transposes of canonical sources, requires exact `[M,K] @ [K,N] -> [M,N]` geometry, and
-produces a canonical output. Reduction and ordinary inputs are positive-rank `1..16`; a locally
-produced reduction target may be scalar. Canonical host ingress/materialization and CPU/Metal
-transfer accept all six public data types at ranks `0..16` with strict BOOL-byte validation.
+Shape and retain exact FLOAT32 attribute words. Scalar `ADD/SUB/MUL/DIV` and `RECIPROCAL` require
+canonical positive-rank no-gradient input and output. Each arithmetic scalar is one exact
+four-byte raw FLOAT32 rank-one `[1]` graph constant broadcast by the corresponding tensor
+primitive in `input op scalar` order; reciprocal is exact raw `+1.0f` in primary position followed
+by the input in secondary position for one division. MATMUL accepts canonical inputs or
+authenticated local transposes of canonical sources, requires exact `[M,K] @ [K,N] -> [M,N]`
+geometry, and produces a canonical output. Reduction and ordinary inputs are positive-rank
+`1..16`; a locally produced reduction target may be scalar. Canonical host
+ingress/materialization and CPU/Metal transfer accept all six public data types at ranks `0..16`
+with strict BOOL-byte validation.
 Operation capability remains narrower: the new BOOL inputs are canonical positive-rank values,
 custom logic writes exact zero or one, and FLOAT32 WHERE copies the selected represented word.
 Every descriptor is fully static and has the operation-specific exact type, layout, Shape, and
 gradient relationship. The common exact operations have the same Model result contract in both
-profiles; Task-0052 operations exist only under ACCELERATOR. The complete 115-row capability
-ledger is `45 true / 70 false` under the exact occurrence restrictions above.
+profiles; Task-0052 operations and the no-gradient scalar/reciprocal subset exist only under
+ACCELERATOR. The complete 115-row capability ledger is `50 true / 65 false` under the exact
+occurrence restrictions above.
 
 ```text
 capability -> Planning ownership -> Metal analysis and typed candidates
@@ -57,13 +64,14 @@ other supported accelerator nodes; a scalar reduction result is a direct target 
 BOOL comparison, ONE_HOT, classification, and logic values may publish or feed another admitted
 BOOL-domain node. A local transpose accepted as a MATMUL operand must be produced inside the same
 partition from a canonical source, but its other valid affine consumers and boundary publication
-remain available. Scalar kinds other than exact FLOAT32 MIN/MAX/CLAMP; masked, product, and other
-reductions; every unary operation other than the six exact kinds listed above; strict Task-0052
-operations and strict MATMUL; vector or batched MATMUL; every window kind except bounded canonical
-FLOAT32 UNFOLD_AXIS; indexing outside the listed exact rows; wire 73 scalar-index SELECT; INT64
-indexing; profile-crossing operations; unsupported attributes/types; zero, scalar, or dynamic
-extents in the new exact domains; unresolved layout; noncanonical graph feeds; foreign views;
-mismatched descriptors; and multi-output forms remain fail-closed.
+remain available. Scalar POW and non-FLOAT32 or gradient-bearing scalar arithmetic; masked,
+product, and other reductions; every unary operation other than the six exact profile-common kinds
+and accelerator no-gradient `RECIPROCAL`; strict Task-0052 and scalar/reciprocal operations;
+vector or batched MATMUL; every window kind except bounded canonical FLOAT32 UNFOLD_AXIS; indexing
+outside the listed exact rows; wire 73 scalar-index SELECT; INT64 indexing; profile-crossing
+operations; unsupported attributes/types; zero, scalar, or dynamic extents in the new exact
+domains; unresolved layout; noncanonical graph feeds; foreign views; mismatched descriptors; and
+multi-output forms remain fail-closed.
 
 Within that capability domain, Metal analysis generates a typed complete candidate batch
 and selects one of three private routes:
@@ -247,16 +255,17 @@ Planning facts.
 The package-private `MetalOperationRouteCatalog` separately describes every one of the 115
 schema-fourteen `NodeKind` values. Exhaustive enum switching yields shared immutable entries with
 closed MPSGraph state/reason and custom-kernel state/reason values: MPSGraph totals are
-`76 DIRECT / 34 COMPOSED / 5 UNAVAILABLE`; custom totals are
+`75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE`; custom totals are
 `27 AVAILABLE / 88 PENDING / 0 UNAVAILABLE_WITH_PROOF`. The normative
 [per-wire evidence audit](../planning/backends/metal/tasks/0056-route-evidence-audit.md) supplies
 the exact installed-SDK selector or finite composition and current Model source for every row.
 The closed MPSGraph reasons include a dedicated `MD_CAST` identity for wire 39, matching
-`SHAPE::castTensor:toType:name:` rather than classifying that selector as arithmetic.
-This catalog performs no capability admission and no selection. It is never consulted by Runtime;
-70 kinds remain capability-false even when the catalog records a structurally direct or composed
-MPSGraph realization. Structural executable status separately covers 62 wires and never grants
-production ownership.
+`SHAPE::castTensor:toType:name:` rather than classifying that selector as arithmetic. Wires
+`46..49` and `52` are finite compositions because they materialize one exact raw rank-one
+constant before the one arithmetic primitive. This catalog performs no capability admission and
+no selection. It is never consulted by Runtime; 65 kinds remain capability-false even when the
+catalog records a structurally direct or composed MPSGraph realization. Structural executable
+status separately covers 62 wires and never grants production ownership.
 
 After Planning creates one maximal Metal partition, analysis walks nodes in partition order with
 explicit unavailable, canonical, and affine-view states. Every view input must resolve to an
@@ -672,10 +681,11 @@ The schema-14 image is little-endian, at least 64 bytes, at most `Integer.MAX_VA
 sides, and consists of a 64-byte header, 16-byte value descriptors, 32-byte node descriptors,
 64-bit dimensions, 32-bit value references, canonical alignment padding, and 64-bit attribute
 words. The header embeds fixed route wire `2` or `3`; schema 13, route zero, and every other route
-fail closed. Header and create-argument byte counts must match exactly. Operation wires `1..34`,
-`40..45`, and `51` retain executable meaning; every other wire in `1..115` is registered structural
-vocabulary that returns status `13` only after complete image validation. Attribute wires `0..41`
-and type wires `1..6` cover all current Model signatures and carriers.
+fail closed. Production preparation admits operation wires `1..34`, `40..49`, `51..52`, and
+`60..63`; the remaining registered structural wires are reachable only by package-private raw
+fixtures when their native recipe exists, or return status `13` after complete image validation
+when it does not. Attribute wires `0..41` and type wires `1..6` cover all current Model signatures
+and carriers.
 
 Java and native code independently require exact operation/attribute/type/cardinality agreement,
 ordered feeds, targets, node inputs and outputs, exact Shapes and checked byte geometry, explicit
@@ -794,11 +804,16 @@ Current validation composes:
   and ONE_HOT exceptions, and uses no CPU owner;
 - a CPU-free Metal-only public Engine reduction run that compiles, prepares, reuses and
   concurrently opens sessions, publishes and materializes exact scalar/vector raw bits, rejects
-  strict ownership and post-close work, and has no CPU owner; and
+  strict ownership and post-close work, and has no CPU owner;
 - a CPU-free Metal-only public Engine proof for direct rank-two MATMUL, no-bias linear's visible
   right transpose, and explicitly seeded gradients for both operands, including graph/formula,
   owner, raw-bit publication, reuse, independent-session, input-preservation, close, and strict
-  rejection assertions.
+  rejection assertions; and
+- a CPU-free Metal-only public Engine proof for no-gradient scalar `ADD/SUB/MUL/DIV` and
+  `RECIPROCAL`, with exact scalar raw words spanning both zeros, signed subnormals, infinities, and
+  quiet/signaling NaNs; one-primitive operand order, zero denominators, recursive result classes,
+  reuse, input preservation, sole ownership, and pre-native rejection of gradient-bearing
+  occurrences.
 
 Compiler contract coverage checks exact forward view layouts and inverse first-order operations.
 The existing indexing formula guard remains unchanged; this task adds no Compiler production or

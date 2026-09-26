@@ -4998,9 +4998,11 @@ identical routes. Metal admits a common exact baseline under both profiles: cano
 bounded canonical FLOAT32 `UNFOLD_AXIS`; canonical positive-rank FLOAT32 data `GATHER` with
 canonical INT32 indices; positive-rank INT32-to-BOOL `ONE_HOT`; and canonical
 FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. Accelerator Metal additionally admits tensor binary
-arithmetic, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two MATMUL topology
-with authenticated local transpose operands; strict Metal rejects those additions. The exact
-supported matrices are described in the CPU and Metal backend guides.
+arithmetic; canonical no-gradient positive-rank FLOAT32 scalar `ADD/SUB/MUL/DIV` and
+`RECIPROCAL`; canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`; and positive static rank-two MATMUL topology
+with authenticated local transpose operands. The scalar recipes use exact four-byte raw rank-one
+constants and one tensor arithmetic primitive in semantic operand order. Strict Metal rejects
+those additions. The exact supported matrices are described in the CPU and Metal backend guides.
 
 ### Preparation resource assignment
 

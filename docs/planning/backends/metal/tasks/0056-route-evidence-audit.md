@@ -17,8 +17,9 @@ Every schema-13 operation wire occurs exactly once below. Each row gives:
 
 Selector spelling omits Objective-C parameter types but retains every selector component. A `+`
 means all named primitives participate in the finite composition; `then` states result flow. Literal
-parameter tensors use `MEM::constantWithScalar:dataType:` or
-`MEM::constantWithScalar:shape:dataType:`. Descriptors, normalized axes, shapes, and literal values
+parameter tensors use `MEM::constantWithScalar:dataType:`,
+`MEM::constantWithScalar:shape:dataType:`, or exact encoded bytes with
+`MEM::constantWithData:shape:dataType:`. Descriptors, normalized axes, shapes, and literal values
 come only from already-validated Model attributes; this ledger does not weaken those validations.
 
 ## Installed SDK header keys
@@ -154,13 +155,13 @@ exact. Slash-separated attribute types are the source-owned alternative signatur
 | 43 | `BooleanLogicalKind.AND`; `DIRECT` | `AR::logicalANDWithPrimaryTensor:secondaryTensor:name:` | `M-BOOL::AND`; `NoOperationAttrs; 2 -> 1` |
 | 44 | `BooleanLogicalKind.OR`; `DIRECT` | `AR::logicalORWithPrimaryTensor:secondaryTensor:name:` | `M-BOOL::OR`; `NoOperationAttrs; 2 -> 1` |
 | 45 | `BooleanLogicalKind.NOT`; `DIRECT` | `AR::notWithTensor:name:` | `M-BOOL::NOT`; `NoOperationAttrs; 1 -> 1` |
-| 46 | `ScalarElementwiseKind.ADD`; `COMPOSED` | `MEM::constantWithScalar:dataType:` + `AR::additionWithPrimaryTensor:secondaryTensor:name:` | `M-SCALAR::ADD`; `ScalarValueAttrs; 1 -> 1` |
-| 47 | `ScalarElementwiseKind.SUB`; `COMPOSED` | `MEM::constantWithScalar:dataType:` + `AR::subtractionWithPrimaryTensor:secondaryTensor:name:` | `M-SCALAR::SUB`; `ScalarValueAttrs; 1 -> 1` |
-| 48 | `ScalarElementwiseKind.MUL`; `COMPOSED` | `MEM::constantWithScalar:dataType:` + `AR::multiplicationWithPrimaryTensor:secondaryTensor:name:` | `M-SCALAR::MUL`; `ScalarValueAttrs; 1 -> 1` |
-| 49 | `ScalarElementwiseKind.DIV`; `COMPOSED` | `MEM::constantWithScalar:dataType:` + `AR::divisionWithPrimaryTensor:secondaryTensor:name:` | `M-SCALAR::DIV`; `ScalarValueAttrs; 1 -> 1` |
-| 50 | `ScalarElementwiseKind.POW`; `COMPOSED` | `MEM::constantWithScalar:dataType:` + `AR::powerWithPrimaryTensor:secondaryTensor:name:` | `M-SCALAR::POW`; `ScalarValueAttrs; 1 -> 1` |
+| 46 | `ScalarElementwiseKind.ADD`; `COMPOSED` | exact four-byte raw scalar in rank-one `[1]` via `MEM::constantWithData:shape:dataType:` + `AR::additionWithPrimaryTensor:secondaryTensor:name:` with input primary and scalar secondary | `M-SCALAR::ADD`; `ScalarValueAttrs; 1 -> 1` |
+| 47 | `ScalarElementwiseKind.SUB`; `COMPOSED` | exact four-byte raw scalar in rank-one `[1]` via `MEM::constantWithData:shape:dataType:` + `AR::subtractionWithPrimaryTensor:secondaryTensor:name:` with input primary and scalar secondary | `M-SCALAR::SUB`; `ScalarValueAttrs; 1 -> 1` |
+| 48 | `ScalarElementwiseKind.MUL`; `COMPOSED` | exact four-byte raw scalar in rank-one `[1]` via `MEM::constantWithData:shape:dataType:` + `AR::multiplicationWithPrimaryTensor:secondaryTensor:name:` with input primary and scalar secondary | `M-SCALAR::MUL`; `ScalarValueAttrs; 1 -> 1` |
+| 49 | `ScalarElementwiseKind.DIV`; `COMPOSED` | exact four-byte raw scalar in rank-one `[1]` via `MEM::constantWithData:shape:dataType:` + `AR::divisionWithPrimaryTensor:secondaryTensor:name:` with input primary and scalar secondary | `M-SCALAR::DIV`; `ScalarValueAttrs; 1 -> 1` |
+| 50 | `ScalarElementwiseKind.POW`; `COMPOSED` | exact four-byte raw scalar in rank-one `[1]` via `MEM::constantWithData:shape:dataType:` + `AR::powerWithPrimaryTensor:secondaryTensor:name:` with input primary and scalar secondary | `M-SCALAR::POW`; `ScalarValueAttrs; 1 -> 1` |
 | 51 | `WhereSelectionKind.WHERE`; `DIRECT` | `AR::selectWithPredicateTensor:truePredicateTensor:falsePredicateTensor:name:` | `M-WHERE::WHERE`; `NoOperationAttrs; 3 -> 1` |
-| 52 | `UnaryElementwiseKind.RECIPROCAL`; `DIRECT` | `AR::reciprocalWithTensor:name:` | `M-UNARY::RECIPROCAL`; `NoOperationAttrs; 1 -> 1` |
+| 52 | `UnaryElementwiseKind.RECIPROCAL`; `COMPOSED` | exact four-byte raw `+1.0f` in rank-one `[1]` via `MEM::constantWithData:shape:dataType:` + `AR::divisionWithPrimaryTensor:secondaryTensor:name:` with one primary and input secondary | `M-UNARY::RECIPROCAL`; `NoOperationAttrs; 1 -> 1` |
 | 53 | `UnaryElementwiseKind.LOG`; `DIRECT` | `AR::logarithmWithTensor:name:` | `M-UNARY::LOG`; `NoOperationAttrs; 1 -> 1` |
 | 54 | `UnaryElementwiseKind.LOG1P`; `COMPOSED` | `MEM::constantWithScalar:dataType:` (`1`) + `AR::additionWithPrimaryTensor:secondaryTensor:name:` then `AR::logarithmWithTensor:name:` | `M-UNARY::LOG1P`; `NoOperationAttrs; 1 -> 1` |
 | 55 | `UnaryElementwiseKind.EXP`; `DIRECT` | `AR::exponentWithTensor:name:` | `M-UNARY::EXP`; `NoOperationAttrs; 1 -> 1` |
@@ -230,7 +231,7 @@ exact. Slash-separated attribute types are the source-owned alternative signatur
 - The wire and exact-kind columns must remain byte-for-byte aligned with the primary Task 0056
   catalog. A documentation check must parse both tables and reject a missing, duplicate, reordered,
   or mismatched row.
-- The MPSGraph state totals remain exactly `76 DIRECT + 34 COMPOSED + 5 UNAVAILABLE = 115`.
+- The MPSGraph state totals are exactly `75 DIRECT + 35 COMPOSED + 5 UNAVAILABLE = 115`.
 - Every `DIRECT` row names the operation selector that structurally serves one bounded occurrence;
   every `COMPOSED` row names every primitive family needed by a finite construction; every
   `UNAVAILABLE` row names the closest current SDK selector and the mandatory Model observable it

@@ -32,10 +32,13 @@ not mutate or alias its source. Scatter validates complete bounds then target un
 dispatch and writes, preserves exact addressed-update and unaddressed-base bits, and leaves inputs
 unchanged. Accelerator Metal additionally supports canonical tensor `ADD`, `SUB`, `MUL`, `DIV`,
 `MIN`, and `MAX`; all six comparisons with local canonical BOOL publication; exact FLOAT32 scalar
-`MIN`, `MAX`, and `CLAMP`; canonical `SUM`, `MEAN`, `MIN`, `MAX`, and `SUM_TO_SHAPE`; every
-exclusive/reverse `CUM_SUM` and `CUM_PROD` mode; and positive static rank-two `MATMUL` with
-canonical or authenticated local-transpose operands. Strict rejects every accelerator-only row
-before native preparation. BOOL feeds, consumers, and CPU/Metal transfer remain unsupported.
+`MIN`, `MAX`, and `CLAMP`; canonical positive-rank no-gradient FLOAT32 scalar `ADD`, `SUB`, `MUL`,
+and `DIV`; canonical positive-rank no-gradient FLOAT32 `RECIPROCAL`; canonical `SUM`, `MEAN`,
+`MIN`, `MAX`, and `SUM_TO_SHAPE`; every exclusive/reverse `CUM_SUM` and `CUM_PROD` mode; and
+positive static rank-two `MATMUL` with canonical or authenticated local-transpose operands. Scalar
+arithmetic uses exact four-byte raw rank-one constants in source operand order; reciprocal uses one
+exact `+1.0f / input` division. Strict rejects every accelerator-only row before native
+preparation. BOOL feeds, consumers, and CPU/Metal transfer remain unsupported.
 Every graph feed and direct `NEG` or `ABS` operand/output is a canonical contiguous non-view. Affine
 operations under either profile may consume exact zero-offset views produced earlier in the same
 maximal Metal partition, retain their exact logical view descriptors, and privately write dense
