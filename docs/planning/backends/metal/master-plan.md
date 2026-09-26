@@ -123,7 +123,7 @@ Training-to-Metal optimizer bridge.
   SIGMOID routes are `DOMAIN-BLOCKED`, its other candidates failed numerically, and its one-shot
   oracle is never rerun. Task 0053 is now Blocked on the unavailable pinned no-axiom
   constructive-real exponential bridge; its retained source/evidence remain fail-closed and earned
-  no `DOMAIN-PASS`. Task 0057 is the active exact BOOL classification/logic/WHERE frontier. Task 0052 is
+  no `DOMAIN-PASS`. Task 0057 is Complete for exact BOOL classification/logic/WHERE. Task 0052 is
   Complete. Its Gate 1A/API, Gate 1B custom-route proof, sole Apple M3 Max numerical oracle,
   structural survivor adjudication, route freeze, and atomic production cutover all passed.
   Every opaque direct candidate remains `DOMAIN-BLOCKED`; all sixteen custom candidates passed.
@@ -134,11 +134,12 @@ Training-to-Metal optimizer bridge.
   [`evidence/0052/`](evidence/0052/README.md) and
   [`evidence/0052-gate3/`](evidence/0052-gate3/README.md). Documentation-only Task 0054 remains the
   exact historical pre-cutover `19+2+15+79=115` inventory and names its supersession. Task 0055 is
-  Complete at `ddeff1b2`: ABI 5/schema 13, six-carrier typed transfer, identity 14, and zero new
-  capability kinds are landed. Task 0056 is Complete at implementation `4f35576c`, conformance
-  correction `4a5cbdef`, and approved review remediation `1718b28a`: the exhaustive dual-route
-  catalog and immutable prepared-route identity are landed with zero capability, device, oracle,
-  timing, benchmark, public-API, or autotuning change. Task 0057 is the sole active Metal task.
+  Complete at `ddeff1b2`: its historical ABI 5/schema 13, six-carrier typed transfer, identity 14,
+  and zero-new-capability foundation are landed. Task 0056 is Complete at implementation
+  `4f35576c`, conformance correction `4a5cbdef`, and approved review remediation `1718b28a`: the
+  exhaustive dual-route catalog and immutable prepared-route identity landed with zero capability,
+  device, oracle, timing, benchmark, public-API, or autotuning change. Task 0057 is Complete at
+  implementation `e5d9d5c7` plus approved validation remediation `7a3bb072`.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
   requirements. Metal 0017 remains Blocked under its old accelerator-reduction contract.
@@ -330,7 +331,7 @@ before extracting a package or widening another type.
 | 0054 | [Current ACCELERATOR 115-kind completeness audit](tasks/0054-current-accelerator-115-kind-completeness-audit.md) | Complete | 0051–0053 current records and reviewed 0052 evidence; current Model enums, Metal capability/private schema, and Compiler gradient capture at `93b3d379` | Every production, capability, schema, identity, native, test, evidence, proof, device, timing, trace, or build scope | None | Documentation/read-only audit only; no successor task made Ready | Enum/ledger recomputation; exact `19+2+15+79=115` and 79-kind blocker-partition sums; Markdown links/fences/newlines/status and diff checks | Records every current Model operation-kind constant exactly once, corrects stale Task-0052/0053 claims, documents bounded true rows plus false dtype/shape/layout/gradient rows, private schema/type/cardinality blockers, and the serial dependency partition. |
 | 0055 | [Private Metal schema, type, and cardinality foundation](tasks/0055-private-schema-type-cardinality-foundation.md) | Complete | 0052 Complete; 0054 historical audit; current 115-kind Model signatures and approved planning base `b7b9bab8d099539977c7fefc4c69b9f53db7592b` | Every concurrent Metal capability/schema/native ABI/type/transfer/identity/package scope during implementation | None | Implemented atomically at `ddeff1b2` with no dual decoder and zero new capability kinds | Focused Java/CPU/Metal/native/package/typed-transfer/public Engine checks; no timing and no second full repository build | Replaced the 160-byte record with one bounded schema-13 image; landed ABI 5, type wires `1..6`, operation wires `1..115`, attributes `0..41`, cardinality, BOOL/INT/rank-zero structure, all-six transfer, identity 14, and exact thirteen exports. |
 | 0056 | [Deterministic dual-route catalog and fixed route identity](tasks/0056-deterministic-dual-route-catalog-and-fixed-route-identity.md) | Complete | 0055 Complete at `ddeff1b2`; signed-32 image remediation `ce569b65`; ABI/schema documentation remediations `486ff493` and `5b80d37c`; current 115-kind Model and installed MPSGraph SDK headers | Every concurrent Metal capability/schema/native/candidate/codec/preparation/finalization/execution/test/documentation scope; 0053 proof/oracle work | None | Implemented at `4f35576c`; conformance correction `4a5cbdef`; P2 empty-handoff remediation `1718b28a`; final independent Class C `APPROVE` with zero remaining findings | Exhaustive 115-kind/count, fixed identity/wire/codec, forcing/result-set/no-fallback, `34/81` capability, native export/schema, public Engine, Javadoc, architecture, and documentation checks passed; explicit direction required no final full build | Landed deterministic internal dual-route metadata and fixed plan identity while preserving every current production route and only the existing future controlled-autotune seam. |
-| 0057 | [Exact BOOL classification, logic, and WHERE](tasks/0057-exact-bool-classification-logic-where.md) | In progress | 0052, 0055, and 0056 Complete; current exact Model classification/logical/WHERE semantics; current Compiler/Prepare/Runtime/Engine contracts; ADR 0022 | Every concurrent Metal capability/schema/native/generated-kernel/candidate/codec/route/preparation/finalization/buffer/publication/trace/test/package/documentation scope; any resumed 0053 work | None | Plan commit from `ca450b03` → exact custom and structural direct routes → atomic capability/native/lifecycle/publication cutover → independent Class C review/remediation | Native/export; focused Metal/schema/malformed controls; `41/74` conformance; exact raw-bit/truth-table/broadcast/WHERE tests; lifecycle/concurrency/no-fallback; real no-skip public Engine smoke; docs/diff; no timing or final full build | Fixed custom raw/integer production semantics for wires `40..45` and `51`; direct MPSGraph selectors remain structural candidates; wire `73 SELECT` excluded. |
+| 0057 | [Exact BOOL classification, logic, and WHERE](tasks/0057-exact-bool-classification-logic-where.md) | Complete | 0052, 0055, and 0056 Complete; exact Model classification/logical/WHERE semantics; Compiler/Prepare/Runtime/Engine contracts; ADR 0022 | Every concurrent Metal capability/schema/native/generated-kernel/candidate/codec/route/preparation/finalization/buffer/publication/trace/test/package/documentation scope; any resumed 0053 work | None | Planning `8927a0f2` → implementation `e5d9d5c7` → approved validation remediation `7a3bb072` | Native/export/package; focused Metal/schema/malformed controls; `41/74` capability; exact raw-bit/truth-table/broadcast/WHERE; public no-skip Engine route/liveness proof; final Class C approval; docs/diff; no timing or full build | Adds wires `40..45` and `51` under both profiles through fixed `CUSTOM_PROGRAM`, retains forceable singleton MPSGraph structure, excludes wire `73`, advances schema/identities to 14/15, and preserves ABI 5 with thirteen exports. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -370,7 +371,7 @@ Completed profile spine and serial successors:
 
 `0051 (historical Blocked) + reviewed 0052 evidence + retained 0053 evidence + historical source -> 0054 (Complete pre-cutover audit); 0052 production cutover (Complete) supersedes that inventory`
 
-`0052 (Complete) + 0054 (historical inventory) + current source -> 0055 (Complete foundation) -> 0056 (Complete deterministic dual-route catalog) -> {0053 (Blocked), 0057 (In progress)}; Task 0057 is the sole serialized Metal production frontier`
+`0052 (Complete) + 0054 (historical inventory) + current source -> 0055 (Complete foundation) -> 0056 (Complete deterministic dual-route catalog) -> {0053 (Blocked), 0057 (Complete)}`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -438,8 +439,9 @@ source-to-Lean equivalence and recursive stable-SIGMOID site membership therefor
 Independent checkpoint review reported no findings and explicitly accepted fail-closed evidence,
 not `DOMAIN-PASS`. Native integration still returns unsupported operation, capability/catalog/route
 are unchanged, compiled-MSL audit and device smoke remain blocked, and local timing is never run.
-[0057](tasks/0057-exact-bool-classification-logic-where.md) is the active serialized production
-frontier for exact wires `40..45` and `51`; wire `73 SELECT` is excluded.
+[0057](tasks/0057-exact-bool-classification-logic-where.md) is Complete at planning
+`8927a0f2`, implementation `e5d9d5c7`, and approved validation remediation `7a3bb072`: exact wires
+`40..45` and `51` execute under both profiles; wire `73 SELECT` remains excluded.
 [0052](tasks/0052-accelerator-float32-comparisons-extrema-scans.md) is Complete: all retained
 semantic, numerical, and structural facts passed; routes were frozen; and the atomic production
 cutover landed. Its timings remain diagnostics only. Opaque routes remain domain-blocked and
@@ -454,11 +456,13 @@ implementation `4f35576c`, conformance correction `4a5cbdef`, and final approved
 `1718b28a`. Its normative
 [per-wire route-evidence audit](tasks/0056-route-evidence-audit.md) cites an exact installed-header
 selector or finite composition and current Model semantic/signature source for every one of the
-115 rows. The landed catalog is MPSGraph `76 DIRECT / 34 COMPOSED / 5 UNAVAILABLE` and custom
-`16 AVAILABLE / 99 PENDING / 0 UNAVAILABLE-WITH-PROOF`. It centralizes candidate wires `1..3`,
-keeps capability `34/81` and production choices fixed, and provides only package-private
-result-set forcing after fresh handoff authentication. It adds no device, oracle, timing,
-benchmark, public API, hot fallback, retry, cache, or autotune behavior.
+115 rows. The current catalog remains MPSGraph
+`76 DIRECT / 34 COMPOSED / 5 UNAVAILABLE` while Task 0057 advances custom state to
+`23 AVAILABLE / 92 PENDING / 0 UNAVAILABLE-WITH-PROOF`. The closed route identity retains wires
+`1..3`; schema 14 embeds the fixed route, identities are version 15, and capability is now
+`41 true / 74 false`. Package-private forcing remains result-set-only after fresh handoff
+authentication; there is no device, oracle, timing, benchmark, public API, hot fallback, retry,
+cache, or autotune behavior.
 Every other Metal task retains its recorded status.
 These edges serialize shared Metal mutation; they do not claim that one operation family requires
 another.
@@ -470,31 +474,31 @@ another.
   Task 0047 owns no workflow, provider, runner, Gradle, or native-distribution implementation scope
   until its external GPU-hosted-runner gate is resolved. Blocked Task 0051 is historical and owns no
   future source, oracle, or production work. Task 0053 is Blocked on the unavailable constructive-
-  real proof bridge; its retained candidate and evidence remain fail-closed. Task 0057 actively owns
-  exact BOOL classification/logic/WHERE implementation. Local timing is not authorized.
-  Complete Task 0052 owns the landed capability/preparation/
-  execution/test/documentation cutover and immutable evidence; Task 0055 owns its later ABI 5/
-  schema 13/type/cardinality migration. Task-0052 opaque candidates remain domain-blocked. Future
-  work must preserve its fixed routes and may not reinterpret inferred opaque costs or local timing.
+  real proof bridge; its retained candidate and evidence remain fail-closed. Complete Task 0057
+  owns the exact BOOL classification/logic/WHERE production cutover. Local timing remains
+  unauthorized. Complete Task 0052 owns its landed accelerator-only capability/preparation/
+  execution/test/documentation cutover and immutable evidence. Task 0057 generalizes its native
+  whole-program route to the shared exact custom-program identity without changing Task-0052
+  semantics. Task-0052 opaque candidates remain domain-blocked.
 - Complete Task 0054 owns only the historical pre-cutover 115-kind audit and serial blocker
   partition. It grants no production scope and explicitly defers current post-cutover counts to a
   fresh audit.
-- Complete Task 0055 owns the landed ABI-5/schema-13 program-image, six-carrier typed-transfer,
-  identity-14, validation, and package foundation. It added zero capability kinds and grants no
-  operation route, proof, oracle, or performance authorization.
-- Complete Task 0056 owns the landed internal 115-kind structural route catalog, one immutable
-  prepared-route identity, the shared schema-13/capability/validation/lifecycle/buffer/publication
-  spine, and package-private route-forcing/result-set tests. Catalog states are not correctness
-  approval or capability. Current routes remain fixed, local timing is never authority, and only
-  the existing cold authenticated handoff remains as a seam for separately approved controlled
-  autotuning.
+- Complete Task 0055 owns the historical ABI-5/schema-13 six-carrier foundation. Task 0057 retains
+  ABI 5 and its thirteen exports but cleanly supersedes the image with route-bearing schema 14;
+  schema 13 has no compatibility reader.
+- Complete Task 0056 owns the internal 115-kind structural route catalog and one immutable
+  prepared-route identity. Task 0057 advances its candidate/codec identities to 15, its shared
+  image spine to schema 14, seven custom rows to available, and the fixed route name to
+  `CUSTOM_PROGRAM`. Catalog states still are not correctness approval; local timing is never
+  authority, and only the existing cold authenticated handoff remains as a seam for separately
+  approved controlled autotuning.
 - Complete Metal 0044 owns its documentation/audit no-change record; no active owner may reinterpret
   its bounded report as a winner or production decision.
 - Complete Metal 0043 retains its reviewed benchmark implementation and evidence; Complete Metal
   0042 retains its reviewed tuning collaborations and Engine integration. Task 0044 changed neither
   production surface.
 - Blocked Metal 0016–0018, 0026–0027, 0030–0037, 0039–0040, 0051, and 0053 have no active
-  production write scope. Task 0057 is the sole active serialized Metal execution.
+  production write scope. No Metal production frontier is active after Task 0057 completion.
   Model 0028 owns the reduction semantic contract, Complete Model 0029 owns the MATMUL
   final-publication semantic contract, and Complete Metal 0021–0025 retain their reviewed
   implementations.
@@ -513,13 +517,13 @@ zero findings passed. Metal 0021 landed at implementation `ef2c6a1a`, worker-evi
 oracle, ABI/export, focused suites, real Engine forward/seeded-gradient proof, full build,
 documentation/diff evidence, and independent Class C final `APPROVE` with zero findings passed.
 
-Current ABI 5 retains exactly thirteen exports and accepts one bounded schema-13 program image.
-Type wires are `1..6`, operation wires are `1..115`, attribute wires are `0..41`, and workload/
-exact-policy/candidate/compatibility/route/codec identities are version fourteen. Task 0055 landed
-that atomic foundation at `ddeff1b2` while retaining the exact 34 executable kinds and all existing
-fixed routes. Complete Task 0056 landed the exhaustive structural catalog and centralized fixed
-route identity at `4f35576c` plus approved remediation `1718b28a` without changing those facts or
-authorizing any operation route.
+Current ABI 5 retains exactly thirteen exports and accepts one bounded schema-14 route-bearing
+program image. Type wires are `1..6`, operation wires are `1..115`, attribute wires are `0..41`,
+and workload/exact-policy/candidate/compatibility/route/codec identities are version fifteen.
+Task 0055's schema-13/identity-14 foundation and Task 0056's structural catalog/centralized route
+identity remain historical prerequisites. Complete Task 0057 cleanly rejects the old image and
+identities, executes exactly 41 kinds, retains 74 fail-closed kinds, and fixes every new production
+occurrence to the shared custom-program route.
 Complete Model 0028 owns the root-only exact-zero reduction rule. Complete Model 0029 owns the
 MATMUL-only final-publication exact-zero sign rule. Metal 0018 remains Blocked without production
 changes. Complete Metal 0022
@@ -575,11 +579,11 @@ UNFOLD3D/FOLD3D remain separate custom movement/overlap work. Metal 0037 remains
 probe: recurrent arithmetic is recursively reachable for `ACCELERATOR`, but direct RNN lacks
 runtime INT64 valid lengths, atomic validation, skipped padded work, positive-zero padding, and
 `finalHidden`; no complete recurrence, state-publication, GRU/LSTM, or gradient route proof exists.
-Schema 13, type wires `1..6`, operation wires `1..115`, attribute wires `0..41`, version-fourteen
+Schema 14, type wires `1..6`, operation wires `1..115`, attribute wires `0..41`, version-fifteen
 identities, ABI 5, variable cardinality, and canonical all-six rank-`0..16` cross-owner transfer
-are landed. The schema registry is not capability: general BOOL/INT operation consumers remain
-unsupported. Planning-only Task 0039 reserves no FLOAT16 value while Draft Model 0026 provides no
-public type or oracle.
+are landed. The schema registry is not capability: BOOL consumption is limited to the exact
+positive-rank logic/WHERE domain, and general INT operation consumers remain unsupported.
+Planning-only Task 0039 reserves no FLOAT16 value while Draft Model 0026 provides no public type or oracle.
 Task 0040 is Blocked after its one direct BFLOAT16 Gather run canonicalized required `0xffa6` to
 `0x7fc0`; its artifacts
 were removed and production remains unchanged. Task 0041 is Complete at
@@ -594,9 +598,10 @@ only Task 0049 is Complete after approved P1 remediation `6d4246f7`. Evidence-on
 completed the final packaged/extracted-Metal 87-task repository build; Tasks 0051 and 0053 are
 Blocked, with 0053 retaining fail-closed proof evidence; Task 0052 is Complete through its
 custom-cost/production cutover; Task 0054 is the Complete historical pre-cutover read-only
-`19+2+15+79=115` inventory; Task 0055 is Complete at `ddeff1b2` with zero capability widening; and
-Task 0056 is Complete at implementation `4f35576c` plus approved remediation `1718b28a`. Task 0057
-is the active Metal frontier.
+`19+2+15+79=115` inventory; Task 0055 is Complete at `ddeff1b2` with zero capability widening;
+Task 0056 is Complete at implementation `4f35576c` plus approved remediation `1718b28a`; and Task
+0057 is Complete at planning `8927a0f2`, implementation `e5d9d5c7`, and approved validation
+remediation `7a3bb072`.
 
 Metal 0006 remains historically `Blocked` after its frozen direct-selector
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH special-class and sign gate failures. Complete Model 0030
@@ -752,8 +757,10 @@ training, backward closure, and Model 0026 remain unauthorized pending complete-
   three typed MPSGraph functions and statuses `8..11`; version 3 retained all ten, added three
   custom-NEG functions and status `12`; version 4 replaced only the NEG-specific MPSGraph create
   operation with the typed whole-partition create operation. Version 5 replaces that create
-  signature with one schema-13 program image and adds status `13` for a structurally valid
-  registered operation without a current route. Opaque resource kinds are never reinterpreted.
+  signature with the original schema-13 program image and adds status `13` for a structurally valid
+  registered operation without a current route. Task 0057 retains ABI 5 and every export while
+  cleanly replacing that image with route-bearing schema 14. Opaque resource kinds are never
+  reinterpreted.
   ABI 5 exports exactly:
 
   ```text

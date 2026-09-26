@@ -2,11 +2,11 @@
 
 ## Status
 
-In progress
+Complete
 
-Authorized as the sole serialized Metal production frontier after Task 0053 reached its external
-constructive-real proof blocker. This task starts from planning base `ca450b03` and must preserve
-Task 0053 fail-closed source and evidence unchanged.
+Planned at `8927a0f2` from base `ca450b03` and implemented at `e5d9d5c7` after Task 0053 reached
+its external constructive-real proof blocker. The cutover preserves Task 0053 fail-closed source
+and evidence unchanged.
 
 ## Change class
 
@@ -15,7 +15,7 @@ test, and documentation cutover. It changes no public API or Model semantics.
 
 ## Goal
 
-Implement exact profile-common Metal support for schema-13 operation wires:
+Implement exact profile-common Metal support for private operation wires:
 
 - `40 IS_FINITE`, `41 IS_NAN`, and `42 IS_INF` over canonical `FLOAT32`;
 - `43 LOGICAL_AND`, `44 LOGICAL_OR`, and `45 LOGICAL_NOT` over canonical `BOOL`; and
@@ -70,24 +70,25 @@ or new gradient topology is added.
 
 ## Schema, route, and identity cutover
 
-- Reuse ABI 5, exactly thirteen exports, schema 13, operation wires `1..115`, type wires `1..6`, and
-  attribute wires `0..41`. Add no export, public enum, operation/type/attribute wire, or dual decoder.
-- Lower exactly wires `40..45` and `51` through the existing typed schema-13 program.
+- Retain ABI 5, exactly thirteen exports, operation wires `1..115`, type wires `1..6`, and
+  attribute wires `0..41`. Advance node schema `13 -> 14` because the fixed route is now embedded
+  at header byte offset 40; old schema-13 images and zero/unknown routes fail closed with no dual
+  decoder or compatibility shim.
+- Lower exactly wires `40..45` and `51` through the typed schema-14 program.
 - Change the custom catalog state for those seven wires from `PENDING` to `AVAILABLE` with a closed
   Task-0057 reason, while retaining each direct MPSGraph row as `DIRECT / MD-PRED`.
-- Replace the Task-0052-specific whole-program route naming with one exact custom-program identity
-  only if required by the now-shared executor. Migrate every caller; add no alias or compatibility
-  shim. Keep stable private route wire `3` if its semantics remain the existing whole-program custom
-  family.
-- Bump every persisted workload, exact-policy, candidate, compatibility, route, and codec identity
-  whose accepted graph/domain or canonical bytes change. Old identities fail closed.
-- Candidate generation must expose custom for the exact domain and MPSGraph only where its complete
-  structural recipe is implemented. Production always selects custom. Package-private forcing may
-  select only a freshly regenerated authenticated candidate.
+- Replace the Task-0052-specific whole-program route name with `CUSTOM_PROGRAM`, migrate every
+  caller, and retain stable private route wire `3`.
+- Advance persisted workload, exact-policy, candidate, compatibility, route, and codec identity
+  `14 -> 15`; old identities fail closed.
+- Candidate generation exposes custom first for the exact domain and MPSGraph second only for an
+  exact single-node new operation whose complete direct selector recipe is implemented. Production
+  always selects custom. Package-private forcing can select only a freshly regenerated
+  authenticated candidate.
 
 ## Implementation order
 
-1. Re-audit current Model metadata, Compiler capture, schema-13 lowering, route catalog/identity,
+1. Re-audit current Model metadata, Compiler capture, schema lowering, route catalog/identity,
    native decoder, generated custom source, typed ingress/publication, and Engine composition.
 2. Add exact capability and Java lowering/preflight validation, including arity, dtype, Shape,
    broadcasting, gradient flags, canonical BOOL ingress, and wire-73 rejection.
@@ -147,3 +148,31 @@ Complete only after the exact custom route, structural MPSGraph route, capabilit
 validation, honest mixed-program resources, publication, lifecycle/concurrency, no-fallback proof,
 real public Engine smoke, documentation, clean commit, and independent Class C approval all pass.
 Any missing exactness or lifecycle obligation leaves the seven rows fail-closed.
+
+## Completion evidence
+
+- Implementation `e5d9d5c7` adds capability/lowering for wires `40..45` and `51`, the shared
+  `CUSTOM_PROGRAM` recipe, fixed raw/integer kernels, direct audited selectors, schema-14 route
+  authentication, identity 15, strict BOOL ingress, complete declared liveness, and exact
+  publication. Remediation `7a3bb072` closes rank-zero Java/native image acceptance and expands
+  boundary, route, and conformance proof.
+- Native build, fixed ad-hoc signing, local packaging, the native package verifier, and Gradle's
+  opt-in `verifyMetalNativePackage` passed. ABI remains 5 with exactly thirteen exports; the
+  manifest records node schema 14.
+- The complete `:backends:metal:test` task and Metal Javadoc passed against the fresh packaged
+  dylib. Focused native coverage executes both production custom and forced direct routes across
+  both profiles, both zero signs, minimum/largest subnormals, finite extrema, both infinities, and
+  signed quiet/signaling NaNs with payloads; logic covers every truth-table pair and rank-16
+  right-aligned broadcasting; WHERE preserves selected raw bits.
+- Focused backend conformance passed for both profiles, rank-zero exclusion, and explicit wire-73
+  rejection. The public no-skip Engine smoke passed with sole owner `metal`, fixed
+  `CUSTOM_KERNEL` trace route, custom/MPSGraph mixing, exact canonical BOOL and raw FLOAT32
+  publications, pre-invocation rejection of noncanonical BOOL bytes, and a subsequent successful
+  run proving session liveness.
+- The supplied independent P1/P2 audit was remediated by the clean schema-14 cutover, explicit
+  rank-zero capability tests, public Engine proof, and documentation of the closed owned internal
+  BOOL-producer contract. A subsequent cumulative Class C review found three P2 validation and
+  documentation defects; remediation `7a3bb072` closed all three, and the same reviewer approved
+  the live tree with zero P0/P1/P2 findings. Focused architecture/backend/API/native/planning
+  documentation and `git diff --check` passed. No timing, benchmark, or final full repository build
+  was run.
