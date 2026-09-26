@@ -10,24 +10,26 @@ complete variable-cardinality operation, attribute, reference, dimension, and gr
 no native type or shape inference is part of the boundary.
 
 The schema registry reserves operation wires `1..115` and attribute wires `0..41`. The native graph
-creator has 62 structural recipes: wires `1..34`, `38`, `40..54`, `56..63`, and `65..68`.
-Structural-only raw fixtures do not widen capability. Java production capability is exactly 50
-operations: wires `1..34`, FLOAT32 classification and BOOL logic wires `40..45`, ACCELERATOR
-no-gradient scalar arithmetic wires `46..49`, FLOAT32 `WHERE` wire `51`, ACCELERATOR no-gradient
-`RECIPROCAL` wire `52`, and exact raw discrete unary wires `60..63`, subject to exact profile,
-type, Shape, gradient, and topology restrictions. The remaining 65 production rows fail closed
-before native creation. A structurally valid registered operation without a native recipe returns
-the dedicated unsupported-operation status rather than masquerading as malformed input.
+creator has 79 structural recipes: wires `1..34`, `38..54`, `56..63`, and `65..84`.
+Structural-only raw fixtures do not widen capability. Java production capability is exactly 59
+operation kinds. Task 0059 adds wire `39`, exact read-only indexing wires `69` and `71`, and exact
+copy-only layout wires `74`, `77..79`, `81`, and `83`; the other Task-0059 wires remain
+capability-false even though their structural MPSGraph recipes create and run. All admitted
+Task-0059 occurrences use static canonical no-gradient descriptors and the exact per-carrier,
+index-bound, Shape, attribute, and cardinality restrictions documented in the Metal backend guide.
+The remaining 56 production rows fail closed before native creation. A structurally valid
+registered operation without a native recipe returns the dedicated unsupported-operation status
+rather than masquerading as malformed input.
 Candidate and route identity are version 15. Java owns exactly three prepared-route identities:
 custom singleton NEG wire 1, MPSGraph wire 2, and shared custom-program wire 3. Schema 14 embeds
 wire 2 or 3 in each graph image; schema 13 and every other route value fail closed. The exhaustive
 Java structural catalog adds no native route selection, capability, autotuning, fallback,
 telemetry, or performance authority.
 
-For wires `46..49` and `52`, the version-15 workload signature additionally binds source wire,
-exact raw scalar or `+1.0f`, FLOAT32 type, rank-one `[1]` shape, operand order, primitive opcode,
-and logical input Shape. Schema 14 and identity 15 do not change because their encoded image and
-decision bytes are unchanged; the newly admitted recipes had no prior production identity.
+For admitted Task-0059 nodes, the version-15 workload signature binds operation wire, source/target
+carrier types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes,
+exact scalar bits, and variadic input order/count. Schema 14 and identity 15 do not change because
+the existing encoded image and decision bytes already carry those facts.
 
 ```text
 Java analysis -> choose fixed whole-partition route -> declare every exact resource
@@ -197,25 +199,33 @@ and wrong schema versions fail closed as invalid arguments. A well-formed regist
 outside current execution capability returns status 13. Java separately authenticates numerical
 profile compatibility and rejects every profile-incompatible program before native creation.
 
-The production operation domain is wires `1..34`, `40..49`, `51..52`, and `60..63`: the existing
-arithmetic, affine, indexing, reduction, MATMUL, comparison/extrema/scan, classification,
-BOOL/WHERE domain; exact raw `FLOOR`, `CEIL`, `SIGN`, and `RELU`; and the ACCELERATOR-only
-no-gradient scalar/reciprocal subset. Existing positive-rank requirements still apply where
-operation semantics require them. Scalar `ADD/SUB/MUL/DIV` and `RECIPROCAL` require canonical
-FLOAT32 rank `1..16`, equal input/output Shape, and no-gradient input and output. Each scalar
-arithmetic recipe creates one exact four-byte raw FLOAT32 MPSGraph constant with Shape `[1]` and
-applies exactly one corresponding binary primitive with the input primary and scalar secondary.
-`RECIPROCAL` creates exact raw `+1.0f` with Shape `[1]` and applies exactly one division with one
-primary and the input secondary. MPSGraph broadcasting supplies the output Shape; no full-tensor
-constant is materialized. The four exact raw discrete unaries require canonical FLOAT32 rank
-`1..16`, equal input/output Shape and gradient eligibility, and no attributes.
+The production operation domain adds Task-0059 wires `39`, `69`, `71`, `74`, `77..79`, `81`, and
+`83` to the prior admitted rows. CAST accepts only the nineteen proved carrier pairs. Read-only
+gathers preflight every INT32/INT64 index before command submission. Raw layout operations preserve
+carrier bytes and exact same-type scalar padding, with explicit one-through-sixteen variadic
+bindings. PAD, CONCAT, STACK, and TILE accept all six carriers; UNFOLD2D and UNFOLD3D accept only
+FLOAT64, FLOAT32, and BFLOAT16.
+Scalar CAST, scalar PAD with empty widths, scalar TILE with empty repeats, scalar GATHER_ND output,
+and scalar STACK input are supported; scalar CONCAT and scalar window inputs are not. Scalar
+PAD/TILE are exact one-element identities.
+Every new production occurrence is canonical, static, and no-gradient. Existing positive-rank
+requirements still apply where operation semantics require them.
 
-Raw structural fixtures additionally create wires `38`, `50`, `53..54`, `56..59`, and `65..68`
-only under ACCELERATOR. They exercise direct power, scalar power with an exact raw rank-one splat,
-direct unary selectors, and the finite `LOG1P`, `EXPM1`, `GELU`, `GELU_TANH_APPROXIMATION`, and
-`SILU` compositions. These recipes are not production capability: power and
-elementary/recursive result sets remain unproved. Java production preparation rejects them before
-native creation.
+The prior FLOAT32 scalar `ADD/SUB/MUL/DIV` and `RECIPROCAL` domain remains canonical rank `1..16`
+with equal input/output Shape and no-gradient input and output. Each scalar arithmetic recipe
+creates one exact four-byte raw FLOAT32 MPSGraph constant with Shape `[1]` and applies exactly one
+corresponding binary primitive with the input primary and scalar secondary. `RECIPROCAL` creates
+exact raw `+1.0f` with Shape `[1]` and applies exactly one division with one primary and the input
+secondary. MPSGraph broadcasting supplies the output Shape; no full-tensor constant is
+materialized. The four exact raw discrete unaries require canonical FLOAT32 rank `1..16`, equal
+input/output Shape and gradient eligibility, and no attributes.
+
+Raw structural fixtures additionally create prior wires `38`, `50`, `53..54`, `56..59`, and
+`65..68` only under ACCELERATOR, plus all Task-0059 wires `39` and `69..84` under both profiles.
+Task-0059 recipes cover direct cast/index/pad/slice/concat/tile/im2col/col2im selectors and explicit
+stack, fold-axis, and 3D-window compositions. Structural creation and execution do not widen
+production capability: view-only SELECT/SLICE, scatter, slice-update, and fold rows stay false,
+as do power and elementary/recursive result sets without their separate proofs.
 
 ### Status values
 

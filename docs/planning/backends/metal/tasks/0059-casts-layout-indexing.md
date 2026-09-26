@@ -2,7 +2,10 @@
 
 ## Status
 
-Ready and active from clean revision `67d68071`.
+Complete.
+Planning was frozen at `c6442b20` and the explicit unfold-padding contract at `645d6e23`.
+Implementation landed at `08bf68bb`, focused proof at `a4926b52`, and independent cumulative
+Class C review approved every reported P0/P1/P2 remediation.
 
 ## Change class
 
@@ -55,7 +58,7 @@ potentially gradient-bearing cast occurrence remains false.
 
 ### Gate B: exact read-only indexing
 
-Admit `GATHER_ELEMENTS`, `GATHER_ND`, and `SELECT` for exact raw payload movement:
+Admit `GATHER_ELEMENTS` and `GATHER_ND` for exact raw payload movement:
 
 - data/output may use any of the six schema carriers;
 - index tensors may use `INT32` or `INT64` exactly as Model permits;
@@ -68,30 +71,30 @@ Admit `GATHER_ELEMENTS`, `GATHER_ND`, and `SELECT` for exact raw payload movemen
   the first invalid bound.
 
 The kernel maps one canonical output coordinate to one checked input coordinate and copies exactly
-one carrier payload. Scalar SELECT and scalar GATHER_ND results remain canonical rank zero.
+one carrier payload. Scalar GATHER_ND results remain canonical rank zero.
 Negative caller axes are already normalized by Model/Compiler; encoded negative or out-of-range
 axes are malformed rather than renormalized in native code.
 
 ### Gate C: exact copy-only layout
 
-Admit `PAD`, `SLICE`, `CONCAT`, `STACK`, `TILE`, `UNFOLD2D`, and `UNFOLD3D` for all six carrier
-representations, canonical static descriptors, exact Model Shapes/attributes, and no-gradient
-inputs/outputs.
+Admit `PAD`, `CONCAT`, `STACK`, and `TILE` for all six carrier representations. Admit
+`UNFOLD2D` and `UNFOLD3D` for the Model-legal `FLOAT64`, `FLOAT32`, and `BFLOAT16`
+representations. Inputs and outputs are canonical static descriptors with exact Model
+Shapes/attributes and no gradients.
 
 - `PAD` copies original payloads and writes the exact same-type raw `ScalarValue` for every padded
   coordinate.
-- `SLICE` supports normalized finite signed steps, including reversal, and copies selected payloads
-  bit-for-bit. `CropToShapeAttrs` is admitted only after it is lowered to one exact concrete region;
-  unresolved/dynamic crop occurrences remain false.
 - `CONCAT` and `STACK` preserve input order and use a bounded `1..16` input occurrence domain so
   every buffer is explicitly declared, bound, fingerprinted, and live. Scalar STACK is included;
   scalar CONCAT remains invalid by the Model contract.
-- `TILE` implements whole-pattern per-axis repetition, not scalar run repetition.
+- `TILE` implements whole-pattern per-axis repetition, not scalar run repetition. Model-legal
+  scalar `PAD` (empty widths) and scalar `TILE` (empty repeats) are exact one-element identities.
 - `UNFOLD2D` and `UNFOLD3D` use exact coordinate maps. Direct `Window2dAttrs`/`Window3dAttrs`
   write represented positive zero for out-of-domain samples; explicit `Unfold2dAttrs`/
   `Unfold3dAttrs` write the exact same-type raw `ScalarValue`, including NaN payload/sign,
-  infinity, signed zero, BOOL, and integer bits. Attribute type/raw bits participate in metadata,
-  fingerprinting, the independent coordinate-map oracle, and public raw-value evidence.
+  infinity, and signed zero. Model excludes BOOL and integer carriers from both window kinds.
+  Attribute type/raw bits participate in metadata, fingerprinting, the independent coordinate-map
+  oracle, and public raw-value evidence.
 
 Every route writes fresh canonical output storage and preserves all inputs. No raw movement
 operation may use a typed MPSGraph selector as its production correctness argument.
@@ -100,6 +103,9 @@ operation may use a typed MPSGraph selector as its production correctness argume
 
 The following remain capability-false under both profiles:
 
+- `SELECT` and `SLICE`, because public Model construction intentionally retains resolved view
+  layout and the unchanged schema-14 executable image carries no view strides/offsets; admitting a
+  canonical-output raw kernel would violate publication layout and no-alias semantics;
 - `SCATTER_ADD` and `SCATTER_ND`, because duplicate membership/order-independent reductions,
   replacement uniqueness, per-type reduction semantics, and gradient-bearing domains are not all
   proved by a single systematic route;
@@ -186,15 +192,41 @@ immutability, and direct assigned-output publication.
    window padding/dilation/stride, and variadic placement.
 4. Run focused capability/catalog/schema/identity/malformed-native tests and assert the exact final
    ledger. No previously approved operation may change route or domain.
-5. Run public no-skip Metal-only Engine smokes for CAST, indexing, and layout, including raw NaN
-   payloads, signed zeros, integer extremes, BOOL, rank-zero outputs, INT64 indices, invalid bounds,
-   repeated runs, concurrent runs, lifecycle/close ordering, input preservation, output no-alias,
-   and publication ownership.
+5. Run public no-skip Metal-only Engine smokes for every admitted CAST, indexing, and layout kind,
+   including signed zeros, integer extremes, normalized negative caller axes, repeated runs,
+   concurrent runs, lifecycle/close ordering, input preservation, output no-alias, and publication
+   ownership. Raw native fixtures separately cover all 65,536 BFLOAT16 words, deterministic
+   integer full-word corpora, INT64 indices, and bounds-before-write failures.
 6. Rebuild/sign/package the native library, verify the exact thirteen exports, run the focused Metal
    package and documentation/Javadoc checks, and do not run a final full repository build.
 7. Commit implementation and focused evidence, request an independent cumulative Class C review,
    remediate every P0/P1/P2, rerun affected focused checks, and mark Complete only after approval.
 
-Expected production capability is exactly `61 true / 54 false`: eleven newly true operation kinds
-(`CAST`, three read-only indexing kinds, and seven copy-only layout kinds). If any named proof gate
-fails, keep that kind false and record the exact reduced delta rather than weakening a gate.
+Expected production capability is exactly `59 true / 56 false`: nine newly true operation kinds
+(`CAST`, two read-only indexing kinds, and six copy-only layout kinds). The public no-skip gate
+keeps view-only `SELECT` and `SLICE` false without weakening their independently executable
+structural MPSGraph recipes.
+
+## Completion evidence
+
+- Production capability is exactly `59 true / 56 false`: wires `39`, `69`, `71`, `74`, `77`,
+  `78`, `79`, `81`, and `83` are newly true under the frozen occurrence gates; the other eight
+  Task-0059 wires remain false for the recorded blockers.
+- Structural execution is exactly `79 executable / 36 nonexecutable`; catalog state is unchanged at
+  `75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE`, while the custom catalog is
+  `38 AVAILABLE / 77 PENDING / 0 UNAVAILABLE_WITH_PROOF`.
+- Focused native and Java proof passed for all nineteen CAST pairs, every BFLOAT16 word, integer
+  boundary/full-word corpora, all carrier-width raw movement, both index widths, bounds-before-write,
+  internal produced indices, scalar policy, rank-sixteen attributes, signed extreme slice strides,
+  ceil-window tails, fold masking/wide geometry, mixed custom/nested programs, schema/malformed
+  controls, candidate identity, prepared resources, and exact ledgers.
+- No-skip public Metal Engine proof passed for every admitted kind, scalar results, exact
+  `GATHER_ELEMENTS`/`GATHER_ND` diagnostics, repeated and independent sessions, concurrent runs,
+  direct publication ownership, input preservation, no-alias results, and close ordering.
+- The rebuilt dylib was ad-hoc signed, locally packaged, and independently verified with ABI 5,
+  schema 14, identity 15, and exactly thirteen exports. The opt-in Gradle package verifier and
+  Metal Javadocs passed. Per plan, no final full repository build was run.
+- Independent cumulative Class C review approved the final source after confirming remediation of
+  staged internal-index validation, all-six-carrier feeds and splats, exact diagnostic replay,
+  nested MPS compaction, structural type/shape parity, zero-prefix crop, rank-sixteen attributes,
+  overflow-safe slices, ceil-tail windows, and masked 64-bit Fold3D depth geometry.

@@ -20,6 +20,17 @@ earlier admitted affine node in the same partition. Affine outputs retain exact 
 logical view geometry. `CONTIGUOUS` has unchanged Shape and canonical output geometry; it must
 separate an affine view from every exact unary.
 
+Task 0059 additionally admits the same no-gradient static canonical domain under both profiles:
+nineteen exact `CAST` carrier pairs; raw `GATHER_ELEMENTS` and `GATHER_ND` with `INT32` or `INT64`
+indices and bounds-before-write preflight; and raw `PAD`, bounded `CONCAT`/`STACK`, `TILE`,
+`UNFOLD2D`, and `UNFOLD3D`. Movement preserves carrier bytes. PAD, CONCAT, STACK, and TILE accept
+all six carriers; Model-legal UNFOLD2D/UNFOLD3D accept `FLOAT64`, `FLOAT32`, and `BFLOAT16`.
+Explicit window padding and PAD constants retain exact same-type raw scalar bits. CAST admits
+identities, BOOL-to/from every other carrier, `INT32`/`INT64` conversion in both directions, and
+`BFLOAT16 -> FLOAT32`; every
+other conversion remains false. CONCAT/STACK accept one through sixteen inputs. These operations
+require positive static extents, canonical zero-offset non-view layouts, and no gradients.
+
 `ACCELERATOR` additionally admits tensor `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, and `MAX`; all six
 binary comparisons; exact FLOAT32 scalar `MIN`, `MAX`, fused `CLAMP`, and no-gradient
 `ADD`, `SUB`, `MUL`, and `DIV`; no-gradient `RECIPROCAL`; canonical FLOAT32 reductions; `CUM_SUM`
@@ -44,7 +55,7 @@ custom logic writes exact zero or one, and FLOAT32 WHERE copies the selected rep
 Every descriptor is fully static and has the operation-specific exact type, layout, Shape, and
 gradient relationship. The common exact operations have the same Model result contract in both
 profiles; Task-0052 operations and the no-gradient scalar/reciprocal subset exist only under
-ACCELERATOR. The complete 115-row capability ledger is `50 true / 65 false` under the exact
+ACCELERATOR. The complete 115-row capability ledger is `59 true / 56 false` under the exact
 occurrence restrictions above.
 
 ```text
@@ -67,11 +78,11 @@ partition from a canonical source, but its other valid affine consumers and boun
 remain available. Scalar POW and non-FLOAT32 or gradient-bearing scalar arithmetic; masked,
 product, and other reductions; every unary operation other than the six exact profile-common kinds
 and accelerator no-gradient `RECIPROCAL`; strict Task-0052 and scalar/reciprocal operations;
-vector or batched MATMUL; every window kind except bounded canonical FLOAT32 UNFOLD_AXIS; indexing
-outside the listed exact rows; wire 73 scalar-index SELECT; INT64 indexing; profile-crossing
-operations; unsupported attributes/types; zero, scalar, or dynamic extents in the new exact
-domains; unresolved layout; noncanonical graph feeds; foreign views; mismatched descriptors; and
-multi-output forms remain fail-closed.
+vector or batched MATMUL; fold and scatter-reduction kinds; view-only `SELECT` and `SLICE`;
+`SLICE_UPDATE`; window kinds outside bounded `UNFOLD_AXIS`, `UNFOLD2D`, and `UNFOLD3D`; indexing
+outside the listed exact rows; profile-crossing operations; unsupported attributes/types; empty or
+dynamic extents in the new exact domains; unresolved or noncanonical layout; foreign views;
+mismatched descriptors; and multi-output forms remain fail-closed.
 
 Within that capability domain, Metal analysis generates a typed complete candidate batch
 and selects one of three private routes:
@@ -79,7 +90,8 @@ and selects one of three private routes:
 - `CUSTOM_SINGLE_NEG` for exactly one NEG occurrence under either profile, one unique feed, one
   unique target, and a checked element count in `1..UINT32_MAX`;
 - `CUSTOM_PROGRAM` for a complete partition containing any Task-0052 node, any of the seven
-  BOOL-domain nodes, or exact raw `FLOOR`/`CEIL`/`SIGN`/`RELU`; or
+  BOOL-domain nodes, exact raw `FLOOR`/`CEIL`/`SIGN`/`RELU`, or an admitted Task-0059
+  CAST/index/layout node; or
 - `MPSGRAPH` for every other supported partition.
 
 The seven BOOL-domain and four exact raw unary nodes also expose direct MPSGraph candidates only as
@@ -256,16 +268,16 @@ The package-private `MetalOperationRouteCatalog` separately describes every one 
 schema-fourteen `NodeKind` values. Exhaustive enum switching yields shared immutable entries with
 closed MPSGraph state/reason and custom-kernel state/reason values: MPSGraph totals are
 `75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE`; custom totals are
-`27 AVAILABLE / 88 PENDING / 0 UNAVAILABLE_WITH_PROOF`. The normative
+`38 AVAILABLE / 77 PENDING / 0 UNAVAILABLE_WITH_PROOF`. The normative
 [per-wire evidence audit](../planning/backends/metal/tasks/0056-route-evidence-audit.md) supplies
 the exact installed-SDK selector or finite composition and current Model source for every row.
 The closed MPSGraph reasons include a dedicated `MD_CAST` identity for wire 39, matching
 `SHAPE::castTensor:toType:name:` rather than classifying that selector as arithmetic. Wires
 `46..49` and `52` are finite compositions because they materialize one exact raw rank-one
 constant before the one arithmetic primitive. This catalog performs no capability admission and
-no selection. It is never consulted by Runtime; 65 kinds remain capability-false even when the
+no selection. It is never consulted by Runtime; 56 kinds remain capability-false even when the
 catalog records a structurally direct or composed MPSGraph realization. Structural executable
-status separately covers 62 wires and never grants production ownership.
+status separately covers 79 wires with 36 nonexecutable rows and never grants production ownership.
 
 After Planning creates one maximal Metal partition, analysis walks nodes in partition order with
 explicit unavailable, canonical, and affine-view states. Every view input must resolve to an
@@ -292,9 +304,9 @@ Runtime slots; custom-program intermediates are also declared assigned buffers, 
 MPSGraph intermediates remain symbolic tensors.
 
 Analysis receives compile-time constant sources through `PrepareContext.constants()`. A boundary
-constant must be an exact type-matching `FLOAT32` or `INT32` splat. Analysis records whether the
-current Metal partition is that producer-free value's first ordered consumer. Only that source
-partition prepares physical storage; later Metal consumers reuse the same logical Metal
+constant must be an exact type-matching splat in one of the six schema carriers. Analysis records
+whether the current Metal partition is that producer-free value's first ordered consumer. Only
+that source partition prepares physical storage; later Metal consumers reuse the same logical Metal
 representation, while a value first owned by CPU retains the ordinary transfer destination.
 Runtime uses an `InitializedBuffer` fresh read-only binding for a prepared Metal source rather than
 consuming a caller position. Existing shared `GraphPreparation` tests independently enforce the
@@ -381,8 +393,9 @@ whole-partition executable. MATMUL compilation requires reduced-precision-fast-m
 `None`. All compilation happens during finalization, never invocation.
 
 Each source splat owns one exact-sized Metal buffer and context child lease. Finalization fills and
-uploads the exact `FLOAT32` or `INT32` raw bits once, before PREPARE success. The result returns the
-route resource followed by source splats in acquisition order. A malformed native route result
+uploads the exact same-type `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, or `BOOL` raw
+carrier bits once, before PREPARE success. The result returns the route resource followed by source
+splats in acquisition order. A malformed native route result
 fails closed: success with a null handle is rejected, while failure with a non-null handle releases
 that handle once and preserves a distinct cleanup failure as suppressed evidence. Allocation,
 upload, executable construction, result construction, and observer failure close the current
@@ -822,8 +835,9 @@ MATMUL gradient formulas above and does not imply broader backward or training s
 
 The public `GraphCompilationPort` intentionally supplies no explicit positive-rank forward
 constant ingress, so CPU-free Engine scenarios use caller inputs rather than claiming a public
-compile-time splat. Backend-local coverage passes exact type-matching `FLOAT32` and `INT32` logical
-splats through `PrepareContext.constants()` and verifies fresh initialized Metal feed buffers.
+compile-time splat. Backend-local coverage passes exact type-matching logical splats in all six
+schema carriers through `PrepareContext.constants()` and verifies fresh initialized Metal feed
+buffers.
 
 ## Registration and composition
 
@@ -878,23 +892,26 @@ owner-indexed mixed schedule in
 
 ## Limitations and related documentation
 
-Accelerator support is limited to the exact canonical FLOAT32 rows above. Strict binary
-arithmetic, every Task-0052 comparison/extrema/scalar/reduction-extrema/scan row, and MATMUL remain
-unsupported. Product, masked, statistical, Boolean, arg-extrema, and other reductions remain
-unsupported. Accelerator MATMUL is limited to positive static same-type rank two, exact
-contraction/output geometry, and canonical or authenticated local rank-two-transpose operands.
-Exact canonical ABS is the only accelerator unary operation and receives no numerical relaxation.
-Indexing under both profiles is limited to the listed GATHER, ONE_HOT, replacement Scatter
-Elements, and UNFOLD_AXIS rows; BOOL consumption is limited to the exact positive-rank logic and
-FLOAT32 WHERE domain, and INT64 indexing and other indexing remain unsupported. Metal also has no
-FLOAT16 computation, BFLOAT16/FLOAT64 computation, other integer computation, scalar operation
-ingress, zero-extent, dynamic-shape, unresolved-layout, noncanonical operation ingress,
-foreign-view, variadic, or multi-output support. A scalar rank is admitted only for a locally
-produced direct reduction target and typed transfer/materialization. The fixed shared custom route
-is not a general custom-kernel framework: cold preparation owns the 22 reviewed kernels and
-interleaved existing-node executables, every logical value has a declared assigned buffer, and hot
-Java execution makes one synchronous native call with no host staging, retry, fallback, or hidden
-materialization. There is no asynchronous API, general
+Accelerator support remains limited to the exact occurrence rows above. Strict binary arithmetic,
+every Task-0052 comparison/extrema/scalar/reduction-extrema/scan row, and MATMUL remain unsupported.
+Product, masked, statistical, Boolean, arg-extrema, and other reductions remain unsupported.
+Accelerator MATMUL is limited to positive static same-type rank two, exact contraction/output
+geometry, and canonical or authenticated local rank-two-transpose operands. Exact canonical ABS is
+the only broadly admitted accelerator unary operation and receives no numerical relaxation.
+Indexing under both profiles includes the listed GATHER, GATHER_ELEMENTS, GATHER_ND, ONE_HOT,
+replacement SCATTER_ELEMENTS, and UNFOLD_AXIS rows; SELECT, arithmetic scatter, and Scatter-ND
+remain false. Task-0059 raw movement and the nineteen proved casts are the only BFLOAT16/FLOAT64,
+INT64-index, or cross-carrier computation added here. Metal still has no FLOAT16 computation,
+unproved cross-carrier conversion, zero-extent, dynamic-shape, unresolved-layout, noncanonical
+operation ingress, foreign-view, or multi-output support. Variadic support is limited to the
+explicit one-through-sixteen CONCAT/STACK domain. Scalar rank remains limited to Task-0059 CAST,
+empty-width PAD, empty-repeat TILE, valid GATHER_ND results, scalar STACK input, locally produced
+direct reduction targets, and typed transfer/materialization. Scalar PAD/TILE are one-element
+identities. The fixed shared custom route is not a general custom-kernel
+framework: cold preparation owns the reviewed kernels and interleaved existing-node executables,
+every logical value has a declared assigned buffer, and hot Java execution makes one synchronous
+native call with no host staging, retry, fallback, or hidden materialization.
+There is no asynchronous API, general
 output/workspace pool, executable serialization, discovery, persistent route cache, alias promise,
 general backward route, or performance claim. Immutable source-owned splat buffers persist only
 within their exact `PreparedExecution`; mutable outputs and address workspaces remain fresh per run.
