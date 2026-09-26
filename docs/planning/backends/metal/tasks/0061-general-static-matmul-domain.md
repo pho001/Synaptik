@@ -13,33 +13,34 @@ behavior while preserving the public API, native ABI, schema encoding, exports, 
 
 ## Goal
 
-Replace the current positive static rank-two `FLOAT32`-only MATMUL occurrence domain with the
-largest currently provable deterministic domain: all Model rank/batch/broadcast forms for exact
-integral promotion under both profiles, all such `FLOAT32 x FLOAT32` forms under `ACCELERATOR`, and
-no-gradient mixed `BFLOAT16`/`FLOAT32` forms whose promoted result is `FLOAT32` under
-`ACCELERATOR`. Preserve the existing rank-two FLOAT32 MPSGraph route exactly; use one fixed custom
-whole-program route for newly admitted occurrences. Make every decision before resource creation,
-with no timing, autotuning, retry, fallback, or runtime selector choice.
+Admit the matrix below across every positive static Model rank/batch/broadcast form. Preserve the
+reviewed rank-two FLOAT32 MPSGraph route; use one fixed custom whole-program route for new
+occurrences. Fix every choice pre-resource, with no timing, autotuning, retry, fallback, or runtime
+selector choice.
 
 ## Audited contract and bounded decision
 
 Model MATMUL has no attrs, two inputs/one output, ranks `>= 1`, right-aligned leading-batch
 broadcast, and vector promotion/removal (vector/vector returns rank zero). Floating promotion is
 `BFLOAT16 < FLOAT32 < FLOAT64`; integral promotion is `INT32 < INT64`; BOOL/cross-category pairs
-are invalid. FLOAT32-result and BFLOAT16-result families accumulate in FLOAT32, FLOAT64 in
-FLOAT64, and integers modulo `2^32`/`2^64`; BFLOAT16 narrows once. Empty contraction is positive zero.
+are invalid. Every floating pair sets output `requiresGrad` to the exact input OR; integral pairs
+cannot require gradients. FLOAT32/BFLOAT16 results accumulate in FLOAT32, FLOAT64 in FLOAT64, and
+integers modulo `2^32`/`2^64`; BFLOAT16 narrows once. Empty contraction is positive zero.
 
 The implementation matrix is closed as follows:
 
-| Left / right | Result | Profiles | Gradient metadata | Fixed production route |
+| Left / right | Result | Production profiles/domain | Model output gradient metadata | Fixed route |
 |---|---|---|---|---|
 | `INT32 / INT32` | `INT32` | both | necessarily no-gradient | custom |
 | `INT32 / INT64`, `INT64 / INT32`, `INT64 / INT64` | `INT64` | both | necessarily no-gradient | custom |
 | `FLOAT32 / FLOAT32`, exact current rank-two geometry | `FLOAT32` | accelerator | output grad is exact input OR | existing MPSGraph |
 | `FLOAT32 / FLOAT32`, every other admitted rank/batch geometry | `FLOAT32` | accelerator | output grad is exact input OR | custom |
-| `BFLOAT16 / FLOAT32`, `FLOAT32 / BFLOAT16` | `FLOAT32` | accelerator | all descriptors no-gradient | custom |
-| `BFLOAT16 / BFLOAT16` | `BFLOAT16` | none (Model-valid) | false | production-blocked |
-| Every Model-valid pair promoted to `FLOAT64` | `FLOAT64` | none | false | production-blocked |
+| `BFLOAT16 / FLOAT32`, `FLOAT32 / BFLOAT16` | `FLOAT32` | accelerator, all descriptors no-gradient | output grad is exact input OR | custom |
+| `BFLOAT16 / BFLOAT16` | `BFLOAT16` | none (Model-valid) | output grad is exact input OR | production-blocked |
+| Every Model-valid pair promoted to `FLOAT64` | `FLOAT64` | none | output grad is exact input OR | production-blocked |
+
+For both production-blocked floating families, Task 0061 grants neither Metal forward nor generated
+gradient execution; capability rejection does not alter their Model descriptor metadata.
 
 Admitted dimensions are resolved, static, positive, and product/address checked; input rank is
 `1..16`, output rank `0..16`, and output is canonical. Zero extents remain false despite Model's
@@ -119,10 +120,11 @@ backward, implicit seeding, scalar-loss training, generic training, and CPU/Open
   complete rank-one, accumulation, rounding, DAZ/FTZ, special-class, or shape-dependent result
   sets; samples, selector names, and fast-math settings do not prove them.
 - Strict floating stays false: safe MSL alone does not prove strict GPU subnormals.
-  BFLOAT16/BFLOAT16 is a distinct Model-valid BFLOAT16-result family with FLOAT32 accumulation and
-  one BFLOAT16 narrowing; because non-FLOAT32 results remain strict under both profiles, it is
-  blocked on complete strict accumulation/narrowing proof. FLOAT64-result pairs separately lack a
-  proved FLOAT64 Metal arithmetic route.
+  BFLOAT16/BFLOAT16 is a distinct Model-valid BFLOAT16-result family with FLOAT32 accumulation, one
+  BFLOAT16 narrowing, and exact input-OR gradient metadata. Because non-FLOAT32 results remain
+  strict under both profiles, its forward and gradient execution are blocked on complete strict
+  accumulation/narrowing proof. FLOAT64-result forward and gradient execution separately remain
+  blocked because Metal has no proved FLOAT64 arithmetic route.
 - Do not add empty/dynamic tensors, arbitrary affine feeds, transpose/accumulation flags, fusion,
   tiling/autotuning, performance claims, fallback, or a parallel contract abstraction.
 
@@ -157,21 +159,20 @@ rule, stop for an architecture decision.
 
 ## Files and symbols
 
-- Audit oracles: Model `MatmulKind`, `TensorMatmulExpressions`, `DataTypePromotion`; Compiler linear
-  algebra/attention/convolution gradient rules and tests. No edit absent a separately approved bug.
-- Metal: `supportsMatmul`, partition preparer/plan, graph program/catalog, Java ABI validator,
-  route candidate/batch/codec owners, and package Javadocs.
-- Native: `synaptik_metal_foundation.m` plus one focused MATMUL kernel header.
-- Tests: Metal capability/affine/schema/catalog/route/prepared/native MATMUL, backend conformance,
-  and `EngineExplicitCompositionMetalIntegrationTest`.
-- Docs: current root/contracts/guides/API/index/glossary/native guide/Javadocs/master/roadmap/task;
-  completed predecessor tasks remain history.
+- Audit: Model MATMUL/promotion and Compiler linear/attention/convolution gradient owners/tests; no
+  production edit absent a separately approved defect.
+- Metal: capability, preparer/plan, graph/catalog, Java ABI, route candidate/batch/codec, Javadocs.
+- Native: `synaptik_metal_foundation.m` and one focused MATMUL kernel header.
+- Proof: focused Metal tests, backend conformance, public Engine integration.
+- Docs: live root/contracts/guides/API/index/glossary/native guide/master/roadmap/task; completed
+  predecessor tasks remain historical.
 
 ## Acceptance criteria
 
-1. Truth tables prove the matrix, four rank pairings, independent batch broadcast, output rank
-   `0..16`, rank-16 boundaries, four transpose topologies, promotion, gradients, zero/dynamic/
-   malformed negatives, strict monotonicity, and unchanged `69/46`.
+1. Truth tables prove the matrix, all rank/broadcast/transpose/output-rank boundaries, promotion,
+   exact Model gradient metadata including both production-blocked floating families, separate
+   forward/gradient capability rejection, zero/dynamic/malformed negatives, strict monotonicity,
+   and unchanged `69/46`.
 2. Java/native parity proves each operand state/source/offset/strides/span and exact physical
    mapping, including nested custom programs. Spoofed provenance/geometry/state/source/permutation
    fails pre-resource; poisoned affine canaries prove no silent canonical read.
@@ -185,8 +186,8 @@ rule, stop for an architecture decision.
 6. Route proofs retain rank-two FLOAT32 MPSGraph, select custom for new singletons, and keep it as a
    nested MPSGraph step when another custom node fixes `CUSTOM_PROGRAM`.
 7. Public Engine proves integers under both profiles; accelerator proves general FLOAT32, batched
-   biased/unbiased linear, transposes, and seeded gradients. Strict floating, mixed-gradient, and
-   zero/type/layout negatives fail with no CPU owner.
+   linear, transposes, and seeded gradients. BFLOAT16/BFLOAT16 and FLOAT64 forward/gradient graphs,
+   strict floating, admitted-mixed gradient, and zero/type/layout negatives fail with no CPU owner.
 8. Raw outputs use exact modular values or Model result sets, never tolerance; runs are deterministic.
 9. Package proof keeps ABI 5/schema 15/thirteen exports/`87/28`/`75/35/5`, reaches custom `47/68/0`,
    rejects version 16, removes live rank-two claims, and receives zero P0/P1/P2 on final review.
@@ -207,15 +208,14 @@ SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/package-v1/maco
 git diff --check
 ```
 
-No full repository build is planned: no dependency/build/API change exists, and packaged-native
-backend, conformance, Engine, Javadoc, and review gates are stronger. Run one only if scope changes.
+No full build is planned absent a dependency/build/API scope change; packaged-native backend,
+conformance, Engine, Javadoc, and review are the stronger gates.
 
 ## Documentation and review impact
 
-Update the root, backend contract, root/index/API/tensor/backend/capability/lifecycle/module/runtime
-guides, targeted glossary, native README, Javadocs, master, roadmap, and this result. Add only a
-current-domain note to a live numerical-profile ADR claim; do not rewrite historical Task 0021.
-A clean documentation pass and independent cumulative Class C review are mandatory.
+Update live root/contract/guides/API/glossary/native/Javadoc/master/roadmap claims. Add only a
+current-domain ADR note; keep historical Task 0021. Clean documentation and independent cumulative
+Class C reviews are mandatory.
 
 ## Result
 
