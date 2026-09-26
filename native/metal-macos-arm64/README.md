@@ -9,12 +9,14 @@ bounded schema-14 program image. The image carries an explicit fixed route plus 
 complete variable-cardinality operation, attribute, reference, dimension, and gradient metadata;
 no native type or shape inference is part of the boundary.
 
-The schema registry reserves operation wires `1..115` and attribute wires `0..41`. That structural
-coverage does not widen execution capability: the native bridge and Java capability declaration
-execute exactly 41 operations: wires `1..34`, FLOAT32 classification wires `40..42`, BOOL logic
-wires `43..45`, and FLOAT32 `WHERE` wire `51`, subject to their exact numerical-profile, type,
-Shape, and topology restrictions. A structurally valid registered operation outside that set
-returns the dedicated unsupported-operation status rather than masquerading as malformed input.
+The schema registry reserves operation wires `1..115` and attribute wires `0..41`. The native graph
+creator has 62 structural recipes: wires `1..34`, `38`, `40..54`, `56..63`, and `65..68`.
+Structural-only raw fixtures do not widen capability. Java production capability is exactly 45
+operations: wires `1..34`, FLOAT32 classification wires `40..42`, BOOL logic wires `43..45`,
+FLOAT32 `WHERE` wire `51`, and exact raw discrete unary wires `60..63`, subject to exact profile,
+type, Shape, and topology restrictions. The remaining 70 production rows fail closed before native
+creation. A structurally valid registered operation without a native recipe returns the dedicated
+unsupported-operation status rather than masquerading as malformed input.
 Candidate and route identity are version 15. Java owns exactly three prepared-route identities:
 custom singleton NEG wire 1, MPSGraph wire 2, and shared custom-program wire 3. Schema 14 embeds
 wire 2 or 3 in each graph image; schema 13 and every other route value fail closed. The exhaustive
@@ -189,12 +191,20 @@ and wrong schema versions fail closed as invalid arguments. A well-formed regist
 outside current execution capability returns status 13. Java separately authenticates numerical
 profile compatibility and rejects every profile-incompatible program before native creation.
 
-The executable operation domain is wires `1..34`, `40..45`, and `51`: `NEG`, arithmetic, affine
-view operations, `CONTIGUOUS`, `ABS`, reductions, `MATMUL`, `GATHER`, `ONE_HOT`,
-`SCATTER_ELEMENTS`, `UNFOLD_AXIS`, comparisons, tensor/scalar extrema, `CLAMP`, reduction extrema,
-cumulative scans, FLOAT32 classification, BOOL logic, and FLOAT32 `WHERE`. Existing positive-rank
-requirements still apply where operation semantics require them. The seven new operations require
-canonical rank `1..16`; scalar values remain outside that domain.
+The production operation domain is wires `1..34`, `40..45`, `51`, and `60..63`: the existing
+arithmetic, affine, indexing, reduction, MATMUL, comparison/extrema/scan, classification,
+BOOL/WHERE domain plus exact raw `FLOOR`, `CEIL`, `SIGN`, and `RELU`. Existing positive-rank
+requirements still apply where operation semantics require them; the four new exact operations
+require canonical FLOAT32 rank `1..16`, equal input/output Shape and gradient eligibility, and no
+attributes.
+
+Raw structural fixtures additionally create wires `38`, `46..50`, `52..54`, `56..59`, and
+`65..68` only under ACCELERATOR. They exercise direct power, exact raw scalar-data splats with
+ordered arithmetic, direct unary selectors, and the finite `LOG1P`, `EXPM1`, `GELU`,
+`GELU_TANH_APPROXIMATION`, and `SILU` compositions. These recipes are not production capability:
+power and elementary/recursive result sets remain unproved, while scalar basic arithmetic and
+`RECIPROCAL` cannot satisfy the current public primitive gradient contract. Java production
+preparation rejects them before native creation.
 
 ### Status values
 
@@ -301,14 +311,14 @@ capability narrowing, tuning, fallback, or a performance claim.
 
 ## Shared exact custom whole-program execution
 
-Any schema-14 program containing a Task-0052 wire or one of wires `40..45` and `51` uses one
-retained custom-program handle. Creation compiles only the 22 fixed reviewed Metal kernels with
-`MTLMathModeSafe`, creates one immutable pipeline and metadata buffer per custom node, and
-cold-compiles each interleaved existing node as a typed one-node MPSGraph executable. Java declares
-and assigns a run-owned buffer for every logical intermediate and a native-address workspace for
-the stable value table plus direct target aliases. The fixed route crosses in the authenticated
-schema image; no source text, function name, hidden intermediate, or input-dependent choice crosses
-the ABI.
+Any schema-14 program containing a Task-0052 wire, one of wires `40..45` and `51`, or one of exact
+raw wires `60..63` uses one retained custom-program handle. Creation compiles only the 26 fixed
+reviewed Metal kernels with `MTLMathModeSafe`, creates one immutable pipeline and metadata buffer
+per custom node, and cold-compiles each interleaved existing node as a typed one-node MPSGraph
+executable. Java declares and assigns a run-owned buffer for every logical intermediate and a
+native-address workspace for the stable value table plus direct target aliases. The fixed route
+crosses in the authenticated schema image; no source text, function name, hidden intermediate, or
+input-dependent choice crosses the ABI.
 
 One Java/native run call authenticates the complete value table and exact direct targets, rejects
 one physical buffer reused by distinct live value entries, and preserves each target's required
@@ -317,13 +327,14 @@ consumed by a BOOL-domain node and rejects every byte other than zero or one. Th
 consumes supplied handles directly without allocating a mirror collection, executes stable program
 order, and submits consecutive custom nodes through one framework command buffer. Interleaved
 existing nodes execute their already-compiled resource internally; Java performs no per-node
-downcall. Classification inspects raw FLOAT32 words, logic writes exact zero/one bytes, and WHERE
-copies the selected branch word without floating arithmetic. Internal BOOL producers are closed:
-custom comparison/classification/logic kernels write exact zero or one, while the owned nested
-ONE_HOT selector is constructed with typed BOOL zero/one constants. Arbitrary framework BOOL
-producers cannot enter the recipe. The forceable direct candidates for the seven new nodes remain
-package-private structural regressions and never become the production route. There is no host
-staging, retry, fallback, or hot compilation.
+downcall. Classification and exact discrete unary kernels inspect raw FLOAT32 words, logic writes
+exact zero/one bytes, exact unary kernels preserve the Model-required raw classes, and WHERE copies
+the selected branch word without floating arithmetic. Internal BOOL producers are closed: custom
+comparison/classification/logic kernels write exact zero or one, while the owned nested ONE_HOT
+selector is constructed with typed BOOL zero/one constants. Arbitrary framework BOOL producers
+cannot enter the recipe. Direct candidates for all eleven custom-domain nodes remain
+package-private structural regressions and never replace the production custom route. There is no
+host staging, retry, fallback, or hot compilation.
 
 ## Task-0053 proof-gated source
 
@@ -402,17 +413,22 @@ unchanged canonical-only cross-owner transfer. ABS coverage executes both profil
 zeros, subnormal and normal boundaries, ordinary finite values, maximum finite values, infinities,
 and multiple signed quiet/signaling NaNs; it also covers strict/accelerator composition,
 intermediate/direct targets, reuse, concurrency, independent contexts, input preservation, and
-close rejection. Binary coverage executes each of `ADD`, `SUB`, `MUL`, and `DIV` separately with
-row, column, and scalar-tensor broadcasting, operand reversal, chains, fan-out, repeated operands,
-published intermediates, repeated runs, exact input preservation, and an independent bounded
-DAZ/FTZ/signed-zero/NaN raw-bit oracle. Reduction coverage executes full, single-axis,
-multi-axis, empty-axis identity, keep-dimensions, and binding-resolved sum-to-Shape forms; it
-checks scalar four-byte publication, direct targets, positive-rank ABS/binary composition,
-repeated and concurrent sessions, exact copy identities, and strict-profile rejection. MATMUL
-coverage executes direct, left-transposed, right-transposed, and both-transposed rank-two forms
-through reusable executables, exact outputs, direct targets, and input preservation. Public
-CPU-free Metal-only Engine cases additionally exercise direct MATMUL, no-bias linear's visible
-right transpose, and explicitly seeded gradients for both operands without a CPU owner.
+close rejection. `FLOOR`, `CEIL`, `SIGN`, and `RELU` coverage executes both profiles through the
+production custom route across the full boundary corpus, forces each direct MPSGraph candidate
+independently, mixes raw and nested MPSGraph nodes in one recipe, and checks repeated/concurrent
+public Engine sessions, direct publication, input preservation, pre-invocation recovery, and close
+rejection. The retained exhaustive checker separately covers all `2^32` binary32 words with zero
+transform or partition failures. Binary coverage executes each of `ADD`, `SUB`, `MUL`, and `DIV`
+separately with row, column, and scalar-tensor broadcasting, operand reversal, chains, fan-out,
+repeated operands, published intermediates, repeated runs, exact input preservation, and an
+independent bounded DAZ/FTZ/signed-zero/NaN raw-bit oracle. Reduction coverage executes full,
+single-axis, multi-axis, empty-axis identity, keep-dimensions, and binding-resolved sum-to-Shape
+forms; it checks scalar four-byte publication, direct targets, positive-rank ABS/binary
+composition, repeated and concurrent sessions, exact copy identities, and strict-profile
+rejection. MATMUL coverage executes direct, left-transposed, right-transposed, and both-transposed
+rank-two forms through reusable executables, exact outputs, direct targets, and input preservation.
+Public CPU-free Metal-only Engine cases additionally exercise direct MATMUL, no-bias linear's
+visible right transpose, and explicitly seeded gradients for both operands without a CPU owner.
 
 ## Boundaries
 
@@ -420,9 +436,9 @@ The bridge itself implements no library discovery, package selection or extracti
 composition, mixed-owner schedule, CPU fallback, general custom-kernel framework, asynchronous
 API, buffer pool,
 persistent constant buffer, executable serialization, FLOAT16, BFLOAT16, masked/extrema/product
-reductions, unary algebra beyond exact profile-independent `NEG` and `ABS`, binary
-comparison/logical/scalar forms, strict/vector/batched/broadcast MATMUL, general backward
-execution, alias promise, or performance claim. Accelerator arithmetic, reductions, and rank-two
+reductions, unary algebra beyond exact profile-independent `NEG`, `ABS`, `FLOOR`, `CEIL`, `SIGN`,
+and `RELU`, binary comparison/logical/scalar forms, strict/vector/batched/broadcast MATMUL, general
+backward execution, alias promise, or performance claim. Accelerator arithmetic, reductions, and
 MATMUL do not imply strict IEEE subnormal preservation: Model-owned DAZ/FTZ applies at its declared
 boundaries; finite arithmetic may reassociate and use corresponding FMA choices; and NaN
 payload/sign are unspecified. Only a final exact-zero SUM/SUM_TO_SHAPE root with at least two

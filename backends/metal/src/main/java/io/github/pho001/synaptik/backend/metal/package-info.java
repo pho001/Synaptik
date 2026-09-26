@@ -2,16 +2,17 @@
  * Supplies explicit capability, configuration, and lifecycle integration for the Metal backend.
  *
  * <p>{@link io.github.pho001.synaptik.backend.metal.MetalCapabilityProvider} reports a common exact
- * domain under both profiles: parameterless {@code NEG} and {@code ABS}, {@code RESHAPE},
- * {@code EXPAND}, {@code PERMUTE}, {@code EXPAND_DIMS}, {@code SQUEEZE}, the explicit
- * {@code CONTIGUOUS} canonicalization barrier, canonical FLOAT32 {@code UNFOLD_AXIS} materializing
- * one normalized axis into exact floor-count windows with a trailing size axis, canonical
- * positive-rank {@code FLOAT32} data {@code GATHER} with canonical {@code INT32} indices,
- * canonical positive-rank {@code INT32}-to-{@code BOOL} {@code ONE_HOT}, canonical positive-rank
- * {@code SCATTER_ELEMENTS} replacement with ordered {@code FLOAT32}/{@code INT32}/{@code FLOAT32}
- * data, indices, and updates, exact FLOAT32 classification, BOOL logic, and FLOAT32 {@code WHERE}.
- * The seven BOOL-domain operations require canonical rank {@code 1..16}, right-aligned logic
- * broadcasting, and branch-first then condition WHERE broadcasting. UNFOLD_AXIS is bounded to
+ * domain under both profiles: parameterless {@code NEG}, {@code ABS}, {@code FLOOR}, {@code CEIL},
+ * {@code SIGN}, and {@code RELU}; {@code RESHAPE}, {@code EXPAND}, {@code PERMUTE},
+ * {@code EXPAND_DIMS}, {@code SQUEEZE}; the explicit {@code CONTIGUOUS} canonicalization barrier;
+ * canonical FLOAT32 {@code UNFOLD_AXIS} materializing one normalized axis into exact floor-count
+ * windows with a trailing size axis; canonical positive-rank {@code FLOAT32} data {@code GATHER}
+ * with canonical {@code INT32} indices; canonical positive-rank {@code INT32}-to-{@code BOOL}
+ * {@code ONE_HOT}; canonical positive-rank {@code SCATTER_ELEMENTS} replacement with ordered
+ * {@code FLOAT32}/{@code INT32}/{@code FLOAT32} data, indices, and updates; exact FLOAT32
+ * classification, BOOL logic, and FLOAT32 {@code WHERE}. The four discrete unary operations and
+ * the seven BOOL-domain operations require canonical rank {@code 1..16}; logic uses right-aligned
+ * broadcasting and WHERE uses branch-first then condition broadcasting. UNFOLD_AXIS is bounded to
  * input ranks {@code 1..15} and sizes {@code 1..16}, requires a positive step and
  * size-at-most-axis extent, returns a fresh canonical rank-plus-one value, and preserves exact
  * represented FLOAT32 bits. Scatter accepts only {@code ScatterReduction.NONE}, returns a
@@ -38,11 +39,12 @@
  * consume the stable declared value table in program order behind one Java/native run call.
  * Every logical intermediate is an assigned run-owned buffer; targets remain the direct assigned
  * buffers.
- * Every direct {@code NEG} or {@code ABS} operand/output and graph feed is canonical;
- * affine inputs may also be exact resolved zero-offset views produced earlier in the same maximal
- * partition. Affine outputs retain their exact Model view geometry, while {@code CONTIGUOUS}
- * produces canonical geometry. Metal lowers one complete profile-homogeneous partition as a typed
- * whole-partition program during preparation.</p>
+ * Every direct {@code NEG}, {@code ABS}, {@code FLOOR}, {@code CEIL}, {@code SIGN}, or
+ * {@code RELU} operand/output and graph feed is canonical; affine inputs may also be exact
+ * resolved zero-offset views produced earlier in the same maximal partition. Affine outputs retain
+ * their exact Model view geometry, while {@code CONTIGUOUS} produces canonical geometry. Metal
+ * lowers one complete profile-homogeneous partition as a typed whole-partition program during
+ * preparation.</p>
  *
  * <p>A package-private exhaustive catalog describes all 115 schema-fourteen operation kinds as
  * MPSGraph {@code DIRECT}, {@code COMPOSED}, or {@code UNAVAILABLE} and custom-kernel
@@ -88,8 +90,10 @@
  * decision-codec, and workload identity. Java rejects profile/schema mismatches before native
  * entry. ABI version five retains thirteen exports. Node schema version fourteen is one bounded
  * self-describing route-bearing image over stable type wires {@code 1..6}, operation wires
- * {@code 1..115}, and attribute wires {@code 0..41}; exactly wires {@code 1..34},
- * {@code 40..45}, and {@code 51} are executable. Backend-local workload, exact-policy, candidate,
- * compatibility, route-policy, and codec identities are version fifteen.</p>
+ * {@code 1..115}, and attribute wires {@code 0..41}. Native structural recipes execute exactly
+ * wires {@code 1..34}, {@code 38}, {@code 40..54}, {@code 56..63}, and {@code 65..68}; production
+ * capability remains exactly 45 operations: wires {@code 1..34}, {@code 40..45}, {@code 51}, and
+ * {@code 60..63}. Backend-local workload, exact-policy, candidate, compatibility, route-policy, and
+ * codec identities are version fifteen.</p>
  */
 package io.github.pho001.synaptik.backend.metal;

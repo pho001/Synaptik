@@ -69,8 +69,8 @@ import java.util.Objects;
  * normalized multi-axis (including empty identity), and binding-resolved sum-to-Shape forms. Their
  * input is canonical positive-rank {@code 1..16}; canonical outputs may be rank zero only as
  * locally produced reduction results. Strict reductions remain unsupported. Binary inputs and
- * outputs are canonical dense non-views with exact right-aligned broadcasting. {@code ABS} and
- * {@code NEG} descriptors remain canonical. An affine or contiguous input may be canonical or an
+ * outputs are canonical dense non-views with exact right-aligned broadcasting. The six exact
+ * unary descriptor pairs are canonical. An affine or contiguous input may be canonical or an
  * exact resolved zero-offset logical view; complete-partition analysis authenticates every
  * admitted view as a prior local affine result. Every admitted occurrence uses checked positive
  * extents. GATHER requires its exact replacement-axis output formula and matched data/output

@@ -3,21 +3,22 @@
 ## Outcome and supported scope
 
 The Metal backend executes one whole maximal profile-homogeneous Metal partition. Under both
-profiles the common exact domain contains parameterless `NEG` and `ABS`, `RESHAPE`, `EXPAND`,
-`PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, the explicit `CONTIGUOUS` canonicalization barrier, bounded
-canonical `FLOAT32` `UNFOLD_AXIS`, canonical positive-rank `FLOAT32` data `GATHER` with canonical
-`INT32` indices, canonical positive-rank `INT32`-to-`BOOL` `ONE_HOT`, canonical positive-rank
-`FLOAT32`/`INT32`/`FLOAT32` `SCATTER_ELEMENTS/NONE` replacement, exact FLOAT32 classification,
-BOOL logic, and FLOAT32 `WHERE`. The seven BOOL-domain operations accept only canonical rank
-`1..16`; logic uses right-aligned broadcasting, and WHERE broadcasts its branches before its
-condition. UNFOLD_AXIS accepts canonical input rank `1..15`, size `1..16`, positive step, and size
-no larger than the selected extent. Its fresh canonical output has the exact floor-count
-rank-plus-one Shape, repeats overlapping source representations, omits incomplete tails, applies
-no padding, and does not mutate its source. Graph feeds and direct `NEG` or `ABS` operands are
-canonical dense, zero-offset non-views. An affine or `CONTIGUOUS` input may also be an exact
-resolved zero-offset view produced by an earlier admitted affine node in the same partition.
-Affine outputs retain exact Model/Compiler logical view geometry. `CONTIGUOUS` has unchanged Shape
-and canonical output geometry; it must separate an affine view from `NEG` or `ABS`.
+profiles the common exact domain contains parameterless `NEG`, `ABS`, `FLOOR`, `CEIL`, `SIGN`, and
+`RELU`; `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE`; the explicit `CONTIGUOUS`
+canonicalization barrier; bounded canonical `FLOAT32` `UNFOLD_AXIS`; canonical positive-rank
+`FLOAT32` data `GATHER` with canonical `INT32` indices; canonical positive-rank `INT32`-to-`BOOL`
+`ONE_HOT`; canonical positive-rank `FLOAT32`/`INT32`/`FLOAT32` `SCATTER_ELEMENTS/NONE`
+replacement; exact FLOAT32 classification, BOOL logic, and FLOAT32 `WHERE`. The four discrete
+unary and seven BOOL-domain operation groups accept only canonical rank `1..16`; logic uses
+right-aligned broadcasting, and WHERE broadcasts its branches before its condition. UNFOLD_AXIS
+accepts canonical input rank `1..15`, size `1..16`, positive step, and size no larger than the
+selected extent. Its fresh canonical output has the exact floor-count rank-plus-one Shape, repeats
+overlapping source representations, omits incomplete tails, applies no padding, and does not mutate
+its source. Graph feeds and direct exact-unary operands are canonical dense, zero-offset non-views.
+An affine or `CONTIGUOUS` input may also be an exact resolved zero-offset view produced by an
+earlier admitted affine node in the same partition. Affine outputs retain exact Model/Compiler
+logical view geometry. `CONTIGUOUS` has unchanged Shape and canonical output geometry; it must
+separate an affine view from every exact unary.
 
 `ACCELERATOR` additionally admits tensor `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, and `MAX`; all six
 binary comparisons; exact FLOAT32 scalar `MIN`, `MAX`, and fused `CLAMP`; canonical FLOAT32
@@ -36,7 +37,8 @@ Operation capability remains narrower: the new BOOL inputs are canonical positiv
 custom logic writes exact zero or one, and FLOAT32 WHERE copies the selected represented word.
 Every descriptor is fully static and has the operation-specific exact type, layout, Shape, and
 gradient relationship. The common exact operations have the same Model result contract in both
-profiles; Task-0052 operations exist only under ACCELERATOR.
+profiles; Task-0052 operations exist only under ACCELERATOR. The complete 115-row capability
+ledger is `45 true / 70 false` under the exact occurrence restrictions above.
 
 ```text
 capability -> Planning ownership -> Metal analysis and typed candidates
@@ -47,7 +49,7 @@ capability -> Planning ownership -> Metal analysis and typed candidates
 ```
 
 Capability applies per occurrence. Preparation then authenticates the complete maximal partition
-that Planning forms: common NEG/ABS/affine/canonicalization/indexing/classification/logic/WHERE
+that Planning forms: common exact-unary/affine/canonicalization/indexing/classification/logic/WHERE
 graphs and, under accelerator, valid compositions with binary, comparison, extrema, scalar,
 reduction, scan, and MATMUL nodes, stable fan-out, repeated and ordered inputs, internal
 publications, and multiple feeds and targets. A positive-rank reduction result may compose with
@@ -56,25 +58,25 @@ BOOL comparison, ONE_HOT, classification, and logic values may publish or feed a
 BOOL-domain node. A local transpose accepted as a MATMUL operand must be produced inside the same
 partition from a canonical source, but its other valid affine consumers and boundary publication
 remain available. Scalar kinds other than exact FLOAT32 MIN/MAX/CLAMP; masked, product, and other
-reductions; every unary operation other than listed NEG and ABS; strict Task-0052 operations and
-strict MATMUL; vector or batched MATMUL; every window kind except bounded canonical FLOAT32
-UNFOLD_AXIS; indexing outside the listed exact rows; wire 73 scalar-index SELECT; INT64 indexing;
-profile-crossing operations; unsupported attributes/types; zero, scalar, or dynamic extents in the
-new BOOL domain; unresolved layout; noncanonical graph feeds; foreign views; mismatched
-descriptors; and multi-output forms remain fail-closed.
+reductions; every unary operation other than the six exact kinds listed above; strict Task-0052
+operations and strict MATMUL; vector or batched MATMUL; every window kind except bounded canonical
+FLOAT32 UNFOLD_AXIS; indexing outside the listed exact rows; wire 73 scalar-index SELECT; INT64
+indexing; profile-crossing operations; unsupported attributes/types; zero, scalar, or dynamic
+extents in the new exact domains; unresolved layout; noncanonical graph feeds; foreign views;
+mismatched descriptors; and multi-output forms remain fail-closed.
 
 Within that capability domain, Metal analysis generates a typed complete candidate batch
 and selects one of three private routes:
 
 - `CUSTOM_SINGLE_NEG` for exactly one NEG occurrence under either profile, one unique feed, one
   unique target, and a checked element count in `1..UINT32_MAX`;
-- `CUSTOM_PROGRAM` for a complete partition containing any Task-0052 node or any of the seven new
-  BOOL-domain nodes; or
+- `CUSTOM_PROGRAM` for a complete partition containing any Task-0052 node, any of the seven
+  BOOL-domain nodes, or exact raw `FLOOR`/`CEIL`/`SIGN`/`RELU`; or
 - `MPSGRAPH` for every other supported partition.
 
-The seven new nodes also expose a direct MPSGraph candidate only as an independently forceable
-package-private structural check for an exact single-node partition. Production ordering always
-selects `CUSTOM_PROGRAM`; no timing, cache, retry, or fallback can promote the structural route.
+The seven BOOL-domain and four exact raw unary nodes also expose direct MPSGraph candidates only as
+independently forceable package-private structural checks. Production ordering always selects
+`CUSTOM_PROGRAM`; no timing, cache, retry, or fallback can promote the structural route.
 The singleton NEG decision seam remains unchanged. Route choice is a prepare-time implementation-
 domain boundary, not capability narrowing, CPU fallback, retry, repartitioning, or a performance
 claim.
@@ -115,7 +117,7 @@ device discovery.
 
 | Stage or resource | Owner and current behavior |
 |---|---|
-| Capability truth | Public `MetalCapabilityProvider` reports the exact canonical FLOAT32 NEG/ABS/affine/`CONTIGUOUS`/bounded `UNFOLD_AXIS`, indexing, FLOAT32 classification, BOOL logic, and FLOAT32 WHERE domains under both profiles and the accelerator-only tensor-binary, Task-0052, reduction, and positive static rank-two MATMUL domains above. |
+| Capability truth | Public `MetalCapabilityProvider` reports the exact canonical FLOAT32 NEG/ABS/FLOOR/CEIL/SIGN/RELU, affine/`CONTIGUOUS`/bounded `UNFOLD_AXIS`, indexing, FLOAT32 classification, BOOL logic, and FLOAT32 WHERE domains under both profiles and the accelerator-only tensor-binary, Task-0052, reduction, and positive static rank-two MATMUL domains above. |
 | Native configuration and integration | Public `MetalBackendConfiguration` and `MetalBackendIntegration` belong to Metal. Metal validates configuration, opens native ownership, and rolls partial construction back before Engine can take the completed integration. |
 | Backend ownership | Planning chooses `owner = metal` and groups consecutive equal owners; it never selects MPSGraph or a custom kernel. |
 | Analysis | Package-private Metal code validates the complete partition, assigns stable structural value order, regenerates typed route candidates and session compatibility, authenticates any supplied decision, fixes one route, and declares that route's exact resources. |
@@ -217,9 +219,10 @@ result, lifecycle, or Engine production behavior.
 
 `MetalCapabilityProvider.supports` checks one occurrence, its numerical profile, and its exact
 descriptors. Under either profile it admits a resolved zero-offset view input only for affine or
-`CONTIGUOUS` occurrences because the query contains no graph closure; `NEG` and `ABS` require one
-canonical input and an equal canonical output. Exact `UNFOLD_AXIS` requires a canonical FLOAT32
-input of rank `1..15`, normalized axis, size `1..16`, positive step, size no larger than the selected
+`CONTIGUOUS` occurrences because the query contains no graph closure. Each exact unary requires one
+canonical positive-rank FLOAT32 input and one equal canonical FLOAT32 output with equal gradient
+eligibility. Exact `UNFOLD_AXIS` requires a canonical FLOAT32 input of rank `1..15`, normalized
+axis, size `1..16`, positive step, size no larger than the selected
 extent, equal input/output gradient eligibility, and the exact canonical rank-plus-one output with
 position count `floor((D-S)/T)+1`. Exact `GATHER` requires canonical positive-rank `FLOAT32` data,
 canonical positive-rank `INT32` indices, one normalized data axis, the exact axis-replacement output
@@ -245,19 +248,20 @@ The package-private `MetalOperationRouteCatalog` separately describes every one 
 schema-fourteen `NodeKind` values. Exhaustive enum switching yields shared immutable entries with
 closed MPSGraph state/reason and custom-kernel state/reason values: MPSGraph totals are
 `76 DIRECT / 34 COMPOSED / 5 UNAVAILABLE`; custom totals are
-`23 AVAILABLE / 92 PENDING / 0 UNAVAILABLE_WITH_PROOF`. The normative
+`27 AVAILABLE / 88 PENDING / 0 UNAVAILABLE_WITH_PROOF`. The normative
 [per-wire evidence audit](../planning/backends/metal/tasks/0056-route-evidence-audit.md) supplies
 the exact installed-SDK selector or finite composition and current Model source for every row.
 The closed MPSGraph reasons include a dedicated `MD_CAST` identity for wire 39, matching
 `SHAPE::castTensor:toType:name:` rather than classifying that selector as arithmetic.
 This catalog performs no capability admission and no selection. It is never consulted by Runtime;
-all 74 registered-but-nonexecutable kinds remain capability-false even when the catalog records a
-structurally direct or composed MPSGraph realization.
+70 kinds remain capability-false even when the catalog records a structurally direct or composed
+MPSGraph realization. Structural executable status separately covers 62 wires and never grants
+production ownership.
 
 After Planning creates one maximal Metal partition, analysis walks nodes in partition order with
 explicit unavailable, canonical, and affine-view states. Every view input must resolve to an
 earlier admitted affine producer in that exact partition; every graph feed is canonical;
-`CONTIGUOUS` produces canonical state; and `NEG` and `ABS` reject affine-view state.
+`CONTIGUOUS` produces canonical state; and every exact unary rejects affine-view state.
 `UNFOLD_AXIS` consumes and produces canonical FLOAT32 state and retains normalized axis, size, and
 step in its typed node. `GATHER` consumes canonical FLOAT32 data and canonical INT32 indices and
 produces canonical FLOAT32; `ONE_HOT` consumes canonical INT32 and produces canonical BOOL.
@@ -901,13 +905,15 @@ Related documentation:
 - [Metal task 0023](../planning/backends/metal/tasks/0023-exact-int32-gather-and-one-hot.md)
 - [Metal task 0024](../planning/backends/metal/tasks/0024-exact-int32-scatter-elements-replacement.md)
 - [Metal task 0025](../planning/backends/metal/tasks/0025-exact-float32-unfold-axis-materialization.md)
+- [Metal task 0058](../planning/backends/metal/tasks/0058-remaining-elementwise-arithmetic.md)
 - [Native ABI and build guide](../../native/metal-macos-arm64/README.md)
 
 ## Numerical profiles
 
 Metal capability and preparation make the listed exact canonical movement, affine, indexing,
-classification, BOOL logic, WHERE, and NEG/ABS rows common to both profile matrices.
-`ACCELERATOR` additionally admits tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`/`MIN`/`MAX`, all six
+classification, BOOL logic, WHERE, and `NEG`/`ABS`/`FLOOR`/`CEIL`/`SIGN`/`RELU` rows common to
+both profile matrices. `ACCELERATOR` additionally admits tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`/
+`MIN`/`MAX`, all six
 comparisons, scalar MIN/MAX/CLAMP, canonical FLOAT32 SUM/MEAN/MIN/MAX/SUM_TO_SHAPE, every
 CUM_SUM/CUM_PROD scan mode, and positive static rank-two FLOAT32 MATMUL with authenticated local
 transposes. These arithmetic routes remain inside Model's exact/discrete or recursive primitive/

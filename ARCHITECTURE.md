@@ -192,12 +192,13 @@ The following invariants must remain true:
   Planning queries, Compiler artifacts, Prepare contexts, and backend plan/cache identities retain
   it unchanged. For a fixed occurrence domain, every backend's `STRICT_IEEE` capability and allowed
   behavior are subsets of its `ACCELERATOR` capability and allowed behavior. CPU realizes both
-  profiles with identical exact behavior. Metal realizes exact canonical FLOAT32 `NEG`/`ABS`,
-  affine transforms, `CONTIGUOUS`, bounded general-axis `UNFOLD_AXIS` materialization, canonical
-  positive-rank FLOAT32 data GATHER with canonical INT32 indices, positive-rank INT32-to-BOOL
-  ONE_HOT, and canonical positive-rank FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE` replacement
-  under both profiles; under `ACCELERATOR` it additionally realizes canonical tensor FLOAT32
-  `ADD`/`SUB`/`MUL`/`DIV`, `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two MATMUL. Strict
+  profiles with identical exact behavior. Metal realizes exact canonical positive-rank FLOAT32
+  `NEG`/`ABS`/`FLOOR`/`CEIL`/`SIGN`/`RELU`, affine transforms, `CONTIGUOUS`, bounded general-axis
+  `UNFOLD_AXIS` materialization, canonical positive-rank FLOAT32 data GATHER with canonical INT32
+  indices, positive-rank INT32-to-BOOL ONE_HOT, and canonical positive-rank
+  FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE` replacement under both profiles; under
+  `ACCELERATOR` it additionally realizes canonical tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`,
+  `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two MATMUL. Strict
   binary/reduction/MATMUL and every other unsupported profile/operation pair fail closed. Metal
   UNFOLD_AXIS preserves addressed FLOAT32 representations in a fresh canonical output without
   mutating its source. Metal indexing validates complete bounds and scatter target uniqueness

@@ -210,3 +210,41 @@ raw checker and lifecycle/resource obligations pass, the local package is verifi
 current, commits are clean, and an independent cumulative Class C review approves with zero
 P0/P1/P2 findings. Gates B and C are recorded exact blockers; they do not permit occurrence
 narrowing, synthetic gradient metadata, or a hidden primitive-capability bypass.
+
+## Implementation evidence
+
+Implementation `13a2e540` lands all 21 scoped structural recipes and the four exact raw production
+operations. Schema 14, identity 15, ABI 5, route wire 3, and the thirteen exports are unchanged.
+The structural registry now has `62 executable / 53 nonexecutable`; the production capability
+ledger is exactly `45 true / 70 false = 115`.
+
+The catalog records exact custom availability only for `FLOOR`, `CEIL`, `SIGN`, and `RELU`, for
+new totals `27 AVAILABLE / 88 PENDING / 0 UNAVAILABLE_WITH_PROOF`. Scalar `ADD/SUB/MUL/DIV` and
+`RECIPROCAL` retain explicit gradient/public-primitive blockers; tensor/scalar power retains an
+unproved-power blocker; `LOG`, `LOG1P`, `EXPM1`, `ERF`, `SQRT`, `RSQRT`, and `TANH` retain
+irreducible elementary blockers; and `GELU`, `GELU_TANH_APPROXIMATION`, and `SILU` retain recursive
+site blockers. `EXP` and `SIGMOID` remain nonexecutable and Task-0053-owned.
+
+[`evidence/0058/proof.txt`](../evidence/0058/proof.txt) records the reproducible all-word checker
+source and production-source SHA-256 digests, compiler identity, exact command, partition counts,
+boundary count, output digests, and the result:
+
+```text
+words=4294967296 failures=0 partition_failures=0 covered=4294967296
+partitions nan=16777214 infinity=2 zero=2 below_one=2130706430 integral=1778384894 fractional=369098754
+digest=be418f313ebe8f30 boundary_words=2590 boundary_digest=8e08446771842252
+```
+
+Focused Metal capability/catalog/schema/malformed-image/route/fingerprint/native-output tests,
+backend conformance, and the no-skip public Engine integration test passed against the fresh
+dylib. The Engine case executed all four operations under both profiles through sole Metal
+ownership and `CUSTOM_KERNEL` trace identity, with exact outputs, direct publication, repeated and
+concurrent independent sessions, caller-input preservation, recovery after pre-invocation
+rejection, and close rejection. Mixed raw custom and nested MPSGraph execution and independently
+forced direct MPSGraph candidates passed. Structural raw fixtures created, ran, and closed every
+blocked recipe without granting production ownership.
+
+The focused Metal Javadoc generation, final native build, fixed ad-hoc signature, local package,
+native verifier, and Gradle package verifier passed. The packaged Mach-O retains ABI 5, schema 14
+manifest metadata, the fixed identifier, and exactly thirteen audited exports. No timing,
+benchmark, autotuning, fallback, retry, or final full repository build was run.

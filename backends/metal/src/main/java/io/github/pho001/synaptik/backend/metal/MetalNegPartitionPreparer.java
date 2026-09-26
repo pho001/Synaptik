@@ -57,17 +57,18 @@ import java.util.Optional;
  * <p>The deterministic analysis assigns stable native value indices, retains every node kind and
  * ordered operand, and derives unique feeds and targets before selecting a closed private route.
  * For both profiles, it walks explicit unavailable/canonical/affine-view states in node order for
- * the retained NEG/ABS, affine, CONTIGUOUS, UNFOLD_AXIS, GATHER, ONE_HOT, replacement
- * SCATTER_ELEMENTS, and exact classification/BOOL-logic/WHERE domain. Under {@code ACCELERATOR},
- * it additionally accepts existing arithmetic, reduction, and rank-two MATMUL plus the exact
- * Task-0052 comparisons, tensor/scalar extrema, clamp, reduction extrema, and cumulative scans.
- * An affine MATMUL operand is authenticated to the exact earlier local rank-two
- * {@code PERMUTE [1,0]} on that consuming edge. Schema-fourteen lowering emits one bounded
- * self-describing image over the stable type wires 1..6, complete operation registry 1..115,
- * attribute registry 0..41, and explicit prepared route. The current executable capability is
- * exactly 41 operation kinds. Graph feeds are canonical and explicitly typed. Rank-zero values
- * participate only where the existing non-BOOL operation capability permits them. Exact BOOL
- * results may feed the newly admitted logic and selection nodes or cross owner boundaries.
+ * the retained six exact unary operations, affine, CONTIGUOUS, UNFOLD_AXIS, GATHER, ONE_HOT,
+ * replacement SCATTER_ELEMENTS, and exact classification/BOOL-logic/WHERE domain. Under
+ * {@code ACCELERATOR}, it additionally accepts existing arithmetic, reduction, and rank-two
+ * MATMUL plus the exact Task-0052 comparisons, tensor/scalar extrema, clamp, reduction extrema,
+ * and cumulative scans. An affine MATMUL operand is authenticated to the exact earlier local
+ * rank-two {@code PERMUTE [1,0]} on that consuming edge. Schema-fourteen lowering emits one
+ * bounded self-describing image over the stable type wires 1..6, complete operation registry
+ * 1..115, attribute registry 0..41, and explicit prepared route. Production capability is exactly
+ * 45 operation kinds; the additional structural recipes remain inaccessible to this analysis.
+ * Graph feeds are canonical and explicitly typed. Rank-zero values participate only where the
+ * existing non-BOOL operation capability permits them. Exact BOOL results may feed the newly
+ * admitted logic and selection nodes or cross owner boundaries.
  * Analysis freshly regenerates the complete candidate batch. Every supplied handoff authenticates
  * its exact partition, schema, workload, profile, and session target; an absent decision preserves
  * the singleton-NEG heuristic, while a present decision must additionally authenticate its
