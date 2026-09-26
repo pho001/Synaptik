@@ -339,21 +339,25 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         MetalNegTuningBatch freshBatch = new MetalNegRouteCandidateGenerator()
                 .generate(context, heuristicPlan, MetalNegTuningBatch.Candidate.values().length);
         var suppliedHandoff = context.backendInputs().tuningHandoff();
-        if (suppliedHandoff.isPresent()
-                && suppliedHandoff.orElseThrow().selectedDecision().isPresent()) {
+        if (suppliedHandoff.isPresent()) {
             var handoff = suppliedHandoff.orElseThrow();
-            var decision = handoff.selectedDecision().orElseThrow();
             if (handoff.partition() != context.partition()
                     || !handoff.candidateBatch().compatibility()
-                            .equals(freshBatch.compatibility())
-                    || handoff.candidateBatch().find(decision.selectedCandidate()).isEmpty()) {
+                            .equals(freshBatch.compatibility())) {
                 throw new IllegalArgumentException(
                         "Metal NEG tuning handoff is stale or foreign");
             }
-            route = decision.match(freshBatch)
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "Metal NEG tuning decision is incompatible"))
-                    .route();
+            if (handoff.selectedDecision().isPresent()) {
+                var decision = handoff.selectedDecision().orElseThrow();
+                if (handoff.candidateBatch().find(decision.selectedCandidate()).isEmpty()) {
+                    throw new IllegalArgumentException(
+                            "Metal NEG tuning handoff is stale or foreign");
+                }
+                route = decision.match(freshBatch)
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "Metal NEG tuning decision is incompatible"))
+                        .route();
+            }
         }
         if (forcedRoute != null) {
             boolean approved = freshBatch.candidates().stream()

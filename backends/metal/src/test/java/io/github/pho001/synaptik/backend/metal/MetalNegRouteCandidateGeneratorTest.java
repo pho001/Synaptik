@@ -748,9 +748,26 @@ class MetalNegRouteCandidateGeneratorTest {
                             withInputs(workload, new MetalNegAnalysisInputs(
                                     device, Optional.of(foreignDecision))).context(),
                             MetalPreparedRoute.CUSTOM_SINGLE_NEG));
+            var foreignAbsent = new BackendPartitionTuningHandoff<
+                    MetalNegTuningBatch, MetalNegTuningDecision>(
+                    workload.context().partition(), foreign.batch(), Optional.empty());
+            assertThrows(IllegalArgumentException.class,
+                    () -> new MetalNegPartitionPreparer().analyzeForTesting(
+                            withInputs(workload, new MetalNegAnalysisInputs(
+                                    device, Optional.of(foreignAbsent))).context(),
+                            MetalPreparedRoute.CUSTOM_SINGLE_NEG));
 
             Workload changed = workload(device, 1000, Shape.of(9), false,
                     Optional.empty(), true, false, 1);
+            Generated changedGenerated = generated(changed, 2);
+            var changedAbsent = new BackendPartitionTuningHandoff<
+                    MetalNegTuningBatch, MetalNegTuningDecision>(
+                    workload.context().partition(), changedGenerated.batch(), Optional.empty());
+            assertThrows(IllegalArgumentException.class,
+                    () -> new MetalNegPartitionPreparer().analyzeForTesting(
+                            withInputs(workload, new MetalNegAnalysisInputs(
+                                    device, Optional.of(changedAbsent))).context(),
+                            MetalPreparedRoute.CUSTOM_SINGLE_NEG));
             assertThrows(IllegalArgumentException.class, () -> analyze(withInputs(changed,
                     new MetalNegAnalysisInputs(device, Optional.of(selected))).context()));
             assertEquals(0, api.nativeAllocations.get());
