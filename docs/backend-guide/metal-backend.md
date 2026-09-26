@@ -34,6 +34,25 @@ identities, BOOL-to/from every other carrier, `INT32`/`INT64` conversion in both
 `BFLOAT16 -> FLOAT32`; every other conversion remains false. CONCAT/STACK accept one through
 sixteen inputs. Operations other than SELECT/SLICE require canonical zero-offset non-view layouts.
 
+Task 0060 adds eight exact profile-common no-gradient production rows. Replacement-only
+`SCATTER_ND/NONE` preserves all six carriers with canonical `INT32` or `INT64` indices; it proves
+every tuple in range and every scalar destination globally unique before copying data or writing an
+update. `SLICE_UPDATE` preserves all six carriers for signed non-zero `SliceAttrs` steps and
+target-relative crop placement. Its update extents are positive; a zero-length SliceAttrs region is
+capability-false under the backend's positive-dimension schema invariant. `FOLD_AXIS`, `FOLD2D`,
+and `FOLD3D` preserve all six carriers only when every stride is at least the effective dilated
+window, making each in-bounds contributor a raw copy and every uncovered output cell the carrier's
+exact zero. Padding and ceiling grids are allowed; conceptual out-of-range contributors are
+skipped. `PROD` admits canonical `INT32`/`INT64` modular multiplication, while `ALL` and `ANY`
+admit canonical BOOL logic. These three reductions support full, normalized single-axis, and
+ordered normalized multi-axis forms, keep-dimensions, empty-axis point identity, and rank-zero
+identity. Empty axes do not admit any zero extent.
+
+Wires `111..115` (`LOG_SUM_EXP`, `VARIANCE`, `STANDARD_DEVIATION`, `L1_NORM`, and `L2_NORM`)
+now have package-private forceable MPSGraph recipes. The log-sum-exp composition is stable, and
+variance/deviation apply the exact correction scale when requested. They remain production-false:
+their floating primitive-site and complete result-set proofs are deliberately deferred.
+
 `ACCELERATOR` additionally admits tensor `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, and `MAX`; all six
 binary comparisons; exact FLOAT32 scalar `MIN`, `MAX`, fused `CLAMP`, and no-gradient
 `ADD`, `SUB`, `MUL`, and `DIV`; no-gradient `RECIPROCAL`; canonical FLOAT32 reductions; `CUM_SUM`
@@ -58,7 +77,7 @@ custom logic writes exact zero or one, and FLOAT32 WHERE copies the selected rep
 Every descriptor is fully static and has the operation-specific exact type, layout, Shape, and
 gradient relationship. The common exact operations have the same Model result contract in both
 profiles; Task-0052 operations and the no-gradient scalar/reciprocal subset exist only under
-ACCELERATOR. The complete 115-row capability ledger is `61 true / 54 false` under the exact
+ACCELERATOR. The complete 115-row capability ledger is `69 true / 46 false` under the exact
 occurrence restrictions above.
 
 ```text
@@ -78,14 +97,15 @@ other supported accelerator nodes; a scalar reduction result is a direct target 
 BOOL comparison, ONE_HOT, classification, and logic values may publish or feed another admitted
 BOOL-domain node. A local transpose accepted as a MATMUL operand must be produced inside the same
 partition from a canonical source, but its other valid affine consumers and boundary publication
-remain available. Scalar POW and non-FLOAT32 or gradient-bearing scalar arithmetic; masked,
-product, and other reductions; every unary operation other than the six exact profile-common kinds
-and accelerator no-gradient `RECIPROCAL`; strict Task-0052 and scalar/reciprocal operations;
-vector or batched MATMUL; fold and scatter-reduction kinds; `SLICE_UPDATE`; window kinds outside
-bounded `UNFOLD_AXIS`, `UNFOLD2D`, and `UNFOLD3D`; indexing outside the listed exact rows;
-profile-crossing operations; unsupported attributes/types; empty or dynamic extents in the new
-exact domains; unresolved, zero-stride, negative-stride, overlapping, or out-of-span SELECT/SLICE
-storage layouts; mismatched descriptors; and multi-output forms remain fail-closed.
+remain available. Scalar POW; non-FLOAT32 or gradient-bearing scalar arithmetic; masked,
+floating product, statistical, norm, log-sum-exp, and arg-extrema reductions; every unary
+operation other than the six exact profile-common kinds and accelerator no-gradient
+`RECIPROCAL`; strict Task-0052 and scalar/reciprocal operations; vector or batched MATMUL;
+arithmetic scatter and colliding replacement scatter; overlapping folds; zero-length
+`SLICE_UPDATE`; window kinds outside the admitted exact rows; indexing outside the listed exact
+rows; profile-crossing operations; unsupported attributes/types; zero or dynamic dimensions in
+the new exact domains; unresolved, zero-stride, negative-stride, overlapping, or out-of-span
+SELECT/SLICE storage layouts; mismatched descriptors; and multi-output forms remain fail-closed.
 
 Within that capability domain, Metal analysis generates a typed complete candidate batch
 and selects one of three private routes:
@@ -93,8 +113,8 @@ and selects one of three private routes:
 - `CUSTOM_SINGLE_NEG` for exactly one NEG occurrence under either profile, one unique feed, one
   unique target, and a checked element count in `1..UINT32_MAX`;
 - `CUSTOM_PROGRAM` for a complete partition containing any Task-0052 node, any of the seven
-  BOOL-domain nodes, exact raw `FLOOR`/`CEIL`/`SIGN`/`RELU`, or an admitted Task-0059
-  CAST/index/layout node; or
+  BOOL-domain nodes, exact raw `FLOOR`/`CEIL`/`SIGN`/`RELU`, or an admitted Task-0059/Task-0060
+  exact custom node; or
 - `MPSGRAPH` for every other supported partition.
 
 The seven BOOL-domain and four exact raw unary nodes also expose direct MPSGraph candidates only as
@@ -279,16 +299,16 @@ The package-private `MetalOperationRouteCatalog` separately describes every one 
 schema-fifteen `NodeKind` values. Exhaustive enum switching yields shared immutable entries with
 closed MPSGraph state/reason and custom-kernel state/reason values: MPSGraph totals are
 `75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE`; custom totals are
-`38 AVAILABLE / 77 PENDING / 0 UNAVAILABLE_WITH_PROOF`. The normative
+`46 AVAILABLE / 69 PENDING / 0 UNAVAILABLE_WITH_PROOF`. The normative
 [per-wire evidence audit](../planning/backends/metal/tasks/0056-route-evidence-audit.md) supplies
 the exact installed-SDK selector or finite composition and current Model source for every row.
 The closed MPSGraph reasons include a dedicated `MD_CAST` identity for wire 39, matching
 `SHAPE::castTensor:toType:name:` rather than classifying that selector as arithmetic. Wires
 `46..49` and `52` are finite compositions because they materialize one exact raw rank-one
 constant before the one arithmetic primitive. This catalog performs no capability admission and
-no selection. It is never consulted by Runtime; 54 kinds remain capability-false even when the
+no selection. It is never consulted by Runtime; 46 kinds remain capability-false even when the
 catalog records a structurally direct or composed MPSGraph realization. Structural executable
-status separately covers 79 wires with 36 nonexecutable rows and never grants production ownership.
+status separately covers 87 wires with 28 nonexecutable rows and never grants production ownership.
 
 After Planning creates one maximal Metal partition, analysis walks nodes in partition order with
 explicit unavailable, canonical, affine-view, and materialized-layout states. Ordinary graph feeds
@@ -710,8 +730,8 @@ sides, and consists of a 64-byte header, 40-byte value descriptors, 32-byte node
 and 64-bit attribute words. Each value descriptor carries layout presence, kind, view and dense-
 physical flags, stride-pool offset, storage offset, and referenced span. The header embeds fixed
 route wire `2` or `3`; schema 14, route zero, and every other schema or route fail closed.
-Production capability admits exactly 61 operation kinds while 54 remain false; structural native
-execution covers 79 kinds and leaves 36 nonexecutable. Attribute wires `0..41` and type wires
+Production capability admits exactly 69 operation kinds while 46 remain false; structural native
+execution covers 87 kinds and leaves 28 nonexecutable. Attribute wires `0..41` and type wires
 `1..6` cover all current Model signatures and carriers.
 
 Java and native code independently require exact operation/attribute/type/cardinality agreement,
@@ -910,22 +930,23 @@ owner-indexed mixed schedule in
 
 Accelerator support remains limited to the exact occurrence rows above. Strict binary arithmetic,
 every Task-0052 comparison/extrema/scalar/reduction-extrema/scan row, and MATMUL remain unsupported.
-Product, masked, statistical, Boolean, arg-extrema, and other reductions remain unsupported.
-Accelerator MATMUL is limited to positive static same-type rank two, exact contraction/output
-geometry, and canonical or authenticated local rank-two-transpose operands. Exact canonical ABS is
-the only broadly admitted accelerator unary operation and receives no numerical relaxation.
-Indexing under both profiles includes the listed GATHER, GATHER_ELEMENTS, GATHER_ND, ONE_HOT,
-replacement SCATTER_ELEMENTS, SELECT, positive-step SLICE, and UNFOLD_AXIS rows; arithmetic scatter
-and Scatter-ND remain false. Task-0059 raw movement and the nineteen proved casts are the only
-BFLOAT16/FLOAT64, INT64-index, or cross-carrier computation added here. Metal still has no FLOAT16
-computation, unproved cross-carrier conversion, zero-extent, dynamic-shape, unresolved-layout,
-zero-stride, negative-stride, overlapping storage-layout, or multi-output support outside the exact
-domains above.
-Variadic support is limited to the explicit one-through-sixteen CONCAT/STACK domain. Scalar rank
-remains limited to Task-0059 CAST,
-empty-width PAD, empty-repeat TILE, valid GATHER_ND results, scalar STACK input, locally produced
-direct reduction targets, and typed transfer/materialization. Scalar PAD/TILE are one-element
-identities. The fixed shared custom route is not a general custom-kernel
+Masked, floating product, statistical, norm, log-sum-exp, arg-extrema, and other unlisted
+reductions remain unsupported. Accelerator MATMUL is limited to positive static same-type rank two,
+exact contraction/output geometry, and canonical or authenticated local rank-two-transpose
+operands. Exact canonical ABS is the only broadly admitted accelerator unary operation and
+receives no numerical relaxation. Indexing under both profiles includes the listed GATHER,
+GATHER_ELEMENTS, GATHER_ND, ONE_HOT, replacement SCATTER_ELEMENTS and SCATTER_ND, SELECT,
+positive-step SLICE, signed SLICE_UPDATE, and UNFOLD_AXIS rows; arithmetic scatter remains false.
+Task-0059 raw movement, the nineteen proved casts, and Task-0060 raw replacement/fold rows are the
+only BFLOAT16/FLOAT64, INT64-index, or cross-carrier computation added here. Metal still has no
+FLOAT16 computation, unproved cross-carrier conversion, zero-extent, dynamic-shape,
+unresolved-layout, zero-stride, negative-stride, overlapping storage-layout, or multi-output
+support outside the exact domains above. Variadic support is limited to the explicit
+one-through-sixteen CONCAT/STACK domain. Scalar rank remains limited to Task-0059 CAST, empty-width
+PAD, empty-repeat TILE, valid GATHER_ND results, scalar STACK input, locally produced direct
+reduction targets, Task-0060 empty-axis reduction identities, and typed transfer/materialization.
+Scalar PAD/TILE are one-element identities.
+The fixed shared custom route is not a general custom-kernel
 framework: cold preparation owns the reviewed kernels and interleaved existing-node executables,
 every logical value has a declared assigned buffer, and hot Java execution makes one synchronous
 native call with no host staging, retry, fallback, or hidden materialization.

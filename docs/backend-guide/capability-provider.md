@@ -255,13 +255,16 @@ ignoring the profile or inferring support from `DeviceClass`. The current CPU pr
 same exact answer under `STRICT_IEEE` and `ACCELERATOR`.
 
 The current Metal provider admits the exact common unary, affine, canonicalization, indexing,
-BOOL-domain, and Task-0059 raw movement rows under both profiles. Task-0059 includes nineteen
-proved CAST carrier pairs, exact typed GATHER_ELEMENTS/GATHER_ND, all-carrier copy operations, and
-all-carrier SELECT/positive-step SLICE with resolved positive-stride non-overlapping storage
-layouts. Accelerator additionally admits tensor FLOAT32 ADD/SUB/MUL/DIV/MIN/MAX; all six
-comparisons; scalar MIN/MAX/CLAMP; SUM/MEAN/MIN/MAX/SUM_TO_SHAPE; CUM_SUM/CUM_PROD; and bounded
-rank-two MATMUL. Complete-partition analysis authenticates each affine MATMUL operand to its local
-producer and restricts BOOL values to canonical positive-rank compositions. The common dispatch
+BOOL-domain, Task-0059 raw movement, and Task-0060 replacement/fold/aggregate rows under both
+profiles. Task-0059 includes nineteen proved CAST carrier pairs, exact typed
+GATHER_ELEMENTS/GATHER_ND, all-carrier copy operations, and all-carrier SELECT/positive-step SLICE
+with resolved positive-stride non-overlapping storage layouts. Task-0060 adds all-carrier
+replacement SCATTER_ND, signed SLICE_UPDATE/crop placement, and statically non-overlapping folds;
+modular INT32/INT64 PROD; and BOOL ALL/ANY. Empty aggregate axes are point identities, not
+zero-extent admission. Accelerator additionally admits tensor FLOAT32 ADD/SUB/MUL/DIV/MIN/MAX;
+all six comparisons; scalar MIN/MAX/CLAMP; SUM/MEAN/MIN/MAX/SUM_TO_SHAPE; CUM_SUM/CUM_PROD; and
+bounded rank-two MATMUL. Complete-partition analysis authenticates each affine MATMUL operand to
+its local producer and restricts BOOL values to canonical compositions. The common dispatch
 precedes the profile branch, so every strict-positive answer remains accelerator-positive. Every
 unlisted occurrence is false; accelerator identity never means generic fast math. ABI 5 retains
 the thirteen export names and consumes one bounded schema-15 route-bearing program image.

@@ -10,17 +10,17 @@ complete variable-cardinality operation, attribute, reference, dimension, gradie
 storage-layout metadata; no native type, shape, or layout inference is part of the boundary.
 
 The schema registry reserves operation wires `1..115` and attribute wires `0..41`. The native graph
-creator has 79 structural recipes: wires `1..34`, `38..54`, `56..63`, and `65..84`.
-Structural-only raw fixtures do not widen capability. Java production capability is exactly 61
-operation kinds. Task 0059 adds wire `39`, exact read-only indexing wires `69` and `71`, and exact
-copy-only layout wires `73..75`, `77..79`, `81`, and `83`; the other Task-0059 wires remain
-capability-false even though their structural MPSGraph recipes create and run. Most admitted
-Task-0059 occurrences use static canonical no-gradient descriptors. SELECT and positive-step SLICE
-instead use fully static, positive-rank, positive-stride, non-overlapping storage layouts whose
-encoded offset, stride, kind, view flag, and referenced span exactly match the operation.
-Unresolved, zero-stride, negative-stride, overlapping, empty, or gradient-bearing SELECT/SLICE
-occurrences fail closed. The remaining 54 production rows fail closed before native creation. A
-structurally valid registered operation without a native recipe returns the dedicated
+creator has 87 structural recipes: wires `1..34`, `38..54`, `56..63`, `65..84`, `106..108`, and
+`111..115`. Structural-only raw fixtures do not widen capability. Java production capability is
+exactly 69 operation kinds. Task 0059 adds wire `39`, exact read-only indexing wires `69` and `71`,
+and exact copy-only layout wires `73..75`, `77..79`, `81`, and `83`. Task 0060 additionally admits
+replacement/fold wires `72`, `76`, `80`, `82`, and `84`, plus exact aggregate wires `106..108`.
+Most admitted Task-0059/Task-0060 occurrences use static canonical no-gradient descriptors. SELECT
+and positive-step SLICE instead use fully static, positive-rank, positive-stride, non-overlapping
+storage layouts whose encoded offset, stride, kind, view flag, and referenced span exactly match
+the operation. Unresolved, zero-stride, negative-stride, overlapping, empty, or gradient-bearing
+SELECT/SLICE occurrences fail closed. The remaining 46 production rows fail closed before native
+creation. A structurally valid registered operation without a native recipe returns the dedicated
 unsupported-operation status rather than masquerading as malformed input.
 Candidate and route identity are version 16. Java owns exactly three prepared-route identities:
 custom singleton NEG wire 1, MPSGraph wire 2, and shared custom-program wire 3. Schema 15 embeds
@@ -28,10 +28,10 @@ wire 2 or 3 in each graph image; schema 14 and every other schema or route value
 exhaustive Java structural catalog adds no native route selection, capability, autotuning, fallback,
 telemetry, or performance authority.
 
-For admitted Task-0059 nodes, the version-16 workload signature binds operation wire, source/target
-carrier types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes,
-exact scalar bits, variadic input order/count, and complete encoded storage-layout geometry. The
-schema-15 and identity-16 cutover has no compatibility reader or migration alias.
+For admitted Task-0059/Task-0060 nodes, the version-16 workload signature binds operation wire,
+source/target carrier types and widths, every Shape, normalized axis/batch/tuple fact, complete raw
+attributes, exact scalar bits, variadic input order/count, and complete encoded storage-layout
+geometry. The schema-15 and identity-16 cutover has no compatibility reader or migration alias.
 
 ```text
 Java analysis -> choose fixed whole-partition route -> declare every exact resource
@@ -219,6 +219,18 @@ and scalar STACK input are supported; scalar SELECT/SLICE results, scalar CONCAT
 inputs are not. Scalar PAD/TILE are exact one-element identities. Every new production occurrence
 is static and no-gradient; operations other than SELECT/SLICE remain canonical.
 
+Task 0060 adds exact custom execution for replacement-only SCATTER_ND and signed SLICE_UPDATE
+(including crop placement) over all six carriers. Scatter accepts canonical INT32/INT64 indices
+and preflights every tuple's bounds plus global scalar-destination uniqueness before its initial
+copy or any replacement. Slice updates require positive update extents, signed non-zero steps, and
+an exact in-bounds mapping; zero-length SliceAttrs updates are rejected by the positive-dimension
+schema. FOLD_AXIS, FOLD2D, and FOLD3D accept all six carriers only when every stride is at least
+the effective dilated kernel. Their output-centric kernels give each output cell one writer,
+copy its sole in-bounds contributor, skip conceptual padding, and otherwise write the carrier's
+exact zero. INT32/INT64 PROD uses stable row-major fixed-width modular multiplication. BOOL ALL/ANY
+use exact zero/one identities and stable row-major logical reduction. Empty axes are raw point
+copies on positive-dimensional or rank-zero tensors and never imply zero-extent support.
+
 The prior FLOAT32 scalar `ADD/SUB/MUL/DIV` and `RECIPROCAL` domain remains canonical rank `1..16`
 with equal input/output Shape and no-gradient input and output. Each scalar arithmetic recipe
 creates one exact four-byte raw FLOAT32 MPSGraph constant with Shape `[1]` and applies exactly one
@@ -229,11 +241,13 @@ materialized. The four exact raw discrete unaries require canonical FLOAT32 rank
 input/output Shape and gradient eligibility, and no attributes.
 
 Raw structural fixtures additionally create prior wires `38`, `50`, `53..54`, `56..59`, and
-`65..68` only under ACCELERATOR, plus all Task-0059 wires `39` and `69..84` under both profiles.
+`65..68` only under ACCELERATOR, all Task-0059 wires `39` and `69..84` under both profiles,
+production-exact aggregate wires `106..108`, and structural-only wires `111..115`.
 Task-0059 recipes cover direct cast/index/pad/slice/concat/tile/im2col/col2im selectors and explicit
-stack, fold-axis, and 3D-window compositions. Structural creation and execution do not widen
-production capability: scatter, slice-update, and fold rows stay false, as do power and
-elementary/recursive result sets without their separate proofs.
+stack, fold-axis, and 3D-window compositions. Task-0060 adds stable log-sum-exp, correction-aware
+variance/standard-deviation, and L1/L2 norm structural compositions. Structural creation and
+execution do not widen production capability: wires `111..115`, scatter reductions, overlapping
+folds, floating PROD, non-BOOL ALL/ANY, and every unproved recursive result set remain false.
 
 ### Status values
 
@@ -341,29 +355,31 @@ capability narrowing, tuning, fallback, or a performance claim.
 ## Shared exact custom whole-program execution
 
 Any schema-15 program containing a Task-0052 wire, one of wires `40..45` and `51`, or an admitted
-Task-0059 custom wire uses one retained custom-program handle. Creation compiles only fixed reviewed
-Metal kernels with `MTLMathModeSafe`, creates one immutable pipeline and metadata buffer per custom
-node, and cold-compiles each interleaved existing node as a typed one-node MPSGraph executable.
-Java declares and assigns a run-owned buffer for every logical intermediate and a native-address
-workspace for the stable value table plus direct target aliases. The fixed route crosses in the
-authenticated schema image; no source text, function name, hidden intermediate, or input-dependent
-choice crosses the ABI.
+Task-0059/Task-0060 custom wire uses one retained custom-program handle. Creation compiles only
+fixed reviewed Metal kernels with `MTLMathModeSafe`, creates one immutable pipeline and metadata
+buffer per custom node, and cold-compiles each interleaved existing node as a typed one-node
+MPSGraph executable. Java declares and assigns a run-owned buffer for every logical intermediate
+and a native-address workspace for the stable value table plus direct target aliases. The fixed
+route crosses in the authenticated schema image; no source text, function name, hidden
+intermediate, or input-dependent choice crosses the ABI.
 
 One Java/native run call authenticates the complete value table and exact direct targets, rejects
 one physical buffer reused by distinct live value entries, and preserves each target's required
 output alias to its own table entry. Before any dispatch or write, it scans every caller BOOL feed
-consumed by a BOOL-domain node and rejects every byte other than zero or one. The hot native route
-consumes supplied handles directly without allocating a mirror collection, executes stable program
-order, and submits consecutive custom nodes through one framework command buffer. Interleaved
-existing nodes execute their already-compiled resource internally; Java performs no per-node
-downcall. Classification and exact discrete unary kernels inspect raw FLOAT32 words, logic writes
-exact zero/one bytes, exact unary kernels preserve the Model-required raw classes, and WHERE copies
-the selected branch word without floating arithmetic. Internal BOOL producers are closed: custom
-comparison/classification/logic kernels write exact zero or one, while the owned nested ONE_HOT
-selector is constructed with typed BOOL zero/one constants. Arbitrary framework BOOL producers
-cannot enter the recipe. Direct candidates for all eleven custom-domain nodes remain
+consumed by a BOOL-domain node and rejects every byte other than zero or one. SCATTER_ND likewise
+preflights the complete index tensor for bounds and duplicate destinations before its copy stage.
+The hot native route consumes supplied handles directly without allocating a mirror collection,
+executes stable program order, and submits consecutive custom nodes through one framework command
+buffer. Interleaved existing nodes execute their already-compiled resource internally; Java
+performs no per-node downcall. Classification and exact discrete unary kernels inspect raw FLOAT32
+words, logic writes exact zero/one bytes, exact unary kernels preserve the Model-required raw
+classes, replacement and non-overlap fold kernels preserve carrier words, and WHERE copies the
+selected branch word without floating arithmetic. Internal BOOL producers are closed: custom
+comparison/classification/logic/reduction kernels write exact zero or one, while the owned nested
+ONE_HOT selector is constructed with typed BOOL zero/one constants. Arbitrary framework BOOL
+producers cannot enter the recipe. Direct candidates for custom-domain nodes remain
 package-private structural regressions and never replace the production custom route. There is no
-host staging, retry, fallback, or hot compilation.
+host staging, retry, fallback, hot compilation, atomic update, or multi-writer output cell.
 
 ## Task-0053 proof-gated source
 
