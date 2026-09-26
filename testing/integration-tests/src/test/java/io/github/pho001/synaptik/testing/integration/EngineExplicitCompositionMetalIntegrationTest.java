@@ -1784,6 +1784,11 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     arena,
                     1, 2, 3, 4, 5, 6,
                     7, 8, 9, 10, 11, 12);
+            Tensor batchedLinearLeft = nativeTensor(
+                    descriptor(Shape.of(2, 2, 3)),
+                    arena,
+                    1, 2, 3, 4, 5, 6,
+                    7, 8, 9, 10, 11, 12);
             Tensor batchedRight = nativeTensor(
                     descriptor(Shape.of(1, 3, 2), true),
                     arena,
@@ -1815,6 +1820,14 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     descriptor(Shape.of(3), true), arena, 1, 2, 3);
             Tensor matrixVectorSeed = nativeTensor(
                     descriptor(Shape.of(2)), arena, 1, 10);
+            Tensor dotLeft = nativeTensor(
+                    descriptor(Shape.of(3), true), arena, 1, 2, 3);
+            Tensor dotRight = nativeTensor(
+                    descriptor(Shape.of(3), true), arena, 4, 5, 6);
+            Tensor dotSeed = nativeTensor(
+                    descriptor(Shape.scalar()), arena, 2);
+            Tensor linearBias = nativeTensor(
+                    descriptor(Shape.of(2)), arena, 10, 20);
 
             try (Engine.Builder builder = Engine.builder()) {
                 builder.numericalProfile(NumericalProfile.ACCELERATOR);
@@ -1832,6 +1845,21 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                                     vectorLeft, vectorRight, mixedSource, mixedRight))) {
                         assertPublication(result, 0, 32);
                         assertPublication(result, 1, 17, 39);
+                    }
+
+                    Tensor dot = dotLeft.matmul(dotRight);
+                    var dotGradients = engine.compile(
+                            List.of(dot),
+                            List.of(dotSeed),
+                            List.of(dotLeft, dotRight));
+                    assertEquals(
+                            List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(dotGradients));
+                    try (InferenceSession session = engine.session(dotGradients);
+                            var result = session.run(List.of(dotSeed, dotRight, dotLeft))) {
+                        assertPublication(result, 0, 32);
+                        assertPublication(result, 1, 8, 10, 12);
+                        assertPublication(result, 2, 2, 4, 6);
                     }
 
                     var gradients = engine.compile(
@@ -1861,7 +1889,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     var composed = engine.compile(List.of(
                             explicitSource.permute(1, 0).matmul(explicitRight),
                             nestedLeft.matmul(nestedRight).floor(),
-                            batchedLeft.linear(linearWeight)));
+                            batchedLinearLeft.linear(linearWeight, linearBias)));
                     assertEquals(
                             List.of("metal"),
                             EngineMixedOwnerTestAccess.partitionOwners(composed));
@@ -1871,14 +1899,15 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                                     explicitRight,
                                     nestedLeft,
                                     nestedRight,
-                                    batchedLeft,
-                                    linearWeight))) {
+                                    batchedLinearLeft,
+                                    linearWeight,
+                                    linearBias))) {
                         assertPublication(result, 0, 321, 654);
                         assertPublication(result, 1, 1, 2, 3, 4);
                         assertPublication(
                                 result, 2,
-                                4, 5, 10, 11,
-                                16, 17, 22, 23);
+                                14, 25, 20, 31,
+                                26, 37, 32, 43);
                     }
 
                     Tensor vectorMatrix = vectorMatrixLeft.matmul(vectorMatrixRight);
@@ -1945,6 +1974,29 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     }
                 }
             }
+
+            try (Engine.Builder builder = Engine.builder()) {
+                builder.takeOwnership(MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library)));
+                try (Engine engine = builder.build()) {
+                    var compiled = engine.compile(List.of(
+                            intLeft.matmul(intRight),
+                            promotedLeft.matmul(promotedRight)));
+                    assertEquals(
+                            List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(compiled));
+                    try (InferenceSession session = engine.session(compiled);
+                            var result = session.run(List.of(
+                                    intLeftSource, intRight, promotedLeft, promotedRight))) {
+                        ByteBuffer intResult = result.materialize(
+                                result.publications().get(0), Integer.BYTES).bytes();
+                        ByteBuffer longResult = result.materialize(
+                                result.publications().get(1), Long.BYTES).bytes();
+                        assertEquals(4, intResult.getInt());
+                        assertEquals(11L, longResult.getLong());
+                    }
+                }
+            }
         }
     }
     @Test
@@ -1965,6 +2017,12 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     Shape.of(2, 2), arena, 1, 2, 3, 4);
             Tensor doubleRight = nativeDoubleTensor(
                     Shape.of(2, 1), arena, 5, 6);
+            Tensor bfloatGradientSeed = nativeBfloatTensor(
+                    Shape.of(2, 1), arena, 1, 1);
+            Tensor doubleGradientLeft = nativeDoubleTensor(
+                    Shape.of(2, 2), true, arena, 1, 2, 3, 4);
+            Tensor doubleGradientSeed = nativeDoubleTensor(
+                    Shape.of(2, 1), arena, 1, 1);
             Shape zeroLeftShape = Shape.of(2, 0);
             Shape zeroRightShape = Shape.of(0, 1);
             Tensor zeroLeft = symbolic(new TensorDescriptor(
@@ -2007,6 +2065,18 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                     assertThrows(
                             IllegalStateException.class,
                             () -> engine.compile(List.of(doubleLeft.matmul(doubleRight))));
+                    assertThrows(
+                            IllegalStateException.class,
+                            () -> engine.compile(
+                                    List.of(mixedGradientLeft.matmul(bfloatRight)),
+                                    List.of(bfloatGradientSeed),
+                                    List.of(mixedGradientLeft)));
+                    assertThrows(
+                            IllegalStateException.class,
+                            () -> engine.compile(
+                                    List.of(doubleGradientLeft.matmul(doubleRight)),
+                                    List.of(doubleGradientSeed),
+                                    List.of(doubleGradientLeft)));
                     assertThrows(
                             IllegalStateException.class,
                             () -> engine.compile(List.of(
@@ -2887,11 +2957,16 @@ final class EngineExplicitCompositionMetalIntegrationTest {
 
     private static Tensor nativeDoubleTensor(
             Shape shape, Arena arena, double... values) {
+        return nativeDoubleTensor(shape, false, arena, values);
+    }
+
+    private static Tensor nativeDoubleTensor(
+            Shape shape, boolean requiresGrad, Arena arena, double... values) {
         TensorDescriptor descriptor = new TensorDescriptor(
                 DataType.FLOAT64,
                 shape,
                 Optional.of(LayoutDescriptor.contiguous(shape)),
-                false);
+                requiresGrad);
         var segment = arena.allocate(
                 Math.multiplyExact(values.length, Double.BYTES), Double.BYTES);
         for (int index = 0; index < values.length; index++) {

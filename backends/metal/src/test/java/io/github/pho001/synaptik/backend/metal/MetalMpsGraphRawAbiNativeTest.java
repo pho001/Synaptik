@@ -430,9 +430,9 @@ class MetalMpsGraphRawAbiNativeTest {
                 program,
                 new int[] {0, 2},
                 new int[] {3},
-                MetalPreparedRoute.CUSTOM_PROGRAM);
+                MetalPreparedRoute.MPSGRAPH);
         byte[] valid = program.encodedProgramImage(
-                values, new int[] {0, 2}, new int[] {3}, MetalPreparedRoute.CUSTOM_PROGRAM);
+                values, new int[] {0, 2}, new int[] {3}, MetalPreparedRoute.MPSGRAPH);
 
         int transposeDescriptor =
                 MetalMpsGraphProgram.HEADER_BYTES + MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES;
@@ -567,7 +567,7 @@ class MetalMpsGraphRawAbiNativeTest {
                             program,
                             new int[] {0, 2},
                             new int[] {3},
-                            MetalPreparedRoute.CUSTOM_PROGRAM));
+                            MetalPreparedRoute.MPSGRAPH));
         }
         var direct = new MetalMpsGraphProgram(List.of(matmulNode(0, 1, 2)));
         assertThrows(IllegalArgumentException.class, () ->

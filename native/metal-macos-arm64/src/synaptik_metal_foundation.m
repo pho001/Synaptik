@@ -2785,17 +2785,10 @@ static int32_t synaptik_metal_create_decoded(
                         && node.operation != SYNAPTIK_METAL_MPSGRAPH_MATMUL)
                     local_transpose[value] = 3U;
             }
-            BOOL transposed_matmul =
-                    node.operation == SYNAPTIK_METAL_MPSGRAPH_MATMUL
-                    && (local_transpose[node.first_input] != 0U
-                            || (node.second_input < value_count
-                                    && local_transpose[node.second_input] != 0U));
-            BOOL custom_node = node_uses_custom_kernel(node, shapes, value_types)
-                    || transposed_matmul;
+            BOOL custom_node = node_uses_custom_kernel(node, shapes, value_types);
             if (route == SYNAPTIK_METAL_ROUTE_MPSGRAPH
                     && (!operation_has_direct_mpsgraph(node.operation)
-                            || matmul_uses_custom_kernel(node, shapes, value_types)
-                            || transposed_matmul))
+                            || matmul_uses_custom_kernel(node, shapes, value_types)))
                 return SYNAPTIK_METAL_STATUS_UNSUPPORTED_OPERATION;
             if (route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM && custom_node)
                 contains_custom = YES;

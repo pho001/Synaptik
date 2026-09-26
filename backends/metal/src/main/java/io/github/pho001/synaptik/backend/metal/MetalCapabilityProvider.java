@@ -1492,8 +1492,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                         || carrierType == DataType.BFLOAT16
                         || carrierType == DataType.INT32
                         || carrierType == DataType.INT64);
+        boolean scalarExpandDims = operation.kind() == AxisTransformKind.EXPAND_DIMS
+                && input.shape().rank() == 0;
         if ((!carrierPermute && carrierType != DataType.FLOAT32)
-                || !affineInput(input, carrierType)
+                || !affineInput(input, carrierType, scalarExpandDims)
                 || !geometry(output, carrierType, false)
                 || input.requiresGrad() != output.requiresGrad()) {
             return false;
@@ -1620,8 +1622,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         return output.layout().orElseThrow().equals(expected);
     }
 
-    private static boolean affineInput(TensorDescriptor descriptor, DataType dataType) {
-        if (!geometry(descriptor, dataType, false)) {
+    private static boolean affineInput(
+            TensorDescriptor descriptor, DataType dataType, boolean allowScalar) {
+        if (!geometry(descriptor, dataType, allowScalar)) {
             return false;
         }
         LayoutDescriptor layout = descriptor.layout().orElseThrow();

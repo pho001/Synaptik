@@ -752,14 +752,6 @@ abstract class MetalNativeApi implements AutoCloseable {
                                     "Metal MATMUL affine inputs must be authenticated local"
                                             + " last-two-axis transposes");
                         }
-                        boolean transposedInput = localTranspose[left] || localTranspose[right];
-                        if (transposedInput) {
-                            containsCustomOperation = true;
-                            if (route == MetalPreparedRoute.MPSGRAPH) {
-                                throw new IllegalArgumentException(
-                                        "transposed MATMUL requires the custom program route");
-                            }
-                        }
                         requireShape(
                                 matmulMatches(
                                         left, right, output, valueRanks, valueDimensions),

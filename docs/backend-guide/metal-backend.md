@@ -352,11 +352,11 @@ consuming a caller position. Existing shared `GraphPreparation` tests independen
 chain `CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
 Once stable values, states, feeds, targets, checked byte geometry, and typed node records are known,
-analysis creates a version-seventeen candidate batch and workload fingerprint. Partitions without
-an exact custom node or custom-only MATMUL retain the ordinary MPSGraph candidate, with the existing
-bounded singleton-NEG alternative where eligible. A partition containing an exact custom node,
-an authenticated local MATMUL transpose, or MATMUL outside the direct canonical all-FLOAT32
-rank-two slice has the fixed `CUSTOM_PROGRAM` production candidate.
+analysis creates a version-seventeen candidate batch and workload fingerprint.
+Partitions without an exact custom node or custom-only MATMUL retain the ordinary MPSGraph
+candidate, with the existing bounded singleton-NEG alternative where eligible. A partition
+containing an exact custom node or MATMUL outside the all-FLOAT32 rank-two slice has the fixed
+`CUSTOM_PROGRAM` production candidate.
 An exact singleton custom node may add `MPSGRAPH` second for package-private structural forcing
 only; tuning cannot select it.
 
@@ -411,7 +411,7 @@ model-plan path. Cross-session Metal reuse still requires a separately authorize
 device/library fingerprint.
 
 Schema-fifteen workload bytes and workload compatibility include the fixed route. Candidate and
-decision bytes retain route wires `1..3`, route-policy version sixteen, and the target session.
+decision bytes retain route wires `1..3`, route-policy version seventeen, and the target session.
 Prepared plans and native resources are route-specific. A future executable-cache key would
 therefore require the tuple `(workload compatibility, route wire, route-policy version, target
 session)` rather than a workload digest alone. The repository has no persistent Metal executable
@@ -631,15 +631,15 @@ additionally executes FLOAT32/FLOAT32 with gradient eligibility equal to the inp
 no-gradient BFLOAT16/FLOAT32 or FLOAT32/BFLOAT16 with FLOAT32 output. Each logical operand may be
 canonical or the exact local identity-prefix, last-two-axis transpose of a canonical source.
 
-Canonical all-FLOAT32 rank-two matrix products retain one MPSGraph MATMUL node. An authenticated
-local transpose makes the partition custom so the kernel consumes the canonical physical source
-through the authenticated logical strides without materializing the alias. Every other newly
-admitted geometry or carrier pair uses the same fixed safe-math custom kernel, one output writer per
-logical cell, increasing contraction order, exact broadcast coordinates, physical offset/stride
-addressing, and canonical output storage. The four integer signatures operate on raw unsigned words
-so overflow is defined modularly; the two mixed signatures widen BFLOAT16 exactly before FLOAT32
-arithmetic. There is no tiling, atomics, fallback, runtime selection, or hidden transpose
-materialization.
+All-FLOAT32 rank-two matrix products retain the pre-existing MPSGraph MATMUL route, including exact
+authenticated local left, right, or both-operand transposes; MPSGraph consumes their canonical
+physical sources through the authenticated logical metadata without materializing the aliases.
+Every other newly admitted geometry or carrier pair uses the fixed safe-math custom kernel, one
+output writer per logical cell, increasing contraction order, exact broadcast coordinates, physical
+offset/stride addressing, and canonical output storage. The four integer signatures operate on raw
+unsigned words so overflow is defined modularly; the two mixed signatures widen BFLOAT16 exactly
+before FLOAT32 arithmetic. There is no tiling, atomics, fallback, runtime selection, or hidden
+transpose materialization.
 
 Compiler-generated explicitly seeded FLOAT32 gradients use the same general domain. For matrix
 operands they retain the familiar formulas:
@@ -649,11 +649,13 @@ left gradient  = seed @ transpose(right)
 right gradient = transpose(left) @ seed
 ```
 
-Vector/vector uses elementwise multiplication by the opposite operand. Vector/matrix and
-matrix/vector insert the missing matrix axes, explicitly materialize those rank edits, apply the
-corresponding MATMUL/last-two transpose, squeeze the promoted vector result when required, and
-`sumToShape` each broadcast operand. Matrix/matrix gradients also use `sumToShape`. The local
-transposes, rank edits, reductions, and MATMUL nodes execute in one CPU-free Metal partition for
+Vector/vector promotes the scalar seed and each opposite operand to MATMUL-compatible rank-one or
+rank-two views, materializes the rank edits, and computes each vector gradient with MATMUL.
+Vector/matrix and matrix/vector likewise insert the missing matrix axes, explicitly materialize
+those rank edits, apply the corresponding MATMUL/last-two transpose, squeeze the promoted vector
+result when required, and `sumToShape` each broadcast operand. Matrix/matrix gradients also use
+`sumToShape`. The local transposes, rank edits, reductions, and MATMUL nodes execute in one
+CPU-free Metal partition for
 vector, matrix, batched, and broadcast Shapes.
 
 This remains generated first-order execution, not implicit seeding or an unrestricted Metal
@@ -977,8 +979,9 @@ unresolved-layout, zero-stride, negative-stride, overlapping storage-layout, or 
 support outside the exact domains above. Variadic support is limited to the explicit
 one-through-sixteen CONCAT/STACK domain. Scalar rank remains limited to Task-0059 CAST, empty-width
 PAD, empty-repeat TILE, valid GATHER_ND results, scalar STACK input, locally produced direct
-reduction targets, Task-0060 empty-axis reduction identities, MATMUL vector/vector output, and
-typed transfer/materialization. Scalar PAD/TILE are one-element identities.
+reduction targets, Task-0060 empty-axis reduction identities, MATMUL vector/vector output,
+explicit scalar-seed ingress and its first EXPAND_DIMS in vector/vector gradients, and typed
+transfer/materialization. Scalar PAD/TILE are one-element identities.
 The fixed shared custom route is not a general custom-kernel
 framework: cold preparation owns the reviewed kernels and interleaved existing-node executables,
 every logical value has a declared assigned buffer, and hot Java execution makes one synchronous
@@ -1027,5 +1030,5 @@ partition plans and every route/tuning/codec/workload identity. Java enforces th
 native entry. ABI version `5` retains thirteen export names and accepts one bounded schema-15
 route-bearing image; operation wires `1..115`, attribute wires `0..41`, and type wires `1..6`
 cover the current structural registry without widening capability. Route, candidate, compatibility,
-workload, exact-policy, and codec identities are version `16`; the complete-plan wrapper remains
+workload, exact-policy, and codec identities are version `17`; the complete-plan wrapper remains
 version `1`.

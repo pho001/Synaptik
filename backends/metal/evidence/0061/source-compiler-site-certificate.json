@@ -7,7 +7,7 @@
   },
   "foundationSource": {
     "path": "native/metal-macos-arm64/src/synaptik_metal_foundation.m",
-    "sha256": "b7b428ddc0b9e3e6c4c8ddc55409bb9ec0e5ab22c258a0e858d4b6499e5e7a48"
+    "sha256": "a2e5315c318c2e9438c4788ef121895f30106858445b044cade105eda6217cac"
   },
   "compilerSite": {
     "runtimeCompiler": "MTLDevice.newLibraryWithSource",

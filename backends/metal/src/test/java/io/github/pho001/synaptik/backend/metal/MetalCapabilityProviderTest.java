@@ -462,6 +462,8 @@ class MetalCapabilityProviderTest {
         TensorDescriptor expanded = view(Shape.of(2, 3), 0, 1);
         TensorDescriptor permuted = view(Shape.of(3, 2), 1, 3);
         TensorDescriptor rankExpanded = view(Shape.of(2, 1, 3), 3, 3, 1);
+        TensorDescriptor scalar = descriptor(Shape.scalar(), false);
+        TensorDescriptor scalarExpanded = view(Shape.of(1), 1);
         TensorDescriptor squeezed = view(Shape.of(2, 3), 3, 1);
         Shape rank16 = Shape.of(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
         TensorDescriptor rank16Value = descriptor(rank16, false);
@@ -524,6 +526,13 @@ class MetalCapabilityProviderTest {
                                 new AxisTransformAttrs(1)),
                         matrix,
                         rankExpanded),
+                new Occurrence(
+                        "scalar EXPAND_DIMS",
+                        new Operation(
+                                AxisTransformKind.EXPAND_DIMS,
+                                new AxisTransformAttrs(0)),
+                        scalar,
+                        scalarExpanded),
                 new Occurrence(
                         "SQUEEZE",
                         new Operation(
@@ -1151,6 +1160,44 @@ class MetalCapabilityProviderTest {
                     mixedLeft,
                     mixedRight,
                     mixedOutput));
+        }
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            for (DataType leftType : DataType.values()) {
+                for (DataType rightType : DataType.values()) {
+                    boolean integral = (leftType == DataType.INT32 || leftType == DataType.INT64)
+                            && (rightType == DataType.INT32 || rightType == DataType.INT64);
+                    boolean acceleratorFloating = profile == NumericalProfile.ACCELERATOR
+                            && ((leftType == DataType.FLOAT32
+                                            && rightType == DataType.FLOAT32)
+                                    || (leftType == DataType.BFLOAT16
+                                            && rightType == DataType.FLOAT32)
+                                    || (leftType == DataType.FLOAT32
+                                            && rightType == DataType.BFLOAT16));
+                    DataType resultType;
+                    if (integral) {
+                        resultType = leftType == DataType.INT64 || rightType == DataType.INT64
+                                ? DataType.INT64 : DataType.INT32;
+                    } else if (leftType == DataType.FLOAT64 || rightType == DataType.FLOAT64) {
+                        resultType = DataType.FLOAT64;
+                    } else if (leftType == DataType.FLOAT32 || rightType == DataType.FLOAT32) {
+                        resultType = DataType.FLOAT32;
+                    } else if (leftType == DataType.BFLOAT16
+                            && rightType == DataType.BFLOAT16) {
+                        resultType = DataType.BFLOAT16;
+                    } else {
+                        resultType = DataType.FLOAT32;
+                    }
+                    assertEquals(
+                            integral || acceleratorFloating,
+                            supportsMatmul(
+                                    profile,
+                                    matmul,
+                                    typed(leftType, Shape.of(2, 3), false),
+                                    typed(rightType, Shape.of(3, 4), false),
+                                    typed(resultType, Shape.of(2, 4), false)),
+                            profile + " " + leftType + " x " + rightType);
+                }
+            }
         }
         assertFalse(supportsMatmul(
                 NumericalProfile.ACCELERATOR,

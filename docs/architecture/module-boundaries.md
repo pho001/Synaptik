@@ -58,10 +58,11 @@ INT32/INT64 MATMUL domains under both profiles. Under `ACCELERATOR`, Metal addit
 the documented FLOAT32 arithmetic/reduction/scan rows, every positive-static FLOAT32 MATMUL
 vector/matrix/batched/broadcast geometry with authenticated local last-two transposes, and
 no-gradient mixed BFLOAT16/FLOAT32 MATMUL; unsupported pairs fail closed. Rank-zero Metal support
-is local to produced reduction or vector/vector MATMUL targets and does not widen caller ingress
-or transfer. The local explicitly seeded general FLOAT32 MATMUL gradient path and ordinary
-Compiler-generated backward occurrences remain backend execution of Compiler graphs, not implicit
-seeding, training ownership, or a complete Metal backward claim.
+is local to produced reduction or vector/vector MATMUL targets plus explicit scalar-seed ingress
+for vector/vector gradients; it does not widen mixed-owner CPU/Metal transfer. The local explicitly
+seeded general FLOAT32 MATMUL gradient path and ordinary Compiler-generated backward occurrences
+remain backend execution of Compiler graphs, not implicit seeding, training ownership, or a
+complete Metal backward claim.
 
 The current Model fixed recurrent scan follows this same flat boundary. Model owns the fixed
 `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM` meanings, one `FORWARD` or `REVERSE` attribute, ordered

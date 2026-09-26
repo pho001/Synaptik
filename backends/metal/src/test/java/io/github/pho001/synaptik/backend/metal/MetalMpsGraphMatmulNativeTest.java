@@ -369,28 +369,25 @@ class MetalMpsGraphMatmulNativeTest {
                 MetalMpsGraphProgram.Node.matmul(0, 9, 6),
                 MetalMpsGraphProgram.Node.matmul(8, 9, 7)));
         MetalNativeApi.Handle executable = null;
-        var buffers = new ArrayList<MetalNativeApi.Handle>();
+        var inputs = new ArrayList<MetalNativeApi.Handle>();
         var outputs = new ArrayList<MetalNativeApi.Handle>();
         try {
-            executable = api.createMpsGraphExecutable(context, NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks, dimensions, program), program, new int[] {0, 1, 2, 3}, new int[] {4, 5, 6, 7}, MetalPreparedRoute.CUSTOM_PROGRAM);
+            executable = api.createMpsGraphExecutable(context, NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks, dimensions, program), program, new int[] {0, 1, 2, 3}, new int[] {4, 5, 6, 7}, MetalPreparedRoute.MPSGRAPH);
             for (int[] bits : inputBits) {
                 MetalNativeApi.Handle buffer = api.createBuffer(
                         context, Math.multiplyExact((long) bits.length, Integer.BYTES));
-                buffers.add(buffer);
+                inputs.add(buffer);
                 upload(api, buffer, bits);
             }
-            for (int elementCount : new int[] {8, 8, 8, 8, 6, 12}) {
-                buffers.add(api.createBuffer(
-                        context, Math.multiplyExact((long) elementCount, Integer.BYTES)));
-            }
             for (int output = 0; output < 4; output++) {
-                outputs.add(buffers.get(4 + output));
+                outputs.add(api.createBuffer(
+                        context, Math.multiplyExact((long) expected.length, Integer.BYTES)));
             }
             try (Arena arena = Arena.ofConfined()) {
-                MemorySegment inputAddresses = arena.allocate(ADDRESS, buffers.size());
+                MemorySegment inputAddresses = arena.allocate(ADDRESS, inputs.size());
                 MemorySegment outputAddresses = arena.allocate(ADDRESS, outputs.size());
-                for (int index = 0; index < buffers.size(); index++) {
-                    inputAddresses.setAtIndex(ADDRESS, index, buffers.get(index).carrier());
+                for (int index = 0; index < inputs.size(); index++) {
+                    inputAddresses.setAtIndex(ADDRESS, index, inputs.get(index).carrier());
                 }
                 for (int index = 0; index < outputs.size(); index++) {
                     outputAddresses.setAtIndex(ADDRESS, index, outputs.get(index).carrier());
@@ -404,7 +401,7 @@ class MetalMpsGraphMatmulNativeTest {
                     }
                     api.runExecutable(
                             executable,
-                            buffers.size(),
+                            inputs.size(),
                             inputAddresses,
                             outputs.size(),
                             outputAddresses);
@@ -414,17 +411,20 @@ class MetalMpsGraphMatmulNativeTest {
                                 download(api, outputs.get(output), expected.length),
                                 "output=" + output + " repetition=" + repetition);
                     }
-                    for (int input = 0; input < inputBits.length; input++) {
+                    for (int input = 0; input < inputs.size(); input++) {
                         assertArrayEquals(
                                 inputBits[input],
-                                download(api, buffers.get(input), inputBits[input].length),
+                                download(api, inputs.get(input), inputBits[input].length),
                                 "input=" + input + " repetition=" + repetition);
                     }
                 }
             }
         } finally {
-            for (int index = buffers.size(); index-- > 0;) {
-                api.releaseBuffer(buffers.get(index));
+            for (int index = outputs.size(); index-- > 0;) {
+                api.releaseBuffer(outputs.get(index));
+            }
+            for (int index = inputs.size(); index-- > 0;) {
+                api.releaseBuffer(inputs.get(index));
             }
             if (executable != null) {
                 api.releaseExecutable(executable);
