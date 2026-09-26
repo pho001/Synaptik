@@ -1107,13 +1107,14 @@ class MetalCapabilityProviderTest {
                             typed(rightType, Shape.of(3, 4), false),
                             typed(result, Shape.of(2, 4), false)),
                             profile + " " + leftType + " x " + rightType);
-                    assertFalse(supportsMatmul(
-                            profile,
-                            matmul,
-                            typed(leftType, Shape.of(2, 3), false),
-                            typed(rightType, Shape.of(3, 4), false),
-                            typed(leftType, Shape.of(2, 4), false))
-                            && result != leftType);
+                    if (result != leftType) {
+                        assertFalse(supportsMatmul(
+                                profile,
+                                matmul,
+                                typed(leftType, Shape.of(2, 3), false),
+                                typed(rightType, Shape.of(3, 4), false),
+                                typed(leftType, Shape.of(2, 4), false)));
+                    }
                 }
             }
         }

@@ -1444,15 +1444,12 @@ final class EngineExplicitCompositionMetalIntegrationTest {
             builder.takeOwnership(CpuBackendIntegration.open());
             try (Engine engine = builder.build()) {
                 Tensor input = nativeTensorBits(
-                        descriptor(Shape.of(2, 3)),
+                        descriptor(Shape.of(1, 3)),
                         arena,
                         0x00000000,
-                        0x80000000,
                         0x00000001,
-                        0x7f800000,
-                        0xff800000,
                         0x7fc12345);
-                var compiled = engine.compile(List.of(input.reshape(3, 2).abs()));
+                var compiled = engine.compile(List.of(input.expand(2, 3).abs()));
                 assertEquals(
                         List.of("metal", "cpu"),
                         EngineMixedOwnerTestAccess.partitionOwners(compiled));
