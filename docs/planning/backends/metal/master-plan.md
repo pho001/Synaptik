@@ -129,7 +129,9 @@ Training-to-Metal optimizer bridge.
   passed, and fused CLAMP won. The immutable Gate-1/Gate-2 and Gate-3 packages remain under
   [`evidence/0052/`](evidence/0052/README.md) and
   [`evidence/0052-gate3/`](evidence/0052-gate3/README.md). Documentation-only Task 0054 remains the
-  exact historical pre-cutover `19+2+15+79=115` inventory and names its supersession.
+  exact historical pre-cutover `19+2+15+79=115` inventory and names its supersession. Planning-only
+  Task 0055 is now the sole Ready frontier: one zero-new-kind private schema/type/cardinality
+  cutover from the current schema-12/identity-13 base.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
   requirements. Metal 0017 remains Blocked under its old accelerator-reduction contract.
@@ -318,6 +320,7 @@ before extracting a package or widening another type.
 | 0052 | [ACCELERATOR FLOAT32 comparisons, extrema, and scans](tasks/0052-accelerator-float32-comparisons-extrema-scans.md) | Complete | Model 0030/0031 Complete and independently approved; 0050 packaged baseline; retained 0010/0012/0013 evidence; current Compiler capture; ADR 0022 | Every concurrent Metal capability/schema/native-preflight/candidate/codec/tuning/public Engine scope and shared numerical-profile documentation | None | Gate 1/2 evidence → custom-only M3 Max Gate 3 → fixed routes → atomic schema/identity/native/capability/preparation/execution/test/docs cutover | Focused Metal, schema/native, conformance, Compiler-contract, and no-skip real-dylib Engine proof passed; final full repository build deliberately deferred | Adds all fifteen ACCELERATOR comparison/extrema/scan kinds through the fixed custom whole-program route; schema 12 and identity 13 landed; opaque routes remain domain-blocked. |
 | 0053 | [Certified ACCELERATOR FLOAT32 custom EXP and stable SIGMOID](tasks/0053-certified-accelerator-float32-custom-exp-stable-sigmoid.md) | Blocked | Model 0030/0031 Complete and independently approved; 0051 preserved consumed evidence; 0050 packaged baseline; concrete pinned proof toolchain; supported full-Xcode dispatch/peak-transient trace reader | Every concurrent Metal capability/schema/native-preflight/candidate/codec/tuning/public Engine scope and shared numerical-profile documentation; Task-0052 task/evidence | None | Concrete source/constants/manifests and kernel-checked complete-domain proof → independent read-only approval → exactly one new successor oracle → all-survivor instrumented cost → fixed routes → separately reviewed production cutover | Planning links/fences/status/path/diff only now; future proof/source hash and complete-domain review, then one frozen-corpus oracle and actual dispatch/peak-transient evidence; never rerun 0051 | Supersedes 0051 for future work; custom EXP and recursively proved stable SIGMOID are `DOMAIN-PENDING`, current opaque direct/inherited routes remain `DOMAIN-BLOCKED`, and no device/schema/capability action is authorized while either prerequisite is absent. |
 | 0054 | [Current ACCELERATOR 115-kind completeness audit](tasks/0054-current-accelerator-115-kind-completeness-audit.md) | Complete | 0051–0053 current records and reviewed 0052 evidence; current Model enums, Metal capability/private schema, and Compiler gradient capture at `93b3d379` | Every production, capability, schema, identity, native, test, evidence, proof, device, timing, trace, or build scope | None | Documentation/read-only audit only; no successor task made Ready | Enum/ledger recomputation; exact `19+2+15+79=115` and 79-kind blocker-partition sums; Markdown links/fences/newlines/status and diff checks | Records every current Model operation-kind constant exactly once, corrects stale Task-0052/0053 claims, documents bounded true rows plus false dtype/shape/layout/gradient rows, private schema/type/cardinality blockers, and the serial dependency partition. |
+| 0055 | [Private Metal schema, type, and cardinality foundation](tasks/0055-private-schema-type-cardinality-foundation.md) | Ready | 0052 Complete; 0054 historical audit; current 115-kind Model signatures and clean base `2fcfefeb3a1fe90f0c4b4519404a8682a18ea471` | Every concurrent Metal capability/schema/native ABI/type/transfer/identity/package scope; Tasks 0053 and remaining-kind production work | None | Planning commit first; then one atomic ABI-5/schema-13/type/transfer/identity/package cutover with no dual decoder and zero new capability kinds | Planning: exact three-file Markdown/status/wire/count/diff checks only, with no build/native/device action. Future implementation: focused Java/native/transfer/identity/package tests and real existing-route proof | Replaces the 160-byte fixed record with one bounded program image; closes current cardinality, six-carrier, BOOL/INT consumer, rank-zero, attribute, validation, lifecycle, workload, and package prerequisites while retaining public Model/Runtime contracts and thirteen export names |
 
 ## Dependency DAG and authorized frontiers
 
@@ -356,6 +359,8 @@ Completed profile spine and serial successors:
 `Model 0031 (Complete) -> Model 0030 (Complete) -> {0051 (historical Blocked) -> 0053 (Blocked on proof plus full-Xcode trace tooling), 0052 (Complete)}`
 
 `0051 (historical Blocked) + 0052 reviewed evidence + 0053 (Blocked) + historical source -> 0054 (Complete pre-cutover audit); 0052 production cutover (Complete) supersedes that inventory`
+
+`0052 (Complete) + 0054 (historical inventory) + current source -> 0055 (Ready foundation); 0053 and every remaining-kind production workstream consume 0055 only after it is Complete`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -443,6 +448,9 @@ another.
 - Complete Task 0054 owns only the historical pre-cutover 115-kind audit and serial blocker
   partition. It grants no production scope and explicitly defers current post-cutover counts to a
   fresh audit.
+- Ready Task 0055 owns the next serial implementation authorization: one atomic ABI-5/schema-13
+  program-image, six-carrier typed-transfer, identity-14, and package cutover with zero new
+  capability kinds. No other Metal task has active production write scope until 0055 completes.
 - Complete Metal 0044 owns its documentation/audit no-change record; no active owner may reinterpret
   its bounded report as a winner or production decision.
 - Complete Metal 0043 retains its reviewed benchmark implementation and evidence; Complete Metal
@@ -470,6 +478,9 @@ documentation/diff evidence, and independent Class C final `APPROVE` with zero f
 
 Current ABI v4 retains exactly thirteen exports and 160-byte records, points to node schema 12,
 and uses version-thirteen workload/exact-policy/candidate/compatibility/route/codec identities.
+Planning-only Task 0055 defines the next atomic cutover to ABI 5, schema 13, operation wires
+`1..115`, attribute wires `0..41`, all six current Model carriers, and identity version 14 while
+retaining the exact thirteen export names. None of those planned values is landed yet.
 Complete Model 0028 owns the root-only exact-zero reduction rule. Complete Model 0029 owns the
 MATMUL-only final-publication exact-zero sign rule. Metal 0018 remains Blocked without production
 changes. Complete Metal 0022
@@ -525,10 +536,13 @@ UNFOLD3D/FOLD3D remain separate custom movement/overlap work. Metal 0037 remains
 probe: recurrent arithmetic is recursively reachable for `ACCELERATOR`, but direct RNN lacks
 runtime INT64 valid lengths, atomic validation, skipped padded work, positive-zero padding, and
 `finalHidden`; no complete recurrence, state-publication, GRU/LSTM, or gradient route proof exists.
-Schema 12, wires beginning at 20, attribute 7, local value type 4, INT64, ABI/export changes, and
-version-thirteen identities remain unimplemented and unreserved. Planning-only Task 0039 reserves
-no FLOAT16 value while Draft Model 0026 provides no public type or oracle. Task 0040 is Blocked
-after its one direct BFLOAT16 Gather run canonicalized required `0xffa6` to `0x7fc0`; its artifacts
+Schema 12, operation wires `1..34`, attribute wires `0..9`, and version-thirteen identities are
+landed; ABI v4 and the fixed 160-byte record remain current. FLOAT64/BFLOAT16/INT64 local carriers,
+general BOOL/INT consumers, typed cross-owner transfer, and variable per-node cardinality remain
+unimplemented. Planning-only Task 0039 reserves no FLOAT16 value while Draft Model 0026 provides no
+public type or oracle.
+Task 0040 is Blocked after its one direct BFLOAT16 Gather run canonicalized required `0xffa6` to
+`0x7fc0`; its artifacts
 were removed and production remains unchanged. Task 0041 is Complete at
 implementation `ba16d942` plus remediation `386705ca` after final independent Class C approval
 with zero findings. Documentation/audit-only Task 0038 is Complete. Task 0042 is Complete at
@@ -541,7 +555,8 @@ only Task 0049 is Complete after approved P1 remediation `6d4246f7`. Evidence-on
 completed the final packaged/extracted-Metal 87-task repository build; Task 0051 is the preserved
 Blocked consumed-oracle record, Task 0053 is Blocked before proof approval/new oracle/trace-backed
 cost, Task 0052 is Complete through its custom-cost/production cutover, and Task 0054 is the
-Complete historical pre-cutover read-only `19+2+15+79=115` inventory.
+Complete historical pre-cutover read-only `19+2+15+79=115` inventory. Task 0055 is the sole Ready
+frontier and adds no capability until its complete atomic foundation cutover lands.
 
 Metal 0006 remains historically `Blocked` after its frozen direct-selector
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH special-class and sign gate failures. Complete Model 0030
@@ -674,10 +689,10 @@ profile-common/no-FTZ gates: direct SOFTMAX returned `0x00000000` where its refe
 zero. Their probes were removed. Under Complete Model 0030 those observations are recursively
 reachable only for `ACCELERATOR`; neither sample proves a complete opaque-selector subset, no
 strict route exists, and current capabilities remain false. Task 0052 completed its independent
-proof, sole regression oracle, ADR-0022 custom-only cost gate, and production cutover.
-LOG_SOFTMAX, every normalization, broader
-window/fold, BatchNorm training, backward closure, and Model 0026 remain unauthorized pending
-complete-domain proofs.
+proof, sole regression oracle, ADR-0022 custom-only cost gate, and production cutover. Planning-only
+Task 0055 now owns the zero-new-kind private schema/type/cardinality foundation required before the
+remaining operation workstreams. LOG_SOFTMAX, every normalization, broader window/fold, BatchNorm
+training, backward closure, and Model 0026 remain unauthorized pending complete-domain proofs.
 
 ## Delivered lifecycle and ABI boundary
 
@@ -694,7 +709,7 @@ complete-domain proofs.
   three typed MPSGraph functions and statuses `8..11`; version 3 retained all ten, added three
   custom-NEG functions and status `12`; version 4 replaced only the NEG-specific MPSGraph create
   operation with the typed whole-partition create operation. Its pointed-to node table currently
-  uses schema version 11. Opaque resource kinds are never reinterpreted. ABI v4 exports exactly:
+  uses schema version 12. Opaque resource kinds are never reinterpreted. ABI v4 exports exactly:
 
   ```text
   synaptik_metal_foundation_abi_version
@@ -713,19 +728,19 @@ complete-domain proofs.
   ```
 
   The old `synaptik_metal_mpsgraph_neg_executable_create` symbol is absent.
-- Tasks 0008, 0014, 0015, 0019, 0020, 0021, 0022, 0023, 0024, and 0025 retain the exact
-  thirteen-symbol ABI. Schema version 11 admits NEG/affine/`CONTIGUOUS` under both profiles on
+- Tasks 0008, 0014, 0015, 0019, 0020, 0021, 0022, 0023, 0024, 0025, and 0052 retain the exact
+  thirteen-symbol ABI. Schema version 12 admits NEG/affine/`CONTIGUOUS` under both profiles on
   wires `1` and `6..11`, exact ABS under both profiles on wire `12`, accelerator tensor binary on
   wires `2..5`, accelerator `SUM=13`/`MEAN=14` with typed reduction forms, accelerator
   `MATMUL=15`, exact common-profile `GATHER=16`/`ONE_HOT=17` with `DEPTH=5`, replacement
-  `SCATTER_ELEMENTS=18`, and bounded common-profile `UNFOLD_AXIS=19` with `WINDOW_AXIS=6`. Java
+  `SCATTER_ELEMENTS=18`, bounded common-profile `UNFOLD_AXIS=19` with `WINDOW_AXIS=6`, and the
+  Task-0052 custom vocabulary on wires `20..34` with scalar/clamp/scan attributes `7..9`. Java
   profile/type preflight rejects every incompatible node set before downcall. Explicit
   unavailable/canonical/affine-view states enforce graph-local view provenance, including exact
-  local rank-two transpose authentication for MATMUL.
-  Affine outputs use authenticated full-logical-size represented-order targets. Scalar FLOAT32
-  reductions materialize as four bytes; local BOOL materializes as one byte per element; exact
-  canonical FLOAT32/INT32 ingress is current; canonical-only positive-rank FLOAT32 transfer remains
-  unchanged.
+  local rank-two transpose authentication for MATMUL. Affine outputs use authenticated full-
+  logical-size represented-order targets. Scalar FLOAT32 reductions materialize as four bytes;
+  local BOOL materializes as one byte per element; exact canonical FLOAT32/INT32 ingress is current;
+  canonical-only positive-rank FLOAT32 transfer remains unchanged.
 - Analysis validates the complete maximal Metal partition, selects the route, and declares exact
   buffers/workspaces. Finalization cannot change that route or add undeclared shared requirements;
   it creates route-specific persistent resources only after slot assignment.
@@ -756,7 +771,7 @@ complete-domain proofs.
 - The completed 0004 brief fixes route-specific typed shapes and conservatively session-scoped
   target compatibility without changing cache-file or native ABI ownership. Its package-private
   codec is now consumed by Task 0042's public wrappers and private Engine adapter without changing
-  its version-twelve bytes. Task 0042 does not authorize cross-session reuse, cache-format work, a
+  its version-thirteen bytes. Task 0042 does not authorize cross-session reuse, cache-format work, a
   device fingerprint, or broader operation/type, mixed-owner, async, packaging/discovery, or
   performance claims.
 - Main risks are moving lowering into shared layers, leaking Metal fields through opaque seams,
