@@ -20,16 +20,16 @@ import java.util.Optional;
  * Generates complete, stable, budget-bounded Metal supported-operation route candidates.
  *
  * <p>The workload fingerprint uses only versioned semantics and structural positions, including
- * the cold numerical profile, schema-twelve ordered typed nodes and attributes, exact logical
- * descriptors, ordered edges, explicit value states, target sets, dense represented-order
- * geometry, ABI identity, and typed splats. Graph-local identities, partition object identity,
- * native handles, measurements, and cache state are excluded. Generation is cold, thread-safe,
- * deterministic, and performs no native work.</p>
+ * the cold numerical profile, schema-thirteen program image, exact logical descriptors, ordered
+ * edges, explicit value states, target sets, dense represented-order geometry, ABI identity, and
+ * typed splats. Graph-local identities, partition object identity, native handles, measurements,
+ * and cache state are excluded. Generation is cold, thread-safe, deterministic, and performs no
+ * native work.</p>
  */
 final class MetalNegRouteCandidateGenerator {
     private static final long UINT32_MAX = 0xffff_ffffL;
-    private static final int WORKLOAD_SIGNATURE_VERSION = 13;
-    private static final int EXACT_DEFAULT_POLICY = 13;
+    private static final int WORKLOAD_SIGNATURE_VERSION = 14;
+    private static final int EXACT_DEFAULT_POLICY = 14;
 
     /**
      * Generates every currently valid complete candidate up to a positive budget.
@@ -157,9 +157,9 @@ final class MetalNegRouteCandidateGenerator {
             valuePositions.put(valueIds.get(index), index);
         }
         updateInt(digest, context.nodes().size());
-        updateBytes(digest, plan.graphProgram().encodedNodeRecords());
-        updateInts(digest, plan.valueRanks());
-        updateLongs(digest, plan.valueDimensions());
+        plan.graphProgram().updateDigest(
+                digest, plan.programValueDescriptors(),
+                plan.feedValueIndices(), plan.targetValueIndices());
         updateInt(digest, plan.valueStates().size());
         for (MetalMpsGraphProgram.ValueState state : plan.valueStates()) {
             updateInt(digest, state.wireIdentity());
@@ -221,13 +221,7 @@ final class MetalNegRouteCandidateGenerator {
     }
 
     private static int dataTypeWireValue(DataType dataType) {
-        return switch (dataType) {
-            case FLOAT32 -> 1;
-            case INT32 -> 2;
-            case BOOL -> 3;
-            default -> throw new IllegalArgumentException(
-                    "Metal workload data type is unsupported: " + dataType);
-        };
+        return MetalMpsGraphProgram.dataTypeWire(dataType);
     }
 
     private static int numericalProfileWireValue(NumericalProfile profile) {

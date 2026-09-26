@@ -49,9 +49,8 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     private final Route route;
     private final List<ValueId> valueIds;
     private final List<TensorDescriptor> descriptors;
+    private final List<MetalMpsGraphProgram.ValueDescriptor> programValueDescriptors;
     private final List<MetalMpsGraphProgram.ValueState> valueStates;
-    private final int[] valueRanks;
-    private final long[] valueDimensions;
     private final MetalMpsGraphProgram graphProgram;
     private final List<ValueId> feedValueIds;
     private final int[] feedValueIndices;
@@ -79,8 +78,6 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
      * @param valueIds non-null stable indexed value identities
      * @param descriptors non-null descriptors aligned with {@code valueIds}
      * @param valueStates non-null explicit validated states aligned with {@code valueIds}
-     * @param valueRanks non-null ranks aligned with values
-     * @param valueDimensions non-null row-major value-count by sixteen dimension table
      * @param graphProgram non-null versioned typed node table in partition order
      * @param feedValueIds non-null unique boundary inputs in stable feed order
      * @param feedValueIndices non-null value indices aligned with feeds
@@ -105,8 +102,6 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             List<ValueId> valueIds,
             List<TensorDescriptor> descriptors,
             List<MetalMpsGraphProgram.ValueState> valueStates,
-            int[] valueRanks,
-            long[] valueDimensions,
             MetalMpsGraphProgram graphProgram,
             List<ValueId> feedValueIds,
             int[] feedValueIndices,
@@ -130,8 +125,6 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
                 valueIds,
                 descriptors,
                 valueStates,
-                valueRanks,
-                valueDimensions,
                 graphProgram,
                 feedValueIds,
                 feedValueIndices,
@@ -158,8 +151,6 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             List<ValueId> valueIds,
             List<TensorDescriptor> descriptors,
             List<MetalMpsGraphProgram.ValueState> valueStates,
-            int[] valueRanks,
-            long[] valueDimensions,
             MetalMpsGraphProgram graphProgram,
             List<ValueId> feedValueIds,
             int[] feedValueIndices,
@@ -187,9 +178,10 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
         this.route = Objects.requireNonNull(route, "route");
         this.valueIds = List.copyOf(valueIds);
         this.descriptors = List.copyOf(descriptors);
+        this.programValueDescriptors = this.descriptors.stream()
+                .map(MetalMpsGraphProgram.ValueDescriptor::from)
+                .toList();
         this.valueStates = List.copyOf(valueStates);
-        this.valueRanks = valueRanks.clone();
-        this.valueDimensions = valueDimensions.clone();
         this.graphProgram = Objects.requireNonNull(graphProgram, "graphProgram");
         this.feedValueIds = List.copyOf(feedValueIds);
         this.feedValueIndices = feedValueIndices.clone();
@@ -207,8 +199,6 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
         this.traceUnit = traceUnit;
         if (this.valueIds.size() != this.descriptors.size()
                 || this.valueIds.size() != this.valueStates.size()
-                || this.valueIds.size() != this.valueRanks.length
-                || this.valueDimensions.length != this.valueIds.size() * 16
                 || this.valueStates.contains(MetalMpsGraphProgram.ValueState.UNAVAILABLE)
                 || this.graphProgram.nodes().size() != partitionDag.nodes().size()
                 || this.feedValueIds.size() != this.feedRequiredBytes.length
@@ -271,9 +261,10 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     MetalTraceProducer.PreparedUnit traceUnit() { return traceUnit; }
     List<ValueId> valueIds() { return valueIds; }
     List<TensorDescriptor> descriptors() { return descriptors; }
+    List<MetalMpsGraphProgram.ValueDescriptor> programValueDescriptors() {
+        return programValueDescriptors;
+    }
     List<MetalMpsGraphProgram.ValueState> valueStates() { return valueStates; }
-    int[] valueRanks() { return valueRanks.clone(); }
-    long[] valueDimensions() { return valueDimensions.clone(); }
     MetalMpsGraphProgram graphProgram() { return graphProgram; }
     List<ValueId> feedValueIds() { return feedValueIds; }
     int[] feedValueIndices() { return feedValueIndices.clone(); }

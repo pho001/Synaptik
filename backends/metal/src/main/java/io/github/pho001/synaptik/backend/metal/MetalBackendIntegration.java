@@ -186,10 +186,10 @@ public final class MetalBackendIntegration implements AutoCloseable {
     }
 
     /**
-     * Uploads caller-owned FLOAT32 or INT32 host storage into one Metal-owned borrowed-input
-     * representation without conversion.
+     * Uploads caller-owned storage of any model data type into one Metal-owned borrowed-input
+     * representation without conversion. BOOL bytes must be zero or one.
      *
-     * @param storage non-null live accessible FLOAT32 or INT32 storage retained but never closed
+     * @param storage non-null live accessible storage retained but never closed
      * @return a new non-null Metal representation whose ownership transfers to the caller
      * @throws NullPointerException if {@code storage} is {@code null}
      * @throws IllegalArgumentException if storage is not compatible with Metal ingress
@@ -203,80 +203,74 @@ public final class MetalBackendIntegration implements AutoCloseable {
 
     /**
      * Reports whether a nominal representation is the exact live readable Metal side of a
-     * prepared contiguous FLOAT32 transfer.
+     * prepared canonical transfer for any model data type.
      *
      * <p>A writable ordinary Metal representation and a backend-issued immutable prepared-splat
      * binding may both be readable sources. This predicate alone does not authorize destination
-     * mutation; {@link #bindContiguousFloat32Upload(BufferRepresentation, TensorDescriptor)}
-     * separately requires the ordinary writable representation.</p>
+     * mutation; {@link #bindCanonicalUpload(BufferRepresentation, TensorDescriptor)} separately
+     * requires the ordinary writable representation.</p>
      *
      * @param representation non-null candidate Metal representation
      * @param descriptor non-null exact logical descriptor
      * @return whether readable representation, context, layout, data type, and byte extent match
      * @throws NullPointerException if an object argument is null
      */
-    public boolean acceptsContiguousFloat32Transfer(
+    public boolean acceptsCanonicalTransfer(
             BufferRepresentation representation, TensorDescriptor descriptor) {
-        return runtime.acceptsContiguousFloat32Transfer(representation, descriptor);
+        return runtime.acceptsCanonicalTransfer(representation, descriptor);
     }
 
     /**
-     * Cold-binds one exact writable Metal destination to a direct native upload action.
+     * Cold-binds one exact writable Metal destination to a direct canonical native upload.
      *
-     * <p>The returned action retains the typed destination directly. Invoking it performs exactly
-     * one upload from the supplied live native host segment and allocates no staging storage. An
+     * <p>The returned action retains the typed destination directly and allocates no staging
+     * storage. It validates BOOL source bytes on every invocation before native mutation. An
      * immutable prepared-splat binding is always rejected as a destination.</p>
      *
      * @param representation non-null exact writable destination representation
-     * @param descriptor non-null exact static canonical contiguous FLOAT32 descriptor
+     * @param descriptor non-null exact static rank-0..16 canonical descriptor
      * @return non-null immutable action retaining the typed destination and checked byte extent
      * @throws NullPointerException if an object argument is null
      * @throws IllegalArgumentException if type, mutability, context, layout, or byte extent is
      *     incompatible
      */
-    public Consumer<MemorySegment> bindContiguousFloat32Upload(
+    public Consumer<MemorySegment> bindCanonicalUpload(
             BufferRepresentation representation, TensorDescriptor descriptor) {
-        return runtime.bindContiguousFloat32Upload(representation, descriptor);
+        return runtime.bindCanonicalUpload(representation, descriptor);
     }
 
     /**
-     * Cold-binds one exact readable Metal source to a direct native download action.
+     * Cold-binds one exact readable Metal source to a direct canonical native download.
      *
-     * <p>The returned action retains the typed source directly. Invoking it performs exactly one
-     * download into the supplied live writable native host segment and allocates no staging
-     * storage. A live backend-issued immutable prepared-splat binding is an eligible source.</p>
+     * <p>The returned action retains the typed source directly, performs exactly one download into
+     * the supplied live writable native host segment, and allocates no staging storage. A live
+     * backend-issued immutable prepared-splat binding is an eligible source.</p>
      *
      * @param representation non-null exact readable source representation
-     * @param descriptor non-null exact static canonical contiguous FLOAT32 descriptor
+     * @param descriptor non-null exact static rank-0..16 canonical descriptor
      * @return non-null immutable action retaining the typed source and checked byte extent
      * @throws NullPointerException if an object argument is null
      * @throws IllegalArgumentException if type, context, layout, or byte extent is incompatible
      */
-    public Consumer<MemorySegment> bindContiguousFloat32Download(
+    public Consumer<MemorySegment> bindCanonicalDownload(
             BufferRepresentation representation, TensorDescriptor descriptor) {
-        return runtime.bindContiguousFloat32Download(representation, descriptor);
+        return runtime.bindCanonicalDownload(representation, descriptor);
     }
 
     /**
      * Downloads one live readable Metal representation into detached canonical host bytes.
      *
-     * <p>The descriptor is an ordinary canonical non-view FLOAT32 or BOOL publication, including
-     * a locally produced rank-zero FLOAT32 reduction result or readable prepared splat binding, or
-     * an exact positive-rank logical affine FLOAT32 view whose representation carries
-     * finalized-route authentication for a full dense represented-order target. A rank-zero
-     * FLOAT32 result yields exactly four big-endian bytes; BOOL retains exact row-major one-byte
-     * zero-or-one elements. This local BOOL publication does not add BOOL ingress or a general BOOL
-     * consumer, and the path does not widen the positive-rank-only CPU/Metal FLOAT32 transfer
-     * predicate.</p>
+     * <p>Canonical non-view rank-0..16 publications support all six model data types and use
+     * big-endian canonical element bytes. BOOL bytes are validated as zero or one. Exact
+     * positive-rank authenticated affine publication remains FLOAT32-only.</p>
      *
      * @param representation non-null live representation owned by this integration
-     * @param descriptor non-null exact canonical FLOAT32/BOOL or authenticated affine FLOAT32
-     *     publication descriptor
+     * @param descriptor non-null exact canonical descriptor or authenticated affine FLOAT32
      * @param maximumBytes non-negative maximum canonical payload size
      * @return fresh non-null caller-owned row-major canonical bytes
      * @throws NullPointerException if an object argument is {@code null}
-     * @throws IllegalArgumentException if type, layout, authentication, representation, size, or
-     *     limit is invalid
+     * @throws IllegalArgumentException if type, layout, authentication, representation, size, BOOL
+     *     value, or limit is invalid
      * @throws ArithmeticException if checked size arithmetic overflows
      * @throws RuntimeException if native download fails
      * @throws Error if copying reports a fatal failure

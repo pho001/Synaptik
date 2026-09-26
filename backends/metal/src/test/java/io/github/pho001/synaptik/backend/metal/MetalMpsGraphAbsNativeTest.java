@@ -36,31 +36,14 @@ class MetalMpsGraphAbsNativeTest {
     };
 
     @Test
-    void schemaTwelveRetainsCanonicalAbsWireAndClosesProfileStateTransitions() {
-        MetalMpsGraphProgram.Node abs = MetalMpsGraphProgram.Node.abs(7, 9);
-        byte[] encoded = new MetalMpsGraphProgram(List.of(abs)).encodedNodeRecords();
-        assertEquals(12, MetalMpsGraphProgram.SCHEMA_VERSION);
-        assertEquals(MetalMpsGraphProgram.NODE_RECORD_BYTES, encoded.length);
-        ByteBuffer record = ByteBuffer.wrap(encoded).order(ByteOrder.BIG_ENDIAN);
-        assertEquals(12, record.getInt());
-        assertEquals(0, record.getInt());
-        assertEquals(7, record.getInt());
-        assertEquals(-1, record.getInt());
-        assertEquals(9, record.getInt());
-        assertEquals(0, record.getInt());
-        assertEquals(-1, record.getInt());
-        assertEquals(0, record.getInt());
-        while (record.hasRemaining()) {
-            assertEquals(0L, record.getLong());
-        }
+    void JavaPreflightClosesAbsProfileStateTransitions() {
 
         int[] ranks = {1, 1};
         long[] dimensions = dimensions(2, INPUT_BITS.length);
         MetalMpsGraphProgram unary = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.abs(0, 1)));
         for (NumericalProfile profile : NumericalProfile.values()) {
-            MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
-                    profile, ranks, dimensions, unary, new int[] {0}, new int[] {1});
+            MetalNativeApi.MpsGraphExecutableAbi.validateCreate(profile, MetalTestProgram.descriptors(ranks, dimensions, unary), unary, new int[] {0}, new int[] {1});
         }
 
         MetalMpsGraphProgram viewToAbs = new MetalMpsGraphProgram(List.of(
@@ -71,13 +54,7 @@ class MetalMpsGraphAbsNativeTest {
                         new long[] {INPUT_BITS.length}),
                 MetalMpsGraphProgram.Node.abs(1, 2)));
         assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
-                        NumericalProfile.STRICT_IEEE,
-                        new int[] {1, 1, 1},
-                        dimensions(3, INPUT_BITS.length),
-                        viewToAbs,
-                        new int[] {0},
-                        new int[] {2}));
+                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(new int[] {1, 1, 1}, dimensions(3, INPUT_BITS.length), viewToAbs), viewToAbs, new int[] {0}, new int[] {2}));
 
         MetalMpsGraphProgram canonicalizedAbs = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.targetShape(
@@ -87,13 +64,7 @@ class MetalMpsGraphAbsNativeTest {
                         new long[] {INPUT_BITS.length}),
                 MetalMpsGraphProgram.Node.contiguous(1, 2),
                 MetalMpsGraphProgram.Node.abs(2, 3)));
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
-                NumericalProfile.STRICT_IEEE,
-                new int[] {1, 1, 1, 1},
-                dimensions(4, INPUT_BITS.length),
-                canonicalizedAbs,
-                new int[] {0},
-                new int[] {3});
+        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(new int[] {1, 1, 1, 1}, dimensions(4, INPUT_BITS.length), canonicalizedAbs), canonicalizedAbs, new int[] {0}, new int[] {3});
     }
 
     @Test
@@ -174,14 +145,7 @@ class MetalMpsGraphAbsNativeTest {
         var outputs = new ArrayList<MetalNativeApi.Handle>();
         long byteCount = Math.multiplyExact((long) INPUT_BITS.length, Integer.BYTES);
         try {
-            executable = api.createMpsGraphExecutable(
-                    context,
-                    profile,
-                    new int[] {1, 1, 1, 1, 1},
-                    dimensions(valueCount, INPUT_BITS.length),
-                    program,
-                    feeds,
-                    targets);
+            executable = api.createMpsGraphExecutable(context, profile, MetalTestProgram.descriptors(new int[] {1, 1, 1, 1, 1}, dimensions(valueCount, INPUT_BITS.length), program), program, feeds, targets);
             MetalNativeApi.Handle input = api.createBuffer(context, byteCount);
             inputs.add(input);
             upload(api, input, INPUT_BITS);

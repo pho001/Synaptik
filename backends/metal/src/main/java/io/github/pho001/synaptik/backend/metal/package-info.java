@@ -21,14 +21,14 @@
  * {@code MEAN}, {@code MIN}, {@code MAX}, and binding-resolved {@code SUM_TO_SHAPE}; all four
  * exclusive/reverse modes of {@code CUM_SUM} and {@code CUM_PROD}; and positive static rank-two
  * {@code FLOAT32} {@code MATMUL}. Reductions support full, normalized single-axis, ordered
- * normalized multi-axis including empty, and exact keep-dimensions forms. Feeds and ordinary
- * outputs are fully static positive-rank {@code 1..16}; a locally produced reduction target may be
- * rank zero and materializes as exactly four canonical bytes. Caller ingress accepts only exact
- * canonical {@code FLOAT32} and {@code INT32}; local canonical {@code BOOL} results may publish as
- * exact one-byte elements. BOOL feeds, consumers, and CPU/Metal transfer remain unsupported;
- * CPU/Metal transfer remains canonical non-view {@code FLOAT32} only.
- * Accelerator binary inputs and outputs are canonical dense non-views and use exact right-aligned
- * broadcasting. Each MATMUL operand is canonical or the authenticated exact local rank-two
+ * normalized multi-axis including empty, and exact keep-dimensions forms; reduction inputs remain
+ * positive-rank while their target may be rank zero. Canonical host ingress/materialization and
+ * bidirectional CPU/Metal transfer accept ranks {@code 0..16} for all six public data types with
+ * exact widths, canonical non-view geometry, and strict BOOL-byte validation. This transfer
+ * foundation does not widen Metal operation capability: current BOOL operation feeds/consumers
+ * remain unsupported. Accelerator binary inputs and outputs are canonical dense non-views and use
+ * exact right-aligned broadcasting.
+ * Each MATMUL operand is canonical or the authenticated exact local rank-two
  * {@code PERMUTE [1,0]} of a canonical source; its output is canonical. Strict MATMUL remains
  * unsupported. A partition containing any Task-0052 node selects one fixed custom whole-program
  * resource: fixed custom kernels and cold-compiled nested existing-node executables consume the
@@ -53,9 +53,9 @@
  * exact associations, fresh authoritative preparation, and session-only compatibility; they
  * perform no execution, measurement, cache input/output, or fallback-policy work. Exact prepared
  * affine-view targets may materialize from their authenticated backend-private dense
- * represented-order buffers without rewriting logical view descriptors or widening the canonical
- * non-view CPU/Metal transfer predicate. Engine uses those contributions and binders for the
- * bounded bidirectional CPU/Metal mixed-owner schedule. Native internals remain package-private.
+ * represented-order buffers without rewriting logical view descriptors. Engine uses those
+ * contributions and typed binders for the bounded bidirectional CPU/Metal mixed-owner schedule.
+ * Native internals remain package-private.
  * There is no library discovery, CPU fallback, or backend-global integration.</p>
  *
  * <p>The optional
@@ -71,10 +71,10 @@
  *
  * <p>The selected numerical profile participates in partition-plan, route, tuning,
  * decision-codec, and workload identity. Java rejects profile/schema mismatches before native
- * entry. ABI version four and its thirteen exports remain stable; node schema version twelve
- * retains operation wires {@code 1..19}, appends the Task-0052 operation wires {@code 20..34},
- * retains attribute wires {@code 0..6}, and appends exact scalar/clamp/scan attributes
- * {@code 7..9}. Backend-local workload, exact-policy, candidate, compatibility, route-policy, and
- * codec identities are version thirteen.</p>
+ * entry. ABI version five retains thirteen exports. Node schema version thirteen is one bounded
+ * self-describing image over stable type wires {@code 1..6}, operation wires {@code 1..115}, and
+ * attribute wires {@code 0..41}; structural registry coverage does not widen the current
+ * executable capability of operation wires {@code 1..34}. Backend-local workload, exact-policy,
+ * candidate, compatibility, route-policy, and codec identities are version fourteen.</p>
  */
 package io.github.pho001.synaptik.backend.metal;

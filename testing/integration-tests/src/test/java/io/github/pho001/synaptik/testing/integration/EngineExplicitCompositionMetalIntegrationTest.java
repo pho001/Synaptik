@@ -935,10 +935,11 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
-    void canonicalCrossOwnerTransfersStillRunAtRankOneAndRankSixteen() {
+    void canonicalCrossOwnerTransfersRunAtRankZeroOneAndSixteen() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared();
                 Engine.Builder builder = Engine.builder()) {
+            builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library)));
             builder.takeOwnership(CpuBackendIntegration.open());
@@ -959,15 +960,25 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             var result = session.run(List.of(input))) {
                         assertCanonical(
                                 result.materialize(
-                                        result.publications().get(0), 8L).bytes(),
-                                strictExp(1.25f),
-                                strictExp(-2.5f));
+                                        result.publications().get(0), 2L * Float.BYTES).bytes(),
+                                strictExp(1.25f), strictExp(-2.5f));
                         assertCanonical(
                                 result.materialize(
-                                        result.publications().get(1), 8L).bytes(),
-                                -strictExp(-1.25f),
-                                -strictExp(2.5f));
+                                        result.publications().get(1), 2L * Float.BYTES).bytes(),
+                                -strictExp(-1.25f), -strictExp(2.5f));
                     }
+                }
+                Tensor reductionInput =
+                        nativeTensor(descriptor(Shape.of(2)), arena, 1.25f, 2.75f);
+                var scalarTransfer = engine.compile(List.of(reductionInput.sum().exp()));
+                assertEquals(List.of("metal", "cpu"),
+                        EngineMixedOwnerTestAccess.partitionOwners(scalarTransfer));
+                try (var session = engine.session(scalarTransfer);
+                        var result = session.run(List.of(reductionInput))) {
+                    assertCanonical(
+                            result.materialize(
+                                    result.publications().getFirst(), Float.BYTES).bytes(),
+                            strictExp(4.0f));
                 }
             }
         }

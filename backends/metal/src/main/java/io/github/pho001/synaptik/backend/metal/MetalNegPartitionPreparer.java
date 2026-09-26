@@ -58,15 +58,17 @@ import java.util.Optional;
  * SCATTER_ELEMENTS domain. Under {@code ACCELERATOR}, it additionally accepts existing arithmetic,
  * reduction, and rank-two MATMUL plus the exact Task-0052 comparisons, tensor/scalar extrema,
  * clamp, reduction extrema, and cumulative scans. An affine MATMUL operand is authenticated to the
- * exact earlier local rank-two {@code PERMUTE [1,0]} on that consuming edge. Schema-twelve
- * lowering retains wires 1..19 and appends the Task-0052 operations 20..34 and typed attributes
- * 7..9. Every graph feed is canonical positive-rank and exactly FLOAT32 or INT32 as required by
- * its typed uses. BOOL comparison results are direct targets and cannot cross or feed another
- * operation. Analysis freshly regenerates the complete candidate batch; an absent decision
- * preserves the singleton-NEG heuristic, while a present decision must authenticate against the
- * current schema, workload, profile, session target, and candidate identity. Any Task-0052 node
- * fixes the whole partition to its custom program route before exact declarations, including a
- * declared run-owned buffer for every internal logical value. Published affine views retain
+ * exact earlier local rank-two {@code PERMUTE [1,0]} on that consuming edge. Schema-thirteen
+ * lowering emits one bounded self-describing image over the stable type wires 1..6, complete
+ * operation registry 1..115, and attribute registry 0..41; the current executable capability
+ * remains exactly the existing operations 1..34. Graph feeds are canonical and explicitly typed.
+ * Rank-zero values participate where the existing operation capability permits them. BOOL results
+ * may be direct or cross-owner targets but cannot feed a current Metal operation. Analysis freshly
+ * regenerates the complete candidate batch; an absent decision preserves the singleton-NEG
+ * heuristic, while a present decision must authenticate against the current schema, workload,
+ * profile, session target, and candidate identity. Any Task-0052 node fixes the whole partition
+ * to its custom program route before exact declarations, including a declared run-owned buffer
+ * for every internal logical value. Published affine views retain
  * logical descriptors while declarations use full dense represented-order byte geometry.
  * Analysis allocates no physical resource and never changes partition ownership or capability.</p>
  */
@@ -199,13 +201,6 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         }
         var graphProgram = new MetalMpsGraphProgram(programNodes);
 
-        int[] ranks = new int[valueIds.size()];
-        long[] dimensions = new long[Math.multiplyExact(valueIds.size(), 16)];
-        for (int valueIndex = 0; valueIndex < valueIds.size(); valueIndex++) {
-            long[] shape = descriptors.get(valueIndex).shape().toLongArray();
-            ranks[valueIndex] = shape.length;
-            System.arraycopy(shape, 0, dimensions, valueIndex * 16, shape.length);
-        }
         validateLogicalPartitionFacts(
                 context.partitionDag(), context.partition(), valueIds, requirements);
 
@@ -223,19 +218,14 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 LogicalMemoryRequirement requirement = require(requirements, output);
                 boolean outsideConsumer = requirement.consumerPartitions().stream()
                         .anyMatch(partition -> partition != context.partition());
-                if (outsideConsumer
-                        && graphValues.get(output).descriptor().dataType() == DataType.BOOL) {
-                    throw new IllegalArgumentException(
-                            "Metal comparison BOOL cannot cross a partition boundary");
-                }
                 if ((requirement.graphOutput() || outsideConsumer) && !targets.contains(output)) {
                     targets.add(output);
                 }
             }
         }
-        if (feeds.isEmpty() || targets.isEmpty()) {
+        if (targets.isEmpty()) {
             throw new IllegalArgumentException(
-                    "Metal supported-operation partition requires at least one feed and one target");
+                    "Metal supported-operation partition requires at least one target");
         }
         var feedSplats = new ArrayList<Optional<ScalarValue>>(feeds.size());
         boolean[] feedSplatSources = new boolean[feeds.size()];
@@ -316,7 +306,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 context.numericalProfile(),
                 context.partition(), context.partitionDag(), deviceContext,
                 route,
-                valueIds, descriptors, valueStates, ranks, dimensions, graphProgram,
+                valueIds, descriptors, valueStates, graphProgram,
                 feeds, feedIndices, targets, targetIndices,
                 internalValues, internalIndices, internalBytes, declarations, feedSplats,
                 feedSplatSources, heuristicWorkspace, feedBytes, targetBytes);
@@ -352,7 +342,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         context.numericalProfile(),
                         context.partition(), context.partitionDag(), deviceContext,
                         route,
-                        valueIds, descriptors, valueStates, ranks, dimensions, graphProgram,
+                        valueIds, descriptors, valueStates, graphProgram,
                         feeds, feedIndices, targets, targetIndices,
                         internalValues, internalIndices, internalBytes, declarations, feedSplats,
                         feedSplatSources, selectedWorkspace, feedBytes, targetBytes, traceUnit);

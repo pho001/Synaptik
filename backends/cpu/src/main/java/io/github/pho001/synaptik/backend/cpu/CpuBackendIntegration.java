@@ -178,26 +178,26 @@ public final class CpuBackendIntegration implements AutoCloseable {
 
     /**
      * Reports whether one nominal representation can be cold-bound as exact native host staging
-     * for a prepared CPU/Metal transfer.
+     * for a prepared CPU/Metal transfer of any canonical model data type.
      *
      * @param representation non-null candidate CPU representation
      * @param descriptor non-null exact logical descriptor
      * @param writable whether the transfer writes into the CPU representation
      * @return {@code true} only for a live current-thread-accessible native, exact-size,
-     *     canonical contiguous FLOAT32 CPU representation with the requested mutability
+     *     rank-0..16 canonical contiguous representation with matching type and mutability
      * @throws NullPointerException if an object argument is null
      * @throws IllegalStateException if this integration is closed
      */
-    public boolean acceptsContiguousFloat32Transfer(
+    public boolean acceptsCanonicalTransfer(
             BufferRepresentation representation,
             TensorDescriptor descriptor,
             boolean writable) {
         composition.assertOpen();
         Objects.requireNonNull(representation, "representation");
         Objects.requireNonNull(descriptor, "descriptor");
-        if (!isContiguousFloat32(descriptor)
+        if (!isCanonicalTransfer(descriptor)
                 || !(representation instanceof CpuBufferRepresentation cpu)
-                || cpu.dataType() != DataType.FLOAT32
+                || cpu.dataType() != descriptor.dataType()
                 || !cpu.isAccessible()) {
             return false;
         }
@@ -210,7 +210,7 @@ public final class CpuBackendIntegration implements AutoCloseable {
     }
 
     /**
-     * Cold-binds one exact CPU representation as reusable native host staging.
+     * Cold-binds one exact canonical CPU representation as reusable native host staging.
      *
      * @param representation non-null candidate CPU representation
      * @param descriptor non-null exact logical descriptor
@@ -221,13 +221,13 @@ public final class CpuBackendIntegration implements AutoCloseable {
      *     carrier, accessibility, or mutability is incompatible
      * @throws IllegalStateException if this integration or representation is closed
      */
-    public MemorySegment bindContiguousFloat32Transfer(
+    public MemorySegment bindCanonicalTransfer(
             BufferRepresentation representation,
             TensorDescriptor descriptor,
             boolean writable) {
-        if (!acceptsContiguousFloat32Transfer(representation, descriptor, writable)) {
+        if (!acceptsCanonicalTransfer(representation, descriptor, writable)) {
             throw new IllegalArgumentException(
-                    "CPU transfer requires an exact live native contiguous FLOAT32 representation");
+                    "CPU transfer requires an exact live native canonical representation");
         }
         return ((CpuBufferRepresentation) representation).segment();
     }
@@ -274,9 +274,9 @@ public final class CpuBackendIntegration implements AutoCloseable {
         return composition.copyToCanonicalHostBytes(representation, descriptor, maximumBytes);
     }
 
-    private static boolean isContiguousFloat32(TensorDescriptor descriptor) {
-        return descriptor.dataType() == DataType.FLOAT32
-                && descriptor.shape().isFullyStatic()
+    private static boolean isCanonicalTransfer(TensorDescriptor descriptor) {
+        return descriptor.shape().isFullyStatic()
+                && descriptor.shape().rank() <= 16
                 && descriptor.layout().isPresent()
                 && descriptor.layout().orElseThrow().equals(
                         LayoutDescriptor.contiguous(descriptor.shape()));
@@ -284,7 +284,8 @@ public final class CpuBackendIntegration implements AutoCloseable {
 
     private static long transferByteCount(TensorDescriptor descriptor) {
         return Math.multiplyExact(
-                descriptor.shape().knownElementCount().orElseThrow(), Float.BYTES);
+                descriptor.shape().knownElementCount().orElseThrow(),
+                descriptor.dataType().byteWidth());
     }
 
     /**

@@ -116,7 +116,7 @@ LIBRARY_SHA256="$(shasum -a 256 "${STAGED_LIBRARY}" | awk '{ print $1 }')"
 [[ "${LIBRARY_SHA256}" =~ ^[0-9a-f]{64}$ ]] || fail "library SHA-256 is malformed"
 
 printf '%s\n' \
-    "{\"schemaVersion\":1,\"artifact\":{\"file\":\"${LIBRARY_NAME}\",\"size\":${LIBRARY_SIZE},\"sha256\":\"${LIBRARY_SHA256}\"},\"platform\":\"macos\",\"architecture\":\"arm64\",\"minimumMacosVersion\":\"26.0\",\"installName\":\"${INSTALL_NAME}\",\"rpaths\":[],\"nativeAbiVersion\":4,\"nodeSchemaVersion\":12,\"linkedFrameworks\":[\"Foundation\",\"Metal\",\"MetalPerformanceShadersGraph\"],\"signature\":{\"kind\":\"adhoc\",\"identifier\":\"${SIGNATURE_IDENTIFIER}\"}}" \
+    "{\"schemaVersion\":1,\"artifact\":{\"file\":\"${LIBRARY_NAME}\",\"size\":${LIBRARY_SIZE},\"sha256\":\"${LIBRARY_SHA256}\"},\"platform\":\"macos\",\"architecture\":\"arm64\",\"minimumMacosVersion\":\"26.0\",\"installName\":\"${INSTALL_NAME}\",\"rpaths\":[],\"nativeAbiVersion\":5,\"nodeSchemaVersion\":13,\"linkedFrameworks\":[\"Foundation\",\"Metal\",\"MetalPerformanceShadersGraph\"],\"signature\":{\"kind\":\"adhoc\",\"identifier\":\"${SIGNATURE_IDENTIFIER}\"}}" \
     > "${STAGED_MANIFEST}"
 chmod 0644 "${STAGED_MANIFEST}"
 

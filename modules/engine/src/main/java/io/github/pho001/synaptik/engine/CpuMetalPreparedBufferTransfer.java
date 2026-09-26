@@ -2,7 +2,6 @@ package io.github.pho001.synaptik.engine;
 
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
 import io.github.pho001.synaptik.backend.metal.MetalBackendIntegration;
-import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.runtime.execution.BoundBufferTransfer;
@@ -15,10 +14,10 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
- * Immutable direct CPU/Metal FLOAT32 transfer recipe for one prepared logical value.
+ * Immutable direct CPU/Metal canonical typed transfer recipe for one prepared logical value.
  *
  * <p>Construction retains the exact two backend integrations and logical descriptor after checking
- * static canonical contiguous FLOAT32 geometry against the shared prepared memory slot. Cold
+ * rank-0..16 static canonical contiguous geometry against the shared prepared memory slot. Cold
  * binding validates both concrete representations and captures one native CPU segment plus one
  * exact Metal upload or download action. The hot action performs no allocation, route search,
  * registry lookup, backend discovery, representation lookup, or validity mutation.</p>
@@ -55,8 +54,8 @@ final class CpuMetalPreparedBufferTransfer extends PreparedBufferTransfer {
         long byteCount = transferByteCount(descriptor);
         if (byteCount < 0L) {
             throw new IllegalArgumentException(
-                    "CPU/Metal transfer requires positive rank-1..16 static canonical contiguous "
-                            + "FLOAT32 with a checked byte extent");
+                    "CPU/Metal transfer requires rank-0..16 static canonical contiguous "
+                            + "geometry with a checked byte extent");
         }
         if (memoryPlan.buffers().get(bufferIndex).byteSize() != byteCount) {
             throw new IllegalArgumentException(
@@ -65,11 +64,11 @@ final class CpuMetalPreparedBufferTransfer extends PreparedBufferTransfer {
     }
 
     /**
-     * Reports support for the one currently implemented mixed-owner transfer geometry.
+     * Reports support for the exact mixed-owner canonical typed transfer geometry.
      *
      * @param descriptor non-null exact logical descriptor
-     * @return whether it has rank 1..16, positive fully static extents, canonical contiguous
-     *     FLOAT32 layout, and a checked element and byte count
+     * @return whether it has rank 0..16, positive fully static extents, canonical contiguous
+     *     layout for any model data type, and a checked element and byte count
      */
     static boolean supports(TensorDescriptor descriptor) {
         Objects.requireNonNull(descriptor, "descriptor");
@@ -77,9 +76,7 @@ final class CpuMetalPreparedBufferTransfer extends PreparedBufferTransfer {
     }
 
     private static long transferByteCount(TensorDescriptor descriptor) {
-        if (descriptor.dataType() != DataType.FLOAT32
-                || !descriptor.shape().isFullyStatic()
-                || descriptor.shape().rank() < 1
+        if (!descriptor.shape().isFullyStatic()
                 || descriptor.shape().rank() > 16
                 || descriptor.layout().isEmpty()) {
             return -1L;
@@ -93,7 +90,7 @@ final class CpuMetalPreparedBufferTransfer extends PreparedBufferTransfer {
                 }
                 elementCount = Math.multiplyExact(elementCount, dimension);
             }
-            byteCount = Math.multiplyExact(elementCount, Float.BYTES);
+            byteCount = Math.multiplyExact(elementCount, descriptor.dataType().byteWidth());
         } catch (ArithmeticException overflow) {
             return -1L;
         }
@@ -146,9 +143,9 @@ final class CpuMetalPreparedBufferTransfer extends PreparedBufferTransfer {
     @Override
     protected boolean acceptsSourceBufferRepresentation(BufferRepresentation representation) {
         return switch (direction) {
-            case CPU_TO_METAL -> cpu.acceptsContiguousFloat32Transfer(
+            case CPU_TO_METAL -> cpu.acceptsCanonicalTransfer(
                     representation, descriptor, false);
-            case METAL_TO_CPU -> metal.acceptsContiguousFloat32Transfer(
+            case METAL_TO_CPU -> metal.acceptsCanonicalTransfer(
                     representation, descriptor);
         };
     }
@@ -157,9 +154,9 @@ final class CpuMetalPreparedBufferTransfer extends PreparedBufferTransfer {
     protected boolean acceptsDestinationBufferRepresentation(
             BufferRepresentation representation) {
         return switch (direction) {
-            case CPU_TO_METAL -> metal.acceptsContiguousFloat32Transfer(
+            case CPU_TO_METAL -> metal.acceptsCanonicalTransfer(
                     representation, descriptor);
-            case METAL_TO_CPU -> cpu.acceptsContiguousFloat32Transfer(
+            case METAL_TO_CPU -> cpu.acceptsCanonicalTransfer(
                     representation, descriptor, true);
         };
     }
@@ -173,15 +170,15 @@ final class CpuMetalPreparedBufferTransfer extends PreparedBufferTransfer {
         Consumer<MemorySegment> transfer;
         switch (direction) {
             case CPU_TO_METAL -> {
-                hostSegment = cpu.bindContiguousFloat32Transfer(
+                hostSegment = cpu.bindCanonicalTransfer(
                         sourceRepresentation, descriptor, false);
-                transfer = metal.bindContiguousFloat32Upload(
+                transfer = metal.bindCanonicalUpload(
                         destinationRepresentation, descriptor);
             }
             case METAL_TO_CPU -> {
-                hostSegment = cpu.bindContiguousFloat32Transfer(
+                hostSegment = cpu.bindCanonicalTransfer(
                         destinationRepresentation, descriptor, true);
-                transfer = metal.bindContiguousFloat32Download(
+                transfer = metal.bindCanonicalDownload(
                         sourceRepresentation, descriptor);
             }
             default -> throw new AssertionError("unknown CPU/Metal transfer direction");

@@ -19,29 +19,7 @@ import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphReductionNativeTest {
     @Test
-    void schemaTwelveRetainsClosedReductionFormsAndPreflightKeepsStrictClosed() {
-        var sum = MetalMpsGraphProgram.Node.reduction(
-                MetalMpsGraphProgram.NodeKind.SUM,
-                2,
-                5,
-                MetalMpsGraphProgram.ReductionForm.MULTI_AXIS,
-                List.of(2, 0),
-                true);
-        ByteBuffer record = ByteBuffer.wrap(
-                new MetalMpsGraphProgram(List.of(sum)).encodedNodeRecords())
-                .order(ByteOrder.BIG_ENDIAN);
-        assertEquals(12, MetalMpsGraphProgram.SCHEMA_VERSION);
-        assertEquals(13, record.getInt());
-        assertEquals(4, record.getInt());
-        assertEquals(2, record.getInt());
-        assertEquals(-1, record.getInt());
-        assertEquals(5, record.getInt());
-        assertEquals(2, record.getInt());
-        assertEquals(3, record.getInt());
-        assertEquals(1, record.getInt());
-        assertEquals(2L, record.getLong());
-        assertEquals(0L, record.getLong());
-        while (record.hasRemaining()) assertEquals(0L, record.getLong());
+    void JavaPreflightClosesReductionFormsAndStrictProfile() {
 
         var full = new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.reduction(
                 MetalMpsGraphProgram.NodeKind.MEAN,
@@ -52,29 +30,11 @@ class MetalMpsGraphReductionNativeTest {
                 false)));
         int[] ranks = {2, 0};
         long[] dimensions = dimensions(new long[][] {{2, 2}, {}});
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
-                NumericalProfile.ACCELERATOR,
-                ranks,
-                dimensions,
-                full,
-                new int[] {0},
-                new int[] {1});
+        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks, dimensions, full), full, new int[] {0}, new int[] {1});
         assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
-                        NumericalProfile.STRICT_IEEE,
-                        ranks,
-                        dimensions,
-                        full,
-                        new int[] {0},
-                        new int[] {1}));
+                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(ranks, dimensions, full), full, new int[] {0}, new int[] {1}));
         assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
-                        NumericalProfile.ACCELERATOR,
-                        new int[] {0, 0},
-                        dimensions(new long[][] {{}, {}}),
-                        full,
-                        new int[] {0},
-                        new int[] {1}));
+                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(new int[] {0, 0}, dimensions(new long[][] {{}, {}}), full), full, new int[] {0}, new int[] {1}));
 
         var wrongShape = new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.reduction(
                 MetalMpsGraphProgram.NodeKind.SUM,
@@ -84,13 +44,7 @@ class MetalMpsGraphReductionNativeTest {
                 List.of(1),
                 false)));
         assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
-                        NumericalProfile.ACCELERATOR,
-                        new int[] {2, 1},
-                        dimensions(new long[][] {{2, 2}, {1}}),
-                        wrongShape,
-                        new int[] {0},
-                        new int[] {1}));
+                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(new int[] {2, 1}, dimensions(new long[][] {{2, 2}, {1}}), wrongShape), wrongShape, new int[] {0}, new int[] {1}));
         assertThrows(IllegalArgumentException.class, () ->
                 MetalMpsGraphProgram.Node.reduction(
                         MetalMpsGraphProgram.NodeKind.MEAN,
@@ -141,14 +95,7 @@ class MetalMpsGraphReductionNativeTest {
             long[] dimensions = dimensions(new long[][] {
                 {2, 2}, {}, {2, 1}, {2, 2}, {1, 2}
             });
-            executable = api.createMpsGraphExecutable(
-                    context,
-                    NumericalProfile.ACCELERATOR,
-                    ranks,
-                    dimensions,
-                    program,
-                    new int[] {0},
-                    new int[] {4, 1, 3, 2});
+            executable = api.createMpsGraphExecutable(context, NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks, dimensions, program), program, new int[] {0}, new int[] {4, 1, 3, 2});
             int[][] initial = {
                 bits(1.0f, 2.0f, 3.0f, 4.0f),
                 new int[2],
@@ -207,14 +154,7 @@ class MetalMpsGraphReductionNativeTest {
                             List.of(),
                             false),
                     MetalMpsGraphProgram.Node.sumToShape(0, 2, new long[] {1})));
-            executable = api.createMpsGraphExecutable(
-                    context,
-                    NumericalProfile.ACCELERATOR,
-                    new int[] {1, 0, 1},
-                    dimensions(new long[][] {{1}, {}, {1}}),
-                    program,
-                    new int[] {0},
-                    new int[] {1, 2});
+            executable = api.createMpsGraphExecutable(context, NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(new int[] {1, 0, 1}, dimensions(new long[][] {{1}, {}, {1}}), program), program, new int[] {0}, new int[] {1, 2});
             int signalingNaN = 0x7f800123;
             for (int count : new int[] {1, 1, 1}) {
                 buffers.add(api.createBuffer(context, (long) count * Integer.BYTES));

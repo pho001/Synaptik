@@ -56,8 +56,8 @@ final class CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest {
         assertEquals(0, Arrays.stream(CpuBackendIntegration.class.getDeclaredConstructors())
                 .filter(constructor -> Modifier.isPublic(constructor.getModifiers())
                         || Modifier.isProtected(constructor.getModifiers())).count());
-        assertEquals(List.of("acceptsContiguousFloat32Transfer", "availabilitySnapshot",
-                        "bindContiguousFloat32Transfer", "borrow", "capabilityProvider", "close",
+        assertEquals(List.of("acceptsCanonicalTransfer", "availabilitySnapshot",
+                        "bindCanonicalTransfer", "borrow", "capabilityProvider", "close",
                         "completePlanTuning", "copyToCanonicalHostBytes", "localWorkloadTuning",
                         "open", "partitionPreparation", "scheduleAssembler",
                         "scheduleContributor"),

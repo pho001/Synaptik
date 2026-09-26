@@ -519,8 +519,12 @@ class MetalNegRouteCandidateGeneratorTest {
                     generate(scatter, copyPlan(
                             scatterPlan,
                             scatterPlan.descriptors(),
-                            new MetalMpsGraphProgram(List.of(
-                                    MetalMpsGraphProgram.Node.gather(0, 1, 3, 1))),
+                            new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.generic(
+                                    MetalMpsGraphProgram.NodeKind.WHERE,
+                                    new int[] {0, 1, 2},
+                                    new int[] {3},
+                                    MetalMpsGraphProgram.AttributeKind.NONE,
+                                    new long[0]))),
                             scatterPlan.targetRequiredBytes()))
                             .compatibility().workload(),
                     "dedicated SCATTER_ELEMENTS wire identifies replacement reduction");
@@ -595,14 +599,14 @@ class MetalNegRouteCandidateGeneratorTest {
                     MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
                     current.batch().compatibility(), MetalNegTuningBatch.Candidate.MPSGRAPH);
             var codec = new MetalNegTuningCodec();
-            assertEquals(13, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
-            assertEquals(13, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
-            assertEquals(13, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
+            assertEquals(14, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
+            assertEquals(14, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
+            assertEquals(14, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
             byte[] first = codec.encodeDecision(decision);
-            assertEquals(13, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
-            assertEquals(13, current.batch().compatibility().schemaVersion());
-            assertEquals(13, current.batch().compatibility().candidateSchemaVersion());
-            assertEquals(13, current.batch().compatibility().routePolicyVersion());
+            assertEquals(14, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
+            assertEquals(14, current.batch().compatibility().schemaVersion());
+            assertEquals(14, current.batch().compatibility().candidateSchemaVersion());
+            assertEquals(14, current.batch().compatibility().routePolicyVersion());
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());
@@ -780,8 +784,6 @@ class MetalNegRouteCandidateGeneratorTest {
         source.valueIds(),
         descriptors,
         source.valueStates(),
-        source.valueRanks(),
-        source.valueDimensions(),
         graphProgram,
         source.feedValueIds(),
         source.feedValueIndices(),
@@ -1218,8 +1220,7 @@ class MetalNegRouteCandidateGeneratorTest {
         @Override void upload(Handle buffer, long offset, MemorySegment source, long count) { }
         @Override void download(Handle buffer, long offset, MemorySegment target, long count) { }
         @Override NativeCreateResult createMpsGraphExecutableNative(
-                Handle context, int[] ranks, long[] dimensions,
-                MetalMpsGraphProgram graphProgram, int[] feeds, int[] targets) {
+                Handle context, MemorySegment programImage) {
             nativeAllocations.incrementAndGet();
             return new NativeCreateResult(0, handle());
         }

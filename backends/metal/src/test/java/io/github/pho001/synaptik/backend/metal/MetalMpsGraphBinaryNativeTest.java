@@ -29,61 +29,21 @@ class MetalMpsGraphBinaryNativeTest {
     private static final int POSITIVE_INFINITY = 0x7f800000;
 
     @Test
-    void schemaTwelveRetainsOrderedBinaryWiresAndJavaPreflightClosesTheProfileMatrix() {
-        List<MetalMpsGraphProgram.NodeKind> kinds = List.of(
-                MetalMpsGraphProgram.NodeKind.ADD,
-                MetalMpsGraphProgram.NodeKind.SUB,
-                MetalMpsGraphProgram.NodeKind.MUL,
-                MetalMpsGraphProgram.NodeKind.DIV);
-        for (int index = 0; index < kinds.size(); index++) {
-            MetalMpsGraphProgram.Node node = MetalMpsGraphProgram.Node.binary(
-                    kinds.get(index), 7, 3, 9);
-            byte[] encoded = new MetalMpsGraphProgram(List.of(node)).encodedNodeRecords();
-            ByteBuffer record = ByteBuffer.wrap(encoded).order(ByteOrder.BIG_ENDIAN);
-            assertEquals(index + 2, record.getInt());
-            assertEquals(0, record.getInt());
-            assertEquals(7, record.getInt());
-            assertEquals(3, record.getInt());
-            assertEquals(9, record.getInt());
-            assertEquals(0, record.getInt());
-            assertEquals(-1, record.getInt());
-            assertEquals(0, record.getInt());
-            while (record.hasRemaining()) {
-                assertEquals(0L, record.getLong());
-            }
-        }
+    void JavaPreflightClosesTheBinaryProfileMatrix() {
 
         int[] ranks = {2, 1, 2};
         long[] dimensions = dimensions(new long[][] {{2, 3}, {3}, {2, 3}});
         MetalMpsGraphProgram binary = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.binary(
                         MetalMpsGraphProgram.NodeKind.SUB, 0, 1, 2)));
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
-                NumericalProfile.ACCELERATOR,
-                ranks,
-                dimensions,
-                binary,
-                new int[] {0, 1},
-                new int[] {2});
+        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks, dimensions, binary), binary, new int[] {0, 1}, new int[] {2});
         assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
-                        NumericalProfile.STRICT_IEEE,
-                        ranks,
-                        dimensions,
-                        binary,
-                        new int[] {0, 1},
-                        new int[] {2}));
+                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(ranks, dimensions, binary), binary, new int[] {0, 1}, new int[] {2}));
 
 
         long[] wrongBroadcast = dimensions(new long[][] {{2, 3}, {2}, {2, 3}});
         assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
-                        NumericalProfile.ACCELERATOR,
-                        ranks,
-                        wrongBroadcast,
-                        binary,
-                        new int[] {0, 1},
-                        new int[] {2}));
+                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks, wrongBroadcast, binary), binary, new int[] {0, 1}, new int[] {2}));
         assertThrows(IllegalArgumentException.class, () ->
                 MetalMpsGraphProgram.Node.binary(
                         MetalMpsGraphProgram.NodeKind.NEG, 0, 1, 2));
@@ -141,14 +101,7 @@ class MetalMpsGraphBinaryNativeTest {
         var inputs = new ArrayList<MetalNativeApi.Handle>();
         var outputs = new ArrayList<MetalNativeApi.Handle>();
         try {
-            executable = api.createMpsGraphExecutable(
-                    context,
-                    NumericalProfile.ACCELERATOR,
-                    ranks,
-                    dimensions,
-                    program,
-                    new int[] {0, 1, 2, 3},
-                    new int[] {4, 5, 6, 7, 8});
+            executable = api.createMpsGraphExecutable(context, NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks, dimensions, program), program, new int[] {0, 1, 2, 3}, new int[] {4, 5, 6, 7, 8});
             for (int[] bits : inputBits) {
                 MetalNativeApi.Handle buffer = api.createBuffer(
                         context, Math.multiplyExact((long) bits.length, Integer.BYTES));

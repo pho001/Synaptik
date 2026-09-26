@@ -3,7 +3,9 @@ package io.github.pho001.synaptik.backend.metal;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
+
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
+import io.github.pho001.synaptik.model.datatype.DataType;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
@@ -12,18 +14,19 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.invoke.MethodHandle;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Package-private typed seam for the ABI-v4 Metal foundation, MPSGraph, and custom-NEG C ABI.
+ * Package-private typed seam for the ABI-v5 Metal foundation, MPSGraph, and custom-NEG C ABI.
  *
  * <p>Handles remain opaque carrier segments inside this package. Implementations consume each
  * successful context or buffer handle exactly once through its matching release call. Native
  * status failures are unchecked and retain both the operation name and raw status value.</p>
  */
 abstract class MetalNativeApi implements AutoCloseable {
-    static final int ABI_VERSION = 4;
+    static final int ABI_VERSION = 5;
     static final String EXECUTABLE_CREATE_OPERATION =
             "synaptik_metal_mpsgraph_executable_create";
     static final String EXECUTABLE_RELEASE_OPERATION =
@@ -120,54 +123,41 @@ abstract class MetalNativeApi implements AutoCloseable {
      *
      * @param context non-null live context whose ownership remains with the caller
      * @param numericalProfile non-null cold plan profile used by Java fail-closed preflight
-     * @param valueRanks non-null value-aligned ranks
-     * @param valueDimensions non-null row-major value-count by sixteen dimension table
-     * @param graphProgram non-null version-twelve typed node table
+     * @param values non-null explicit schema-thirteen value descriptors
+     * @param graphProgram non-null schema-thirteen typed node program
      * @param feedValueIndices non-null stable feed value indices
      * @param targetValueIndices non-null stable target value indices
      * @return a fresh non-null opaque executable handle owned by the caller
-     * @throws RuntimeException if Java validation, native construction, validation, or compilation
-     *     fails
      */
     final Handle createMpsGraphExecutable(
             Handle context,
             NumericalProfile numericalProfile,
-            int[] valueRanks,
-            long[] valueDimensions,
+            List<MetalMpsGraphProgram.ValueDescriptor> values,
             MetalMpsGraphProgram graphProgram,
             int[] feedValueIndices,
             int[] targetValueIndices) {
         Objects.requireNonNull(context, "context");
         MpsGraphExecutableAbi.validateCreate(
-                numericalProfile,
-                valueRanks, valueDimensions, graphProgram,
-                feedValueIndices, targetValueIndices);
-        NativeCreateResult result = Objects.requireNonNull(createMpsGraphExecutableNative(
-                context, valueRanks, valueDimensions, graphProgram,
-                feedValueIndices, targetValueIndices),
-                "native executable create result");
-        return finishExecutableCreate(result);
+                numericalProfile, values, graphProgram, feedValueIndices, targetValueIndices);
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment image =
+                    graphProgram.encodeNative(arena, values, feedValueIndices, targetValueIndices);
+            NativeCreateResult result = Objects.requireNonNull(
+                    createMpsGraphExecutableNative(context, image),
+                    "native executable create result");
+            return finishExecutableCreate(result);
+        }
     }
 
     /**
-     * Performs the already validated native create invocation.
+     * Performs one already validated ABI-v5 program-image create invocation synchronously.
      *
      * @param context non-null live context whose ownership remains with the caller
-     * @param valueRanks validated value-aligned ranks
-     * @param valueDimensions validated padded dimension table
-     * @param graphProgram validated version-twelve typed topological node table
-     * @param feedValueIndices validated unique feeds
-     * @param targetValueIndices validated unique produced targets
+     * @param programImage exact readable schema-thirteen image, valid only for this call
      * @return non-null raw status/output-cell result for checked interpretation
-     * @throws RuntimeException if the native invocation itself fails
      */
     abstract NativeCreateResult createMpsGraphExecutableNative(
-            Handle context,
-            int[] valueRanks,
-            long[] valueDimensions,
-            MetalMpsGraphProgram graphProgram,
-            int[] feedValueIndices,
-            int[] targetValueIndices);
+            Handle context, MemorySegment programImage);
 
     /**
      * Consumes one live native executable handle exactly once.
@@ -409,7 +399,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         if (status != 0) throw new NativeFailure(operation, status);
     }
 
-    /** Stable version-four non-success status meanings. */
+    /** Stable ABI-v5 non-success status meanings. */
     enum Status {
         INVALID_ARGUMENT(1),
         NO_DEVICE(2),
@@ -422,7 +412,8 @@ abstract class MetalNativeApi implements AutoCloseable {
         GRAPH_COMPILATION_FAILED(9),
         INCOMPATIBLE_RESOURCE(10),
         EXECUTION_FAILED(11),
-        KERNEL_COMPILATION_FAILED(12);
+        KERNEL_COMPILATION_FAILED(12),
+        UNSUPPORTED_OPERATION(13);
 
         private final int code;
 
@@ -491,68 +482,38 @@ abstract class MetalNativeApi implements AutoCloseable {
 
         static void validateCreate(
                 NumericalProfile numericalProfile,
-                int[] valueRanks,
-                long[] valueDimensions,
+                List<MetalMpsGraphProgram.ValueDescriptor> values,
                 MetalMpsGraphProgram graphProgram,
                 int[] feeds,
                 int[] targets) {
             Objects.requireNonNull(numericalProfile, "numericalProfile");
-            Objects.requireNonNull(valueRanks, "valueRanks");
-            Objects.requireNonNull(valueDimensions, "valueDimensions");
+            Objects.requireNonNull(values, "values");
             Objects.requireNonNull(graphProgram, "graphProgram");
             Objects.requireNonNull(feeds, "feedValueIndices");
             Objects.requireNonNull(targets, "targetValueIndices");
-            int valueCount = valueRanks.length;
+            int valueCount = values.size();
             if (valueCount == 0) {
                 throw new IllegalArgumentException("Metal MPSGraph value count must be positive");
-            }
-            int dimensionCount;
-            try {
-                dimensionCount = Math.multiplyExact(valueCount, MAX_RANK);
-            } catch (ArithmeticException overflow) {
-                throw new IllegalArgumentException(
-                        "Metal MPSGraph dimension-table cardinality overflows", overflow);
-            }
-            if (valueDimensions.length != dimensionCount) {
-                throw new IllegalArgumentException(
-                        "Metal MPSGraph dimensions must contain exactly valueCount * 16 cells");
             }
             if (graphProgram.nodes().isEmpty()) {
                 throw new IllegalArgumentException("Metal MPSGraph node count must be positive");
             }
-            if (feeds.length == 0 || targets.length == 0) {
-                throw new IllegalArgumentException(
-                        "Metal MPSGraph feed and target counts must be positive");
+            if (targets.length == 0) {
+                throw new IllegalArgumentException("Metal MPSGraph target count must be positive");
             }
-
+            int[] valueRanks = new int[valueCount];
+            long[] valueDimensions =
+                    new long[Math.multiplyExact(valueCount, MAX_RANK)];
+            ValueType[] types = new ValueType[valueCount];
             for (int value = 0; value < valueCount; value++) {
-                int rank = valueRanks[value];
-                if (rank < 0 || rank > MAX_RANK) {
-                    throw new IllegalArgumentException(
-                            "Metal MPSGraph value rank must be in 0..16 at index " + value);
-                }
-                long elements = 1L;
-                int row = value * MAX_RANK;
-                try {
-                    for (int axis = 0; axis < rank; axis++) {
-                        long dimension = valueDimensions[row + axis];
-                        if (dimension <= 0L) {
-                            throw new IllegalArgumentException(
-                                    "Metal MPSGraph used dimensions must be positive");
-                        }
-                        elements = Math.multiplyExact(elements, dimension);
-                    }
-                } catch (ArithmeticException overflow) {
-                    throw new IllegalArgumentException(
-                            "Metal MPSGraph typed geometry overflows at value " + value,
-                            overflow);
-                }
-                for (int axis = rank; axis < MAX_RANK; axis++) {
-                    if (valueDimensions[row + axis] != 0L) {
-                        throw new IllegalArgumentException(
-                                "Metal MPSGraph unused dimension cells must be zero");
-                    }
-                }
+                MetalMpsGraphProgram.ValueDescriptor descriptor =
+                        Objects.requireNonNull(values.get(value), "values[" + value + "]");
+                valueRanks[value] = descriptor.rank();
+                long[] dimensions = descriptor.dimensions();
+                System.arraycopy(dimensions, 0, valueDimensions, value * MAX_RANK,
+                        dimensions.length);
+                types[value] = ValueType.from(descriptor.dataType());
+                descriptor.byteCount();
             }
 
             MetalMpsGraphProgram.ValueState[] states =
@@ -561,16 +522,11 @@ abstract class MetalNativeApi implements AutoCloseable {
             boolean[] used = new boolean[valueCount];
             boolean[] produced = new boolean[valueCount];
             boolean[] localTranspose = new boolean[valueCount];
-            ValueType[] types = new ValueType[valueCount];
             for (int feed : feeds) {
                 requireIndex(feed, valueCount, "feed");
                 if (states[feed] != MetalMpsGraphProgram.ValueState.UNAVAILABLE) {
                     throw new IllegalArgumentException(
                             "Metal MPSGraph feed indices must be unique");
-                }
-                if (valueRanks[feed] == 0) {
-                    throw new IllegalArgumentException(
-                            "Metal MPSGraph rank-zero values cannot be feeds");
                 }
                 states[feed] = MetalMpsGraphProgram.ValueState.CANONICAL;
                 used[feed] = true;
@@ -588,10 +544,6 @@ abstract class MetalNativeApi implements AutoCloseable {
                 int auxiliary = node.auxiliary();
                 requireIndex(left, valueCount, "first node input");
                 requireIndex(output, valueCount, "node output");
-                if (valueRanks[left] == 0) {
-                    throw new IllegalArgumentException(
-                            "Metal MPSGraph rank-zero results cannot be node inputs");
-                }
                 if (!node.kind().accepts(states[left])) {
                     throw new IllegalArgumentException(
                             "Metal MPSGraph node input value state is unavailable or incompatible");
@@ -608,8 +560,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                     case ADD, SUB, MUL, DIV, GT, GE, LT, LE, EQ, NE,
                             TENSOR_MIN, TENSOR_MAX -> {
                         requireIndex(right, valueCount, "second node input");
-                        if (valueRanks[right] == 0
-                                || !node.kind().accepts(states[right])) {
+                        if (!node.kind().accepts(states[right])) {
                             throw new IllegalArgumentException(
                                     "Metal second node input must be positive-rank canonical");
                         }
@@ -654,9 +605,13 @@ abstract class MetalNativeApi implements AutoCloseable {
                     case SQUEEZE -> requireShape(
                             squeezeMatches(node, left, output, valueRanks, valueDimensions),
                             "SQUEEZE axis and output shape disagree");
-                    case SUM, MEAN, REDUCTION_MIN, REDUCTION_MAX -> requireShape(
-                            reductionMatches(node, left, output, valueRanks, valueDimensions),
-                            "reduction attributes, count, and output shape disagree");
+                    case SUM, MEAN, REDUCTION_MIN, REDUCTION_MAX -> {
+                        requireShape(valueRanks[left] > 0,
+                                "reduction input must have positive rank");
+                        requireShape(
+                                reductionMatches(node, left, output, valueRanks, valueDimensions),
+                                "reduction attributes, count, and output shape disagree");
+                    }
                     case MATMUL -> {
                         requireIndex(right, valueCount, "second node input");
                         if (valueRanks[right] == 0
@@ -752,14 +707,6 @@ abstract class MetalNativeApi implements AutoCloseable {
                         requireType(types, output, ValueType.BOOL);
                     }
                 }
-                if (valueRanks[output] == 0
-                        && node.kind() != MetalMpsGraphProgram.NodeKind.SUM
-                        && node.kind() != MetalMpsGraphProgram.NodeKind.MEAN
-                        && node.kind() != MetalMpsGraphProgram.NodeKind.REDUCTION_MIN
-                        && node.kind() != MetalMpsGraphProgram.NodeKind.REDUCTION_MAX) {
-                    throw new IllegalArgumentException(
-                            "Metal rank-zero values must be locally produced reductions");
-                }
                 states[output] = node.kind().outputState();
                 used[left] = true;
                 used[output] = true;
@@ -778,12 +725,6 @@ abstract class MetalNativeApi implements AutoCloseable {
                             "Metal MPSGraph target indices must be unique");
                 }
                 targeted[target] = true;
-            }
-            for (int value = 0; value < valueCount; value++) {
-                if (valueRanks[value] == 0 && (!produced[value] || !targeted[value])) {
-                    throw new IllegalArgumentException(
-                            "Metal MPSGraph rank-zero reduction must be a direct target");
-                }
             }
             for (int value = 0; value < valueCount; value++) {
                 if (!used[value] || types[value] == null) {
@@ -863,14 +804,12 @@ abstract class MetalNativeApi implements AutoCloseable {
 
         private static boolean profileAllows(
                 NumericalProfile numericalProfile, MetalMpsGraphProgram.NodeKind kind) {
+            if (!kind.executable()) return false;
             return switch (numericalProfile) {
                 case STRICT_IEEE -> switch (kind) {
                     case NEG, ABS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE,
                             CONTIGUOUS, GATHER, ONE_HOT, SCATTER_ELEMENTS, UNFOLD_AXIS -> true;
-                    case ADD, SUB, MUL, DIV, SUM, MEAN, MATMUL,
-                            GT, GE, LT, LE, EQ, NE, TENSOR_MIN, TENSOR_MAX,
-                            SCALAR_MIN, SCALAR_MAX, CLAMP, REDUCTION_MIN, REDUCTION_MAX,
-                            CUM_SUM, CUM_PROD -> false;
+                    default -> false;
                 };
                 case ACCELERATOR -> true;
             };
@@ -1319,12 +1258,26 @@ abstract class MetalNativeApi implements AutoCloseable {
         private enum ValueType {
             FLOAT32(Float.BYTES),
             INT32(Integer.BYTES),
-            BOOL(Byte.BYTES);
+            BOOL(Byte.BYTES),
+            FLOAT64(Double.BYTES),
+            BFLOAT16(Short.BYTES),
+            INT64(Long.BYTES);
 
             private final int byteWidth;
 
             ValueType(int byteWidth) {
                 this.byteWidth = byteWidth;
+            }
+
+            static ValueType from(DataType dataType) {
+                return switch (dataType) {
+                    case FLOAT32 -> FLOAT32;
+                    case INT32 -> INT32;
+                    case BOOL -> BOOL;
+                    case FLOAT64 -> FLOAT64;
+                    case BFLOAT16 -> BFLOAT16;
+                    case INT64 -> INT64;
+                };
             }
         }
 
@@ -1430,10 +1383,8 @@ abstract class MetalNativeApi implements AutoCloseable {
                                 JAVA_INT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
                 MethodHandle executableCreate = linker.downcallHandle(
                         require(lookup, EXECUTABLE_CREATE),
-                        FunctionDescriptor.of(JAVA_INT,
-                                ADDRESS, JAVA_INT, JAVA_INT, ADDRESS, ADDRESS,
-                                JAVA_INT, ADDRESS, JAVA_INT, ADDRESS,
-                                JAVA_INT, ADDRESS, ADDRESS));
+                        FunctionDescriptor.of(
+                                JAVA_INT, ADDRESS, ADDRESS, JAVA_INT, ADDRESS));
                 MethodHandle executableRelease = linker.downcallHandle(
                         require(lookup, EXECUTABLE_RELEASE),
                         FunctionDescriptor.of(JAVA_INT, ADDRESS));
@@ -1507,34 +1458,22 @@ abstract class MetalNativeApi implements AutoCloseable {
 
         @Override
         NativeCreateResult createMpsGraphExecutableNative(
-                Handle context,
-                int[] valueRanks,
-                long[] valueDimensions,
-                MetalMpsGraphProgram graphProgram,
-                int[] feedValueIndices,
-                int[] targetValueIndices) {
+                Handle context, MemorySegment programImage) {
             requireOpen();
+            Objects.requireNonNull(programImage, "programImage");
+            if (programImage.byteSize() <= 0L
+                    || programImage.byteSize() > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException(
+                        "Metal program image byte size must fit positive signed int");
+            }
             try (Arena arena = Arena.ofConfined()) {
-                MemorySegment ranks = copyInts(arena, valueRanks);
-                MemorySegment dimensions = copyLongs(arena, valueDimensions);
-                MemorySegment nodes = graphProgram.encodeNative(arena);
-                MemorySegment feeds = copyInts(arena, feedValueIndices);
-                MemorySegment targets = copyInts(arena, targetValueIndices);
                 MemorySegment output = arena.allocate(ADDRESS);
                 output.set(ADDRESS, 0L, MemorySegment.NULL);
                 int status = invokeCreateExecutable(
                         executableCreate,
                         context.carrier(),
-                        MetalMpsGraphProgram.SCHEMA_VERSION,
-                        valueRanks.length,
-                        ranks,
-                        dimensions,
-                        graphProgram.nodes().size(),
-                        nodes,
-                        feedValueIndices.length,
-                        feeds,
-                        targetValueIndices.length,
-                        targets,
+                        programImage,
+                        Math.toIntExact(programImage.byteSize()),
                         output);
                 MemorySegment carrier = output.get(ADDRESS, 0L);
                 return new NativeCreateResult(status,
@@ -1743,21 +1682,11 @@ abstract class MetalNativeApi implements AutoCloseable {
         private static int invokeCreateExecutable(
                 MethodHandle handle,
                 MemorySegment context,
-                int nodeSchemaVersion,
-                int valueCount,
-                MemorySegment ranks,
-                MemorySegment dimensions,
-                int nodeCount,
-                MemorySegment nodes,
-                int feedCount,
-                MemorySegment feeds,
-                int targetCount,
-                MemorySegment targets,
+                MemorySegment program,
+                int programBytes,
                 MemorySegment output) {
             try {
-                return (int) handle.invokeExact(
-                        context, nodeSchemaVersion, valueCount, ranks, dimensions,
-                        nodeCount, nodes, feedCount, feeds, targetCount, targets, output);
+                return (int) handle.invokeExact(context, program, programBytes, output);
             } catch (RuntimeException | Error failure) {
                 throw failure;
             } catch (Throwable failure) {

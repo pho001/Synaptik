@@ -3,20 +3,20 @@
 ## Purpose
 
 This directory builds the local application binary interface (ABI) used by the Synaptik Metal
-backend on Apple-silicon macOS. ABI version 4 retains context, shared-storage buffer, executable,
-and bounded custom singleton-`NEG` ownership with the same thirteen exports. Its versioned typed
-whole-partition program uses node schema 12. Under Java's profile-qualified preflight, both
-profiles support exact canonical `NEG`, `ABS`, `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`,
-`SQUEEZE`, the explicit `CONTIGUOUS` canonicalization barrier, bounded canonical `FLOAT32`
-`UNFOLD_AXIS`, canonical positive-rank `FLOAT32` data `GATHER` with canonical `INT32` indices,
-canonical positive-rank `INT32`-to-`BOOL` `ONE_HOT`, and canonical positive-rank
-`FLOAT32`/`INT32`/`FLOAT32` `SCATTER_ELEMENTS` replacement. `ACCELERATOR` additionally supports
-tensor `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, and `MAX`; all six FLOAT32 comparisons with canonical
-BOOL output; FLOAT32 scalar `MIN`, `MAX`, and fused `CLAMP`; canonical FLOAT32 `SUM`, `MEAN`,
-`MIN`, `MAX`, and binding-resolved `SUM_TO_SHAPE`; FLOAT32 `CUM_SUM` and `CUM_PROD` in every
-exclusive/reverse mode; and positive static rank-two `FLOAT32` `MATMUL` with exact authenticated
-local rank-two transpose operands. Strict `MATMUL` and every Task-0052 operation remain
-unsupported under `STRICT_IEEE`. No symbol or ABI-signature change was required.
+backend on Apple-silicon macOS. ABI version 5 retains the same thirteen context, shared-storage
+buffer, executable, and bounded custom singleton-`NEG` exports. Its graph creator accepts one
+bounded schema-13 program image. The image carries explicit value types and complete variable
+cardinality, operation, attribute, reference, dimension, and gradient metadata; no native type or
+shape inference is part of the boundary.
+
+The schema registry reserves operation wires `1..115` and attribute wires `0..41`. That structural
+coverage does not widen execution capability: the native bridge and Java capability declaration
+continue to execute exactly the existing operations `1..34`, subject to their existing numerical
+profile, type, Shape, and topology restrictions. A structurally valid registered operation outside
+that set returns the dedicated unsupported-operation status rather than masquerading as malformed
+input. Candidate and route identity are version 14. The sole current prepared-plan route kind
+remains the existing deterministic MPSGraph/custom-program choice; schema 13 adds no route
+selection, autotuning, fallback, telemetry, or performance authority.
 
 ```text
 Java analysis -> choose fixed whole-partition route -> declare every exact resource
@@ -59,7 +59,7 @@ package and independently verify the final signed bytes:
 The ignored `build/package-v1/macos-arm64/` directory contains exactly the signed dylib,
 `manifest.json`, and `SHA256SUMS`. The canonical schema-1 manifest records the final dylib's
 relative name, size, SHA-256, platform, architecture, macOS 26.0 minimum, install name, empty
-rpath set, ABI 4, node schema 12, required frameworks, and fixed ad-hoc identifier. It contains no
+rpath set, ABI 5, node schema 13, required frameworks, and fixed ad-hoc identifier. It contains no
 time, host, absolute path, source revision, product version, SDK version, Team ID, notarization,
 provenance, or release field. Packaging the same exact signed input produces byte-identical
 manifest and checksum files.
@@ -120,7 +120,7 @@ extraction, cleanup, classpath lookup, or runtime discovery. `SYNAPTIK_METAL_TES
 test-only. The archive does not add authentication or redistribution rights, and it deliberately
 does not copy the CPU-only `THIRD_PARTY_NOTICES.md`.
 
-## ABI version 4
+## ABI version 5
 
 The dylib exports exactly these thirteen symbols:
 
@@ -140,92 +140,58 @@ synaptik_metal_neg_kernel_pipeline_release
 synaptik_metal_neg_kernel_pipeline_run
 ```
 
-The version function returns unsigned value `4`. The removed
-`synaptik_metal_mpsgraph_neg_executable_create` symbol is not exported. All other functions return
-a signed 32-bit status. Context, buffer, MPSGraph-executable, and custom-pipeline values cross the
-boundary as separate opaque `void *` handle families. Buffer sizes and offsets are unsigned
-64-bit values. Counts, ranks, value indices, node fields, and the node-schema version are unsigned
-32-bit values. Custom-pipeline `element_count` is carried as `uint64_t`, but custom NEG creation
-accepts only `1..UINT32_MAX`; it returns unsupported shape outside that domain rather than
-narrowing the value. Created handles use caller-supplied output cells, which remain null on
-failure.
-
-The graph creator accepts node schema `12` and a bounded fixed-width table:
-
-```c
-typedef struct {
-    uint32_t operation;       /* existing operations=1..19;
-                                 GT/GE/LT/LE/EQ/NE=20..25,
-                                 TENSOR_MIN/MAX=26..27,
-                                 SCALAR_MIN/MAX=28..29, CLAMP=30,
-                                 REDUCTION_MIN/MAX=31..32,
-                                 CUM_SUM/CUM_PROD=33..34 */
-    uint32_t attribute_kind;  /* existing attributes=0..6;
-                                 SCALAR_VALUE=7, CLAMP_RANGE=8, SCAN=9 */
-    uint32_t first_input;
-    uint32_t second_input;    /* ordered binary/MATMUL/GATHER/scatter index */
-    uint32_t output;
-    uint32_t attribute_count;
-    uint32_t axis;            /* normalized axis, reduction form, or UINT32_MAX */
-    uint32_t auxiliary;       /* reduction keep-dimensions or scatter updates input */
-    uint64_t attribute_values[16];
-} SynaptikMetalMpsGraphNodeV12; /* exactly 160 bytes; payload begins at byte 32 */
-```
-
-Its exact signature is:
+The version function returns unsigned value `5`. All other functions return a signed 32-bit
+status. Context, buffer, MPSGraph-executable, and custom-pipeline values cross the boundary as
+separate opaque `void *` handle families. Buffer sizes and offsets are unsigned 64-bit values.
+Created handles use caller-supplied output cells, which remain null on failure. The graph creator's
+exact signature is:
 
 ```c
 int32_t synaptik_metal_mpsgraph_executable_create(
-    void *context, uint32_t node_schema_version,
-    uint32_t value_count, const uint32_t *value_ranks,
-    const uint64_t *value_dimensions,
-    uint32_t node_count, const SynaptikMetalMpsGraphNodeV12 *nodes,
-    uint32_t feed_count, const uint32_t *feed_indices,
-    uint32_t target_count, const uint32_t *target_indices,
+    void *context,
+    const uint8_t *program,
+    uint32_t program_bytes,
     void **out_executable);
 ```
 
-The dimension table has `value_count * 16` cells with used positive axes followed by zero padding.
-Value data types are inferred unambiguously from typed node roles: ordinary floating and
-`UNFOLD_AXIS` paths remain `FLOAT32`; `GATHER` indices, `ONE_HOT` input, and the
-`SCATTER_ELEMENTS` indices role are `INT32`; `ONE_HOT` output is `BOOL`; and scatter data, updates,
-and output are `FLOAT32`. A declared value may be rank zero only when it is a locally produced
-reduction target. Feeds are unique positive-rank canonical values available before node zero; nodes
-are topological, take positive-rank inputs, and produce fresh values; targets are unique produced
-values. Native validation walks explicit unavailable, canonical, and affine-view states. `NEG` and
-`ABS` accept one canonical input, require equal input and output Shapes, and produce canonical
-state. Binary nodes accept two ordered canonical inputs, require exact right-aligned broadcasting
-to the declared output Shape, and produce canonical state. `SUM` and `MEAN` accept one canonical
-`FLOAT32` input. Their typed reduction form encodes full, one normalized axis, ordered distinct
-normalized axes including an empty identity list, or `SUM`-only sum-to-Shape dimensions, plus exact
-keep-dimensions state. Native validation derives and checks the exact output Shape and a positive
-term count; a rank-zero result must be a direct target and cannot feed another node. `MATMUL`
-accepts positive rank-two canonical operands or exact local `PERMUTE [1,0]` views of canonical
-sources, requires exact `[M,K] @ [K,N] -> [M,N]` geometry, and produces canonical state.
-`UNFOLD_AXIS` accepts canonical FLOAT32 input rank `1..15`, normalized axis, size `1..16`, positive
-step, size no larger than the selected extent, and an exact canonical rank-plus-one floor-count
-output. It rederives every selector bound and integer conversion before graph construction.
-`GATHER` accepts canonical positive-rank `FLOAT32` data and `INT32` indices, replaces the selected
-data axis with the complete indices Shape, and produces canonical `FLOAT32`. `ONE_HOT` accepts
-canonical positive-rank `INT32`, appends its positive depth, and produces canonical `BOOL` with
-exact byte values zero and one. `SCATTER_ELEMENTS` accepts ordered canonical `FLOAT32` data,
-`INT32` indices, and `FLOAT32` updates of equal positive rank, requires exact indices/update Shape
-and data agreement away from its normalized axis, and produces a canonical data-shaped `FLOAT32`
-replacement result. Local transpose authentication constrains only an affine operand actually
-consumed by MATMUL; that view may also be a target or have another valid affine consumer. Affine
-nodes accept canonical or prior affine-view state and produce affine-view state. `CONTIGUOUS`
-accepts either available state and produces canonical state. No-attribute nodes require zero
-attribute count/payload and the axis sentinel. Target Shapes and complete permutations use
-`attribute_count` payload cells; axis forms use count one, the normalized `axis`, and a zero
-payload; scatter additionally carries the updates value index in `auxiliary`; depth uses count one
-and its positive payload value. WINDOW_AXIS uses semantic count three, the normalized `axis`, size
-and step in payload cells zero and one, and zero auxiliary and remaining payload cells. Native
-value types, ranks `0..16` under those role restrictions, positive dimensions, target Shapes,
-permutations, axes, unary/binary/reduction/MATMUL/window/indexing/`CONTIGUOUS` Shape rules, and
-affine result geometry are authenticated. Unknown operations, type conflicts, wrong sentinels,
-incompatible Shapes, unavailable or invalid value states, unused values, malformed indices or
-payloads, and wrong schema versions fail closed. Java separately authenticates the numerical
-profile and rejects every profile-incompatible program before the native create call.
+`program` is one canonical little-endian schema-13 image of at most `INT32_MAX` bytes:
+
+```text
+64-byte header
+value_count × 16-byte value descriptors
+node_count × 32-byte node descriptors
+dimension_count × u64 dimensions
+reference_count × u32 value references
+zero u32 alignment word when required
+attribute_word_count × u64 attribute words
+```
+
+The 16 header words are magic `SM13` (`0x33314d53`), schema `13`, total byte count, value count,
+node count, feed count, target count, dimension count, reference count, attribute-word count, and
+six reserved zero words. A value descriptor is
+`{type, rank, dimension_offset, flags}`. Stable type wires are `1=FLOAT32`, `2=INT32`, `3=BOOL`,
+`4=FLOAT64`, `5=BFLOAT16`, and `6=INT64`; rank is `0..16`; flag bit zero is `requiresGrad`; all
+other flag bits are zero. A node descriptor is
+`{operation, attribute_kind, input_offset, input_count, output_offset, output_count,
+attribute_offset, attribute_word_count}`.
+
+References are ordered feeds, targets, then each node's inputs and outputs. Descriptor offsets must
+name exactly those contiguous subranges. Dimensions and attributes are likewise contiguous with no
+gaps, overlap, or trailing data. The optional alignment word must be zero. Native validation checks
+all checked arithmetic, section bounds, reserved bits, registered operation cardinality, registered
+attribute pairing and word count, type/rank/dimension rules, topological availability, feed and
+target uniqueness, and the existing executable operations' exact Shape and state contracts before
+graph construction. Unknown wires, malformed sections, unavailable values, incompatible Shapes,
+and wrong schema versions fail closed as invalid arguments. A well-formed registered operation
+outside current execution capability returns status 13. Java separately authenticates numerical
+profile compatibility and rejects every profile-incompatible program before native creation.
+
+The executable operation domain remains wires `1..34`: `NEG`, arithmetic, affine view operations,
+`CONTIGUOUS`, `ABS`, reductions, `MATMUL`, `GATHER`, `ONE_HOT`, `SCATTER_ELEMENTS`,
+`UNFOLD_AXIS`, comparisons, tensor/scalar extrema, `CLAMP`, reduction extrema, and cumulative
+scans. Existing positive-rank requirements still apply where operation semantics require them
+(including reduction inputs, indexing operations, and `MATMUL`); scalar values are otherwise
+represented directly rather than through inferred exceptions.
 
 ### Status values
 
@@ -244,6 +210,7 @@ profile and rejects every profile-incompatible program before the native create 
 | 10 | `SYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE` | A buffer has the wrong device or extent, or an input aliases an output. |
 | 11 | `SYNAPTIK_METAL_STATUS_EXECUTION_FAILED` | Synchronous execution, unusable threadgroup geometry, completion reporting, or returned-result validation failed. |
 | 12 | `SYNAPTIK_METAL_STATUS_KERNEL_COMPILATION_FAILED` | Fixed custom-kernel compilation, function lookup, target validation, or pipeline creation failed. |
+| 13 | `SYNAPTIK_METAL_STATUS_UNSUPPORTED_OPERATION` | The image is structurally valid but names a registered operation outside current execution capability. |
 
 Unknown integers remain unknown and fail closed on the Java side with the raw status retained.
 The deterministic Java fake/native seam is the accepted error-matrix evidence; real-device tests
@@ -295,10 +262,11 @@ may still use internal temporary storage.
 Affine-view targets are supplied full positive logical byte extents and receive canonical logical
 coordinate order. That dense physical choice is backend-private: logical view strides, offsets,
 and `isView` metadata remain unchanged, and it does not imply aliasing with the source.
-`CONTIGUOUS` targets use the ordinary canonical materialization path. A rank-zero reduction target
-uses exactly one `FLOAT32` element and may be downloaded locally as exactly four canonical bytes;
-canonical caller ingress accepts exact `FLOAT32` and `INT32`, local canonical `BOOL` targets publish
-exact one-byte elements, and CPU/Metal transfer remains positive-rank canonical `FLOAT32` only.
+`CONTIGUOUS` targets use the ordinary canonical materialization path. Canonical host ingress,
+download, and CPU/Metal prepared transfer accept ranks `0..16` for all six public data types:
+`FLOAT32`, `FLOAT64`, `BFLOAT16`, `INT32`, `INT64`, and `BOOL`. Exact big-endian canonical byte
+widths are retained at the public boundary; native shared storage is byte-preserving. Every BOOL
+upload and downloaded/publicized BOOL byte is validated as exactly `0` or `1`.
 
 Java validates live typed handles and readable pointer arrays before native entry. The ABI cannot
 prove that an arbitrary non-null raw pointer is live, type-correct, or sufficiently sized;
@@ -326,7 +294,7 @@ capability narrowing, tuning, fallback, or a performance claim.
 
 ## Task-0052 custom whole-program execution
 
-Any schema-12 program containing a Task-0052 wire uses one retained custom-program handle.
+Any schema-13 program containing a Task-0052 wire uses one retained custom-program handle.
 Creation compiles only the fifteen fixed reviewed Metal kernels with `MTLMathModeSafe`, creates one
 immutable pipeline and metadata buffer per custom node, and cold-compiles each interleaved existing
 node as a typed one-node MPSGraph executable. Java declares and assigns a run-owned buffer for

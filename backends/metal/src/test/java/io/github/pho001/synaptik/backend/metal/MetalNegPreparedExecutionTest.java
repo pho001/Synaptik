@@ -29,6 +29,7 @@ import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.NodeId;
 import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
@@ -564,10 +565,10 @@ class MetalNegPreparedExecutionTest {
         var binding = executable.splatResource(route.feed()).orElseThrow().newRunBinding();
         TensorDescriptor descriptor = descriptor(Shape.of(2));
         try {
-            assertTrue(runtime.acceptsContiguousFloat32Transfer(binding, descriptor));
+            assertTrue(runtime.acceptsCanonicalTransfer(binding, descriptor));
             try (Arena arena = Arena.ofConfined()) {
                 MemorySegment destination = arena.allocate(2L * Float.BYTES, Float.BYTES);
-                runtime.bindContiguousFloat32Download(binding, descriptor).accept(destination);
+                runtime.bindCanonicalDownload(binding, descriptor).accept(destination);
                 assertEquals(Float.floatToRawIntBits(-2.5f),
                         destination.getAtIndex(JAVA_INT, 0));
                 assertEquals(Float.floatToRawIntBits(-2.5f),
@@ -577,7 +578,7 @@ class MetalNegPreparedExecutionTest {
             assertEquals(Float.floatToRawIntBits(-2.5f),
                     java.nio.ByteBuffer.wrap(canonical).getInt(0));
             assertThrows(IllegalArgumentException.class,
-                    () -> runtime.bindContiguousFloat32Upload(binding, descriptor));
+                    () -> runtime.bindCanonicalUpload(binding, descriptor));
 
             for (int index = finalized.resources().size() - 1; index >= 0; index--) {
                 finalized.resources().get(index).close();
@@ -592,7 +593,7 @@ class MetalNegPreparedExecutionTest {
             api.bufferReleaseFailures.add(deferredRelease);
             assertSame(deferredRelease,
                     assertThrows(RuntimeException.class, binding::close));
-            assertFalse(runtime.acceptsContiguousFloat32Transfer(binding, descriptor));
+            assertFalse(runtime.acceptsCanonicalTransfer(binding, descriptor));
         } finally {
             binding.close();
             for (int index = finalized.resources().size() - 1; index >= 0; index--) {
@@ -601,6 +602,72 @@ class MetalNegPreparedExecutionTest {
             runtime.close();
         }
         assertEquals(1, api.bufferReleases.get());
+        assertTrue(api.liveBufferHandles().isEmpty());
+    }
+
+    @Test
+    void canonicalRankZeroTransfersAndPublicationCoverAllTypesAndRejectInvalidBoolBeforeUpload() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        MetalBackendRuntime runtime = new MetalBackendRuntime(context);
+        try (Arena arena = Arena.ofConfined()) {
+            for (DataType type : DataType.values()) {
+                int width = type.byteWidth();
+                MemorySegment source = arena.allocate(width, width);
+                for (int index = 0; index < width; index++) {
+                    source.set(JAVA_BYTE, index,
+                            type == DataType.BOOL ? (byte) 1 : (byte) (0x10 + index));
+                }
+                var storage = new MemorySegmentStorage(type, 1L, source);
+                TensorDescriptor descriptor = new TensorDescriptor(
+                        type,
+                        Shape.scalar(),
+                        Optional.of(LayoutDescriptor.contiguous(Shape.scalar())),
+                        false);
+                try (var representation = runtime.borrow(storage)) {
+                    assertTrue(runtime.acceptsCanonicalTransfer(representation, descriptor));
+                    MemorySegment downloaded = arena.allocate(width, width);
+                    runtime.bindCanonicalDownload(representation, descriptor).accept(downloaded);
+                    for (int index = 0; index < width; index++) {
+                        assertEquals(source.get(JAVA_BYTE, index),
+                                downloaded.get(JAVA_BYTE, index));
+                    }
+                    byte[] canonical =
+                            runtime.copyToCanonicalHostBytes(representation, descriptor, width);
+                    for (int index = 0; index < width; index++) {
+                        int sourceIndex = type == DataType.BOOL
+                                || java.nio.ByteOrder.nativeOrder()
+                                        == java.nio.ByteOrder.BIG_ENDIAN
+                                ? index : width - 1 - index;
+                        assertEquals(source.get(JAVA_BYTE, sourceIndex), canonical[index]);
+                    }
+                }
+            }
+
+            MemorySegment invalidBool = arena.allocate(1L, 1L);
+            invalidBool.set(JAVA_BYTE, 0L, (byte) 2);
+            int uploadsBeforeInvalid = api.uploads.get();
+            assertThrows(IllegalArgumentException.class, () -> runtime.borrow(
+                    new MemorySegmentStorage(DataType.BOOL, 1L, invalidBool)));
+            assertEquals(uploadsBeforeInvalid, api.uploads.get());
+
+            MemorySegment validBool = arena.allocate(1L, 1L);
+            validBool.set(JAVA_BYTE, 0L, (byte) 1);
+            TensorDescriptor boolDescriptor = new TensorDescriptor(
+                    DataType.BOOL,
+                    Shape.scalar(),
+                    Optional.of(LayoutDescriptor.contiguous(Shape.scalar())),
+                    false);
+            try (var destination = runtime.borrow(
+                    new MemorySegmentStorage(DataType.BOOL, 1L, validBool))) {
+                assertThrows(IllegalArgumentException.class,
+                        () -> runtime.bindCanonicalUpload(destination, boolDescriptor)
+                                .accept(invalidBool));
+                assertEquals(uploadsBeforeInvalid + 1, api.uploads.get());
+            }
+        } finally {
+            runtime.close();
+        }
         assertTrue(api.liveBufferHandles().isEmpty());
     }
 
@@ -1308,8 +1375,11 @@ class MetalNegPreparedExecutionTest {
             try {
                 assertEquals(1, api.executableCreates.get());
                 assertArrayEquals(
-                        plan.graphProgram().encodedNodeRecords(),
-                        api.createdProgram.encodedNodeRecords());
+                        plan.graphProgram().encodedProgramImage(
+                                plan.programValueDescriptors(),
+                                plan.feedValueIndices(),
+                                plan.targetValueIndices()),
+                        api.createdProgramImage);
             } finally {
                 resource.close();
             }
@@ -1386,8 +1456,11 @@ class MetalNegPreparedExecutionTest {
                 assertEquals(1, api.executableCreates.get());
                 assertEquals(2, api.runCalls.get());
                 assertArrayEquals(
-                        plan.graphProgram().encodedNodeRecords(),
-                        api.createdProgram.encodedNodeRecords());
+                        plan.graphProgram().encodedProgramImage(
+                                plan.programValueDescriptors(),
+                                plan.feedValueIndices(),
+                                plan.targetValueIndices()),
+                        api.createdProgramImage);
             }
             assertEquals(1, api.executableReleases.get());
         } finally {
@@ -1462,8 +1535,11 @@ class MetalNegPreparedExecutionTest {
                 assertEquals(1, api.executableCreates.get());
                 assertEquals(2, api.runCalls.get());
                 assertArrayEquals(
-                        plan.graphProgram().encodedNodeRecords(),
-                        api.createdProgram.encodedNodeRecords());
+                        plan.graphProgram().encodedProgramImage(
+                                plan.programValueDescriptors(),
+                                plan.feedValueIndices(),
+                                plan.targetValueIndices()),
+                        api.createdProgramImage);
             }
             assertEquals(1, api.executableReleases.get());
         } finally {
@@ -1493,8 +1569,6 @@ class MetalNegPreparedExecutionTest {
 
         assertEquals(1, api.executableCreates.get());
         assertEquals(2, api.runCalls.get());
-        assertArrayEquals(new int[] {0, 3}, api.feeds);
-        assertArrayEquals(new int[] {2, 4, 5}, api.targets);
         context.close();
         assertEquals(0, api.contextReleases.get());
         workspace.close(); out2.close(); out1.close(); out0.close(); second.close(); first.close();
@@ -2415,12 +2489,12 @@ class MetalNegPreparedExecutionTest {
                 assertTrue(executable.denseAffinePublication(target).isPresent());
             }
             assertEquals(1, api.executableCreates.get());
-            assertArrayEquals(plan.valueRanks(), api.createdRanks);
-            assertArrayEquals(plan.valueDimensions(), api.createdDimensions);
-            assertArrayEquals(plan.graphProgram().encodedNodeRecords(),
-                    api.createdProgram.encodedNodeRecords());
-            assertArrayEquals(plan.feedValueIndices(), api.feeds);
-            assertArrayEquals(plan.targetValueIndices(), api.targets);
+            assertArrayEquals(
+                    plan.graphProgram().encodedProgramImage(
+                            plan.programValueDescriptors(),
+                            plan.feedValueIndices(),
+                            plan.targetValueIndices()),
+                    api.createdProgramImage);
 
             context.close();
             assertEquals(0, api.contextReleases.get(),
@@ -3878,11 +3952,7 @@ class MetalNegPreparedExecutionTest {
         private volatile CountDownLatch runEntered = new CountDownLatch(0);
         private volatile CountDownLatch continueRuns = new CountDownLatch(0);
         private volatile CountDownLatch bufferCreateEntered = new CountDownLatch(0);
-        private int[] feeds;
-        private int[] targets;
-        private int[] createdRanks;
-        private long[] createdDimensions;
-        private MetalMpsGraphProgram createdProgram;
+        private byte[] createdProgramImage;
 
         @Override synchronized Handle createContext() { return handle(); }
         @Override void releaseContext(Handle context) {
@@ -3924,18 +3994,10 @@ class MetalNegPreparedExecutionTest {
         @Override
         synchronized NativeCreateResult createMpsGraphExecutableNative(
                 Handle context,
-                int[] ranks,
-                long[] dimensions,
-                MetalMpsGraphProgram graphProgram,
-                int[] feedIndices,
-                int[] targetIndices) {
+                MemorySegment programImage) {
             executableCreates.incrementAndGet();
             if (createFailure != null) throw createFailure;
-            createdRanks = ranks.clone();
-            createdDimensions = dimensions.clone();
-            createdProgram = graphProgram;
-            feeds = feedIndices.clone();
-            targets = targetIndices.clone();
+            createdProgramImage = programImage.toArray(JAVA_BYTE);
             Handle created = createNullHandle ? null : handle();
             if (createStatus != 0 && !createHandleOnFailure) created = null;
             return new NativeCreateResult(createStatus, created);
