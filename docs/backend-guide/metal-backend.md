@@ -57,22 +57,24 @@ their floating primitive-site and complete result-set proofs are deliberately de
 `ACCELERATOR` additionally admits tensor `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, and `MAX`; all six
 binary comparisons; exact FLOAT32 scalar `MIN`, `MAX`, fused `CLAMP`, and no-gradient
 `ADD`, `SUB`, `MUL`, and `DIV`; no-gradient `RECIPROCAL`; canonical FLOAT32 reductions; `CUM_SUM`
-and `CUM_PROD`; and positive static rank-two FLOAT32 `MATMUL`. Comparisons
-publish canonical one-byte BOOL. Extrema reductions join `SUM` and `MEAN` across full, normalized
-single-axis, ordered normalized multi-axis including the empty identity, and exact
-keep-dimensions forms; `SUM_TO_SHAPE` remains SUM-only. Scans accept every exclusive/reverse mode
-and preserve Shape. Binary operations have two canonical dense, zero-offset non-view inputs, and
-their output Shape is the exact right-aligned broadcast. Scalar operations and scans preserve
-Shape and retain exact FLOAT32 attribute words. Scalar `ADD/SUB/MUL/DIV` and `RECIPROCAL` require
-canonical positive-rank no-gradient input and output. Each arithmetic scalar is one exact
-four-byte raw FLOAT32 rank-one `[1]` graph constant broadcast by the corresponding tensor
-primitive in `input op scalar` order; reciprocal is exact raw `+1.0f` in primary position followed
-by the input in secondary position for one division. MATMUL accepts canonical inputs or
-authenticated local transposes of canonical sources, requires exact `[M,K] @ [K,N] -> [M,N]`
-geometry, and produces a canonical output. Reduction and ordinary inputs are positive-rank
-`1..16`; a locally produced reduction target may be scalar. Canonical host
-ingress/materialization and CPU/Metal transfer accept all six public data types at ranks `0..16`
-with strict BOOL-byte validation.
+and `CUM_PROD`; every positive-static FLOAT32 `MATMUL` vector, matrix, batched, and right-aligned
+broadcast geometry; and no-gradient BFLOAT16/FLOAT32 or FLOAT32/BFLOAT16 MATMUL with FLOAT32
+result. Both profiles admit no-gradient INT32/INT64 MATMUL pairs with INT64-dominant promotion and
+modular result arithmetic. Comparisons publish canonical one-byte BOOL. Extrema reductions join
+`SUM` and `MEAN` across full, normalized single-axis, ordered normalized multi-axis including the
+empty identity, and exact keep-dimensions forms; `SUM_TO_SHAPE` remains SUM-only. Scans accept every
+exclusive/reverse mode and preserve Shape. Binary operations have two canonical dense, zero-offset
+non-view inputs, and their output Shape is the exact right-aligned broadcast. Scalar operations and
+scans preserve Shape and retain exact FLOAT32 attribute words. Scalar `ADD/SUB/MUL/DIV` and
+`RECIPROCAL` require canonical positive-rank no-gradient input and output. Each arithmetic scalar is
+one exact four-byte raw FLOAT32 rank-one `[1]` graph constant in source operand order; reciprocal
+is exact raw `+1.0f / input`. MATMUL accepts canonical inputs or authenticated local
+identity-prefix, last-two-axis transposes of canonical sources, applies exact NumPy-style vector
+promotion and right-aligned batch broadcasting, and produces canonical output. FLOAT32 output
+gradient eligibility is the exact operand OR; integral and mixed-carrier rows are no-gradient.
+BFLOAT16/BFLOAT16, every FLOAT64-result pair, strict floating, zero extents, and dynamic geometry
+remain false. Canonical host ingress/materialization and CPU/Metal transfer accept all six public
+data types at ranks `0..16` with strict BOOL-byte validation.
 Operation capability remains narrower: the new BOOL inputs are canonical positive-rank values,
 custom logic writes exact zero or one, and FLOAT32 WHERE copies the selected represented word.
 Every descriptor is fully static and has the operation-specific exact type, layout, Shape, and
@@ -90,23 +92,22 @@ capability -> Planning ownership -> Metal analysis and typed candidates
 ```
 
 Capability applies per occurrence. Preparation then authenticates the complete maximal partition
-that Planning forms: common exact-unary/affine/canonicalization/indexing/classification/logic/WHERE
-graphs and, under accelerator, valid compositions with binary, comparison, extrema, scalar,
-reduction, scan, and MATMUL nodes, stable fan-out, repeated and ordered inputs, internal
-publications, and multiple feeds and targets. A positive-rank reduction result may compose with
-other supported accelerator nodes; a scalar reduction result is a direct target only. Canonical
-BOOL comparison, ONE_HOT, classification, and logic values may publish or feed another admitted
-BOOL-domain node. A local transpose accepted as a MATMUL operand must be produced inside the same
-partition from a canonical source, but its other valid affine consumers and boundary publication
-remain available. Scalar POW; non-FLOAT32 or gradient-bearing scalar arithmetic; masked,
-floating product, statistical, norm, log-sum-exp, and arg-extrema reductions; every unary
-operation other than the six exact profile-common kinds and accelerator no-gradient
-`RECIPROCAL`; strict Task-0052 and scalar/reciprocal operations; vector or batched MATMUL;
-arithmetic scatter and colliding replacement scatter; overlapping folds; zero-length
-`SLICE_UPDATE`; window kinds outside the admitted exact rows; indexing outside the listed exact
-rows; profile-crossing operations; unsupported attributes/types; zero or dynamic dimensions in
-the new exact domains; unresolved, zero-stride, negative-stride, overlapping, or out-of-span
-SELECT/SLICE storage layouts; mismatched descriptors; and multi-output forms remain fail-closed.
+that Planning forms: common exact-unary/affine/canonicalization/indexing/classification/logic/WHERE,
+movement/replacement/fold/aggregate, and integral-MATMUL graphs and, under accelerator, valid
+compositions with binary, comparison, extrema, scalar, reduction, scan, general FLOAT32 MATMUL, and
+mixed-carrier MATMUL nodes. A positive-rank reduction result may compose with other supported
+accelerator nodes; a scalar reduction result is a direct target only. Canonical BOOL comparison,
+ONE_HOT, classification, and logic values may publish or feed another admitted BOOL-domain node.
+A local transpose accepted as a MATMUL operand must be produced inside the same partition from a
+canonical source and must preserve identity leading axes while swapping exactly the final two; its
+other valid affine consumers and boundary publication remain available. Scalar POW;
+BFLOAT16/BFLOAT16 or FLOAT64-result MATMUL; gradient-bearing integral or mixed-carrier MATMUL;
+strict floating MATMUL; non-FLOAT32 or gradient-bearing scalar arithmetic; masked, floating
+product, statistical, norm, log-sum-exp, and arg-extrema reductions; every unary operation other
+than the six exact profile-common kinds and accelerator no-gradient `RECIPROCAL`; arithmetic
+scatter and colliding replacement scatter; overlapping folds; zero-length `SLICE_UPDATE`;
+unsupported window/indexing/attribute/type forms; zero or dynamic dimensions in the exact domains;
+invalid storage layouts; mismatched descriptors; and multi-output forms remain fail-closed.
 
 Within that capability domain, Metal analysis generates a typed complete candidate batch
 and selects one of three private routes:
@@ -114,8 +115,8 @@ and selects one of three private routes:
 - `CUSTOM_SINGLE_NEG` for exactly one NEG occurrence under either profile, one unique feed, one
   unique target, and a checked element count in `1..UINT32_MAX`;
 - `CUSTOM_PROGRAM` for a complete partition containing any Task-0052 node, any of the seven
-  BOOL-domain nodes, exact raw `FLOOR`/`CEIL`/`SIGN`/`RELU`, or an admitted Task-0059/Task-0060
-  exact custom node; or
+  BOOL-domain nodes, exact raw `FLOOR`/`CEIL`/`SIGN`/`RELU`, an admitted Task-0059/Task-0060 exact
+  custom node, or MATMUL outside the retained all-FLOAT32 rank-two MPSGraph slice; or
 - `MPSGRAPH` for every other supported partition.
 
 The seven BOOL-domain and four exact raw unary nodes also expose direct MPSGraph candidates only as
@@ -161,7 +162,7 @@ device discovery.
 
 | Stage or resource | Owner and current behavior |
 |---|---|
-| Capability truth | Public `MetalCapabilityProvider` reports the exact canonical FLOAT32 NEG/ABS/FLOOR/CEIL/SIGN/RELU, affine/`CONTIGUOUS`/bounded `UNFOLD_AXIS`, Task-0059 movement/indexing, Task-0060 all-carrier replacement/FLOAT64-FLOAT32-BFLOAT16 non-overlap fold/integer PROD/BOOL ALL-ANY, FLOAT32 classification, BOOL logic, and FLOAT32 WHERE domains under both profiles and the accelerator-only tensor-binary, Task-0052, reduction, and positive static rank-two MATMUL domains above. |
+| Capability truth | Public `MetalCapabilityProvider` reports the exact common unary, affine, canonicalization, indexing, BOOL-domain, Task-0059 movement, Task-0060 replacement/fold/aggregate, and promoted integral MATMUL rows under both profiles. Accelerator additionally reports the documented FLOAT32 arithmetic/reduction/scan rows, every positive-static FLOAT32 MATMUL geometry, and no-gradient BFLOAT16/FLOAT32 mixed MATMUL. |
 | Native configuration and integration | Public `MetalBackendConfiguration` and `MetalBackendIntegration` belong to Metal. Metal validates configuration, opens native ownership, and rolls partial construction back before Engine can take the completed integration. |
 | Backend ownership | Planning chooses `owner = metal` and groups consecutive equal owners; it never selects MPSGraph or a custom kernel. |
 | Analysis | Package-private Metal code validates the complete partition, assigns stable structural value order, regenerates typed route candidates and session compatibility, authenticates any supplied decision, fixes one route, and declares that route's exact resources. |
@@ -210,7 +211,7 @@ distinct non-physical identities. The first is an abstract availability slot, th
 trace correlation token, and the third a session-compatibility identity that makes no stable-device
 claim. No mapping among them is implied. ABI 5 and the thirteen native exports remain fixed.
 The route-bearing image is schema 15 and every workload/exact-policy/candidate/compatibility/
-route/codec identity is version 16; schema 14 and version-15 values fail closed. Tuning remains
+route/codec identity is version 17; schema 14 and version-16 values fail closed. Tuning remains
 session-scoped and non-persistent.
 
 Future asynchronous execution requires a separate cross-module contract for completion/failure,
@@ -284,10 +285,12 @@ broadcasts the branches first and then the condition, and propagates the branche
 In accelerator mode each binary requires two canonical inputs and the exact broadcast output. A
 reduction requires one positive-rank canonical input and its exact full, normalized-axis,
 keep-dimensions, empty-axis identity, or binding-resolved sum-to-Shape output; only a reduction
-output may be rank zero. Accelerator MATMUL requires two positive static rank-two FLOAT32 inputs,
-exact contraction and output Shapes, canonical output, and canonical or exact transpose layout
-operands. Strict MATMUL is false. Availability and hard backend requirements remain separate
-Planning facts.
+output may be rank zero. Both profiles admit no-gradient INT32/INT64 MATMUL with exact promotion
+and modular arithmetic. Accelerator additionally admits general positive-static FLOAT32 MATMUL
+with output gradient eligibility equal to the operand OR and no-gradient BFLOAT16/FLOAT32 mixed
+pairs with FLOAT32 output. Each operand is canonical or an exact authenticated local
+identity-prefix, last-two-axis transpose; the output is canonical. Availability and hard backend
+requirements remain separate Planning facts.
 Exact `SELECT` and positive-step `SLICE` accept all six carriers without gradients. Their fully
 static positive-rank input and output descriptors must carry resolved, strictly positive,
 non-overlapping storage layouts. Capability recomputes the exact output strides and offset from the
@@ -329,10 +332,11 @@ branch-first broadcast Shape. Accelerator binary and reduction nodes consume onl
 FLOAT32 values and produce canonical FLOAT32; binary nodes preserve the exact broadcast Shape,
 while reduction lowering preserves its typed form, ordered axes, keep-dimensions state,
 sum-to-Shape target, and checked term geometry. MATMUL produces canonical state and may consume
-affine state only when analysis authenticates that exact operand as a local rank-two transpose of a
-canonical source. That authentication constrains only the MATMUL input edge; the view may be
-published or used by another admitted affine operation. A positive-rank FLOAT32 result can feed a
-later compatible node; canonical BOOL may publish or feed a compatible logic/WHERE node, and a
+affine state only when analysis authenticates that exact operand as a local identity-prefix,
+last-two-axis transpose of a canonical source. That authentication constrains only the MATMUL input
+edge; the view may be published or used by another admitted affine operation.
+A positive-rank FLOAT32 result can feed a later compatible node; canonical BOOL may publish or feed
+a compatible logic/WHERE node, and a
 scalar result must be a direct target. Stable value indexing follows first encounter. Repeated use
 names the same value. Only feeds and published boundary targets receive Runtime slots; custom-
 program intermediates are also declared assigned buffers, while ordinary MPSGraph intermediates
@@ -348,19 +352,20 @@ consuming a caller position. Existing shared `GraphPreparation` tests independen
 chain `CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
 Once stable values, states, feeds, targets, checked byte geometry, and typed node records are known,
-analysis creates a version-sixteen candidate batch and workload fingerprint. Partitions without a
-Task-0052, BOOL-domain, or Task-0059 custom node retain the ordinary MPSGraph candidate, with the
-existing bounded singleton-NEG alternative where eligible. A partition containing one of those
-custom nodes has the fixed `CUSTOM_PROGRAM` production candidate. An exact singleton new node may
-add `MPSGRAPH` second for package-private structural forcing only; tuning cannot select it.
+analysis creates a version-seventeen candidate batch and workload fingerprint. Partitions without
+an exact custom node or custom-only MATMUL retain the ordinary MPSGraph candidate, with the existing
+bounded singleton-NEG alternative where eligible. A partition containing an exact custom node or
+MATMUL outside the all-FLOAT32 rank-two slice has the fixed `CUSTOM_PROGRAM` production candidate.
+An exact singleton custom node may add `MPSGRAPH` second for package-private structural forcing
+only; tuning cannot select it.
 
-The version-sixteen canonical workload fingerprint covers the explicit numerical-profile wire,
+The version-seventeen canonical workload fingerprint covers the explicit numerical-profile wire,
 the schema-fifteen route-bearing program image, ordered input and output references, all typed
 attributes, value states, authenticated local-transpose provenance, complete tensor descriptors
 and storage layouts, target and internal-value sets, exact scalar/splat bits, logical-boundary
 roles, policy/candidate/route schemas, and ABI version. It encodes structural positions rather than
 graph object identity. Target compatibility also contains a fresh private nonce from the exact
-`MetalDeviceContext`; version-fifteen and earlier decisions fail closed.
+`MetalDeviceContext`; version-sixteen and earlier decisions fail closed.
 Metal can construct an absent- or present-decision `BackendPartitionTuningHandoff`. Fresh analysis
 always regenerates the current batch. Every supplied handoff is accepted only when the exact
 partition, candidate schema, workload fingerprint, and context session match. An absent decision
@@ -383,16 +388,16 @@ unsupported operations fail before native creation. No public configuration, int
 tuning, or Runtime input exposes this test seam.
 ### Session decision codec and limitations
 
-The package-private version-sixteen Metal codec produces bounded canonical compatibility,
+The package-private version-seventeen Metal codec produces bounded canonical compatibility,
 candidate, and checksummed decision bytes. Decode rejects wrong magic, schema, session scope,
 numerical profile, malformed or truncated content, trailing or corrupt bytes, changed workload or
 context, and unknown or pruned candidates. The bytes contain no native handle or executable.
-Version-fifteen and earlier codec bytes and cross-profile decisions fail closed even when their
+Version-sixteen and earlier codec bytes and cross-profile decisions fail closed even when their
 trailing checksum is otherwise valid.
 
 The public `MetalLocalWorkloadTuning` retained by `MetalBackendIntegration` wraps this codec and
-candidate generator without changing their version-sixteen bytes. It returns a handoff only for an
-exact singleton NEG whose complete ordered candidate list is `[CUSTOM_SINGLE_NEG, MPSGRAPH]`.
+candidate generator without changing their version-seventeen bytes. It returns a handoff only for
+an exact singleton NEG whose complete ordered candidate list is `[CUSTOM_SINGLE_NEG, MPSGRAPH]`.
 `MetalCompletePlanTuning` authenticates the exact Phase-1 association and exposes one complete-plan
 candidate fixed to that selected route. Both collaborations use opaque exact-owner/batch values,
 defensive bytes, fresh authoritative analysis for trial and selected preparation, and
@@ -614,23 +619,34 @@ One run publishes `c = [[71, 78, 85, 92], [83, 90, 97, 104]]` plus `t = 300`; lo
 `t` copies exactly four bytes. Strict ownership rejects the same reduction graph before native
 creation, and scalar operation results do not become composable inputs.
 
-### Accelerator rank-two MATMUL and seeded gradients
+### General static MATMUL and generated gradients
 
-For canonical `left:[M,K]` and `right:[K,N]`, accelerator Metal lowers `left.matmul(right)` to one
-`MATMUL=15` node. No-bias `left.linear(weight:[N,K])` retains the visible local
-`PERMUTE [1,0] -> MATMUL` chain; the backend does not add a `LINEAR` operation or materialization.
-An explicitly seeded first-order compile for both operands retains the existing shape-restoration
-boundaries around exactly:
+MATMUL follows the Model's vector promotion and batch broadcast rules: `[K]@[K]` produces a scalar,
+`[K]@[K,N]` produces `[N]`, `[M,K]@[K]` produces `[M]`, and rank-two-or-greater leading axes
+broadcast right-aligned. Both profiles execute every no-gradient INT32/INT64 ordered pair with
+INT64-dominant output promotion and exact two's-complement modular accumulation. Accelerator
+additionally executes FLOAT32/FLOAT32 with gradient eligibility equal to the input OR and
+no-gradient BFLOAT16/FLOAT32 or FLOAT32/BFLOAT16 with FLOAT32 output. Each logical operand may be
+canonical or the exact local identity-prefix, last-two-axis transpose of a canonical source.
+
+Existing all-FLOAT32 rank-two matrix products retain one MPSGraph MATMUL node. Every newly admitted
+geometry or carrier pair uses a fixed safe-math custom kernel, one output writer per logical cell,
+increasing contraction order, exact broadcast coordinates, physical offset/stride addressing, and
+canonical output storage. The four integer signatures operate on raw unsigned words so overflow is
+defined modularly; the two mixed signatures widen BFLOAT16 exactly before FLOAT32 arithmetic.
+There is no tiling, atomics, fallback, runtime selection, or hidden transpose materialization.
+
+Compiler-generated explicitly seeded FLOAT32 gradients use the same general domain:
 
 ```text
 left gradient  = seed @ transpose(right)
 right gradient = transpose(left) @ seed
 ```
 
-The local transposes and MATMUL nodes execute in one CPU-free Metal partition. This is a narrowly
-proved explicitly seeded rank-two backward path, not scalar-loss training, batched MATMUL,
-implicit seeding, or a general Metal training claim. Strict Metal rejects the same MATMUL graph
-during ownership selection.
+The local transposes and MATMUL nodes execute in one CPU-free Metal partition for vector, matrix,
+batched, and broadcast Shapes. This remains generated first-order execution, not implicit seeding
+or an unrestricted Metal training claim. Strict floating MATMUL, BFLOAT16/BFLOAT16,
+FLOAT64-result pairs, and gradients on integral or mixed-carrier rows fail before native creation.
 
 ### Exact GATHER and ONE_HOT
 
@@ -904,8 +920,8 @@ persistent Metal splat binding is accepted only as a Metal read source; it canno
 destination. Runtime executes only the resulting direct prepared references.
 
 For one exact singleton NEG Metal plan, public `prepareTuned(...)` measures the complete two-route
-local batch, authenticates the selected version-sixteen decision, then correctness-checks and times
-one complete-plan candidate fixed to that route. The returned production recipe is freshly
+local batch, authenticates the selected version-seventeen decision, then correctness-checks and
+times one complete-plan candidate fixed to that route. The returned production recipe is freshly
 prepared after representative cleanup. Metal policy, producer, and decision-codec identities are
 adapter-owned and distinct from CPU identities; existing CPU bytes and behavior remain unchanged.
 Both Metal phases are `SESSION`, so workload-cache entries cannot hit or publish and the

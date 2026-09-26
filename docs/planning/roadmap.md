@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0060; 0053 Blocked | [Metal 0060](backends/metal/tasks/0060-exact-replacement-fold-and-aggregate-reductions.md) completed at plan `dd94e492`, implementation `d06db07e`, proof `eda09533`, docs `62f18cd8`, and fold-domain/count remediation `a4fe4754`; independent cumulative re-review returned `APPROVE` with zero P0/P1/P2. Current capability is `69/46`, structural execution `87/28`, schema 15, identity 16, ABI 5, and thirteen exports. No Metal production task is Ready. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Review needed at Task 0061; 0053 Blocked | [Metal 0061](backends/metal/tasks/0061-general-static-matmul-domain.md) has corrected approved plan `d81ec940` and implementation `3cc49d94`; package/docs/cumulative Class C review remain. Current capability is `69/46`, structural execution `87/28`, schema 15, identity 17, ABI 5, and thirteen exports. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -515,21 +515,20 @@ is `Complete` at `42c4cfbf` plus `fb102a46` after the operation-by-operation DAZ
 validation, combined serial checkpoint, and independent Class C approval all passed.
 
 Current Metal uses ABI 5, exactly thirteen exports, and one bounded schema-15 route-bearing program
-image. Both profiles retain exact canonical FLOAT32 NEG/ABS/affine/CONTIGUOUS, bounded UNFOLD_AXIS,
-typed GATHER/ONE_HOT/SCATTER_ELEMENTS-NONE, FLOAT32 classification, BOOL logic, FLOAT32 WHERE,
-all six-carrier positive-layout SELECT/SLICE and replacement-only SCATTER_ND/SLICE_UPDATE,
-FLOAT64/FLOAT32/BFLOAT16 non-overlap folds, modular INT32/INT64 PROD, and BOOL ALL/ANY. Accelerator
-additionally admits the existing arithmetic, SUM/MEAN/SUM_TO_SHAPE, and bounded MATMUL rows plus
-Task-0052 comparisons,
-tensor/scalar/clamp/reduction extrema, and scans. A partition containing a Task-0052, BOOL-domain,
-Task-0059 movement, or Task-0060 replacement/fold/aggregate node materializes each required logical
+image. Both profiles retain the exact common unary, affine, canonicalization, indexing, BOOL,
+Task-0059 movement, Task-0060 replacement/fold/aggregate, and no-gradient promoted INT32/INT64
+MATMUL rows. Accelerator additionally admits the documented FLOAT32 arithmetic, extrema, scalar,
+reduction, and scan rows; every positive-static FLOAT32 MATMUL vector, matrix, batched, and
+broadcast geometry; and no-gradient BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 result. Existing
+all-FLOAT32 rank-two matrix products retain MPSGraph; all other admitted MATMUL forms use the fixed
+custom program. A partition containing an exact custom node materializes each required logical
 value in a declared run-owned physical storage span and invokes one fixed shared custom-program
 native executable per hot run.
 Schema 15 carries type wires `1..6`, operation wires `1..115`, attribute wires `0..41`, route wire
 `2` or `3`, and complete positive-stride storage-layout geometry; exactly 87 operation kinds are
 structurally executable and 69 are production-capable. Workload, policy, candidate, compatibility,
-route, and codec identities are version sixteen; candidate wires and complete-plan wrapper remain
-stable.
+route, and codec identities are version seventeen; candidate wires and complete-plan wrapper
+remain stable.
 
 Metal 0025 remains Complete at reviewed revision `f88066e3`; its schema-11/version-twelve facts are
 historical. Blocked 0026–0027/0030–0037/0039–0040 changed no executable capability. Complete 0041
@@ -658,18 +657,17 @@ matrix with narrowing, or infer capability from registered schema.
 
 ## Nearest next step
 
-Metal Task 0060 is Complete from clean `f3ad5e12`: plan `dd94e492`, implementation `d06db07e`,
-native/public Engine proof `eda09533`, documentation `62f18cd8`, and fold-domain/count remediation
-`a4fe4754`. Independent cumulative re-review of `55cdebc3..a4fe4754` returned `APPROVE` with zero
-P0/P1/P2. Production admits only `SCATTER_ND/NONE` with complete pre-write bounds and global
-uniqueness, exact signed/crop `SLICE_UPDATE`, structurally non-overlapping FLOAT64/FLOAT32/BFLOAT16
-copy/zero-fill folds, modular integer PROD, and exact BOOL ALL/ANY. Capability is
-`69 true / 46 false`; eight aggregate MPSGraph recipes make structural execution `87 / 28` without
-widening production. Additive SCATTER_ADD, all scatter
-reduction variants, overlapping folds, ARG extrema, and floating PROD/log-sum-exp/variance/
-standard-deviation/norm production remain false with explicit blockers; pool wires `97..100`
-remain deferred. Schema 15, identity 16, ABI 5, and thirteen exports remain fixed. No Metal
-production task is Ready.
+Metal Task 0061 is Review needed at corrected approved plan `d81ec940` and implementation
+`3cc49d94`. Both profiles now admit every no-gradient INT32/INT64 ordered MATMUL pair with
+INT64-dominant promotion and modular result arithmetic. Accelerator additionally admits every
+positive-static FLOAT32 vector/matrix/batched/broadcast geometry with generated gradients and
+no-gradient BFLOAT16/FLOAT32 mixed pairs with FLOAT32 output. Exact local identity-prefix,
+last-two-axis transpose operands retain physical offset/stride provenance. Existing all-FLOAT32
+rank-two matrix products retain MPSGraph; seven fixed custom signatures cover newly admitted forms
+with no fallback, tiling, tuning, or hidden materialization. Capability remains `69 / 46`,
+structural execution `87 / 28`, and MPSGraph catalog `75 / 35 / 5`; custom catalog is
+`47 / 68 / 0`. Schema 15, ABI 5, and thirteen exports remain fixed; all backend-local identities
+advance to version 17 and reject version 16. Package/docs/cumulative Class C review remain.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
@@ -784,9 +782,9 @@ gradient obligations. Unblocking requires a conforming custom or proved selector
 complete five-input/two-output/caller-INT64 schema, native lifecycle, and proof.
 
 Schema 15, operation wires `1..115`, attributes `0..41`, local types `1..6`, ABI 5, and
-version-sixteen identities are current after completed Task 0059. Complete Tasks 0055–0058 remain
-historical foundation/catalog/route prerequisites; blocked Metal 0053 remains fail-closed without
-production capability. Metal 0026/0027 remain separately finalized Blocked.
+version-seventeen identities are current after Task 0061 implementation. Complete Tasks 0055–0060
+remain historical foundation/catalog/route/domain prerequisites; blocked Metal 0053 remains
+fail-closed without production capability. Metal 0026/0027 remain separately finalized Blocked.
 Documentation/audit-only Metal 0038 is Complete. Planning-only Metal 0039 is Blocked on Draft Model
 0026. Metal 0040 is Blocked by its failed one-execution BFLOAT16 raw-bit gate. Metal 0041 is
 Complete at implementation `ba16d942` plus remediation `386705ca`; Metal 0042 is Complete at

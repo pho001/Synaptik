@@ -10,28 +10,27 @@ complete variable-cardinality operation, attribute, reference, dimension, gradie
 storage-layout metadata; no native type, shape, or layout inference is part of the boundary.
 
 The schema registry reserves operation wires `1..115` and attribute wires `0..41`. The native graph
-creator has 87 structural recipes: wires `1..34`, `38..54`, `56..63`, `65..84`, `106..108`, and
-`111..115`. Structural-only raw fixtures do not widen capability. Java production capability is
-exactly 69 operation kinds. Task 0059 adds wire `39`, exact read-only indexing wires `69` and `71`,
-and exact copy-only layout wires `73..75`, `77..79`, `81`, and `83`. Task 0060 additionally admits
-replacement/fold wires `72`, `76`, `80`, `82`, and `84`, plus exact aggregate wires `106..108`.
-Most admitted Task-0059/Task-0060 occurrences use static canonical no-gradient descriptors. SELECT
-and positive-step SLICE instead use fully static, positive-rank, positive-stride, non-overlapping
-storage layouts whose encoded offset, stride, kind, view flag, and referenced span exactly match
-the operation. Unresolved, zero-stride, negative-stride, overlapping, empty, or gradient-bearing
-SELECT/SLICE occurrences fail closed. The remaining 46 production rows fail closed before native
-creation. A structurally valid registered operation without a native recipe returns the dedicated
-unsupported-operation status rather than masquerading as malformed input.
-Candidate and route identity are version 16. Java owns exactly three prepared-route identities:
+can structurally execute exactly 87 operation kinds; production capability remains exactly 69
+kinds. Task 0059 adds exact movement/indexing rows and complete positive-stride storage geometry.
+Task 0060 adds replacement/fold rows `72`, `76`, `80`, `82`, and `84` plus exact aggregate rows
+`106..108`. Task 0061 widens existing `MATMUL=15` without adding a wire: both profiles admit
+no-gradient INT32/INT64 ordered pairs; accelerator additionally admits every positive-static
+FLOAT32 vector, matrix, batched, and broadcast geometry plus no-gradient BFLOAT16/FLOAT32 mixed
+pairs with FLOAT32 result. Existing all-FLOAT32 rank-two matrix products retain MPSGraph; every new
+MATMUL form selects the fixed custom program. Exact local identity-prefix, last-two-axis transpose
+inputs retain their physical source, offset, and strides. The remaining 46 production rows fail
+closed before native creation. A structurally valid registered operation without a native recipe
+returns the dedicated unsupported-operation status rather than masquerading as malformed input.
+Candidate and route identity are version 17. Java owns exactly three prepared-route identities:
 custom singleton NEG wire 1, MPSGraph wire 2, and shared custom-program wire 3. Schema 15 embeds
 wire 2 or 3 in each graph image; schema 14 and every other schema or route value fail closed. The
 exhaustive Java structural catalog adds no native route selection, capability, autotuning, fallback,
 telemetry, or performance authority.
 
-For admitted Task-0059/Task-0060 nodes, the version-16 workload signature binds operation wire,
-source/target carrier types and widths, every Shape, normalized axis/batch/tuple fact, complete raw
-attributes, exact scalar bits, variadic input order/count, and complete encoded storage-layout
-geometry. The schema-15 and identity-16 cutover has no compatibility reader or migration alias.
+For admitted nodes, the version-17 workload signature binds operation wire, source/target carrier
+types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes, exact
+scalar bits, variadic input order/count, and complete encoded storage-layout geometry. The
+schema-15 and identity-17 cutover has no compatibility reader or migration alias.
 
 ```text
 Java analysis -> choose fixed whole-partition route -> declare every exact resource
@@ -246,9 +245,9 @@ Raw structural fixtures additionally create prior wires `38`, `50`, `53..54`, `5
 production-exact aggregate wires `106..108`, and structural-only wires `111..115`.
 Task-0059 recipes cover direct cast/index/pad/slice/concat/tile/im2col/col2im selectors and explicit
 stack, fold-axis, and 3D-window compositions. Task-0060 adds stable log-sum-exp, correction-aware
-variance/standard-deviation, and L1/L2 norm structural compositions. Structural creation and
-execution do not widen production capability: wires `111..115`, scatter reductions, overlapping
-folds, floating PROD, non-BOOL ALL/ANY, and every unproved recursive result set remain false.
+variance/standard-deviation, and L1/L2 norm structural compositions. Task-0061 retains only
+all-FLOAT32 rank-two MATMUL in the MPSGraph recipe; typed custom forms are rejected by that route.
+Structural creation and execution do not widen production capability.
 
 ### Status values
 
@@ -295,9 +294,9 @@ final dimension to each, and concatenates that ordered list along the final dime
 uses zero batch dimensions; `ONE_HOT` uses exact `BOOL` scalar constants one and zero.
 `CONTIGUOUS` and empty-axis reduction identities use same-Shape
 `reshapeTensor:withShape:name:`; keep-dimensions and sum-to-Shape results are reshaped to the
-validated declared output. Compilation explicitly sets and reads back
-`reducedPrecisionFastMath = MPSGraphReducedPrecisionFastMathNone` for MATMUL and rejects native
-creation unless that control is available. It verifies every result Shape and compiles one
+validated declared output. Direct all-FLOAT32 rank-two MATMUL compilation explicitly sets and reads
+back `reducedPrecisionFastMath = MPSGraphReducedPrecisionFastMathNone` and rejects native creation
+unless that control is available. It verifies every result Shape and compiles one
 shape-specialized executable. The executable owner retains ordered feed and target Shapes, inferred
 data types, byte extents, stable-to-framework permutations, ordered indexing-domain checks,
 checked coordinate geometry and bounded primitive uniqueness scratch for scatter, and the
@@ -355,14 +354,16 @@ capability narrowing, tuning, fallback, or a performance claim.
 
 ## Shared exact custom whole-program execution
 
-Any schema-15 program containing a Task-0052 wire, one of wires `40..45` and `51`, or an admitted
-Task-0059/Task-0060 custom wire uses one retained custom-program handle. Creation compiles only
+Any schema-15 program containing an exact custom node or a MATMUL outside the retained
+all-FLOAT32 rank-two MPSGraph slice uses one retained custom-program handle. Creation compiles only
 fixed reviewed Metal kernels with `MTLMathModeSafe`, creates one immutable pipeline and metadata
 buffer per custom node, and cold-compiles each interleaved existing node as a typed one-node
-MPSGraph executable. Java declares and assigns a run-owned buffer for every logical intermediate
-and a native-address workspace for the stable value table plus direct target aliases. The fixed
-route crosses in the authenticated schema image; no source text, function name, hidden
-intermediate, or input-dependent choice crosses the ABI.
+MPSGraph executable. Task-0061 contributes seven typed MATMUL kernels: four modular INT32/INT64
+signatures, FLOAT32/FLOAT32, and both ordered BFLOAT16/FLOAT32 mixed signatures. Java declares and
+assigns a run-owned buffer for every logical intermediate and a native-address workspace for the
+stable value table plus direct target aliases. The fixed route crosses in the authenticated schema
+image; no source text, function name, hidden intermediate, or input-dependent choice crosses the
+ABI.
 
 One Java/native run call authenticates the complete value table and exact direct targets, rejects
 one physical buffer reused by distinct live value entries, and preserves each target's required
@@ -471,31 +472,30 @@ independent bounded DAZ/FTZ/signed-zero/NaN raw-bit oracle. Reduction coverage e
 single-axis, multi-axis, empty-axis identity, keep-dimensions, and binding-resolved sum-to-Shape
 forms; it checks scalar four-byte publication, direct targets, positive-rank ABS/binary
 composition, repeated and concurrent sessions, exact copy identities, and strict-profile
-rejection. MATMUL coverage executes direct, left-transposed, right-transposed, and both-transposed
-rank-two forms through reusable executables, exact outputs, direct targets, and input preservation.
-Public CPU-free Metal-only Engine cases additionally exercise direct MATMUL, no-bias linear's
-visible right transpose, and explicitly seeded gradients for both operands without a CPU owner.
+rejection. MATMUL coverage executes vector dot, vector/matrix, matrix/vector, rank-two, batched,
+broadcast, rank-16, and exact local-transpose forms. It covers all four integral promotions with
+modular extremes, both ordered mixed BFLOAT16 signatures with exact widening, FLOAT32 special
+classes and FMA/zero-sign certificate cases, physical offset/stride canaries, direct targets,
+immutable inputs, reuse, independent sessions, and concurrency. Public CPU-free Metal-only Engine
+cases additionally exercise integral execution under both profiles and general accelerator
+FLOAT32 forward/generated-gradient and mixed-carrier execution.
 
 ## Boundaries
 
 The bridge itself implements no library discovery, package selection or extraction, Engine
-composition, mixed-owner schedule, CPU fallback, general custom-kernel framework, asynchronous
-API, buffer pool,
-persistent constant buffer, executable serialization, FLOAT16, BFLOAT16, masked/extrema/product
-reductions, unary algebra beyond exact profile-independent `NEG`, `ABS`, `FLOOR`, `CEIL`, `SIGN`,
-and `RELU`, binary comparison/logical/scalar forms, strict/vector/batched/broadcast MATMUL, general
-backward execution, alias promise, or performance claim. Accelerator arithmetic, reductions, and
-MATMUL do not imply strict IEEE subnormal preservation: Model-owned DAZ/FTZ applies at its declared
-boundaries; finite arithmetic may reassociate and use corresponding FMA choices; and NaN
-payload/sign are unspecified. Only a final exact-zero SUM/SUM_TO_SHAPE root with at least two
-terms, the mandatory final MEAN quotient, or publication of a complete nonempty exact-zero MATMUL
-contraction may choose either zero sign. Empty-axis identities and one-term SUM/SUM_TO_SHAPE
-identities remain exact copies. MEAN always performs the mandatory positive-count FLOAT32 quotient
-and retains the row's DAZ/FTZ/NaN freedoms, even when the selected count is one. Every MATMUL term
-must occur exactly once; products and intermediates receive no publication-only zero-sign freedom.
-ABS receives none of those relaxations. Affine composition adds no custom kernel. The only current
-backward execution is the Compiler-generated explicitly seeded rank-two MATMUL formula, not a
-general training route.
+composition, mixed-owner schedule, CPU fallback, asynchronous API, buffer pool, persistent constant
+buffer, executable serialization, FLOAT16, BFLOAT16-result MATMUL, FLOAT64 arithmetic, masked or
+unproved aggregate reductions, strict floating MATMUL, dynamic/zero-extent MATMUL, arbitrary affine
+MATMUL input, implicit-seed backward execution, alias promise, or performance claim. Accelerator
+arithmetic, reductions, and MATMUL use only their Model-owned result freedoms. Every MATMUL term
+occurs exactly once in increasing contraction order; corresponding FMA placement is permitted and
+only a complete nonempty exact-zero result receives the final zero-sign choice. Integer arithmetic
+is exact two's-complement modular arithmetic. Mixed BFLOAT16 inputs widen exactly and are never
+narrowed because the result is FLOAT32. Affine operands address their authenticated physical
+source directly; no hidden transpose materialization occurs. There is no tiling, atomics,
+autotuning, runtime route selection, retry, or fallback. Generated accelerator FLOAT32 gradients
+use the same admitted MATMUL domain but do not imply unrestricted Metal training.
+
 The public Java Metal surface is `MetalCapabilityProvider`, `MetalBackendConfiguration`, and
 `MetalBackendIntegration`; Engine accepts an explicitly opened integration through
 `Engine.builder()`.

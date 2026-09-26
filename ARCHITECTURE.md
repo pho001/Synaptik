@@ -192,21 +192,20 @@ The following invariants must remain true:
   Planning queries, Compiler artifacts, Prepare contexts, and backend plan/cache identities retain
   it unchanged. For a fixed occurrence domain, every backend's `STRICT_IEEE` capability and allowed
   behavior are subsets of its `ACCELERATOR` capability and allowed behavior. CPU realizes both
-  profiles with identical exact behavior. Metal realizes exact canonical positive-rank FLOAT32
-  `NEG`/`ABS`/`FLOOR`/`CEIL`/`SIGN`/`RELU`, affine transforms, `CONTIGUOUS`, bounded general-axis
-  `UNFOLD_AXIS` materialization, canonical positive-rank FLOAT32 data GATHER with canonical INT32
-  indices, positive-rank INT32-to-BOOL ONE_HOT, and canonical positive-rank
-  FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE` replacement under both profiles; under
-  `ACCELERATOR` it additionally realizes canonical tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`,
-  no-gradient canonical positive-rank FLOAT32 scalar `ADD`/`SUB`/`MUL`/`DIV` with exact raw scalar
-  constants, no-gradient `RECIPROCAL` as one `+1.0f / input` division, `SUM`/`MEAN`/`SUM_TO_SHAPE`,
-  and positive static rank-two MATMUL. Strict binary/scalar/reduction/MATMUL and every other
-  unsupported profile/operation pair fail closed. Metal
-  UNFOLD_AXIS preserves addressed FLOAT32 representations in a fresh canonical output without
-  mutating its source. Metal indexing validates complete bounds and scatter target uniqueness
-  before dispatch or target writes and leaves targets unchanged on failure. Canonical cross-owner
-  transfer supports all six current data types at ranks `0..16`; transfer coverage does not widen
-  operation capability. Runtime and Trace remain profile-free.
+  profiles with identical exact behavior. Metal's common domain includes its exact unary, affine,
+  canonicalization, indexing, BOOL-domain, Task-0059 movement, and Task-0060 replacement/fold/
+  aggregate rows. Both profiles also realize no-gradient INT32/INT64 `MATMUL` pairs with
+  INT64-dominant promotion and modular result arithmetic. Under `ACCELERATOR`, Metal additionally
+  realizes the documented FLOAT32 arithmetic, scalar, reduction, and scan rows; every
+  positive-static FLOAT32 `MATMUL` vector, matrix, batched, and right-aligned broadcast geometry;
+  and no-gradient BFLOAT16/FLOAT32 mixed `MATMUL` with FLOAT32 result. MATMUL operands are
+  canonical or authenticated local identity-prefix, last-two-axis transposes. Existing rank-two
+  FLOAT32 matrix products retain direct MPSGraph; all newly admitted geometries and carrier pairs
+  use the fixed custom program. Strict floating MATMUL and every other unsupported
+  profile/operation pair fail closed. Metal indexing validates complete bounds and scatter target
+  uniqueness before dispatch or target writes and leaves targets unchanged on failure. Canonical
+  cross-owner transfer supports all six current data types at ranks `0..16`; transfer coverage does
+  not widen operation capability. Runtime and Trace remain profile-free.
 - `CompiledGraphModel` is immutable compile-time graph state.
 - `CompileArtifacts` are immutable compile-time output.
 - `PreparedExecution`, its prepared memory/schedule/executable recipes, and immutable persistent

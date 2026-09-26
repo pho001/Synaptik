@@ -404,14 +404,14 @@ Engine selection -> Planning query -> CompileArtifacts -> PrepareContext -> back
 The same graph-wide `NumericalProfile` crosses these cold stages unchanged. Model owns the
 unchanged strict set and total recursive `FLOAT32` accelerator superset; every downstream stage
 transports, queries, or realizes that meaning without reinterpreting it. CPU realizes both profiles
-identically. Metal's common exact occurrence domain under both profiles contains canonical exact
-unary, affine, indexing, BOOL-domain, and Task-0059 raw movement rows, including all-carrier SELECT
-and positive-step SLICE over resolved positive-stride non-overlapping storage layouts.
-`ACCELERATOR` additionally admits tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`/`MIN`/`MAX`, all six
-comparisons, scalar MIN/MAX/CLAMP, SUM/MEAN/MIN/MAX/SUM_TO_SHAPE, every CUM_SUM/CUM_PROD mode, and
-positive static rank-two MATMUL with authenticated local transpose operands. Strict capability
-remains an accelerator subset; every other occurrence fails closed before route selection. ABI 5
-retains thirteen exports and accepts one bounded schema-15 route-bearing program image over type
-wires `1..6`, operation wires `1..115`, and attribute wires `0..41`; backend identities are
-version sixteen. Structural coverage is `79 / 36` and production capability is `61 / 54`. Runtime
+identically. Metal's common exact occurrence domain under both profiles contains its unary, affine,
+canonicalization, indexing, BOOL-domain, Task-0059 movement, Task-0060 replacement/fold/aggregate,
+and no-gradient promoted INT32/INT64 MATMUL rows. `ACCELERATOR` additionally admits the documented
+FLOAT32 arithmetic, extrema, scalar, reduction, and scan rows; every positive-static FLOAT32
+MATMUL vector, matrix, batched, and right-aligned broadcast geometry; and no-gradient
+BFLOAT16/FLOAT32 mixed MATMUL. Strict rejects floating MATMUL but retains the common integral rows;
+every other unlisted occurrence fails closed before route selection. ABI 5 retains thirteen
+exports and accepts one bounded schema-15 route-bearing program image over type wires `1..6`,
+operation wires `1..115`, and attribute wires `0..41`; backend identities are version seventeen.
+Structural coverage is `87 / 28` and production capability is `69 / 46`. Runtime
 executes the prepared result with no profile branch.

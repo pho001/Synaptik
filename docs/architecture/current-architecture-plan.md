@@ -61,25 +61,26 @@ non-overlapping layouts with checked physical spans.
 CPU realizes both numerical profiles through identical exact behavior and routes. Model defines
 `STRICT_IEEE` as the unchanged current contract and `ACCELERATOR` as its total recursive
 `FLOAT32` superset; that semantic reach does not imply backend support. Metal execution remains
-occurrence- and profile-qualified. Both profiles admit only exact canonical FLOAT32 `NEG`/`ABS`;
-`RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`; `CONTIGUOUS`; bounded `UNFOLD_AXIS`; exact
-FLOAT32-data/INT32-index `GATHER`; INT32-to-BOOL `ONE_HOT`;
-FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`; FLOAT32 classification; BOOL logic; and FLOAT32
-WHERE. Accelerator additionally admits canonical tensor FLOAT32
-`ADD`/`SUB`/`MUL`/`DIV`/`MIN`/`MAX`, all six comparisons with local canonical BOOL publication,
-exact scalar `MIN`/`MAX`/`CLAMP`, canonical `SUM`/`MEAN`/`MIN`/`MAX`/`SUM_TO_SHAPE`, every
-`CUM_SUM`/`CUM_PROD` mode, and positive static rank-two MATMUL. Strict capability remains an
-accelerator subset; every other occurrence fails closed before route selection. Canonical typed
-host ingress/publication and direct CPU/Metal transfer support all six data types at ranks `0..16`;
-transfer also accepts resolved positive-stride non-overlapping physical storage layouts and rejects
-unresolved, zero-stride, negative-stride, or overlapping geometry. BOOL validation visits logical
-elements only. Exact all-carrier SELECT and positive-step SLICE use that storage-layout contract.
-An eligible singleton NEG retains its dedicated custom route. Any partition containing a
-Task-0052, BOOL-domain, or Task-0059 custom node uses the fixed shared whole-program route with
-declared run-owned value buffers and one Java/native invocation. Current Metal uses ABI 5 with the
-same thirteen exports and one bounded schema-15 route-bearing program image over type wires
-`1..6`, operation wires `1..115`, and attribute wires `0..41`; backend-local identities are
-version sixteen. Structural coverage is `79 / 36`; production capability is exactly `61 / 54`.
+occurrence- and profile-qualified. Its common domain includes the exact unary, affine,
+canonicalization, indexing, classification, BOOL, Task-0059 movement, and Task-0060
+replacement/fold/aggregate rows. Both profiles additionally admit no-gradient INT32/INT64 MATMUL
+with INT64-dominant promotion and exact modular result arithmetic. Accelerator additionally admits
+the documented FLOAT32 arithmetic, extrema, scalar, reduction, and scan rows; every
+positive-static FLOAT32 MATMUL vector, matrix, batched, and right-aligned broadcast geometry; and
+no-gradient BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 result. MATMUL operands are canonical or
+authenticated local identity-prefix, last-two-axis transposes. Existing rank-two FLOAT32 matrix
+products retain direct MPSGraph; every new geometry and carrier pair uses the fixed custom program.
+Strict floating MATMUL and every other unlisted occurrence fail closed before route selection.
+Canonical typed host ingress/publication and direct CPU/Metal transfer support all six data types at
+ranks `0..16`; transfer also accepts resolved positive-stride non-overlapping physical storage
+layouts and rejects unresolved, zero-stride, negative-stride, or overlapping geometry. BOOL
+validation visits logical elements only. An eligible singleton NEG retains its dedicated custom
+route. Any partition containing an exact custom node or MATMUL outside the retained direct slice
+uses the fixed shared whole-program route with declared run-owned value buffers and one Java/native
+invocation. Current Metal uses ABI 5 with the same thirteen exports and one bounded schema-15
+route-bearing program image over type wires `1..6`, operation wires `1..115`, and attribute wires
+`0..41`; backend-local identities are version seventeen. Structural coverage is `87 / 28`;
+production capability is exactly `69 / 46`.
 
 The Training extension now owns a public reusable
 Engine-backed scalar session with persistent SGD, accumulation, and detached in-memory state over

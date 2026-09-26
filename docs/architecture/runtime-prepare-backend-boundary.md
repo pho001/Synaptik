@@ -645,14 +645,15 @@ accelerator floors. Prepare does not interpret them: a backend must reject an un
 profile/operation pair before route selection, preserve strict capability as an accelerator
 subset, prove its complete route results fall inside Model's recursive set, and retain profile
 identity in every reusable plan/cache boundary. CPU admits both profiles through identical exact
-routes. Metal's common exact occurrence domain under both profiles contains canonical exact unary,
-affine, indexing, BOOL-domain, and Task-0059 raw movement rows, including all-carrier SELECT and
-positive-step SLICE over resolved positive-stride non-overlapping storage layouts. Accelerator
-additionally admits the exact Task-0052 comparison/extrema/scalar/reduction-extrema/scan rows,
-existing tensor arithmetic and reductions, and bounded rank-two MATMUL. Every other occurrence
-fails closed before route selection. ABI 5 retains thirteen exports and consumes one bounded
-schema-15 route-bearing image over type wires `1..6`, operation wires `1..115`, and attribute
-wires `0..41`; backend identities are version sixteen. Structural coverage is `79 / 36` and
-production capability is `61 / 54`. Direct CPU/Metal transfer accepts canonical or resolved
-positive-stride non-overlapping all-carrier storage layouts without widening operation capability.
+routes. Metal's common exact occurrence domain under both profiles contains its unary, affine,
+canonicalization, indexing, BOOL-domain, Task-0059 movement, Task-0060 replacement/fold/aggregate,
+and no-gradient promoted INT32/INT64 MATMUL rows. Accelerator additionally admits the documented
+FLOAT32 arithmetic, extrema, scalar, reduction, and scan rows; every positive-static FLOAT32
+MATMUL vector, matrix, batched, and right-aligned broadcast geometry; and no-gradient
+BFLOAT16/FLOAT32 mixed MATMUL. Every other occurrence fails closed before route selection. ABI 5
+retains thirteen exports and consumes one bounded schema-15 route-bearing image over type wires
+`1..6`, operation wires `1..115`, and attribute wires `0..41`; backend identities are version
+seventeen. Structural coverage is `87 / 28` and production capability is `69 / 46`. Direct
+CPU/Metal transfer accepts canonical or resolved positive-stride non-overlapping all-carrier
+storage layouts without widening operation capability.
 Runtime therefore requires neither profile interpretation nor a policy lookup.

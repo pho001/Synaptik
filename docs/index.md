@@ -23,14 +23,16 @@ current. The public Training extension now adds one reusable Engine-backed scala
 session, persistent SGD, gradient accumulation, and detached in-memory state over its bounded
 shareable-native parameter domain. Metal executes its exact profile-qualified static domains:
 common capability includes exact movement, affine, indexing, classification, BOOL logic, WHERE,
-and raw-bit elementwise rows; accelerator adds the admitted arithmetic, reduction, scan, and
-rank-two MATMUL rows. Eligible singleton NEG may use the custom route, while admitted Task-0059
-movement uses the shared custom-program route. Mixed CPU/Metal plans use explicit bidirectional
-transfer for all six model data types over exact rank-0..16 static canonical or positive-stride
-non-overlapping layouts with checked physical spans. A standard-Metal convenience, generic plugin
-registration/discovery, CUDA, broader optimizers, durable persistence, and generic graph/plan
-tuning remain planned. Each focused page distinguishes current contracts from those future
-capabilities.
+raw-bit elementwise rows, Task-0060 rows, and no-gradient promoted INT32/INT64 MATMUL. Accelerator
+adds the admitted arithmetic, reduction, scan, every positive-static FLOAT32 MATMUL geometry, and
+no-gradient BFLOAT16/FLOAT32 mixed MATMUL rows. Existing rank-two FLOAT32 matrix products retain
+direct MPSGraph; newly admitted MATMUL forms use the fixed custom program. Eligible singleton NEG
+may use its custom route, while other exact custom nodes select the shared custom-program route.
+Mixed CPU/Metal plans use explicit bidirectional transfer for all six model data types over exact
+rank-0..16 static canonical or positive-stride non-overlapping layouts with checked physical spans.
+A standard-Metal convenience, generic plugin registration/discovery, CUDA, broader optimizers,
+durable persistence, and generic graph/plan tuning remain planned. Each focused page distinguishes
+current contracts from those future capabilities.
 
 ## Contributor guides
 

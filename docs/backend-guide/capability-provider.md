@@ -259,15 +259,17 @@ BOOL-domain, Task-0059 raw movement, and Task-0060 replacement/fold/aggregate ro
 profiles. Task-0059 includes nineteen proved CAST carrier pairs, exact typed
 GATHER_ELEMENTS/GATHER_ND, all-carrier copy operations, and all-carrier SELECT/positive-step SLICE
 with resolved positive-stride non-overlapping storage layouts. Task-0060 adds all-carrier
-replacement SCATTER_ND, signed SLICE_UPDATE/crop placement, and statically non-overlapping folds;
-modular INT32/INT64 PROD; and BOOL ALL/ANY. Empty aggregate axes are point identities, not
-zero-extent admission. Accelerator additionally admits tensor FLOAT32 ADD/SUB/MUL/DIV/MIN/MAX;
-all six comparisons; scalar MIN/MAX/CLAMP; SUM/MEAN/MIN/MAX/SUM_TO_SHAPE; CUM_SUM/CUM_PROD; and
-bounded rank-two MATMUL. Complete-partition analysis authenticates each affine MATMUL operand to
-its local producer and restricts BOOL values to canonical compositions. The common dispatch
-precedes the profile branch, so every strict-positive answer remains accelerator-positive. Every
+replacement SCATTER_ND, signed SLICE_UPDATE/crop placement, statically non-overlapping folds,
+modular INT32/INT64 PROD, and BOOL ALL/ANY. Both profiles also admit no-gradient INT32/INT64
+MATMUL pairs with INT64-dominant promotion and modular result arithmetic. Accelerator additionally
+admits the documented FLOAT32 arithmetic, extrema, scalar, reduction, and scan rows; every
+positive-static FLOAT32 MATMUL vector, matrix, batched, and broadcast geometry; and no-gradient
+BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 result. Complete-partition analysis authenticates each
+affine MATMUL operand as the exact local identity-prefix, last-two-axis transpose of a canonical
+source and restricts BOOL values to canonical compositions. Existing rank-two FLOAT32 matrix
+products retain direct MPSGraph; newly admitted forms select the fixed custom program. Every
 unlisted occurrence is false; accelerator identity never means generic fast math. ABI 5 retains
 the thirteen export names and consumes one bounded schema-15 route-bearing program image.
 Operation wires `1..115`, attribute wires `0..41`, and type wires `1..6` are structural vocabulary
-only; version-sixteen workload, policy, candidate, compatibility, route, and codec identities
+only; version-seventeen workload, policy, candidate, compatibility, route, and codec identities
 authenticate that meaning without adding capability.

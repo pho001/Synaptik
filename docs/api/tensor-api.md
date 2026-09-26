@@ -117,14 +117,14 @@ ordinary Engine captures one profile for its lifetime and transports it through 
 capability, compile artifacts, Prepare, and backend identity. For any backend, strict capability
 and behavior are an accelerator subset for the same occurrence domain. CPU executes both profiles
 with the same exact current semantics. Metal's common exact domain contains the exact unary,
-affine, canonicalization, indexing, BOOL-domain, and Task-0059 raw movement rows, including
-all-carrier SELECT/positive-step SLICE over resolved positive-stride non-overlapping layouts.
-Accelerator additionally admits tensor FLOAT32 ADD/SUB/MUL/DIV/MIN/MAX, all six FLOAT32
-comparisons with BOOL outputs, scalar MIN/MAX/CLAMP, SUM/MEAN/MIN/MAX and SUM_TO_SHAPE reductions,
-every CUM_SUM/CUM_PROD mode, and positive static rank-two MATMUL. Every unlisted occurrence fails
+affine, canonicalization, indexing, BOOL-domain, Task-0059 movement, Task-0060
+replacement/fold/aggregate, and no-gradient promoted INT32/INT64 MATMUL rows. Accelerator
+additionally admits the documented FLOAT32 arithmetic, extrema, scalar, reduction, and scan rows;
+every positive-static FLOAT32 MATMUL vector, matrix, batched, and broadcast geometry; and
+no-gradient BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 output. Every unlisted occurrence fails
 closed before route selection. Metal uses ABI 5 with the same thirteen exports and one bounded
 schema-15 route-bearing program image. Operation wires `1..115`, attribute wires `0..41`, and type
-wires `1..6` cover current structural vocabulary; version-sixteen identities authenticate that
+wires `1..6` cover current structural vocabulary; version-seventeen identities authenticate that
 meaning without widening capability.
 Model remains the sole semantic owner of profile meaning.
 
@@ -196,12 +196,14 @@ authenticated SELECT/SLICE publication, and CPU/Metal transfer cover all six car
 exact supported descriptors. Cross-owner values may be rank-zero through rank-sixteen and use a
 canonical or positive-stride non-overlapping storage layout with a checked physical span; BOOL
 validates logical zero/one bytes while leaving storage holes uninterpreted. Accelerator Metal
-additionally executes tensor binary/reduction and positive static rank-two MATMUL partitions;
-strict Metal rejects those additions. Metal window, indexing, and reduction execution are forward
-backend routes. Accelerator MATMUL also executes the Compiler-generated explicitly seeded first-
-order formulas for both canonical rank-two operands through exact local transposes beneath the
-existing shape-restoration boundaries. This narrow path introduces no complete window/indexing
-backward, scalar-loss, implicit-seed, batched-MATMUL, or general Metal training claim.
+additionally executes its documented FLOAT32 arithmetic/reduction/scan rows, every positive-static
+FLOAT32 MATMUL geometry, and no-gradient BFLOAT16/FLOAT32 mixed MATMUL. Both profiles execute
+no-gradient promoted INT32/INT64 MATMUL; strict Metal rejects only the accelerator additions.
+Existing rank-two FLOAT32 matrix products retain direct MPSGraph, while new MATMUL forms use the
+fixed custom program. General accelerator FLOAT32 MATMUL also executes the Compiler-generated
+explicitly seeded first-order formulas for both operands through exact local last-two-axis
+transposes beneath the existing shape-restoration boundaries. This introduces no complete
+window/indexing backward, implicit seeding, or unrestricted Metal training claim.
 
 `AxisTransformKind.PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` are current semantic identities.
 `PermutationAttrs` stores a complete normalized output-to-input axis permutation, while
@@ -10966,15 +10968,15 @@ MATMUL semantics and public `Tensor.matmul` expression construction are current 
 higher floating or signed-integral operands. Construction promotes within one numeric category,
 derives exact vector/matrix/broadcast-batch Shape metadata, defers only the documented unresolved
 obligations, and records fresh ordered two-input provenance. It performs no multiplication,
-gradient construction, graph transformation, backend selection, or execution; package-private
-compiler capture and verification are current.
-The two public `linear` overloads are current explicit composition over rank-two PERMUTE,
-MATMUL, and optional exact rank-one ADD bias. They introduce no LINEAR kind or layer state, fully
+gradient construction, graph transformation, backend selection, or execution. Compiler capture,
+verification, and generated first-order formulas are current; concrete execution remains
+profile-, carrier-, gradient-, and backend-qualified. CPU realizes its documented full domain.
+Metal realizes promoted no-gradient INT32/INT64 pairs under both profiles; accelerator additionally
+realizes general FLOAT32 with generated gradients and no-gradient BFLOAT16/FLOAT32 mixed pairs.
+The two public `linear` overloads are current explicit composition over rank-two PERMUTE, MATMUL,
+and optional exact rank-one ADD bias. They introduce no LINEAR kind or layer state, fully
 prevalidate caller-controlled failures before intermediate IDs, and leave the primitive producer
-chain visible. The biased result is Shape-equal to its MATMUL product with exact corresponding
-Dimension references, but its outer Shape object may be distinct. Compiler capture, recognition,
-fusion, gradients, backend support, and execution remain planned except for current package-private
-capture of the primitive chain.
+chain visible. Concrete support follows the visible operations rather than a separate linear route.
 The four public `scaledDotProductAttention` overloads and four
 `scaledDotProductAttentionWithWeights` overloads are current first-class model construction. They
 derive exact broadcast-batch, score/weights, and output Shapes for floating query/key/value

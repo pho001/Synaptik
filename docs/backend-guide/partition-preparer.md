@@ -538,15 +538,16 @@ eligible route stays within Model's result set, and retains the profile in every
 compatibility identity that could otherwise be reused. CPU admits both profiles with identical
 exact routes and distinct identities.
 Metal admits the exact common unary, affine, canonicalization, indexing, BOOL-domain, Task-0059
-raw movement, and Task-0060 replacement/fold/aggregate rows under both profiles. Accelerator
-additionally admits the existing arithmetic/reduction/MATMUL rows and the exact Task-0052
-comparison/extrema/scalar/reduction-extrema/scan rows. The preparer authenticates local MATMUL
-transposes, keeps canonical BOOL values available to admitted consumers, retains exact storage
-layouts for SELECT/positive-step SLICE, and declares every internal logical value for a shared
-custom-program route. It lowers Task-0060 scatter preflight, signed slice placement,
-single-writer non-overlap folds, and exact modular/logical reductions without atomics. It preserves
-typed ingress, target and internal physical byte geometry, window/index obligations, and the
-profile in the schema-fifteen/version-sixteen route identity without widening capability.
+raw movement, Task-0060 replacement/fold/aggregate, and promoted integral MATMUL rows under both
+profiles. Accelerator additionally admits the existing arithmetic/reduction/scan rows, every
+positive-static FLOAT32 MATMUL geometry, and no-gradient mixed BFLOAT16/FLOAT32 MATMUL. The
+preparer authenticates a local MATMUL affine operand as the exact identity-prefix, last-two-axis
+transpose of its canonical source; keeps canonical BOOL values available to admitted consumers;
+retains exact storage layouts for SELECT/positive-step SLICE; and declares every internal logical
+value for a shared custom-program route. It lowers Task-0060 scatter preflight, signed slice
+placement, single-writer non-overlap folds, and exact modular/logical reductions without atomics.
+It preserves typed ingress, target and internal physical byte geometry, window/index obligations,
+and the profile in the schema-fifteen/version-seventeen route identity without widening capability.
 
 Metal's one closed prepared-route identity owns the existing candidate wires `1..3` and the
 MPSGraph/custom-kernel family. Candidate serialization delegates to it. A returned plan retains one

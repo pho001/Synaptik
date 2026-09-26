@@ -319,15 +319,15 @@ canonicalization, indexing, BOOL-domain, Task-0059 raw movement, and Task-0060 r
 aggregate rows. Task 0059 includes nineteen proved CAST pairs and all-carrier SELECT/positive-step
 SLICE over resolved positive-stride non-overlapping layouts. Task 0060 includes all-carrier
 replacement SCATTER_ND/SLICE_UPDATE, FLOAT64/FLOAT32/BFLOAT16 non-overlap folds, modular
-INT32/INT64 PROD, and BOOL ALL/ANY. Its accelerator-only set adds tensor FLOAT32
-`ADD`/`SUB`/`MUL`/`DIV`/`MIN`/`MAX`; all six FLOAT32 comparisons with canonical BOOL output; exact
-FLOAT32 scalar `MIN`/`MAX`/`CLAMP`; canonical FLOAT32 `SUM`, `MEAN`, `MIN`, `MAX`, and
-binding-resolved `SUM_TO_SHAPE` over their exact full, normalized single-axis, ordered multi-axis
-including empty, and keep-dimensions forms; every exclusive/reverse mode of FLOAT32 `CUM_SUM` and
-`CUM_PROD`; and positive static rank-two FLOAT32 MATMUL with exact contraction geometry and
-canonical or authenticated local rank-two-transpose operands. Strict capability is a subset
-because every common occurrence has the same answer under accelerator; strict rejects every
-accelerator-only addition.
+INT32/INT64 PROD, and BOOL ALL/ANY. Both profiles also admit no-gradient INT32/INT64 MATMUL pairs
+with INT64-dominant promotion and modular result arithmetic. The accelerator-only set adds the
+documented FLOAT32 tensor/scalar arithmetic, comparisons, extrema, reductions, and scans; every
+positive-static FLOAT32 MATMUL vector, matrix, batched, and right-aligned broadcast geometry; and
+no-gradient BFLOAT16/FLOAT32 or FLOAT32/BFLOAT16 MATMUL with FLOAT32 result. MATMUL operands are
+canonical or authenticated local identity-prefix, last-two-axis transposes. Existing rank-two
+FLOAT32 matrix products retain direct MPSGraph; newly admitted forms use the fixed custom program.
+Strict capability remains a subset because every common occurrence has the same answer under
+accelerator; strict rejects every accelerator-only addition.
 Direct CPU/Metal transfer supports
 all six current data types at ranks `0..16` over canonical or resolved positive-stride
 non-overlapping storage layouts; BOOL validation visits logical elements only.
@@ -345,5 +345,5 @@ self-describing, route-bearing image over type wires `1..6`, operation wires `1.
 wires `0..41`, and complete optional storage-layout geometry. Structural execution covers exactly
 87 kinds with 28 remaining nonexecutable; production capability is exactly 69 kinds with 46
 remaining false. Workload, exact-policy, candidate, compatibility, route-policy, and codec
-identities are version sixteen; schema 14 and identity 15 fail closed. The complete-plan wrapper
+identities are version seventeen; schema 14 and identity 16 fail closed. The complete-plan wrapper
 remains version one.

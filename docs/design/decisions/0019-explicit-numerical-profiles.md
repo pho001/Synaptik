@@ -147,12 +147,13 @@ prepared recipe without profile policy or a hot-path lookup.
 
 The selected profile is part of relevant backend route, specialization, generated-artifact,
 local-tuning, complete-plan-tuning, and cache-compatibility identity before a backend may advertise
-relaxed capability. CPU now advertises both profiles with identical exact behavior. Metal
-advertises the common exact FLOAT32 baseline under both profiles: `NEG`, `ABS`, `RESHAPE`, `EXPAND`,
-`PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`. Accelerator Metal additionally advertises
-tensor-binary `ADD`/`SUB`/`MUL`/`DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE` reductions, and
-positive static rank-two `MATMUL`; strict Metal rejects those additions. Unsupported pairs still
-fail closed; no backend may infer permission merely from the identity.
+relaxed capability. CPU now advertises both profiles with identical exact behavior. Metal's common
+domain includes its exact unary/affine/canonicalization/indexing/BOOL/movement/replacement/fold/
+aggregate rows and no-gradient promoted INT32/INT64 MATMUL. Accelerator Metal additionally
+advertises its documented FLOAT32 arithmetic/reduction/scan rows, every positive-static FLOAT32
+MATMUL geometry, and no-gradient BFLOAT16/FLOAT32 mixed MATMUL. Strict rejects floating MATMUL but
+retains the common integral rows. Unsupported pairs still fail closed; no backend may infer
+permission merely from the identity.
 
 Trace payload changes remain deferred. The current propagation spine adds no trace field because
 the profile is cold prepared identity rather than per-run state; later observability requires a

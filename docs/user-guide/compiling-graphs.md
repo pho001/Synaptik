@@ -81,11 +81,12 @@ It contains no caller Tensor storage reference and performs no execution.
 
 Compilation uses the profile captured by the Engine for every capability query and carries it into
 preparation. The default is `STRICT_IEEE`. CPU answers the same exact capability matrix under
-either profile. Metal's common exact domain contains canonical FLOAT32 NEG/ABS, affine layouts,
-CONTIGUOUS, bounded UNFOLD_AXIS, and exact typed GATHER, ONE_HOT, and SCATTER_ELEMENTS/NONE.
-ACCELERATOR additionally admits tensor arithmetic and extrema, all comparisons, scalar
-MIN/MAX/CLAMP, SUM/MEAN/MIN/MAX/SUM_TO_SHAPE, CUM_SUM/CUM_PROD, and bounded rank-two MATMUL.
-Strict remains an accelerator subset; every other occurrence fails before route selection.
+either profile. Metal's common exact domain includes its unary/affine/canonicalization/indexing/
+BOOL/movement/replacement/fold/aggregate rows and no-gradient promoted INT32/INT64 MATMUL.
+ACCELERATOR additionally admits the documented FLOAT32 arithmetic/reduction/scan rows, every
+positive-static FLOAT32 MATMUL geometry, and no-gradient BFLOAT16/FLOAT32 mixed MATMUL. Strict
+rejects floating MATMUL but retains the common integral rows; every other unlisted occurrence fails
+before route selection.
 Compilation neither changes the requested profile nor falls back when an occurrence has no
 eligible owner.
 
@@ -94,11 +95,11 @@ eligible owner.
 Current public composition supports fixed CPU execution and explicit CPU/Metal mixed-owner
 execution. Rank-0..16 fully static cross-owner values may use `FLOAT64`, `FLOAT32`, `BFLOAT16`,
 `INT32`, `INT64`, or `BOOL` over canonical or positive-stride non-overlapping layouts with checked
-physical spans. Task-0052 and Task-0059 custom-program partitions execute through one fixed native
-whole-program call with declared run-owned intermediates and direct targets. ABI 5 retains thirteen
-exports and consumes one bounded schema-15 program image with type wires `1..6`, operation wires
-`1..115`, attributes `0..41`, and version-sixteen identities. Registry presence does not widen
-capability; unsupported operations fail closed.
+physical spans. Exact custom nodes and MATMUL outside the retained all-FLOAT32 rank-two MPSGraph
+slice execute through one fixed native whole-program call with declared run-owned intermediates and
+direct targets. ABI 5 retains thirteen exports and consumes one bounded schema-15 program image
+with type wires `1..6`, operation wires `1..115`, attributes `0..41`, and version-seventeen
+identities. Registry presence does not widen capability; unsupported operations fail closed.
 
 Model construction leaves Conv2d and Conv3d result layouts unresolved; Compiler closes
 only eligible fully static final convolution

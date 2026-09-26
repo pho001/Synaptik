@@ -1112,21 +1112,18 @@ scoring policy, route selector, preparer, or execution service. The CPU backend 
 through the architecture-approved inward dependency on Planning and returns the same exact support
 answer under `STRICT_IEEE` and `ACCELERATOR`.
 
-The current Metal provider uses two profile matrices over fully static `FLOAT32`. Their common
-exact domain contains parameterless canonical `NEG` and `ABS`, `RESHAPE`, `EXPAND`, `PERMUTE`,
-`EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`; accelerator support additionally contains canonical
-tensor `ADD`, `SUB`, `MUL`, and `DIV` with exact right-aligned broadcasting; canonical `SUM`,
-`MEAN`, and binding-resolved `SUM_TO_SHAPE`; and positive static rank-two `MATMUL` with exact
-contraction geometry and canonical or exact local-transpose layouts. Reduction input is
-positive-rank; full, normalized single-axis, ordered normalized multi-axis including empty, and
-keep-dimensions outputs may be rank zero. Affine outputs retain their exact resolved Model view
-descriptors, while NEG, ABS, `CONTIGUOUS`, binary, reduction, and MATMUL outputs are canonical.
-Strict binary/reduction/MATMUL remains false. Metal's occurrence-level answer is independent of
-native availability and constant provenance; it allows Planning to form one maximal
-profile-homogeneous Metal-owned partition that Metal preparation must accept as a whole and
-authenticate each affine MATMUL operand to a local transpose producer on that consuming edge. The
-package-private hard-eligibility step is the first internal planning consumer. Compile-time plans
-retain `BackendId`, not a provider object.
+The current Metal provider uses two profile matrices over fully static descriptors. Their common
+exact domain includes unary, affine, canonicalization, indexing, classification, BOOL,
+Task-0059 movement, Task-0060 replacement/fold/aggregate, and no-gradient promoted INT32/INT64
+MATMUL rows. Accelerator additionally admits the documented FLOAT32 arithmetic, extrema, scalar,
+reduction, and scan rows; every positive-static FLOAT32 MATMUL vector, matrix, batched, and
+broadcast geometry; and no-gradient BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 result. MATMUL
+operands are canonical or exact local identity-prefix, last-two-axis transposes; output is
+canonical. Strict rejects floating MATMUL but retains the common integral rows. Existing rank-two
+FLOAT32 matrix products use direct MPSGraph, while newly admitted forms use the fixed custom
+program. Metal's occurrence-level answer is independent of native availability and constant
+provenance; preparation authenticates each affine MATMUL operand to its exact local producer on
+that consuming edge. Compile-time plans retain `BackendId`, not a provider object.
 
 ### Backend hard eligibility
 
@@ -2463,7 +2460,7 @@ compatibility projection, and Engine's representative execution are implemented.
 Engine path produces the sole occurrence-0/partition-0/weight-1 mapping. Model extraction and
 multiple-occurrence aggregation remain planned.
 
-The profile-qualified Metal instance is also implemented internally. Its version-sixteen
+The profile-qualified Metal instance is also implemented internally. Its version-seventeen
 fingerprint covers the exact `NumericalProfile`, bounded route-bearing node schema 15, operation
 wires `1..115`, attribute wires `0..41`, type wires `1..6`, ordered variable-cardinality
 inputs/outputs, ordered feed/target/value structure, descriptors, complete storage layouts, value
@@ -2549,10 +2546,10 @@ decision contains no measurement, cache representation, executable, provider, na
 physical resource, or Runtime state.
 
 The profile-qualified Metal decision follows the same owner-defined pattern with a bounded
-checksummed version-sixteen session codec. Fresh Metal analysis regenerates current profile/
+checksummed version-seventeen session codec. Fresh Metal analysis regenerates current profile/
 topology facts and accepts a selection only when schema, workload, exact context session, and
 candidate identity match. Decode rejects malformed, corrupt, trailing, stale, foreign-session,
-version-fifteen and earlier, cross-profile, and unknown-candidate bytes. These bytes are not a
+version-sixteen and earlier, cross-profile, and unknown-candidate bytes. These bytes are not a
 workload-cache artifact and have no current `tools/tuning` adapter.
 
 The generic Phase-2 tool may persist a decision only when its producer declares persistent reuse,
@@ -2735,15 +2732,14 @@ It owns backend-specific capability reporting, prepare-time lowering, fusion, sp
 kernel selection, executable units, storage, workspaces, and native integration. Concrete
 backends do not own public tensor semantics or global graph compilation. CPU supplies its current
 portable and optional native routes. Metal supplies package-private storage and prepared execution
-for exact canonical positive-shape `FLOAT32` NEG/ABS/affine/`CONTIGUOUS` under both profiles and
-accelerator-only canonical tensor `ADD`/`SUB`/`MUL`/`DIV`, canonical `FLOAT32`
-`SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two MATMUL. Cross-owner transfer admits
-rank-zero and positive-rank values for all six carriers over exact supported storage layouts.
-Exact singleton-NEG partitions with one feed, one target, and `1..UINT32_MAX` elements may use the
-custom pipeline under either profile; every ABS partition and every other supported Metal partition
-uses one typed whole-partition MPSGraph executable. Strict binary/reduction/MATMUL is CPU-owned
-when CPU is registered and unsupported by a Metal-only composition. CUDA remains an identity
-without concrete execution behavior. See [Module boundaries](architecture/module-boundaries.md).
+for its closed common exact and accelerator-only domains. Both profiles include exact
+movement/replacement/fold/aggregate rows and no-gradient promoted INT32/INT64 MATMUL. Accelerator
+adds the documented FLOAT32 arithmetic/reduction/scan rows, every positive-static FLOAT32 MATMUL
+geometry with generated gradients, and no-gradient BFLOAT16/FLOAT32 mixed MATMUL. Existing
+rank-two FLOAT32 matrix products use direct MPSGraph; exact custom nodes and all other admitted
+MATMUL forms use one fixed custom whole-program route. Cross-owner transfer admits rank-zero and
+positive-rank values for all six carriers over exact supported storage layouts. CUDA remains an
+identity without concrete execution behavior. See [Module boundaries](architecture/module-boundaries.md).
 
 ### Cumulative scan
 
@@ -2927,11 +2923,11 @@ unchanged through Planning queries, Compiler artifacts, Prepare projections, and
 plan/cache identity. Selection is explicit, graph-wide, and cold rather than inferred from
 hardware, provider availability, workload size, tuning, or benchmark evidence. For the same
 occurrence domain, strict capability and behavior are an accelerator subset. CPU currently
-realizes both profiles with identical exact behavior and routes. Metal admits exact canonical
-NEG/ABS/affine/`CONTIGUOUS` under both profiles and realizes tensor FLOAT32
-`ADD`/`SUB`/`MUL`/`DIV`, canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`, and positive static rank-two
-FLOAT32 MATMUL with authenticated local transposes additionally under `ACCELERATOR`; every
-unsupported pair fails closed.
+realizes both profiles with identical exact behavior and routes. Metal admits its exact common
+unary, affine, canonicalization, indexing, BOOL, movement, replacement/fold/aggregate, and promoted
+integral MATMUL rows under both profiles. Accelerator additionally realizes its documented
+FLOAT32 arithmetic/reduction/scan rows, general positive-static FLOAT32 MATMUL, and no-gradient
+BFLOAT16/FLOAT32 mixed MATMUL; every unsupported pair fails closed.
 
 ### Scalar-power realization
 
@@ -4995,16 +4991,15 @@ shared requirement. It performs no tuning measurement or search, cache mutation,
 allocation, executable construction, slot assignment, scheduling, or Runtime execution. Current
 CPU and Metal modules implement this collaboration internally for their supported complete
 partitions. Each receives the exact graph-wide `NumericalProfile`; CPU retains either profile with
-identical routes. Metal admits a common exact baseline under both profiles: canonical FLOAT32
-`NEG`, `ABS`, `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`;
-bounded canonical FLOAT32 `UNFOLD_AXIS`; canonical positive-rank FLOAT32 data `GATHER` with
-canonical INT32 indices; positive-rank INT32-to-BOOL `ONE_HOT`; and canonical
-FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. Accelerator Metal additionally admits tensor binary
-arithmetic; canonical no-gradient positive-rank FLOAT32 scalar `ADD/SUB/MUL/DIV` and
-`RECIPROCAL`; canonical `SUM`/`MEAN`/`SUM_TO_SHAPE`; and positive static rank-two MATMUL topology
-with authenticated local transpose operands. The scalar recipes use exact four-byte raw rank-one
-constants and one tensor arithmetic primitive in semantic operand order. Strict Metal rejects
-those additions. The exact supported matrices are described in the CPU and Metal backend guides.
+identical routes. Metal's common exact domain includes its unary, affine, canonicalization,
+indexing, BOOL-domain, movement, replacement/fold/aggregate, and no-gradient promoted INT32/INT64
+MATMUL rows. Accelerator Metal additionally admits the documented FLOAT32 arithmetic, extrema,
+scalar, reduction, and scan rows; every positive-static FLOAT32 MATMUL vector, matrix, batched, and
+broadcast geometry; and no-gradient BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 output. MATMUL
+operands may be canonical or exact authenticated local last-two-axis transposes. Strict rejects
+floating MATMUL but retains the common integral rows. The scalar recipes use exact four-byte raw
+rank-one constants and one tensor arithmetic primitive in semantic operand order. The exact
+supported matrices are described in the CPU and Metal backend guides.
 
 ### Preparation resource assignment
 
@@ -5176,22 +5171,21 @@ implements the transactional finalizer handoff.
 
 The current Metal backend's package-private shape-specialized Runtime recipe for one complete
 maximal profile-homogeneous partition. Both profiles admit the exact common unary, affine,
-canonicalization, indexing, BOOL-domain, and Task-0059 raw movement rows. The latter includes
-nineteen proved CAST pairs and all-carrier SELECT/positive-step SLICE over fully static resolved
-positive-stride non-overlapping storage layouts. ACCELERATOR additionally admits FLOAT32 tensor
-ADD/SUB/MUL/DIV/MIN/MAX, all six comparisons, scalar MIN/MAX/CLAMP,
-SUM/MEAN/MIN/MAX/SUM_TO_SHAPE, every CUM_SUM/CUM_PROD mode, and bounded rank-two MATMUL. Direct
-typed transfer can move all six current carriers at ranks `0..16` through canonical or supported
-storage layouts; BOOL validation visits logical elements only.
+canonicalization, indexing, BOOL-domain, Task-0059 movement, Task-0060 replacement/fold/aggregate,
+and promoted integral MATMUL rows. ACCELERATOR additionally admits the documented FLOAT32
+arithmetic/reduction/scan rows, every positive-static FLOAT32 MATMUL geometry, and no-gradient
+BFLOAT16/FLOAT32 mixed MATMUL. Direct typed transfer can move all six current carriers at ranks
+`0..16` through canonical or supported storage layouts; BOOL validation visits logical elements
+only.
 
 Metal analysis fixes stable value/node/feed/target order, lowers one bounded schema-15
-route-bearing program image, generates a complete version-16 route batch, authenticates any
+route-bearing program image, generates a complete version-17 route batch, authenticates any
 supplied session decision, and fixes one private route before declaring resources. An eligible
-singleton NEG may use the dedicated custom pipeline. A partition containing any Task-0052,
-BOOL-domain, or Task-0059 custom node selects the fixed shared custom whole-program route; other
-supported partitions use MPSGraph. An exact singleton new node exposes MPSGraph only through
-package-private structural forcing. These choices add no fallback, retry, timing selection, or
-partition change.
+singleton NEG may use the dedicated custom pipeline. A partition containing any exact custom node
+or MATMUL outside the retained all-FLOAT32 rank-two MPSGraph slice selects the fixed shared custom
+whole-program route; other supported partitions use MPSGraph. Exact structural alternatives remain
+package-private forcing only. These choices add no fallback, retry, timing selection, or partition
+change.
 
 Finalization compiles one persistent route resource and transfers it to `PreparedExecution`.
 Shared custom-program creation compiles the fixed reviewed safe-math/raw-word/integer/movement
