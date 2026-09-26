@@ -201,9 +201,9 @@ The following invariants must remain true:
   binary/reduction/MATMUL and every other unsupported profile/operation pair fail closed. Metal
   UNFOLD_AXIS preserves addressed FLOAT32 representations in a fresh canonical output without
   mutating its source. Metal indexing validates complete bounds and scatter target uniqueness
-  before dispatch or target writes, leaves targets unchanged on failure, and does not widen
-  FLOAT32-only cross-owner transfer.
-  Runtime and Trace remain profile-free.
+  before dispatch or target writes and leaves targets unchanged on failure. Canonical cross-owner
+  transfer supports all six current data types at ranks `0..16`; transfer coverage does not widen
+  operation capability. Runtime and Trace remain profile-free.
 - `CompiledGraphModel` is immutable compile-time graph state.
 - `CompileArtifacts` are immutable compile-time output.
 - `PreparedExecution`, its prepared memory/schedule/executable recipes, and immutable persistent
@@ -221,13 +221,16 @@ The following invariants must remain true:
 - Planning may consume backend-neutral cost estimates, but it must not interpret backend route,
   vector, thread, tile, kernel, or other implementation parameters.
 - Backend prepare owns backend-specific lowering and kernel selection.
-- A Metal qualification may use an auditable route declaration for compute-dispatch count and
-  route-owned temporary bytes only for an explicit custom route whose retained source owns every
-  command encoder dispatch and every resource used by the measured synchronous hot invocation.
-  Opaque framework routes, including MPSGraph, must use supported observation of their actual
-  internals and must never substitute inferred dispatches or memory. Qualification timing runs on
-  the named target device; the selected route is fixed during cold preparation, with no hot-path
-  benchmark, retry, fallback, or matrix.
+- Metal route comparison begins only after identical complete-domain semantics and numerical
+  evidence. A single survivor needs no comparative cost gate. Multiple survivors may be selected
+  without timing only by strict structural dominance: no more compute dispatches, no more
+  route-owned temporary bytes, and at least one strict improvement, using exact facts. An explicit
+  custom route may use a source-bound declaration only when retained source owns every dispatch and
+  resource; opaque routes including MPSGraph require supported actual-internal observation and
+  never inferred facts. If multiple nondominated survivors remain, selection stays pending an
+  authorized controlled environment. Local-device timing is diagnostic only and never
+  qualification, route-selection, or tuning-identity authority. Any selected route is fixed during
+  cold preparation, with no hot-path benchmark, retry, fallback, or matrix.
 - Backend preparation is staged: backend analysis and exact shared-resource declaration precede
   shared slot assignment, and backend finalization follows slot assignment.
 - Shared Prepare assigns one logical buffer slot per materialized graph value and one deterministic

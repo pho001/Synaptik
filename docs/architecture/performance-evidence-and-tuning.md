@@ -64,14 +64,22 @@ or changes later preparation; every report remains ineligible for a production d
 Shape, one process, and correlated within-process samples are not a substitute for a separately
 reviewed multi-target/fork statistical protocol.
 
-For Metal qualification outside production Runtime, an explicit custom route may declare its exact
-compute-dispatch count and route-owned temporary bytes when retained source owns every encoder
-dispatch and resource in the synchronous hot invocation. The declaration enumerates those facts,
-excludes steady inputs and outputs, and is bound to the measured source identity. MPSGraph and every
-other opaque route remain ineligible for this declaration: their actual framework-internal
-dispatches and peak transient resources require supported observation and are never inferred from
-graph nodes, command buffers, framework estimates, or process memory. Hot duration is still
-measured on the named device; route selection remains cold and fixed.
+For Metal qualification outside production Runtime, candidate comparison begins only after
+identical complete-domain semantics and numerical acceptance. One survivor needs no comparative
+cost gate. Multiple survivors may close without timing only by strict structural dominance: one
+candidate has no more compute dispatches and no more route-owned temporary bytes than every
+alternative and is strictly better in at least one dimension. An explicit custom route may declare
+those exact facts when retained source owns every encoder dispatch and resource in the synchronous
+hot invocation. MPSGraph and every other opaque route require supported observation of actual
+framework-internal dispatches and peak transient resources; graph nodes, command buffers, inferred
+fusion, estimates, and process memory are never substitutes.
+
+When multiple nondominated survivors remain, selection waits for an explicitly authorized,
+controlled comparative environment and protocol. Timing collected on an uncontrolled local
+developer device may be retained as diagnostic history only. It never qualifies a candidate,
+selects a route, changes tuning identity, populates a production decision, or breaks a structural
+tie. Route selection remains cold and fixed; Runtime performs no timing, fallback, retry, or
+matrix.
 
 ## One model-autotuning workflow
 

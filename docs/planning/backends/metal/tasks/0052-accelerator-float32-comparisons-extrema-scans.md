@@ -6,13 +6,14 @@ Completed
 
 Gates 1 through 4 and the atomic production cutover are complete. Every opaque direct candidate
 remains `DOMAIN-BLOCKED`; every auditable custom candidate is `DOMAIN-PASS` and numerical `PASS`.
-The custom-only Apple M3 Max Gate 3 selected one fixed production route for all fifteen kinds,
-including fused custom CLAMP. Production now uses schema 12 operation wires `20..34`, attribute
-wires `7..9`, backend-local identity version 13, exact ACCELERATOR capability, a persistent fixed
-custom whole-program resource, declared run-owned value buffers, and one synchronous Java/native
-invocation. ABI 4, the 160-byte record, thirteen exports, and complete-plan wrapper 1 remain
-unchanged. Focused Java/native/conformance/Compiler-contract and no-skip real-dylib public Engine
-proof passed; the final full repository build remains deliberately deferred.
+Fourteen operation rows had exactly one survivor and therefore needed no comparative cost gate.
+CLAMP had two identical-semantics/domain survivors; fused custom CLAMP strictly structurally
+dominates composed custom CLAMP with one versus two dispatches and zero versus 4,194,304
+route-owned temporary bytes. The retained Apple M3 Max timings are diagnostic history only and did
+not authorize those routes. Task 0055 later migrated production to ABI 5/schema 13 and identity 14
+without changing Task-0052 capability or fixed routes. Focused Java/native/conformance/
+Compiler-contract and no-skip real-dylib public Engine proof passed; the final full repository
+build remains deliberately deferred.
 
 ## Change class
 
@@ -37,19 +38,18 @@ Add one bounded, forward-only, canonical `FLOAT32` operation slice under
 - ordinary `AggregateReductionKind.MIN` and `MAX`; and
 - `CumulativeScanKind.CUM_SUM` and `CUM_PROD`.
 
-Every operation must independently pass four gates in order: structural/API with a distinct
-complete-domain proof prerequisite, numerical regression evidence, cost with measured Apple M3 Max
-hot runtime plus permitted exact dispatch and transient-resource evidence, and fixed production
-route. Capability remains false for an operation until all four gates pass for its complete
-authorized domain. A failure does not authorize a narrower shape, attribute, mode, or edge-value
-subset.
+Every operation must independently pass structural/API and complete-domain proof, bounded numerical
+regression, survivor adjudication under ADR 0022, and fixed production-route gates. Capability
+remains false until those gates pass for the complete authorized domain. A failure does not
+authorize a narrower shape, attribute, mode, or edge-value subset.
 
 Every candidate was predeclared before the sole numerical invocation. Every candidate must
-independently prove complete-domain coverage and pass the bounded regression corpus before cost.
-Opaque direct and MPSGraph-composed candidates remain `DOMAIN-BLOCKED` and do not enter Gate 3.
-Every surviving custom candidate does enter the custom-only comparison; route family is only the
-last cost tie-breaker. Runtime selection, retry, fallback, and input-dependent routing are
-forbidden.
+independently prove complete-domain coverage and pass the bounded regression corpus before survivor
+adjudication. Opaque direct and MPSGraph-composed candidates remain `DOMAIN-BLOCKED`. A row with one
+survivor requires no comparative cost gate. Multiple identical-semantics/domain survivors may close
+without timing only through strict structural dominance; nondominated alternatives require an
+authorized controlled environment. Runtime selection, retry, fallback, and input-dependent routing
+are forbidden.
 
 ## Exact operation inventory and partition
 
@@ -101,11 +101,12 @@ An occurrence is eligible only when all of the following hold:
   resource creation.
 
 Comparison BOOL outputs may be direct public results through the already-proved local canonical
-BOOL materialization path. CPU/Metal transfer remains FLOAT32-only: whole-partition analysis must
-reject any comparison BOOL consumer, cross-owner BOOL edge, or BOOL feed. This task adds no Metal
-BOOL ingress, logical operation, classification, `WHERE`, or BOOL-consuming node. Existing
-supported FLOAT32 nodes may precede or follow in-scope FLOAT32 extrema/scans where current
-canonical-state rules already permit it.
+BOOL materialization path. At the original Task-0052 cutover, CPU/Metal transfer remained
+FLOAT32-only, so whole-partition analysis rejected comparison BOOL consumers, cross-owner BOOL
+edges, and BOOL feeds. Task 0055 later enabled exact all-six-carrier transfer without adding any
+BOOL-consuming Metal operation. This task adds no Metal logical operation, classification,
+`WHERE`, or BOOL-consuming node. Existing supported FLOAT32 nodes may precede or follow in-scope
+FLOAT32 extrema/scans where current canonical-state rules already permit it.
 
 ### Explicit exclusions
 
@@ -122,15 +123,15 @@ and division; `CUM_SUM` gradients generate a reverse-direction scan; and `CUM_PR
 comparisons, `WHERE`, scans, multiplication, and division. None of those generated topologies is a
 capability claim here.
 
-## Current Metal architecture and caller inventory
+## Pre-Task-0052 Metal architecture and caller inventory
 
-The current provider routes accelerator aggregate kinds to `supportsReduction`, MATMUL separately,
+The pre-cutover provider routes accelerator aggregate kinds to `supportsReduction`, MATMUL separately,
 and all other accelerator candidates to `supportsBinary`. `supportsBinary` admits only tensor
 `ADD/SUB/MUL/DIV`; `supportsReduction` admits only `SUM/MEAN/SUM_TO_SHAPE`. It has no scalar,
 comparison, or cumulative-scan capability branch. The preparer and native lowering likewise contain
 no node for this task.
 
-The current private program is ABI `4`, fixed record size `160`, schema `11`, operation wires
+The pre-cutover private program is ABI `4`, fixed record size `160`, schema `11`, operation wires
 `1..19`, attribute wires `0..6`, value types `FLOAT32`/`INT32`/`BOOL`, and canonical/affine value
 states. It already publishes canonical positive-rank BOOL through ONE_HOT and rank-zero FLOAT32
 through reduction work, but accepts no general BOOL feed. Workload signature, exact-policy,
@@ -156,8 +157,8 @@ complete-domain proof:
   fresh bounded regression gate.
 - Task 0012 found NaN-propagating reduction extrema order-dependent for opposite zeros and for
   zero/minimum-subnormal pairs. DAZ can admit some subnormal ties, but it does not relax NaN or the
-  fixed MIN/MAX signed-zero winner. Direct extrema therefore need exact custom candidates in the
-  same sole numerical invocation and cost comparison.
+  fixed MIN/MAX signed-zero winner. Direct extrema therefore needed exact custom candidates in the
+  same sole numerical invocation and survivor adjudication.
 - Task 0013 found cumulative SUM/PRODUCT flushing subnormal results. The current recursive aggregate
   floor permits per-site DAZ/FTZ and reassociation, but the old sample does not prove the opaque
   selectors for every rank, extent, axis, mode, ordered prefix, or parenthesization.
@@ -165,17 +166,17 @@ complete-domain proof:
 ## Per-operation four-gate ledger
 
 No row advances by family analogy. The Result records structural/API, complete-domain, and numerical
-verdicts separately for every operation kind and candidate. Gate 3 runs only the 16 custom survivors
-under ADR 0022; Gate 4 then freezes one production route per kind.
+verdicts separately for every operation kind and candidate. Gate 3 applies ADR 0022 to the 16 custom
+survivors; Gate 4 freezes one authorized production route per kind.
 
-| Operation rows | Gate 1: structural/API plus complete-domain candidates | Gate 2: bounded regression rule | Gate 3: measured facts for every surviving candidate | Gate 4: fixed-route rule |
+| Operation rows | Gate 1: structural/API plus complete-domain candidates | Gate 2: bounded regression rule | Gate 3: survivor adjudication | Gate 4: fixed-route rule |
 |---|---|---|---|---|
-| six comparisons | corresponding direct selector and auditable exact custom predicate kernel | exact predicate over represented/DAZ operand alternatives; canonical byte `0/1` | hot median, actual compute dispatches, peak transient bytes per candidate and predicate | all `DOMAIN-PASS`/numerical-pass candidates compete; route family only breaks a complete cost tie |
-| tensor MIN/MAX | direct NaN-propagating selector and auditable exact custom pointwise kernel | exact candidate membership, NaN class, and operation-fixed zero sign in both operand orders | same three facts per kind/candidate | same common ranking |
-| scalar MIN/MAX | direct NaN-propagating selector against exact-data scalar constant and auditable exact custom scalar kernel | same exact extrema rule including scalar raw-bit identity and broadcast | same three facts per kind/candidate | same common ranking |
-| CLAMP | direct clamp; auditable fused custom; two-extrema MPSGraph composition if both primitive routes are `DOMAIN-PASS`; two-step custom-extrema composition | recursive exact `MIN(MAX(x,min),max)` membership with NaN and both zero-bound orders | same three facts for every complete passing candidate | same common ranking; direct/custom/composed is only the final tie-break order |
-| reduction MIN/MAX | direct NaN-propagating selector and auditable exact custom contributor traversal | exact mapped contributors, NaN, signed-zero winner, original-candidate selection, and identity form | same three facts per kind/candidate on fixed multi-axis workload | same common ranking; no pointwise reduction decomposition |
-| CUM_SUM/CUM_PROD | corresponding direct cumulative selector and auditable exact custom ordered scan | recursive ordered-prefix/contiguous-split result set with exact identity/placement and abstract NaNs | same three facts per kind/candidate on one fixed reverse-exclusive workload | same common ranking |
+| six comparisons | corresponding direct selector and auditable exact custom predicate kernel | exact predicate over represented/DAZ operand alternatives; canonical byte `0/1` | each has one survivor; no comparison required | freeze the sole survivor |
+| tensor MIN/MAX | direct NaN-propagating selector and auditable exact custom pointwise kernel | exact candidate membership, NaN class, and operation-fixed zero sign in both operand orders | each has one survivor; no comparison required | freeze the sole survivor |
+| scalar MIN/MAX | direct NaN-propagating selector against exact-data scalar constant and auditable exact custom scalar kernel | same exact extrema rule including scalar raw-bit identity and broadcast | each has one survivor; no comparison required | freeze the sole survivor |
+| CLAMP | direct clamp; auditable fused custom; two-extrema MPSGraph composition if both primitive routes are `DOMAIN-PASS`; two-step custom-extrema composition | recursive exact `MIN(MAX(x,min),max)` membership with NaN and both zero-bound orders | fused strictly dominates composed: `1` versus `2` dispatches and `0` versus `4,194,304` route-owned bytes | freeze fused solely on structural dominance |
+| reduction MIN/MAX | direct NaN-propagating selector and auditable exact custom contributor traversal | exact mapped contributors, NaN, signed-zero winner, original-candidate selection, and identity form | each has one survivor; no comparison required | freeze the sole survivor |
+| CUM_SUM/CUM_PROD | corresponding direct cumulative selector and auditable exact custom ordered scan | recursive ordered-prefix/contiguous-split result set with exact identity/placement and abstract NaNs | each has one survivor; no comparison required | freeze the sole survivor |
 
 Custom candidates are fixed typed kernels, not a general framework. Predicate/extrema kernels use
 auditable bit classification/order and preserve selected source bits. Reduction kernels use exact
@@ -184,7 +185,7 @@ checked rank/axis indexing and a documented sequential ordered traversal, which 
 left-associated contiguous-split parenthesization in every mode. Both concrete CLAMP compositions
 retain the two required FLOAT32 extrema sites. All listed candidates are defined before Gate 1B;
 every `DOMAIN-PASS` candidate is prepared before the sole oracle. A candidate that cannot obtain
-`DOMAIN-PASS` is recorded as blocked and never reaches numerical or cost evidence.
+`DOMAIN-PASS` is recorded as blocked and never reaches numerical evidence or survivor adjudication.
 
 ## Gate 1A: structural/API and schema proof
 
@@ -361,11 +362,10 @@ text and SHA-256 in this task. Preserve the exact custom source, host source, va
 wrapper, and proof as non-production review evidence; remove the compiled executable, raw output,
 bytecode/cache, and temporary workspace artifacts.
 
-## Gate 3: one bounded custom-only cost-evidence group
+## Gate 3: custom-survivor structural adjudication and retained timing diagnostics
 
-ADR 0022 resolves the former instrumentation blocker only for the surviving explicit custom
-routes. Their retained source owns every encoder dispatch and resource used by a synchronous hot
-invocation, so the exact source-bound route declarations below are admissible:
+ADR 0022 admits exact source-bound route declarations for the surviving explicit custom routes.
+Their retained source owns every encoder dispatch and resource used by a synchronous hot invocation:
 
 - every comparison, tensor/scalar-extrema, fused-CLAMP, reduction, and scan candidate declares one
   compute dispatch and zero route-owned temporary bytes above steady prepared inputs/outputs;
@@ -373,53 +373,37 @@ invocation, so the exact source-bound route declarations below are admissible:
   `4 * elementCount` bytes; its frozen 1,048,576-element workload therefore declares `4,194,304`
   route-owned temporary bytes.
 
-Any added framework call, unowned encoder, unowned resource, hidden allocation, or source mismatch
-invalidates the declaration and blocks that candidate. The declarations do not apply to an opaque
-MPSGraph route, and no direct selector, MPSGraph composition, graph-node count, command-buffer
-count, inferred fusion, heap estimate, or process resident memory enters this gate.
+Any framework call, unowned encoder/resource, hidden allocation, or source mismatch invalidates the
+declaration. No direct selector, MPSGraph composition, graph-node count, command-buffer count,
+inferred fusion, heap estimate, or process resident memory substitutes for actual opaque-route
+facts.
 
-Run one Apple M3 Max process containing a predeclared standalone workload for every custom
-candidate, not an input-size, axis, mode, optimization, or device matrix:
-
-- comparisons, tensor extrema, and scalar extrema/clamp: canonical 1,048,576-element inputs;
-- reductions: canonical `[64,128,128]`, ordered axes `[2,0]`, keep-dimensions false;
-- scans: canonical `[1024,1024]`, axis `1`, exclusive/reverse true; and
-- deterministic ordinary values seeded with the frozen edge corpus, with every retained result
-  exact-checked before timing.
-
-Prepare every route first. Use four alternating-order warmup rounds and eight alternating-order
-retained rounds; each retained batch runs to a 25 ms floor with a 1,000,000-execution ceiling.
-Discard and retry nothing. The synchronous hot boundary is route execution plus completion; exclude
-preparation, upload, download, validation, and reporting. Record raw batch durations/iterations,
-normalized medians, exact device identity, source and executable SHA-256, result checks, dispatch
-declarations, and route-owned temporary-byte declarations. No numerical oracle is rerun.
+The historical Apple M3 Max process and all raw samples remain retained unchanged. It prepared all
+custom candidates, exact-checked results, used the documented workloads, ran four alternating-order
+warmup rounds and eight retained rounds to the 25 ms floor, discarded and retried nothing, and
+recorded the original durations and environment. Those timings are local-device diagnostics only.
+They do not qualify a candidate, select a route, change tuning identity, populate a production
+decision, or break a structural tie.
 
 ## Gate 4: fixed production route
 
-Apply this predeclared rule independently to each operation kind:
+Apply ADR 0022 independently to each operation kind:
 
 1. remove every candidate without structural/API `PASS`, `DOMAIN-PASS`, or numerical `PASS`;
-2. require complete Apple M3 Max timing plus an ADR-0022-valid exact dispatch and route-owned
-   temporary-byte declaration for every remaining custom candidate; missing facts block the
-   operation;
-3. select lexicographically by lowest retained normalized-duration median, then fewer compute
-   dispatches, then fewer route-owned temporary bytes;
-4. only when all three facts tie, prefer exact custom before certified composition, then lexical
-   candidate ID;
-5. no valid complete candidate, a partial-domain route, or any unmeasured survivor blocks that
-   operation and leaves capability false; and
-6. encode the winner as one immutable production route and delete every unselected custom kernel,
-   composition, probe, benchmark, and disposable report artifact after retaining the required raw
-   evidence.
+2. if one candidate remains, freeze it without a comparative cost gate;
+3. if multiple candidates with identical proven semantics/domain remain, select without timing only
+   when one has no more dispatches and no more route-owned temporary bytes than every alternative
+   and is strictly better in at least one dimension;
+4. if multiple nondominated candidates remain, leave route selection pending an explicitly
+   authorized controlled environment; and
+5. encode an authorized survivor as one immutable production route and remove unselected
+   production implementations after retaining required evidence.
 
-There is no direct-route baseline, coverage-only custom tier, 10% override, or family
-preselection. Every numerically complete survivor can win on measured cost; route family is only
-the final exact-tie discriminator.
+Fourteen rows had one survivor. CLAMP had two: fused custom strictly dominates composed custom by
+one versus two dispatches and zero versus 4,194,304 route-owned temporary bytes. No timing fact is
+needed or authoritative. Do not aggregate gates across operations: one kind never authorizes
+another.
 
-Do not aggregate gates across operations. For example, passing `LESS_THAN` does not authorize
-`GREATER_THAN`; passing MIN does not authorize MAX; passing CUM_SUM does not authorize CUM_PROD.
-One operation may complete while another remains false only if schema, identity, documentation, and
-public claims name that exact completed subset and independent review approves the split.
 
 ## Production lifecycle and proof
 
@@ -441,8 +425,8 @@ real public Engine forward scenario for each completed partition with no CPU own
 - Depends on: completed and independently approved Model 0030/0031; Metal 0050 packaged baseline;
   retained Metal 0010/0012/0013 evidence; current Compiler inference/autograd capture; Config 0006;
   Engine 0018.
-- Gate-3 prerequisite: resolved by ADR 0022 for only the closed custom survivors. Full-Xcode trace
-  tooling remains required for opaque routes and is irrelevant to this custom-only adjudication.
+- Gate-3 prerequisite: resolved by ADR 0022 for only the closed custom survivors. Opaque routes
+  would require supported actual observation for structural facts; none reached adjudication.
 - Complete-domain gate: closed for every auditable custom candidate and still `DOMAIN-BLOCKED` for
   every opaque direct candidate; the per-candidate proof identities and verdicts are in Result.
 - Independent of: Task 0051/0053 numerical candidates, timing, route, schema implementation, and
@@ -490,28 +474,19 @@ compiled probes, executables, caches, and temporary workspaces are removed after
 3. Every `DOMAIN-PASS` custom candidate compiled before command-buffer creation and passed its own
    numerical verdict. The bounded sample remains regression evidence and does not establish the
    complete-domain proof.
-4. The custom-only Gate 3 records actual M3 Max hot timings and exact source-owned dispatch and
-   route-owned temporary-byte declarations for every survivor, with no retry, fallback, numerical
-   rerun, or matrix. Opaque candidates receive no inferred facts.
-5. Gate 4 selects one immutable route per operation. Fused and composed custom CLAMP compete under
-   the same lexicographic rule; the loser is absent from production.
-6. Schema 12 appends operation wires `20..34` and attribute wires `7..9`; all workload, exact-policy,
-   candidate, compatibility, route-policy, and codec identities cut over together from 12 to 13.
-   ABI 4, the 160-byte record, thirteen exports, existing wires, value carriers/states, and
-   complete-plan wrapper 1 remain unchanged. Stale schema/identity bytes fail closed with no shim.
+4. Gate 3 retains actual M3 Max timings as non-authoritative diagnostics and exact source-owned
+   dispatch/temporary-byte declarations. Opaque candidates receive no inferred facts.
+5. Gate 4 fixes each sole survivor without comparison and fixes fused CLAMP solely because its
+   `1` dispatch/`0` route bytes strictly dominate composed CLAMP's `2` dispatches/`4,194,304`
+   route bytes. Raw timing does not authorize a route.
+6. The original cutover appended schema-12 operation wires `20..34` and attributes `7..9` and
+   advanced backend-local identities to 13; Complete Task 0055 later migrated them unchanged into
+   ABI 5/schema 13 and identity 14.
 7. Capability, Java/native preflight and lowering, cold preparation, persistent resources, exact
    BOOL publication, scalar raw words, reductions, scans, and synchronous execution cover all 15
    kinds over the exact domain. Every exclusion remains false.
 8. Focused Metal, conformance, Compiler-contract, and no-skip real-dylib public Engine scenarios
    pass. The final full repository build is deliberately deferred.
-9. Javadocs and current architecture/Metal/backend/API/glossary/planning documents match the landed
-   behavior; required raw evidence is retained and disposable artifacts are removed.
-
-## Planning validation
-
-Validate changed Markdown links, anchors, fences, final newlines, status consistency, exact
-retained evidence hashes, raw Gate-3 evidence identity, disposable-artifact absence, and
-`git diff --check`. Do not run the final full repository build.
 
 ## Documentation and review impact
 
@@ -520,16 +495,16 @@ the roadmap frontier, and permanent Task-0052 Gate-3 evidence. They do not yet c
 capability, schema/identity, public Engine behavior, native guide, or package Javadoc. The
 production commits must synchronize those surfaces while preserving every historical blocked
 record. Independent Class C review must inspect every surviving custom candidate's
-structural/domain/numerical/cost evidence, retained indexing and numerical invariants,
-ordered-prefix/abstract-NaN oracle, fixed routes, false exclusions, stale-data rejection,
-lifecycle, real no-skip Engine proof, and disposable-artifact boundaries.
+structural/domain/numerical evidence, exact route facts, diagnostic timing record, retained indexing
+and numerical invariants, ordered-prefix/abstract-NaN oracle, fixed routes, false exclusions,
+stale-data rejection, lifecycle, real no-skip Engine proof, and disposable-artifact boundaries.
 
 ## Result
 
 Gates 1 through 4 and production implementation are complete. Gate 1A/API, Gate 1B complete-domain
 proof, and the sole Gate-2 numerical invocation completed from clean execution base
-`bd5c40d3f08487cddec4284ac1588ce276f1c979`. The custom-only Gate-3 process then passed on Apple M3
-Max under ADR 0022 and Gate 4 fixed all 15 production routes, including fused custom CLAMP.
+`bd5c40d3f08487cddec4284ac1588ce276f1c979`. Gate 3 retained exact structural facts plus local
+timing diagnostics; Gate 4 fixed all 15 routes under ADR 0022 without using timing authority.
 
 The installed SDK declarations gave API `PASS` to every opaque direct comparison, pointwise/scalar
 extrema, clamp, reduction-extrema, and cumulative SUM/PRODUCT candidate. They do not specify the
@@ -629,39 +604,32 @@ CANDIDATE=custom_scan_prod API=PASS DOMAIN=PASS NUMERICAL=PASS OUTPUT_SHA256=c87
 ORACLE_VERDICT=PASS FAILURES=0
 ```
 
-ADR 0022 later resolved Gate 3 only for the 16 closed custom survivors. The permanent
-[Gate-3 evidence](../evidence/0052-gate3/README.md) retains source audit, the one-run wrapper,
-all 128 raw retained timing samples, exact source-owned dispatch/resource declarations, and
-adjudication. One Apple M3 Max process prepared all survivors, exact-checked the cost workload,
-preserved every input, ran four alternating-order warmup rounds and eight retained rounds to the
-25 ms batch floor, exited zero, and wrote no standard error. It did not rerun the numerical oracle.
-The raw evidence SHA-256 is
-`4ec49dac639f27389bf276886b9f82eac28fbcf85ea0d1bf73ddbda6d3e92f64`.
+ADR 0022 applies to the 16 closed custom survivors. The permanent
+[Gate-3 evidence](../evidence/0052-gate3/README.md) retains source audit, the one-run wrapper, all
+128 raw timing samples, and exact source-owned dispatch/resource declarations. One Apple M3 Max
+process prepared all survivors, exact-checked the cost workload, preserved every input, ran four
+alternating-order warmup rounds and eight retained rounds to the 25 ms batch floor, exited zero,
+and wrote no standard error. It did not rerun the numerical oracle. The raw evidence SHA-256 is
+`4ec49dac639f27389bf276886b9f82eac28fbcf85ea0d1bf73ddbda6d3e92f64`. Those raw timing values are
+preserved historical diagnostics and are not qualification, route-selection, or tuning-identity
+authority.
 
-Every operation had one surviving route except CLAMP. Fused custom CLAMP measured
-`292241.523 ns`, one dispatch, and zero route-owned temporary bytes; composed custom CLAMP measured
-`377525.038 ns`, two dispatches, and `4194304` route-owned temporary bytes. Fused custom won on the
-first lexicographic key and is the sole production CLAMP route. Every other custom survivor is its
-operation's fixed route. Opaque direct and MPSGraph candidates remain `DOMAIN-BLOCKED` and received
-no inferred facts. The disposable Gate-3 executable was removed before production work.
+Fourteen operations had one surviving route, so no comparative cost gate applied. CLAMP had two
+identical-semantics/domain survivors. Fused custom CLAMP is the production route solely because its
+exact one dispatch and zero route-owned temporary bytes strictly dominate composed custom CLAMP's
+two dispatches and `4,194,304` route-owned temporary bytes. The recorded medians are not part of
+that justification. Opaque direct and MPSGraph candidates remain `DOMAIN-BLOCKED` and received no
+inferred facts. The disposable Gate-3 executable was removed before production work.
 
-Production appended schema-12 operation wires `20..34` and attribute wires `7..9`, advanced every
-backend-local workload/policy/candidate/compatibility/route/codec identity to 13, and retained ABI
-4, 160-byte records, thirteen exports, and complete-plan wrapper 1. Whole-partition analysis
-rejects BOOL feeds/consumers/transfers and strict/no-grad/type/layout/domain exclusions before
-native allocation. A partition containing any completed kind uses `CUSTOM_TASK0052`: cold
-preparation compiles the fifteen fixed reviewed safe-math kernels plus interleaved existing-node
-executables, while every logical intermediate is an assigned run-owned buffer and targets remain
-direct assigned buffers. Hot Java execution performs one synchronous native invocation with no
-host staging, hidden materialization, retry, fallback, per-node downcall, or hot compilation.
+The original production cutover appended schema-12 operation wires `20..34` and attributes `7..9`,
+advanced backend-local identities to 13, and retained ABI 4. Task 0055 later migrated those exact
+routes into ABI 5/schema 13 and identity 14. The whole-partition custom route retains declared
+run-owned logical-value buffers, direct assigned targets, one synchronous Java/native invocation,
+and no host staging, hidden materialization, retry, fallback, per-node downcall, or hot compilation.
 
-Focused proof covers all fifteen kinds, exact scalar words, every reduction form, every scan mode,
-mixed existing canonical nodes, canonical BOOL publication, rank-zero extrema publication,
-malformed schema state, reuse, concurrent independent sessions, close/lifecycle behavior, stale
-schema and identity rejection, and one CPU-free no-skip real-dylib public Engine scenario. Review
-remediation rejects duplicate physical handles across distinct live value-table entries during
-cold Java binding and again at the untrusted native boundary while preserving each target's own
-matching output alias. The native hot route consumes the supplied value table directly and creates
-no avoidable mirror collection; only framework command-buffer/encoder objects remain per run. The
-warnings-as-errors bridge and canonical schema-12 local package both verify with exactly thirteen
-exports. The final full repository build was not run, as required by this task.
+Focused capability, schema/native, prepared-execution, conformance, Compiler-contract, lifecycle,
+stale-identity, malformed-state, concurrent-session, and CPU-free public Engine checks passed.
+Review remediation rejects duplicate physical handles across distinct live value-table entries at
+both Java binding and the native boundary. The warnings-as-errors bridge and local package verify
+with exactly thirteen exports. The final full repository build was not run, as required by this
+task.

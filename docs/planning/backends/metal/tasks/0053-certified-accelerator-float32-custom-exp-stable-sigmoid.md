@@ -6,17 +6,17 @@ Blocked
 
 This planning-only successor supersedes Task 0051 for all future `EXP`/`SIGMOID` realization work
 without rewriting its historical evidence. No candidate is currently `DOMAIN-PASS`. The task stays
-Blocked until both prerequisites exist:
+Blocked until concrete custom source, frozen constants, and a pinned machine-checkable
+complete-domain proof package pass independent read-only review.
 
-1. concrete custom source, frozen constants, and a pinned machine-checkable complete-domain proof
-   toolchain whose artifacts pass independent read-only review; and
-2. a full Xcode installation with supported trace tooling that can read actual GPU compute-dispatch
-   records and peak transient Metal resource bytes.
-
-Only after both prerequisites pass may this task consume its one newly authorized real-device
-numerical oracle. Task 0051's consumed invocation is never rerun, amended, or relabeled. This plan
-changes no capability, schema, identity, route, production source, test, native binary, or package,
-and performs no device action.
+Only after that prerequisite passes may this task consume its one newly authorized real-device
+numerical oracle. Task 0051's consumed invocation is never rerun, amended, or relabeled. If the
+oracle leaves one survivor for an operation, no comparative cost gate is required. If it leaves
+multiple survivors with identical proven semantics/domain, selection may close without timing only
+through strict structural dominance; otherwise it remains pending an explicitly authorized
+controlled environment. Local developer-device timing is diagnostic only and never qualification,
+route-selection, or tuning-identity authority. This plan changes no capability, schema, identity,
+route, production source, test, native binary, or package, and performs no device action.
 
 ## Change class and scope
 
@@ -32,8 +32,8 @@ In scope for future execution:
   `EXP`, and explicit `ADD`/`DIV` sites;
 - any MPSGraph or composed alternative that independently earns complete-domain `DOMAIN-PASS`
   before candidate freeze; and
-- one proof-first oracle, one all-survivor measured cost group, one fixed-route decision, then a
-  separately reviewed production implementation.
+- one proof-first oracle, survivor adjudication under ADR 0022, one fixed-route decision only when
+  authorized, then a separately reviewed production implementation.
 
 Out of scope now and later unless a new task says otherwise: strict-profile `EXP`/`SIGMOID`, any
 other unary kind, rank zero, dynamic or zero extents, views, non-`FLOAT32` payloads, gradients that
@@ -50,7 +50,9 @@ Apple M3 Max invocation:
   remain `DOMAIN-BLOCKED`;
 - the original custom `EXP`, custom `SIGMOID`, and direct `SIGMOID` retain their recorded numerical
   failures; and
-- missing actual-dispatch/peak-transient trace evidence stopped cost work.
+- its historical plan stopped at a trace prerequisite, but this successor does not inherit
+  full-Xcode tracing as an unconditional blocker. Supported actual observation is needed only to
+  establish structural facts for an opaque survivor.
 
 Task 0053 owns only new source, new certificates, a new frozen candidate manifest, and one new
 successor oracle after the prerequisites. It may reuse historical words as regression witnesses in
@@ -166,22 +168,23 @@ every considered route, operation, source/proof identity, and verdict. A candida
 constants, compiler flags, proof assumptions, or a candidate after freeze invalidates the oracle
 authorization and requires a newly reviewed successor plan; it never permits a retry.
 
-## Gate 0: prerequisites before any source execution
+## Gate 0: prerequisite before any source execution
 
-Both prerequisites are mandatory and conjunctive:
+The repository must contain the concrete candidate source/constants and all artifacts in the proof
+package below; a pinned offline proof command must succeed; a second implementation-independent
+all-raw-word checker must succeed; and independent read-only review must issue `DOMAIN-PASS` for
+each candidate.
 
-1. **Proof prerequisite.** The repository contains the concrete candidate source/constants and all
-   artifacts in the proof package below; a pinned offline proof command succeeds; a second
-   implementation-independent all-raw-word checker succeeds; and independent read-only review
-   issues `DOMAIN-PASS` for each candidate.
-2. **Trace prerequisite.** The active developer directory is a full Xcode installation whose
-   supported `xctrace`/Metal trace workflow can capture and read actual framework-internal compute
-   dispatch records and peak transient Metal resource bytes for the planned Gate-3 routes. Listing a
-   template, creating a `.gputrace`, command-buffer counts, graph-node counts, RSS, heap estimates,
-   or a custom allocation ledger alone is insufficient.
+Trace tooling is not an unconditional prerequisite. Exact source-bound dispatch and route-owned
+temporary-byte declarations are admissible for closed custom routes under ADR 0022. An opaque
+survivor still requires supported observation of actual framework-internal dispatches and peak
+transient resources before it can participate in structural comparison. If multiple nondominated
+survivors remain after exact structural facts, a separately authorized controlled comparative
+environment and protocol are required. A local developer timing run cannot satisfy that gate.
 
-Until both pass, Task 0053 remains Blocked and performs no device process, compilation for execution,
-timing, capture, production edit, schema reservation, or capability action.
+Until the proof prerequisite passes, Task 0053 remains Blocked and performs no device process,
+compilation for execution, timing, capture, production edit, schema reservation, or capability
+action.
 
 ## Gate 1A: concrete source and structural audit
 
@@ -361,50 +364,38 @@ class/sign failures, maximum ordinary ordered distance and witness, DAZ/FTZ obse
 membership, every rank/control verdict, and first failure. The bounded oracle is regression evidence
 only; it can reject but cannot establish `DOMAIN-PASS`.
 
-## Gate 3: measured all-survivor cost and trace evidence
+## Gate 3: survivor adjudication and conditional controlled comparison
 
-Only candidates with Gate-1 `DOMAIN-PASS` and Gate-2 numerical `PASS` survive. Run one predeclared
-cost group over all survivors; do not preselect custom, MPSGraph, or composition by family. Use the
-same canonical 1,048,576-element workload and exact-check every route before timing. Prepare all
-routes first, then use four alternating-order warmup rounds and eight alternating-order retained
-rounds, each to a 25 ms floor with a 1,000,000-execution ceiling. Discard and retry nothing. The hot
-boundary is synchronous execution plus result closure, excluding preparation, transfer, validation,
-and reporting.
+Only candidates with Gate-1 `DOMAIN-PASS` and Gate-2 numerical `PASS` survive. For each operation:
 
-After uncaptured timing, capture exactly one hot logical execution per surviving route. Supported
-Xcode tooling must report:
+1. zero survivors keeps capability false;
+2. one survivor needs no comparative cost gate;
+3. multiple survivors may be selected without timing only when they have identical proven
+   semantics/domain and one strictly structurally dominates every alternative: no more compute
+   dispatches, no more route-owned temporary bytes, and at least one strict improvement; and
+4. multiple nondominated survivors leave route selection pending an explicitly authorized,
+   controlled comparative environment and protocol.
 
-- trace file identity;
-- actual framework-internal GPU compute-dispatch records; and
-- peak transient/temporary Metal resource bytes above steady prepared inputs and outputs.
-
-Backend calls, graph nodes, command buffers, inferred fusion, source resource ledgers, heap
-estimates, or process RSS are not substitutes. Missing or unreadable facts for any survivor blocks
-selection and leaves both capabilities false.
+Closed custom routes may establish dispatch and route-owned temporary-byte facts from exact
+source-bound declarations under ADR 0022. Opaque routes require supported actual-internal
+observation; backend calls, graph nodes, command buffers, inferred fusion, estimates, and process
+RSS are not substitutes. Structural comparison is not a weighted score and cannot trade more
+dispatches for fewer bytes. Timing on an uncontrolled local developer device may be retained as
+diagnostic history only and never qualifies a route, selects a route, changes tuning identity,
+populates a production decision, or breaks a structural tie.
 
 ## Gate 4: fixed route and future production cutover
 
-For each operation independently:
+Encode exactly one immutable production route only after Gate 3 authorizes it, with no threshold,
+retry, fallback, runtime timing, or input-dependent choice. A route decision still does not
+authorize production by itself. A future implementation revision must update all callers
+atomically, prove schema/identity/preflight/lifecycle behavior, run focused consumer-observable
+verification, and pass independent Class C review.
 
-1. remove every candidate without Gate-1 `DOMAIN-PASS`, Gate-2 numerical `PASS`, and complete Gate-3
-   duration/dispatch/transient facts;
-2. rank survivors by lowest retained normalized-duration median, then fewer actual dispatches, then
-   fewer peak transient bytes;
-3. only on an exact three-fact tie prefer independently proved direct MPSGraph, then certified
-   custom, then certified composition, then lexical candidate ID;
-4. encode exactly one immutable production route, with no threshold, retry, fallback, or
-   input-dependent choice; and
-5. if no fully measured survivor exists, keep that operation capability-false.
-
-A route decision still does not authorize production by itself. A future implementation revision
-must update all callers atomically, prove schema/identity/preflight/lifecycle behavior, run focused
-consumer-observable verification, and pass independent Class C review.
-
-Against the current schema-11/version-12 baseline, the provisional cutover remains schema `12` with
-unary wires `EXP=20` and `SIGMOID=21`, and workload/exact-policy/candidate/compatibility/route/codec
-identities `13`. These values are unreserved. If Task 0052 or any other schema owner lands first,
-Task 0053 must rebase, append after the landed vocabulary, and advance identities once. No dual
-decoder, alias, migration shim, or stale-byte acceptance is permitted.
+Task 0055 has landed schema 13, `EXP=55`, `SIGMOID=64`, and backend-local identity version 14 as
+structural vocabulary only. Task 0053 must consume those stable values without advancing them
+unless its production change introduces a genuinely new identity fact. No dual decoder, alias,
+migration shim, or stale-byte acceptance is permitted.
 
 ## Future production and lifecycle proof
 
@@ -424,19 +415,19 @@ substitute or widen binary/affine/scalar capability.
 ## Dependencies and integration
 
 - Depends on: completed and independently approved Model 0030/0031; Task 0051's preserved blocked
-  record; Metal 0050 packaged baseline; Compiler unary inference/gradient capture; Config 0006; and
-  Engine 0018.
+  record; Complete Task 0055's ABI-5/schema-13 foundation; Compiler unary inference/gradient
+  capture; Config 0006; and Engine 0018.
 - Planning base: `1f5c715c0e727d8bd56051f027c44cbed5991f81`.
-- External blockers: the proof prerequisite and supported full-Xcode dispatch/transient trace
-  prerequisite defined in Gate 0.
+- External blocker: the concrete proof prerequisite defined in Gate 0. A controlled environment is
+  a later conditional blocker only if multiple nondominated survivors remain.
 - Supersedes: Task 0051 for all future EXP/SIGMOID candidate, proof, oracle, cost, route, schema, and
   production work; it does not alter Task 0051's status or evidence.
-- Independent of: Task 0052 candidates, proof, oracle, evidence, cost, and route. Do not edit
-  Task-0052 files or consume its provisional wires while both tasks are Blocked.
+- Independent of: Task 0052 candidates, proof, oracle, raw timing history, and production kernels;
+  it shares only ADR 0022's corrected decision-authority rule.
 - Conflicts with: every concurrent Metal capability/schema/native-preflight/candidate/codec/tuning/
   lifecycle/public Engine edit and shared numerical-profile documentation.
 - Parallel group: none.
-- Integration owner: future Task-0053 implementer after both blockers resolve.
+- Integration owner: future Task-0053 implementer after the proof blocker resolves.
 
 ## Expected future files and artifacts
 
@@ -458,8 +449,7 @@ This planning commit creates only this task and updates the Metal master/roadmap
 
 1. Task 0053 is the sole future EXP/SIGMOID successor; Task 0051 remains an unchanged historical
    blocked record and its oracle is never rerun.
-2. Status remains Blocked until both a concrete independently approved proof package/toolchain and
-   supported full-Xcode dispatch/peak-transient trace reader exist.
+2. Status remains Blocked until a concrete independently approved proof package/toolchain exists.
 3. Gate 1B requires concrete source/constants and kernel-checked proof over the complete raw-word
    partition, DAZ, overflow/underflow, range reduction, table/index bounds, approximation interval,
    every RNE/FMA site, FTZ, inclusive EXP distance `<=5`, and rank-`1..16` launch/index coverage.
@@ -469,10 +459,11 @@ This planning commit creates only this task and updates the Metal master/roadmap
    MPSGraph/composed alternatives. Every current opaque direct/inherited route stays blocked.
 6. Fail-closed artifact/tool/review rules reject missing, guessed, partial, sampled, unpinned,
    source-mismatched, unresolved, or opaque proof claims before any device action.
-7. After both prerequisites and proof approval, exactly one new Task-0053 oracle may run over the
-   frozen successor candidates/corpus; a failure is final and Task 0051 is not rerun.
-8. Gate 3 requires readable actual dispatch and peak transient facts for every survivor before a
-   fixed route or capability decision.
+7. After proof approval, exactly one new Task-0053 oracle may run over the frozen successor
+   candidates/corpus; a failure is final and Task 0051 is not rerun.
+8. Gate 3 closes a single-survivor row without comparison, permits timing-free multi-survivor
+   selection only by strict structural dominance under identical proven semantics/domain, and
+   otherwise leaves selection pending a controlled environment. Local timing is diagnostic only.
 9. This planning change performs no build, test, native compile, device run, timing, capture,
    capability/schema/identity reservation, production edit, or Task-0052 evidence edit.
 10. Task/master/roadmap links, fences, final newlines, statuses, path scope, and `git diff --check`
@@ -493,16 +484,16 @@ workload, or trace capture.
 
 ## Documentation and review impact
 
-The Metal master and roadmap must name Task 0053 as the blocked successor frontier, retain Task 0051
-as consumed historical evidence, retain Task 0052 unchanged and independently blocked, and state
-that no Metal task is Ready. Independent planning review checks only the completeness and
+The Metal master and roadmap name Task 0053 as the blocked successor frontier, retain Task 0051 as
+consumed historical evidence, preserve Complete Task 0052's raw timing only as diagnostic history,
+and state that no Metal task is Ready. Independent planning review checks only the completeness and
 fail-closed character of this plan. A later proof review is a separate read-only review over exact
 retained bytes and proof-kernel results.
 
 ## Result
 
 Planning-only Blocked successor created. No candidate source, constants, certificate, oracle,
-measurement, route, schema reservation, capability, or production change exists yet. The next
-action is not a device run: it is a separately committed concrete source/proof package plus pinned
-offline verifier, followed by independent read-only `DOMAIN-PASS` review after the Xcode trace
-prerequisite is also available.
+measurement, route, capability, or production change exists yet. Task 0055 has since supplied its
+schema-13 structural vocabulary. The next action is not a device run: it is a separately committed
+concrete source/proof package plus pinned offline verifier, followed by independent read-only
+`DOMAIN-PASS` review.

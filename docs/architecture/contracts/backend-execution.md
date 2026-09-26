@@ -123,17 +123,21 @@ Runtime profiling is passive observation of actual execution. `modules/runtime` 
 execution context and `modules/trace` owns typed diagnostic DTOs; neither profiling nor tracing
 selects settings.
 
-For Metal route qualification, supported observation of actual framework-internal dispatches and
-temporary resources remains mandatory for every opaque route, including MPSGraph. No graph-node
-count, command-buffer count, inferred fusion, framework estimate, or process memory substitutes for
-those facts. An explicit custom route may instead attest its compute-dispatch count and route-owned
-temporary bytes from an auditable declaration when retained source owns every command encoder
-dispatch and every resource used by the measured synchronous hot invocation. The declaration must
-enumerate each dispatch and each transient resource, exclude steady prepared inputs and outputs,
-and remain tied to the exact measured source identity. Any framework call or unowned encoder or
-resource makes that route opaque for this rule. Hot duration is still measured on the named target
-device. Qualification fixes one route before production preparation and adds no runtime timing,
-fallback, retry, or workload matrix.
+For Metal route qualification, candidate comparison begins only after identical proven semantics
+and domain plus numerical acceptance. A single survivor needs no comparative cost gate. Multiple
+survivors may be selected without timing only by strict structural dominance: no more compute
+dispatches, no more route-owned temporary bytes, and at least one strict improvement. Supported
+observation of actual framework-internal dispatches and temporary resources remains mandatory for
+every opaque route, including MPSGraph; graph-node counts, command-buffer counts, inferred fusion,
+framework estimates, and process memory are not substitutes. An explicit custom route may instead
+attest those facts from an auditable source-bound declaration when retained source owns every
+command encoder dispatch and resource used by the synchronous hot invocation.
+
+If multiple nondominated survivors remain, selection stays pending an explicitly authorized,
+controlled comparative environment and protocol. Uncontrolled local-device timing is diagnostic
+only: it never qualifies a candidate, selects a route, changes tuning identity, populates a
+production decision, or breaks a structural tie. Qualification fixes an authorized route before
+production preparation and adds no runtime timing, fallback, retry, or workload matrix.
 
 ## CPU backend routes
 

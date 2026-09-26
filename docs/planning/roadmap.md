@@ -164,16 +164,16 @@ rereview after `97cb9d11` returned `APPROVE` with zero findings. No executable b
 capability changed.
 
 [Metal 0051](backends/metal/tasks/0051-accelerator-float32-exp-sigmoid-recursive-floor-realization.md)
-is Blocked before complete-domain authorization, route timing, or capability. Its consumed frozen
-83-word Apple M3 Max oracle gave bounded numerical passes to direct MPSGraph EXP and the MPSGraph
-stable SIGMOID composition, and rejected custom EXP/custom SIGMOID/direct SIGMOID. The passes are
-regression evidence only: direct EXP lacks an authoritative all-binary32/rank-`1..16` contract and
-is `DOMAIN-BLOCKED`; the composition inherits that blocker. Task 0051 froze the proof obligations
-and remains historical. Task 0053 now owns the concrete source/certificates, independent review,
-and one newly authorized successor oracle, but stays Blocked on that complete-domain work and the
-full-Xcode actual-dispatch/peak-transient prerequisite. Task 0051 reserved no production vocabulary;
-Task 0052 later consumed wires `20..34`, and Complete Task 0055 registers `EXP=55`/`SIGMOID=64`
-inside its zero-capability schema-13 foundation.
+is Blocked before complete-domain authorization, route adjudication, or capability. Its consumed
+frozen 83-word Apple M3 Max oracle gave bounded numerical passes to direct MPSGraph EXP and the
+MPSGraph stable SIGMOID composition, and rejected custom EXP/custom SIGMOID/direct SIGMOID. The
+passes are regression evidence only: direct EXP lacks an authoritative all-binary32/rank-`1..16`
+contract and is `DOMAIN-BLOCKED`; the composition inherits that blocker. Task 0051 froze the proof
+obligations and remains historical. Task 0053 now owns the concrete source/certificates,
+independent review, and one newly authorized successor oracle, but stays Blocked on that
+complete-domain work. Task 0051 reserved no production vocabulary; Task 0052 later consumed wires
+`20..34`, and Complete Task 0055 registers `EXP=55`/`SIGMOID=64` inside its zero-capability
+schema-13 foundation.
 CPU requires no migration because its exact realizations remain valid members of the widened result
 set.
 
@@ -185,18 +185,21 @@ site, inclusive ordinary EXP distance `<=5`, and rank-`1..16` launch/index cover
 SIGMOID must be proved recursively from exact guard/NEG, the approved EXP, and explicit ADD/DIV
 sites, never by a final envelope. Current opaque direct/inherited routes stay `DOMAIN-BLOCKED`;
 only independently domain-proved alternatives may join the certified custom routes. Task 0053 is
-Blocked until both that proof package passes read-only review and supported full-Xcode
-dispatch/peak-transient trace tooling exists. Only then may its one new frozen-corpus oracle run;
-Task 0051 is never rerun. Capability, schema, identities, routes, and production remain unchanged.
+Blocked until that proof package passes read-only review. Only then may its one new frozen-corpus
+oracle run; Task 0051 is never rerun. A sole survivor needs no comparative cost gate; multiple
+survivors may close without timing only through strict dispatch/temporary-byte dominance under
+identical proven semantics/domain, otherwise selection awaits a controlled environment. Local
+timing is diagnostic only. Capability, schema, identities, routes, and production remain unchanged.
 
 [Metal 0052](backends/metal/tasks/0052-accelerator-float32-comparisons-extrema-scans.md)
 is Complete for six FLOAT32 comparisons, tensor/scalar/clamp/reduction extrema, and
 CUM_SUM/CUM_PROD. Every opaque direct candidate remains `DOMAIN-BLOCKED`; all sixteen auditable
-custom candidates proved `DOMAIN-PASS` and passed the sole numerical oracle. The custom-only
-Gate-3 process retained all 128 samples; fused CLAMP beat composed CLAMP and became the fixed
-route. The atomic schema/identity/native/capability/preparation/execution cutover landed all
-fifteen kinds through one fixed custom whole-program route, schema 12, and identity version 13.
-Its exact evidence remains permanent and no oracle was rerun.
+custom candidates proved `DOMAIN-PASS` and passed the sole numerical oracle. Fourteen operation
+rows had one survivor. Fused CLAMP is fixed solely because its one dispatch/zero route bytes
+strictly dominate composed CLAMP's two dispatches/4,194,304 bytes; all 128 local timing samples
+remain diagnostic history. The original cutover landed schema 12/identity 13; Complete Task 0055
+later migrated current production to ABI 5/schema 13 and identity 14 without changing capability
+or routes.
 
 [Metal 0054](backends/metal/tasks/0054-current-accelerator-115-kind-completeness-audit.md) remains
 the exact Complete read-only audit of base `93b3d379`: 40 enums, 115 constants, and
@@ -281,7 +284,7 @@ The active semantic and Metal serial DAG is:
 
 `Metal 0018 blocker evidence -> Model 0029 (Complete) -> Metal 0021 (Complete) -> Metal 0022 (Complete) -> Metal 0023 (Complete) -> Metal 0024 (Complete) -> Metal 0025 (Complete) -> {Metal 0026 (Blocked), Metal 0027 (Blocked), Metal 0030 (Blocked), Metal 0031 (Blocked), Metal 0032 (Blocked), Metal 0033 (Blocked), Metal 0034 (Blocked), Metal 0035 (Blocked), Metal 0036 (Blocked), Metal 0037 (Blocked)}`
 
-`Model 0031 (Complete) -> Model 0030 (Complete) -> {Metal 0051 (historical Blocked) -> Metal 0053 (Blocked on proof plus full-Xcode trace tooling), Metal 0052 (Complete)}`
+`Model 0031 (Complete) -> Model 0030 (Complete) -> {Metal 0051 (historical Blocked) -> Metal 0053 (Blocked on concrete proof/review), Metal 0052 (Complete)}`
 
 `Metal 0051 + reviewed Metal 0052 evidence + Metal 0053 + historical source -> Metal 0054 (Complete pre-cutover audit); Metal 0052 production cutover (Complete) supersedes that inventory`
 
@@ -298,13 +301,15 @@ only canonical exact `ABS` under both profiles. Complete Model 0030 makes recurs
 EXP and composed SIGMOID, but both are `DOMAIN-BLOCKED` because the opaque EXP selector lacks an
 authoritative full-domain contract; its other candidates failed and its invocation is never rerun.
 Metal 0053 is the planning-only successor and remains Blocked until concrete custom source/constants
-pass the complete machine-checked proof and independent review and readable full-Xcode actual
-dispatch/peak-transient tooling exists. Only then may its one new oracle precede cost and capability
-work.
-Metal 0052's independent proof, sole regression oracle, ADR-0022 custom-only Gate 3, fixed routes,
-and production cutover are Complete. Its opaque routes remain domain-blocked; fused CLAMP won; all
-other sole survivors are fixed. The bounded corpus remains regression evidence, not
-complete-domain proof. Gross class/sign-failing 0006 selectors remain unusable.
+pass the complete machine-checked proof and independent review. Only then may its one new oracle
+run. A sole survivor needs no comparison; multiple identical-domain survivors close only through
+strict structural dominance, otherwise selection awaits a controlled environment. Local timing is
+diagnostic only.
+Metal 0052's independent proof, sole regression oracle, structural survivor adjudication, fixed
+routes, and production cutover are Complete. Its opaque routes remain domain-blocked; fused CLAMP
+is fixed solely by strict dispatch/temporary-byte dominance, and all other rows had a sole
+survivor. The bounded corpus remains regression evidence, not complete-domain proof. Gross
+class/sign-failing 0006 selectors remain unusable.
 
 [Metal 0017](backends/metal/tasks/0017-accelerator-float32-sum-mean-sum-to-shape-reductions.md)
 remains Blocked under its unchanged old contract. After probe-only dangling autorelease-string and
@@ -535,8 +540,8 @@ reserve conditional schema.
   0051's sole recursive oracle is bounded regression evidence: direct EXP and composed SIGMOID
   passed the sample but are `DOMAIN-BLOCKED`, the other candidates failed, and that oracle is never
   rerun. Metal 0053 supersedes it for future work but is Blocked before source execution on concrete
-  machine-checked complete-domain proof plus independent approval and readable full-Xcode actual
-  GPU dispatch/peak-transient instrumentation.
+  machine-checked complete-domain proof plus independent approval. A future nondominated
+  multi-survivor result additionally requires a controlled environment; local timing is diagnostic.
 - Metal 0017 is `Blocked` under its old accelerator reduction contract. Its corrected full probe
   completed 300 executables/2,400 runs and found `SUM([-0,-0]) -> +0`, while the old permitted set
   contained only `-0`; zero is not subnormal, so DAZ/FTZ did not admit the result. No production
@@ -585,12 +590,12 @@ reserve conditional schema.
   comparison still requires a separately reviewed, fully sealed matrix before measurement.
 - Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
   0017, Trace 0003, and Metal
-  0015/0019/0020/0021/0022/0023/0024/0025/0038/0041/0042/0043/0044/0045/0046/0048/0049/0050/0054
-  are Complete. Metal 0016–0018, 0026–0027, 0030–0037, planning-only 0039, failed-gate 0040,
-  provider-gated 0047, historical consumed-oracle 0051, and proof-plus-full-Xcode-gated planning
-  successor 0053 remain Blocked under their recorded contracts. Task 0052 is Complete; Task 0054
-  remains its exact historical pre-cutover inventory. Task 0055 is the sole Ready Metal frontier
-  and contributes zero new capability kinds.
+  0015/0019/0020/0021/0022/0023/0024/0025/0038/0041/0042/0043/0044/0045/0046/0048/0049/0050/0054/
+  0055 are Complete. Metal 0016–0018, 0026–0027, 0030–0037, planning-only 0039, failed-gate 0040,
+  provider-gated 0047, historical consumed-oracle 0051, and proof/review-gated planning successor
+  0053 remain Blocked under their recorded contracts. Task 0052 is Complete; Task 0054 remains its
+  exact historical pre-cutover inventory. Task 0055 is the completed zero-new-capability
+  foundation. No Metal task is Ready.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -606,9 +611,10 @@ reserve conditional schema.
 
 No Metal task is Ready. Task 0055 completed the private ABI-5/schema-13/six-carrier/cardinality/
 typed-transfer/identity/package foundation at `ddeff1b2` with zero capability widening. Metal 0053
-remains Blocked on its independent concrete-source, complete-domain proof, review, and controlled
-environment prerequisites; no timing, operation route, oracle, or capability work is authorized by
-the completed foundation.
+remains Blocked on its independent concrete-source, complete-domain proof and review; a controlled
+environment is additionally required only if its future oracle leaves multiple nondominated
+survivors. No local timing, operation route, oracle, or capability work is authorized by the
+completed foundation.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly

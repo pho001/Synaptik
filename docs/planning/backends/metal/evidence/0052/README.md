@@ -19,9 +19,12 @@ recorded identities and the unedited validator verdict remain in the task result
 validation did **not** execute the oracle, create a Metal device, compile source, or consume another
 measurement.
 
-These files are evidence, not production code. They grant no capability and are not a reusable
-probe invitation. A future authorized implementation must re-establish all preflight and lifecycle
-obligations against its then-current production source.
+These files are numerical/domain evidence, not production code. They grant no capability, route
+selection, or timing authority and are not a reusable probe invitation. Task 0052's separately
+retained local timings are historical diagnostics only; fused CLAMP is justified solely by strict
+structural dominance in dispatches and route-owned temporary bytes. A future authorized
+implementation must re-establish all preflight and lifecycle obligations against its then-current
+production source.
 
 ## Complete-domain assumptions
 

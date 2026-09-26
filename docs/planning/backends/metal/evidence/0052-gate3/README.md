@@ -1,8 +1,10 @@
 # Task 0052 Gate-3 custom-route evidence
 
-This directory retains the auditable custom-only cost group authorized by ADR 0022. It does not
-change or rerun the immutable Gate-1/Gate-2 numerical evidence in [`../0052/`](../0052/README.md).
-Every opaque direct or MPSGraph candidate remains `DOMAIN-BLOCKED` and was absent.
+This directory retains Task 0052's auditable custom-only structural facts and local timing capture.
+It does not change or rerun the immutable Gate-1/Gate-2 numerical evidence in
+[`../0052/`](../0052/README.md). Every opaque direct or MPSGraph candidate remains
+`DOMAIN-BLOCKED` and was absent. The raw device timings are historical diagnostics only: they are
+not qualification, route-selection, or tuning-identity authority.
 
 ## Fixed protocol
 
@@ -34,9 +36,9 @@ The source audit in [`audit.txt`](audit.txt) passed before the device invocation
 exited zero on `Apple M3 Max`, wrote no standard error, reported safe math, validated all candidates,
 and preserved every input. `raw.txt` contains all 128 retained duration/iteration samples.
 
-## Adjudication
+## Historical evidence and disposition
 
-| Candidate | Median ns | Dispatches | Route temporary bytes | Route |
+| Candidate | Diagnostic median ns | Dispatches | Route temporary bytes | Historical disposition |
 |---|---:|---:|---:|---|
 | `custom_cmp_gt` | 285,213.036 | 1 | 0 | selected for `GREATER_THAN` |
 | `custom_cmp_ge` | 285,153.648 | 1 | 0 | selected for `GREATER_OR_EQUAL` |
@@ -55,7 +57,8 @@ and preserved every input. `raw.txt` contains all 128 retained duration/iteratio
 | `custom_scan_sum` | 366,007.848 | 1 | 0 | selected for `CUM_SUM` |
 | `custom_scan_prod` | 368,565.257 | 1 | 0 | selected for `CUM_PROD` |
 
-Fused custom CLAMP wins at the first lexicographic key: its measured median is lower. It also has
-fewer dispatches and fewer route-owned temporary bytes, but those later keys were not needed. Every
-other operation has exactly one surviving candidate, so that candidate is its fixed route. These
-are cold production decisions; Runtime performs no selection, fallback, retry, or measurement.
+Fourteen operations had exactly one surviving candidate, so no comparative cost gate applied.
+Fused custom CLAMP is fixed solely because its exact one dispatch and zero route-owned temporary
+bytes strictly dominate composed custom CLAMP's two dispatches and 4,194,304 bytes under identical
+proven semantics/domain. The measured medians remain unedited history and did not authorize that
+choice. Runtime performs no selection, fallback, retry, or measurement.
