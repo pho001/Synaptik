@@ -20,22 +20,23 @@ import org.junit.jupiter.api.Test;
 
 class MetalBoolNativeTest {
     private static final int[] CLASSIFICATION_BITS = {
-        0x00000000, 0x7f800000, 0x7fc12345,
-        0xff800000, 0x3f800000, 0x7f812345
+        0x00000000, 0x80000000, 0x00000001, 0x007fffff,
+        0x00800000, 0x7f7fffff, 0x7f800000, 0xff800000,
+        0x7fc12345, 0xffc54321, 0x7f812345, 0xff812346
     };
-    private static final byte[] FINITE = {1, 0, 0, 0, 1, 0};
-    private static final byte[] NAN = {0, 0, 1, 0, 0, 1};
-    private static final byte[] INF = {0, 1, 0, 1, 0, 0};
+    private static final byte[] FINITE = {1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0};
+    private static final byte[] NAN = {0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1};
+    private static final byte[] INF = {0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0};
     private static final byte[] LEFT = {1, 0};
     private static final byte[] RIGHT = {1, 0, 1};
     private static final byte[] AND = {1, 0, 1, 0, 0, 0};
     private static final byte[] OR = {1, 1, 1, 1, 0, 1};
-    private static final byte[] NOT_FINITE = {0, 1, 1, 1, 0, 1};
+    private static final byte[] NOT_FINITE = {0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1};
     private static final int[] TRUE_BITS = {0x7fc12345, 0x80000000};
-    private static final int[] FALSE_BITS = {0x3f800000, 0xffc54321, 0x00000001};
+    private static final int[] FALSE_BITS = {0x7f800000, 0xffc54321, 0x00000001};
     private static final int[] WHERE_BITS = {
         0x7fc12345, 0xffc54321, 0x7fc12345,
-        0x3f800000, 0xffc54321, 0x00000001
+        0x7f800000, 0xffc54321, 0x00000001
     };
     private static final int[] DIRECT_WHERE_BITS = {
         0x7fc12345, 0xffc54321, 0x7fc12345,
@@ -60,12 +61,15 @@ class MetalBoolNativeTest {
                     node(MetalMpsGraphProgram.NodeKind.LOGICAL_NOT, new int[] {1}, 6),
                     node(MetalMpsGraphProgram.NodeKind.WHERE, new int[] {4, 7, 8}, 9)));
             List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
-                    value(DataType.FLOAT32, 2, 3), value(DataType.BOOL, 2, 3),
-                    value(DataType.BOOL, 2, 1), value(DataType.BOOL, 3),
-                    value(DataType.BOOL, 2, 3), value(DataType.BOOL, 2, 3),
-                    value(DataType.BOOL, 2, 3), value(DataType.FLOAT32, 2, 1),
-                    value(DataType.FLOAT32, 1, 3), value(DataType.FLOAT32, 2, 3),
-                    value(DataType.BOOL, 2, 3), value(DataType.BOOL, 2, 3));
+                    value(DataType.FLOAT32, 3, 4), value(DataType.BOOL, 3, 4),
+                    value(DataType.BOOL, rankSixteen(2, 1)), value(DataType.BOOL, 3),
+                    value(DataType.BOOL, rankSixteen(2, 3)),
+                    value(DataType.BOOL, rankSixteen(2, 3)),
+                    value(DataType.BOOL, 3, 4),
+                    value(DataType.FLOAT32, rankSixteen(2, 1)),
+                    value(DataType.FLOAT32, 3),
+                    value(DataType.FLOAT32, rankSixteen(2, 3)),
+                    value(DataType.BOOL, 3, 4), value(DataType.BOOL, 3, 4));
             int[] feeds = {0, 2, 3, 7, 8};
             int[] targets = {1, 4, 5, 6, 9, 10, 11};
             executable = api.createMpsGraphExecutable(
@@ -113,17 +117,17 @@ class MetalBoolNativeTest {
             assertArrayEquals(FINITE, executeDirect(
                     library, profile,
                     node(MetalMpsGraphProgram.NodeKind.IS_FINITE, new int[] {0}, 1),
-                    List.of(value(DataType.FLOAT32, 2, 3), value(DataType.BOOL, 2, 3)),
+                    List.of(value(DataType.FLOAT32, 3, 4), value(DataType.BOOL, 3, 4)),
                     List.of(ints(CLASSIFICATION_BITS))));
             assertArrayEquals(NAN, executeDirect(
                     library, profile,
                     node(MetalMpsGraphProgram.NodeKind.IS_NAN, new int[] {0}, 1),
-                    List.of(value(DataType.FLOAT32, 2, 3), value(DataType.BOOL, 2, 3)),
+                    List.of(value(DataType.FLOAT32, 3, 4), value(DataType.BOOL, 3, 4)),
                     List.of(ints(CLASSIFICATION_BITS))));
             assertArrayEquals(INF, executeDirect(
                     library, profile,
                     node(MetalMpsGraphProgram.NodeKind.IS_INF, new int[] {0}, 1),
-                    List.of(value(DataType.FLOAT32, 2, 3), value(DataType.BOOL, 2, 3)),
+                    List.of(value(DataType.FLOAT32, 3, 4), value(DataType.BOOL, 3, 4)),
                     List.of(ints(CLASSIFICATION_BITS))));
             assertArrayEquals(AND, executeDirect(
                     library, profile,
@@ -140,7 +144,7 @@ class MetalBoolNativeTest {
             assertArrayEquals(NOT_FINITE, executeDirect(
                     library, profile,
                     node(MetalMpsGraphProgram.NodeKind.LOGICAL_NOT, new int[] {0}, 1),
-                    List.of(value(DataType.BOOL, 2, 3), value(DataType.BOOL, 2, 3)),
+                    List.of(value(DataType.BOOL, 3, 4), value(DataType.BOOL, 3, 4)),
                     List.of(FINITE)));
             assertArrayEquals(ints(DIRECT_WHERE_BITS), executeDirect(
                     library, profile,
@@ -226,6 +230,15 @@ class MetalBoolNativeTest {
             DataType dataType, long... dimensions) {
         return new MetalMpsGraphProgram.ValueDescriptor(dataType, dimensions, false);
     }
+
+    private static long[] rankSixteen(long first, long last) {
+        long[] dimensions = new long[MetalMpsGraphProgram.MAX_RANK];
+        java.util.Arrays.fill(dimensions, 1L);
+        dimensions[0] = first;
+        dimensions[dimensions.length - 1] = last;
+        return dimensions;
+    }
+
 
     private static byte[] ints(int[] values) {
         ByteBuffer bytes = ByteBuffer.allocate(values.length * Integer.BYTES)

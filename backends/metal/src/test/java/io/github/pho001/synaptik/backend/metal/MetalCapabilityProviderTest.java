@@ -878,6 +878,14 @@ class MetalCapabilityProviderTest {
                         typed(DataType.FLOAT32, Shape.scalar(), false)),
                 List.of(typed(DataType.FLOAT32, Shape.scalar(), false)))),
                 "rank-zero FLOAT32 branches stay outside the advertised Metal WHERE domain");
+        Shape rankSeventeen =
+                Shape.of(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                new Operation(FloatingClassificationKind.IS_FINITE, NoOperationAttrs.INSTANCE),
+                List.of(typed(DataType.FLOAT32, rankSeventeen, false)),
+                List.of(typed(DataType.BOOL, rankSeventeen, false)))),
+                "rank seventeen stays outside the exact classification domain");
     }
 
     @Test

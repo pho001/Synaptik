@@ -293,9 +293,9 @@ Each invocation binds the direct input `MTLBuffer` at index `0` and assigned out
 at index `1`, creates one command buffer and one compute encoder, dispatches exactly the retained
 element count with `dispatchThreads`, and waits once for successful completion. The assigned
 output is written directly; the bridge performs no explicit host staging or intermediate output
-copy. Every ABS partition and every other supported partition uses the typed MPSGraph route unless
-it is an eligible singleton NEG using the custom route under either profile. The route is selected
-once during analysis and is never retried, replaced, or
+copy. Outside the shared custom-program domain below, ABS and other supported partitions use the
+typed MPSGraph route, except an eligible singleton NEG may use its dedicated custom route under
+either profile. The route is selected once during analysis and is never retried, replaced, or
 repartitioned in finalization or execution. This private implementation-domain boundary is not
 capability narrowing, tuning, fallback, or a performance claim.
 
@@ -318,8 +318,12 @@ consumes supplied handles directly without allocating a mirror collection, execu
 order, and submits consecutive custom nodes through one framework command buffer. Interleaved
 existing nodes execute their already-compiled resource internally; Java performs no per-node
 downcall. Classification inspects raw FLOAT32 words, logic writes exact zero/one bytes, and WHERE
-copies the selected branch word without floating arithmetic. There is no host staging, retry,
-fallback, or hot compilation.
+copies the selected branch word without floating arithmetic. Internal BOOL producers are closed:
+custom comparison/classification/logic kernels write exact zero or one, while the owned nested
+ONE_HOT selector is constructed with typed BOOL zero/one constants. Arbitrary framework BOOL
+producers cannot enter the recipe. The forceable direct candidates for the seven new nodes remain
+package-private structural regressions and never become the production route. There is no host
+staging, retry, fallback, or hot compilation.
 
 ## Task-0053 proof-gated source
 

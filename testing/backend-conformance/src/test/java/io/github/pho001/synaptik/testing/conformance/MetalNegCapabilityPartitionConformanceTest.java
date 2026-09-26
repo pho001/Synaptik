@@ -18,6 +18,9 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
+import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
+import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
 import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
@@ -26,6 +29,8 @@ import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
+import io.github.pho001.synaptik.model.operation.index.SelectAttrs;
+import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
@@ -505,6 +510,63 @@ final class MetalNegCapabilityPartitionConformanceTest {
         assertSame(
                 MetalCapabilityProvider.METAL_BACKEND_ID,
                 partitions.getFirst().owner());
+    }
+
+    /** Proves the public exact BOOL matrix and explicit scalar/select exclusions. */
+    @Test
+    void advertisesExactBoolClassificationLogicWhereAndExcludesScalarSelect() {
+        var provider = new MetalCapabilityProvider();
+        TensorDescriptor floatMatrix = descriptor(Shape.of(2, 3));
+        TensorDescriptor boolMatrix = typed(DataType.BOOL, Shape.of(2, 3));
+        TensorDescriptor boolColumn = typed(DataType.BOOL, Shape.of(2, 1));
+        TensorDescriptor boolRow = typed(DataType.BOOL, Shape.of(3));
+        TensorDescriptor trueBranch = descriptor(Shape.of(2, 1));
+        TensorDescriptor falseBranch = descriptor(Shape.of(3));
+
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            for (FloatingClassificationKind kind : FloatingClassificationKind.values()) {
+                assertTrue(provider.supports(query(
+                        profile,
+                        new Operation(kind, NoOperationAttrs.INSTANCE),
+                        List.of(floatMatrix),
+                        List.of(boolMatrix))),
+                        profile + " " + kind);
+            }
+            for (BooleanLogicalKind kind :
+                    List.of(BooleanLogicalKind.AND, BooleanLogicalKind.OR)) {
+                assertTrue(provider.supports(query(
+                        profile,
+                        new Operation(kind, NoOperationAttrs.INSTANCE),
+                        List.of(boolColumn, boolRow),
+                        List.of(boolMatrix))),
+                        profile + " " + kind);
+            }
+            assertTrue(provider.supports(query(
+                    profile,
+                    new Operation(BooleanLogicalKind.NOT, NoOperationAttrs.INSTANCE),
+                    List.of(boolMatrix),
+                    List.of(boolMatrix))));
+            assertTrue(provider.supports(query(
+                    profile,
+                    new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE),
+                    List.of(boolRow, trueBranch, falseBranch),
+                    List.of(floatMatrix))));
+            assertFalse(provider.supports(query(
+                    profile,
+                    new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE),
+                    List.of(
+                            typed(DataType.BOOL, Shape.scalar()),
+                            trueBranch,
+                            falseBranch),
+                    List.of(floatMatrix))),
+                    "rank-zero BOOL condition remains outside Metal capability");
+            assertFalse(provider.supports(query(
+                    profile,
+                    new Operation(SelectKind.SELECT, new SelectAttrs(1, 0)),
+                    List.of(floatMatrix),
+                    List.of(descriptor(Shape.of(2))))),
+                    "wire 73 scalar-index SELECT remains outside Metal capability");
+        }
     }
 
     /** Proves materialized general-axis windows compose with exact Metal elementwise work. */

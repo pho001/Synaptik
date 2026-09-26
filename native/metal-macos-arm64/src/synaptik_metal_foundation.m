@@ -1525,6 +1525,8 @@ static int32_t synaptik_metal_create_decoded(
                     if (states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
                             || node.second_input != UINT32_MAX
                             || !node_has_no_attributes(node)
+                            || [shapes[node.first_input] count] == 0U
+                            || [shapes[node.output] count] == 0U
                             || ![shapes[node.first_input] isEqualToArray:shapes[node.output]])
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     break;
@@ -1546,6 +1548,11 @@ static int32_t synaptik_metal_create_decoded(
                             || node.second_input >= value_count
                             || states[node.second_input] != SYNAPTIK_METAL_VALUE_CANONICAL
                             || !node_has_no_attributes(node)
+                            || ((node.operation == SYNAPTIK_METAL_BOOL_AND
+                                            || node.operation == SYNAPTIK_METAL_BOOL_OR)
+                                    && ([shapes[node.first_input] count] == 0U
+                                            || [shapes[node.second_input] count] == 0U
+                                            || [shapes[node.output] count] == 0U))
                             || !shape_broadcasts_exactly_to(
                                     shapes[node.first_input],
                                     shapes[node.second_input],
@@ -1563,6 +1570,10 @@ static int32_t synaptik_metal_create_decoded(
                             || node.attribute_count != 0U
                             || node.axis != UINT32_MAX
                             || !node_values_are_zero_from(node, 0U)
+                            || [shapes[node.first_input] count] == 0U
+                            || [shapes[node.second_input] count] == 0U
+                            || [shapes[node.auxiliary] count] == 0U
+                            || [shapes[node.output] count] == 0U
                             || !shape_broadcasts_exactly_to(
                                     shapes[node.second_input],
                                     shapes[node.auxiliary],

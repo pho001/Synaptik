@@ -475,7 +475,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
     }
 
-    /** Exact Java preflight for the version-twelve typed Metal program create schema. */
+    /** Exact Java preflight for the schema-fourteen typed Metal program create contract. */
     static final class MpsGraphExecutableAbi {
         private static final int MAX_RANK = 16;
 
@@ -574,15 +574,27 @@ abstract class MetalNativeApi implements AutoCloseable {
                             "Metal MPSGraph node outputs must be unique and not feeds");
                 }
                 switch (node.kind()) {
-                    case NEG, ABS, CONTIGUOUS, SCALAR_MIN, SCALAR_MAX, CLAMP, CUM_SUM, CUM_PROD,
-                            IS_FINITE, IS_NAN, IS_INF, LOGICAL_NOT ->
+                    case NEG, ABS, CONTIGUOUS, SCALAR_MIN, SCALAR_MAX, CLAMP, CUM_SUM, CUM_PROD ->
                             requireShape(
                                     sameShape(left, output, valueRanks, valueDimensions),
                                     node.kind() + " input/output shapes must match exactly");
+                    case IS_FINITE, IS_NAN, IS_INF, LOGICAL_NOT ->
+                            requireShape(
+                                    valueRanks[left] >= 1
+                                            && valueRanks[output] >= 1
+                                            && sameShape(left, output, valueRanks, valueDimensions),
+                                    node.kind()
+                                            + " input/output must have matching positive ranks");
                     case ADD, SUB, MUL, DIV, GT, GE, LT, LE, EQ, NE,
                             TENSOR_MIN, TENSOR_MAX, LOGICAL_AND, LOGICAL_OR -> {
                         requireIndex(right, valueCount, "second node input");
-                        if (!node.kind().accepts(states[right])) {
+                        if (!node.kind().accepts(states[right])
+                                || ((node.kind() == MetalMpsGraphProgram.NodeKind.LOGICAL_AND
+                                                || node.kind()
+                                                        == MetalMpsGraphProgram.NodeKind.LOGICAL_OR)
+                                        && (valueRanks[left] < 1
+                                                || valueRanks[right] < 1
+                                                || valueRanks[output] < 1))) {
                             throw new IllegalArgumentException(
                                     "Metal second node input must be positive-rank canonical");
                         }
@@ -595,9 +607,13 @@ abstract class MetalNativeApi implements AutoCloseable {
                         requireIndex(right, valueCount, "true branch input");
                         requireIndex(auxiliary, valueCount, "false branch input");
                         if (!node.kind().accepts(states[right])
-                                || !node.kind().accepts(states[auxiliary])) {
+                                || !node.kind().accepts(states[auxiliary])
+                                || valueRanks[left] < 1
+                                || valueRanks[right] < 1
+                                || valueRanks[auxiliary] < 1
+                                || valueRanks[output] < 1) {
                             throw new IllegalArgumentException(
-                                    "WHERE inputs must be positive-rank canonical");
+                                    "WHERE inputs and output must be positive-rank canonical");
                         }
                         requireShape(
                                 broadcastsTo(right, auxiliary, output, valueRanks, valueDimensions)

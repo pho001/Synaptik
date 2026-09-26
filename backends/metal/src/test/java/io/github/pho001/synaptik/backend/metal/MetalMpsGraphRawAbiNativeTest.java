@@ -3,8 +3,10 @@ package io.github.pho001.synaptik.backend.metal;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
@@ -15,12 +17,13 @@ import java.lang.invoke.MethodHandle;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphRawAbiNativeTest {
     @Test
-    void nativeAbiFiveAcceptsCanonicalSchemaThirteenAndRejectsMalformedImages() throws Throwable {
+    void nativeAbiFiveAcceptsCanonicalSchemaFourteenAndRejectsMalformedImages() throws Throwable {
         Path library = configuredLibrary();
         try (RawAbi abi = new RawAbi(library)) {
             byte[] valid = validNegImage();
@@ -42,6 +45,41 @@ class MetalMpsGraphRawAbiNativeTest {
             assertEquals(1, abi.create(valid, Integer.MIN_VALUE));
             assertEquals(1, abi.create(
                     rewriteInt(valid, 8, Integer.MIN_VALUE), Integer.MIN_VALUE));
+        }
+    }
+
+    @Test
+    void javaAndNativeSchemaValidatorsRejectRankZeroExactBoolPrograms() throws Throwable {
+        List<MetalMpsGraphProgram.NodeKind> exactBoolKinds = List.of(
+                MetalMpsGraphProgram.NodeKind.IS_FINITE,
+                MetalMpsGraphProgram.NodeKind.IS_NAN,
+                MetalMpsGraphProgram.NodeKind.IS_INF,
+                MetalMpsGraphProgram.NodeKind.LOGICAL_AND,
+                MetalMpsGraphProgram.NodeKind.LOGICAL_OR,
+                MetalMpsGraphProgram.NodeKind.LOGICAL_NOT,
+                MetalMpsGraphProgram.NodeKind.WHERE);
+        Path library = configuredLibrary();
+        try (RawAbi abi = new RawAbi(library)) {
+            for (MetalMpsGraphProgram.NodeKind kind : exactBoolKinds) {
+                ScalarCase scalar = scalarCase(kind);
+                for (MetalPreparedRoute route :
+                        List.of(MetalPreparedRoute.CUSTOM_PROGRAM, MetalPreparedRoute.MPSGRAPH)) {
+                    assertThrows(
+                            IllegalArgumentException.class,
+                            () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                                    NumericalProfile.STRICT_IEEE,
+                                    scalar.values(),
+                                    scalar.program(),
+                                    scalar.feeds(),
+                                    scalar.targets(),
+                                    route),
+                            kind + " " + route + " Java preflight");
+                    byte[] image = scalar.program().encodedProgramImage(
+                            scalar.values(), scalar.feeds(), scalar.targets(), route);
+                    assertEquals(1, abi.create(image, image.length),
+                            kind + " " + route + " native decode");
+                }
+            }
         }
     }
 
@@ -97,6 +135,56 @@ class MetalMpsGraphRawAbiNativeTest {
     private static MetalMpsGraphProgram.ValueDescriptor descriptor(long... dimensions) {
         return new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, dimensions, false);
     }
+
+    private static ScalarCase scalarCase(MetalMpsGraphProgram.NodeKind kind) {
+        DataType[] inputTypes;
+        DataType outputType;
+        switch (kind) {
+            case IS_FINITE, IS_NAN, IS_INF -> {
+                inputTypes = new DataType[] {DataType.FLOAT32};
+                outputType = DataType.BOOL;
+            }
+            case LOGICAL_NOT -> {
+                inputTypes = new DataType[] {DataType.BOOL};
+                outputType = DataType.BOOL;
+            }
+            case LOGICAL_AND, LOGICAL_OR -> {
+                inputTypes = new DataType[] {DataType.BOOL, DataType.BOOL};
+                outputType = DataType.BOOL;
+            }
+            case WHERE -> {
+                inputTypes =
+                        new DataType[] {DataType.BOOL, DataType.FLOAT32, DataType.FLOAT32};
+                outputType = DataType.FLOAT32;
+            }
+            default -> throw new IllegalArgumentException("not an exact BOOL operation: " + kind);
+        }
+        var values = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>(inputTypes.length + 1);
+        for (DataType inputType : inputTypes) values.add(scalarDescriptor(inputType));
+        values.add(scalarDescriptor(outputType));
+        int[] feeds = java.util.stream.IntStream.range(0, inputTypes.length).toArray();
+        var node = MetalMpsGraphProgram.Node.generic(
+                kind,
+                feeds,
+                new int[] {inputTypes.length},
+                MetalMpsGraphProgram.AttributeKind.NONE,
+                new long[0]);
+        return new ScalarCase(
+                new MetalMpsGraphProgram(List.of(node)),
+                List.copyOf(values),
+                feeds,
+                new int[] {inputTypes.length});
+    }
+
+    private static MetalMpsGraphProgram.ValueDescriptor scalarDescriptor(DataType dataType) {
+        return new MetalMpsGraphProgram.ValueDescriptor(dataType, new long[0], false);
+    }
+
+    private record ScalarCase(
+            MetalMpsGraphProgram program,
+            List<MetalMpsGraphProgram.ValueDescriptor> values,
+            int[] feeds,
+            int[] targets) {}
 
     private static int nodeOffset(int valueCount) {
         return MetalMpsGraphProgram.HEADER_BYTES

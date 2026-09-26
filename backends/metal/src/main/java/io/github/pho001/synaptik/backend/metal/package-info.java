@@ -86,10 +86,10 @@
  *
  * <p>The selected numerical profile participates in partition-plan, route, tuning,
  * decision-codec, and workload identity. Java rejects profile/schema mismatches before native
- * entry. ABI version five retains thirteen exports. Node schema version thirteen is one bounded
- * self-describing image over stable type wires {@code 1..6}, operation wires {@code 1..115}, and
- * attribute wires {@code 0..41}; structural registry coverage does not widen the current
- * executable capability of operation wires {@code 1..34}. Backend-local workload, exact-policy,
- * candidate, compatibility, route-policy, and codec identities are version fourteen.</p>
+ * entry. ABI version five retains thirteen exports. Node schema version fourteen is one bounded
+ * self-describing route-bearing image over stable type wires {@code 1..6}, operation wires
+ * {@code 1..115}, and attribute wires {@code 0..41}; exactly wires {@code 1..34},
+ * {@code 40..45}, and {@code 51} are executable. Backend-local workload, exact-policy, candidate,
+ * compatibility, route-policy, and codec identities are version fifteen.</p>
  */
 package io.github.pho001.synaptik.backend.metal;

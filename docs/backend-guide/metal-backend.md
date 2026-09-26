@@ -162,9 +162,9 @@ refresh.
 `BackendDeviceId(metal, "default")`, fixed `TraceDeviceId(0)`, and the tuning `SessionNonce` are
 distinct non-physical identities. The first is an abstract availability slot, the second a Metal
 trace correlation token, and the third a session-compatibility identity that makes no stable-device
-claim. No mapping among them is implied. ABI 5, the thirteen native exports, schema 13, and every
-version-14 workload/exact-policy/candidate/compatibility/route/codec identity remain fixed; tuning
-remains session-scoped and non-persistent.
+claim. No mapping among them is implied. ABI 5, the thirteen native exports, route-bearing schema
+14, and every version-15 workload/exact-policy/candidate/compatibility/route/codec identity remain
+fixed; tuning remains session-scoped and non-persistent.
 
 Future asynchronous execution requires a separate cross-module contract for completion/failure,
 cancellation/timeout, input borrowing, result/workspace ownership, prepared leases through device
