@@ -2,8 +2,8 @@
 
 ## Status
 
-Draft. This is a complete implementation brief, but production work must not start until the user
-explicitly approves it and the Metal master plan/roadmap promote it to the authorized frontier.
+Ready for implementation after independent re-review of this corrected revision. Dependencies and
+the serial frontier are verified; zero review findings authorize launch.
 
 ## Change class
 
@@ -26,8 +26,8 @@ with no timing, autotuning, retry, fallback, or runtime selector choice.
 Model MATMUL has no attrs, two inputs/one output, ranks `>= 1`, right-aligned leading-batch
 broadcast, and vector promotion/removal (vector/vector returns rank zero). Floating promotion is
 `BFLOAT16 < FLOAT32 < FLOAT64`; integral promotion is `INT32 < INT64`; BOOL/cross-category pairs
-are invalid. FLOAT32/BFLOAT16 contracts accumulate in FLOAT32, FLOAT64 in FLOAT64, and integers
-modulo `2^32`/`2^64`; BFLOAT16 narrows once. Empty contraction publishes exact positive zero.
+are invalid. FLOAT32-result and BFLOAT16-result families accumulate in FLOAT32, FLOAT64 in
+FLOAT64, and integers modulo `2^32`/`2^64`; BFLOAT16 narrows once. Empty contraction is positive zero.
 
 The implementation matrix is closed as follows:
 
@@ -38,21 +38,23 @@ The implementation matrix is closed as follows:
 | `FLOAT32 / FLOAT32`, exact current rank-two geometry | `FLOAT32` | accelerator | output grad is exact input OR | existing MPSGraph |
 | `FLOAT32 / FLOAT32`, every other admitted rank/batch geometry | `FLOAT32` | accelerator | output grad is exact input OR | custom |
 | `BFLOAT16 / FLOAT32`, `FLOAT32 / BFLOAT16` | `FLOAT32` | accelerator | all descriptors no-gradient | custom |
-| `BFLOAT16 / BFLOAT16`, every pair promoted to `FLOAT64` | Model result | neither | false | proof-blocked |
+| `BFLOAT16 / BFLOAT16` | `BFLOAT16` | none (Model-valid) | false | production-blocked |
+| Every Model-valid pair promoted to `FLOAT64` | `FLOAT64` | none | false | production-blocked |
 
 Admitted dimensions are resolved, static, positive, and product/address checked; input rank is
 `1..16`, output rank `0..16`, and output is canonical. Zero extents remain false despite Model's
 empty-contraction rule because current Metal storage rejects them; no second empty convention is
 added. MATMUL has no transpose flag. Coverage means direct/left/right/both forms from an exact local
 `PERMUTE` that fixes batch axes and swaps only the final two axes of a canonical rank-`>= 2`
-source. Boundary/arbitrary/overlapping/negative-stride views and rank-one pseudo-transposes stay
-false.
+source. Each operand retains its authenticated physical offset/strides; boundary/arbitrary/
+overlapping/negative-stride views and rank-one pseudo-transposes stay false.
 
 ## Scope
 
 1. Validate the exact Model shape/promotion independently in capability, partition preparation,
    Java ABI preflight, and native ABI preflight.
-2. Generalize local affine authentication from `[1,0]` to `[0, ..., r-3, r-1, r-2]`.
+2. Generalize local affine authentication from `[1,0]` to `[0, ..., r-3, r-1, r-2]`, retaining
+   independently checked per-operand physical offset/strides through custom-program execution.
 3. Keep wire `15`, `AttributeKind.NONE`, schema 15, ABI 5, type wires `1..6`, operation wires
    `1..115`, attribute wires `0..41`, thirteen exports, and all existing route/image fields.
 4. Preserve rank-two same-type FLOAT32 as `MPSGRAPH`, including nested custom-program execution.
@@ -67,22 +69,36 @@ false.
 
 ## Fixed custom realization
 
-Add one focused kernel-source owner, reusing custom-program metadata/buffers/grid/lifecycle. Cold
-preparation selects one of seven ordered-type specialized functions, avoiding per-contributor type
-branches. One thread owns one output, maps exact batch/row/column coordinates and broadcast axes,
-then visits `k = 0..K-1` once. There are no atomics, shared accumulators, races, partial outputs, or
+Add one focused kernel-source owner, reusing custom-program buffers/grid/lifecycle. Cold preparation
+selects one of seven ordered-type functions, avoiding per-contributor type branches. One thread owns
+one output and visits `k = 0..K-1` once; no atomics, shared accumulators, races, partial outputs, or
 hidden allocations.
 
-- INT32 result uses unsigned 32-bit multiply/add modulo `2^32`.
-- INT64 variants sign-extend INT32 operands, then use unsigned 64-bit multiply/add modulo `2^64`.
-- FLOAT32 variants use one safe-math FLOAT32 multiply and corresponding add (permitted FMA);
-  BFLOAT16 loads reconstruct FLOAT32 exactly by shifting their 16 represented bits.
-- Source reasoning proves arbitrary admitted mapping/contributors; bounded raw-word/device evidence
-  corroborates it but authorizes no additional domain.
+Each operand metadata carries logical rank/dimensions, authenticated element offset, physical
+strides, referenced span, and value state. Canonical state uses offset zero/canonical strides.
+For affine state, Java and native independently authenticate the exact local last-two `PERMUTE`,
+canonical source, source-buffer identity, permuted strides, offset, and span. After output/batch
+decode, logical left coordinates are `[k]` or `[broadcastBatch..., m, k]`; right coordinates are
+`[k]` or `[broadcastBatch..., k, n]`. Each broadcast extent one maps to coordinate zero, then each
+load uses `offset + sum(logicalCoordinate[axis] * stride[axis])`, checked within the physical span.
+Left and right are independent. A nested custom program preserves `AFFINE_VIEW` as an alias of its
+source storage; it must never read that value canonically or silently treat a nested PERMUTE as
+materialized. Only an explicit materialization node may create canonical state/storage.
 
-Route and checked geometry are authenticated before any pipeline, executable, metadata, workspace,
-or output allocation. New singleton candidates contain only `CUSTOM_PROGRAM`, never general
-MPSGraph. Run only binds retained resources, dispatches, waits, and publishes.
+- INT32 result uses unsigned 32-bit multiply/add modulo `2^32`; INT64 variants sign-extend INT32
+  operands before unsigned 64-bit multiply/add modulo `2^64`.
+- BFLOAT16 loads reconstruct FLOAT32 exactly by shifting their represented bits.
+- FLOAT32 authorization requires a source/compiler-site certificate: every contributor maps to one
+  multiply plus its corresponding add, emitted only as separate FLOAT32 sites or one permitted FMA,
+  with no dropped/duplicated/invented/pretruncated term. At every multiply/add/FMA site it proves
+  each finite subnormal operand is exact or read as same-signed zero (DAZ), each finite subnormal
+  site result is exact or signed zero (FTZ), NaN and signed-infinity class behavior, signed zero,
+  and infinity only from genuine overflow. It separately proves final nonempty-MATMUL exact-zero
+  sign freedom. Retained safe-math options/emitted sites are evidence; fixtures only corroborate.
+
+Route, layout, and checked geometry are authenticated before resource creation. New singleton
+candidates contain only `CUSTOM_PROGRAM`; Run only binds retained resources, dispatches, waits,
+and publishes.
 
 ## Gradients and callers
 
@@ -102,12 +118,15 @@ backward, implicit seeding, scalar-loss training, generic training, and CPU/Open
 - Do not widen opaque MPSGraph beyond reviewed rank-two FLOAT32. The SDK documents broadcast, not
   complete rank-one, accumulation, rounding, DAZ/FTZ, special-class, or shape-dependent result
   sets; samples, selector names, and fast-math settings do not prove them.
-- Strict floating stays false: safe MSL does not prove strict GPU subnormals. BFLOAT16/BFLOAT16 also
-  needs strict FLOAT32 accumulation and exact BFLOAT16 narrowing; FLOAT64 lacks a proved route.
+- Strict floating stays false: safe MSL alone does not prove strict GPU subnormals.
+  BFLOAT16/BFLOAT16 is a distinct Model-valid BFLOAT16-result family with FLOAT32 accumulation and
+  one BFLOAT16 narrowing; because non-FLOAT32 results remain strict under both profiles, it is
+  blocked on complete strict accumulation/narrowing proof. FLOAT64-result pairs separately lack a
+  proved FLOAT64 Metal arithmetic route.
 - Do not add empty/dynamic tensors, arbitrary affine feeds, transpose/accumulation flags, fusion,
   tiling/autotuning, performance claims, fallback, or a parallel contract abstraction.
 
-These boundaries do not block admitted rows; production remains blocked only on user approval.
+These boundaries delimit, but do not block implementation of, the admitted rows.
 
 ## Contracts
 
@@ -153,21 +172,24 @@ rule, stop for an architecture decision.
 1. Truth tables prove the matrix, four rank pairings, independent batch broadcast, output rank
    `0..16`, rank-16 boundaries, four transpose topologies, promotion, gradients, zero/dynamic/
    malformed negatives, strict monotonicity, and unchanged `69/46`.
-2. Java/native malformed images independently reject shape/type/layout/provenance/overflow and
-   identity 16 before resources or target mutation.
-3. Real native tests cover seven signatures, all rank pairings, unequal-rank broadcast, rank 16,
-   modular extremes, BFLOAT16 reconstruction, FLOAT32 zero/subnormal/NaN/infinity, canaries,
-   immutable inputs, reuse, independent sessions, and concurrency.
-4. Route proofs retain rank-two FLOAT32 MPSGraph, select custom for every new singleton, and keep
-   rank-two FLOAT32 as nested MPSGraph when another custom node fixes `CUSTOM_PROGRAM`.
-5. Public Engine proves integers under both profiles; accelerator proves general FLOAT32, batched
-   biased/unbiased linear, transposes, and seeded gradients with unbroadcast. Strict floating,
-   mixed-gradient, zero/type/layout negatives fail with no CPU owner.
-6. Compare raw outputs to exact modular values or Model result sets, never tolerance; repeated runs
-   are raw-bit deterministic.
-7. Package proof keeps ABI 5/schema 15/thirteen exports/`87/28`/`75/35/5`, reaches custom `47/68/0`,
-   and rejects version 16.
-8. Remove live rank-two-only claims; keep historical briefs. Final Class C review has zero P0/P1/P2.
+2. Java/native parity proves each operand state/source/offset/strides/span and exact physical
+   mapping, including nested custom programs. Spoofed provenance/geometry/state/source/permutation
+   fails pre-resource; poisoned affine canaries prove no silent canonical read.
+3. The FLOAT32 certificate proves every DAZ/FTZ site, exact-or-flushed subnormal result, separate/
+   FMA cases, NaN/infinity, signed zero, genuine overflow, contributors, and final nonempty zero-sign
+   freedom; fixtures are corroboration only.
+4. Other malformed images independently reject shape/type/overflow and identity 16 pre-resource.
+5. Real native tests cover seven signatures, rank pairings/broadcast/rank 16, modular extremes,
+   BFLOAT16 reconstruction, FLOAT32 special classes, affine canaries, immutable inputs, reuse,
+   independent sessions, and concurrency.
+6. Route proofs retain rank-two FLOAT32 MPSGraph, select custom for new singletons, and keep it as a
+   nested MPSGraph step when another custom node fixes `CUSTOM_PROGRAM`.
+7. Public Engine proves integers under both profiles; accelerator proves general FLOAT32, batched
+   biased/unbiased linear, transposes, and seeded gradients. Strict floating, mixed-gradient, and
+   zero/type/layout negatives fail with no CPU owner.
+8. Raw outputs use exact modular values or Model result sets, never tolerance; runs are deterministic.
+9. Package proof keeps ABI 5/schema 15/thirteen exports/`87/28`/`75/35/5`, reaches custom `47/68/0`,
+   rejects version 16, removes live rank-two claims, and receives zero P0/P1/P2 on final review.
 
 ## Validation
 
@@ -197,4 +219,4 @@ A clean documentation pass and independent cumulative Class C review are mandato
 
 ## Result
 
-Empty until explicitly approved implementation completes.
+Empty until implementation completes after corrected-plan re-review.
