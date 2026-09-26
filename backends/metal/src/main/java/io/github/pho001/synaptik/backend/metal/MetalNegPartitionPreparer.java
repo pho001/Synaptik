@@ -90,8 +90,9 @@ import java.util.Optional;
  * cumulative scans, no-gradient scalar ADD/SUB/MUL/DIV, and no-gradient RECIPROCAL. An affine
  * MATMUL operand is authenticated to the exact earlier local rank-two {@code PERMUTE [1,0]} on
  * that consuming edge. The profile-common Task-0060 domain adds exact replacement SCATTER_ND and
- * signed SLICE_UPDATE, non-overlapping FOLD_AXIS/FOLD2D/FOLD3D, modular INT32/INT64 PROD, and
- * canonical BOOL ALL/ANY. Schema-fifteen lowering emits one bounded self-describing image over
+ * signed SLICE_UPDATE, non-overlapping FLOAT64/FLOAT32/BFLOAT16 FOLD_AXIS/FOLD2D/FOLD3D, modular
+ * INT32/INT64 PROD, and canonical BOOL ALL/ANY. Schema-fifteen lowering emits one bounded
+ * self-describing image over
  * stable type wires 1..6, complete operation registry 1..115, attribute registry 0..41, and the
  * explicit prepared route. Production capability is exactly 69 operation kinds; the additional
  * structural recipes remain inaccessible to this analysis. Ordinary graph feeds are canonical

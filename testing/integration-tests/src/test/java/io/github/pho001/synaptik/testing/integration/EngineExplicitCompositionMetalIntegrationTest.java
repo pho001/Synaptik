@@ -1014,6 +1014,56 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
+    void task0060PublicEngineRejectsIntegralAndBoolFolds() {
+        Path library = configuredMetalLibrary();
+        Window2dAttrs window2d =
+                new Window2dAttrs(2, 2, 2, 2, 0, 0, 1, 1, false);
+        Window3dAttrs window3d =
+                new Window3dAttrs(2, 2, 2, 2, 2, 2, 0, 0, 0, 1, 1, 1, false);
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            try (Arena arena = Arena.ofShared();
+                    Engine.Builder builder = Engine.builder()) {
+                builder.numericalProfile(profile);
+                Tensor integralAxis =
+                        nativeIntTensor(Shape.of(2, 2), arena, 1, 2, 3, 4);
+                Tensor integral2d =
+                        nativeIntTensor(Shape.of(1, 4, 1), arena, 1, 2, 3, 4);
+                Tensor integral3d = nativeIntTensor(
+                        Shape.of(1, 8, 1), arena, 1, 2, 3, 4, 5, 6, 7, 8);
+                Tensor boolAxis =
+                        nativeBoolTensor(Shape.of(2, 2), arena, 0, 1, 1, 0);
+                Tensor unsupportedAxis = integralAxis.foldAxis(0, 4, 2);
+
+                IllegalArgumentException integral2dFailure = assertThrows(
+                        IllegalArgumentException.class,
+                        () -> integral2d.fold2d(Shape.of(1, 1, 2, 2), window2d));
+                assertTrue(integral2dFailure.getMessage().contains(
+                        "fold2d requires floating input: INT32"));
+                IllegalArgumentException integral3dFailure = assertThrows(
+                        IllegalArgumentException.class,
+                        () -> integral3d.fold3d(Shape.of(1, 1, 2, 2, 2), window3d));
+                assertTrue(integral3dFailure.getMessage().contains(
+                        "fold3d requires floating input: INT32"));
+                IllegalArgumentException boolFailure = assertThrows(
+                        IllegalArgumentException.class,
+                        () -> boolAxis.foldAxis(0, 4, 2));
+                assertTrue(boolFailure.getMessage().contains(
+                        "foldAxis requires floating or integral input: BOOL"));
+
+                builder.takeOwnership(MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library)));
+                try (Engine engine = builder.build()) {
+                    IllegalStateException failure = assertThrows(
+                            IllegalStateException.class,
+                            () -> engine.compile(List.of(unsupportedAxis)));
+                    assertTrue(failure.getMessage().contains(
+                            "no hard-eligible backend is available for ownership selection"));
+                }
+            }
+        }
+    }
+
+    @Test
     void task0059PublicEngineRunsEveryAdmittedCastIndexAndLayoutOperation()
             throws Exception {
         Path library = configuredMetalLibrary();

@@ -34,9 +34,9 @@ catalog advances from `38 AVAILABLE / 77 PENDING / 0 UNAVAILABLE_WITH_PROOF` to
 | 70 | `SCATTER_ADD` | executable direct MPSGraph recipe | Remains false. It is intrinsically additive, includes the base and every update, and is never a replacement operation. Unique indices do not remove the addition proof obligation. |
 | 72 | `SCATTER_ND` | executable direct MPSGraph recipe | Admit only `ScatterReduction.NONE` with globally unique destination scalars proven from all tuples and suffix positions before any write. All six data carriers; canonical `INT32` or `INT64` indices; static canonical no-gradient descriptors. ADD/MUL/MIN/MAX remain false. |
 | 76 | `SLICE_UPDATE` | executable direct MPSGraph recipe | Admit exact functional replacement for all six carriers over static canonical no-gradient base/update/output descriptors. Signed nonzero `SliceAttrs` and exact static crop-to-shape forms must prove every destination in range. Update extents remain positive; zero-length SliceAttrs are capability-false. |
-| 80 | `FOLD_AXIS` | executable composed MPSGraph recipe | Admit only structurally non-overlapping geometry for all six carriers. Initialize uncovered outputs to represented zero, then copy every unique contributor bit-exactly. Any overlap remains false. |
-| 82 | `FOLD2D` | executable direct MPSGraph recipe | Same exact all-carrier non-overlap/copy/zero-fill domain for static NCHW columns and target. Padding and ceiling grids skip conceptual out-of-range contributors. Any contributor collision remains false. |
-| 84 | `FOLD3D` | executable composed MPSGraph recipe | Same exact all-carrier non-overlap/copy/zero-fill domain for static NCDHW columns and target. Padding and ceiling grids skip conceptual out-of-range contributors. Any contributor collision remains false. |
+| 80 | `FOLD_AXIS` | executable composed MPSGraph recipe | Admit only structurally non-overlapping geometry for `FLOAT64`, `FLOAT32`, and `BFLOAT16`. Initialize uncovered outputs to represented zero, then copy every unique contributor bit-exactly. Integral and BOOL carriers and any overlap remain false. |
+| 82 | `FOLD2D` | executable direct MPSGraph recipe | Same exact three-floating-carrier non-overlap/copy/zero-fill domain for static NCHW columns and target. Padding and ceiling grids skip conceptual out-of-range contributors. Any contributor collision remains false. |
+| 84 | `FOLD3D` | executable composed MPSGraph recipe | Same exact three-floating-carrier non-overlap/copy/zero-fill domain for static NCDHW columns and target. Padding and ceiling grids skip conceptual out-of-range contributors. Any contributor collision remains false. |
 | 106 | `PROD` | registered direct recipe, not executable | Add direct structural MPSGraph execution. Production admits only canonical static no-gradient `INT32`/`INT64` full, single-axis, and ordered multi-axis forms, including empty-axis identity mapping and keep-dimensions. Custom execution uses exact-width modular multiplication in deterministic logical contributor order. Floating PROD remains false. |
 | 107 | `ALL` | registered direct recipe, not executable | Add direct structural MPSGraph execution and exact canonical static no-gradient BOOL full/single/multi-axis custom execution. Empty-axis form is an exact copy; ordinary selected domains use the exact true identity. |
 | 108 | `ANY` | registered direct recipe, not executable | Add direct structural MPSGraph execution and exact canonical static no-gradient BOOL full/single/multi-axis custom execution. Empty-axis form is an exact copy; ordinary selected domains use the exact false identity. |
@@ -137,10 +137,10 @@ blockers, never hidden behind MPSGraph availability or a narrowed test.
 - The complete Metal module test task passed against the rebuilt real dylib, including the exact
   `69/46` capability ledger, `87/28` structural registry, `75/35/5` MPSGraph catalog, and
   `46/69/0` custom catalog.
-- Native proofs exercised all six replacement/fold carrier widths, INT32 and INT64 Scatter-ND
-  indices, signed SliceAttrs and crop placement, uncovered fold zeros, padding/ceiling/wide
-  non-overlap geometry, modular INT32/INT64 PROD, canonical BOOL ALL/ANY, empty-axis and rank-zero
-  identities, malformed BOOL, duplicate/out-of-range atomic rejection, input immutability, and
+- Native proofs exercised all six replacement carrier widths and all three floating fold carriers,
+  INT32 and INT64 Scatter-ND indices, signed SliceAttrs and crop placement, uncovered fold zeros,
+  padding/ceiling/wide non-overlap geometry, modular INT32/INT64 PROD, canonical BOOL ALL/ANY,
+  empty-axis and rank-zero identities, malformed BOOL, duplicate/out-of-range atomic rejection,
   alias rejection.
 - The public no-skip Engine proof passed under both numerical profiles across repeated independent
   sessions, same-session concurrency, duplicate/out-of-range failure recovery, and exact

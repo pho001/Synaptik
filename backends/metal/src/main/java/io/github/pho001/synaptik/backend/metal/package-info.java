@@ -103,10 +103,11 @@
  * trace work.</p>
  *
  * <p>Task 0060 adds exact profile-common no-gradient replacement SCATTER_ND and signed
- * SLICE_UPDATE, non-overlapping FOLD_AXIS/FOLD2D/FOLD3D, modular INT32/INT64 PROD, and canonical
- * BOOL ALL/ANY. Every replacement validates all indices and destination uniqueness before writes;
- * every fold has one output writer and skips conceptual padding. Empty reduction axes are point
- * identities without admitting zero-dimensional extents. LOG_SUM_EXP, VARIANCE,
+ * SLICE_UPDATE, non-overlapping FLOAT64/FLOAT32/BFLOAT16 FOLD_AXIS/FOLD2D/FOLD3D, modular
+ * INT32/INT64 PROD, and canonical BOOL ALL/ANY. Integral and BOOL folds remain false. Every
+ * replacement validates all indices and destination uniqueness before writes; every admitted fold
+ * has one output writer and skips conceptual padding. Empty reduction axes are point identities
+ * without admitting zero-dimensional extents. LOG_SUM_EXP, VARIANCE,
  * STANDARD_DEVIATION, L1_NORM, and L2_NORM have forceable structural recipes only and remain
  * production-false.</p>
  *

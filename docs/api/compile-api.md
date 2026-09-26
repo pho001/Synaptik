@@ -1823,12 +1823,13 @@ current fail-closed CPU path advertises, lowers, prepares, and executes only ful
 resolved-layout one-node UNFOLD_AXIS occurrences over all six represented types, FOLD_AXIS over
 FLOAT64/FLOAT32/BFLOAT16/INT32/INT64, and UNFOLD2D/FOLD2D over
 BFLOAT16/FLOAT32/FLOAT64, with exact window, direct-zero or typed-padding, overlap-add, Shape, and
-distinct injective-output relationships. Metal independently admits only canonical FLOAT32
-UNFOLD_AXIS with input rank 1..15, size 1..16, positive step, and its exact rank-plus-one
-floor-count Shape under both profiles. That forward route preserves represented bits and does not
-admit FOLD_AXIS or any two- or three-dimensional window form. Gradient support remains the exact
-current Compiler matrix above. Dynamic binding and three-dimensional CPU window execution,
-canonicalization, and every other Metal window route remain planned.
+distinct injective-output relationships. Metal independently admits canonical FLOAT32 UNFOLD_AXIS
+with input rank 1..15, size 1..16, positive step, and its exact rank-plus-one floor-count Shape
+under both profiles. It also admits the static canonical floating UNFOLD2D/UNFOLD3D raw-movement
+forms and non-overlapping FLOAT64/FLOAT32/BFLOAT16 FOLD_AXIS/FOLD2D/FOLD3D forms. These forward
+routes preserve represented bits; folds write exact represented zero to uncovered output cells.
+Gradient support remains the exact current Compiler matrix above. Dynamic binding, overlapping
+Metal folds, and every other unlisted Metal window route remain unsupported.
 That origin metadata is now traversed by the package-private structural capture described above.
 The internal step observes that two result Tensors belong to the same expression occurrence only
 when their provenance carries the same exact `TensorProducer` reference. Different output indices

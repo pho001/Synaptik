@@ -40,10 +40,11 @@ every tuple in range and every scalar destination globally unique before copying
 update. `SLICE_UPDATE` preserves all six carriers for signed non-zero `SliceAttrs` steps and
 target-relative crop placement. Its update extents are positive; a zero-length SliceAttrs region is
 capability-false under the backend's positive-dimension schema invariant. `FOLD_AXIS`, `FOLD2D`,
-and `FOLD3D` preserve all six carriers only when every stride is at least the effective dilated
-window, making each in-bounds contributor a raw copy and every uncovered output cell the carrier's
-exact zero. Padding and ceiling grids are allowed; conceptual out-of-range contributors are
-skipped. `PROD` admits canonical `INT32`/`INT64` modular multiplication, while `ALL` and `ANY`
+and `FOLD3D` preserve only `FLOAT64`, `FLOAT32`, and `BFLOAT16` when every stride is at least the
+effective dilated window, making each in-bounds contributor a raw copy and every uncovered output
+cell the carrier's exact zero. Padding and ceiling grids are allowed; conceptual out-of-range
+contributors are skipped. `PROD` admits canonical `INT32`/`INT64` modular multiplication, while
+`ALL` and `ANY`
 admit canonical BOOL logic. These three reductions support full, normalized single-axis, and
 ordered normalized multi-axis forms, keep-dimensions, empty-axis point identity, and rank-zero
 identity. Empty axes do not admit any zero extent.
@@ -160,7 +161,7 @@ device discovery.
 
 | Stage or resource | Owner and current behavior |
 |---|---|
-| Capability truth | Public `MetalCapabilityProvider` reports the exact canonical FLOAT32 NEG/ABS/FLOOR/CEIL/SIGN/RELU, affine/`CONTIGUOUS`/bounded `UNFOLD_AXIS`, Task-0059 movement/indexing, Task-0060 replacement/non-overlap fold/integer PROD/BOOL ALL-ANY, FLOAT32 classification, BOOL logic, and FLOAT32 WHERE domains under both profiles and the accelerator-only tensor-binary, Task-0052, reduction, and positive static rank-two MATMUL domains above. |
+| Capability truth | Public `MetalCapabilityProvider` reports the exact canonical FLOAT32 NEG/ABS/FLOOR/CEIL/SIGN/RELU, affine/`CONTIGUOUS`/bounded `UNFOLD_AXIS`, Task-0059 movement/indexing, Task-0060 all-carrier replacement/FLOAT64-FLOAT32-BFLOAT16 non-overlap fold/integer PROD/BOOL ALL-ANY, FLOAT32 classification, BOOL logic, and FLOAT32 WHERE domains under both profiles and the accelerator-only tensor-binary, Task-0052, reduction, and positive static rank-two MATMUL domains above. |
 | Native configuration and integration | Public `MetalBackendConfiguration` and `MetalBackendIntegration` belong to Metal. Metal validates configuration, opens native ownership, and rolls partial construction back before Engine can take the completed integration. |
 | Backend ownership | Planning chooses `owner = metal` and groups consecutive equal owners; it never selects MPSGraph or a custom kernel. |
 | Analysis | Package-private Metal code validates the complete partition, assigns stable structural value order, regenerates typed route candidates and session compatibility, authenticates any supplied decision, fixes one route, and declares that route's exact resources. |

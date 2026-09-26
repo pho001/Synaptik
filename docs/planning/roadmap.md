@@ -517,9 +517,10 @@ validation, combined serial checkpoint, and independent Class C approval all pas
 Current Metal uses ABI 5, exactly thirteen exports, and one bounded schema-15 route-bearing program
 image. Both profiles retain exact canonical FLOAT32 NEG/ABS/affine/CONTIGUOUS, bounded UNFOLD_AXIS,
 typed GATHER/ONE_HOT/SCATTER_ELEMENTS-NONE, FLOAT32 classification, BOOL logic, FLOAT32 WHERE,
-all six-carrier positive-layout SELECT/SLICE, replacement-only SCATTER_ND/SLICE_UPDATE, all-carrier
-non-overlap folds, modular INT32/INT64 PROD, and BOOL ALL/ANY. Accelerator additionally admits the
-existing arithmetic, SUM/MEAN/SUM_TO_SHAPE, and bounded MATMUL rows plus Task-0052 comparisons,
+all six-carrier positive-layout SELECT/SLICE and replacement-only SCATTER_ND/SLICE_UPDATE,
+FLOAT64/FLOAT32/BFLOAT16 non-overlap folds, modular INT32/INT64 PROD, and BOOL ALL/ANY. Accelerator
+additionally admits the existing arithmetic, SUM/MEAN/SUM_TO_SHAPE, and bounded MATMUL rows plus
+Task-0052 comparisons,
 tensor/scalar/clamp/reduction extrema, and scans. A partition containing a Task-0052, BOOL-domain,
 Task-0059 movement, or Task-0060 replacement/fold/aggregate node materializes each required logical
 value in a declared run-owned physical storage span and invokes one fixed shared custom-program
@@ -661,8 +662,9 @@ Metal Task 0060 is Complete from clean `f3ad5e12`: plan `dd94e492`, implementati
 native/public Engine proof `eda09533`, and documentation `62f18cd8`. Independent cumulative Class C
 review of `dd94e492..62f18cd8` returned `APPROVE` with zero P0/P1/P2. Production admits only
 `SCATTER_ND/NONE` with complete pre-write bounds and global uniqueness, exact signed/crop
-`SLICE_UPDATE`, structurally non-overlapping all-carrier copy/zero-fill folds, modular integer PROD,
-and exact BOOL ALL/ANY. Capability is `69 true / 46 false`; eight aggregate MPSGraph recipes make
+`SLICE_UPDATE`, structurally non-overlapping FLOAT64/FLOAT32/BFLOAT16 copy/zero-fill folds, modular
+integer PROD, and exact BOOL ALL/ANY. Capability is `69 true / 46 false`; eight aggregate MPSGraph
+recipes make
 structural execution `87 / 28` without widening production. Additive SCATTER_ADD, all scatter
 reduction variants, overlapping folds, ARG extrema, and floating PROD/log-sum-exp/variance/
 standard-deviation/norm production remain false with explicit blockers; pool wires `97..100`

@@ -274,6 +274,9 @@ class MetalCapabilityProviderTest {
                                 typed(type, Shape.of(4), false),
                                 typed(type, Shape.of(0), false)),
                         List.of(typed(type, Shape.of(4), false)))));
+            }
+            for (DataType type :
+                    List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
                 assertTrue(provider.supports(new OperationCapabilityQuery(
                         profile,
                         foldAxis,
@@ -294,6 +297,26 @@ class MetalCapabilityProviderTest {
                         fold3d,
                         List.of(typed(type, Shape.of(1, 8, 27), false)),
                         List.of(typed(type, Shape.of(1, 1, 3, 3, 3), false)))));
+            }
+            for (DataType type : List.of(DataType.INT32, DataType.INT64, DataType.BOOL)) {
+                assertFalse(provider.supports(new OperationCapabilityQuery(
+                        profile,
+                        foldAxis,
+                        List.of(typed(type, Shape.of(2, 2, 2), false)),
+                        List.of(typed(type, Shape.of(2, 4), false)))),
+                        type + " FOLD_AXIS");
+                assertFalse(provider.supports(new OperationCapabilityQuery(
+                        profile,
+                        fold2d,
+                        List.of(typed(type, Shape.of(1, 4, 9), false)),
+                        List.of(typed(type, Shape.of(1, 1, 3, 3), false)))),
+                        type + " FOLD2D");
+                assertFalse(provider.supports(new OperationCapabilityQuery(
+                        profile,
+                        fold3d,
+                        List.of(typed(type, Shape.of(1, 8, 27), false)),
+                        List.of(typed(type, Shape.of(1, 1, 3, 3, 3), false)))),
+                        type + " FOLD3D");
             }
             for (DataType type : List.of(DataType.INT32, DataType.INT64)) {
                 assertTrue(provider.supports(new OperationCapabilityQuery(

@@ -315,9 +315,11 @@ strict behavior is a subset of accelerator behavior. CPU currently supports both
 one identical exact matrix and unchanged routes.
 
 Metal's common exact occurrence domain under both profiles contains the exact unary, affine,
-canonicalization, indexing, BOOL-domain, and Task-0059 raw movement rows. The latter includes
-nineteen proved CAST pairs and all-carrier SELECT/positive-step SLICE over resolved positive-stride
-non-overlapping layouts. Its accelerator-only set adds tensor FLOAT32
+canonicalization, indexing, BOOL-domain, Task-0059 raw movement, and Task-0060 replacement/fold/
+aggregate rows. Task 0059 includes nineteen proved CAST pairs and all-carrier SELECT/positive-step
+SLICE over resolved positive-stride non-overlapping layouts. Task 0060 includes all-carrier
+replacement SCATTER_ND/SLICE_UPDATE, FLOAT64/FLOAT32/BFLOAT16 non-overlap folds, modular
+INT32/INT64 PROD, and BOOL ALL/ANY. Its accelerator-only set adds tensor FLOAT32
 `ADD`/`SUB`/`MUL`/`DIV`/`MIN`/`MAX`; all six FLOAT32 comparisons with canonical BOOL output; exact
 FLOAT32 scalar `MIN`/`MAX`/`CLAMP`; canonical FLOAT32 `SUM`, `MEAN`, `MIN`, `MAX`, and
 binding-resolved `SUM_TO_SHAPE` over their exact full, normalized single-axis, ordered multi-axis
@@ -341,6 +343,7 @@ host staging, hot compilation, retry, or fallback.
 The package uses ABI 5 with the same thirteen exports. Node schema 15 is one bounded
 self-describing, route-bearing image over type wires `1..6`, operation wires `1..115`, attribute
 wires `0..41`, and complete optional storage-layout geometry. Structural execution covers exactly
-79 kinds while production capability is exactly 61 kinds. Workload, exact-policy, candidate,
-compatibility, route-policy, and codec identities are version sixteen; schema 14 and identity 15
-fail closed. The complete-plan wrapper remains version one.
+87 kinds with 28 remaining nonexecutable; production capability is exactly 69 kinds with 46
+remaining false. Workload, exact-policy, candidate, compatibility, route-policy, and codec
+identities are version sixteen; schema 14 and identity 15 fail closed. The complete-plan wrapper
+remains version one.

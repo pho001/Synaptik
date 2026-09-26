@@ -123,8 +123,9 @@ import java.util.Objects;
  * <p>The profile-common Task-0060 domain additionally admits replacement-only SCATTER_ND and
  * signed non-zero-step SLICE_UPDATE for all six carriers, including target-relative crop
  * placement. Every scatter tuple is bounds-checked and globally destination-unique before any
- * write. FOLD_AXIS, FOLD2D, and FOLD3D admit only statically proven non-overlapping windows, so
- * every in-bounds contributor is a raw copy and every uncovered cell is the carrier's exact zero.
+ * write. FOLD_AXIS, FOLD2D, and FOLD3D admit only FLOAT64, FLOAT32, or BFLOAT16 with statically
+ * proven non-overlapping windows, so every in-bounds contributor is a raw copy and every uncovered
+ * cell is the carrier's exact zero.
  * Integral PROD admits INT32/INT64 modular multiplication; ALL and ANY admit canonical BOOL.
  * Those reductions accept full, single-axis, and ordered multi-axis forms, including empty-axis
  * identity on positive-dimensional and rank-zero tensors. All Task-0060 rows are static,
@@ -845,11 +846,15 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
         if (inputs.size() != 1) return false;
         TensorDescriptor input = inputs.getFirst();
-        if (!canonicalAny(input, false)
+        DataType type = input.dataType();
+        if ((type != DataType.FLOAT64
+                        && type != DataType.FLOAT32
+                        && type != DataType.BFLOAT16)
+                || !canonicalAny(input, false)
                 || !canonicalAny(output, false)
                 || input.requiresGrad()
                 || output.requiresGrad()
-                || input.dataType() != output.dataType()) {
+                || type != output.dataType()) {
             return false;
         }
         long[] source = input.shape().toLongArray();

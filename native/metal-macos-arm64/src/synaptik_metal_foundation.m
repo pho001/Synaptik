@@ -3478,8 +3478,7 @@ static int32_t synaptik_metal_create_decoded(
                     BOOL mps_type = type == SYNAPTIK_METAL_TYPE_FLOAT32
                             || type == SYNAPTIK_METAL_TYPE_FLOAT64
                             || type == SYNAPTIK_METAL_TYPE_BFLOAT16;
-                    type_valid = type == declared_types[node.output]
-                            && (route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM || mps_type);
+                    type_valid = type == declared_types[node.output] && mps_type;
                     break;
                 }
                 default:

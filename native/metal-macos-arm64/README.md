@@ -224,10 +224,11 @@ Task 0060 adds exact custom execution for replacement-only SCATTER_ND and signed
 and preflights every tuple's bounds plus global scalar-destination uniqueness before its initial
 copy or any replacement. Slice updates require positive update extents, signed non-zero steps, and
 an exact in-bounds mapping; zero-length SliceAttrs updates are rejected by the positive-dimension
-schema. FOLD_AXIS, FOLD2D, and FOLD3D accept all six carriers only when every stride is at least
-the effective dilated kernel. Their output-centric kernels give each output cell one writer,
-copy its sole in-bounds contributor, skip conceptual padding, and otherwise write the carrier's
-exact zero. INT32/INT64 PROD uses stable row-major fixed-width modular multiplication. BOOL ALL/ANY
+schema. FOLD_AXIS, FOLD2D, and FOLD3D accept only FLOAT64, FLOAT32, and BFLOAT16 when every stride
+is at least the effective dilated kernel. Integral and BOOL fold images fail closed. Their
+output-centric kernels give each output cell one writer, copy its sole in-bounds contributor, skip
+conceptual padding, and otherwise write the carrier's exact zero. INT32/INT64 PROD uses stable
+row-major fixed-width modular multiplication. BOOL ALL/ANY
 use exact zero/one identities and stable row-major logical reduction. Empty axes are raw point
 copies on positive-dimensional or rank-zero tensors and never imply zero-extent support.
 

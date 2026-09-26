@@ -263,50 +263,28 @@ class MetalRemainingElementwiseNativeTest {
 
 
     @Test
-    void task0060ReplacementAndNonoverlapFoldsPreserveEveryCarrierWord() {
+    void task0060ReplacementPreservesEveryCarrierWord() {
         Path library = configuredLibrary();
+        var program = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.SCATTER_ND,
+                        new int[] {0, 1, 2},
+                        new int[] {3},
+                        MetalMpsGraphProgram.AttributeKind.SCATTER_ND,
+                        new long[] {0, 1}),
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.SLICE_UPDATE,
+                        new int[] {4, 5},
+                        new int[] {6},
+                        MetalMpsGraphProgram.AttributeKind.SLICE,
+                        new long[] {1, 3, 2, 0, -2}),
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.SLICE_UPDATE,
+                        new int[] {4, 5},
+                        new int[] {7},
+                        MetalMpsGraphProgram.AttributeKind.CROP_TO_SHAPE,
+                        new long[] {1, 2, 1, 1})));
         for (DataType carrier : DataType.values()) {
-            var program = new MetalMpsGraphProgram(List.of(
-                    MetalMpsGraphProgram.Node.generic(
-                            MetalMpsGraphProgram.NodeKind.SCATTER_ND,
-                            new int[] {0, 1, 2},
-                            new int[] {3},
-                            MetalMpsGraphProgram.AttributeKind.SCATTER_ND,
-                            new long[] {0, 1}),
-                    MetalMpsGraphProgram.Node.generic(
-                            MetalMpsGraphProgram.NodeKind.SLICE_UPDATE,
-                            new int[] {4, 5},
-                            new int[] {6},
-                            MetalMpsGraphProgram.AttributeKind.SLICE,
-                            new long[] {1, 3, 2, 0, -2}),
-                    MetalMpsGraphProgram.Node.generic(
-                            MetalMpsGraphProgram.NodeKind.FOLD_AXIS,
-                            new int[] {7},
-                            new int[] {8},
-                            MetalMpsGraphProgram.AttributeKind.WINDOW_AXIS,
-                            new long[] {1, 2, 3}),
-                    MetalMpsGraphProgram.Node.generic(
-                            MetalMpsGraphProgram.NodeKind.FOLD2D,
-                            new int[] {9},
-                            new int[] {10},
-                            MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_2D,
-                            new long[] {4, 1, 1, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1}),
-                    MetalMpsGraphProgram.Node.generic(
-                            MetalMpsGraphProgram.NodeKind.FOLD3D,
-                            new int[] {11},
-                            new int[] {12},
-                            MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_3D,
-                            new long[] {
-                                5, 1, 1, 3, 3, 3,
-                                2, 2, 2, 2, 2, 2,
-                                1, 1, 1, 1, 1, 1, 1
-                            }),
-                    MetalMpsGraphProgram.Node.generic(
-                            MetalMpsGraphProgram.NodeKind.SLICE_UPDATE,
-                            new int[] {4, 5},
-                            new int[] {13},
-                            MetalMpsGraphProgram.AttributeKind.CROP_TO_SHAPE,
-                            new long[] {1, 2, 1, 1})));
             List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
                     typed(carrier, 4),
                     typed(DataType.INT32, 2, 1),
@@ -315,24 +293,70 @@ class MetalRemainingElementwiseNativeTest {
                     typed(carrier, 4),
                     typed(carrier, 2),
                     typed(carrier, 4),
+                    typed(carrier, 4));
+            byte[] data = sequentialCarrierWords(carrier, 4, 1);
+            byte[] updates = sequentialCarrierWords(carrier, 2, 41);
+            byte[] scatterExpected = data.clone();
+            copyCarrierElement(updates, 0, scatterExpected, 3, carrier.byteWidth());
+            copyCarrierElement(updates, 1, scatterExpected, 1, carrier.byteWidth());
+            byte[] sliceExpected = scatterExpected.clone();
+            byte[] cropExpected = data.clone();
+            copyCarrierElement(updates, 0, cropExpected, 1, carrier.byteWidth());
+            copyCarrierElement(updates, 1, cropExpected, 2, carrier.byteWidth());
+            for (NumericalProfile profile : NumericalProfile.values()) {
+                List<byte[]> actual = executeCustomBytes(
+                        library,
+                        profile,
+                        program,
+                        values,
+                        new int[] {0, 1, 2, 4, 5},
+                        new int[] {3, 6, 7},
+                        List.of(data, bytes32(3, 1), updates, data, updates));
+                assertArrayEquals(scatterExpected, actual.get(0), carrier + " scatter");
+                assertArrayEquals(sliceExpected, actual.get(1), carrier + " slice update");
+                assertArrayEquals(cropExpected, actual.get(2), carrier + " crop update");
+            }
+        }
+    }
+
+    @Test
+    void task0060NonoverlapFoldsPreserveOnlyFloatingCarrierWords() {
+        Path library = configuredLibrary();
+        var program = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.FOLD_AXIS,
+                        new int[] {0},
+                        new int[] {1},
+                        MetalMpsGraphProgram.AttributeKind.WINDOW_AXIS,
+                        new long[] {1, 2, 3}),
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.FOLD2D,
+                        new int[] {2},
+                        new int[] {3},
+                        MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_2D,
+                        new long[] {4, 1, 1, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1}),
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.FOLD3D,
+                        new int[] {4},
+                        new int[] {5},
+                        MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_3D,
+                        new long[] {
+                            5, 1, 1, 3, 3, 3,
+                            2, 2, 2, 2, 2, 2,
+                            1, 1, 1, 1, 1, 1, 1
+                        })));
+        for (DataType carrier :
+                List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
+            List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
                     typed(carrier, 1, 2, 2),
                     typed(carrier, 1, 5),
                     typed(carrier, 1, 4, 9),
                     typed(carrier, 1, 1, 3, 3),
                     typed(carrier, 1, 8, 27),
-                    typed(carrier, 1, 1, 3, 3, 3),
-                    typed(carrier, 4));
-            byte[] data = sequentialCarrierWords(carrier, 4, 1);
-            byte[] updates = sequentialCarrierWords(carrier, 2, 41);
+                    typed(carrier, 1, 1, 3, 3, 3));
             byte[] foldAxisInput = sequentialCarrierWords(carrier, 4, 81);
             byte[] fold2dInput = sequentialCarrierWords(carrier, 36, 101);
             byte[] fold3dInput = sequentialCarrierWords(carrier, 216, 151);
-            byte[] scatterExpected = data.clone();
-            copyCarrierElement(updates, 0, scatterExpected, 3, carrier.byteWidth());
-            copyCarrierElement(updates, 1, scatterExpected, 1, carrier.byteWidth());
-            byte[] sliceExpected = data.clone();
-            copyCarrierElement(updates, 0, sliceExpected, 3, carrier.byteWidth());
-            copyCarrierElement(updates, 1, sliceExpected, 1, carrier.byteWidth());
             byte[] foldAxisExpected = new byte[5 * carrier.byteWidth()];
             copyCarrierElement(foldAxisInput, 0, foldAxisExpected, 0, carrier.byteWidth());
             copyCarrierElement(foldAxisInput, 1, foldAxisExpected, 1, carrier.byteWidth());
@@ -361,37 +385,52 @@ class MetalRemainingElementwiseNativeTest {
                         profile,
                         program,
                         values,
-                        new int[] {0, 1, 2, 4, 5, 7, 9, 11},
-                        new int[] {3, 6, 8, 10, 12, 13},
-                        List.of(
-                                data,
-                                bytes32(3, 1),
-                                updates,
-                                data,
-                                updates,
-                                foldAxisInput,
-                                fold2dInput,
-                                fold3dInput));
-                assertArrayEquals(scatterExpected, actual.get(0), carrier + " scatter");
-                assertArrayEquals(sliceExpected, actual.get(1), carrier + " slice update");
-                assertArrayEquals(foldAxisExpected, actual.get(2), carrier + " fold axis");
+                        new int[] {0, 2, 4},
+                        new int[] {1, 3, 5},
+                        List.of(foldAxisInput, fold2dInput, fold3dInput));
+                assertArrayEquals(foldAxisExpected, actual.get(0), carrier + " fold axis");
                 assertArrayEquals(
                         selectCarrierElements(
                                 fold2dInput, carrier.byteWidth(), fold2dSources),
-                        actual.get(3),
+                        actual.get(1),
                         carrier + " fold2d");
                 assertArrayEquals(
                         selectCarrierElements(
                                 fold3dInput, carrier.byteWidth(), fold3dSources),
-                        actual.get(4),
+                        actual.get(2),
                         carrier + " fold3d");
-                byte[] cropExpected = data.clone();
-                copyCarrierElement(updates, 0, cropExpected, 1, carrier.byteWidth());
-                copyCarrierElement(updates, 1, cropExpected, 2, carrier.byteWidth());
-                assertArrayEquals(cropExpected, actual.get(5), carrier + " crop update");
             }
         }
     }
+
+    @Test
+    void task0060CustomFoldImagesRejectIntegralAndBoolCarriers() {
+        Path library = configuredLibrary();
+        var program = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.FOLD_AXIS,
+                        new int[] {0},
+                        new int[] {1},
+                        MetalMpsGraphProgram.AttributeKind.WINDOW_AXIS,
+                        new long[] {1, 2, 3})));
+        for (DataType carrier : List.of(DataType.INT32, DataType.INT64, DataType.BOOL)) {
+            List<MetalMpsGraphProgram.ValueDescriptor> values =
+                    List.of(typed(carrier, 1, 2, 2), typed(carrier, 1, 5));
+            MetalNativeApi.NativeFailure failure = assertThrows(
+                    MetalNativeApi.NativeFailure.class,
+                    () -> executeCustomBytes(
+                            library,
+                            NumericalProfile.STRICT_IEEE,
+                            program,
+                            values,
+                            new int[] {0},
+                            new int[] {1},
+                            List.of(sequentialCarrierWords(carrier, 4, 1))),
+                    carrier.toString());
+            assertEquals(MetalNativeApi.Status.INVALID_ARGUMENT, failure.status());
+        }
+    }
+
     @Test
     void task0060AggregateKernelsUseModularAndLogicalExactSemantics() {
         Path library = configuredLibrary();
