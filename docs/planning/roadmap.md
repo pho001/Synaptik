@@ -173,8 +173,8 @@ obligations and remains historical. Task 0053 retained its integer-only candidat
 certificate, but is now Blocked on an unavailable pinned no-axiom constructive-real exponential
 bridge; its checkpoint review granted no `DOMAIN-PASS`. Tasks 0057 and 0058 are Complete without
 Task-0053 scope. Task 0051 reserved no production vocabulary; Task 0052 later
-consumed wires `20..34`, and current schema 14 registers `EXP=55`/`SIGMOID=64` without making them
-executable.
+consumed wires `20..34`, and current schema 15 still registers `EXP=55`/`SIGMOID=64` without making
+them executable.
 CPU requires no migration because its exact realizations remain valid members of the widened result
 set.
 
@@ -512,17 +512,19 @@ no production, native, test, or probe changes remain.
 is `Complete` at `42c4cfbf` plus `fb102a46` after the operation-by-operation DAZ/FTZ oracle, focused
 validation, combined serial checkpoint, and independent Class C approval all passed.
 
-Current Metal uses ABI 5, exactly thirteen exports, and one bounded schema-14 route-bearing program
+Current Metal uses ABI 5, exactly thirteen exports, and one bounded schema-15 route-bearing program
 image. Both profiles retain exact canonical FLOAT32 NEG/ABS/affine/CONTIGUOUS, bounded UNFOLD_AXIS,
-typed GATHER/ONE_HOT/SCATTER_ELEMENTS-NONE, FLOAT32 classification, BOOL logic, and FLOAT32 WHERE.
-Accelerator additionally admits the existing arithmetic, SUM/MEAN/SUM_TO_SHAPE, and bounded MATMUL
-rows plus Task-0052 comparisons, tensor/scalar/clamp/reduction extrema, and scans. A partition
-containing a Task-0052 or new BOOL-domain node materializes every logical value in a declared
-run-owned buffer and invokes one fixed shared custom-program native executable per hot run.
-Schema 14 carries type wires `1..6`, operation wires `1..115`, attribute wires `0..41`, and route
-wire `2` or `3`; exactly 41 operation kinds are executable. Workload, policy, candidate,
-compatibility, route, and codec identities are version fifteen; candidate wires and complete-plan
-wrapper remain stable.
+typed GATHER/ONE_HOT/SCATTER_ELEMENTS-NONE, FLOAT32 classification, BOOL logic, FLOAT32 WHERE, and
+all six-carrier positive-layout SELECT/SLICE. Accelerator additionally admits the existing
+arithmetic, SUM/MEAN/SUM_TO_SHAPE, and bounded MATMUL rows plus Task-0052 comparisons,
+tensor/scalar/clamp/reduction extrema, and scans. A partition containing a Task-0052, BOOL-domain,
+or Task-0059 movement node materializes each required logical value in a declared run-owned physical
+storage span and invokes one fixed shared custom-program native executable per hot run.
+Schema 15 carries type wires `1..6`, operation wires `1..115`, attribute wires `0..41`, route wire
+`2` or `3`, and complete positive-stride storage-layout geometry; exactly 79 operation kinds are
+structurally executable and 61 are production-capable. Workload, policy, candidate, compatibility,
+route, and codec identities are version sixteen; candidate wires and complete-plan wrapper remain
+stable.
 
 Metal 0025 remains Complete at reviewed revision `f88066e3`; its schema-11/version-twelve facts are
 historical. Blocked 0026–0027/0030–0037/0039–0040 changed no executable capability. Complete 0041

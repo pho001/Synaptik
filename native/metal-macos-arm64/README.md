@@ -169,49 +169,55 @@ int32_t synaptik_metal_mpsgraph_executable_create(
     void **out_executable);
 ```
 
-`program` is one canonical little-endian schema-14 image of at most `INT32_MAX` bytes:
+`program` is one canonical little-endian schema-15 image of at most `INT32_MAX` bytes:
 
 ```text
 64-byte header
-value_count × 16-byte value descriptors
+value_count × 40-byte value descriptors
 node_count × 32-byte node descriptors
 dimension_count × u64 dimensions
+stride_count × u64 element strides
 reference_count × u32 value references
 zero u32 alignment word when required
 attribute_word_count × u64 attribute words
 ```
 
-The 16 header words are retained magic `SM13` (`0x33314d53`), schema `14`, total byte count, value
-count, node count, feed count, target count, dimension count, reference count, attribute-word
-count, fixed route (`2=MPSGRAPH` or `3=CUSTOM_PROGRAM`), and five reserved zero words. A value
-descriptor is `{type, rank, dimension_offset, flags}`. Stable type wires are `1=FLOAT32`,
-`2=INT32`, `3=BOOL`, `4=FLOAT64`, `5=BFLOAT16`, and `6=INT64`; rank is `0..16`; flag bit zero is
-`requiresGrad`; all other flag bits are zero. A node descriptor is
-`{operation, attribute_kind, input_offset, input_count, output_offset, output_count,
-attribute_offset, attribute_word_count}`.
+The 16 header words are magic `SM15` (`0x35314d53`), schema `15`, total byte count, value count,
+node count, feed count, target count, dimension count, reference count, attribute-word count, fixed
+route (`2=MPSGRAPH` or `3=CUSTOM_PROGRAM`), stride count, and four reserved zero words. A value
+descriptor is `{type, rank, dimension_offset, stride_offset, flags, layout_kind, storage_offset,
+referenced_span}`; the final two fields are unsigned 64-bit element counts. Stable type wires are
+`1=FLOAT32`, `2=INT32`, `3=BOOL`, `4=FLOAT64`, `5=BFLOAT16`, and `6=INT64`; rank is `0..16`.
+Flag bits are `requiresGrad`, layout-present, view, and dense-physical. A missing layout uses stride
+offset `UINT32_MAX`, kind/offset/span zero, and no layout flags. A present layout names one
+rank-sized contiguous stride-pool range and kind `1=DENSE_CONTIGUOUS`, `2=DENSE_WITH_OFFSET`,
+`3=STRIDED`, or `4=BROADCAST_ZERO_STRIDE`. A node descriptor is `{operation, attribute_kind,
+input_offset, input_count, output_offset, output_count, attribute_offset, attribute_word_count}`.
 
 References are ordered feeds, targets, then each node's inputs and outputs. Descriptor offsets must
-name exactly those contiguous subranges. Dimensions and attributes are likewise contiguous with no
-gaps, overlap, or trailing data. The optional alignment word must be zero. Native validation checks
-all checked arithmetic, section bounds, reserved bits, registered operation cardinality, registered
-attribute pairing and word count, type/rank/dimension rules, topological availability, feed and
-target uniqueness, and the existing executable operations' exact Shape and state contracts before
-graph construction. Unknown wires, malformed sections, unavailable values, incompatible Shapes,
-and wrong schema versions fail closed as invalid arguments. A well-formed registered operation
-outside current execution capability returns status 13. Java separately authenticates numerical
-profile compatibility and rejects every profile-incompatible program before native creation.
+name exactly those contiguous subranges. Dimensions, strides, references, and attributes are
+contiguous with no gaps, overlap, or trailing data. The optional alignment word must be zero.
+Native validation checks all arithmetic, section bounds, reserved bits, layout kind/span
+reconstruction, registered operation cardinality, attribute pairing and word count,
+type/rank/dimension rules, topological availability, feed and target uniqueness, and executable
+operations' exact Shape and state contracts before graph construction. Unknown wires, malformed
+sections, unavailable values, incompatible Shapes, and wrong schema versions fail closed as
+invalid arguments. A well-formed registered operation outside current execution capability returns
+status 13. Java separately authenticates numerical-profile compatibility and rejects every
+profile-incompatible program before native creation.
 
-The production operation domain adds Task-0059 wires `39`, `69`, `71`, `74`, `77..79`, `81`, and
-`83` to the prior admitted rows. CAST accepts only the nineteen proved carrier pairs. Read-only
-gathers preflight every INT32/INT64 index before command submission. Raw layout operations preserve
-carrier bytes and exact same-type scalar padding, with explicit one-through-sixteen variadic
-bindings. PAD, CONCAT, STACK, and TILE accept all six carriers; UNFOLD2D and UNFOLD3D accept only
-FLOAT64, FLOAT32, and BFLOAT16.
+The production operation domain adds Task-0059 wires `39`, `69`, `71`, `73..75`, `77..79`, `81`,
+and `83` to the prior admitted rows. CAST accepts only the nineteen proved carrier pairs. Read-only
+gathers preflight every INT32/INT64 index before command submission. Raw movement preserves carrier
+bytes and exact same-type scalar padding, with explicit one-through-sixteen variadic bindings. PAD,
+CONCAT, STACK, and TILE accept all six carriers; UNFOLD2D and UNFOLD3D accept only FLOAT64, FLOAT32,
+and BFLOAT16. SELECT and positive-step SLICE accept all six carriers over exact positive-stride
+non-overlapping storage layouts, allocate the complete referenced span, and touch only logical
+positions. Unresolved, zero/negative-stride, overlapping, or span-inconsistent layouts fail closed.
 Scalar CAST, scalar PAD with empty widths, scalar TILE with empty repeats, scalar GATHER_ND output,
-and scalar STACK input are supported; scalar CONCAT and scalar window inputs are not. Scalar
-PAD/TILE are exact one-element identities.
-Every new production occurrence is canonical, static, and no-gradient. Existing positive-rank
-requirements still apply where operation semantics require them.
+and scalar STACK input are supported; scalar SELECT/SLICE results, scalar CONCAT, and scalar window
+inputs are not. Scalar PAD/TILE are exact one-element identities. Every new production occurrence
+is static and no-gradient; operations other than SELECT/SLICE remain canonical.
 
 The prior FLOAT32 scalar `ADD/SUB/MUL/DIV` and `RECIPROCAL` domain remains canonical rank `1..16`
 with equal input/output Shape and no-gradient input and output. Each scalar arithmetic recipe
@@ -226,8 +232,8 @@ Raw structural fixtures additionally create prior wires `38`, `50`, `53..54`, `5
 `65..68` only under ACCELERATOR, plus all Task-0059 wires `39` and `69..84` under both profiles.
 Task-0059 recipes cover direct cast/index/pad/slice/concat/tile/im2col/col2im selectors and explicit
 stack, fold-axis, and 3D-window compositions. Structural creation and execution do not widen
-production capability: view-only SELECT/SLICE, scatter, slice-update, and fold rows stay false,
-as do power and elementary/recursive result sets without their separate proofs.
+production capability: scatter, slice-update, and fold rows stay false, as do power and
+elementary/recursive result sets without their separate proofs.
 
 ### Status values
 
@@ -334,14 +340,14 @@ capability narrowing, tuning, fallback, or a performance claim.
 
 ## Shared exact custom whole-program execution
 
-Any schema-14 program containing a Task-0052 wire, one of wires `40..45` and `51`, or one of exact
-raw wires `60..63` uses one retained custom-program handle. Creation compiles only the 26 fixed
-reviewed Metal kernels with `MTLMathModeSafe`, creates one immutable pipeline and metadata buffer
-per custom node, and cold-compiles each interleaved existing node as a typed one-node MPSGraph
-executable. Java declares and assigns a run-owned buffer for every logical intermediate and a
-native-address workspace for the stable value table plus direct target aliases. The fixed route
-crosses in the authenticated schema image; no source text, function name, hidden intermediate, or
-input-dependent choice crosses the ABI.
+Any schema-15 program containing a Task-0052 wire, one of wires `40..45` and `51`, or an admitted
+Task-0059 custom wire uses one retained custom-program handle. Creation compiles only fixed reviewed
+Metal kernels with `MTLMathModeSafe`, creates one immutable pipeline and metadata buffer per custom
+node, and cold-compiles each interleaved existing node as a typed one-node MPSGraph executable.
+Java declares and assigns a run-owned buffer for every logical intermediate and a native-address
+workspace for the stable value table plus direct target aliases. The fixed route crosses in the
+authenticated schema image; no source text, function name, hidden intermediate, or input-dependent
+choice crosses the ABI.
 
 One Java/native run call authenticates the complete value table and exact direct targets, rejects
 one physical buffer reused by distinct live value entries, and preserves each target's required

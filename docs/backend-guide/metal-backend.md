@@ -399,10 +399,10 @@ the selected route resource first, then each source-owned splat resource in stab
 constructs one immutable `PreparedExecutable` recipe.
 
 For the singleton-NEG custom route, native creation compiles the fixed branch-free
-`synaptik_neg_f32` source and creates one pipeline. For a shared custom program, creation compiles
-the 22 fixed reviewed safe-math/raw-word/integer kernels and any interleaved existing-node
+`synaptik_neg_f32` source and creates one pipeline. Shared custom-program creation compiles the
+fixed reviewed safe-math/raw-word/integer/movement kernels and any interleaved existing-node
 MPSGraph executables before publication. For the ordinary MPSGraph route, native creation validates
-one canonical bounded schema-14 route-bearing program image and compiles one fixed-shape
+one canonical bounded schema-15 route-bearing program image and compiles one fixed-shape
 whole-partition executable. MATMUL compilation requires reduced-precision-fast-math read-back
 `None`. All compilation happens during finalization, never invocation.
 
@@ -699,27 +699,29 @@ variant or automatic Metal selection outside the explicitly registered inventory
 Private ABI version `5` exports exactly thirteen symbols: the version/context/buffer foundation,
 `synaptik_metal_mpsgraph_executable_create`, executable release/run, and the three typed custom
 singleton-NEG pipeline operations. The create function accepts a pointer plus unsigned byte count
-for one schema-14 program image. The old `synaptik_metal_mpsgraph_neg_executable_create` symbol is
+for one schema-15 program image. The old `synaptik_metal_mpsgraph_neg_executable_create` symbol is
 absent. Statuses `0..12` retain their documented meanings, status `13` reports a structurally valid
 registered operation without a current native route, and unknown integers fail closed with the raw
 value retained.
 
-The schema-14 image is little-endian, at least 64 bytes, at most `Integer.MAX_VALUE` bytes on both
-sides, and consists of a 64-byte header, 16-byte value descriptors, 32-byte node descriptors,
-64-bit dimensions, 32-bit value references, canonical alignment padding, and 64-bit attribute
-words. The header embeds fixed route wire `2` or `3`; schema 13, route zero, and every other route
-fail closed. Production preparation admits operation wires `1..34`, `40..49`, `51..52`, and
-`60..63`; the remaining registered structural wires are reachable only by package-private raw
-fixtures when their native recipe exists, or return status `13` after complete image validation
-when it does not. Attribute wires `0..41` and type wires `1..6` cover all current Model signatures
-and carriers.
+The schema-15 image is little-endian, at least 64 bytes, at most `Integer.MAX_VALUE` bytes on both
+sides, and consists of a 64-byte header, 40-byte value descriptors, 32-byte node descriptors,
+64-bit dimensions, 64-bit element strides, 32-bit value references, canonical alignment padding,
+and 64-bit attribute words. Each value descriptor carries layout presence, kind, view and dense-
+physical flags, stride-pool offset, storage offset, and referenced span. The header embeds fixed
+route wire `2` or `3`; schema 14, route zero, and every other schema or route fail closed.
+Production capability admits exactly 61 operation kinds while 54 remain false; structural native
+execution covers 79 kinds and leaves 36 nonexecutable. Attribute wires `0..41` and type wires
+`1..6` cover all current Model signatures and carriers.
 
 Java and native code independently require exact operation/attribute/type/cardinality agreement,
-ordered feeds, targets, node inputs and outputs, exact Shapes and checked byte geometry, explicit
-unavailable/canonical/affine-view state transitions, topological availability, fresh outputs,
-unique produced targets, canonical packed sections, zero reserved/padding bytes, and signed-32-bit
-image bounds. Java additionally rejects profile-incompatible programs before native entry and owns
-typed handle liveness and pointer-region preconditions that a raw C boundary cannot prove.
+ordered feeds, targets, node inputs and outputs, exact Shapes, checked physical byte geometry,
+validated layout kind/offset/positive-stride/span relationships, explicit
+unavailable/canonical/affine-view/materialized-layout state transitions, topological availability,
+fresh outputs, unique produced targets, canonical packed sections, zero reserved/padding bytes,
+and signed-32-bit image bounds. Java additionally rejects profile-incompatible programs before
+native entry and owns typed handle liveness and pointer-region preconditions that a raw C boundary
+cannot prove.
 Index-domain and buffer-copy bounds map to status `5`; input/output aliasing and wrong device or
 insufficient extent map to status `10`; grid representability maps to status `8`; unusable
 threadgroup geometry and custom command failures map to status `11`; Objective-C exceptions map to
@@ -967,8 +969,8 @@ CUM_SUM/CUM_PROD scan mode, and positive static rank-two FLOAT32 MATMUL with aut
 transposes. These arithmetic routes remain inside Model's exact/discrete or recursive primitive/
 aggregate floors; they gain no generic final-output tolerance. The profile is retained in
 partition plans and every route/tuning/codec/workload identity. Java enforces the boundary before
-native entry. ABI version `5` retains thirteen export names and accepts one bounded schema-14
+native entry. ABI version `5` retains thirteen export names and accepts one bounded schema-15
 route-bearing image; operation wires `1..115`, attribute wires `0..41`, and type wires `1..6`
 cover the current structural registry without widening capability. Route, candidate, compatibility,
-workload, exact-policy, and codec identities are version `15`; the complete-plan wrapper remains
+workload, exact-policy, and codec identities are version `16`; the complete-plan wrapper remains
 version `1`.
