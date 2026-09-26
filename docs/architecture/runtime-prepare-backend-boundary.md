@@ -649,7 +649,8 @@ FLOAT32 `NEG`/`ABS`; `RESHAPE`/`EXPAND`/`PERMUTE`/`EXPAND_DIMS`/`SQUEEZE`; `CONT
 FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. Accelerator additionally admits the exact
 Task-0052 comparison/extrema/scalar/reduction-extrema/scan rows, existing tensor arithmetic and
 reductions, and bounded rank-two MATMUL. Every other occurrence fails closed before route
-selection. ABI v4, thirteen exports, and 160-byte records remain fixed; schema 12 retains wires
-`1..19`/attributes `0..6`, appends Task-0052 wires `20..34`/attributes `7..9`, and advances
-backend identities to version thirteen. Runtime therefore requires neither profile interpretation
-nor a policy lookup.
+selection. ABI 5 retains thirteen exports and consumes one bounded schema-13 image over type wires
+`1..6`, operation wires `1..115`, and attribute wires `0..41`; backend identities are version
+fourteen. Structural vocabulary and canonical all-six rank-`0..16` CPU/Metal transfer do not
+widen operation capability. Runtime therefore requires neither profile interpretation nor a policy
+lookup.

@@ -56,7 +56,8 @@ opened CPU and Metal integrations. `Engine.session(...)` prepares one compiled g
 exposes repeated or concurrent runs through the same prepared execution and existing result
 lifecycle. Ordinary preparation composes non-empty plans across registered owners, with
 deterministic owner-indexed representations and explicit direct CPU-to-Metal and Metal-to-CPU
-transfers for fully static canonical contiguous `FLOAT32` values.
+transfers for fully static canonical contiguous values of all six current data types at ranks
+`0..16`.
 CPU realizes both numerical profiles through identical exact behavior and routes. Model defines
 `STRICT_IEEE` as the unchanged current contract and `ACCELERATOR` as its total recursive
 `FLOAT32` superset; that semantic reach does not imply backend support. Metal execution remains
@@ -67,14 +68,15 @@ FLOAT32-data/INT32-index `GATHER`; INT32-to-BOOL `ONE_HOT`; and FLOAT32/INT32/FL
 `ADD`/`SUB`/`MUL`/`DIV`/`MIN`/`MAX`, all six comparisons with local canonical BOOL publication,
 exact scalar `MIN`/`MAX`/`CLAMP`, canonical `SUM`/`MEAN`/`MIN`/`MAX`/`SUM_TO_SHAPE`, every
 `CUM_SUM`/`CUM_PROD` mode, and positive static rank-two MATMUL. Strict capability remains an
-accelerator subset; every other occurrence fails closed before route selection. BOOL ingress,
-consumers, and CPU/Metal transfer remain unsupported.
-Locally produced scalar reduction targets materialize as four bytes; caller ingress and transfer
-remain positive-rank. An eligible singleton NEG retains its dedicated custom route. Any partition
-containing a Task-0052 node uses the fixed custom whole-program route with declared run-owned value
-buffers and one Java/native invocation. Current Metal remains ABI v4 with thirteen exports and
-160-byte records; node schema 12 retains wires `1..19`/`0..6`, appends operations `20..34` and
-attributes `7..9`, and advances the backend-local identities to version thirteen.
+accelerator subset; every other occurrence fails closed before route selection. BOOL operation
+feeds and consumers remain unsupported, but canonical typed host ingress/publication and direct
+CPU/Metal transfer support all six data types at ranks `0..16` with strict BOOL-byte validation.
+An eligible singleton NEG retains its dedicated custom route. Any partition containing a Task-0052
+node uses the fixed custom whole-program route with declared run-owned value buffers and one
+Java/native invocation. Current Metal uses ABI 5 with the same thirteen exports and one bounded
+schema-13 program image over type wires `1..6`, operation wires `1..115`, and attribute wires
+`0..41`; backend-local identities are version fourteen. Structural vocabulary does not widen the
+unchanged 34-kind executable capability.
 
 The Training extension now owns a public reusable
 Engine-backed scalar session with persistent SGD, accumulation, and detached in-memory state over

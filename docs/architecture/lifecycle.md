@@ -409,7 +409,8 @@ FLOAT32/INT32/FLOAT32 `SCATTER_ELEMENTS/NONE`. `ACCELERATOR` additionally admits
 `ADD`/`SUB`/`MUL`/`DIV`/`MIN`/`MAX`, all six comparisons, scalar MIN/MAX/CLAMP,
 SUM/MEAN/MIN/MAX/SUM_TO_SHAPE, every CUM_SUM/CUM_PROD mode, and positive static rank-two
 MATMUL with authenticated local transpose operands. Strict capability remains an accelerator
-subset; every other occurrence fails closed before route selection. ABI v4, thirteen exports, and
-160-byte records remain fixed. Node schema 12 retains operation wires `1..19` and attributes
-`0..6`, appends Task-0052 operations `20..34` and attributes `7..9`, and uses version-thirteen
-backend identities. Runtime executes the prepared result with no profile branch.
+subset; every other occurrence fails closed before route selection. ABI 5 retains thirteen exports
+and accepts one bounded schema-13 program image over type wires `1..6`, operation wires `1..115`,
+and attribute wires `0..41`; backend identities are version fourteen. Structural registry
+coverage and all-six typed transfer do not widen the existing operation capability. Runtime
+executes the prepared result with no profile branch.

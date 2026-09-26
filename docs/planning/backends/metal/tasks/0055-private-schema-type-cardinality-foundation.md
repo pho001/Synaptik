@@ -2,11 +2,11 @@
 
 ## Status
 
-Ready
+Complete
 
-This planning-only task is the sole authorized Metal frontier after Task 0052. It starts from clean
-base `2fcfefeb3a1fe90f0c4b4519404a8682a18ea471`. No production, test, native, package, generated,
-capability, identity, or device change has been made by this planning commit.
+Implemented atomically at `ddeff1b2` from the approved planning base
+`b7b9bab8d099539977c7fefc4c69b9f53db7592b`. The production, native, package, identity,
+typed-transfer, test, and documentation callers now agree on the foundation described here.
 
 Implementation is one atomic, zero-new-kind foundation cutover. It replaces the current private
 fixed-node transport with one bounded program image, represents every current Model signature and
@@ -17,15 +17,15 @@ remain unchanged.
 
 ## Change class
 
-Class C — the future implementation changes the private Java/native program schema, one existing
-native function signature, native ABI and package metadata, workload identities, typed transfer
-plumbing, and backend-private validation. It adds no Model operation capability and selects no new
-numerical or performance route.
+Class C — the implementation changes the private Java/native program schema, one existing native
+function signature, native ABI and package metadata, workload identities, typed transfer plumbing,
+and backend-private validation. It adds no Model operation capability and selects no new numerical
+or performance route.
 
-The planning commit changes only this task, the Metal master plan, and the repository roadmap. It
-does not authorize a partial implementation. Once production work begins, the cutover must land as
-one reviewable change whose Java, native, package, tuning, transfer, test, and documentation callers
-all agree.
+The earlier planning commit changed only this task, the Metal master plan, and the repository
+roadmap. The completed implementation landed as one atomic cutover whose Java, native, package,
+tuning, transfer, test, and documentation callers agree; it retained no schema-12 or ABI-4
+compatibility path.
 
 ## Goal and invariant
 
@@ -528,22 +528,29 @@ Task 0055 does not:
    remain stable.
 7. Capability remains exactly `34+2+79=115`; no route, proof, oracle, benchmark, or operation
    capability is added by the foundation.
-8. Future implementation files, tests, dependency order, cleanup, package changes, and explicit
-   non-goals are sufficient for one atomic cutover with every caller migrated.
-9. This planning commit changes exactly three Markdown planning files, passes documentation and
-   diff validation, runs no build/test/native/device command, is committed, and leaves a clean
-   worktree.
+8. Implementation files, tests, dependency order, cleanup, package changes, and explicit non-goals
+   landed as one atomic cutover with every caller migrated.
+9. Focused Java, native, packaged-dylib, typed-transfer, and public Engine checks pass without a
+   timing run or a second repository-wide build.
 
-## Planning validation
+## Implementation validation
 
-For this planning commit only:
+The completed cutover was verified with:
 
-```bash
+```text
+native/metal-macos-arm64/build.sh
+native/metal-macos-arm64/package-local.sh build/libsynaptik_metal_foundation.dylib
+native/metal-macos-arm64/verify-package.sh build/package-v1/macos-arm64
+./gradlew :backends:metal:test
+./gradlew :backends:cpu:test --tests \
+  io.github.pho001.synaptik.backend.cpu.spi.CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest
+./gradlew :testing:integration-tests:test --tests \
+  io.github.pho001.synaptik.testing.integration.EngineExplicitCompositionMetalIntegrationTest
 git diff --check
 ```
 
-Also validate local Markdown links and anchors, unique effective headings, balanced fences, final
-newlines, trailing whitespace, exact Task-0055 `Ready` status, Metal/roadmap sole-frontier
-agreement, operation and attribute wire ranges, the `34+2+79=115` equation, and exactly three
-changed planning paths. Do not build, test, compile native code, package a dylib, run a device,
-measure performance, invoke a proof tool, or edit production/evidence/generated files.
+The packaged-dylib focus re-exercised schema-image/native-ABI tests, all-six typed transfers, and
+the public Engine Metal integration surface. Capability remains exactly 34 executable registry
+kinds and 81 structurally registered unsupported kinds. No performance benchmark or timing
+measurement was run, and the requested focused validation deliberately omitted another full
+repository build.

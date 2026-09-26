@@ -319,7 +319,9 @@ multi-axis including empty, and keep-dimensions forms; every exclusive/reverse m
 `CUM_SUM` and `CUM_PROD`; and positive static rank-two FLOAT32 MATMUL with exact contraction
 geometry and canonical or authenticated local rank-two-transpose operands. Strict capability is a
 subset because every common occurrence has the same answer under accelerator; strict rejects every
-accelerator-only addition. BOOL feeds, consumers, and CPU/Metal transfer remain unsupported.
+accelerator-only addition. BOOL operation feeds and consumers remain unsupported. Canonical
+CPU/Metal transfer supports all six current data types at ranks `0..16` without widening that
+operation matrix.
 
 Accelerator operations must produce only results admitted by Model's total recursive FLOAT32
 exact/discrete, primitive, aggregate, and composite-inheritance floors. Every other
@@ -329,8 +331,8 @@ fixed reviewed safe-math kernels behind one whole-program native invocation, wit
 buffers for every logical value and no hidden materialization, host staging, hot compilation,
 retry, or fallback.
 
-The package remains ABI v4 with thirteen exports and 160-byte records. Node schema 12 retains
-operation wires `1..19` and attribute wires `0..6`, appends Task-0052 operation wires `20..34` and
-attribute wires `7..9`, and rejects stale schema 11. Workload, exact-policy, candidate,
-compatibility, route-policy, and codec identities are version thirteen; the complete-plan wrapper
-remains version one. INT64 and ABI/export changes remain unimplemented.
+The package uses ABI 5 with the same thirteen exports. Node schema 13 is one bounded
+self-describing image over type wires `1..6`, operation wires `1..115`, and attribute wires
+`0..41`; the registry is structural vocabulary while only the existing 34 kinds are executable.
+Workload, exact-policy, candidate, compatibility, route-policy, and codec identities are version
+fourteen; the complete-plan wrapper remains version one.

@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Task 0055 Ready; 0052 Complete; 0054 historical | [Metal 0055](backends/metal/tasks/0055-private-schema-type-cardinality-foundation.md) is the sole authorized frontier: one atomic zero-new-kind ABI-5/schema-13/six-carrier/cardinality/typed-transfer/identity/package cutover. Current production remains ABI 4, schema 12, identity 13, and thirteen exports until that task completes. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Task 0055 Complete; 0052 Complete; 0054 historical | [Metal 0055](backends/metal/tasks/0055-private-schema-type-cardinality-foundation.md) completed at `ddeff1b2`: ABI 5, schema 13, all-six rank-`0..16` typed transfer, identity 14, variable cardinality, and zero capability widening are landed. No Metal task is Ready. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -172,8 +172,8 @@ is `DOMAIN-BLOCKED`; the composition inherits that blocker. Task 0051 froze the 
 and remains historical. Task 0053 now owns the concrete source/certificates, independent review,
 and one newly authorized successor oracle, but stays Blocked on that complete-domain work and the
 full-Xcode actual-dispatch/peak-transient prerequisite. Task 0051 reserved no production vocabulary;
-Task 0052 later consumed wires `20..34`, and Ready Task 0055 now plans `EXP=55`/`SIGMOID=64` inside
-its zero-capability schema-13 foundation.
+Task 0052 later consumed wires `20..34`, and Complete Task 0055 registers `EXP=55`/`SIGMOID=64`
+inside its zero-capability schema-13 foundation.
 CPU requires no migration because its exact realizations remain valid members of the widened result
 set.
 
@@ -203,13 +203,12 @@ the exact Complete read-only audit of base `93b3d379`: 40 enums, 115 constants, 
 `19+2+15+79=115`. Its schema-11 and Task-0052 capability-false counts are historical pre-cutover
 facts; the document explicitly names its supersession and grants no production scope.
 
-[Metal 0055](backends/metal/tasks/0055-private-schema-type-cardinality-foundation.md) is Ready as
-the sole serial frontier. Its planning-only contract inventories all current Model signatures and
-defines one atomic zero-new-kind cutover from the fixed 160-byte record to a bounded schema-13
-program image with `0..N` inputs, `1..N` outputs, explicit per-value descriptors, all six current
-Model carriers, BOOL/INT consumers, rank-zero where legal, closed attributes `0..41`, ABI 5 with
-the same thirteen export names, typed CPU/Metal transfer, identity 14, validation/lifecycle rules,
-and package metadata. Current production remains unchanged until implementation completes.
+[Metal 0055](backends/metal/tasks/0055-private-schema-type-cardinality-foundation.md) is Complete
+at `ddeff1b2`. It atomically replaced the fixed 160-byte record with one bounded schema-13 program
+image having `0..N` inputs, `1..N` outputs, explicit per-value descriptors, all six current Model
+carriers, BOOL/INT/rank-zero structure where legal, closed attributes `0..41`, ABI 5 with the same
+thirteen export names, typed CPU/Metal transfer, identity 14, independent validation, and package
+metadata. Capability remains exactly 34 executable and 81 registered unsupported kinds.
 
 [CPU 0017](backends/cpu/tasks/0017-explicit-accelerator-numerical-profile-realization.md) is
 Complete at implementation `372a8b98`. For every backend, capability/behavior under
@@ -469,24 +468,24 @@ no production, native, test, or probe changes remain.
 is `Complete` at `42c4cfbf` plus `fb102a46` after the operation-by-operation DAZ/FTZ oracle, focused
 validation, combined serial checkpoint, and independent Class C approval all passed.
 
-Current Metal uses ABI v4, exactly thirteen exports, fixed 160-byte records, and node schema 12.
+Current Metal uses ABI 5, exactly thirteen exports, and one bounded schema-13 program image.
 Both profiles retain exact canonical FLOAT32 NEG/ABS/affine/CONTIGUOUS, bounded UNFOLD_AXIS, and
 exact typed GATHER, ONE_HOT, and SCATTER_ELEMENTS/NONE. Accelerator additionally admits the
 existing arithmetic, SUM/MEAN/SUM_TO_SHAPE, and bounded MATMUL rows plus Task-0052 comparisons,
 tensor/scalar/clamp/reduction extrema, and scans. The Task-0052 route materializes every logical
-value in a declared run-owned buffer, keeps BOOL results as direct targets, and invokes one fixed
-custom whole-program native executable per hot run. Schema 12 retains wires `1..19` and attributes
-`0..6`, appends operation wires `20..34` and scalar/clamp/scan attributes `7..9`, and rejects stale
-schema 11. Workload, policy, candidate, compatibility, route, and codec identities are version
-thirteen; ABI/export and complete-plan-wrapper identities remain unchanged.
+value in a declared run-owned buffer and invokes one fixed custom whole-program native executable
+per hot run. Schema 13 carries type wires `1..6`, operation wires `1..115`, and attribute wires
+`0..41`; only the existing 34 operation kinds are executable. Workload, policy, candidate,
+compatibility, route, and codec identities are version fourteen; candidate wires and complete-plan
+wrapper remain stable.
 
 Metal 0025 remains Complete at reviewed revision `f88066e3`; its schema-11/version-twelve facts are
 historical. Blocked 0026–0027/0030–0037/0039–0040 changed no executable capability. Complete 0041
 changes no capability. Metal 0042 still exposes only bounded singleton-NEG local tuning. Historical
-0051 and planning-only 0053 added no current wire. Metal 0052 and the superseded historical audit
-0054 are Complete; Metal 0047/0051/0053 remain Blocked. Ready Task 0055 plans local types `4..6`,
-variable node cardinality, typed transfer, ABI 5/schema 13, and identity 14 as one atomic
-zero-new-kind cutover. No backend task may define Model semantics.
+0051 and planning-only 0053 added no current wire. Metal 0052, superseded historical audit 0054,
+and zero-new-kind foundation 0055 are Complete; Metal 0047/0051/0053 remain Blocked. Task 0055
+landed type wires `1..6`, variable node cardinality, typed transfer, ABI 5/schema 13, and identity
+14 without changing capability. No backend task may define Model semantics.
 
 Complete Model 0028 owns bounded reduction exact-zero sign freedom; Complete Metal 0020
 implements that rule under accelerator only. Blocked Metal 0018 retains its unchanged historical
@@ -605,13 +604,11 @@ reserve conditional schema.
 
 ## Nearest next step
 
-Metal 0055 is the nearest and sole authorized step. Implement its private foundation as one atomic
-cutover: ABI 5, schema 13, one bounded program image, operation wires `1..115`, attribute wires
-`0..41`, all six current carriers, general node cardinality, legal rank zero, BOOL/INT consumers,
-typed CPU/Metal transfer, identity 14, independent Java/native validation, lifecycle rollback, and
-package metadata. Preserve the public Model API, shared Runtime policy, current capability matrix,
-fixed routes, and exact thirteen export names; retain no ABI-4/schema-12 decoder. No numerical
-oracle, cost gate, new operation route, or capability widening belongs to this foundation.
+No Metal task is Ready. Task 0055 completed the private ABI-5/schema-13/six-carrier/cardinality/
+typed-transfer/identity/package foundation at `ddeff1b2` with zero capability widening. Metal 0053
+remains Blocked on its independent concrete-source, complete-domain proof, review, and controlled
+environment prerequisites; no timing, operation route, oracle, or capability work is authorized by
+the completed foundation.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
@@ -639,8 +636,8 @@ barrier, completed-state `RunResult` resource/publication lease, and one system-
 context per integration without adding an asynchronous API, physical-device selector, multi-device
 execution, identity change, cross-device behavior, or general output/workspace pool. Historical
 Metal 0051 and planning-only successor 0053 preserve
-those boundaries and own no production scope. Ready Task 0055 is the sole authorized frontier and
-must preserve the same synchronous, single-default-device, direct-target lifecycle.
+those boundaries and own no production scope. Complete Task 0055 preserves the same synchronous,
+single-default-device, direct-target lifecycle; no Metal task is Ready.
 
 Metal 0050 is Complete. Its final program verification built the current dylib, applied the fixed
 ad-hoc identifier, packaged and independently verified it, created and permission-preservingly
@@ -724,11 +721,10 @@ lacks complete recurrence/state-publication proof, and GRU/LSTM add their own ou
 gradient obligations. Unblocking requires a conforming custom or proved selector route plus the
 complete five-input/two-output/caller-INT64 schema, native lifecycle, and proof.
 
-Schema 12, Task-0052 operation wires `20..34`, scalar/clamp/scan attributes `7..9`, and
-version-thirteen identities are landed. Ready Task 0055 plans ABI 5/schema 13, operation wires
-`1..115`, attributes `0..41`, local types `1..6`, and identity 14; none is landed before its atomic
-implementation. Metal 0053 must consume that completed foundation before any future production
-cutover. Metal 0026/0027 remain separately finalized Blocked. Documentation/audit-only Metal 0038
+Schema 13, operation wires `1..115`, attributes `0..41`, local types `1..6`, ABI 5, and
+version-fourteen identities are landed by Complete Task 0055. Metal 0053 consumes that foundation
+but remains Blocked before any future production cutover. Metal 0026/0027 remain separately
+finalized Blocked. Documentation/audit-only Metal 0038
 is Complete. Planning-only Metal 0039 is Blocked on Draft Model 0026. Metal 0040 is Blocked by its
 failed one-execution BFLOAT16 raw-bit gate. Metal 0041 is Complete at implementation `ba16d942`
 plus remediation `386705ca`; Metal 0042 is Complete at `9feb2505705263b6efb417d606678c606c2b9598`;
