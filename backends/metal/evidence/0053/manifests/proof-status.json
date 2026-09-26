@@ -1,0 +1,33 @@
+{
+  "schema": "synaptik-metal-task0053-proof-status-v1",
+  "overall": "OPEN",
+  "candidateStatus": "CORROBORATED_NOT_CERTIFIED",
+  "productionCapabilityEnabled": false,
+  "customCatalogAvailable": false,
+  "deviceExecutionAuthorized": false,
+  "closedObligations": {
+    "deterministicSourceEmbedding": "PASS",
+    "sharedMslCIntegerCore": "PASS",
+    "mpfrGeneratedConstantsAndPartitions": "PASS",
+    "sollyaPolynomialInterval": "PASS",
+    "sourceFloatingSiteAudit": "PASS",
+    "structuralLeanProof": "PASS"
+  },
+  "corroboration": {
+    "allBinary32ModelCheck": "PASS",
+    "words": 4294967296,
+    "unresolved": 0,
+    "maximumOrderedDistance": 1,
+    "expFailures": 0,
+    "sigmoidOrSiteFailures": 0,
+    "authority": "independent corroboration only; not the proof root"
+  },
+  "openObligations": {
+    "kernelCheckedNumericalDomainTheorem": "OPEN",
+    "compiledMslFloatingSiteAudit": "PENDING_NO_STANDALONE_MSL_COMPILER",
+    "independentReview": "PENDING",
+    "proofFirstDeviceSmoke": "BLOCKED"
+  },
+  "smallestUnresolvedTheorem": "For every raw binary32 word, prove in the pinned Lean kernel that the exact integer implementation corresponding to task0053_candidate.metal returns an allowed EXP result within five ordered normal-result encodings of correctly rounded real exp (with declared NaN, DAZ, FTZ, overflow, and infinity choices), and that both materialized stable-SIGMOID branches have each ADD and DIV result in the Model acceptance set. The theorem must connect the generated MPFR table/threshold constants and Sollya polynomial interval through every Q48/Q32 quotient, residual, Horner, reconstruction, tie, threshold, and pack rounding site.",
+  "activationGate": "BLOCKED until the numerical theorem, compiled-site audit, independent review, and proof-first device smoke are all PASS"
+}

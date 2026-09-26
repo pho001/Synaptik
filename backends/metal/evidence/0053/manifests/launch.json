@@ -1,0 +1,21 @@
+{
+  "schema": "synaptik-metal-task0053-launch-v1",
+  "domain": {
+    "ranks": [1, 16],
+    "extents": "positive fully static",
+    "elementProduct": "checked uint64 and NSUInteger before native creation",
+    "elementBytes": 4
+  },
+  "grid": {
+    "width": "min(N, UINT32_MAX)",
+    "remaining": "ceil(N / width)",
+    "height": "min(remaining, UINT32_MAX)",
+    "depth": "ceil(remaining / height)",
+    "linear": "x + width * (y + height * z)",
+    "guard": "linear < elementCount"
+  },
+  "proof": "proof/Task0053Structural.lean proves inverse mapping, coordinate bounds, uniqueness for bounded coordinates, excess-thread rejection, admitted-thread bounds, and rank 1..16 admission",
+  "dispatchesPerCustomNode": 1,
+  "routeOwnedTemporaryBytes": 0,
+  "buffers": "one declared canonical input and one distinct declared canonical output per node; whole custom program uses the existing complete value table and target aliases"
+}

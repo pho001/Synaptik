@@ -1,0 +1,22 @@
+{
+  "schema": "synaptik-metal-task0053-sites-v1",
+  "source": "native/metal-macos-arm64/src/task0053_candidate.metal",
+  "hardwareFloatOrFmaSites": [],
+  "integerSites": [
+    {"id": "EXP_CLASSIFY", "function": "task0053_exp_word", "rule": "raw sign/exponent/fraction partition before arithmetic"},
+    {"id": "EXP_DECODE_Q48", "function": "task0053_raw_to_q48", "rule": "nearest-even exact binary32 normal decode into signed Q48"},
+    {"id": "EXP_QUOTIENT", "function": "task0053_round_signed_div", "rule": "nearest-even quotient by Q48 ln(2)/128"},
+    {"id": "EXP_RESIDUAL_Q32", "function": "task0053_round_signed_div", "rule": "nearest-even Q48-to-Q32 residual"},
+    {"id": "EXP_HORNER_6_TO_0", "function": "task0053_mul_q32", "rule": "six separately rounded signed Q32 products; no contraction"},
+    {"id": "EXP_TABLE_RECONSTRUCT", "function": "task0053_round_shift_even", "rule": "one unsigned Q31-by-Q32 product rounded to Q31"},
+    {"id": "EXP_PACK", "function": "task0053_pack_q31", "rule": "integer normalization, nearest-even significand, explicit infinity/zero classes"},
+    {"id": "SIGMOID_GUARD_NEG", "function": "task0053_sigmoid_word", "rule": "NaN first, raw sign branch, exact sign-bit NEG on the nonnegative branch"},
+    {"id": "SIGMOID_EXP", "function": "task0053_exp_word", "rule": "exact same retained EXP candidate instance"},
+    {"id": "SIGMOID_ADD", "function": "task0053_add_one", "rule": "materialized exact positive binary32 RNE ADD(1,e)"},
+    {"id": "SIGMOID_DIV", "function": "task0053_divide_positive", "rule": "materialized exact positive binary32 RNE quotient; subnormal result chooses allowed positive-zero FTZ"}
+  ],
+  "dazChoice": "EXP maps every nonzero subnormal input to same-signed zero before evaluation; the sign is immaterial because exp(+0)=exp(-0)=1",
+  "ftzChoice": "EXP publishes positive zero whenever the correctly rounded reference is subnormal; SIGMOID DIV publishes positive zero whenever the exact rounded quotient is subnormal",
+  "contraction": "none; source contains no floating type, conversion, arithmetic, FMA, or intrinsic",
+  "compiledSiteAudit": "PENDING_NO_STANDALONE_MSL_COMPILER"
+}

@@ -1,0 +1,48 @@
+{
+  "schema": "synaptik-metal-task0053-candidates-v1",
+  "productionCapabilityEnabled": false,
+  "deviceExecutionAuthorized": false,
+  "candidates": [
+    {
+      "id": "CUSTOM_EXP_CERTIFIED_V1",
+      "operationWire": 55,
+      "routeFamily": "CUSTOM_KERNEL",
+      "status": "DOMAIN_PENDING",
+      "algorithm": "raw binary32 classification; Q48 nearest-even range reduction by ln(2)/128; 128-entry Q31 2^(j/128) table; degree-six Q32 Horner polynomial; integer nearest-even reconstruction and raw binary32 pack",
+      "hardwareFloatSites": 0,
+      "dispatchesPerNode": 1,
+      "routeOwnedTemporaryBytes": 0
+    },
+    {
+      "id": "CUSTOM_SIGMOID_STABLE_CERTIFIED_V1",
+      "operationWire": 64,
+      "routeFamily": "CUSTOM_KERNEL",
+      "status": "DOMAIN_PENDING",
+      "algorithm": "raw NaN classification and sign guard; exact raw NEG; CUSTOM_EXP_CERTIFIED_V1; materialized integer nearest-even ADD(1,e); materialized integer nearest-even DIV(e,d) or DIV(1,d); explicit FTZ-to-positive-zero at subnormal division output",
+      "hardwareFloatSites": 0,
+      "dispatchesPerNode": 1,
+      "routeOwnedTemporaryBytes": 0
+    },
+    {
+      "id": "MPSGRAPH_DIRECT_EXP",
+      "operationWire": 55,
+      "routeFamily": "MPSGRAPH",
+      "status": "DOMAIN_BLOCKED",
+      "reason": "installed selector and bounded samples do not prove complete-domain FLOAT32 behavior"
+    },
+    {
+      "id": "MPSGRAPH_DIRECT_SIGMOID",
+      "operationWire": 64,
+      "routeFamily": "MPSGRAPH",
+      "status": "DOMAIN_BLOCKED",
+      "reason": "direct selector is not the Model stable recursive site graph"
+    },
+    {
+      "id": "MPSGRAPH_STABLE_SIGMOID_COMPOSITION",
+      "operationWire": 64,
+      "routeFamily": "MPSGRAPH",
+      "status": "DOMAIN_BLOCKED",
+      "reason": "inherits the unproved opaque MPSGraph EXP primitive"
+    }
+  ]
+}

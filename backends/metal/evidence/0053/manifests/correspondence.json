@@ -1,0 +1,42 @@
+{
+  "schema": "synaptik-metal-task0053-correspondence-v1",
+  "authoritativeAlgorithmSource": "native/metal-macos-arm64/src/task0053_integer_core.h",
+  "metalTemplate": "native/metal-macos-arm64/src/task0053_candidate.metal",
+  "cModelRelation": "model/task0053_model.c directly includes the authoritative algorithm source and adds export wrappers only",
+  "correspondence": [
+    {
+      "obligation": "raw binary32 classification and DAZ/FTZ policy",
+      "metal": ["task0053_exp_word", "task0053_sigmoid_word"],
+      "model": ["task0053_model_exp", "task0053_model_sigmoid"],
+      "checker": ["reference_exp", "run_worker"],
+      "proof": ["classify_total", "raw_partition_count"]
+    },
+    {
+      "obligation": "EXP range reduction, table, polynomial, reconstruction, and packing",
+      "metal": ["task0053_raw_to_q48", "task0053_round_signed_div", "task0053_mul_q32", "task0053_pack_q31"],
+      "model": ["task0053_model_exp"],
+      "checker": ["reference_exp", "ordered_distance"],
+      "proof": [],
+      "status": "OPEN_NUMERICAL_DOMAIN_THEOREM"
+    },
+    {
+      "obligation": "stable materialized SIGMOID graph",
+      "metal": ["task0053_add_one", "task0053_divide_positive", "task0053_sigmoid_word"],
+      "model": ["task0053_model_add_one", "task0053_model_divide_positive", "task0053_model_sigmoid"],
+      "checker": ["reference_add_one", "reference_divide_positive", "run_worker"],
+      "proof": [],
+      "status": "OPEN_NUMERICAL_DOMAIN_THEOREM"
+    },
+    {
+      "obligation": "rank 1..16 launch mapping and guard",
+      "metal": ["task0053_linear_id", "task0053_candidate_exp", "task0053_candidate_sigmoid"],
+      "host": ["synaptik_custom_point_grid", "synaptik_encode_custom_point"],
+      "proof": ["coordinate_maps_back", "coordinate_bounds", "coordinate_unique", "excess_thread_writes_nothing", "admitted_thread_is_in_bounds", "admitted_rank_bounds"]
+    },
+    {
+      "obligation": "proof-gated activation",
+      "host": ["SYNAPTIK_METAL_CUSTOM_EXP", "SYNAPTIK_METAL_CUSTOM_SIGMOID"],
+      "status": "BLOCKED_UNSUPPORTED_OPERATION"
+    }
+  ]
+}

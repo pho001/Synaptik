@@ -2,6 +2,7 @@
 #import <Metal/Metal.h>
 #import <MetalPerformanceShadersGraph/MetalPerformanceShadersGraph.h>
 #import "synaptik_task0052_kernels.h"
+#import "synaptik_task0053_candidate_kernels.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -62,7 +63,9 @@ typedef enum : uint32_t {
     SYNAPTIK_METAL_CUSTOM_REDUCTION_MIN = 31U,
     SYNAPTIK_METAL_CUSTOM_REDUCTION_MAX = 32U,
     SYNAPTIK_METAL_CUSTOM_CUM_SUM = 33U,
-    SYNAPTIK_METAL_CUSTOM_CUM_PROD = 34U
+    SYNAPTIK_METAL_CUSTOM_CUM_PROD = 34U,
+    SYNAPTIK_METAL_CUSTOM_EXP = 55U,
+    SYNAPTIK_METAL_CUSTOM_SIGMOID = 64U
 } SynaptikMetalOperation;
 
 typedef enum : uint32_t {
@@ -1150,6 +1153,8 @@ static NSString *custom_function(uint32_t operation) {
         case SYNAPTIK_METAL_CUSTOM_REDUCTION_MAX: return @"reduction_max";
         case SYNAPTIK_METAL_CUSTOM_CUM_SUM: return @"scan_sum";
         case SYNAPTIK_METAL_CUSTOM_CUM_PROD: return @"scan_prod";
+        case SYNAPTIK_METAL_CUSTOM_EXP: return @"task0053_candidate_exp";
+        case SYNAPTIK_METAL_CUSTOM_SIGMOID: return @"task0053_candidate_sigmoid";
         default: return nil;
     }
 }
@@ -1222,6 +1227,15 @@ static SynaptikMetalProgramStep *make_custom_step(
                         ? 0U : right_contiguous[source];
             }
         }
+        step.metadata = custom_metadata(device, &meta, sizeof(meta));
+    } else if (node.operation == SYNAPTIK_METAL_CUSTOM_EXP
+            || node.operation == SYNAPTIK_METAL_CUSTOM_SIGMOID) {
+        SynaptikMetalPointMeta meta = {0};
+        meta.elementCount = shape_element_count(output);
+        MTLSize grid = MTLSizeMake(0U, 0U, 0U);
+        if (!custom_grid(meta.elementCount, &grid, &meta.gridWidth, &meta.gridHeight))
+            return nil;
+        step.grid = grid;
         step.metadata = custom_metadata(device, &meta, sizeof(meta));
     } else if (node.operation == SYNAPTIK_METAL_CUSTOM_SCALAR_MIN
             || node.operation == SYNAPTIK_METAL_CUSTOM_SCALAR_MAX) {
@@ -1380,6 +1394,9 @@ static int32_t synaptik_metal_create_decoded(
                 return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
             BOOL affine_view = NO;
             switch ((SynaptikMetalOperation)node.operation) {
+                case SYNAPTIK_METAL_CUSTOM_EXP:
+                case SYNAPTIK_METAL_CUSTOM_SIGMOID:
+                    return SYNAPTIK_METAL_STATUS_UNSUPPORTED_OPERATION;
                 case SYNAPTIK_METAL_MPSGRAPH_NEG:
                 case SYNAPTIK_METAL_MPSGRAPH_ABS:
                     if (states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
@@ -1673,13 +1690,17 @@ static int32_t synaptik_metal_create_decoded(
                 default:
                     return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
             }
-            if (node.operation >= SYNAPTIK_METAL_CUSTOM_GT
-                    && node.operation <= SYNAPTIK_METAL_CUSTOM_CUM_PROD)
+            if ((node.operation >= SYNAPTIK_METAL_CUSTOM_GT
+                            && node.operation <= SYNAPTIK_METAL_CUSTOM_CUM_PROD)
+                    || node.operation == SYNAPTIK_METAL_CUSTOM_EXP
+                    || node.operation == SYNAPTIK_METAL_CUSTOM_SIGMOID)
                 contains_custom = YES;
             BOOL type_valid = NO;
             switch ((SynaptikMetalOperation)node.operation) {
                 case SYNAPTIK_METAL_MPSGRAPH_NEG:
                 case SYNAPTIK_METAL_MPSGRAPH_ABS:
+                case SYNAPTIK_METAL_CUSTOM_EXP:
+                case SYNAPTIK_METAL_CUSTOM_SIGMOID:
                 case SYNAPTIK_METAL_MPSGRAPH_CONTIGUOUS:
                 case SYNAPTIK_METAL_MPSGRAPH_RESHAPE:
                 case SYNAPTIK_METAL_MPSGRAPH_EXPAND:
@@ -1805,9 +1826,13 @@ static int32_t synaptik_metal_create_decoded(
             if (options == nil) return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
             options.mathMode = MTLMathModeSafe;
             NSError *library_error = nil;
+            BOOL task0053_domain_approved = NO;
+            NSString *kernel_source = task0053_domain_approved
+                    ? [SynaptikTask0052KernelSource
+                            stringByAppendingString:SynaptikTask0053CandidateKernelSource]
+                    : SynaptikTask0052KernelSource;
             id<MTLLibrary> library = [ctx.device
-                    newLibraryWithSource:SynaptikTask0052KernelSource
-                    options:options error:&library_error];
+                    newLibraryWithSource:kernel_source options:options error:&library_error];
             if (library == nil || library_error != nil)
                 return SYNAPTIK_METAL_STATUS_KERNEL_COMPILATION_FAILED;
             NSMutableArray<SynaptikMetalProgramStep *> *steps =
@@ -1815,8 +1840,10 @@ static int32_t synaptik_metal_create_decoded(
             if (steps == nil) return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
             for (uint32_t node_index = 0U; node_index < node_count; node_index++) {
                 SynaptikMetalDecodedNode node = nodes[node_index];
-                if (node.operation >= SYNAPTIK_METAL_CUSTOM_GT
-                        && node.operation <= SYNAPTIK_METAL_CUSTOM_CUM_PROD) {
+                if ((node.operation >= SYNAPTIK_METAL_CUSTOM_GT
+                                && node.operation <= SYNAPTIK_METAL_CUSTOM_CUM_PROD)
+                        || node.operation == SYNAPTIK_METAL_CUSTOM_EXP
+                        || node.operation == SYNAPTIK_METAL_CUSTOM_SIGMOID) {
                     SynaptikMetalProgramStep *step =
                             make_custom_step(node, shapes, ctx.device, library);
                     if (step == nil) return SYNAPTIK_METAL_STATUS_KERNEL_COMPILATION_FAILED;

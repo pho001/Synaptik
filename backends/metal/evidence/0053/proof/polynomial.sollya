@@ -1,0 +1,15 @@
+prec = 256!;
+display = hexadecimal!;
+interval = [-log(2) / 256; log(2) / 256];
+polynomial = 4294967296 / 2^32
+    + (4294967296 / 2^32) * x
+    + (2147483648 / 2^32) * x^2
+    + (715827883 / 2^32) * x^3
+    + (178956971 / 2^32) * x^4
+    + (35791394 / 2^32) * x^5
+    + (5965232 / 2^32) * x^6;
+errbound = infnorm(exp(x) - polynomial, interval);
+print("interval=", interval);
+print("polynomial=", polynomial);
+print("absolute_error=", errbound);
+quit;

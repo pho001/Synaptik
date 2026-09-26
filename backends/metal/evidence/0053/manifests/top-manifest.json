@@ -1,0 +1,134 @@
+{
+  "files": [
+    {
+      "path": "backends/metal/evidence/0053/checker/run_all_words.py",
+      "sha256": "db963e3cef026cd676e53fb07995ff1fc959377f5e776355f37ce885a8e7f6a7"
+    },
+    {
+      "path": "backends/metal/evidence/0053/checker/task0053_all_words.c",
+      "sha256": "3b078a0ef64d89d15c6053315d6e04adb02265a2aefa93bcfe348da7b45fe577"
+    },
+    {
+      "path": "backends/metal/evidence/0053/generated/all-words-report.json",
+      "sha256": "e1eaa5ecde2f143b84d32aab22c925d0f2ce46a92bbd6d9e7fa9fa10b20efaaf"
+    },
+    {
+      "path": "backends/metal/evidence/0053/generated/constants.json",
+      "sha256": "576690d96f9b1144bb868a0d3b2958ad7d022fbf22d519f63b94b287e083cea5"
+    },
+    {
+      "path": "backends/metal/evidence/0053/generated/polynomial-report.txt",
+      "sha256": "619b6cb7ab3b43b9895cad8094241d470d212f44bdc81bac3f324d0eee8844e9"
+    },
+    {
+      "path": "backends/metal/evidence/0053/generated/source-audit.json",
+      "sha256": "9ed0daebd0ed117cefceac3028bdf0c39d1cb81d4cbdeaea51434de80e40324a"
+    },
+    {
+      "path": "backends/metal/evidence/0053/generated/task0053_constants.h",
+      "sha256": "4a600e1b21a236b43ae13571a9270690b92f8b1c1a4392f4fb7cd13ae3a4eb18"
+    },
+    {
+      "path": "backends/metal/evidence/0053/manifests/candidates.json",
+      "sha256": "6cc221f63e8bed990e735fba7a7e9c0f4575b3e478aebca956564cd5de0ad74b"
+    },
+    {
+      "path": "backends/metal/evidence/0053/manifests/correspondence.json",
+      "sha256": "cf1ea12c83f4398497efb32ee79d7dce8ab3df891bc01cbdb5307062b5175d60"
+    },
+    {
+      "path": "backends/metal/evidence/0053/manifests/launch.json",
+      "sha256": "74e173d323a95e8c5aecab5403f9ee236443b3633c4b405150e5433812768a4f"
+    },
+    {
+      "path": "backends/metal/evidence/0053/manifests/proof-status.json",
+      "sha256": "678b5d43cc1237a1b2da8ab084aeeb3aecfaf4c5bd6d30345aad64f55d72ac09"
+    },
+    {
+      "path": "backends/metal/evidence/0053/manifests/sites.json",
+      "sha256": "287d316e0aff29ac743dab045d7b339e1753013468295276fc80842c78f55131"
+    },
+    {
+      "path": "backends/metal/evidence/0053/manifests/toolchain.json",
+      "sha256": "1967fe5970ffc6a8130d565da48a215ee96709e5e3df9428adc7cf31ae222168"
+    },
+    {
+      "path": "backends/metal/evidence/0053/model/task0053_model.c",
+      "sha256": "88e44de24050db489d6f7c34711400f844e9d7de04b5c6cbdb0a7e6c6fcc2927"
+    },
+    {
+      "path": "backends/metal/evidence/0053/model/task0053_model.h",
+      "sha256": "9cef7979aa6211fe74571f9b027e7f6c0fc8f9e86fdf9b045d06da29bcae950f"
+    },
+    {
+      "path": "backends/metal/evidence/0053/proof/Task0053Generated.lean",
+      "sha256": "e6941941c11d5f9575937dacf0c434c7c14a4299ee7dde9bcd06ab59d593600f"
+    },
+    {
+      "path": "backends/metal/evidence/0053/proof/Task0053Structural.lean",
+      "sha256": "ecfdbedee86c5d7997d176e973f1465555e1dbbc9ab716be107f60d62cea35d1"
+    },
+    {
+      "path": "backends/metal/evidence/0053/proof/polynomial.sollya",
+      "sha256": "c588249fc9af05a1bf61542b555aae84d5ea6d7a738e7aa8861740b40a3144cf"
+    },
+    {
+      "path": "backends/metal/evidence/0053/run-proof.sh",
+      "sha256": "173c2b1253a3d1176b6b84f2fb68a221d86536664eb98ea7ab8ebcf915c484dc"
+    },
+    {
+      "path": "backends/metal/evidence/0053/tools/assert_proof_gate.py",
+      "sha256": "2f515bc378040e2726dc704f9262dd59b6ec6570c809ffbea37c867ca1305783"
+    },
+    {
+      "path": "backends/metal/evidence/0053/tools/audit_source.py",
+      "sha256": "cf5d96f69f95cf4f25113f77b4caf1738fb59c76f56c6cb2f696af921ac56581"
+    },
+    {
+      "path": "backends/metal/evidence/0053/tools/generate_constants.c",
+      "sha256": "f28e96d6cf05e195f2a49e0695fb53916454b432b4e2c03ded15576f262830f5"
+    },
+    {
+      "path": "backends/metal/evidence/0053/tools/generate_lean_constants.py",
+      "sha256": "2995883ba2ecd0ad5be7d626de39f8fe5ddd2505a7f58df136ed8ca2f725bf09"
+    },
+    {
+      "path": "backends/metal/evidence/0053/tools/verify_toolchain.py",
+      "sha256": "babf7b6906c1b81f542741978838a4d8e375b72da214d3cc3db80254bd757c61"
+    },
+    {
+      "path": "backends/metal/evidence/0053/tools/write_manifest.py",
+      "sha256": "5d23b302419ca0736e03165c14ed7cdcf68767fe11aebe84de6758528e32fe57"
+    },
+    {
+      "path": "backends/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalMpsGraphRawAbiNativeTest.java",
+      "sha256": "71743878a1f9106ade49021fa1e068968f5b28665cb50fb6cc219d8dac9f6ee5"
+    },
+    {
+      "path": "native/metal-macos-arm64/build.sh",
+      "sha256": "7e2bb6f1f8b1e9b5105e94560a3b194b993ec011f50d38a40caf8bc2d32c12b0"
+    },
+    {
+      "path": "native/metal-macos-arm64/generate-task0053-header.py",
+      "sha256": "8687de4966396f69d8c77731cfea5ad9aa00c79e75a458064f07c0e0acc9c9f1"
+    },
+    {
+      "path": "native/metal-macos-arm64/src/synaptik_metal_foundation.m",
+      "sha256": "a1ee6b56dad61a96f770c8bdfac615e4f49a038f711176e52205e1e3ff4854a0"
+    },
+    {
+      "path": "native/metal-macos-arm64/src/synaptik_task0053_candidate_kernels.h",
+      "sha256": "c1f4bf5b94fb27de8c699a7d492a9e69687acb85f8d5de53747ee6ddd550f54c"
+    },
+    {
+      "path": "native/metal-macos-arm64/src/task0053_candidate.metal",
+      "sha256": "d6a89170275415838cc52a110f9380a2d2fbadc62a2e99d9735d38444fa599c7"
+    },
+    {
+      "path": "native/metal-macos-arm64/src/task0053_integer_core.h",
+      "sha256": "28b259bbe8211b33818ea355b589a9d5793fa91527f76dbe8f5373d46b27755e"
+    }
+  ],
+  "schema": "synaptik-metal-task0053-top-manifest-v1",
+  "selfExcluded": "backends/metal/evidence/0053/manifests/top-manifest.json"
+}

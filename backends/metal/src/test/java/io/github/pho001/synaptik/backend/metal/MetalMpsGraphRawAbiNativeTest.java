@@ -55,6 +55,12 @@ class MetalMpsGraphRawAbiNativeTest {
         byte[] image = program.encodedProgramImage(values, new int[] {0, 1, 2}, new int[] {3});
         try (RawAbi abi = new RawAbi(library)) {
             assertEquals(13, abi.create(image, image.length));
+            for (MetalMpsGraphProgram.NodeKind kind : List.of(
+                    MetalMpsGraphProgram.NodeKind.EXP,
+                    MetalMpsGraphProgram.NodeKind.SIGMOID)) {
+                byte[] blocked = unaryImage(kind);
+                assertEquals(13, abi.create(blocked, blocked.length));
+            }
             assertEquals(1, abi.create(
                     rewriteLong(image, image.length - Long.BYTES, 2L), image.length));
             int referencesOffset = MetalMpsGraphProgram.HEADER_BYTES
@@ -71,6 +77,14 @@ class MetalMpsGraphRawAbiNativeTest {
     private static byte[] validNegImage() {
         var program = new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.neg(0, 1)));
         return program.encodedProgramImage(
+                List.of(descriptor(4), descriptor(4)), new int[] {0}, new int[] {1});
+    }
+
+    private static byte[] unaryImage(MetalMpsGraphProgram.NodeKind kind) {
+        var node = MetalMpsGraphProgram.Node.generic(
+                kind, new int[] {0}, new int[] {1},
+                MetalMpsGraphProgram.AttributeKind.NONE, new long[0]);
+        return new MetalMpsGraphProgram(List.of(node)).encodedProgramImage(
                 List.of(descriptor(4), descriptor(4)), new int[] {0}, new int[] {1});
     }
 
