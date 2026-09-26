@@ -227,13 +227,15 @@ class MetalMpsGraphMatmulNativeTest {
     void customProgramKeepsTransposedRankTwoFloatMatmulAsNestedMpsGraphStep() {
         Path library = configuredLibrary();
         Shape leftShape = Shape.of(2, 3);
+        Shape rightShape = Shape.of(3, 2);
         var program = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.permutation(0, 1, List.of(1, 0)),
-                MetalMpsGraphProgram.Node.matmul(1, 2, 3),
+                MetalMpsGraphProgram.Node.permutation(2, 3, List.of(1, 0)),
+                MetalMpsGraphProgram.Node.matmul(1, 3, 4),
                 MetalMpsGraphProgram.Node.generic(
                         MetalMpsGraphProgram.NodeKind.FLOOR,
-                        new int[] {3},
                         new int[] {4},
+                        new int[] {5},
                         MetalMpsGraphProgram.AttributeKind.NONE,
                         new long[0])));
         List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
@@ -245,20 +247,27 @@ class MetalMpsGraphMatmulNativeTest {
                                 leftShape, new long[] {1, 2}, 0L, true)),
                         false,
                         true),
-                typed(DataType.FLOAT32, 3, 1),
-                typed(DataType.FLOAT32, 2, 1),
-                typed(DataType.FLOAT32, 2, 1));
+                typed(DataType.FLOAT32, 2, 3),
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.FLOAT32,
+                        rightShape.toLongArray(),
+                        Optional.of(LayoutDescriptor.of(
+                                rightShape, new long[] {1, 3}, 0L, true)),
+                        false,
+                        true),
+                typed(DataType.FLOAT32, 2, 2),
+                typed(DataType.FLOAT32, 2, 2));
         List<byte[]> actual = executeCustom(
                 library,
                 NumericalProfile.ACCELERATOR,
                 program,
                 values,
                 new int[] {0, 2},
-                new int[] {4},
+                new int[] {5},
                 List.of(
                         floatBytes(1, 4, 2, 5, 3, 6),
-                        floatBytes(1, 10, 100)));
-        assertArrayEquals(floatBytes(321, 654), actual.getFirst());
+                        floatBytes(1, 0, 1, 0, 1, 1)));
+        assertArrayEquals(floatBytes(4, 5, 10, 11), actual.getFirst());
     }
 
     @Test
