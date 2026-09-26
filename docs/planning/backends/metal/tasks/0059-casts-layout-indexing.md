@@ -2,16 +2,18 @@
 
 ## Status
 
-Reopened for the schema/layout representation cutover required to admit `SELECT` and `SLICE`.
-The earlier schema-14 implementation remains the audited baseline at `08bf68bb` with focused proof
-at `a4926b52`; the reopened work is not Complete until the new schema-15 implementation, focused
-proof, independent cumulative review, and final evidence are committed.
+Complete at schema/layout cutover plan `6478d249`, implementation and focused proof `783eabe1`,
+package/schema documentation remediation `ac0db5c4`, BOOL atomic-publication proof `536e52b8`, and
+cumulative review remediation `02a097eb`. Independent cumulative Class C review of
+`6478d249..02a097eb` returned `APPROVE` with zero remaining P0/P1/P2 findings. The earlier
+schema-14 implementation remains the audited baseline at `08bf68bb` with focused proof at
+`a4926b52`.
 
 ## Change class
 
-Class C. This is one serial Metal capability, route, native decoder, exact custom-kernel,
-preflight, mixed-program, public Engine, package, test, evidence, and documentation change. It
-changes no public API and no Model semantics.
+Class C. This was one serial Metal capability, route, native decoder, exact custom-kernel,
+preflight, mixed-program, public Engine, package, test, evidence, documentation, and narrow public
+CPU/Metal storage-layout transfer API cutover. It changes no Model semantics.
 
 ## Goal and exact inventory
 
@@ -236,7 +238,7 @@ previous nine newly true operation kinds plus `SELECT` and `SLICE`. The structur
 exactly `79 executable / 36 nonexecutable`; their structural MPSGraph recipes are independent of
 the fixed custom production route.
 
-## Reopened completion evidence
+## Completion evidence
 
 - Production capability is exactly `61 true / 54 false`: the prior nineteen CAST pairs, exact
   `GATHER_ELEMENTS`/`GATHER_ND`, six copy-only layout routes, plus SELECT and positive-step SLICE.
@@ -254,9 +256,9 @@ the fixed custom production route.
   and untouched prefix/gap canaries. Focused native schema, malformed-image, indexing,
   rank-sixteen, and existing structural controls also passed.
 - Public storage-layout transfer covers SELECT and SLICE boundaries, preserves complete physical
-  spans, and rejects unresolved, zero-stride, negative-stride, and overlapping geometry.
-  Metal-to-CPU BOOL download stages and validates every logical byte before committing, so a
-  malformed device value leaves the caller destination unchanged.
+  spans, and rejects unresolved, zero-stride, negative-stride, overlapping, and byte-overflowing
+  geometry. Metal-to-CPU BOOL download uses cold private staging and validates every logical byte
+  before committing, so a malformed device value leaves the caller destination unchanged.
 - The public Engine partition boundary admits a graph-input storage layout through forced
   SELECT-to-SLICE owner boundaries and rejects unsupported transfer geometry. Authenticated
   SELECT publication gathers exact canonical bits for all six carriers.
@@ -264,5 +266,7 @@ the fixed custom production route.
   verified with ABI 5, schema 15, and thirteen exports. The complete Metal JVM suite, focused
   real-native suites, CPU transfer API proof, Engine boundary proof, and changed-module Javadocs
   passed. Per plan, no final full repository build was run.
-- Independent cumulative Class C review and any required P0/P1/P2 remediation remain before this
-  task may return to Complete.
+- Independent cumulative Class C review covered `6478d249..02a097eb` and returned `APPROVE` with
+  zero remaining P0/P1/P2. Remediation closed package-manifest/schema drift, stale current
+  documentation, transfer-predicate byte overflow, misleading raw-borrow documentation, hot BOOL
+  staging allocation, and strengthened the atomic no-partial-publication proof.

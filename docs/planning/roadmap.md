@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Task 0059 reopened for cumulative review; 0053 Blocked | [Metal 0059](backends/metal/tasks/0059-casts-layout-indexing.md) has landed its schema-15/identity-16 storage-layout implementation and focused proof from reopened plan `6478d249`; the required independent cumulative Class C review/remediation remains. Current production is exact `61 true / 54 false` and structural coverage is `79 / 36`. All-carrier SELECT and positive-step SLICE accept resolved positive-stride non-overlapping layouts; unresolved, zero/negative-stride, overlapping, out-of-span, gradient, scatter/slice-update/fold, dynamic, and unproved conversion domains remain false. ABI 5 and thirteen exports remain fixed. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0059; 0053 Blocked | [Metal 0059](backends/metal/tasks/0059-casts-layout-indexing.md) completed from cutover plan `6478d249` through cumulative remediation `02a097eb`; independent Class C review returned `APPROVE` with zero P0/P1/P2. Production is exact `61 true / 54 false` and structural coverage is `79 / 36`. All-carrier SELECT and positive-step SLICE accept resolved positive-stride non-overlapping layouts; unresolved, zero/negative-stride, overlapping, out-of-span, gradient, scatter/slice-update/fold, dynamic, and unproved conversion domains remain false. Schema 15, identity 16, ABI 5, and thirteen exports are fixed. No Metal task is Ready. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -326,7 +326,7 @@ The active semantic and Metal serial DAG is:
 
 `Metal 0057 (Complete) + approved tensor arithmetic/result-set contracts -> Metal 0058 (Complete)`
 
-`Metal 0058 (Complete) + current cast/layout/indexing contracts -> Metal 0059 (Reopened; review pending)`
+`Metal 0058 (Complete) + current cast/layout/indexing contracts -> Metal 0059 (Complete)`
 
 `Metal 0022/0023/0024/0025 (Complete) + finalized evidence through Metal 0037 -> Metal 0038 (Complete)`
 
@@ -653,18 +653,17 @@ matrix with narrowing, or infer capability from registered schema.
 
 ## Nearest next step
 
-Metal Task 0059 is reopened from schema/layout cutover plan `6478d249`. Its implementation and
-focused proof are present; independent cumulative Class C review and any P0/P1/P2 remediation remain
-before completion. It owns exactly `CAST` wire 39, indexing wires `69..73`, and layout wires
-`74..84`; already approved layout/indexing wires `6..19` remain regression scope. Production is
-exact `61 true / 54 false`: the earlier nineteen CAST pairs, exact
-`GATHER_ELEMENTS`/`GATHER_ND`, six copy-only layout routes, plus all-carrier SELECT and positive-step
-SLICE over exact resolved positive-stride non-overlapping storage layouts. Unresolved,
-zero/negative-stride, overlapping, out-of-span, gradient-bearing, scatter, slice-update, fold,
-dynamic/empty, and unproved CAST domains remain false. Structural execution remains exact
-`79 / 36`. Schema 15, identity 16, ABI 5, and thirteen exports are fixed; no fallback, retry,
-timing, autotuning, or final full build was used. Task-0053 `EXP`/`SIGMOID` remain untouched.
-No other Metal production task is Ready.
+No Metal task is Ready. Metal Task 0059 completed from schema/layout cutover plan `6478d249`
+through implementation/proof `783eabe1`, package/docs remediation `ac0db5c4`, BOOL proof
+`536e52b8`, and cumulative review remediation `02a097eb`; independent Class C review of
+`6478d249..02a097eb` returned `APPROVE` with zero P0/P1/P2. Production is exact
+`61 true / 54 false`: the earlier nineteen CAST pairs, exact `GATHER_ELEMENTS`/`GATHER_ND`, six
+copy-only layout routes, plus all-carrier SELECT and positive-step SLICE over exact resolved
+positive-stride non-overlapping storage layouts. Unresolved, zero/negative-stride, overlapping,
+out-of-span, gradient-bearing, scatter, slice-update, fold, dynamic/empty, and unproved CAST
+domains remain false. Structural execution is exact `79 / 36`. Schema 15, identity 16, ABI 5, and
+thirteen exports are fixed; no fallback, retry, timing, autotuning, or final full build was used.
+Task-0053 `EXP`/`SIGMOID` remain untouched and Blocked.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
@@ -779,10 +778,9 @@ gradient obligations. Unblocking requires a conforming custom or proved selector
 complete five-input/two-output/caller-INT64 schema, native lifecycle, and proof.
 
 Schema 15, operation wires `1..115`, attributes `0..41`, local types `1..6`, ABI 5, and
-version-sixteen identities are current in reopened Task 0059 pending cumulative review. Complete
-Tasks 0055–0058 remain historical foundation/catalog/route prerequisites; blocked Metal 0053
-remains fail-closed without production capability. Metal 0026/0027 remain separately finalized
-Blocked.
+version-sixteen identities are current after completed Task 0059. Complete Tasks 0055–0058 remain
+historical foundation/catalog/route prerequisites; blocked Metal 0053 remains fail-closed without
+production capability. Metal 0026/0027 remain separately finalized Blocked.
 Documentation/audit-only Metal 0038 is Complete. Planning-only Metal 0039 is Blocked on Draft Model
 0026. Metal 0040 is Blocked by its failed one-execution BFLOAT16 raw-bit gate. Metal 0041 is
 Complete at implementation `ba16d942` plus remediation `386705ca`; Metal 0042 is Complete at
