@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Task 0058 Active; 0053 Blocked | [Metal 0058](backends/metal/tasks/0058-remaining-elementwise-arithmetic.md) retains its completed exact raw unary work and is reopened for only ACCELERATOR canonical positive-rank FLOAT32 no-gradient scalar `ADD/SUB/MUL/DIV` and `RECIPROCAL`. Implementation checkpoint `5ab9c44c` reaches `50 true / 65 false`; final focused verification and cumulative Class C rereview remain. Task 0053 is untouched. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Task 0058 Complete; 0053 Blocked | [Metal 0058](backends/metal/tasks/0058-remaining-elementwise-arithmetic.md) retains exact raw `FLOOR`/`CEIL`/`SIGN`/`RELU` and admits only ACCELERATOR canonical positive-rank FLOAT32 no-gradient scalar `ADD/SUB/MUL/DIV` and `RECIPROCAL`. Implementation `5ab9c44c` plus contracts/evidence `63c070cc` reached `50 true / 65 false`; independent cumulative Class C review approved with zero P0/P1/P2. Task 0053 is untouched. No Metal task is Ready. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -171,8 +171,8 @@ passes are regression evidence only: direct EXP lacks an authoritative all-binar
 contract and is `DOMAIN-BLOCKED`; the composition inherits that blocker. Task 0051 froze the proof
 obligations and remains historical. Task 0053 retained its integer-only candidate and finite proof
 certificate, but is now Blocked on an unavailable pinned no-axiom constructive-real exponential
-bridge; its checkpoint review granted no `DOMAIN-PASS`. Task 0057 is Complete and Task 0058 is
-Active again without Task-0053 scope. Task 0051 reserved no production vocabulary; Task 0052 later
+bridge; its checkpoint review granted no `DOMAIN-PASS`. Tasks 0057 and 0058 are Complete without
+Task-0053 scope. Task 0051 reserved no production vocabulary; Task 0052 later
 consumed wires `20..34`, and current schema 14 registers `EXP=55`/`SIGMOID=64` without making them
 executable.
 CPU requires no migration because its exact realizations remain valid members of the widened result
@@ -234,12 +234,13 @@ through fixed custom raw/integer production semantics plus independently forceab
 MPSGraph structural candidates; wire `73 SELECT` is excluded. ABI 5 and the thirteen exports
 remain fixed while the route-bearing image and identities advance to schema 14 and version 15.
 
-[Metal 0058](backends/metal/tasks/0058-remaining-elementwise-arithmetic.md) originally completed
-from plan `6181299a`, plan review `c6145b09`, implementation `13a2e540`, and evidence/contracts
-`ac261e88`. It implements every remaining elementwise arithmetic MPSGraph recipe and proves exact
-raw `FLOOR`/`CEIL`/`SIGN`/`RELU` over all binary32 words. The authorized extension at plan
-`0dba3035` and implementation checkpoint `5ab9c44c` admits only ACCELERATOR canonical positive-rank
-FLOAT32 no-gradient scalar `ADD/SUB/MUL/DIV` and `RECIPROCAL`. Power, unproved
+[Metal 0058](backends/metal/tasks/0058-remaining-elementwise-arithmetic.md) is Complete. Its
+original phase used plan `6181299a`, plan review `c6145b09`, implementation `13a2e540`, and
+evidence/contracts `ac261e88` to implement every remaining elementwise arithmetic MPSGraph recipe
+and prove exact raw `FLOOR`/`CEIL`/`SIGN`/`RELU` over all binary32 words. The authorized extension
+at plan `0dba3035`, implementation `5ab9c44c`, and contracts/evidence `63c070cc` admits only
+ACCELERATOR canonical positive-rank FLOAT32 no-gradient scalar `ADD/SUB/MUL/DIV` and `RECIPROCAL`;
+independent cumulative Class C review approved with zero P0/P1/P2. Power, unproved
 elementary/transcendental, and recursively blocked composite rows remain false. `EXP`/`SIGMOID`
 remain Task-0053-owned and untouched.
 
@@ -323,7 +324,7 @@ The active semantic and Metal serial DAG is:
 
 `Metal 0052 (Complete) -> Metal 0055 (Complete) -> Metal 0056 (Complete) -> {Metal 0053 (Blocked), Metal 0057 (Complete)}`
 
-`Metal 0057 (Complete) + approved tensor arithmetic/result-set contracts -> Metal 0058 (Active extension)`
+`Metal 0057 (Complete) + approved tensor arithmetic/result-set contracts -> Metal 0058 (Complete)`
 
 `Metal 0022/0023/0024/0025 (Complete) + finalized evidence through Metal 0037 -> Metal 0038 (Complete)`
 
@@ -525,11 +526,10 @@ Metal 0025 remains Complete at reviewed revision `f88066e3`; its schema-11/versi
 historical. Blocked 0026–0027/0030–0037/0039–0040 changed no executable capability. Complete 0041
 changes no capability. Metal 0042 still exposes only bounded singleton-NEG local tuning. Historical
 0051 added no current wire. Blocked Task 0053 still adds no wire or capability before its external
-proof prerequisite. Task 0057 is Complete and Task 0058 is Active for the bounded no-gradient
-scalar/reciprocal extension. Metal 0052, superseded historical audit 0054, and foundations
-0055/0056 are Complete; 0047/0051/0053 remain Blocked. Task 0055's schema-13/identity-14 foundation
-and Task 0056's catalog/fixed-identity architecture are historical prerequisites; no backend task
-may define Model semantics.
+proof prerequisite. Tasks 0057 and 0058 are Complete. Metal 0052, superseded historical audit
+0054, and foundations 0055/0056 are Complete; 0047/0051/0053 remain Blocked. Task 0055's
+schema-13/identity-14 foundation and Task 0056's catalog/fixed-identity architecture are historical
+prerequisites; no backend task may define Model semantics.
 
 Complete Model 0028 owns bounded reduction exact-zero sign freedom; Complete Metal 0020
 implements that rule under accelerator only. Blocked Metal 0018 retains its unchanged historical
@@ -649,13 +649,13 @@ matrix with narrowing, or infer capability from registered schema.
 
 ## Nearest next step
 
-Metal Task 0058 is Active. It consumes Task 0057's schema-14, identity-15, shared `CUSTOM_PROGRAM`
-route and Task 0056's exhaustive catalog without changing ABI 5 or its thirteen exports. It retains
-exact raw/integer `FLOOR`/`CEIL`/`SIGN`/`RELU` and now admits only ACCELERATOR canonical
-positive-rank FLOAT32 no-gradient scalar `ADD/SUB/MUL/DIV` and `RECIPROCAL`, reaching
+Metal Task 0058 is Complete. It consumes Task 0057's schema-14, identity-15, shared
+`CUSTOM_PROGRAM` route and Task 0056's exhaustive catalog without changing ABI 5 or its thirteen
+exports. It retains exact raw/integer `FLOOR`/`CEIL`/`SIGN`/`RELU` and admits only ACCELERATOR
+canonical positive-rank FLOAT32 no-gradient scalar `ADD/SUB/MUL/DIV` and `RECIPROCAL`, reaching
 `50 true / 65 false`. Every scoped MPSGraph recipe remains structural, while power, unproved
 elementary/transcendental, and recursively blocked composite rows remain false. Task-0053
-`EXP`/`SIGMOID` are untouched. Final focused verification and cumulative Class C rereview remain.
+`EXP`/`SIGMOID` are untouched. No Metal task is Ready.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly

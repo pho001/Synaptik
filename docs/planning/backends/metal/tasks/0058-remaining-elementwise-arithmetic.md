@@ -2,10 +2,11 @@
 
 ## Status
 
-Active
+Complete
 
-The original bounded implementation completed through `5760901b`. A follow-on authorization
-reopens Task 0058 for the exact ACCELERATOR no-gradient scalar/reciprocal subset below.
+The original bounded implementation completed through `5760901b`. The authorized ACCELERATOR
+no-gradient scalar/reciprocal extension completed at implementation `5ab9c44c`, contracts/evidence
+`63c070cc`, and independent cumulative Class C approval with zero P0/P1/P2.
 
 ## Change class
 
@@ -279,7 +280,7 @@ creation. Update the capability ledger from `45/70` to exactly `50 true / 65 fal
 a final full build, and obtain a fresh independent cumulative Class C approval before returning
 this task to Complete.
 
-### Extension implementation checkpoint
+### Extension implementation evidence
 
 Implementation `5ab9c44c` admits exactly wires `46..49` and `52` for ACCELERATOR canonical
 positive-rank FLOAT32 no-gradient input/output occurrences. Wire `50` and every other prior blocker
@@ -301,7 +302,13 @@ Focused capability/catalog/schema/route/fingerprint/native-malformed tests, back
 and the public Metal-only Engine scenario passed against the rebuilt native library. The public
 scenario exercises both scalar zero signs, signed subnormals, infinities, quiet/signaling NaNs,
 SUB/DIV operand order, both zero denominators, reciprocal, repeated execution, input preservation,
-sole Metal ownership, and pre-native gradient rejection. Native build, fixed ad-hoc signing, and
-local package publication passed. No timing, benchmark, autotuning, fallback, retry, or final full
-repository build ran. Final package/export/Javadoc/documentation checks and the independent
-cumulative Class C rereview remain before completion.
+sole Metal ownership, and pre-native gradient rejection. Native build, fixed ad-hoc signing, local
+package publication, native and Gradle package verification, the exact thirteen-export audit,
+Metal Javadoc, a targeted ten-file/617-link Markdown path/anchor/fence/newline/whitespace check, and
+final diff/clean-worktree validation passed. No timing, benchmark, autotuning, fallback, retry, or
+final full repository build ran.
+
+The independent cumulative Class C review of `5ab9c44c`/`63c070cc` returned `APPROVE` with zero
+P0/P1/P2. It verified exact four-byte Shape `[1]` raw constants, operand order, the no-gradient
+ACCELERATOR-only domain, identity/fingerprint coverage, `50/65` capability, `62/53` structural
+coverage, unchanged blocked rows, and public Engine semantics and lifecycle.
