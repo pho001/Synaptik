@@ -770,7 +770,7 @@ class MetalNegPreparedExecutionTest {
     }
 
     @Test
-    void rankZeroStorageTransfersCoverAllTypesAndRejectInvalidBoolWithoutPartialPublish() {
+    void storageTransfersCoverRankZeroAllTypesAndRejectInvalidBoolWithoutPartialPublish() {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
         MetalBackendRuntime runtime = new MetalBackendRuntime(context);
@@ -808,29 +808,37 @@ class MetalNegPreparedExecutionTest {
                 }
             }
 
-            MemorySegment invalidBool = arena.allocate(1L, 1L);
-            invalidBool.set(JAVA_BYTE, 0L, (byte) 2);
+            MemorySegment invalidBool = arena.allocate(3L, 1L);
+            invalidBool.set(JAVA_BYTE, 0L, (byte) 0);
+            invalidBool.set(JAVA_BYTE, 1L, (byte) 2);
+            invalidBool.set(JAVA_BYTE, 2L, (byte) 1);
             int uploadsBeforeInvalid = api.uploads.get();
+            Shape boolShape = Shape.of(3);
             TensorDescriptor boolDescriptor = new TensorDescriptor(
                     DataType.BOOL,
-                    Shape.scalar(),
-                    Optional.of(LayoutDescriptor.contiguous(Shape.scalar())),
+                    boolShape,
+                    Optional.of(LayoutDescriptor.contiguous(boolShape)),
                     false);
             try (var invalidDevice = runtime.borrow(
-                    new MemorySegmentStorage(DataType.BOOL, 1L, invalidBool))) {
-                MemorySegment untouched = arena.allocate(1L, 1L);
-                untouched.set(JAVA_BYTE, 0L, (byte) 0x5a);
+                    new MemorySegmentStorage(DataType.BOOL, 3L, invalidBool))) {
+                MemorySegment untouched = arena.allocate(3L, 1L);
+                untouched.fill((byte) 0x5a);
                 assertThrows(IllegalArgumentException.class,
                         () -> runtime.bindStorageLayoutDownload(
                                 invalidDevice, boolDescriptor).accept(untouched));
-                assertEquals((byte) 0x5a, untouched.get(JAVA_BYTE, 0L));
+                for (int index = 0; index < 3; index++) {
+                    assertEquals((byte) 0x5a, untouched.get(JAVA_BYTE, index),
+                            "failed BOOL validation must not partially publish");
+                }
             }
             assertEquals(uploadsBeforeInvalid + 1, api.uploads.get());
 
-            MemorySegment validBool = arena.allocate(1L, 1L);
-            validBool.set(JAVA_BYTE, 0L, (byte) 1);
+            MemorySegment validBool = arena.allocate(3L, 1L);
+            validBool.set(JAVA_BYTE, 0L, (byte) 0);
+            validBool.set(JAVA_BYTE, 1L, (byte) 1);
+            validBool.set(JAVA_BYTE, 2L, (byte) 0);
             try (var destination = runtime.borrow(
-                    new MemorySegmentStorage(DataType.BOOL, 1L, validBool))) {
+                    new MemorySegmentStorage(DataType.BOOL, 3L, validBool))) {
                 assertThrows(IllegalArgumentException.class,
                         () -> runtime.bindStorageLayoutUpload(destination, boolDescriptor)
                                 .accept(invalidBool));
