@@ -155,13 +155,14 @@ Training-to-Metal optimizer bridge.
   storage layouts; unresolved, zero/negative-stride, overlapping, out-of-span, gradient-bearing,
   empty, and reduction/update/fold domains remain false. Schema 15 and identity 16 replace schema
   14/identity 15; ABI 5 and thirteen exports remain.
-- Task 0060 is Ready from clean base `f3ad5e12` as the sole active Metal production scope. It
-  inventories wires `70`, `72`, `76`, `80`, `82`, `84`, and `106..115`; pool wires `97..100`
-  remain deferred. The bounded target admits only replacement SCATTER_ND, replacement SLICE_UPDATE,
-  non-overlapping exact-copy folds, modular integer PROD, and BOOL ALL/ANY, for exact capability
-  `69/46`. SCATTER_ADD, aggregate reduction variants, overlapping folds, ARG extrema, and advanced
-  floating aggregates remain false with explicit blockers. Eight aggregate MPSGraph structures
-  target `87/28`; schema 15, identity 16, ABI 5, and thirteen exports remain fixed.
+- Task 0060 is Complete from clean base `f3ad5e12`: planning `dd94e492`, implementation
+  `d06db07e`, native/public Engine proof `eda09533`, and backend/native documentation `62f18cd8`.
+  Independent cumulative Class C review of `dd94e492..62f18cd8` returned `APPROVE` with zero
+  P0/P1/P2. It admits only replacement SCATTER_ND, signed/crop SLICE_UPDATE, non-overlapping
+  all-carrier exact-copy/zero-fill folds, modular INT32/INT64 PROD, and BOOL ALL/ANY. Capability is
+  exactly `69/46`, structural execution `87/28`, the MPSGraph catalog `75/35/5`, and custom catalog
+  `46/69/0`. SCATTER_ADD, scatter reductions, overlapping folds, ARG extrema, and advanced floating
+  aggregates remain false. Schema 15, identity 16, ABI 5, and thirteen exports remain fixed.
 - Historical 0006, 0007, and 0009 remain Blocked records. Profile-qualified 0016 is also Blocked:
   its broad gate proved only exact `ABS`, while `EXP`/`SIGMOID` failed unchanged no-FTZ and one-ULP
   requirements. Metal 0017 remains Blocked under its old accelerator-reduction contract.
@@ -356,7 +357,7 @@ before extracting a package or widening another type.
 | 0057 | [Exact BOOL classification, logic, and WHERE](tasks/0057-exact-bool-classification-logic-where.md) | Complete | 0052, 0055, and 0056 Complete; exact Model classification/logical/WHERE semantics; Compiler/Prepare/Runtime/Engine contracts; ADR 0022 | Every concurrent Metal capability/schema/native/generated-kernel/candidate/codec/route/preparation/finalization/buffer/publication/trace/test/package/documentation scope; any resumed 0053 work | None | Planning `8927a0f2` → implementation `e5d9d5c7` → approved validation remediation `7a3bb072` | Native/export/package; focused Metal/schema/malformed controls; `41/74` capability; exact raw-bit/truth-table/broadcast/WHERE; public no-skip Engine route/liveness proof; final Class C approval; docs/diff; no timing or full build | Adds wires `40..45` and `51` under both profiles through fixed `CUSTOM_PROGRAM`, retains forceable singleton MPSGraph structure, excludes wire `73`, advances schema/identities to 14/15, and preserves ABI 5 with thirteen exports. |
 | 0058 | [Remaining elementwise arithmetic](tasks/0058-remaining-elementwise-arithmetic.md) | Complete | 0015, 0052, 0055, 0056, and 0057 Complete; Task-0011 blocker evidence; current Model recursive result-set contracts; Compiler/Prepare/Runtime/Engine contracts | Every concurrent Metal capability/schema/native/custom-source/catalog/candidate/route/preparation/resource/publication/test/package/documentation scope; any resumed 0053 work | None | Original plan `6181299a` → original implementation/evidence through `5760901b` → extension plan `0dba3035` → implementation `5ab9c44c` → contracts/evidence `63c070cc` → cumulative Class C approval with zero P0/P1/P2 | Retained all-`2^32` exact-unary proof; native/package/export; exact `50/65` capability; `62/53` structural registry; scalar raw-word/operand-order/gradient rejection; public no-skip Engine; Javadoc/Markdown/diff; no timing or full build | Keeps exact raw `FLOOR`/`CEIL`/`SIGN`/`RELU`; admits only ACCELERATOR canonical positive-rank FLOAT32 no-gradient scalar `ADD/SUB/MUL/DIV` and `RECIPROCAL` using one exact rank-one raw constant and one binary primitive; keeps scalar/tensor power, elementary/recursive blockers, and Task-0053 `EXP`/`SIGMOID` false. |
 | 0059 | [Casts, layout, and indexing](tasks/0059-casts-layout-indexing.md) | Complete | 0055–0058 Complete; current Model cast/layout/indexing contracts; Compiler/Prepare/Runtime/Engine contracts; reviewer inventory from clean `67d68071` | Every concurrent Metal capability/schema/native/custom-source/catalog/candidate/route/preparation/resource/publication/test/package/documentation scope; any resumed 0053 work | None | Cutover plan `6478d249` → implementation/proof `783eabe1` → package/docs `ac0db5c4` → BOOL proof `536e52b8` → cumulative review remediation `02a097eb` → independent Class C `APPROVE` with zero P0/P1/P2 | Complete Metal JVM and focused native/schema/indexing/SELECT-SLICE suites; CPU/public Engine transfer proof; package/Gradle verification; changed-module Javadocs; no final full repository build | Landed exact `61/54` capability and `79/36` structural coverage; schema 15, identity 16, ABI 5, thirteen exports; all-carrier resolved positive-stride SELECT/SLICE; exact physical-span transfer and publication; every excluded domain remains false |
-| 0060 | [Exact replacement, non-overlap fold, and aggregate reductions](tasks/0060-exact-replacement-fold-and-aggregate-reductions.md) | Ready | 0059 Complete at `f3ad5e12`; current Model scatter/slice/fold/aggregate contracts; Compiler/Prepare/Runtime/Engine contracts | Every concurrent Metal capability/schema/native/custom-source/catalog/candidate/route/preparation/resource/publication/test/package/documentation scope; pooling and ordering successors; any resumed 0053 work | None | Plan first from clean `f3ad5e12`; implementation → focused proof/package/docs → cumulative Class C review/remediation | Target exact `69/46` capability, `87/28` structural execution, unchanged schema 15/identity 16/ABI 5/13 exports; no final full build | Admit only replacement SCATTER_ND/SLICE_UPDATE, non-overlap exact-copy folds, modular integer PROD, and BOOL ALL/ANY; retain all additive/overlap/ordering/advanced-floating blockers |
+| 0060 | [Exact replacement, non-overlap fold, and aggregate reductions](tasks/0060-exact-replacement-fold-and-aggregate-reductions.md) | Complete | 0059 Complete at `f3ad5e12`; current Model scatter/slice/fold/aggregate contracts; Compiler/Prepare/Runtime/Engine contracts | Every concurrent Metal capability/schema/native/custom-source/catalog/candidate/route/preparation/resource/publication/test/package/documentation scope; pooling and ordering successors; any resumed 0053 work | None | Plan `dd94e492` → implementation `d06db07e` → proof `eda09533` → docs `62f18cd8` → independent cumulative Class C `APPROVE` with zero P0/P1/P2 | Complete Metal tests; packaged-dylib public Engine repetition/concurrency/failure recovery; package verifier; Javadocs; no final full build by request | Exact `69/46` capability and `87/28` structural execution; unchanged schema 15/identity 16/ABI 5/13 exports; replacement-only Scatter-ND/slice-update, all-carrier non-overlap folds, modular integer PROD, BOOL ALL/ANY; blockers remain false |
 
 ## Dependency DAG and authorized frontiers
 
@@ -402,7 +403,7 @@ Completed profile spine and serial successors:
 
 `0058 (Complete) + current cast/layout/indexing contracts -> 0059 (Complete)`
 
-`0059 (Complete) + current replacement/fold/aggregate contracts -> 0060 (Ready)`
+`0059 (Complete) + current replacement/fold/aggregate contracts -> 0060 (Complete)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -534,10 +535,9 @@ another.
   0042 retains its reviewed tuning collaborations and Engine integration. Task 0044 changed neither
   production surface.
 - Blocked Metal 0016–0018, 0026–0027, 0030–0037, 0039–0040, 0051, and 0053 have no active
-  production write scope. Task 0060 is the sole Ready Metal task and owns only its exact
-  replacement/non-overlap/integer/BOOL reduction slice. Model 0028 owns the reduction semantic
-  contract, Complete Model 0029 owns the MATMUL final-publication semantic contract, and Complete
-  Metal 0021–0025 retain their reviewed implementations.
+  production write scope. Task 0060 is Complete and no Metal production task is Ready. Model 0028
+  owns the reduction semantic contract, Complete Model 0029 owns the MATMUL final-publication
+  semantic contract, and Complete Metal 0021–0025 retain their reviewed implementations.
 
 ## Milestones and current frontier
 
@@ -641,10 +641,11 @@ Task 0056 is Complete at implementation `4f35576c` plus approved remediation `17
 remediation `7a3bb072`.
 Task 0058 is Complete through `63c070cc`. Task 0059 is Complete through cumulative review
 remediation `02a097eb`; independent Class C review of `6478d249..02a097eb` returned `APPROVE` with
-zero P0/P1/P2.
-Task 0060 is Ready from `f3ad5e12` with a bounded `69/46` capability and `87/28` structural target;
-pooling, ordering/ARG extrema, additive SCATTER_ADD, overlap reductions, and advanced floating
-aggregate production remain outside or blocked.
+zero P0/P1/P2. Task 0060 is Complete through implementation `d06db07e`, proof `eda09533`, and
+documentation `62f18cd8`; independent cumulative Class C review of `dd94e492..62f18cd8` returned
+`APPROVE` with zero P0/P1/P2. Its bounded capability is `69/46` and structural execution is
+`87/28`; pooling, ordering/ARG extrema, additive SCATTER_ADD, overlap reductions, and advanced
+floating aggregate production remain outside or blocked. No Metal production task is Ready.
 
 Metal 0006 remains historically `Blocked` after its frozen direct-selector
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH special-class and sign gate failures. Complete Model 0030

@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Task 0060 Ready; Complete through Task 0059; 0053 Blocked | [Metal 0060](backends/metal/tasks/0060-exact-replacement-fold-and-aggregate-reductions.md) is the sole active production plan from clean `f3ad5e12`. It targets exact replacement SCATTER_ND/SLICE_UPDATE, non-overlap exact-copy folds, modular integer PROD, BOOL ALL/ANY, and eight aggregate MPSGraph structures: capability `69/46`, structural execution `87/28`. Additive SCATTER_ADD, overlap reductions, ARG extrema/ordering, advanced floating aggregates, and pool wires `97..100` remain false or deferred. Schema 15, identity 16, ABI 5, and thirteen exports remain fixed. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0060; 0053 Blocked | [Metal 0060](backends/metal/tasks/0060-exact-replacement-fold-and-aggregate-reductions.md) completed at plan `dd94e492`, implementation `d06db07e`, proof `eda09533`, and docs `62f18cd8`; independent cumulative Class C review returned `APPROVE` with zero P0/P1/P2. Current capability is `69/46`, structural execution `87/28`, schema 15, identity 16, ABI 5, and thirteen exports. No Metal production task is Ready. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -328,7 +328,7 @@ The active semantic and Metal serial DAG is:
 
 `Metal 0058 (Complete) + current cast/layout/indexing contracts -> Metal 0059 (Complete)`
 
-`Metal 0059 (Complete) + current replacement/fold/aggregate contracts -> Metal 0060 (Ready)`
+`Metal 0059 (Complete) + current replacement/fold/aggregate contracts -> Metal 0060 (Complete)`
 
 `Metal 0022/0023/0024/0025 (Complete) + finalized evidence through Metal 0037 -> Metal 0038 (Complete)`
 
@@ -516,15 +516,17 @@ validation, combined serial checkpoint, and independent Class C approval all pas
 
 Current Metal uses ABI 5, exactly thirteen exports, and one bounded schema-15 route-bearing program
 image. Both profiles retain exact canonical FLOAT32 NEG/ABS/affine/CONTIGUOUS, bounded UNFOLD_AXIS,
-typed GATHER/ONE_HOT/SCATTER_ELEMENTS-NONE, FLOAT32 classification, BOOL logic, FLOAT32 WHERE, and
-all six-carrier positive-layout SELECT/SLICE. Accelerator additionally admits the existing
-arithmetic, SUM/MEAN/SUM_TO_SHAPE, and bounded MATMUL rows plus Task-0052 comparisons,
+typed GATHER/ONE_HOT/SCATTER_ELEMENTS-NONE, FLOAT32 classification, BOOL logic, FLOAT32 WHERE,
+all six-carrier positive-layout SELECT/SLICE, replacement-only SCATTER_ND/SLICE_UPDATE, all-carrier
+non-overlap folds, modular INT32/INT64 PROD, and BOOL ALL/ANY. Accelerator additionally admits the
+existing arithmetic, SUM/MEAN/SUM_TO_SHAPE, and bounded MATMUL rows plus Task-0052 comparisons,
 tensor/scalar/clamp/reduction extrema, and scans. A partition containing a Task-0052, BOOL-domain,
-or Task-0059 movement node materializes each required logical value in a declared run-owned physical
-storage span and invokes one fixed shared custom-program native executable per hot run.
+Task-0059 movement, or Task-0060 replacement/fold/aggregate node materializes each required logical
+value in a declared run-owned physical storage span and invokes one fixed shared custom-program
+native executable per hot run.
 Schema 15 carries type wires `1..6`, operation wires `1..115`, attribute wires `0..41`, route wire
-`2` or `3`, and complete positive-stride storage-layout geometry; exactly 79 operation kinds are
-structurally executable and 61 are production-capable. Workload, policy, candidate, compatibility,
+`2` or `3`, and complete positive-stride storage-layout geometry; exactly 87 operation kinds are
+structurally executable and 69 are production-capable. Workload, policy, candidate, compatibility,
 route, and codec identities are version sixteen; candidate wires and complete-plan wrapper remain
 stable.
 
@@ -655,17 +657,17 @@ matrix with narrowing, or infer capability from registered schema.
 
 ## Nearest next step
 
-Metal Task 0060 is Ready from clean `f3ad5e12` and is the sole active Metal production scope. Its
-exact inventory is wires `70`, `72`, `76`, `80`, `82`, `84`, and `106..115`; pool wires
-`97..100` remain deferred. Production may admit only `SCATTER_ND/NONE` with complete bounds and
-global uniqueness, exact `SLICE_UPDATE`, structurally non-overlapping copy/zero-fill folds,
-modular integer PROD, and exact BOOL ALL/ANY. The target is `69 true / 46 false`. Additive
-SCATTER_ADD, all scatter reduction variants, overlapping folds, ARG extrema, and floating
-PROD/log-sum-exp/variance/standard-deviation/norm production remain false with explicit blockers.
-Eight forceable aggregate MPSGraph recipes target structural execution `87 / 28` without widening
-production. Schema 15, identity 16, ABI 5, and thirteen exports remain fixed. There is no fallback,
-retry, autotuning, timing, or final full repository build; implementation must finish with
-independent cumulative Class C approval and zero P0/P1/P2.
+Metal Task 0060 is Complete from clean `f3ad5e12`: plan `dd94e492`, implementation `d06db07e`,
+native/public Engine proof `eda09533`, and documentation `62f18cd8`. Independent cumulative Class C
+review of `dd94e492..62f18cd8` returned `APPROVE` with zero P0/P1/P2. Production admits only
+`SCATTER_ND/NONE` with complete pre-write bounds and global uniqueness, exact signed/crop
+`SLICE_UPDATE`, structurally non-overlapping all-carrier copy/zero-fill folds, modular integer PROD,
+and exact BOOL ALL/ANY. Capability is `69 true / 46 false`; eight aggregate MPSGraph recipes make
+structural execution `87 / 28` without widening production. Additive SCATTER_ADD, all scatter
+reduction variants, overlapping folds, ARG extrema, and floating PROD/log-sum-exp/variance/
+standard-deviation/norm production remain false with explicit blockers; pool wires `97..100`
+remain deferred. Schema 15, identity 16, ABI 5, and thirteen exports remain fixed. No Metal
+production task is Ready.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
@@ -793,7 +795,8 @@ independently approved implementation `89f9fbb9`; documentation-only Metal 0049 
 remediation `6d4246f7`; Metal 0050 final verification, Task 0052, and historical
 documentation/audit-only Metal 0054 and exact BOOL Task 0057 are Complete. Historical Metal 0051
 and successor Metal 0053 are Blocked. Task 0054 remains the exact pre-cutover
-`19+2+15+79=115` record, not a current count; current capability is `61 true / 54 false = 115`.
+`19+2+15+79=115` record, not a current count; current capability is
+`69 true / 46 false = 115` and current structural execution is `87 true / 28 false = 115`.
 
 ## History policy
 

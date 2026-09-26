@@ -2,9 +2,9 @@
 
 ## Status
 
-Ready from clean Task-0059 completion `f3ad5e12`. This plan is the sole active Metal production
-scope. Implementation, focused proof, package verification, documentation, and independent
-cumulative Class C review remain required before completion.
+Complete. Planning landed at `dd94e492`, implementation at `d06db07e`, focused native/public
+Engine proof at `eda09533`, and backend/native documentation at `62f18cd8`. The final independent
+cumulative Class C review of `dd94e492..62f18cd8` returned `APPROVE` with zero P0/P1/P2.
 
 ## Change class
 
@@ -33,10 +33,10 @@ catalog advances from `38 AVAILABLE / 77 PENDING / 0 UNAVAILABLE_WITH_PROOF` to
 |---:|---|---|---|
 | 70 | `SCATTER_ADD` | executable direct MPSGraph recipe | Remains false. It is intrinsically additive, includes the base and every update, and is never a replacement operation. Unique indices do not remove the addition proof obligation. |
 | 72 | `SCATTER_ND` | executable direct MPSGraph recipe | Admit only `ScatterReduction.NONE` with globally unique destination scalars proven from all tuples and suffix positions before any write. All six data carriers; canonical `INT32` or `INT64` indices; static canonical no-gradient descriptors. ADD/MUL/MIN/MAX remain false. |
-| 76 | `SLICE_UPDATE` | executable direct MPSGraph recipe | Admit exact functional replacement for all six carriers over static canonical positive-rank no-gradient base/update/output descriptors. Signed nonzero `SliceAttrs` and exact static crop-to-shape forms must prove every destination in range and globally unique before any write. |
-| 80 | `FOLD_AXIS` | executable composed MPSGraph recipe | Admit only structurally non-overlapping geometry, positive static canonical no-gradient `FLOAT64`/`FLOAT32`/`BFLOAT16`. Initialize uncovered outputs to represented positive zero, then copy every unique contributor bit-exactly. Any overlap remains false. |
-| 82 | `FOLD2D` | executable direct MPSGraph recipe | Same exact non-overlap/copy/zero-fill domain for static NCHW columns and target. Any contributor collision remains false. |
-| 84 | `FOLD3D` | executable composed MPSGraph recipe | Same exact non-overlap/copy/zero-fill domain for static NCDHW columns and target. Any contributor collision remains false. |
+| 76 | `SLICE_UPDATE` | executable direct MPSGraph recipe | Admit exact functional replacement for all six carriers over static canonical no-gradient base/update/output descriptors. Signed nonzero `SliceAttrs` and exact static crop-to-shape forms must prove every destination in range. Update extents remain positive; zero-length SliceAttrs are capability-false. |
+| 80 | `FOLD_AXIS` | executable composed MPSGraph recipe | Admit only structurally non-overlapping geometry for all six carriers. Initialize uncovered outputs to represented zero, then copy every unique contributor bit-exactly. Any overlap remains false. |
+| 82 | `FOLD2D` | executable direct MPSGraph recipe | Same exact all-carrier non-overlap/copy/zero-fill domain for static NCHW columns and target. Padding and ceiling grids skip conceptual out-of-range contributors. Any contributor collision remains false. |
+| 84 | `FOLD3D` | executable composed MPSGraph recipe | Same exact all-carrier non-overlap/copy/zero-fill domain for static NCDHW columns and target. Padding and ceiling grids skip conceptual out-of-range contributors. Any contributor collision remains false. |
 | 106 | `PROD` | registered direct recipe, not executable | Add direct structural MPSGraph execution. Production admits only canonical static no-gradient `INT32`/`INT64` full, single-axis, and ordered multi-axis forms, including empty-axis identity mapping and keep-dimensions. Custom execution uses exact-width modular multiplication in deterministic logical contributor order. Floating PROD remains false. |
 | 107 | `ALL` | registered direct recipe, not executable | Add direct structural MPSGraph execution and exact canonical static no-gradient BOOL full/single/multi-axis custom execution. Empty-axis form is an exact copy; ordinary selected domains use the exact true identity. |
 | 108 | `ANY` | registered direct recipe, not executable | Add direct structural MPSGraph execution and exact canonical static no-gradient BOOL full/single/multi-axis custom execution. Empty-axis form is an exact copy; ordinary selected domains use the exact false identity. |
@@ -59,18 +59,21 @@ remain out of scope.
 1. Capability is occurrence-exact and common to both numerical profiles only where the admitted
    operation is byte-exact or integer/Boolean exact.
 2. Every admitted occurrence is fully static, canonical, no-gradient, rank bounded by schema limits,
-   and has checked positive extents and byte geometry.
+   and has checked positive dimensions and byte geometry. Rank-zero is admitted only where the
+   operation contract permits it.
 3. `SCATTER_ND/NONE` validates tuple depth, batch prefix, suffix mapping, index type, all bounds, and
    global scalar destination uniqueness. No output copy or update write begins before the complete
    index pass succeeds.
-4. `SLICE_UPDATE` validates the complete signed coordinate mapping and global destination uniqueness
-   before copying the base or writing an update.
-5. Fold admission proves every logical contributor has an in-range destination and that no two
-   contributors address the same destination. For axis fold, the required exact condition includes
-   `step >= windowSize`; image folds prove uniqueness from the complete dilated kernel/stride/
-   padding geometry rather than trusting one local inequality.
-6. Empty, dynamic, unresolved, view, aliasing, out-of-span, malformed, overlapping, reduction-mode,
-   unsupported-type, and gradient-bearing occurrences remain false.
+4. `SLICE_UPDATE` validates the complete signed coordinate mapping before execution. Positive update
+   dimensions make the functional mapping injective; zero-length SliceAttrs fail capability rather
+   than introducing zero-extent schema values.
+5. Fold admission proves no two in-bounds contributors address the same destination. For axis fold,
+   the exact condition includes `step >= windowSize`; image folds require every stride to be at
+   least its effective dilated kernel. Padding and ceiling-grid contributors outside the target are
+   skipped rather than rejected.
+6. Zero dimensions, dynamic/unresolved/view/aliasing/out-of-span/malformed/overlapping geometry,
+   scatter reduction modes, unsupported types, and gradients remain false. Empty aggregate axes
+   remain valid point identities on positive-dimensional or rank-zero tensors.
 
 ## Gate B: deterministic custom execution
 
@@ -128,3 +131,21 @@ Completion requires one clean commit chain from `f3ad5e12`, exact counts and blo
 all affected call sites/tests/docs updated, no compatibility shim or stale alias, clean diff, and a
 final independent cumulative Class C `APPROVE` with zero P0/P1/P2. Formal blockers are reported as
 blockers, never hidden behind MPSGraph availability or a narrowed test.
+
+## Completion evidence
+
+- The complete Metal module test task passed against the rebuilt real dylib, including the exact
+  `69/46` capability ledger, `87/28` structural registry, `75/35/5` MPSGraph catalog, and
+  `46/69/0` custom catalog.
+- Native proofs exercised all six replacement/fold carrier widths, INT32 and INT64 Scatter-ND
+  indices, signed SliceAttrs and crop placement, uncovered fold zeros, padding/ceiling/wide
+  non-overlap geometry, modular INT32/INT64 PROD, canonical BOOL ALL/ANY, empty-axis and rank-zero
+  identities, malformed BOOL, duplicate/out-of-range atomic rejection, input immutability, and
+  alias rejection.
+- The public no-skip Engine proof passed under both numerical profiles across repeated independent
+  sessions, same-session concurrency, duplicate/out-of-range failure recovery, and exact
+  publications for every newly admitted operation kind.
+- The dylib was rebuilt, ad-hoc signed with the fixed identifier, packaged, independently verified,
+  and consumed by the public Engine proof from the verified package path. Metal Javadocs passed.
+- Per request, no final full repository build was run. Independent cumulative Class C review
+  returned `APPROVE` with zero P0/P1/P2.
