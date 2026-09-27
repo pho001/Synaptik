@@ -297,6 +297,23 @@ class MetalMpsGraphRawAbiNativeTest {
                             descriptor(DataType.FLOAT32, 1, 1, 1, 1),
                             descriptor(DataType.FLOAT32, 1, 2, 2)),
                     "UNFOLD2D feasible wide custom origin");
+            var feasibleWideFold2d = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.FOLD2D,
+                            new int[] {0},
+                            new int[] {1},
+                            MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_2D,
+                            new long[] {
+                                4, 1, 1, 1, 1,
+                                1, 2, 1, wide, 0, wide, 1, 1, 0
+                            })));
+            assertTask0059WindowOriginRejected(
+                    abi,
+                    feasibleWideFold2d,
+                    List.of(
+                            descriptor(DataType.FLOAT32, 1, 2, 2),
+                            descriptor(DataType.FLOAT32, 1, 1, 1, 1)),
+                    "FOLD2D feasible wide custom origin");
 
             var unfold2d = new MetalMpsGraphProgram(List.of(
                     MetalMpsGraphProgram.Node.generic(
