@@ -1364,6 +1364,9 @@ abstract class MetalNativeApi implements AutoCloseable {
                     numerator / stride + (ceil && numerator % stride != 0L ? 1L : 0L),
                     1L);
             if (result > UINT32_MAX) throw new ArithmeticException("grid exceeds uint32");
+            if (result - 1L > UINT32_MAX / stride) {
+                throw new ArithmeticException("window origin exceeds uint32");
+            }
             return result;
         }
 

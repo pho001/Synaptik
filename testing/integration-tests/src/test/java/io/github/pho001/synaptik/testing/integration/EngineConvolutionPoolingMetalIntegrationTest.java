@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration;
 import io.github.pho001.synaptik.backend.metal.MetalBackendIntegration;
+import io.github.pho001.synaptik.backend.metal.MetalTraceObserver;
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.EngineMixedOwnerTestAccess;
@@ -30,12 +31,15 @@ import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
@@ -49,7 +53,9 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library)));
             try (Engine engine = builder.build()) {
-                Tensor input = tensor(arena, Shape.of(1, 1, 4), 1, 2, 3, 4);
+                MutableTensor mutableInput =
+                        mutableTensor(arena, Shape.of(1, 1, 4), 1, 2, 3, 4);
+                Tensor input = mutableInput.tensor();
                 Tensor weight = tensor(arena, Shape.of(1, 1, 2), 1, 1);
                 Tensor bias = tensor(arena, Shape.of(1), 0.5f);
                 Tensor convolution = input.conv1d(weight, bias, Conv1dAttrs.defaults());
@@ -61,15 +67,22 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                 var compiled = engine.compile(List.of(convolution, maximum, average));
                 assertEquals(List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(compiled));
-                try (var session = engine.session(compiled)) {
-                    assertResults(session.run(List.of(bias, weight, input)), List.of(
+                try (var firstSession = engine.session(compiled);
+                        var secondSession = engine.session(compiled)) {
+                    assertResults(firstSession.run(List.of(bias, weight, input)), List.of(
                             floats(3.5f, 5.5f, 7.5f),
                             floats(2, 3, 4),
                             floats(1.5f, 2.5f, 3.5f)));
-                    assertResults(session.run(List.of(input, weight, bias)), List.of(
-                            floats(3.5f, 5.5f, 7.5f),
-                            floats(2, 3, 4),
-                            floats(1.5f, 2.5f, 3.5f)));
+
+                    writeFloats(mutableInput.storage(), 4, 3, 2, 1);
+                    List<byte[]> changed = List.of(
+                            floats(7.5f, 5.5f, 3.5f),
+                            floats(4, 3, 2),
+                            floats(3.5f, 2.5f, 1.5f));
+                    assertResults(
+                            secondSession.run(List.of(input, weight, bias)), changed);
+                    assertResults(
+                            firstSession.run(List.of(weight, bias, input)), changed);
                 }
             }
         }
@@ -78,10 +91,11 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
     @Test
     void groupedConv2dConv3dAndAllPoolDimensionsPublishThroughMetalOnlyEngine() {
         Path library = configuredMetalLibrary();
+        List<ObservedTrace> events = new CopyOnWriteArrayList<>();
         try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
             builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
-                    new MetalBackendConfiguration(library)));
+                    new MetalBackendConfiguration(library), traceCollector(events)));
             try (Engine engine = builder.build()) {
                 Tensor input2d = tensor(
                         arena, Shape.of(1, 2, 2, 2), 1, 2, 3, 4, 5, 6, 7, 8);
@@ -114,6 +128,13 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                 assertEquals(List.of("metal"),
                         EngineMixedOwnerTestAccess.partitionOwners(compiled));
                 try (var session = engine.session(compiled)) {
+                    assertEquals(1, events.size(), "one whole-program preparation");
+                    ObservedTrace preparation = events.getFirst();
+                    assertEquals("PREPARE", preparation.phase());
+                    assertEquals(
+                            "CUSTOM_KERNEL",
+                            enumName(component(preparation.payload(), "route")),
+                            "convolution and pooling graph uses the custom route");
                     assertResults(session.run(List.of(
                             bias3d,
                             mixedInput,
@@ -344,20 +365,36 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
 
     private static Tensor tensor(
             Arena arena, Shape shape, boolean requiresGrad, float... values) {
+        return mutableTensor(arena, shape, requiresGrad, values).tensor();
+    }
+
+    private static MutableTensor mutableTensor(
+            Arena arena, Shape shape, float... values) {
+        return mutableTensor(arena, shape, false, values);
+    }
+
+    private static MutableTensor mutableTensor(
+            Arena arena, Shape shape, boolean requiresGrad, float... values) {
         assertEquals(shape.knownElementCount().orElseThrow(), values.length);
-        MemorySegment source = MemorySegment.ofArray(values);
-        MemorySegment storage = arena.allocate(source.byteSize(), Float.BYTES);
-        MemorySegment.copy(source, 0, storage, 0, source.byteSize());
+        MemorySegment storage = arena.allocate(
+                Math.multiplyExact(values.length, Float.BYTES), Float.BYTES);
+        writeFloats(storage, values);
         TensorDescriptor descriptor = new TensorDescriptor(
                 DataType.FLOAT32,
                 shape,
                 Optional.of(LayoutDescriptor.contiguous(shape)),
                 requiresGrad);
-        return TensorFactory.create(
+        Tensor tensor = TensorFactory.create(
                 descriptor,
                 Optional.empty(),
                 Optional.of(new MemorySegmentStorage(
                         DataType.FLOAT32, values.length, storage)));
+        return new MutableTensor(tensor, storage);
+    }
+
+    private static void writeFloats(MemorySegment storage, float... values) {
+        MemorySegment source = MemorySegment.ofArray(values);
+        MemorySegment.copy(source, 0, storage, 0, source.byteSize());
     }
 
     private static Tensor bfloatTensor(Arena arena, Shape shape, float... values) {
@@ -401,6 +438,47 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
             }
         }
     }
+
+    private static MetalTraceObserver traceCollector(List<ObservedTrace> events) {
+        return (MetalTraceObserver) Proxy.newProxyInstance(
+                MetalTraceObserver.class.getClassLoader(),
+                new Class<?>[] {MetalTraceObserver.class},
+                (proxy, method, arguments) -> {
+                    if ("onEvent".equals(method.getName())) {
+                        Object event = arguments[0];
+                        events.add(new ObservedTrace(
+                                enumName(component(event, "phase")),
+                                component(event, "payload")));
+                        return null;
+                    }
+                    return switch (method.getName()) {
+                        case "equals" -> proxy == arguments[0];
+                        case "hashCode" -> System.identityHashCode(proxy);
+                        case "toString" -> "Task0064 Metal trace collector";
+                        default -> throw new AssertionError(
+                                "unexpected observer method: " + method.getName());
+                    };
+                });
+    }
+
+    private static Object component(Object value, String name) {
+        try {
+            return value.getClass().getMethod(name).invoke(value);
+        } catch (InvocationTargetException exception) {
+            throw new AssertionError(
+                    "trace component invocation failed: " + name, exception.getCause());
+        } catch (ReflectiveOperationException exception) {
+            throw new AssertionError("trace component is unavailable: " + name, exception);
+        }
+    }
+
+    private static String enumName(Object value) {
+        return ((Enum<?>) value).name();
+    }
+
+    private record MutableTensor(Tensor tensor, MemorySegment storage) {}
+
+    private record ObservedTrace(String phase, Object payload) {}
 
     private static Path configuredMetalLibrary() {
         String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");

@@ -126,6 +126,36 @@ class MetalConvolutionPoolingNativeTest {
             assertArrayEquals(rawWords(type, firstNaN), result.getFirst(), type.toString());
         }
 
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
+            var numericMax = node(
+                    MetalMpsGraphProgram.NodeKind.MAX_POOL2D,
+                    new int[] {0}, new int[] {1},
+                    MetalMpsGraphProgram.AttributeKind.WINDOW_2D,
+                    1, 2, 1, 2, 0, 0, 1, 1, 0);
+            List<byte[]> result = execute(
+                    NumericalProfile.STRICT_IEEE,
+                    new MetalMpsGraphProgram(List.of(numericMax)),
+                    List.of(typed(type, 1, 1, 1, 10), typed(type, 1, 1, 1, 5)),
+                    new int[] {0}, new int[] {1},
+                    List.of(rawWords(
+                            type,
+                            negativeInfinity(type), negativeOne(type),
+                            positiveInfinity(type), positiveOne(type),
+                            negativeZero(type), 0,
+                            0, negativeZero(type),
+                            negativeOne(type), positiveOne(type))));
+            assertArrayEquals(
+                    rawWords(
+                            type,
+                            negativeOne(type),
+                            positiveInfinity(type),
+                            0,
+                            0,
+                            positiveOne(type)),
+                    result.getFirst(),
+                    type + " production numeric comparator");
+        }
+
         var max3d = node(
                 MetalMpsGraphProgram.NodeKind.MAX_POOL3D,
                 new int[] {0}, new int[] {1},
@@ -220,6 +250,42 @@ class MetalConvolutionPoolingNativeTest {
         };
     }
 
+    private static long positiveInfinity(DataType type) {
+        return switch (type) {
+            case FLOAT64 -> 0x7ff0_0000_0000_0000L;
+            case FLOAT32 -> 0x7f80_0000L;
+            case BFLOAT16 -> 0x7f80L;
+            default -> throw new AssertionError(type);
+        };
+    }
+
+    private static long negativeInfinity(DataType type) {
+        return switch (type) {
+            case FLOAT64 -> 0xfff0_0000_0000_0000L;
+            case FLOAT32 -> 0xff80_0000L;
+            case BFLOAT16 -> 0xff80L;
+            default -> throw new AssertionError(type);
+        };
+    }
+
+    private static long positiveOne(DataType type) {
+        return switch (type) {
+            case FLOAT64 -> 0x3ff0_0000_0000_0000L;
+            case FLOAT32 -> 0x3f80_0000L;
+            case BFLOAT16 -> 0x3f80L;
+            default -> throw new AssertionError(type);
+        };
+    }
+
+    private static long negativeOne(DataType type) {
+        return switch (type) {
+            case FLOAT64 -> 0xbff0_0000_0000_0000L;
+            case FLOAT32 -> 0xbf80_0000L;
+            case BFLOAT16 -> 0xbf80L;
+            default -> throw new AssertionError(type);
+        };
+    }
+
     private static MetalMpsGraphProgram.Node node(
             MetalMpsGraphProgram.NodeKind kind,
             int[] inputs,
@@ -240,6 +306,17 @@ class MetalConvolutionPoolingNativeTest {
             int[] feeds,
             int[] targets,
             List<byte[]> inputs) {
+        return execute(
+                NumericalProfile.ACCELERATOR, program, values, feeds, targets, inputs);
+    }
+
+    private static List<byte[]> execute(
+            NumericalProfile profile,
+            MetalMpsGraphProgram program,
+            List<MetalMpsGraphProgram.ValueDescriptor> values,
+            int[] feeds,
+            int[] targets,
+            List<byte[]> inputs) {
         String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
         assumeTrue(configured != null && !configured.isBlank(),
                 "SYNAPTIK_METAL_TEST_LIBRARY is not set");
@@ -252,7 +329,7 @@ class MetalConvolutionPoolingNativeTest {
         try {
             context = api.createContext();
             executable = api.createMpsGraphExecutable(
-                    context, NumericalProfile.ACCELERATOR, values, program, feeds, targets,
+                    context, profile, values, program, feeds, targets,
                     MetalPreparedRoute.CUSTOM_PROGRAM);
             for (var value : values) buffers.add(api.createBuffer(context, value.byteCount()));
             for (int index = 0; index < feeds.length; index++) {

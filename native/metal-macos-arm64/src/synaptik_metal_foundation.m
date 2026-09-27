@@ -2893,6 +2893,7 @@ static BOOL task0064_window_extent(
     uint64_t extent = numerator / stride
             + (ceil_mode && numerator % stride != 0U ? 1U : 0U) + 1U;
     if (!task0064_positive_uint32(extent)) return NO;
+    if (extent - 1U > UINT32_MAX / stride) return NO;
     *result = extent;
     return YES;
 }

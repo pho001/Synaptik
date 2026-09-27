@@ -159,6 +159,27 @@ class MetalConvolutionPoolingCapabilityTest {
         assertFalse(supports(NumericalProfile.STRICT_IEEE, max,
                 List.of(descriptor(DataType.FLOAT32, overLimit, false)),
                 descriptor(DataType.FLOAT32, Shape.of(1, 1, 1, onePast - 1L), false)));
+
+        long uint32Max = 0xffff_ffffL;
+        Shape maximumWidth = Shape.of(1, 1, 1, uint32Max);
+        Operation terminalOriginAtLimit = new Operation(
+                Pool2dKind.MAX_POOL2D,
+                new MaxPool2dAttrs(1, 1, 1, 3, 0, 0, 1, 1, true));
+        assertTrue(supports(
+                NumericalProfile.STRICT_IEEE,
+                terminalOriginAtLimit,
+                List.of(descriptor(DataType.FLOAT32, maximumWidth, false)),
+                descriptor(
+                        DataType.FLOAT32, Shape.of(1, 1, 1, 1_431_655_766L), false)));
+        Operation terminalOriginOnePast = new Operation(
+                Pool2dKind.MAX_POOL2D,
+                new MaxPool2dAttrs(1, 1, 1, 4, 0, 0, 1, 1, true));
+        assertFalse(supports(
+                NumericalProfile.STRICT_IEEE,
+                terminalOriginOnePast,
+                List.of(descriptor(DataType.FLOAT32, maximumWidth, false)),
+                descriptor(
+                        DataType.FLOAT32, Shape.of(1, 1, 1, 1_073_741_825L), false)));
     }
 
     @Test
