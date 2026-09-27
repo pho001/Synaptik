@@ -309,11 +309,11 @@ identity, and native preflight where applicable. Route-specific resource evidenc
   Conv2d input/weight gradients were unowned even though the Compiler-generated partition is
   primitive-closed. Commit `2541c6f3` executes the joint forward/input/weight publications and
   corrects the active boundary while retaining mixed-carrier and Conv3d gradient rejection.
-- `A-006` — the ordering integration test expected generated `SORT` and `TOP_K` values-output
-  backward ownership to fail and attempted to send an invalid `k > extent` occurrence to Engine
-  even though Model rejects it first. Commit `2541c6f3` proves the Model boundary and executes both
-  generated gradients through Metal with exact values, while retaining ordering index roles as
-  non-differentiable.
+- `A-006` — the ordering integration test and active Metal documentation still expected generated
+  floating `SORT` and `TOP_K` values-output backward ownership to fail despite Task-0066 closure.
+  Commit `2541c6f3` executes both generated gradients through Metal with exact values; the review
+  remediation preserves the pre-existing public Engine rejection for a Model-valid ordering extent
+  above `UINT32_MAX`, and ordering index roles remain non-differentiable.
 
 Other findings remain audit output, not assumptions. In particular `L1_NORM`, variance, and every
 other false row must stay false until complete Model/profile/formula/order/gradient/native evidence

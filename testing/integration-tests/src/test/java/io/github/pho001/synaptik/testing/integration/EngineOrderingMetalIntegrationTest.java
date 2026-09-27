@@ -176,24 +176,27 @@ final class EngineOrderingMetalIntegrationTest {
     }
 
     @Test
-    void modelRejectsOverLimitAndEngineExecutesGeneratedOrderingBackward() {
+    void cpuFreeEngineRejectsOverLimitAndExecutesGeneratedOrderingBackward() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
             builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library)));
             try (Engine engine = builder.build()) {
-                IllegalArgumentException overLimitFailure = assertThrows(
-                        IllegalArgumentException.class,
-                        () -> nativeTensor(
-                                        DataType.INT32,
-                                        Shape.of(1, 4),
-                                        new long[] {1, 2, 3, 4},
-                                        false,
-                                        arena)
-                                .topK(5, 1));
-                assertTrue(overLimitFailure.getMessage()
-                        .contains("k must not exceed selected static extent"));
+                Tensor overLimit = TensorFactory.create(
+                        new TensorDescriptor(
+                                DataType.BOOL,
+                                Shape.of(0x1_0000_0000L),
+                                Optional.of(LayoutDescriptor.contiguous(
+                                        Shape.of(0x1_0000_0000L))),
+                                false),
+                        Optional.empty(),
+                        Optional.empty());
+                IllegalStateException overLimitFailure = assertThrows(
+                        IllegalStateException.class,
+                        () -> engine.compile(List.of(overLimit.sort(0))));
+                assertTrue(overLimitFailure.getMessage().contains(
+                        "no hard-eligible backend is available for ownership selection"));
 
                 long[] raw = corpus(DataType.FLOAT32);
                 Tensor input = nativeTensor(
