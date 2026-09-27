@@ -742,8 +742,10 @@ once by the full kernel-position count, and applies the specified all-negative-z
 Compiler-generated accelerator FLOAT32 Conv2d gradients are owned only when exactly one requested
 input, weight, or bias role forms a primitive-closed partition. Explicit `CONTIGUOUS` nodes
 materialize group reshapes/permutations, matrix operands/results, unfolded columns, and fold inputs.
-The input cotangent additionally requires a non-overlapping `FOLD2D`. Average Pool2d/Pool3d
-cotangents explicitly materialize the expanded divisor, seed, columns, and final fold result and
+The input cotangent additionally requires a non-overlapping `FOLD2D`. Average Pool2d cotangents
+explicitly materialize the expanded divisor, seed, and columns; the compiler's static-result
+logical-layout closure canonicalizes the final fold descriptor without an expression-level final
+`CONTIGUOUS`. Average Pool3d additionally materializes the final fold result explicitly. Both
 require non-overlapping folds. Pool3d constructibility compares semantic type/Shape/gradient
 metadata after that final materialization rather than requiring the original input layout to be
 canonical. Joint or mixed Conv2d gradients, every Conv3d gradient, every maximum-pool gradient, and

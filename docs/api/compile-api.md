@@ -1236,9 +1236,10 @@ non-gradient subset through its direct schema-55 generated route. Metal executes
 accelerator FLOAT32 through its fixed custom program. Current package-private first-order autograd
 divides by a logical typed `kernelHeight * kernelWidth` count and routes every window position
 through public expansion and overlap-accumulating fold expressions. Explicit `contiguous()`
-materializations make the expanded divisor, seed, columns, and fold result canonical without
-changing formula semantics. Metal owns only non-overlapping generated folds. Dynamic binding,
-overlap accumulation, and other algorithms remain separately owned.
+materializations make the expanded divisor, seed, and columns canonical. The final Pool2d fold
+descriptor becomes canonical in the compiler's static-result logical-layout closure; the formula
+does not append an expression-level final `contiguous()`. Metal owns only non-overlapping generated
+folds. Dynamic binding, overlap accumulation, and other algorithms remain separately owned.
 `Tensor.maxPool3d(attrs)` and `Tensor.averagePool3d(attrs)` are current Model construction for
 first-class rank-five NCDHW metadata. Each records exact ordered input `[input]`, its family-
 specific thirteen-field attrs reference, one output at index zero, the unchanged floating type
