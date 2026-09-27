@@ -59,9 +59,11 @@
  * Direct {@code NEG}, {@code ABS}, {@code FLOOR}, {@code CEIL}, {@code SIGN}, and {@code RELU}
  * operands/outputs and their graph feeds are canonical. SELECT/SLICE may consume exact supported
  * storage-layout feeds and produce materialized-layout values. Other affine inputs may be exact
- * resolved zero-offset views produced earlier in the same maximal partition; their outputs retain
- * exact Model view geometry. {@code CONTIGUOUS} produces canonical geometry. Metal lowers one
- * complete profile-homogeneous partition as a typed whole-partition program during preparation.</p>
+ * resolved zero-offset views produced earlier in the same maximal partition; nested MPSGraph
+ * steps materialize those views into dense assigned buffers before downstream custom steps index
+ * their physical representation. Their published outputs retain exact Model view geometry.
+ * {@code CONTIGUOUS} produces canonical geometry. Metal lowers one complete profile-homogeneous
+ * partition as a typed whole-partition program during preparation.</p>
  *
  * <p>A package-private exhaustive catalog describes all 115 schema-fifteen operation kinds as
  * MPSGraph {@code DIRECT}, {@code COMPOSED}, or {@code UNAVAILABLE} and custom-kernel
@@ -152,14 +154,26 @@
  * convolution gradients, overlap-accumulating generated folds, attention, and convolution
  * transpose remain fail-closed.</p>
  *
+ * <p>Task 0065 adds profile-common zero-input {@code INITIAL_STATE} and ACCELERATOR-only
+ * canonical FLOAT32 {@code DROPOUT}. INITIAL_STATE publishes one raw {@code INT64[2]}
+ * {@code [key,counter]} value whose words are interpreted unsigned. DROPOUT consumes that state
+ * plus a canonical positive-static input and emits the scaled FLOAT32 result, canonical BOOL saved
+ * mask, and advanced state through one fixed custom-program route. Its private SplitMix64 V1
+ * identity uses the exact top-53-bit
+ * threshold policy, raw positive-zero drops, FLOAT32 division then multiplication for kept
+ * elements, and modulo-{@code 2^64} counter advancement by the logical element count. It makes no
+ * entropy, cryptographic-quality, or cross-backend portable-stream claim. Evaluation bypasses
+ * DROPOUT, generated backward reuses the saved mask without consuming state, direct MPSGraph
+ * remains unavailable, and RNN, GRU, and LSTM remain fail-closed under both profiles.</p>
+ *
  * <p>The selected numerical profile participates in partition-plan, route, tuning,
  * decision-codec, and workload identity. Java rejects profile/schema mismatches before native
  * entry. ABI version five retains thirteen exports. Node schema version fifteen is one bounded
  * self-describing route-bearing image over stable type wires {@code 1..6}, operation wires
  * {@code 1..115}, attribute wires {@code 0..41}, and complete optional storage-layout geometry.
- * Native structural execution covers exactly 99 wires and leaves 16 nonexecutable. Production
- * capability is exactly 81 operation kinds and 34 remain false. Backend-local workload,
- * exact-policy, candidate, compatibility, route-policy, and codec identities are version twenty;
- * schema fourteen and identity version nineteen fail closed.</p>
+ * Native structural execution covers exactly 101 wires and leaves 14 nonexecutable. Production
+ * capability is exactly 83 operation kinds and 32 remain false. Backend-local workload,
+ * exact-policy, candidate, compatibility, route-policy, and codec identities are version
+ * twenty-one; schema fourteen and identity version twenty and earlier fail closed.</p>
  */
 package io.github.pho001.synaptik.backend.metal;

@@ -4458,6 +4458,23 @@ static int32_t synaptik_metal_create_decoded(
                 local_singleton_height[value] = 3U;
             targeted[value] = 1U;
         }
+        NSMutableData *physical_state_data = [state_data mutableCopy];
+        if (physical_state_data == nil)
+            return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
+        uint8_t *physical_states = physical_state_data.mutableBytes;
+        for (uint32_t value = 0U; value < value_count; value++) {
+            if (physical_states[value] == SYNAPTIK_METAL_VALUE_AFFINE_VIEW
+                    && local_transpose[value] != 2U
+                    && local_singleton_height[value] != 2U) {
+                /*
+                 * Ordinary affine nodes run as nested MPSGraph steps into their own dense
+                 * buffers. Only the authenticated MATMUL/Conv view fusions skip that step and
+                 * bind the original source buffer. Custom consumers must index the representation
+                 * actually bound at runtime rather than reapplying the declared logical view.
+                 */
+                physical_states[value] = SYNAPTIK_METAL_VALUE_CANONICAL;
+            }
+        }
         NSMutableArray<NSNumber *> *bytes = [NSMutableArray arrayWithCapacity:value_count];
         for (uint32_t value = 0; value < value_count; value++) {
             if (used[value] == 0U || value_types[value] == SYNAPTIK_METAL_TYPE_UNAVAILABLE)
@@ -4483,7 +4500,7 @@ static int32_t synaptik_metal_create_decoded(
             uint64_t offset = 0U;
             if (!custom_physical_layout(
                         shapes[value], value, value_strides, layout_offsets,
-                        states, stride_cells, &offset))
+                        physical_states, stride_cells, &offset))
                 return SYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE;
             NSMutableArray<NSNumber *> *stride_values =
                     [NSMutableArray arrayWithCapacity:value_ranks[value]];
@@ -4530,7 +4547,7 @@ static int32_t synaptik_metal_create_decoded(
                     for (uint32_t stage = 0U; stage <= final_stage; stage++) {
                         SynaptikMetalProgramStep *step = make_custom_step(
                                 node, shapes, value_types, value_strides,
-                                layout_offsets, states, local_transpose_sources,
+                                layout_offsets, physical_states, local_transpose_sources,
                                 local_singleton_height_sources,
                                 ctx.device, library, stage);
                         if (step == nil)

@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
@@ -16,6 +18,7 @@ import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class MetalBoolNativeTest {
@@ -102,6 +105,61 @@ class MetalBoolNativeTest {
             byte[] sentinel = new byte[WHERE_BITS.length * Integer.BYTES];
             java.util.Arrays.fill(sentinel, (byte) 0x5a);
             assertArrayEquals(sentinel, download(api, buffers.get(9), sentinel.length));
+        } finally {
+            for (int index = buffers.size(); index-- > 0;) api.releaseBuffer(buffers.get(index));
+            if (executable != null) api.releaseExecutable(executable);
+            if (context != null) api.releaseContext(context);
+            api.close();
+        }
+    }
+
+    @Test
+    void customWhereIndexesNestedAffineMaterializationAsCanonicalDense() {
+        Path library = configuredLibrary();
+        MetalNativeApi api = MetalNativeApi.open(library);
+        MetalNativeApi.Handle context = null;
+        MetalNativeApi.Handle executable = null;
+        var buffers = new ArrayList<MetalNativeApi.Handle>();
+        int[] targets = {4};
+        try {
+            context = api.createContext();
+            var program = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.permutation(0, 1, List.of(1, 0)),
+                    node(MetalMpsGraphProgram.NodeKind.WHERE, new int[] {2, 1, 3}, 4)));
+            List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
+                    value(DataType.FLOAT32, 2, 3),
+                    affineValue(DataType.FLOAT32, new long[] {3, 2}, new long[] {1, 3}),
+                    value(DataType.BOOL, 3, 2),
+                    value(DataType.FLOAT32, 3, 2),
+                    value(DataType.FLOAT32, 3, 2));
+            executable = api.createMpsGraphExecutable(
+                    context,
+                    NumericalProfile.STRICT_IEEE,
+                    values,
+                    program,
+                    new int[] {0, 2, 3},
+                    targets,
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            for (var descriptor : values) {
+                buffers.add(api.createBuffer(context, descriptor.byteCount()));
+            }
+            upload(api, buffers.get(0), ints(new int[] {
+                0x3f800000, 0x40000000, 0x40400000,
+                0x40800000, 0x40a00000, 0x40c00000
+            }));
+            upload(api, buffers.get(2), new byte[] {1, 1, 1, 1, 1, 1});
+            upload(api, buffers.get(3), ints(new int[] {
+                0xbf800000, 0xc0000000, 0xc0400000,
+                0xc0800000, 0xc0a00000, 0xc0c00000
+            }));
+
+            runCustom(api, executable, buffers, targets);
+            assertArrayEquals(
+                    new int[] {
+                        0x3f800000, 0x40800000, 0x40000000,
+                        0x40a00000, 0x40400000, 0x40c00000
+                    },
+                    bytesToInts(download(api, buffers.get(4), 6 * Integer.BYTES)));
         } finally {
             for (int index = buffers.size(); index-- > 0;) api.releaseBuffer(buffers.get(index));
             if (executable != null) api.releaseExecutable(executable);
@@ -292,6 +350,16 @@ class MetalBoolNativeTest {
     private static MetalMpsGraphProgram.ValueDescriptor value(
             DataType dataType, long... dimensions) {
         return new MetalMpsGraphProgram.ValueDescriptor(dataType, dimensions, false);
+    }
+
+    private static MetalMpsGraphProgram.ValueDescriptor affineValue(
+            DataType dataType, long[] dimensions, long[] strides) {
+        return new MetalMpsGraphProgram.ValueDescriptor(
+                dataType,
+                dimensions,
+                Optional.of(LayoutDescriptor.of(Shape.of(dimensions), strides, 0L, true)),
+                false,
+                true);
     }
 
     private static long[] rankSixteen(long first, long last) {
