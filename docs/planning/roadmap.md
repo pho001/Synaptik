@@ -705,11 +705,12 @@ remediation `ed7a3369`.
 
 ## Nearest next step
 
-No Metal task is Ready. Task 0066 completed its one serial occurrence cutover without adding an
-operation kind, schema field, ABI export, route wire, or public API. The current boundary is
-capability `83/32`, structural execution `101/14`, MPSGraph catalog `75/35/5`, custom catalog
-`70/45/0`, schema 15, identity 22, ABI 5, and thirteen exports. Identity 21 and every older
-backend-local identity fail closed.
+Metal Task 0067 is active only at its canonical 115-row audit-plan review gate; no production
+remediation is authorized before independent approval. Task 0066 completed its one serial
+occurrence cutover without adding an operation kind, schema field, ABI export, route wire, or
+public API. The current boundary remains capability `83/32`, structural execution `101/14`,
+MPSGraph catalog `75/35/5`, custom catalog `70/45/0`, schema 15, identity 22, ABI 5, and thirteen
+exports. Identity 21 and every older backend-local identity fail closed.
 
 The selected wires `6..11,16..19,39..45,51,69,71..84` are custom-only at their admitted
 occurrences. Dynamic or empty geometry, signed-stride transfer, unsafe overlap, arithmetic
