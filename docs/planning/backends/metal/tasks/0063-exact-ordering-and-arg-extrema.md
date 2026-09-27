@@ -2,11 +2,12 @@
 
 ## Status
 
-Implementation complete; final review pending — the approved plan review and external P1 correction
-preceded implementation `9931d5f8`. The implementation bounds every custom dispatch and logical
-index to the existing unsigned-32-bit Metal contract, preserves schema 15/ABI 5/thirteen exports,
-and advances the exact counts and private identities specified below. Native build/sign/package,
-packaged Metal, conformance, CPU-free public Engine, Javadoc, and architecture validation pass.
+Complete — approved plan review and the external P1 correction preceded implementation
+`9931d5f8`, documentation `f7800a26`, remediation `8a74b499`, final source/test correction
+`86399d53`, and active-document reconciliation `c80d79c0`. External final cumulative review at
+`c80d79c0` returned `APPROVE` with zero P0/P1/P2, confirmed the tracked full-width INT32 XOR key,
+clean worktree, tests, documentation, and counts. Native build/sign/package, packaged Metal,
+conformance, CPU-free public Engine, Javadoc, and architecture validation pass.
 
 ## Change class
 
@@ -446,16 +447,20 @@ behavior.
 
 ## Implementation and proof result
 
-Implementation `9931d5f8` delivers all five wires through the fixed custom-program route. The
-source uses only unsigned integer raw-word classification and keys: floating exponent/fraction
-tests separate every NaN encoding, sign complement/sign-bit toggle maps each non-NaN sign partition
-monotonically and joins at negative-zero-before-positive-zero, signed-integer sign-bit toggle maps
-signed order to unsigned order, and BOOL uses its complete `0/1` domain. The stable tuple is
-`(NaN class or numerical key, increasing logical index)`; predecessor counting therefore assigns
-one distinct rank in `0..N-1` to every source coordinate and one distinct destination writer.
-Direction reversal changes only non-NaN key order. TOP_K uses rank `< K` for its selected set and
-either rank or the count of earlier selected coordinates for output position. Arg extrema maintain
-the best-so-far invariant with NaN preference and explicit first/last replacement.
+Implementation `9931d5f8` delivers all five wires through the fixed custom-program route.
+Remediation `8a74b499` hardens native/raw-boundary and same-sign INT32 regression evidence. Final
+source/test correction `86399d53` retains every INT32 magnitude bit with the literal expression
+`(word ^ 0x0000000080000000ul) & 0x00000000fffffffful` and restores the Task-0052 custom-only
+direct-MPSGraph guard. The source uses only unsigned integer raw-word classification and keys:
+floating exponent/fraction tests separate every NaN encoding, sign complement/sign-bit toggle maps
+each non-NaN sign partition monotonically and joins at negative-zero-before-positive-zero,
+signed-integer sign-bit toggle maps signed order to unsigned order, and BOOL uses its complete
+`0/1` domain. The stable tuple is `(NaN class or numerical key, increasing logical index)`;
+predecessor counting therefore assigns one distinct rank in `0..N-1` to every source coordinate
+and one distinct destination writer. Direction reversal changes only non-NaN key order. TOP_K
+uses rank `< K` for its selected set and either rank or the count of earlier selected coordinates
+for output position. Arg extrema maintain the best-so-far invariant with NaN preference and
+explicit first/last replacement.
 
 `MetalOrderingComparatorProofTest` enumerates all 65,536 BFLOAT16 words, exhausts BOOL, checks the
 binary32/binary64 exponent/fraction partitions, verifies signed-key boundaries and deterministic
@@ -481,7 +486,7 @@ SORT/TOP_K backward requests fail before preparation.
 
 The native bridge was rebuilt, ad-hoc signed with
 `io.github.pho001.synaptik.metal.foundation`, packaged, and independently verified. The complete
-packaged Metal suite, Metal conformance suite, dedicated three-case CPU-free Engine integration,
+packaged Metal suite, Metal conformance suite, dedicated four-case CPU-free Engine integration,
 Metal Javadoc, and architecture tests pass. Counts are exactly `75/40` capability, `93/22`
 structural execution, `75/35/5` MPSGraph catalog, and `52/63/0` custom catalog. Schema 15, ABI 5,
 type wires `1..6`, operation wires `1..115`, attribute wires `0..41`, route wires `1..3`, image

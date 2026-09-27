@@ -372,7 +372,7 @@ before extracting a package or widening another type.
 | 0060 | [Exact replacement, non-overlap fold, and aggregate reductions](tasks/0060-exact-replacement-fold-and-aggregate-reductions.md) | Complete | 0059 Complete at `f3ad5e12`; current Model scatter/slice/fold/aggregate contracts; Compiler/Prepare/Runtime/Engine contracts | Every concurrent Metal capability/schema/native/custom-source/catalog/candidate/route/preparation/resource/publication/test/package/documentation scope; pooling and ordering successors; any resumed 0053 work | None | Plan `dd94e492` → implementation `d06db07e` → proof `eda09533` → docs `62f18cd8` → fold-domain/count remediation `a4fe4754` → independent cumulative re-review `APPROVE` with zero P0/P1/P2 | Complete Metal tests; packaged-dylib public positive/negative Engine proof, repetition/concurrency/failure recovery; package verifier; Javadocs; no final full build by request | Exact `69/46` capability and `87/28` structural execution; unchanged schema 15/identity 16/ABI 5/13 exports; replacement-only Scatter-ND/slice-update, FLOAT64/FLOAT32/BFLOAT16 non-overlap folds, modular integer PROD, BOOL ALL/ANY; integral/BOOL folds and other blockers remain false |
 | 0061 | [General static MATMUL domain](tasks/0061-general-static-matmul-domain.md) | Complete | 0060 Complete at `a4fe4754`; current Model MATMUL/promotion and Compiler gradient contracts | Every concurrent Metal capability/schema/native/custom/route/package/shared-document scope and resumed 0053 production | None | Corrected plan `d81ec940` → implementation/proof from `3cc49d94` through final remediation `3913bac1` → independent cumulative code/evidence/security `APPROVE` with zero P0/P1/P2 | Native build/sign/package; 187 Metal, 278 Compiler, 8 conformance, and 25 public Engine tests; certificate, Javadoc, architecture, docs/diff | Adds general promoted integral and accelerator FLOAT32/mixed MATMUL without new wire/schema/ABI/export; retains rank-two FLOAT32 MPSGraph, including authenticated nested transposes, and routes only new forms through seven fixed custom signatures |
 | 0062 | [ACCELERATOR MSE and normalization/loss proof boundary](tasks/0062-accelerator-mse-and-normalization-loss-boundary.md) | Complete | 0061 Complete at reviewed head `3913bac1`; Model 0030/0031; current loss/normalization, Compiler-gradient, FLOAT32 primitive/reduction, catalog/schema/lifecycle contracts | Every concurrent Metal capability/schema/native/custom/route/package/shared-document scope and resumed 0053 production | None | Implementation/proof `1cf8a6ef` → documentation `3e0e4ea4` → nested-input remediation `b12dbe73` → evidence checkpoint `e80a03f6` → documentation remediation `06c57844` → independent cumulative code/evidence/security `APPROVE` with zero remaining P0/P1/P2 | Native build/sign/package/verification; 193 Metal, 9 conformance, 26 public Engine, and 9 architecture tests; Javadoc/docs/diff; identities/counts/exports | Implements only same-type FLOAT32 ACCELERATOR MSE `NONE`/`SUM`/`MEAN` through one fixed proved MPSGraph composition; keeps the other eight normalization/loss wires and generated backward fail-closed. |
-| 0063 | [Exact ordering and arg extrema](tasks/0063-exact-ordering-and-arg-extrema.md) | Review needed | 0062 Complete through `06c57844`; current Model ordering/top-K/arg-extrema and Compiler-gradient contracts; completed six-carrier, INT64, schema-15, custom-program, catalog, lifecycle, and public Engine foundations | Every concurrent Metal capability/schema/native/custom-source/multi-output/route/package/shared-document scope and resumed 0053 production | None | Approved plan and external P1 unsigned-32-bit cap correction -> implementation/proof `9931d5f8` -> documentation/evidence -> final independent cumulative code/evidence/security review | Native build/sign/package/verification; complete packaged Metal suite; Metal conformance; three-case Engine integration; Javadoc; architecture tests; documentation/link/diff checks; final review pending | Implements exact stable SORT/ARGSORT, exact TOP_K with sorted and coordinate-order multi-output publication, and first/last ARG_MAX/ARG_MIN across the specified six- or five-carrier domains. Custom-only routing, integer-only comparator paths, canonical dense positive-rank limits, and pre-resource `UINT32_MAX` rejection are landed. Current production is `75/40`, structural execution `93/22`, catalogs `75/35/5` and `52/63/0`, schema 15, identity 19, ABI 5. |
+| 0063 | [Exact ordering and arg extrema](tasks/0063-exact-ordering-and-arg-extrema.md) | Complete | 0062 Complete through `06c57844`; current Model ordering/top-K/arg-extrema and Compiler-gradient contracts; completed six-carrier, INT64, schema-15, custom-program, catalog, lifecycle, and public Engine foundations | Every concurrent Metal capability/schema/native/custom-source/multi-output/route/package/shared-document scope and resumed 0053 production | None | Approved plan and external P1 unsigned-32-bit cap correction -> implementation/proof `9931d5f8` -> documentation `f7800a26` -> remediation `8a74b499` -> final source/test correction `86399d53` -> active-document reconciliation and external final cumulative `APPROVE` at `c80d79c0` with zero P0/P1/P2 | Native build/sign/package/verification; complete packaged Metal suite; Metal conformance; four-case Engine integration; Javadoc; architecture tests; documentation/link/diff checks; tracked full-width INT32 XOR key and clean worktree confirmed | Implements exact stable SORT/ARGSORT, exact TOP_K with sorted and coordinate-order multi-output publication, and first/last ARG_MAX/ARG_MIN across the specified six- or five-carrier domains. Custom-only routing, integer-only comparator paths, canonical dense positive-rank limits, and pre-resource `UINT32_MAX` rejection are landed. Current production is `75/40`, structural execution `93/22`, catalogs `75/35/5` and `52/63/0`, schema 15, identity 19, ABI 5. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -422,7 +422,7 @@ Completed profile spine and serial successors:
 
 `0060 (Complete) + current MATMUL/promotion/gradient contracts -> 0061 (Complete)`
 `0061 (Complete) + current loss/normalization and Compiler gradient contracts + proved FLOAT32 primitive/reduction routes -> 0062 (Complete)`
-`0062 (Complete) + current ordering/top-K/arg-extrema and Compiler gradient contracts + schema-15 custom-program/multi-output foundations -> 0063 (implementation complete; final cumulative review pending)`
+`0062 (Complete) + current ordering/top-K/arg-extrema and Compiler gradient contracts + schema-15 custom-program/multi-output foundations -> 0063 (Complete)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -558,11 +558,12 @@ another.
 - Blocked Metal 0016–0018, 0026–0027, 0030–0037, 0039–0040, 0051, and 0053 have no active
   production write scope. Task 0061 is Complete through reviewed implementation head `3913bac1`.
   Task 0062 is Complete through final documentation remediation `06c57844` after independent
-  cumulative code, evidence, and security approval. Task 0063 implementation `9931d5f8` and its
-  package/tests/documentation are complete; only the final cumulative review gate remains. No
-  later Metal task is Ready. Model 0028 owns the reduction semantic contract, Complete Model 0029
-  owns the MATMUL final-publication semantic contract, and Complete Metal 0021–0025 retain reviewed
-  implementations.
+  cumulative code, evidence, and security approval. Task 0063 is Complete through implementation
+  `9931d5f8`, documentation `f7800a26`, remediation `8a74b499`, final source/test correction
+  `86399d53`, and active-document reconciliation `c80d79c0`; external final cumulative review at
+  `c80d79c0` returned `APPROVE` with zero P0/P1/P2. No later Metal task is Ready. Model 0028 owns
+  the reduction semantic contract, Complete Model 0029 owns the MATMUL final-publication semantic
+  contract, and Complete Metal 0021–0025 retain reviewed implementations.
 
 ## Milestones and current frontier
 
@@ -679,11 +680,13 @@ with zero P0/P1/P2. It retained `69/46` capability, `87/28` structural execution
 MPSGraph catalog, `47/68/0` custom catalog, and backend-local identity 17. Task 0062 is Complete
 through documentation remediation `06c57844`; independent cumulative code, evidence, and security
 review returned `APPROVE` with zero remaining P0/P1/P2. Its cutover advanced capability to `70/45`,
-structural execution to `88/27`, and backend-local identity to 18. Task 0063 implementation
-`9931d5f8` performs the reviewed unsigned-32-bit-bounded custom cutover for
-SORT/ARGSORT/TOP_K/ARG_MAX/ARG_MIN with no MPSGraph fallback. Current capability is `75/40`,
-structural execution is `93/22`, catalogs are `75/35/5` and `52/63/0`, and backend-local identity
-is 19; schema 15, ABI 5, and thirteen exports remain fixed. Final cumulative review is pending;
+structural execution to `88/27`, and backend-local identity to 18. Task 0063 is Complete through
+implementation `9931d5f8`, documentation `f7800a26`, remediation `8a74b499`, final source/test
+correction `86399d53`, and active-document reconciliation `c80d79c0`. Its reviewed
+unsigned-32-bit-bounded custom cutover implements SORT/ARGSORT/TOP_K/ARG_MAX/ARG_MIN with no
+MPSGraph fallback. Current capability is `75/40`, structural execution is `93/22`, catalogs are
+`75/35/5` and `52/63/0`, and backend-local identity is 19; schema 15, ABI 5, and thirteen exports
+remain fixed. External final cumulative review at `c80d79c0` returned `APPROVE` with zero P0/P1/P2;
 Task 0053 remains Blocked on its external constructive-real bridge.
 
 Metal 0006 remains historically `Blocked` after its frozen direct-selector
