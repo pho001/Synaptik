@@ -82,13 +82,15 @@ It contains no caller Tensor storage reference and performs no execution.
 Compilation uses the profile captured by the Engine for every capability query and carries it into
 preparation. The default is `STRICT_IEEE`. CPU answers the same exact capability matrix under
 either profile. Metal's common exact domain includes its unary/affine/canonicalization/indexing/
-BOOL/movement/replacement/fold/aggregate, no-gradient promoted INT32/INT64 MATMUL, and
-unsigned-32-bit-bounded ordering/top-K/numeric arg-extrema rows. `ACCELERATOR` additionally admits
-the documented FLOAT32 arithmetic/reduction/scan rows, same-type canonical positive-rank FLOAT32
-MSE for all three reductions, every positive-static FLOAT32 MATMUL geometry, and no-gradient
-BFLOAT16/FLOAT32 mixed MATMUL. Strict rejects floating MATMUL and MSE but retains every common row;
-every other unlisted occurrence fails before route selection. Compilation neither changes the
-requested profile nor falls back when an occurrence has no eligible owner.
+BOOL/movement/replacement/fold/aggregate, ordering/top-K/numeric arg-extrema, no-gradient promoted
+INT32/INT64 MATMUL, maximum-pooling, and raw INITIAL_STATE rows. `ACCELERATOR` additionally admits
+the documented FLOAT32 arithmetic/reduction/scan rows; same-type canonical positive-rank FLOAT32
+MSE; every positive-static FLOAT32 MATMUL geometry; no-gradient BFLOAT16/FLOAT32 mixed MATMUL;
+convolution, average pooling, and FLOAT32 dropout; and the no-gradient rank-one FLOAT32 L1_NORM and
+axis-zero SCATTER_ADD custom programs. The current ledger is 85 admitted kinds and 30 remaining
+false. Strict rejects accelerator-only occurrences; every other unlisted occurrence fails before
+route selection. Compilation neither changes the requested profile nor falls back when an
+occurrence has no eligible owner.
 
 ## Limitations
 
@@ -98,11 +100,10 @@ execution. Rank-0..16 fully static cross-owner values may use `FLOAT64`, `FLOAT3
 physical spans. Exact custom nodes, including every admitted ordering/arg-extrema node, and MATMUL
 outside the retained all-FLOAT32 rank-two MPSGraph slice execute through one fixed native
 whole-program call with declared run-owned intermediates and direct targets. ABI 5 retains thirteen
-exports and consumes one bounded schema-15 program image with type wires `1..6`, operation wires
-`1..115`, attributes `0..41`, and version-nineteen identities; version eighteen fails closed.
-Accelerator Metal additionally owns same-type canonical positive-rank FLOAT32 MSE forward execution
-for `NONE`, `SUM`, and `MEAN`; it does not own the generated backward graph. Registry presence does
-not widen capability; unsupported operations fail closed.
+exports and consumes one bounded schema-16 program image with type wires `1..6`, operation wires
+`1..115`, and attributes `0..41`. Workload, exact-policy, candidate, compatibility, route-policy,
+and session-codec identities are version 24; identity 23 and every older identity fail closed.
+Registry presence does not widen capability; unsupported operations fail closed.
 
 Model construction leaves Conv2d and Conv3d result layouts unresolved; Compiler closes
 only eligible fully static final convolution

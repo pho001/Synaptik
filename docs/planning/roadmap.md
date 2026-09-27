@@ -751,8 +751,10 @@ The same occurrence closes the existing compiler-generated rank-one Gather data 
 The Lean proof, source certificate, pinned runtime-source extraction, and Xcode 27.0 build
 27A266a/Metal 32023.921/macOS SDK 27.0 compiled-MSL/AIR audit pass. The current ledger is capability
 `85/30`, structural `101/14`, MPSGraph `75/35/5`, custom `72/43/0`, schema 16, ABI 5, thirteen
-exports, and identity 24. Identity 23 and every older identity fail closed. Slice 2 awaits
-independent review; `VARIANCE` remains production-false and Slice 3 is not authorized.
+exports, and identity 24. Identity 23 and every older identity fail closed. Slice 2 final-review
+remediation expands its direct raw-native malformed-image matrix and corrects active documentation;
+independent re-review approves with no remaining P0/P1/P2 blockers. `VARIANCE` remains
+production-false and Slice 3 is not authorized.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
@@ -883,7 +885,7 @@ independently approved implementation `89f9fbb9`; documentation-only Metal 0049 
 remediation `6d4246f7`; Metal 0050 final verification, Task 0052, and historical documentation/
 audit-only Metal 0054 and exact BOOL Task 0057 are Complete. Historical Metal 0051 and successor
 Metal 0053 are Blocked. Task 0054 remains the exact pre-cutover `19+2+15+79=115` record, not a
-current count; current capability is `84 true / 31 false = 115` and current structural execution is
+current count; current capability is `85 true / 30 false = 115` and current structural execution is
 `101 true / 14 false = 115`.
 
 ## History policy

@@ -1083,35 +1083,91 @@ class MetalMpsGraphRawAbiNativeTest {
                     new int[] {3},
                     MetalPreparedRoute.CUSTOM_PROGRAM);
             assertEquals(0, abi.create(valid, valid.length));
-            int dimensionsOffset = nodeOffset(validValues.size())
-                    + MetalMpsGraphProgram.NODE_DESCRIPTOR_BYTES;
+            int nodeDescriptor = nodeOffset(validValues.size());
+            int dimensionsOffset =
+                    nodeDescriptor + MetalMpsGraphProgram.NODE_DESCRIPTOR_BYTES;
             int stridesOffset =
                     dimensionsOffset + readInt(valid, 7 * Integer.BYTES) * Long.BYTES;
             int referencesOffset =
                     stridesOffset + readInt(valid, 11 * Integer.BYTES) * Long.BYTES;
-            byte[] indexNotFeed =
-                    rewriteInt(valid, referencesOffset + Integer.BYTES, 3);
+            int attributesOffset =
+                    referencesOffset + readInt(valid, 8 * Integer.BYTES) * Integer.BYTES;
+            int nodeReferencesOffset = referencesOffset + 4 * Integer.BYTES;
 
-            for (byte[] malformedImage : List.of(
-                    program.encodedProgramImage(
-                            NumericalProfile.STRICT_IEEE,
-                            validValues,
-                            new int[] {0, 1, 2},
-                            new int[] {3},
-                            MetalPreparedRoute.CUSTOM_PROGRAM),
-                    program.encodedProgramImage(
+            byte[] strictProfile = program.encodedProgramImage(
+                    NumericalProfile.STRICT_IEEE,
+                    validValues,
+                    new int[] {0, 1, 2},
+                    new int[] {3},
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            byte[] directMpsGraph = program.encodedProgramImage(
+                    NumericalProfile.ACCELERATOR,
+                    validValues,
+                    new int[] {0, 1, 2},
+                    new int[] {3},
+                    MetalPreparedRoute.MPSGRAPH);
+            var indirectIndexProgram = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.contiguous(1, 4),
+                    MetalMpsGraphProgram.Node.scatterAdd(0, 4, 2, 3, 0)));
+            byte[] indexNotFeed = indirectIndexProgram.encodedProgramImage(
+                    NumericalProfile.ACCELERATOR,
+                    List.of(
+                            descriptor(5),
+                            descriptor(DataType.INT32, 3),
+                            descriptor(3),
+                            descriptor(5),
+                            descriptor(DataType.INT32, 3)),
+                    new int[] {0, 1, 2},
+                    new int[] {3},
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            assertEquals(1, abi.create(strictProfile, strictProfile.length));
+            assertEquals(13, abi.create(directMpsGraph, directMpsGraph.length));
+            assertEquals(1, abi.create(indexNotFeed, indexNotFeed.length));
+
+            byte[] nonzeroAxis = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.scatterAdd(0, 1, 2, 3, 1)))
+                    .encodedProgramImage(
                             NumericalProfile.ACCELERATOR,
                             validValues,
                             new int[] {0, 1, 2},
                             new int[] {3},
-                            MetalPreparedRoute.MPSGRAPH),
-                    indexNotFeed)) {
-                assertNotEquals(0, abi.create(malformedImage, malformedImage.length));
+                            MetalPreparedRoute.CUSTOM_PROGRAM);
+            List<byte[]> malformedStructure = List.of(
+                    nonzeroAxis,
+                    rewriteInt(
+                            valid,
+                            nodeDescriptor + Integer.BYTES,
+                            MetalMpsGraphProgram.AttributeKind.NONE.wireIdentity()),
+                    rewriteInt(valid, nodeDescriptor + 7 * Integer.BYTES, 0),
+                    rewriteInt(valid, nodeDescriptor + 7 * Integer.BYTES, 2),
+                    rewriteLong(valid, attributesOffset, -1L),
+                    rewriteInt(valid, nodeReferencesOffset + Integer.BYTES, 0),
+                    rewriteInt(valid, nodeReferencesOffset + 2 * Integer.BYTES, 0),
+                    rewriteInt(valid, nodeReferencesOffset + 2 * Integer.BYTES, 1),
+                    rewriteInt(valid, nodeReferencesOffset + 3 * Integer.BYTES, 0),
+                    rewriteInt(valid, nodeReferencesOffset + 3 * Integer.BYTES, 1),
+                    rewriteInt(valid, nodeReferencesOffset + 3 * Integer.BYTES, 2));
+            for (int row = 0; row < malformedStructure.size(); row++) {
+                byte[] image = malformedStructure.get(row);
+                assertEquals(1, abi.create(image, image.length),
+                        "malformed ScatterAdd structure row " + row);
             }
+            byte[] zeroD = rewriteLong(
+                    rewriteLong(valid, dimensionsOffset, 0L),
+                    dimensionsOffset + 3 * Long.BYTES,
+                    0L);
+            byte[] zeroU = rewriteLong(
+                    rewriteLong(valid, dimensionsOffset + Long.BYTES, 0L),
+                    dimensionsOffset + 2 * Long.BYTES,
+                    0L);
+            assertEquals(8, abi.create(zeroD, zeroD.length));
+            assertEquals(8, abi.create(zeroU, zeroU.length));
 
             Shape dataShape = Shape.of(5);
             Shape updateShape = Shape.of(3);
             long excessive = 0xffff_ffffL / Float.BYTES + 1L;
+            long int64ByteOverflow = 0xffff_ffffL / Long.BYTES + 1L;
+            long countOverflow = 0x1_0000_0000L;
             List<List<MetalMpsGraphProgram.ValueDescriptor>> malformedValues = List.of(
                     List.of(
                             new MetalMpsGraphProgram.ValueDescriptor(
@@ -1119,6 +1175,24 @@ class MetalMpsGraphRawAbiNativeTest {
                             descriptor(DataType.INT32, 3),
                             descriptor(3),
                             descriptor(5)),
+                    List.of(
+                            descriptor(5),
+                            new MetalMpsGraphProgram.ValueDescriptor(
+                                    DataType.INT32, new long[] {3}, true),
+                            descriptor(3),
+                            descriptor(5)),
+                    List.of(
+                            descriptor(5),
+                            descriptor(DataType.INT32, 3),
+                            new MetalMpsGraphProgram.ValueDescriptor(
+                                    DataType.FLOAT32, new long[] {3}, true),
+                            descriptor(5)),
+                    List.of(
+                            descriptor(5),
+                            descriptor(DataType.INT32, 3),
+                            descriptor(3),
+                            new MetalMpsGraphProgram.ValueDescriptor(
+                                    DataType.FLOAT32, new long[] {5}, true)),
                     List.of(
                             descriptor(1, 5),
                             descriptor(DataType.INT32, 3),
@@ -1209,18 +1283,40 @@ class MetalMpsGraphRawAbiNativeTest {
                             descriptor(3),
                             descriptor(5)),
                     List.of(
+                            descriptor(5),
+                            descriptor(DataType.INT32, 3),
+                            descriptor(3),
+                            descriptor(6)),
+                    List.of(
                             descriptor(excessive),
                             descriptor(DataType.INT64, 3),
                             descriptor(3),
-                            descriptor(excessive)));
-            for (List<MetalMpsGraphProgram.ValueDescriptor> values : malformedValues) {
+                            descriptor(excessive)),
+                    List.of(
+                            descriptor(5),
+                            descriptor(DataType.INT32, excessive),
+                            descriptor(excessive),
+                            descriptor(5)),
+                    List.of(
+                            descriptor(5),
+                            descriptor(DataType.INT64, int64ByteOverflow),
+                            descriptor(int64ByteOverflow),
+                            descriptor(5)),
+                    List.of(
+                            descriptor(5),
+                            descriptor(DataType.INT32, countOverflow),
+                            descriptor(countOverflow),
+                            descriptor(5)));
+            for (int row = 0; row < malformedValues.size(); row++) {
+                List<MetalMpsGraphProgram.ValueDescriptor> values = malformedValues.get(row);
                 byte[] image = program.encodedProgramImage(
                         NumericalProfile.ACCELERATOR,
                         values,
                         new int[] {0, 1, 2},
                         new int[] {3},
                         MetalPreparedRoute.CUSTOM_PROGRAM);
-                assertEquals(1, abi.create(image, image.length));
+                assertEquals(1, abi.create(image, image.length),
+                        "malformed ScatterAdd value row " + row);
             }
         }
     }
@@ -2036,6 +2132,7 @@ class MetalMpsGraphRawAbiNativeTest {
         ByteBuffer.wrap(result).order(ByteOrder.LITTLE_ENDIAN).putInt(offset, value);
         return result;
     }
+
 
     private static byte[] rewriteLong(byte[] source, int offset, long value) {
         byte[] result = source.clone();

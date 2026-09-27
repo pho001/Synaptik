@@ -122,13 +122,23 @@ replacement/fold/aggregate, Task-0063 ordering/top-K/numeric arg-extrema, no-gra
 INT32/INT64 MATMUL, Task-0064 maximum pooling, and Task-0065 raw INITIAL_STATE rows. Accelerator
 additionally admits the documented FLOAT32 arithmetic, extrema, scalar, reduction, and scan rows;
 every positive-static FLOAT32 MATMUL vector, matrix, batched, and broadcast geometry; no-gradient
-BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 output; Task-0064 convolution/average pooling; and
-Task-0065 FLOAT32 dropout. Every unlisted occurrence fails closed before route selection. Metal
-uses ABI 5 with the same thirteen exports and one bounded schema-16 route-bearing program image.
-Operation wires `1..115`, attribute wires `0..41`, and type wires `1..6` cover current structural
-vocabulary; version-twenty-three identities authenticate that meaning without widening capability,
-and version twenty-two plus every older identity fails closed.
-Model remains the sole semantic owner of profile meaning.
+BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 output; Task-0064 convolution/average pooling; Task-0065
+FLOAT32 dropout; and two Task-0069 source-owned custom programs. Task 0069 admits no-gradient,
+canonical rank-one FLOAT32 `L1_NORM` with one positive extent and no-gradient, axis-zero, canonical
+rank-one FLOAT32 `SCATTER_ADD` with positive data and update extents, a materialized canonical
+rank-one INT32 or INT64 index feed, and identical base/result and index/update extents.
+Compiler-generated rank-one Gather data cotangents close through an explicit canonical zero
+`EXPAND -> CONTIGUOUS -> SCATTER_ADD`; gradient-bearing Scatter-Add and its own cotangents remain
+unsupported. The resulting Metal capability ledger is exactly 85 admitted kinds and 30 remaining
+false, with 101 structurally executable kinds and 14 remaining nonexecutable. These are
+shape-restricted production domains, not whole-kind admission; every unlisted occurrence fails
+closed before route selection.
+
+Metal uses ABI 5 with the same thirteen exports and one bounded schema-16 route-bearing program
+image. Operation wires `1..115`, attribute wires `0..41`, and type wires `1..6` cover current
+structural vocabulary. Metal-local workload, exact-policy, candidate, compatibility, route-policy,
+and session codec identities are version 24; identity 23 and every older identity fail closed
+rather than falling back. Model remains the sole semantic owner of profile meaning.
 
 The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
@@ -299,6 +309,14 @@ construction now owns caller-axis normalization, exact index and data/update typ
 same-rank Shape rule, result metadata, and ordered provenance. Index-value bounds,
 duplicate detection, gradients, compiler behavior, backend behavior, and execution remain planned
 or separately owned.
+
+`AxisScatterKind.SCATTER_ADD` is the fixed additive Gather-compatible scatter identity. It pairs
+with `IndexAxisAttrs(axis)`, consumes ordered logical inputs `[data, indices, updates]`, and returns
+a new result with the exact `data` Shape. Its updates Shape is exactly the Shape that ordinary
+axis Gather would read for the same data and indices; the base and every addressed update
+contribute, so duplicate indices accumulate. Public Tensor construction owns normalized axis,
+exact index/data/update type and Shape checks, result metadata, gradient eligibility, and ordered
+provenance. It does not mutate inputs, inspect index bounds, execute work, or construct gradients.
 
 `ScatterNdKind.SCATTER_ND` is the current functional tuple-index scatter semantic identity. It
 pairs with `ScatterNdAttrs(batchDimensions, reduction)`, which stores an already normalized

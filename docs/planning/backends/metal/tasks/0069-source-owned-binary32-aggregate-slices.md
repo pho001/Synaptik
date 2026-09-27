@@ -291,10 +291,14 @@ The authorized ScatterAdd slice is implemented at wire 70. Metal admits only acc
 no-gradient, canonical rank-one FLOAT32 base/update/output with axis zero, positive `D`/`U`
 extents bounded to unsigned 32-bit bytes/dispatch, and a materialized canonical rank-one INT32 or
 INT64 index partition feed. The compiler places explicit `CONTIGUOUS` between its generated
-zero-base `EXPAND` and ScatterAdd. Java and native creation independently reject strict profile,
-direct MPSGraph route, malformed attributes, alternate carriers/ranks/layouts, aliased value IDs,
-missing index feeds, gradients, and over-limit geometry; direct raw-native images exercise those
-boundaries independently of Java validation.
+zero-base `EXPAND` and ScatterAdd. Java and native creation independently reject unsupported
+profile/route, axis attributes, carriers, ranks, layouts, aliases, feeds, gradients, and geometry.
+The direct raw-native matrix now covers strict profile; MPSGraph route; nonzero axis; missing,
+wrong-kind, wrong-count, and invalid-value axis attributes; absent index feed; each independently
+gradient-marked data, indices, updates, and output role; all six pairwise role-value-ID aliases;
+wrong type, rank, and layout for every role; unequal index/update and base/output extents; zero
+`D`; zero `U`; FLOAT32 `D` byte overflow; INT32 `U` count and byte overflow; and INT64 `U` byte
+overflow.
 
 Native execution completes the entire CPU index scan into `[0,D)` before creating a command buffer,
 encoding any step, or mutating output. One target-linear thread raw-loads its base exactly once,
@@ -332,13 +336,16 @@ Complete Metal backend tests pass all 260 tests. Focused Compiler graph and CPU 
 regressions, Metal capability/partition conformance, and public Engine integration pass, including
 canonical INT32/INT64 indices, duplicate source order, bit-exact unaddressed signed-zero/subnormal/
 NaN copies, addressed normal/subnormal/infinity/NaN classes, positive and negative
-error-before-mutation, runtime handle-alias rejection, raw-native malformed image rejection, and
-direct plus explicitly canonicalized generated-Gather execution on the packaged dylib.
+error-before-mutation, runtime handle-alias rejection, the complete raw-native malformed image
+matrix, and direct plus explicitly canonicalized generated-Gather execution on the packaged dylib.
+The final focused raw-native method passes after the producer-backed missing-index-feed fixture,
+and the proof/source-certificate/compiled-MSL runner passes unchanged.
 The unfiltered serialized `./gradlew test --rerun-tasks --no-daemon --max-workers=1` passes all
-76 actionable tasks in 3m04s with no exclusion, suppression, waiver, fallback, or timing evidence.
-The subsequent unfiltered serialized `./gradlew build --rerun-tasks --no-daemon --max-workers=1`
-passes all 87 actionable tasks in 3m06s. Final independent Slice-2 review approves the stabilized
-implementation and evidence with zero remaining P0/P1/P2.
+76 actionable tasks in 3m. The final unfiltered serialized
+`./gradlew build --rerun-tasks --no-daemon --max-workers=1` passes all 87 actionable tasks in
+2m59s, including the completed remediation, with no exclusion, suppression, waiver, fallback, or
+timing evidence. Final independent review found the two residual P2 gaps, verified their raw-matrix
+and active-documentation remediations, and approved with no remaining P0/P1/P2 blockers.
 Current ledgers are capability `85/30`, structural `101/14`, MPSGraph `75/35/5`, custom
 `72/43/0`, schema 16, ABI 5, thirteen exports, and identity 24; identity 23 and every older value
 fail closed. `VARIANCE` remains false and Slice 3 is not authorized.

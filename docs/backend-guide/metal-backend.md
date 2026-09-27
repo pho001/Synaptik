@@ -140,9 +140,9 @@ custom logic writes exact zero or one, and FLOAT32 WHERE copies the selected rep
 Every descriptor is fully static and has the operation-specific exact type, layout, Shape, and
 gradient relationship. The common exact operations have the same Model result contract in both
 profiles; Task-0052 operations, the no-gradient scalar/reciprocal subset, floating MATMUL, bounded
-MSE forward execution, convolution, average pooling, and dropout exist only under ACCELERATOR.
-INITIAL_STATE is common. The complete 115-row capability ledger is `84 true / 31 false` under the
-exact occurrence restrictions above.
+MSE forward execution, convolution, average pooling, dropout, rank-one L1_NORM, and rank-one
+SCATTER_ADD exist only under ACCELERATOR. INITIAL_STATE is common. The complete 115-row capability
+ledger is `85 true / 30 false` under the exact occurrence restrictions above.
 
 ```text
 capability -> Planning ownership -> Metal analysis and typed candidates
@@ -434,7 +434,8 @@ attributes, logical and physical value states, authenticated local provenance, c
 descriptors and storage layouts, target and internal-value sets, exact scalar/splat bits, logical-
 boundary roles, policy/candidate/route schemas, and ABI version. It encodes structural positions
 rather than graph object identity. Target compatibility also contains a fresh private nonce from
-the exact `MetalDeviceContext`; identity 23 and every older decision fail closed.
+the exact `MetalDeviceContext`; only identity 24 is accepted, while identity 23 and every older
+decision fail closed.
 Metal can construct an absent- or present-decision `BackendPartitionTuningHandoff`. Fresh analysis
 always regenerates the current batch. Every supplied handoff is accepted only when the exact
 partition, candidate schema, workload fingerprint, and context session match. An absent decision
@@ -463,8 +464,8 @@ The package-private version-twenty-four Metal codec produces bounded canonical c
 candidate, and checksummed decision bytes. Decode rejects wrong magic, schema, session scope,
 numerical profile, malformed or truncated content, trailing or corrupt bytes, changed workload or
 context, and unknown or pruned candidates. The bytes contain no native handle or executable.
-Identity 23 and every older codec or cross-profile decision fails closed even when its trailing
-checksum is otherwise valid.
+Only identity 24 is accepted; identity 23 and every older codec or cross-profile decision fails
+closed even when its trailing checksum is otherwise valid.
 
 The public `MetalLocalWorkloadTuning` retained by `MetalBackendIntegration` wraps this codec and
 candidate generator without changing their version-twenty-four bytes. It returns a handoff only
@@ -481,7 +482,8 @@ model-plan path. Cross-session Metal reuse still requires a separately authorize
 device/library fingerprint.
 
 Schema-sixteen workload bytes and workload compatibility include the fixed route and exact profile.
-Candidate and decision bytes retain route wires `1..3`, route-policy version twenty-three, and the target session.
+Candidate and decision bytes retain route wires `1..3`, route-policy version twenty-four, and the
+target session.
 Prepared plans and native resources are route-specific. A future executable-cache key would
 therefore require the tuple `(workload compatibility, route wire, route-policy version, target
 session)` rather than a workload digest alone. The repository has no persistent Metal executable
@@ -865,7 +867,7 @@ physical flags, stride-pool offset, storage offset, and referenced span. The hea
 route wire `2` or `3` followed by the exact numerical-profile wire
 `0x53545249=STRICT_IEEE` or `0x41434345=ACCELERATOR`; schema 15, unknown profile wires, route zero,
 and every other schema or route fail closed.
-Production capability admits exactly 84 operation kinds while 31 remain false; structural native
+Production capability admits exactly 85 operation kinds while 30 remain false; structural native
 execution covers 101 kinds and leaves 14 nonexecutable. Attribute wires `0..41` and type wires
 `1..6` cover all current Model signatures and carriers.
 

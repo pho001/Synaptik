@@ -2474,8 +2474,8 @@ compatibility projection, and Engine's representative execution are implemented.
 Engine path produces the sole occurrence-0/partition-0/weight-1 mapping. Model extraction and
 multiple-occurrence aggregation remain planned.
 
-The profile-qualified Metal instance is also implemented internally. Its version-nineteen
-fingerprint covers the exact `NumericalProfile`, bounded route-bearing node schema 15, operation
+The profile-qualified Metal instance is also implemented internally. Its version-twenty-four
+fingerprint covers the exact `NumericalProfile`, bounded route-bearing node schema 16, operation
 wires `1..115`, attribute wires `0..41`, type wires `1..6`, ordered variable-cardinality
 inputs/outputs, ordered feed/target/value structure, descriptors, complete storage layouts, value
 states, exact attribute and splat bits, logical-boundary facts, candidate/route schemas, and native
@@ -2560,10 +2560,10 @@ decision contains no measurement, cache representation, executable, provider, na
 physical resource, or Runtime state.
 
 The profile-qualified Metal decision follows the same owner-defined pattern with a bounded
-checksummed version-nineteen session codec. Fresh Metal analysis regenerates current profile/
+checksummed version-twenty-four session codec. Fresh Metal analysis regenerates current profile/
 topology facts and accepts a selection only when schema, workload, exact context session, and
 candidate identity match. Decode rejects malformed, corrupt, trailing, stale, foreign-session,
-version-eighteen and earlier, cross-profile, and unknown-candidate bytes. These bytes are not a
+version-twenty-three and earlier, cross-profile, and unknown-candidate bytes. These bytes are not a
 workload-cache artifact and have no current `tools/tuning` adapter.
 
 The generic Phase-2 tool may persist a decision only when its producer declares persistent reuse,
@@ -5191,23 +5191,25 @@ implements the transactional finalizer handoff.
 The current Metal backend's package-private shape-specialized Runtime recipe for one complete
 maximal profile-homogeneous partition. Both profiles admit the exact common unary, affine,
 canonicalization, indexing, BOOL-domain, Task-0059 movement, Task-0060 replacement/fold/aggregate,
-Task-0063 ordering/top-K/numeric arg-extrema, and promoted integral MATMUL rows. ACCELERATOR
-additionally admits the documented FLOAT32 arithmetic/reduction/scan rows, every positive-static
-FLOAT32 MATMUL geometry, no-gradient BFLOAT16/FLOAT32 mixed MATMUL, and same-type canonical
-positive-rank FLOAT32 MSE with `NONE`, `SUM`, or `MEAN`. MSE has forward ownership only; strict,
-excluded carriers/geometry, every other normalization or loss kind, and generated MSE backward
-remain fail-closed. Direct typed transfer can move all six current carriers at ranks `0..16`
-through canonical or supported storage layouts; BOOL validation visits logical elements only.
+Task-0063 ordering/top-K/numeric arg-extrema, promoted integral MATMUL, Task-0064 maximum pooling,
+and Task-0065 raw INITIAL_STATE rows. ACCELERATOR additionally admits the documented FLOAT32
+arithmetic/reduction/scan rows, every positive-static FLOAT32 MATMUL geometry, no-gradient
+BFLOAT16/FLOAT32 mixed MATMUL, Task-0064 convolution/average pooling, Task-0065 FLOAT32 dropout,
+and the Task-0069 rank-one L1_NORM and SCATTER_ADD custom programs. The latter require
+no-gradient canonical FLOAT32 data and output, and SCATTER_ADD additionally requires axis zero,
+positive data/update extents, and one materialized canonical INT32 or INT64 index feed. Direct
+typed transfer can move all six current carriers at ranks `0..16` through canonical or supported
+storage layouts; BOOL validation visits logical elements only.
 
-Metal analysis fixes stable value/node/feed/target order, lowers one bounded schema-15 route-bearing
-program image, generates a complete version-19 route batch, authenticates any supplied session
-decision, and fixes one private route before declaring resources. Identity 18 and earlier fail
-closed. An eligible singleton NEG may use the dedicated custom pipeline. A partition containing
-any exact custom node or MATMUL outside the retained all-FLOAT32 rank-two MPSGraph slice selects the
-fixed shared custom whole-program route; an MSE node remains the same fixed nested MPSGraph
-composition there. Other supported partitions use MPSGraph. Exact structural alternatives remain
-package-private forcing only. These choices add no fallback, retry, timing selection, or partition
-change.
+Metal analysis fixes stable value/node/feed/target order, lowers one bounded schema-16 route-bearing
+program image, generates a complete version-24 route batch, authenticates any supplied session
+decision, and fixes one private route before declaring resources. Identity 23 and every older
+value fail closed. An eligible singleton NEG may use the dedicated custom pipeline. A partition
+containing any exact custom node or MATMUL outside the retained all-FLOAT32 rank-two MPSGraph slice
+selects the fixed shared custom whole-program route; an MSE node remains the same fixed nested
+MPSGraph composition there. Other supported partitions use MPSGraph. Exact structural
+alternatives remain package-private forcing only. These choices add no fallback, retry, timing
+selection, or partition change.
 
 Finalization compiles one persistent route resource and transfers it to `PreparedExecution`.
 Shared custom-program creation compiles the fixed reviewed safe-math/raw-word/integer/movement
