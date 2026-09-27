@@ -283,23 +283,37 @@ identity, and native preflight where applicable. Route-specific resource evidenc
 | `CUSTOM_PROGRAM` | Complete value table is pairwise distinct; each `output[i]` equals exactly `values[targetValueIndices[i]]`. | Reject duplicate value handles, wrong/swapped/duplicate target handles, and extra aliases in Java and raw native paths before execution; inputs and target sentinels remain unchanged. |
 | `CUSTOM_SINGLE_NEG` | Distinct input and output. | Reject input/output alias before dispatch and retain sentinels. |
 
-## Baseline conclusions and findings requiring reviewed remediation
+## Audit findings and dispositions
 
 - `C-001` — `FirstOrderGradientCoverage` intentionally owns only the 38-family / 111-kind /
   133-fingerprint supported-formula inventory. `AutogradPreflight` rejects Conv3d plus RNN/GRU/LSTM
   before Tensor construction, and `FirstOrderGradientCoverageTest` proves the supported and deferred
-  partitions are disjoint and combine to the full 40 / 115 / 137 Model inventory. Preserve this
-  forward-only boundary; do not add nonexistent formulas or owners.
-- `A-001` — the current `83/32` test derives production truth as `executable - 18` from a manually
-  repeated set. It does not prove that all 83 rows have a constructible capability-positive
-  occurrence or exact downstream route. Remediation must replace arithmetic-only evidence with the
-  canonical wire/Model mapping and actual representative reachability ledger.
-- `A-002` — root `README.md` still says backend-local route/workload identities are version 20.
-  Current source and other active documents use version 22 and reject version 21 and every older
-  identity. Correct this active-document mismatch without rewriting historical evidence.
-- `A-003` — existing Java and raw-native alias evidence does not yet close the route-specific matrix
-  above for both opposite MPSGraph/custom-program contracts. Add exact valid-topology and rejection
-  evidence, including raw-native wrong-target/duplicate custom handles and unchanged sentinels.
+  partitions are disjoint and combine to the full 40 / 115 / 137 Model inventory. This forward-only
+  boundary remains unchanged; no nonexistent formula or owner was added.
+- `A-001` — the former `83/32` test derived production truth as `executable - 18` from a manually
+  repeated set and did not prove that all 83 rows had a constructible capability-positive
+  occurrence or exact downstream route. Commit `7f9601e1` replaces it with the canonical
+  wire/Model mapping, one real capability query per row, and exact structural/catalog/route totals.
+- `A-002` — root `README.md` said backend-local route/workload identities were version 20 although
+  current source and other active documents use version 22 and reject version 21 and older.
+  Commit `7f9601e1` corrects the active-document mismatch without rewriting historical evidence.
+- `A-003` — Java and raw-native alias evidence did not close the opposite MPSGraph/custom-program
+  matrices. Commit `7f9601e1` adds repeated-input MPSGraph success plus MPSGraph input/output
+  rejection, and exact custom target-alias success plus duplicate-value, wrong, swapped, and
+  duplicate-target rejection with unchanged sentinels.
+- `A-004` — the public Engine test still expected profile-common INT32 `FOLD_AXIS` to be unowned,
+  contrary to Task-0066 capability, route, and native execution. Commit `2541c6f3` executes the
+  exact integral result through Metal under both profiles while retaining Model-level BOOL
+  `FOLD_AXIS` and integral `FOLD2D`/`FOLD3D` rejection.
+- `A-005` — the public Engine test and active Metal guide still said jointly requested all-FLOAT32
+  Conv2d input/weight gradients were unowned even though the Compiler-generated partition is
+  primitive-closed. Commit `2541c6f3` executes the joint forward/input/weight publications and
+  corrects the active boundary while retaining mixed-carrier and Conv3d gradient rejection.
+- `A-006` — the ordering integration test expected generated `SORT` and `TOP_K` values-output
+  backward ownership to fail and attempted to send an invalid `k > extent` occurrence to Engine
+  even though Model rejects it first. Commit `2541c6f3` proves the Model boundary and executes both
+  generated gradients through Metal with exact values, while retaining ordering index roles as
+  non-differentiable.
 
 Other findings remain audit output, not assumptions. In particular `L1_NORM`, variance, and every
 other false row must stay false until complete Model/profile/formula/order/gradient/native evidence
