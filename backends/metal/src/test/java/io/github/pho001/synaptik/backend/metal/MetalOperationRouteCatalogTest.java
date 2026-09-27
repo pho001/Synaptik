@@ -1,7 +1,6 @@
 package io.github.pho001.synaptik.backend.metal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -56,9 +55,29 @@ class MetalOperationRouteCatalogTest {
         assertEquals(75, direct);
         assertEquals(35, composed);
         assertEquals(5, unavailable);
-        assertEquals(60, customAvailable);
-        assertEquals(55, customPending);
+        assertEquals(70, customAvailable);
+        assertEquals(45, customPending);
         assertEquals(0, customUnavailableWithProof);
+    Set<MetalMpsGraphProgram.NodeKind> task0066MovedToCustomAvailable =
+        Arrays.stream(kinds)
+            .filter(
+                kind ->
+                    MetalOperationRouteCatalog.entry(kind).customKernelReason()
+                        == MetalOperationRouteCatalog.CustomKernelReason.CA_0066)
+            .collect(Collectors.toSet());
+    assertEquals(
+        Set.of(
+            MetalMpsGraphProgram.NodeKind.RESHAPE,
+            MetalMpsGraphProgram.NodeKind.EXPAND,
+            MetalMpsGraphProgram.NodeKind.PERMUTE,
+            MetalMpsGraphProgram.NodeKind.EXPAND_DIMS,
+            MetalMpsGraphProgram.NodeKind.SQUEEZE,
+            MetalMpsGraphProgram.NodeKind.CONTIGUOUS,
+            MetalMpsGraphProgram.NodeKind.GATHER,
+            MetalMpsGraphProgram.NodeKind.ONE_HOT,
+            MetalMpsGraphProgram.NodeKind.SCATTER_ELEMENTS,
+            MetalMpsGraphProgram.NodeKind.UNFOLD_AXIS),
+        task0066MovedToCustomAvailable);
         assertEquals(101, executable);
         assertEquals(14, kinds.length - executable);
         assertThrows(NullPointerException.class, () -> MetalOperationRouteCatalog.entry(null));

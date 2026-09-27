@@ -22,9 +22,9 @@ import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithm
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
 import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
+import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
-import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
@@ -154,15 +154,14 @@ class MetalNegRouteCandidateGeneratorTest {
                                     .map(MetalMpsGraphProgram.Node::kind)
                                     .toList());
                     assertEquals(List.of(
-                            MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM,
-                            MetalNegTuningBatch.Candidate.MPSGRAPH),
+                            MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM),
                             generated.batch().candidates());
-                    assertSame(MetalPreparedRoute.MPSGRAPH,
+          assertThrows(
+              IllegalArgumentException.class,
+              () ->
                             new MetalNegPartitionPreparer()
                                     .analyzeForTesting(
-                                            workload.context(), MetalPreparedRoute.MPSGRAPH)
-                                    .plan()
-                                    .route());
+                                            workload.context(), MetalPreparedRoute.MPSGRAPH));
                 }
             }
             assertEquals(0, api.nativeAllocations.get());
@@ -221,6 +220,31 @@ class MetalNegRouteCandidateGeneratorTest {
                         List.of(MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM),
                         generated.batch().candidates());
             }
+      assertEquals(0, api.nativeAllocations.get());
+    }
+  }
+
+  @Test
+  void task0066SelectedNodesRejectForcedMpsGraphBeforeNativeAllocation() {
+    TestNativeApi api = new TestNativeApi();
+    try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
+      Workload workload =
+          operationWorkload(
+              device,
+              207_000L,
+              NumericalProfile.STRICT_IEEE,
+              new Operation(ShapeTransformKind.RESHAPE, new TargetShapeAttrs(Shape.of(2, 2))),
+              canonical(Shape.of(4)),
+              view(Shape.of(2, 2), 2, 1));
+      Generated generated = generated(workload, 2);
+      assertSame(MetalPreparedRoute.CUSTOM_PROGRAM, generated.analysis().plan().route());
+      assertEquals(
+          List.of(MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM), generated.batch().candidates());
+      assertThrows(
+          IllegalArgumentException.class,
+          () ->
+              new MetalNegPartitionPreparer()
+                  .analyzeForTesting(workload.context(), MetalPreparedRoute.MPSGRAPH));
             assertEquals(0, api.nativeAllocations.get());
         }
     }
@@ -834,7 +858,7 @@ class MetalNegRouteCandidateGeneratorTest {
             MetalNegTuningBatch.WorkloadSignature scatterIdentity =
                     scatterGenerated.batch().compatibility().workload();
             assertEquals(
-                    List.of(MetalNegTuningBatch.Candidate.MPSGRAPH),
+                    List.of(MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM),
                     scatterGenerated.batch().candidates());
             assertNotEquals(
                     scatterIdentity,
@@ -894,7 +918,7 @@ class MetalNegRouteCandidateGeneratorTest {
             MetalNegTuningBatch.WorkloadSignature identity =
                     generated.batch().compatibility().workload();
             assertEquals(
-                    List.of(MetalNegTuningBatch.Candidate.MPSGRAPH),
+                    List.of(MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM),
                     generated.batch().candidates());
 
             assertNotEquals(
@@ -950,8 +974,8 @@ class MetalNegRouteCandidateGeneratorTest {
                     route.wireIdentity()).orElseThrow());
             assertArrayEquals(new byte[] {
                     0x4d, 0x4e, 0x43, 0x41,
-                    0x00, 0x00, 0x00, 0x15,
-                    0x00, 0x00, 0x00, 0x15,
+                    0x00, 0x00, 0x00, 0x16,
+                    0x00, 0x00, 0x00, 0x16,
                     0x00, 0x00, 0x00, (byte) route.wireIdentity()
             }, codec.encodeCandidate(candidate));
         }
@@ -973,14 +997,14 @@ class MetalNegRouteCandidateGeneratorTest {
                     MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
                     current.batch().compatibility(), MetalNegTuningBatch.Candidate.MPSGRAPH);
             var codec = new MetalNegTuningCodec();
-            assertEquals(21, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
-            assertEquals(21, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
-            assertEquals(21, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
+            assertEquals(22, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
+            assertEquals(22, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
+            assertEquals(22, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
             byte[] first = codec.encodeDecision(decision);
-            assertEquals(21, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
-            assertEquals(21, current.batch().compatibility().schemaVersion());
-            assertEquals(21, current.batch().compatibility().candidateSchemaVersion());
-            assertEquals(21, current.batch().compatibility().routePolicyVersion());
+            assertEquals(22, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
+            assertEquals(22, current.batch().compatibility().schemaVersion());
+            assertEquals(22, current.batch().compatibility().candidateSchemaVersion());
+            assertEquals(22, current.batch().compatibility().routePolicyVersion());
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());
@@ -1042,6 +1066,17 @@ class MetalNegRouteCandidateGeneratorTest {
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, 4, 20), current.batch()).isEmpty(),
                     "checksummed version-twenty decisions must fail closed");
+      assertTrue(
+          codec.decodeDecision(rewriteInt(first, 4, 21), current.batch()).isEmpty(),
+          "checksummed codec-v21 decisions must fail closed");
+      int compatibilityLength = java.nio.ByteBuffer.wrap(first).getInt(3 * Integer.BYTES);
+      int candidateOffset = 5 * Integer.BYTES + compatibilityLength;
+      assertTrue(
+          codec
+              .decodeDecision(
+                  rewriteInt(first, candidateOffset + 2 * Integer.BYTES, 21), current.batch())
+              .isEmpty(),
+          "checksummed candidate-schema-v21 decisions must fail closed");
             assertTrue(codec.decodeDecision(rewriteInt(first, 8, 99), current.batch()).isEmpty());
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, first.length - 8, 99), current.batch()).isEmpty());
@@ -1192,6 +1227,7 @@ class MetalNegRouteCandidateGeneratorTest {
         source.route(),
         source.valueIds(),
         descriptors,
+        source.physicalLayouts(),
         source.valueStates(),
         graphProgram,
         source.feedValueIds(),

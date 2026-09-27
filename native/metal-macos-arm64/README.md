@@ -62,17 +62,17 @@ ordinary run-local buffers, and direct MPSGraph creation rejects both wires.
 
 The remaining 32 production rows fail closed before native creation. A structurally valid
 registered operation without a native recipe returns the dedicated unsupported-operation status
-rather than masquerading as malformed input. Candidate and route identity are version 21. Java
+rather than masquerading as malformed input. Candidate and route identity are version 22. Java
 owns exactly three prepared-route identities: custom singleton NEG wire 1, MPSGraph wire 2, and
 shared custom-program wire 3. Schema 15 embeds wire 2 or 3 in each graph image; schema 14 and every
 other schema or route value fail closed. The exhaustive Java structural catalog adds no native
 route selection, capability, autotuning, fallback, telemetry, or performance authority.
 
-For admitted nodes, the version-21 workload signature binds operation wire, source/target carrier
+For admitted nodes, the version-22 workload signature binds operation wire, source/target carrier
 types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes, exact
-scalar bits, variadic input/output order and count, and complete encoded storage-layout geometry.
-The schema-15 and identity-21 cutover has no compatibility reader or migration alias; identity 20
-and earlier fail closed.
+scalar bits, variadic input/output order and count, complete encoded logical storage-layout
+geometry, and its independently safe physical materialization. The schema-15 and identity-22
+cutover has no compatibility reader or migration alias; identity 21 and earlier fail closed.
 
 ```text
 Java analysis -> choose fixed whole-partition route -> declare every exact resource
@@ -251,18 +251,20 @@ invalid arguments. A well-formed registered operation outside current execution 
 status 13. Java separately authenticates numerical-profile compatibility and rejects every
 profile-incompatible program before native creation.
 
-The production operation domain adds Task-0059 wires `39`, `69`, `71`, `73..75`, `77..79`, `81`,
-and `83` to the prior admitted rows. CAST accepts only the nineteen proved carrier pairs. Read-only
-gathers preflight every INT32/INT64 index before command submission. Raw movement preserves carrier
-bytes and exact same-type scalar padding, with explicit one-through-sixteen variadic bindings. PAD,
-CONCAT, STACK, and TILE accept all six carriers; UNFOLD2D and UNFOLD3D accept only FLOAT64, FLOAT32,
-and BFLOAT16. SELECT and positive-step SLICE accept all six carriers over exact positive-stride
-non-overlapping storage layouts, allocate the complete referenced span, and touch only logical
-positions. Unresolved, zero/negative-stride, overlapping, or span-inconsistent layouts fail closed.
-Scalar CAST, scalar PAD with empty widths, scalar TILE with empty repeats, scalar GATHER_ND output,
-and scalar STACK input are supported; scalar SELECT/SLICE results, scalar CONCAT, and scalar window
-inputs are not. Scalar PAD/TILE are exact one-element identities. Every new production occurrence
-is static and no-gradient; operations other than SELECT/SLICE remain canonical.
+Task 0066 broadens the selected existing wires without changing schema, ABI, or operation counts.
+All 36 ordered CAST pairs use integer-defined Model conversion, including direct ties-to-even
+BFLOAT16 rounding, signed zero, gradual underflow, infinity overflow, deterministic NaN handling,
+saturating floating-to-signed conversion, modular INT64-to-INT32 narrowing, and exact BOOL mapping.
+FLOAT64/FLOAT32/BFLOAT16 classification and all nine promoted floating WHERE signatures are
+bit-defined. GATHER, ONE_HOT, replacement scatter, and ND/index movement accept INT32 or INT64
+indices over their declared all-carrier domains.
+
+All six carriers enter exact affine movement and canonicalization. Logical zero-stride descendants
+are admitted only from authenticated local EXPAND provenance, while every separately bound
+physical descriptor remains safe and dense where materialized. External zero-stride,
+negative-stride, overlapping, empty, dynamic, and unresolved layouts fail closed. Selected
+occurrences use one deterministic custom whole-program route; bounds and destination uniqueness
+are proved before mutation, and there is no retry, fallback, timing, autotuning, or host repair.
 
 Task 0060 adds exact custom execution for replacement-only SCATTER_ND and signed SLICE_UPDATE
 (including crop placement) over all six carriers. Scatter accepts canonical INT32/INT64 indices

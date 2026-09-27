@@ -108,15 +108,15 @@ class MetalAffineCapabilityTest {
                 Optional.of(LayoutDescriptor.of(
                         Shape.of(2, 3), new long[] {0, 1}, 1L, true)),
                 false);
-        assertFalse(supports(
+    assertTrue(supports(
                 new Operation(ContiguousKind.CONTIGUOUS, NoOperationAttrs.INSTANCE),
                 offsetView,
                 canonical(Shape.of(2, 3), false)));
     }
 
     @Test
-    void rejectsRankZeroZeroExtentAndRankSeventeenBeforePreparation() {
-        assertFalse(supports(
+    void admitsRankZeroButRejectsZeroExtentAndRankSeventeenBeforePreparation() {
+    assertTrue(supports(
                 new Operation(ShapeTransformKind.RESHAPE,
                         new TargetShapeAttrs(Shape.of())),
                 canonical(Shape.of(1), false),

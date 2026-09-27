@@ -93,7 +93,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void javaAndNativeSchemaValidatorsRejectRankZeroExactBoolPrograms() throws Throwable {
+    void task0066JavaAndNativeSchemaValidatorsAcceptScalarExactBoolCustomPrograms() throws Throwable {
         List<MetalMpsGraphProgram.NodeKind> exactBoolKinds = List.of(
                 MetalMpsGraphProgram.NodeKind.IS_FINITE,
                 MetalMpsGraphProgram.NodeKind.IS_NAN,
@@ -106,8 +106,12 @@ class MetalMpsGraphRawAbiNativeTest {
         try (RawAbi abi = new RawAbi(library)) {
             for (MetalMpsGraphProgram.NodeKind kind : exactBoolKinds) {
                 ScalarCase scalar = scalarCase(kind);
-                for (MetalPreparedRoute route :
-                        List.of(MetalPreparedRoute.CUSTOM_PROGRAM, MetalPreparedRoute.MPSGRAPH)) {
+        MetalNativeApi.MpsGraphExecutableAbi.validateCreate (
+            NumericalProfile.STRICT_IEEE,
+            scalar.values(),
+            scalar.program(),
+            scalar.feeds(),
+            scalar.targets(),MetalPreparedRoute.CUSTOM_PROGRAM);
                     assertThrows(
                             IllegalArgumentException.class,
                             () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
@@ -116,13 +120,19 @@ class MetalMpsGraphRawAbiNativeTest {
                                     scalar.program(),
                                     scalar.feeds(),
                                     scalar.targets(),
-                                    route),
-                            kind + " " + route + " Java preflight");
-                    byte[] image = scalar.program().encodedProgramImage(
-                            scalar.values(), scalar.feeds(), scalar.targets(), route);
-                    assertEquals(1, abi.create(image, image.length),
-                            kind + " " + route + " native decode");
-                }
+                    MetalPreparedRoute.MPSGRAPH),
+                            kind + " direct MPSGraph route");
+                    byte[] custom = scalar.program().encodedProgramImage(
+                            scalar.values(), scalar.feeds(), scalar.targets(),
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+        byte[] direct =
+            scalar
+                .program()
+                .encodedProgramImage(
+                    scalar.values(), scalar.feeds(), scalar.targets(), MetalPreparedRoute.MPSGRAPH);
+                    assertEquals(0, abi.create(custom, custom.length),
+                            kind + " custom route");
+        assertEquals(13, abi.create(direct, direct.length), kind + " direct route");
             }
         }
     }
@@ -192,7 +202,7 @@ class MetalMpsGraphRawAbiNativeTest {
         }
     }
     @Test
-    void task0059JavaAndNativeRejectMalformedCastTypeAndAttributeImages() throws Throwable {
+    void task0066KeepsCastValidationExactAndRejectsMpsGraphFallback() throws Throwable {
         Path library = configuredLibrary();
         var node = MetalMpsGraphProgram.Node.generic(
                 MetalMpsGraphProgram.NodeKind.CAST,
@@ -210,9 +220,7 @@ class MetalMpsGraphRawAbiNativeTest {
                 valid.getFirst(),
                 new MetalMpsGraphProgram.ValueDescriptor(
                         DataType.FLOAT32, new long[] {4}, false));
-        try (RawAbi abi = new RawAbi(library)) {
-            for (MetalPreparedRoute route :
-                    List.of(MetalPreparedRoute.CUSTOM_PROGRAM, MetalPreparedRoute.MPSGRAPH)) {
+        try (RawAbi abi = new RawAbi(library)) {MetalPreparedRoute route =MetalPreparedRoute.CUSTOM_PROGRAM;
                 MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
                         NumericalProfile.STRICT_IEEE,
                         valid,
@@ -240,12 +248,27 @@ class MetalMpsGraphRawAbiNativeTest {
                 byte[] wrongAttribute = rewriteInt(
                         validImage, nodeOffset(2) + Integer.BYTES, 0);
                 assertEquals(1, abi.create(wrongAttribute, wrongAttribute.length));
-            }
+
+      assertThrows(
+          IllegalArgumentException.class,
+          () ->
+              MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                  NumericalProfile.STRICT_IEEE,
+                  valid,
+                  program,
+                  new int[] {0
+            },
+                  new int[] {1},
+                  MetalPreparedRoute.MPSGRAPH));
+      byte[] mpsGraphImage =
+          program.encodedProgramImage(
+              valid, new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH);
+      assertEquals(13, abi.create(mpsGraphImage, mpsGraphImage.length));
         }
     }
 
     @Test
-    void task0059JavaAndNativeRejectIntegerImageUnfoldCarriers() throws Throwable {
+    void task0066RejectsIntegerImageUnfoldAndMpsGraphFallback() throws Throwable {
         Path library = configuredLibrary();
         var node = MetalMpsGraphProgram.Node.generic(
                 MetalMpsGraphProgram.NodeKind.UNFOLD2D,
@@ -273,13 +296,14 @@ class MetalMpsGraphRawAbiNativeTest {
                                 route));
                 byte[] image = program.encodedProgramImage(
                         integers, new int[] {0}, new int[] {1}, route);
-                assertEquals(1, abi.create(image, image.length));
+                assertEquals(
+            route == MetalPreparedRoute.CUSTOM_PROGRAM ?1 : 13, abi.create(image, image.length));
             }
         }
     }
 
     @Test
-    void task0059JavaAndNativeKeepWideCustomOriginsButRejectMpsGraph() throws Throwable {
+    void task0066KeepsWideCustomOriginsButRejectsMpsGraph() throws Throwable {
         Path library = configuredLibrary();
         long uint32Max = 0xffff_ffffL;
         long hostilePositions = 1_073_741_825L;
@@ -507,7 +531,7 @@ class MetalMpsGraphRawAbiNativeTest {
         }
     }
     @Test
-    void task0061AuthenticatesTransposeStorageAndMatmulGradientMetadataInBothPreflights()
+    void task0066AuthenticatesTransposeStorageAndMatmulGradientMetadataOnCustomRoute()
             throws Throwable {
         Path library = configuredLibrary();
         var sourceShape = io.github.pho001.synaptik.model.shape.Shape.of(3, 2);
@@ -542,9 +566,9 @@ class MetalMpsGraphRawAbiNativeTest {
                 program,
                 new int[] {0, 2},
                 new int[] {3},
-                MetalPreparedRoute.MPSGRAPH);
+                MetalPreparedRoute.CUSTOM_PROGRAM);
         byte[] valid = program.encodedProgramImage(
-                values, new int[] {0, 2}, new int[] {3}, MetalPreparedRoute.MPSGRAPH);
+                values, new int[] {0, 2}, new int[] {3}, MetalPreparedRoute.CUSTOM_PROGRAM);
 
         int transposeDescriptor =
                 MetalMpsGraphProgram.HEADER_BYTES + MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES;
@@ -679,7 +703,7 @@ class MetalMpsGraphRawAbiNativeTest {
                             program,
                             new int[] {0, 2},
                             new int[] {3},
-                            MetalPreparedRoute.MPSGRAPH));
+                            MetalPreparedRoute.CUSTOM_PROGRAM));
         }
         var direct = new MetalMpsGraphProgram(List.of(matmulNode(0, 1, 2)));
         assertThrows(IllegalArgumentException.class, () ->
@@ -812,6 +836,49 @@ class MetalMpsGraphRawAbiNativeTest {
                     new int[] {2},
                     MetalPreparedRoute.MPSGRAPH);
             assertEquals(1, abi.create(wrongSumShape, wrongSumShape.length));
+    }
+  }
+
+  @Test
+  void task0066JavaAndNativeRejectDirectMpsGraphForSelectedOccurrences() throws Throwable {
+    Path library = configuredLibrary();
+    var program =
+        new MetalMpsGraphProgram(
+            List.of(
+                MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.CAST,
+                    new int[] {0},
+                    new int[] {1},
+                    MetalMpsGraphProgram.AttributeKind.CAST_TARGET,
+                    new long[] {MetalMpsGraphProgram.dataTypeWire(DataType.FLOAT32)})));
+    List<MetalMpsGraphProgram.ValueDescriptor> values =
+        List.of(descriptor(DataType.FLOAT64, 2), descriptor(DataType.FLOAT32, 2));
+    MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+        NumericalProfile.STRICT_IEEE,
+        values,
+        program,
+        new int[] {0},
+        new int[] {1},
+        MetalPreparedRoute.CUSTOM_PROGRAM);
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                NumericalProfile.STRICT_IEEE,
+                values,
+                program,
+                new int[] {0},
+                new int[] {1},
+                MetalPreparedRoute.MPSGRAPH));
+    try (RawAbi abi = new RawAbi(library)) {
+      byte[] custom =
+          program.encodedProgramImage(
+              values, new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM);
+      byte[] direct =
+          program.encodedProgramImage(
+              values, new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH);
+      assertEquals(0, abi.create(custom, custom.length));
+      assertEquals(13, abi.create(direct, direct.length));
         }
     }
 
@@ -1149,7 +1216,8 @@ class MetalMpsGraphRawAbiNativeTest {
                 message + " Java MPSGraph route");
         byte[] mpsGraphImage = program.encodedProgramImage(
                 values, new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH);
-        assertEquals(1, abi.create(mpsGraphImage, mpsGraphImage.length),
+        assertEquals(
+        13, abi.create(mpsGraphImage, mpsGraphImage.length),
                 message + " native MPSGraph route");
     }
 

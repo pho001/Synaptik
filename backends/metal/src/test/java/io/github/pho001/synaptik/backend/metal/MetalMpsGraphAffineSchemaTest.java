@@ -36,7 +36,7 @@ class MetalMpsGraphAffineSchemaTest {
     }
 
     @Test
-    void JavaPreflightAcceptsAcceleratorAffineBridgeIntoBinaryAndGeneralViewTarget() {
+    void JavaPreflightAcceptsAcceleratorAffineBridgeOnlyOnCustomRoute() {
         var program = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.targetShape(
                         MetalMpsGraphProgram.NodeKind.RESHAPE,
@@ -59,11 +59,11 @@ class MetalMpsGraphAffineSchemaTest {
             {4, 2, 3}, {4, 2, 3}, {4, 2, 3}, {4, 2, 3}, {4, 2, 3},
             {4, 2, 3}
         };
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks(shapes), dimensions(shapes), program), program, new int[] {0, 8}, new int[] {3, 10}, MetalPreparedRoute.MPSGRAPH);
+        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks(shapes), dimensions(shapes), program), program, new int[] {0, 8}, new int[] {3, 10}, MetalPreparedRoute.CUSTOM_PROGRAM);
     }
 
     @Test
-    void JavaPreflightAuthenticatesLocalRankTwoTransposesOnMpsGraphRoute() {
+    void JavaPreflightAuthenticatesSelectedLocalRankTwoTransposesOnlyOnCustomRoute() {
         var direct = MetalMpsGraphProgram.Node.matmul(0, 1, 2);
 
         long[][] directShapes = {{2, 3}, {3, 4}, {2, 4}};
@@ -79,9 +79,16 @@ class MetalMpsGraphAffineSchemaTest {
                 MetalMpsGraphProgram.Node.permutation(0, 2, List.of(1, 0)),
                 MetalMpsGraphProgram.Node.permutation(1, 3, List.of(1, 0)),
                 MetalMpsGraphProgram.Node.matmul(2, 3, 4)));
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks(transposedShapes), dimensions(transposedShapes), transposed), transposed, new int[] {0, 1}, new int[] {4}, MetalPreparedRoute.MPSGRAPH);
         assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks(transposedShapes), dimensions(transposedShapes), transposed), transposed, new int[] {0, 1}, new int[] {4}, MetalPreparedRoute.CUSTOM_PROGRAM));
+                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks(transposedShapes), dimensions(transposedShapes), transposed), transposed, new int[] {0, 1}, new int[] {4}, MetalPreparedRoute.MPSGRAPH));
+    MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+        NumericalProfile.ACCELERATOR,
+        MetalTestProgram.descriptors(
+            ranks(transposedShapes), dimensions(transposedShapes), transposed),
+        transposed,
+        new int[] {0, 1},
+        new int[] {4},
+        MetalPreparedRoute.CUSTOM_PROGRAM);
 
         long[][] malformedShapes = {
             {6}, {3, 4}, {2, 3}, {2, 4}
@@ -105,11 +112,11 @@ class MetalMpsGraphAffineSchemaTest {
     void JavaPreflightValidatesGatherAndOneHotTypesAndShapes() {
         var gather = MetalMpsGraphProgram.Node.gather(0, 1, 2, 1);
         long[][] gatherShapes = {{2, 3, 4}, {5, 6}, {2, 5, 6, 4}};
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(ranks(gatherShapes), dimensions(gatherShapes), new MetalMpsGraphProgram(List.of(gather))), new MetalMpsGraphProgram(List.of(gather)), new int[] {0, 1}, new int[] {2}, MetalPreparedRoute.MPSGRAPH);
+        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(ranks(gatherShapes), dimensions(gatherShapes), new MetalMpsGraphProgram(List.of(gather))), new MetalMpsGraphProgram(List.of(gather)), new int[] {0, 1}, new int[] {2}, MetalPreparedRoute.CUSTOM_PROGRAM);
         long[][] oneHotShapes = {{2, 3}, {2, 3, 5}};
         MetalNativeApi.MpsGraphExecutableAbi.validateCreate(NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks(oneHotShapes), dimensions(oneHotShapes), new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.oneHot(0, 1, 5)))), new MetalMpsGraphProgram(List.of(
-        MetalMpsGraphProgram.Node.oneHot(0, 1, 5))), new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH);
+        MetalMpsGraphProgram.Node.oneHot(0, 1, 5))), new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM);
 
         long[][] boolConsumerShapes = {{2, 3}, {2, 3, 5}, {2, 3, 5}};
         assertThrows(IllegalArgumentException.class, () ->
@@ -117,7 +124,7 @@ class MetalMpsGraphAffineSchemaTest {
                         MetalMpsGraphProgram.Node.oneHot(0, 1, 5),
                         MetalMpsGraphProgram.Node.neg(1, 2)))), new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.oneHot(0, 1, 5),
-                MetalMpsGraphProgram.Node.neg(1, 2))), new int[] {0}, new int[] {2}, MetalPreparedRoute.MPSGRAPH));
+                MetalMpsGraphProgram.Node.neg(1, 2))), new int[] {0}, new int[] {2}, MetalPreparedRoute.CUSTOM_PROGRAM));
     }
 
     @Test

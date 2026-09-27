@@ -23,12 +23,13 @@ import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterNdKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
+import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadKind;
+import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
-import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.loss.LossKind;
 import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
@@ -56,18 +57,19 @@ import java.util.Optional;
  *
  * <p>Model expression construction deliberately leaves most operation results layout-unresolved.
  * After final graph optimization has fixed the surviving topology, the allowlisted computation
- * families below may choose canonical contiguous logical result geometry because their outputs
- * are materialized values rather than storage views. {@link ContiguousKind#CONTIGUOUS} explicitly
- * requests the same geometry. Affine/view operations such as reshape, expand, permute, and
- * squeeze are excluded from canonical closure; after materialized inputs are closed, a second
- * topological phase derives their exact offset and strides with {@link LayoutInference}. Slice
- * extraction and scalar select remain unresolved. Unknown future operation kinds therefore fail
- * closed instead of silently acquiring geometry.</p>
+ * families below may choose canonical contiguous logical result geometry because their outputs are
+ * materialized values rather than storage views. {@link ContiguousKind#CONTIGUOUS} explicitly
+ * requests the same geometry. Affine/view operations such as reshape, expand, permute, and squeeze
+ * are excluded from canonical closure; after materialized inputs are closed, a second topological
+ * phase derives their exact offset and strides with {@link LayoutInference}. That same phase
+ * retries only fully static target-relative crop extraction after its input layout closes.
+ * Explicit-coordinate slice extraction and scalar select remain unresolved. Unknown future
+ * operation kinds therefore fail closed instead of silently acquiring geometry.
  *
  * <p>An explicit compile-time splat graph input may also use canonical geometry because it has no
  * caller binding whose descriptor must remain exact. Caller-bindable inputs, dynamic shapes, and
  * already resolved layouts are preserved. This pass selects no physical buffer, representation,
- * backend, route, or executable.</p>
+ * backend, route, or executable.
  */
 final class StaticResultLogicalLayoutClosure {
     /** Prevents construction of this stateless transformation owner. */
@@ -76,19 +78,19 @@ final class StaticResultLogicalLayoutClosure {
     /**
      * Closes eligible descriptors without changing graph structure or sidecar membership.
      *
-     * <p>If no descriptor qualifies, the exact input is returned. Otherwise only changed
-     * {@link GraphValue} objects and graph-owning immutable sidecars are rebuilt. Value and
-     * boundary order, IDs, exact node and operation references, phases, constants, bindable Tensor
-     * identities, constraints, and derivative-order values are preserved.</p>
+     * <p>If no descriptor qualifies, the exact input is returned. Otherwise only changed {@link
+   * GraphValue} objects and graph-owning immutable sidecars are rebuilt. Value and boundary order,
+   * IDs, exact node and operation references, phases, constants, bindable Tensor identities,
+   * constraints, and derivative-order values are preserved.
      *
      * @param validatedGraph non-null final optimized, validated graph state after specialized
      *     descriptor closures; it is not mutated
      * @return the exact input when unchanged, otherwise a non-null validated result containing
      *     canonical logical layouts for every proven eligible value
      * @throws NullPointerException if {@code validatedGraph} is {@code null}
-     * @throws IllegalArgumentException if checked canonical layout arithmetic overflows; the
-     *     failure identifies the affected node output or compile-time splat input and retains the
-     *     arithmetic failure as its cause
+     * @throws IllegalArgumentException if checked canonical layout arithmetic overflows; the failure
+     * identifies the affected node output or compile-time splat input and retains the arithmetic
+     * failure as its cause
      */
     static ValidatedGraph close(ValidatedGraph validatedGraph) {
         java.util.Objects.requireNonNull(validatedGraph, "validatedGraph");
@@ -144,9 +146,9 @@ final class StaticResultLogicalLayoutClosure {
      * Returns whether every result of the exact operation family is a newly materialized logical
      * value whose unresolved static geometry may be chosen canonical contiguous.
      *
-     * <p>The list is intentionally explicit. Structural views are absent; the functional
-     * {@link SliceKind#SLICE_UPDATE} result is included separately from slice extraction. Adding a
-     * new Model operation kind does not broaden this proof automatically.</p>
+     * <p>The list is intentionally explicit. Structural views are absent; the functional {@link
+   * SliceKind#SLICE_UPDATE} result is included separately from slice extraction. Adding a new Model
+   * operation kind does not broaden this proof automatically.
      */
     private static boolean hasCanonicalContiguousResults(Operation operation) {
         OperationKind kind = operation.kind();
@@ -189,7 +191,10 @@ final class StaticResultLogicalLayoutClosure {
     private static boolean closeAffineResult(
             Map<ValueId, GraphValue> selectedValues, CompiledNode node) {
         OperationKind kind = node.operation().kind();
-        if (!(kind instanceof ShapeTransformKind || kind instanceof AxisTransformKind)
+    boolean affineTransform =kind instanceof ShapeTransformKind || kind instanceof AxisTransformKind;
+    boolean targetRelativeCrop =
+        kind == SliceKind.SLICE && node.operation().attrs() instanceof CropToShapeAttrs;
+    if ((!affineTransform && !targetRelativeCrop)
                 || node.inputs().size() != 1
                 || node.outputs().size() != 1) {
             return false;

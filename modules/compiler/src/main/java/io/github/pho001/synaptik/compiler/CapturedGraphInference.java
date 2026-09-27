@@ -42,10 +42,10 @@ import java.util.Objects;
  * <p>The pass independently derives every operation occurrence's complete output descriptors,
  * compares them with the stored graph descriptors, and retains only Shape obligations that the
  * current immutable model facts cannot prove or disprove. It neither rewrites the graph nor
- * reconstructs public Tensor expressions. Forward-only Conv3d, Pool3d, and three-dimensional
- * window occurrences use this same boundary before canonicalization and after every changed
- * optimization candidate, so their NCDHW result descriptors and ordered spatial-fit obligations
- * are proved again from the final graph rather than trusted from Model construction.</p>
+ * reconstructs public Tensor expressions. Forward-only Conv3d, Pool3d, and three-dimensional window
+ * occurrences use this same boundary before canonicalization and after every changed optimization
+ * candidate, so their NCDHW result descriptors and ordered spatial-fit obligations are proved again
+ * from the final graph rather than trusted from Model construction.
  */
 final class CapturedGraphInference {
     private CapturedGraphInference() {}
@@ -122,7 +122,8 @@ final class CapturedGraphInference {
             }
             for (int output = 0; output < stored.size(); output++) {
                 TensorDescriptor expected = result.outputs().get(output);
-                if (!expected.equals(stored.get(output))) {
+                if (!expected.equals(stored.get(output))
+            && !deferredCropLayout(node.operation(), expected, stored.get(output))) {
                     throw new IllegalArgumentException(context + "output[" + output + "] "
                             + node.outputs().get(output) + " expected=" + expected
                             + ", stored=" + stored.get(output));
@@ -140,6 +141,28 @@ final class CapturedGraphInference {
             }
         }
         return new ValidatedGraph(constantGraph, deferred, derivatives);
+  }
+
+  /**
+   * Generated backward CropToShape expressions intentionally retain an unresolved result layout.
+   * Once their scalar-seed EXPAND input is resolved, LayoutInference can derive that layout before
+   * StaticResultLogicalLayoutClosure owns the rewrite. Defer only this newly derivable field here;
+   * every already-resolved layout and every non-layout descriptor field remains exact.
+   */
+  private static boolean deferredCropLayout(
+      Operation operation, TensorDescriptor inferred, TensorDescriptor stored) {
+    if (operation.kind() != SliceKind.SLICE
+        || !(operation.attrs() instanceof CropToShapeAttrs)
+        || stored.layout().isPresent()
+        || inferred.layout().isEmpty()) {
+      return false;
+    }
+    return stored.equals(
+        new TensorDescriptor(
+            inferred.dataType(),
+            inferred.shape(),
+            java.util.Optional.empty(),
+            inferred.requiresGrad()));
     }
 
     private static List<TensorDescriptor> descriptors(List<ValueId> ids, Map<ValueId, GraphValue> values) {
@@ -193,8 +216,7 @@ final class CapturedGraphInference {
     }
 
     /**
-     * Associates one family-derived predicate with the semantic role reported on failure or
-     * deferral.
+     * Associates one family-derived predicate with the semantic role reported on failure or deferral.
      *
      * @param subject non-null semantic role text used in deterministic diagnostics
      * @param predicate non-null binding-free predicate to evaluate

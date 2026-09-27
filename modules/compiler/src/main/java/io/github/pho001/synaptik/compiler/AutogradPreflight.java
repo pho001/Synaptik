@@ -51,14 +51,14 @@ import io.github.pho001.synaptik.model.operation.loss.DenseCategoricalCrossEntro
 import io.github.pho001.synaptik.model.operation.loss.IndexCategoricalCrossEntropyWithLogitsAttrs;
 import io.github.pho001.synaptik.model.operation.loss.LossKind;
 import io.github.pho001.synaptik.model.operation.loss.MeanSquaredErrorAttrs;
-import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.AffineLayerNormAttrs;
-import io.github.pho001.synaptik.model.operation.normalization.LayerNormKind;
+import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.LayerNormAttrs;
-import io.github.pho001.synaptik.model.operation.normalization.RmsNormKind;
+import io.github.pho001.synaptik.model.operation.normalization.LayerNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.RmsNormAttrs;
-import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
+import io.github.pho001.synaptik.model.operation.normalization.RmsNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxAttrs;
+import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
 import io.github.pho001.synaptik.model.operation.ordering.SortAttrs;
 import io.github.pho001.synaptik.model.operation.ordering.TopKAttrs;
@@ -67,8 +67,8 @@ import io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs;
-import io.github.pho001.synaptik.model.operation.pooling.Pool3dKind;
 import io.github.pho001.synaptik.model.operation.pooling.Pool2dKind;
+import io.github.pho001.synaptik.model.operation.pooling.Pool3dKind;
 import io.github.pho001.synaptik.model.operation.random.DropoutAttrs;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
@@ -103,93 +103,89 @@ import java.util.Set;
  * Preflights one bounded functional reverse-mode stage before constructing derivative Tensor
  * expressions.
  *
- * <p>The iterative inventory covers every producer and canonical output wrapper reachable from
- * the requested forward boundary. Output ancestry, target reachability, occurrence selection,
- * and ingress membership use exact Tensor and producer object identity rather than identifiers,
- * record equality, labels, or storage. A successful plan is request-local compiler bookkeeping;
- * it retains deterministic producer postorder and the original-producer identity set needed by
- * reverse accumulation and phase-aware capture.</p>
+ * <p>The iterative inventory covers every producer and canonical output wrapper reachable from the
+ * requested forward boundary. Output ancestry, target reachability, occurrence selection, and
+ * ingress membership use exact Tensor and producer object identity rather than identifiers, record
+ * equality, labels, or storage. A successful plan is request-local compiler bookkeeping; it retains
+ * deterministic producer postorder and the original-producer identity set needed by reverse
+ * accumulation and phase-aware capture.
  *
- * <p>The additive {@code SUPPORTED_0004A} rows are exact-type {@code ERF}; masked
- * {@code SUM}; locally invertible {@code SUM_TO_SHAPE}; role-aware floating {@code MATMUL};
- * normalized {@code SLICE} and both {@code SLICE_UPDATE} data roles; {@code SELECT},
- * {@code PAD}, {@code TILE}, {@code CONCAT}, and {@code STACK}. Matrix-multiplication and slice
- * replacement are validated per selected input role: an unselected promoted operand does not
- * require a cotangent conversion. Compiler 0005C removes the former static-selected-base
- * restriction by validating length-defined extraction and target-relative placement through the
- * exact occurrence constraints retained by layout inference.</p>
+ * <p>The additive {@code SUPPORTED_0004A} rows are exact-type {@code ERF}; masked {@code SUM};
+ * locally invertible {@code SUM_TO_SHAPE}; role-aware floating {@code MATMUL}; normalized {@code
+ * SLICE} and both {@code SLICE_UPDATE} data roles; {@code SELECT}, {@code PAD}, {@code TILE},
+ * {@code CONCAT}, and {@code STACK}. Matrix-multiplication and slice replacement are validated per
+ * selected input role: an unselected promoted operand does not require a cotangent conversion.
+ * Compiler 0005C removes the former static-selected-base restriction by validating length-defined
+ * extraction and target-relative placement through the exact occurrence constraints retained by
+ * layout inference.
  *
- * <p>The additive {@code SUPPORTED_0004B} rows admit mixed-floating {@code ADD}/{@code SUB}/
- * {@code MUL}/{@code DIV}, branch-only {@code WHERE}, floating {@code CAST}, and role-aware
- * {@code MATMUL} when each selected contribution can reverse broadcasting and convert to its
- * selected input type through ordinary Tensor operations. They also admit exact-type scalar
- * {@code DIV}, direct-zero {@code FLOOR}/{@code CEIL}/{@code SIGN}, and ordinary or masked
- * floating {@code MEAN}. Mask roles remain non-differentiable. The checks select local
- * differentiation rules and normalization paths; they do not create a gradient-specific
- * arithmetic, cast, comparison, exceptional-value, validation, or optimization contract.</p>
+ * <p>The additive {@code SUPPORTED_0004B} rows admit mixed-floating {@code ADD}/{@code SUB}/ {@code
+ * MUL}/{@code DIV}, branch-only {@code WHERE}, floating {@code CAST}, and role-aware {@code MATMUL}
+ * when each selected contribution can reverse broadcasting and convert to its selected input type
+ * through ordinary Tensor operations. They also admit exact-type scalar {@code DIV}, direct-zero
+ * {@code FLOOR}/{@code CEIL}/{@code SIGN}, and ordinary or masked floating {@code MEAN}. Mask roles
+ * remain non-differentiable. The checks select local differentiation rules and normalization paths;
+ * they do not create a gradient-specific arithmetic, cast, comparison, exceptional-value,
+ * validation, or optimization contract.
  *
- * <p>Compiler 0005A completes the exact current 48-kind elementwise and activation inventory:
- * seven binary arithmetic kinds, eight scalar elementwise kinds, nineteen unary kinds, one
- * {@code WHERE}, one {@code CAST}, six comparisons, three Boolean logical kinds, and three
- * floating-classification kinds. Floating binary {@code MIN}/{@code MAX}/{@code POW}, scalar
- * {@code MIN}/{@code MAX}/{@code POW}/{@code CLAMP}, and the remaining unary and activation
- * formulas are accepted only with their exact current signatures and same-type or promoted
- * floating descriptors. Comparisons, Boolean logic, classifications, the {@code WHERE}
- * condition, scalar attributes and bounds, and non-floating cast roles are non-differentiable.
- * The selected extrema-tie, clamp-endpoint, discontinuity, NaN, infinity, and raw-domain
- * conventions belong to the compiler rules; preflight selects those fixed rows without
- * inspecting represented Tensor values.</p>
+ * <p>Compiler 0005A completes the exact current 48-kind elementwise and activation inventory: seven
+ * binary arithmetic kinds, eight scalar elementwise kinds, nineteen unary kinds, one {@code WHERE},
+ * one {@code CAST}, six comparisons, three Boolean logical kinds, and three floating-classification
+ * kinds. Floating binary {@code MIN}/{@code MAX}/{@code POW}, scalar {@code MIN}/{@code MAX}/{@code
+ * POW}/{@code CLAMP}, and the remaining unary and activation formulas are accepted only with their
+ * exact current signatures and same-type or promoted floating descriptors. Comparisons, Boolean
+ * logic, classifications, the {@code WHERE} condition, scalar attributes and bounds, and
+ * non-floating cast roles are non-differentiable. The selected extrema-tie, clamp-endpoint,
+ * discontinuity, NaN, infinity, and raw-domain conventions belong to the compiler rules; preflight
+ * selects those fixed rows without inspecting represented Tensor values.
  *
  * <p>Compiler 0005B adds floating products, reduction extrema, cumulative product,
  * softmax/log-softmax, statistics, norms, and Layer/RMS/batch-normalization routes. It also admits
  * binding-dependent {@code EXPAND} and {@code SUM_TO_SHAPE} only when the inverse uses the same
  * occurrence-local source-one-or-source-equal predicate retained by forward inference. Batch
- * normalization is output-slot-aware: public result slots zero through two select their exact
- * input roles in ascending slot order, while saved mean and saved inverse-standard-deviation
- * slots three and four remain same-occurrence auxiliaries and cannot seed an independent
- * cotangent route.</p>
+ * normalization is output-slot-aware: public result slots zero through two select their exact input
+ * roles in ascending slot order, while saved mean and saved inverse-standard-deviation slots three
+ * and four remain same-occurrence auxiliaries and cannot seed an independent cotangent route.
  *
  * <p>Compiler 0005C completes the assigned floating layout/window, Gather/scatter, ordering, and
- * explicit-state dropout rows. It distinguishes both {@code SliceAttrs} and
- * {@code CropToShapeAttrs} slice variants, proves or retains their occurrence-local bounds, and
- * applies the same rule to unresolved two-dimensional window domains. Gather and functional
- * scatter validate exact index geometry and the fixed replacement, addition, multiplication, and
- * extrema policies while leaving index roles non-differentiable. {@code SORT} proves that one
- * matching stable {@code ARGSORT} occurrence can be constructed; {@code TOP_K} and
- * {@code DROPOUT} require the exact canonical indices or mask wrapper from the original producer.
- * Ordering indices, one-hot results, dropout masks, and graph random-number-generator state remain
- * non-differentiable.</p>
+ * explicit-state dropout rows. It distinguishes both {@code SliceAttrs} and {@code
+ * CropToShapeAttrs} slice variants, proves or retains their occurrence-local bounds, and applies
+ * the same rule to unresolved two-dimensional window domains. Gather and functional scatter
+ * validate exact index geometry and the fixed replacement, addition, multiplication, and extrema
+ * policies while leaving index roles non-differentiable. {@code SORT} proves that one matching
+ * stable {@code ARGSORT} occurrence can be constructed; {@code TOP_K} and {@code DROPOUT} require
+ * the exact canonical indices or mask wrapper from the original producer. Ordering indices, one-hot
+ * results, dropout masks, and graph random-number-generator state remain non-differentiable.
  *
- * <p>Compiler 0005D adds the remaining representable structured-neural rows: both public outputs
- * of exact two-output scaled-dot-product attention, grouped NCHW convolution, fixed-count average
+ * <p>Compiler 0005D adds the remaining representable structured-neural rows: both public outputs of
+ * exact two-output scaled-dot-product attention, grouped NCHW convolution, fixed-count average
  * pooling, exact first-winner maximum pooling, mean-squared error, and dense-target categorical
- * cross-entropy. Index-target categorical cross-entropy selects only logits and requires a
- * positive static class depth. Attention requires the canonical same-occurrence weights output;
- * the one-output overload therefore fails closed. Attention masks and index targets remain
- * non-differentiable configuration roles.</p>
+ * cross-entropy. Index-target categorical cross-entropy selects only logits and requires a positive
+ * static class depth. Attention requires the canonical same-occurrence weights output; the
+ * one-output overload therefore fails closed. Attention masks and index targets remain
+ * non-differentiable configuration roles.
  *
  * <p>{@link FirstOrderGradientCoverage} supplies the current source-backed disposition and one
  * formula-family owner for each selected output/input role. This class retains the larger typed
- * occurrence-validation matrix: a conditional differentiable disposition becomes usable only
- * after the exact Shape, data-type, cardinality, canonical-auxiliary, normalization, and
- * construction prerequisites pass. Unknown signatures and unsupported roles fail closed. The
- * recorded family owner is carried in each {@link SelectedOccurrence}, so preflight selection
- * and formula dispatch cannot choose different families.</p>
+ * occurrence-validation matrix: a conditional differentiable disposition becomes usable only after
+ * the exact Shape, data-type, cardinality, canonical-auxiliary, normalization, and construction
+ * prerequisites pass. Unknown signatures and unsupported roles fail closed. The recorded family
+ * owner is carried in each {@link SelectedOccurrence}, so preflight selection and formula dispatch
+ * cannot choose different families.
  *
- * <p>This owner selects rules and rejects unsupported operation, input/output signature,
- * attribute, role, data-type, Shape, and policy combinations. A known rejection occurs before the
- * seed, a derivative constant, a matching {@code ARGSORT}, or another formula Tensor is
- * constructed, so it consumes no derivative {@code TensorId}. Fixed recurrent-scan and Conv3d
- * occurrences are rejected from the complete original forward inventory in deterministic
- * producer postorder before stage, seed, route, occurrence-policy, or formula validation.
- * Recurrent BPTT and Conv3d adjoints remain separately deferred. Pool3d and three-dimensional
- * window transforms instead prove their public unfold/fold formula geometry and structural
- * kernel volume before allocation. The same rejection applies when a requested gradient belongs
- * to an unrelated supported branch. The guarantee ends after a successful plan is returned:
- * later public Tensor
- * construction, capture, inference, validation, or optimization may consume IDs before failing.
- * This owner neither reads Tensor payloads, captures a graph, allocates storage, binds a dynamic
- * Dimension, lowers work, nor executes computation.</p>
+ * <p>This owner selects rules and rejects unsupported operation, input/output signature, attribute,
+ * role, data-type, Shape, and policy combinations. A known rejection occurs before the seed, a
+ * derivative constant, a matching {@code ARGSORT}, or another formula Tensor is constructed, so it
+ * consumes no derivative {@code TensorId}. Fixed recurrent-scan and Conv3d occurrences are rejected
+ * from the complete original forward inventory in deterministic producer postorder before stage,
+ * seed, route, occurrence-policy, or formula validation. Recurrent BPTT and Conv3d adjoints remain
+ * separately deferred. Pool3d and three-dimensional window transforms instead prove their public
+ * unfold/fold formula geometry and structural kernel volume before allocation. The same rejection
+ * applies when a requested gradient belongs to an unrelated supported branch. The guarantee ends
+ * after a successful plan is returned: later public Tensor construction, capture, inference,
+ * validation, or optimization may consume IDs before failing. This owner neither reads Tensor
+ * payloads, captures a graph, allocates storage, binds a dynamic Dimension, lowers work, nor
+ * executes computation.
  */
 final class AutogradPreflight {
     private AutogradPreflight() {}
@@ -1456,8 +1452,8 @@ final class AutogradPreflight {
      *
      * @param producer non-null validated one-input Pool3d occurrence
      * @param kind exact Pool3d kind used to select its immutable geometry type
-     * @throws RuntimeException if layout inference rejects an intermediate or descriptor identity
-     *     is not preserved semantically
+     * @throws RuntimeException if layout inference rejects an intermediate or descriptor identity is
+     * not preserved semantically
      */
     private static void validatePool3dFormulaConstructibility(
             TensorProducer producer, Pool3dKind kind) {
@@ -1499,8 +1495,8 @@ final class AutogradPreflight {
      * @param producer non-null validated one-input window occurrence
      * @param outputIndex valid selected output slot
      * @param kind exact UNFOLD3D or FOLD3D kind
-     * @throws IllegalArgumentException if the generated counterpart is not constructible or does
-     *     not reproduce the original input descriptor
+     * @throws IllegalArgumentException if the generated counterpart is not constructible or does not
+     * reproduce the original input data type, shape, and gradient metadata
      */
     private static void validateWindow3dAdjointConstructibility(
             int producerIndex,
@@ -1531,10 +1527,12 @@ final class AutogradPreflight {
                     producerIndex, producer, outputIndex, 0,
                     "three-dimensional window adjoint is not constructible");
         }
-        if (inferred.outputs().size() != 1 || !inferred.outputs().getFirst().equals(input)) {
+        if (inferred.outputs().size() != 1 || inferred.outputs().getFirst().dataType() != input.dataType()
+        || !inferred.outputs().getFirst().shape().equals(input.shape())
+        || inferred.outputs().getFirst().requiresGrad() != input.requiresGrad()) {
             throw unsupported(
                     producerIndex, producer, outputIndex, 0,
-                    "three-dimensional window adjoint descriptor differs from input");
+          "three-dimensional window adjoint semantic descriptor differs from input");
         }
     }
 
@@ -1736,8 +1734,8 @@ final class AutogradPreflight {
      * @param producerIndex deterministic producer postorder position used in diagnostics
      * @param producer non-null original producer occurrence
      * @param outputIndex valid selected producer-output position
-     * @throws IllegalArgumentException if inference rejects the occurrence, a derived output
-     *     differs, or an occurrence-local predicate is statically contradicted
+     * @throws IllegalArgumentException if inference rejects the occurrence, a derived output     differs,
+   * or an occurrence-local predicate is statically contradicted
      */
     private static void validateReductionNormalizationOccurrence(
             int producerIndex, TensorProducer producer, int outputIndex) {
@@ -1928,8 +1926,8 @@ final class AutogradPreflight {
      * @param left nullable left batch Dimension; {@code null} means an absent leading axis
      * @param right nullable right batch Dimension; {@code null} means an absent leading axis
      * @return the non-null exact Dimension retained by current MATMUL batch broadcasting
-     * @throws IllegalArgumentException if two present Dimensions cannot broadcast under the
-     *     current local rules
+     * @throws IllegalArgumentException if two present Dimensions cannot broadcast under the current
+     * local rules
      */
     private static Dimension matmulBatchDimension(Dimension left, Dimension right) {
         if (left == null) {
@@ -2239,8 +2237,8 @@ final class AutogradPreflight {
      * @param postorderIndex deterministic objective-ancestry producer postorder position
      * @param producer exact original producer occurrence; never a reconstructed or captured node
      * @param outputIndex zero-based selected canonical output position
-     * @param selectedInputs input-position-aligned differentiable-route flags; cloned on input
-     *     and access
+     * @param selectedInputs input-position-aligned differentiable-route flags; cloned on input and
+     * access
      * @param familyOwner non-null closed formula-family owner shared by every selected input role
      */
     record SelectedOccurrence(
@@ -2257,8 +2255,7 @@ final class AutogradPreflight {
          * @param outputIndex zero-based selected canonical output position
          * @param selectedInputs non-null input-position-aligned differentiable-route flags
          * @param familyOwner non-null closed formula-family owner shared by every selected role
-         * @throws NullPointerException if {@code selectedInputs} or {@code familyOwner} is
-         *     {@code null}
+         * @throws NullPointerException if {@code selectedInputs} or {@code familyOwner} is     {@code null}
          */SelectedOccurrence {
             Objects.requireNonNull(familyOwner, "familyOwner");
             selectedInputs = selectedInputs.clone();

@@ -13,29 +13,31 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Derives descriptors and occurrence-local constraints for layout, Shape, composition, and
- * window transforms.
+ * Derives descriptors and occurrence-local constraints for layout, Shape, composition, and window
+ * transforms.
  *
  * <p>Binding-dependent {@code EXPAND} keeps the exact requested target Shape, emits one ordered
  * source-one-or-source-equal predicate for each unresolved aligned pair, and leaves layout
- * unresolved. Structural equality, a static source singleton, and fully resolved zero-stride
- * view geometry retain their existing behavior. This owner records obligations only; it does not
- * bind dimensions, select materialization, or authorize execution.</p>
+ * unresolved. Structural equality, a static source singleton, and fully resolved zero-stride view
+ * geometry retain their existing behavior. This owner records obligations only; it does not bind
+ * dimensions, select materialization, or authorize execution.
  *
- * <p>Finite {@code SliceAttrs} regions derive exact static selected lengths. Each non-empty
- * signed coordinate sequence is proved within its source extent or retained as an occurrence-local
+ * <p>Finite {@code SliceAttrs} regions derive exact static selected lengths. Each non-empty signed
+ * coordinate sequence is proved within its source extent or retained as an occurrence-local
  * upper-bound constraint; an empty sequence needs no bound. {@code CropToShapeAttrs} extraction
  * returns the exact target Shape, while placement validates the update against that target and
- * returns the exact base Shape. Both retain one {@code prefix + target <= base} obligation per
- * axis when it cannot yet be proved.</p>
+ * returns the exact base Shape. Both retain one {@code prefix + target <= base} obligation per axis
+ * when it cannot yet be proved. A fully static positive-count extraction whose bounds are already
+ * proved against a resolved base layout also derives the exact prefix-relative logical view,
+ * preserving every base stride (including zero) and its checked storage offset.
  *
- * <p>General-axis window transforms retain their existing static transformed-axis contract.
- * Two- and three-dimensional unfold and fold preserve symbolic batch, channel, and spatial
- * expressions and retain independent spatial-domain obligations. Three-dimensional fold also
- * proves the exact batch, flattened channel-kernel, and flattened grid relationships against its
- * explicit NCDHW target. A disproved relation fails inference; an undecidable spatial relation
- * remains typed compiler state. This class does not bind dimensions, inspect values, choose an
- * algorithm, materialize a view, lower a backend operation, or execute computation.</p>
+ * <p>General-axis window transforms retain their existing static transformed-axis contract. Two-
+ * and three-dimensional unfold and fold preserve symbolic batch, channel, and spatial expressions
+ * and retain independent spatial-domain obligations. Three-dimensional fold also proves the exact
+ * batch, flattened channel-kernel, and flattened grid relationships against its explicit NCDHW
+ * target. A disproved relation fails inference; an undecidable spatial relation remains typed
+ * compiler state. This class does not bind dimensions, inspect values, choose an algorithm,
+ * materialize a view, lower a backend operation, or execute computation.
  */
 final class LayoutInference {
     private LayoutInference() {}
@@ -45,11 +47,11 @@ final class LayoutInference {
      *
      * @param op non-null typed operation whose kind belongs to this family
      * @param in non-null ordered input descriptors supplied by the captured node
-     * @return immutable derived descriptors and ordered occurrence-local candidate constraints;
-     *     never {@code null}
-     * @throws IllegalArgumentException if the kind is unsupported here or the occurrence violates
-     *     its rank, Shape, layout, or attribute contract, including a fully static incompatible
-     *     expansion pair
+     * @return immutable derived descriptors and ordered occurrence-local candidate constraints; never
+     * {@code null}
+     * @throws IllegalArgumentException if the kind is unsupported here or the occurrence violates its
+     * rank, Shape, layout, or attribute contract, including a fully static incompatible expansion
+     * pair
      */
     static CapturedGraphInference.InferenceResult infer(Operation op,List<TensorDescriptor> in){
         if(op.kind() instanceof ContiguousKind)return contiguous(in);
@@ -117,18 +119,49 @@ final class LayoutInference {
                 throw new IllegalArgumentException("crop rank mismatch");
             }
             List<CapturedGraphInference.ConstraintRequest> constraints = new ArrayList<>();
+      Optional<LayoutDescriptor> cropLayout = Optional.empty();
+      boolean resolvedPositiveCrop =
+          kind == SliceKind.SLICE
+              && base.layout().isPresent()
+              && base.shape().isFullyStatic()
+              && attrs.targetShape().isFullyStatic()
+              && attrs.prefixShape().isFullyStatic();
+      long cropOffset = base.layout().map(LayoutDescriptor::storageOffset).orElse(0L);
             for (int axis = 0; axis < base.shape().rank(); axis++) {
-                Dimension region = DimensionExpressions.add(
-                        attrs.prefixShape().dimension(axis),
-                        attrs.targetShape().dimension(axis));
+                Dimension prefix =
+                        attrs.prefixShape().dimension(axis);
+        Dimension target =
+                        attrs.targetShape().dimension(axis);
+        Dimension region = DimensionExpressions.add(prefix, target);
                 constraints.add(new CapturedGraphInference.ConstraintRequest(
                         "crop axis " + axis,
                         FitsWithin.dimension(0, region, base.shape().dimension(axis))));
+        if (resolvedPositiveCrop) {
+          long prefixSize = ((StaticDimension) prefix).size();
+          long targetSize = ((StaticDimension) target).size();
+          long baseSize = ((StaticDimension) base.shape().dimension(axis)).size();
+          long end = Math.addExact(prefixSize, targetSize);
+          if (targetSize == 0L || end > baseSize) {
+            resolvedPositiveCrop = false;
+          } else {
+            cropOffset =
+                Math.addExact(
+                    cropOffset,
+                    Math.multiplyExact(prefixSize, base.layout().orElseThrow().stride(axis)));
+          }
+        }
+      }
+      if (resolvedPositiveCrop) {
+        cropLayout =
+            Optional.of(
+                LayoutDescriptor.of(
+                    attrs.targetShape(), base.layout().orElseThrow().strides(), cropOffset, true));
             }
             if (kind == SliceKind.SLICE) {
                 return new CapturedGraphInference.InferenceResult(
-                        List.of(ElementwiseInference.descriptor(
-                                base.dataType(), attrs.targetShape(), base.requiresGrad())),
+                        List.of(
+                new TensorDescriptor(
+                                base.dataType(), attrs.targetShape(), cropLayout, base.requiresGrad())),
                         constraints);
             }
             TensorDescriptor update = in.get(1);

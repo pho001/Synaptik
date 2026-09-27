@@ -9,6 +9,7 @@
 #import "synaptik_task0063_ordering_kernels.h"
 #import "synaptik_task0064_convolution_pooling_kernels.h"
 #import "synaptik_task0065_rng_dropout_kernels.h"
+#import "synaptik_task0066_dtype_layout_kernels.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -45,20 +46,20 @@ typedef enum : uint32_t {
     SYNAPTIK_METAL_MPSGRAPH_SUB = 3U,
     SYNAPTIK_METAL_MPSGRAPH_MUL = 4U,
     SYNAPTIK_METAL_MPSGRAPH_DIV = 5U,
-    SYNAPTIK_METAL_MPSGRAPH_RESHAPE = 6U,
-    SYNAPTIK_METAL_MPSGRAPH_EXPAND = 7U,
-    SYNAPTIK_METAL_MPSGRAPH_PERMUTE = 8U,
-    SYNAPTIK_METAL_MPSGRAPH_EXPAND_DIMS = 9U,
-    SYNAPTIK_METAL_MPSGRAPH_SQUEEZE = 10U,
-    SYNAPTIK_METAL_MPSGRAPH_CONTIGUOUS = 11U,
+    SYNAPTIK_METAL_CUSTOM_RESHAPE = 6U,
+    SYNAPTIK_METAL_CUSTOM_EXPAND = 7U,
+    SYNAPTIK_METAL_CUSTOM_PERMUTE = 8U,
+    SYNAPTIK_METAL_CUSTOM_EXPAND_DIMS = 9U,
+    SYNAPTIK_METAL_CUSTOM_SQUEEZE = 10U,
+    SYNAPTIK_METAL_CUSTOM_CONTIGUOUS = 11U,
     SYNAPTIK_METAL_MPSGRAPH_ABS = 12U,
     SYNAPTIK_METAL_MPSGRAPH_SUM = 13U,
     SYNAPTIK_METAL_MPSGRAPH_MEAN = 14U,
     SYNAPTIK_METAL_MPSGRAPH_MATMUL = 15U,
-    SYNAPTIK_METAL_MPSGRAPH_GATHER = 16U,
-    SYNAPTIK_METAL_MPSGRAPH_ONE_HOT = 17U,
-    SYNAPTIK_METAL_MPSGRAPH_SCATTER_ELEMENTS = 18U,
-    SYNAPTIK_METAL_MPSGRAPH_UNFOLD_AXIS = 19U,
+    SYNAPTIK_METAL_CUSTOM_GATHER = 16U,
+    SYNAPTIK_METAL_CUSTOM_ONE_HOT = 17U,
+    SYNAPTIK_METAL_CUSTOM_SCATTER_ELEMENTS = 18U,
+    SYNAPTIK_METAL_CUSTOM_UNFOLD_AXIS = 19U,
     SYNAPTIK_METAL_CUSTOM_GT = 20U,
     SYNAPTIK_METAL_CUSTOM_GE = 21U,
     SYNAPTIK_METAL_CUSTOM_LT = 22U,
@@ -196,6 +197,29 @@ typedef enum : uint8_t {
     SYNAPTIK_METAL_TYPE_BFLOAT16 = 5U,
     SYNAPTIK_METAL_TYPE_INT64 = 6U
 } SynaptikMetalValueType;
+static BOOL task0066_is_carrier(uint8_t type) {
+    return type >= SYNAPTIK_METAL_TYPE_FLOAT32
+            && type <= SYNAPTIK_METAL_TYPE_INT64;
+}
+
+static BOOL task0066_is_floating(uint8_t type) {
+    return type == SYNAPTIK_METAL_TYPE_FLOAT64
+            || type == SYNAPTIK_METAL_TYPE_FLOAT32
+            || type == SYNAPTIK_METAL_TYPE_BFLOAT16;
+}
+
+static uint8_t task0066_promote_floating(uint8_t left, uint8_t right) {
+    if (!task0066_is_floating(left) || !task0066_is_floating(right))
+        return SYNAPTIK_METAL_TYPE_UNAVAILABLE;
+    if (left == SYNAPTIK_METAL_TYPE_FLOAT64
+            || right == SYNAPTIK_METAL_TYPE_FLOAT64)
+        return SYNAPTIK_METAL_TYPE_FLOAT64;
+    if (left == SYNAPTIK_METAL_TYPE_FLOAT32
+            || right == SYNAPTIK_METAL_TYPE_FLOAT32)
+        return SYNAPTIK_METAL_TYPE_FLOAT32;
+    return SYNAPTIK_METAL_TYPE_BFLOAT16;
+}
+
 
 typedef struct {
     uint32_t operation;
@@ -592,12 +616,17 @@ static BOOL synaptik_attribute_is_valid(
 @property(nonatomic) uint32_t nodeIndex;
 @property(nonatomic) NSUInteger feedPosition;
 @property(nonatomic) BOOL preflight;
+@property(nonatomic) uint32_t indexValue;
 @property(nonatomic) uint64_t elementCount;
 @property(nonatomic) uint64_t bound;
 @property(nonatomic) uint32_t axis;
 @property(nonatomic) uint32_t indexType;
 @property(nonatomic) uint32_t tupleDepth;
 @property(nonatomic) uint64_t targetCount;
+@property(nonatomic) uint64_t indexSpan;
+@property(nonatomic) uint64_t indexOffset;
+@property(nonatomic, strong, nullable) NSMutableData *indexExtents;
+@property(nonatomic, strong, nullable) NSMutableData *indexStrides;
 @property(nonatomic, strong, nullable) NSMutableData *coordinateExtents;
 @property(nonatomic, strong, nullable) NSMutableData *dataStrides;
 @property(nonatomic, strong, nullable) NSMutableData *prefixExtents;
@@ -697,6 +726,10 @@ typedef struct {
     uint32_t attributeCount;
     uint32_t indexType;
     uint32_t reserved;
+    uint64_t roleDims[SYNAPTIK_MAX_NODE_INPUTS][16];
+    uint64_t roleStrides[SYNAPTIK_MAX_NODE_INPUTS][16];
+    uint64_t roleOffsets[SYNAPTIK_MAX_NODE_INPUTS];
+    uint32_t roleRanks[SYNAPTIK_MAX_NODE_INPUTS];
 } SynaptikMetalDataMeta;
 
 typedef struct {
@@ -1130,15 +1163,18 @@ static BOOL task0059_validate_layout(
     uint32_t output = node.output;
     uint32_t input_rank = ranks[input];
     uint32_t output_rank = ranks[output];
-    if (!synaptik_storage_layout_supported(
-                input, ranks, dimensions, strides, offsets, spans, present,
-                node.operation == SYNAPTIK_METAL_CUSTOM_SELECT ? 2U : 1U)
-            || !synaptik_storage_layout_supported(
-                    output, ranks, dimensions, strides, offsets, spans, present, 1U)
+    uint32_t minimum_input_rank =
+            node.operation == SYNAPTIK_METAL_CUSTOM_SELECT ? 1U : 0U;
+    if (!present[input] || !present[output]
+            || input_rank < minimum_input_rank
             || !view[output])
         return NO;
+    for (uint32_t axis = 0U; axis < input_rank; axis++)
+        if (dimensions[(size_t)input * SYNAPTIK_MAX_RANK + axis] == 0U) return NO;
+    for (uint32_t axis = 0U; axis < output_rank; axis++)
+        if (dimensions[(size_t)output * SYNAPTIK_MAX_RANK + axis] == 0U) return NO;
     if (node.operation == SYNAPTIK_METAL_CUSTOM_SELECT) {
-        if (input_rank <= 1U || output_rank + 1U != input_rank
+        if (input_rank == 0U || output_rank + 1U != input_rank
                 || node.attribute_count != 2U) return NO;
         uint64_t axis_word = node.attribute_values[0];
         if (axis_word >= input_rank) return NO;
@@ -1159,7 +1195,7 @@ static BOOL task0059_validate_layout(
         }
         return YES;
     }
-    if (input_rank == 0U || output_rank != input_rank) return NO;
+    if (output_rank != input_rank) return NO;
     uint32_t count;
     uint32_t starts_offset;
     uint32_t axes_offset = 0U;
@@ -1208,6 +1244,132 @@ static BOOL task0059_validate_layout(
         if (strides[(size_t)output * SYNAPTIK_MAX_RANK + axis] != expected[axis])
             return NO;
     return YES;
+}
+
+static BOOL task0066_positive_physical_span(
+        uint32_t value,
+        const uint32_t *ranks,
+        const uint64_t *dimensions,
+        const uint64_t *strides,
+        const uint64_t *offsets,
+        uint64_t *spans) {
+    uint32_t rank = ranks[value];
+    uint32_t order[SYNAPTIK_MAX_RANK] = {0U};
+    uint32_t count = 0U;
+    for (uint32_t axis = 0U; axis < rank; axis++) {
+        uint64_t dimension =
+                dimensions[(size_t)value * SYNAPTIK_MAX_RANK + axis];
+        uint64_t stride = strides[(size_t)value * SYNAPTIK_MAX_RANK + axis];
+        if (dimension == 0U || stride == 0U || stride > (uint64_t)INT64_MAX)
+            return NO;
+        if (dimension > 1U) {
+            uint32_t insertion = count;
+            while (insertion > 0U
+                    && strides[(size_t)value * SYNAPTIK_MAX_RANK
+                                    + order[insertion - 1U]] > stride) {
+                order[insertion] = order[insertion - 1U];
+                insertion--;
+            }
+            order[insertion] = axis;
+            count++;
+        }
+    }
+    uint64_t covered = 1U;
+    for (uint32_t index = 0U; index < count; index++) {
+        uint32_t axis = order[index];
+        uint64_t dimension =
+                dimensions[(size_t)value * SYNAPTIK_MAX_RANK + axis];
+        uint64_t stride = strides[(size_t)value * SYNAPTIK_MAX_RANK + axis];
+        if (stride < covered
+                || dimension - 1U > ((uint64_t)INT64_MAX - covered) / stride)
+            return NO;
+        covered += (dimension - 1U) * stride;
+    }
+    if (offsets[value] > (uint64_t)INT64_MAX - covered) return NO;
+    spans[value] = offsets[value] + covered;
+    return YES;
+}
+
+static BOOL task0066_derive_physical_view(
+        SynaptikMetalDecodedNode node,
+        const uint32_t *ranks,
+        const uint64_t *dimensions,
+        uint64_t *strides,
+        uint64_t *offsets,
+        uint64_t *spans) {
+    if (node.operation != SYNAPTIK_METAL_CUSTOM_SELECT
+            && node.operation != SYNAPTIK_METAL_CUSTOM_SLICE)
+        return YES;
+    uint32_t input = node.first_input;
+    uint32_t output = node.output;
+    uint32_t input_rank = ranks[input];
+    uint32_t output_rank = ranks[output];
+    uint64_t expected_offset = offsets[input];
+    if (node.operation == SYNAPTIK_METAL_CUSTOM_SELECT) {
+        if (node.attribute_count != 2U
+                || node.attribute_values[0] >= input_rank
+                || output_rank + 1U != input_rank)
+            return NO;
+        uint32_t selected_axis = (uint32_t)node.attribute_values[0];
+        uint64_t selected_stride =
+                strides[(size_t)input * SYNAPTIK_MAX_RANK + selected_axis];
+        if (!task0059_layout_add_product(
+                    &expected_offset, node.attribute_values[1], selected_stride))
+            return NO;
+        for (uint32_t source = 0U, target = 0U; source < input_rank; source++) {
+            if (source == selected_axis) continue;
+            strides[(size_t)output * SYNAPTIK_MAX_RANK + target++] =
+                    strides[(size_t)input * SYNAPTIK_MAX_RANK + source];
+        }
+    } else {
+        if (output_rank != input_rank) return NO;
+        for (uint32_t axis = 0U; axis < input_rank; axis++)
+            strides[(size_t)output * SYNAPTIK_MAX_RANK + axis] =
+                    strides[(size_t)input * SYNAPTIK_MAX_RANK + axis];
+        BOOL crop = node.attribute_kind == 15U;
+        uint32_t count;
+        uint32_t starts_offset;
+        uint32_t axes_offset = 0U;
+        uint32_t steps_offset = 0U;
+        if (crop) {
+            if (node.attribute_count < 2U
+                    || node.attribute_values[0] != input_rank)
+                return NO;
+            uint32_t prefix_rank_offset = 1U + input_rank;
+            if (prefix_rank_offset >= node.attribute_count
+                    || node.attribute_values[prefix_rank_offset] != input_rank)
+                return NO;
+            count = input_rank;
+            starts_offset = prefix_rank_offset + 1U;
+        } else {
+            if (node.attribute_kind != 17U || node.attribute_count == 0U
+                    || node.attribute_values[0] > input_rank)
+                return NO;
+            count = (uint32_t)node.attribute_values[0];
+            starts_offset = 1U;
+            axes_offset = 1U + count * 2U;
+            steps_offset = 1U + count * 3U;
+        }
+        for (uint32_t item = 0U; item < count; item++) {
+            uint32_t axis =
+                    crop ? item : (uint32_t)node.attribute_values[axes_offset + item];
+            uint64_t start = node.attribute_values[starts_offset + item];
+            uint64_t step = crop ? 1U : node.attribute_values[steps_offset + item];
+            if (axis >= input_rank || step == 0U || step > (uint64_t)INT64_MAX)
+                return NO;
+            uint64_t input_stride =
+                    strides[(size_t)input * SYNAPTIK_MAX_RANK + axis];
+            if (!task0059_layout_add_product(
+                        &expected_offset, start, input_stride)
+                    || input_stride > (uint64_t)INT64_MAX / step)
+                return NO;
+            strides[(size_t)output * SYNAPTIK_MAX_RANK + axis] =
+                    input_stride * step;
+        }
+    }
+    offsets[output] = expected_offset;
+    return task0066_positive_physical_span(
+            output, ranks, dimensions, strides, offsets, spans);
 }
 
 static BOOL task0059_validate_shape(
@@ -1265,7 +1427,7 @@ static BOOL task0059_validate_shape(
         }
         case SYNAPTIK_METAL_CUSTOM_SELECT: {
             if (node.attribute_kind != 14U || node.attribute_count != 2U
-                    || input.count <= 1U || output.count == 0U) return NO;
+                    || input.count == 0U) return NO;
             uint64_t axis_word = node.attribute_values[0];
             uint64_t index = node.attribute_values[1];
             if (axis_word >= input.count
@@ -1299,7 +1461,7 @@ static BOOL task0059_validate_shape(
             return YES;
         }
         case SYNAPTIK_METAL_CUSTOM_SLICE: {
-            if (input.count == 0U || output.count == 0U) return NO;
+            if (input.count != output.count) return NO;
             if (node.attribute_kind == 15U)
                 return task0059_crop_region_matches(node, input, output);
             if (node.attribute_kind != 17U || node.attribute_count == 0U
@@ -1565,12 +1727,11 @@ static int compare_u64(const void *left, const void *right) {
 static BOOL scatter_target_linear(
         SynaptikMetalIndexValidation *validation,
         uint64_t ordinal,
-        int32_t index,
+        uint64_t index,
         uint64_t *out_target) {
     if (validation.coordinateExtents == nil
             || validation.dataStrides == nil
-            || out_target == NULL
-            || index < 0)
+            || out_target == NULL)
         return NO;
     const uint64_t *extents = validation.coordinateExtents.bytes;
     const uint64_t *strides = validation.dataStrides.bytes;
@@ -1586,7 +1747,7 @@ static BOOL scatter_target_linear(
         if (extent == 0U) return NO;
         uint64_t coordinate = remaining % extent;
         remaining /= extent;
-        if (dimension == validation.axis) coordinate = (uint64_t)index;
+        if (dimension == validation.axis) coordinate = index;
         if (coordinate > UINT64_MAX / strides[dimension]) return NO;
         uint64_t contribution = coordinate * strides[dimension];
         if (target > UINT64_MAX - contribution) return NO;
@@ -1594,6 +1755,41 @@ static BOOL scatter_target_linear(
     }
     if (remaining != 0U) return NO;
     *out_target = target;
+    return YES;
+}
+
+static BOOL index_validation_value(
+        SynaptikMetalIndexValidation *validation,
+        const void *contents,
+        uint32_t index_type,
+        uint64_t ordinal,
+        int64_t *out_value) {
+    if (validation.indexExtents == nil
+            || validation.indexStrides == nil
+            || contents == NULL
+            || out_value == NULL)
+        return NO;
+    NSUInteger rank = validation.indexExtents.length / sizeof(uint64_t);
+    if (rank != validation.indexStrides.length / sizeof(uint64_t))
+        return NO;
+    const uint64_t *extents = validation.indexExtents.bytes;
+    const uint64_t *strides = validation.indexStrides.bytes;
+    uint64_t storage = validation.indexOffset;
+    uint64_t remaining = ordinal;
+    for (NSUInteger dimension = rank; dimension-- > 0U;) {
+        uint64_t extent = extents[dimension];
+        if (extent == 0U) return NO;
+        uint64_t coordinate = remaining % extent;
+        remaining /= extent;
+        if (coordinate > UINT64_MAX / strides[dimension]) return NO;
+        uint64_t contribution = coordinate * strides[dimension];
+        if (storage > UINT64_MAX - contribution) return NO;
+        storage += contribution;
+    }
+    if (remaining != 0U || storage >= validation.indexSpan) return NO;
+    *out_value = index_type == SYNAPTIK_METAL_TYPE_INT32
+            ? (int64_t)((const int32_t *)contents)[storage]
+            : ((const int64_t *)contents)[storage];
     return YES;
 }
 
@@ -1633,9 +1829,10 @@ static BOOL scatter_nd_target_linear(
     if (remaining != 0U) return NO;
     for (NSUInteger component = 0U; component < depth; component++) {
         uint64_t ordinal = tuple * depth + component;
-        int64_t value = index_type == SYNAPTIK_METAL_TYPE_INT32
-                ? (int64_t)((const int32_t *)contents)[ordinal]
-                : ((const int64_t *)contents)[ordinal];
+        int64_t value = 0;
+        if (!index_validation_value(
+                    validation, contents, index_type, ordinal, &value))
+            return NO;
         uint64_t coordinate = (uint64_t)value;
         NSUInteger dimension = batch + component;
         if (coordinate > UINT64_MAX / strides[dimension]) return NO;
@@ -1656,9 +1853,10 @@ static int32_t validate_index_buffer(
     uint64_t width = index_type == SYNAPTIK_METAL_TYPE_INT32
             ? sizeof(int32_t)
             : index_type == SYNAPTIK_METAL_TYPE_INT64 ? sizeof(int64_t) : 0U;
-    if (width == 0U || validation.elementCount > UINT64_MAX / width)
+    if (width == 0U || validation.indexSpan == 0U
+            || validation.indexSpan > UINT64_MAX / width)
         return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
-    uint64_t required = validation.elementCount * width;
+    uint64_t required = validation.indexSpan * width;
     if (buffer.logicalByteSize < required)
         return SYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE;
     const void *contents = buffer.buffer.contents;
@@ -1672,7 +1870,7 @@ static int32_t validate_index_buffer(
                     != (NSUInteger)validation.tupleDepth * sizeof(uint64_t)))
         return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
     BOOL scatter_elements =
-            validation.operation == SYNAPTIK_METAL_MPSGRAPH_SCATTER_ELEMENTS;
+            validation.operation == SYNAPTIK_METAL_CUSTOM_SCATTER_ELEMENTS;
     BOOL scatter_nd =
             validation.operation == SYNAPTIK_METAL_MPSGRAPH_SCATTER_ND
             && validation.targetScratch != nil;
@@ -1689,16 +1887,17 @@ static int32_t validate_index_buffer(
         if (targets == NULL) return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
     }
     for (uint64_t ordinal = 0U; ordinal < validation.elementCount; ordinal++) {
-        int64_t value = index_type == SYNAPTIK_METAL_TYPE_INT32
-                ? (int64_t)((const int32_t *)contents)[ordinal]
-                : ((const int64_t *)contents)[ordinal];
+        int64_t value = 0;
+        if (!index_validation_value(
+                    validation, contents, index_type, ordinal, &value))
+            return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
         uint64_t bound = nd
                 ? bounds[ordinal % validation.tupleDepth]
                 : validation.bound;
         if (value < 0 || (uint64_t)value >= bound)
             return SYNAPTIK_METAL_STATUS_RANGE_OUT_OF_BOUNDS;
         if (scatter_elements && !scatter_target_linear(
-                    validation, ordinal, (int32_t)value, &targets[ordinal]))
+                    validation, ordinal, (uint64_t)value, &targets[ordinal]))
             return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
     }
     if (scatter_nd) {
@@ -1864,7 +2063,6 @@ static BOOL node_unfold_axis_matches(
             || output.count != input.count + 1U
             || node.axis >= input.count
             || node.attribute_values[0] == 0U
-            || node.attribute_values[0] > SYNAPTIK_MAX_SELECTOR_EXPANSION
             || node.attribute_values[1] == 0U
             || node.attribute_values[1] > (uint64_t)NSIntegerMax
             || !node_values_are_zero_from(node, 2U))
@@ -2142,8 +2340,25 @@ static id<MTLBuffer> custom_metadata(
             length:length options:MTLResourceStorageModeShared];
 }
 
+static BOOL operation_is_task0066_selected(uint32_t operation) {
+    return (operation >= SYNAPTIK_METAL_CUSTOM_RESHAPE
+                    && operation <= SYNAPTIK_METAL_CUSTOM_CONTIGUOUS)
+            || (operation >= SYNAPTIK_METAL_CUSTOM_GATHER
+                    && operation <= SYNAPTIK_METAL_CUSTOM_UNFOLD_AXIS)
+            || (operation >= SYNAPTIK_METAL_CUSTOM_CAST
+                    && operation <= SYNAPTIK_METAL_BOOL_NOT)
+            || operation == SYNAPTIK_METAL_BOOL_WHERE
+            || operation == SYNAPTIK_METAL_CUSTOM_GATHER_ELEMENTS
+            || (operation >= SYNAPTIK_METAL_CUSTOM_GATHER_ND
+                    && operation <= SYNAPTIK_METAL_MPSGRAPH_FOLD3D);
+}
+
 static BOOL operation_uses_custom_kernel(uint32_t operation) {
-    return (operation >= SYNAPTIK_METAL_CUSTOM_GT
+    return (operation >= SYNAPTIK_METAL_CUSTOM_RESHAPE
+                    && operation <= SYNAPTIK_METAL_CUSTOM_CONTIGUOUS)
+            || (operation >= SYNAPTIK_METAL_CUSTOM_GATHER
+                    && operation <= SYNAPTIK_METAL_CUSTOM_UNFOLD_AXIS)
+            || (operation >= SYNAPTIK_METAL_CUSTOM_GT
                     && operation <= SYNAPTIK_METAL_CUSTOM_CUM_PROD)
             || (operation >= SYNAPTIK_METAL_BOOL_IS_FINITE
                     && operation <= SYNAPTIK_METAL_BOOL_NOT)
@@ -2276,7 +2491,7 @@ static BOOL node_is_task0064_singleton_height(
         const uint64_t *layout_offsets,
         const uint64_t *layout_spans,
         const uint8_t *declared_states) {
-    if (node.operation != SYNAPTIK_METAL_MPSGRAPH_EXPAND_DIMS
+    if (node.operation != SYNAPTIK_METAL_CUSTOM_EXPAND_DIMS
             || node.axis != 2U
             || input_state != SYNAPTIK_METAL_VALUE_CANONICAL
             || input == nil || input.count != 3U
@@ -2302,7 +2517,7 @@ static BOOL node_is_task0064_singleton_height(
 
 static BOOL operation_has_direct_mpsgraph(uint32_t operation) {
     return (operation >= SYNAPTIK_METAL_MPSGRAPH_NEG
-                    && operation <= SYNAPTIK_METAL_MPSGRAPH_UNFOLD_AXIS)
+                    && operation <= SYNAPTIK_METAL_CUSTOM_UNFOLD_AXIS)
             || operation == SYNAPTIK_METAL_MPSGRAPH_TENSOR_POW
             || (operation >= SYNAPTIK_METAL_BOOL_IS_FINITE
                     && operation <= SYNAPTIK_METAL_BOOL_NOT)
@@ -2373,44 +2588,57 @@ static NSString *custom_function(
         case SYNAPTIK_METAL_CUSTOM_REDUCTION_MAX: return @"reduction_max";
         case SYNAPTIK_METAL_CUSTOM_CUM_SUM: return @"scan_sum";
         case SYNAPTIK_METAL_CUSTOM_CUM_PROD: return @"scan_prod";
-        case SYNAPTIK_METAL_BOOL_IS_FINITE: return @"bool_is_finite";
-        case SYNAPTIK_METAL_BOOL_IS_NAN: return @"bool_is_nan";
-        case SYNAPTIK_METAL_BOOL_IS_INF: return @"bool_is_inf";
-        case SYNAPTIK_METAL_BOOL_AND: return @"bool_and";
-        case SYNAPTIK_METAL_BOOL_OR: return @"bool_or";
-        case SYNAPTIK_METAL_BOOL_NOT: return @"bool_not";
-        case SYNAPTIK_METAL_BOOL_WHERE: return @"bool_where";
+        case SYNAPTIK_METAL_BOOL_IS_FINITE:
+        case SYNAPTIK_METAL_BOOL_IS_NAN:
+        case SYNAPTIK_METAL_BOOL_IS_INF:
+        case SYNAPTIK_METAL_BOOL_NOT: return @"exact_predicate_0066";
+        case SYNAPTIK_METAL_BOOL_AND:
+        case SYNAPTIK_METAL_BOOL_OR: return @"exact_logical_binary_0066";
+        case SYNAPTIK_METAL_BOOL_WHERE: return @"exact_where_0066";
         case SYNAPTIK_METAL_CUSTOM_EXP: return @"task0053_candidate_exp";
         case SYNAPTIK_METAL_CUSTOM_SIGMOID: return @"task0053_candidate_sigmoid";
         case SYNAPTIK_METAL_CUSTOM_FLOOR: return @"exact_floor";
         case SYNAPTIK_METAL_CUSTOM_CEIL: return @"exact_ceil";
         case SYNAPTIK_METAL_CUSTOM_SIGN: return @"exact_sign";
         case SYNAPTIK_METAL_CUSTOM_RELU: return @"exact_relu";
-        case SYNAPTIK_METAL_CUSTOM_CAST: return @"exact_cast_0059";
+        case SYNAPTIK_METAL_CUSTOM_CAST: return @"exact_cast_0066";
+        case SYNAPTIK_METAL_CUSTOM_GATHER: return @"exact_gather_0066";
+        case SYNAPTIK_METAL_CUSTOM_ONE_HOT: return @"exact_one_hot_0066";
         case SYNAPTIK_METAL_CUSTOM_GATHER_ELEMENTS:
-        case SYNAPTIK_METAL_CUSTOM_GATHER_ND: return @"exact_move_binary_0059";
+        case SYNAPTIK_METAL_CUSTOM_GATHER_ND: return @"exact_gather_index_0066";
+        case SYNAPTIK_METAL_CUSTOM_SCATTER_ELEMENTS:
+            return stage == 0U
+                    ? @"exact_scatter_copy_0066"
+                    : @"exact_scatter_elements_0066";
         case SYNAPTIK_METAL_MPSGRAPH_SCATTER_ND:
-            return stage == 0U ? @"exact_scatter_copy_0060" : @"exact_scatter_nd_0060";
+            return stage == 0U ? @"exact_scatter_copy_0066" : @"exact_scatter_nd_0066";
         case SYNAPTIK_METAL_CUSTOM_SORT: return @"exact_sort_0063";
         case SYNAPTIK_METAL_CUSTOM_ARGSORT: return @"exact_argsort_0063";
         case SYNAPTIK_METAL_CUSTOM_TOP_K: return @"exact_top_k_0063";
         case SYNAPTIK_METAL_CUSTOM_ARG_MAX: return @"exact_arg_max_0063";
         case SYNAPTIK_METAL_CUSTOM_ARG_MIN: return @"exact_arg_min_0063";
+        case SYNAPTIK_METAL_CUSTOM_RESHAPE:
+        case SYNAPTIK_METAL_CUSTOM_EXPAND:
+        case SYNAPTIK_METAL_CUSTOM_PERMUTE:
+        case SYNAPTIK_METAL_CUSTOM_EXPAND_DIMS:
+        case SYNAPTIK_METAL_CUSTOM_SQUEEZE:
+        case SYNAPTIK_METAL_CUSTOM_CONTIGUOUS:
+        case SYNAPTIK_METAL_CUSTOM_UNFOLD_AXIS:
         case SYNAPTIK_METAL_CUSTOM_SELECT:
         case SYNAPTIK_METAL_CUSTOM_PAD:
         case SYNAPTIK_METAL_CUSTOM_SLICE:
         case SYNAPTIK_METAL_CUSTOM_TILE:
         case SYNAPTIK_METAL_CUSTOM_UNFOLD2D:
-        case SYNAPTIK_METAL_CUSTOM_UNFOLD3D: return @"exact_move_unary_0059";
-        case SYNAPTIK_METAL_MPSGRAPH_SLICE_UPDATE: return @"exact_slice_update_0060";
+        case SYNAPTIK_METAL_CUSTOM_UNFOLD3D: return @"exact_move_unary_0066";
+        case SYNAPTIK_METAL_MPSGRAPH_SLICE_UPDATE: return @"exact_slice_update_0066";
         case SYNAPTIK_METAL_MPSGRAPH_FOLD_AXIS:
         case SYNAPTIK_METAL_MPSGRAPH_FOLD2D:
-        case SYNAPTIK_METAL_MPSGRAPH_FOLD3D: return @"exact_fold_0060";
+        case SYNAPTIK_METAL_MPSGRAPH_FOLD3D: return @"exact_fold_0066";
         case SYNAPTIK_METAL_CUSTOM_PROD:
         case SYNAPTIK_METAL_CUSTOM_ALL:
         case SYNAPTIK_METAL_CUSTOM_ANY: return @"exact_reduce_0060";
         case SYNAPTIK_METAL_CUSTOM_CONCAT:
-        case SYNAPTIK_METAL_CUSTOM_STACK: return @"exact_compose_0059";
+        case SYNAPTIK_METAL_CUSTOM_STACK: return @"exact_compose_0066";
         default: return nil;
     }
 }
@@ -2428,8 +2656,8 @@ static BOOL custom_physical_layout(
             || shape.count > SYNAPTIK_MAX_RANK)
         return NO;
     if (value_strides != NULL && layout_offsets != NULL && value_states != NULL
-            && (value_states[value] == SYNAPTIK_METAL_VALUE_MATERIALIZED_LAYOUT
-                    || value_states[value] == SYNAPTIK_METAL_VALUE_AFFINE_VIEW)) {
+            && (value_states[value] == SYNAPTIK_METAL_VALUE_AFFINE_VIEW
+                    || value_states[value] == SYNAPTIK_METAL_VALUE_MATERIALIZED_LAYOUT)) {
         for (NSUInteger axis = 0U; axis < shape.count; axis++)
             strides[axis] =
                     value_strides[(size_t)value * SYNAPTIK_MAX_RANK + axis];
@@ -2478,6 +2706,52 @@ static BOOL custom_broadcast_physical_layout(
     }
     return YES;
 }
+static BOOL configure_index_validation_layout(
+        SynaptikMetalIndexValidation *validation,
+        NSArray<MPSShape *> *shapes,
+        const uint64_t *value_strides,
+        const uint64_t *layout_offsets,
+        const uint8_t *physical_states) {
+    if (validation == nil || validation.indexValue >= shapes.count)
+        return NO;
+    MPSShape *shape = shapes[validation.indexValue];
+    NSUInteger rank = shape.count;
+    NSMutableData *extents =
+            [NSMutableData dataWithLength:rank * sizeof(uint64_t)];
+    NSMutableData *strides =
+            [NSMutableData dataWithLength:rank * sizeof(uint64_t)];
+    if (extents == nil || strides == nil) return NO;
+    uint64_t *extent_cells = extents.mutableBytes;
+    uint64_t *stride_cells = strides.mutableBytes;
+    uint64_t offset = 0U;
+    if (!custom_physical_layout(
+                shape,
+                validation.indexValue,
+                value_strides,
+                layout_offsets,
+                physical_states,
+                stride_cells,
+                &offset))
+        return NO;
+    uint64_t span = offset;
+    for (NSUInteger axis = 0U; axis < rank; axis++) {
+        uint64_t extent = shape[axis].unsignedLongLongValue;
+        extent_cells[axis] = extent;
+        if (extent == 0U
+                || extent - 1U > UINT64_MAX / stride_cells[axis])
+            return NO;
+        uint64_t contribution = (extent - 1U) * stride_cells[axis];
+        if (span > UINT64_MAX - contribution) return NO;
+        span += contribution;
+    }
+    if (span == UINT64_MAX) return NO;
+    validation.indexOffset = offset;
+    validation.indexSpan = span + 1U;
+    validation.indexExtents = extents;
+    validation.indexStrides = strides;
+    return YES;
+}
+
 
 
 static SynaptikMetalProgramStep *make_custom_step(
@@ -2554,6 +2828,16 @@ static SynaptikMetalProgramStep *make_custom_step(
                     && node.operation <= SYNAPTIK_METAL_MPSGRAPH_FOLD3D)
             || (node.operation >= SYNAPTIK_METAL_CUSTOM_PROD
                     && node.operation <= SYNAPTIK_METAL_CUSTOM_ANY);
+    BOOL task0066 = (node.operation >= SYNAPTIK_METAL_CUSTOM_RESHAPE
+                    && node.operation <= SYNAPTIK_METAL_CUSTOM_CONTIGUOUS)
+            || (node.operation >= SYNAPTIK_METAL_CUSTOM_GATHER
+                    && node.operation <= SYNAPTIK_METAL_CUSTOM_UNFOLD_AXIS)
+            || (node.operation >= SYNAPTIK_METAL_CUSTOM_CAST
+                    && node.operation <= SYNAPTIK_METAL_BOOL_NOT)
+            || node.operation == SYNAPTIK_METAL_BOOL_WHERE
+            || node.operation == SYNAPTIK_METAL_CUSTOM_GATHER_ELEMENTS
+            || (node.operation >= SYNAPTIK_METAL_CUSTOM_GATHER_ND
+                    && node.operation <= SYNAPTIK_METAL_MPSGRAPH_FOLD3D);
     BOOL task0064 = node.operation == SYNAPTIK_METAL_CUSTOM_CONV2D
             || node.operation == SYNAPTIK_METAL_CUSTOM_CONV3D
             || (node.operation >= SYNAPTIK_METAL_CUSTOM_MAX_POOL2D
@@ -2620,10 +2904,12 @@ static SynaptikMetalProgramStep *make_custom_step(
                 ? meta.outputCount : meta.elementCount;
         step.grid = MTLSizeMake((NSUInteger)threads, 1U, 1U);
         step.metadata = custom_metadata(device, &meta, sizeof(meta));
-    } else if (task0059 || task0064) {
+    } else if (task0059 || task0064 || task0066) {
         SynaptikMetalDataMeta meta = {0};
         meta.elementCount = shape_element_count(output);
-        if (node.operation == SYNAPTIK_METAL_MPSGRAPH_SCATTER_ND && stage == 1U)
+        if ((node.operation == SYNAPTIK_METAL_CUSTOM_SCATTER_ELEMENTS
+                            || node.operation == SYNAPTIK_METAL_MPSGRAPH_SCATTER_ND)
+                        && stage == 1U)
             meta.elementCount = shape_element_count(shapes[node.auxiliary]);
         meta.operation = node.operation;
         meta.inputRank = (uint32_t)input.count;
@@ -2639,6 +2925,10 @@ static SynaptikMetalProgramStep *make_custom_step(
             meta.reserved = node.input_count == 3U
                     ? value_types[node.auxiliary] : SYNAPTIK_METAL_TYPE_FLOAT32;
         }
+        if (node.operation == SYNAPTIK_METAL_BOOL_WHERE) {
+            meta.sourceType = value_types[node.second_input];
+            meta.reserved = value_types[node.auxiliary];
+        }
         for (NSUInteger axis = 0U; axis < input.count; axis++)
             meta.inputDims[axis] = input[axis].unsignedLongLongValue;
         for (NSUInteger axis = 0U; axis < output.count; axis++)
@@ -2650,11 +2940,32 @@ static SynaptikMetalProgramStep *make_custom_step(
                     output, node.output, value_strides, layout_offsets,
                     value_states, meta.outputStrides, &meta.outputOffset))
             return nil;
+        if (task0066) {
+            for (uint32_t role = 0U; role < node.input_count; role++) {
+                uint32_t value = node.inputs[role];
+                MPSShape *role_shape = shapes[value];
+                meta.roleRanks[role] = (uint32_t)role_shape.count;
+                for (NSUInteger axis = 0U; axis < role_shape.count; axis++)
+                    meta.roleDims[role][axis] =
+                            role_shape[axis].unsignedLongLongValue;
+                if (!custom_physical_layout(
+                            role_shape,
+                            value,
+                            value_strides,
+                            layout_offsets,
+                            value_states,
+                            meta.roleStrides[role],
+                            &meta.roleOffsets[role]))
+                    return nil;
+            }
+        }
         for (uint32_t word = 0U; word < node.attribute_count; word++)
             meta.attrs[word] = node.attribute_values[word];
         if (node.attribute_kind == SYNAPTIK_METAL_MPSGRAPH_ATTR_AXIS
                 && node.attribute_count == 1U)
             meta.attrs[0] = node.axis;
+        if (node.operation == SYNAPTIK_METAL_CUSTOM_UNFOLD_AXIS)
+            meta.attrs[2] = node.axis;
         if (node.operation == SYNAPTIK_METAL_MPSGRAPH_FOLD_AXIS)
             meta.reserved = node.axis;
         if (node.operation >= SYNAPTIK_METAL_CUSTOM_PROD
@@ -2690,6 +3001,17 @@ static SynaptikMetalProgramStep *make_custom_step(
             if (!custom_physical_layout(
                         auxiliary, node.second_input, value_strides, layout_offsets,
                         value_states, meta.auxiliaryStrides, &meta.auxiliaryOffset))
+                return nil;
+        }
+        if (node.operation == SYNAPTIK_METAL_BOOL_WHERE) {
+            MPSShape *when_false = shapes[node.auxiliary];
+            meta.inputExtents[0] = when_false.count;
+            for (NSUInteger axis = 0U; axis < when_false.count; axis++)
+                meta.inputExtents[1U + axis] =
+                        when_false[axis].unsignedLongLongValue;
+            if (!custom_physical_layout(
+                        when_false, node.auxiliary, value_strides, layout_offsets,
+                        value_states, meta.outputStrides, &meta.outputOffset))
                 return nil;
         }
         NSMutableArray<NSNumber *> *input_values =
@@ -3276,9 +3598,14 @@ static int32_t synaptik_metal_create_decoded(
                         && !task0064_two_dimensional_consumer)
                     local_singleton_height[value] = 3U;
             }
-            BOOL custom_node = node_uses_custom_kernel(node, shapes, value_types);
+            BOOL custom_node = node_uses_custom_kernel(node, shapes, value_types)
+                    || (route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM
+                            && node.operation == SYNAPTIK_METAL_MPSGRAPH_MATMUL
+                            && (local_transpose[node.first_input] != 0U
+                                    || local_transpose[node.second_input] != 0U));
             if (route == SYNAPTIK_METAL_ROUTE_MPSGRAPH
                     && (!operation_has_direct_mpsgraph(node.operation)
+                            || operation_is_task0066_selected(node.operation)
                             || matmul_uses_custom_kernel(node, shapes, value_types)))
                 return SYNAPTIK_METAL_STATUS_UNSUPPORTED_OPERATION;
             if (route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM && custom_node)
@@ -3389,11 +3716,9 @@ static int32_t synaptik_metal_create_decoded(
                 case SYNAPTIK_METAL_BOOL_IS_NAN:
                 case SYNAPTIK_METAL_BOOL_IS_INF:
                 case SYNAPTIK_METAL_BOOL_NOT:
-                    if (states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
+                    if (states[node.first_input] == SYNAPTIK_METAL_VALUE_UNAVAILABLE
                             || node.second_input != UINT32_MAX
                             || !node_has_no_attributes(node)
-                            || [shapes[node.first_input] count] == 0U
-                            || [shapes[node.output] count] == 0U
                             || ![shapes[node.first_input] isEqualToArray:shapes[node.output]])
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     break;
@@ -3412,15 +3737,17 @@ static int32_t synaptik_metal_create_decoded(
                 case SYNAPTIK_METAL_CUSTOM_NE:
                 case SYNAPTIK_METAL_CUSTOM_TENSOR_MIN:
                 case SYNAPTIK_METAL_CUSTOM_TENSOR_MAX:
-                    if (states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
+                    if (((node.operation == SYNAPTIK_METAL_BOOL_AND
+                                            || node.operation == SYNAPTIK_METAL_BOOL_OR)
+                                    ? states[node.first_input] == SYNAPTIK_METAL_VALUE_UNAVAILABLE
+                                    : states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL)
                             || node.second_input >= value_count
-                            || states[node.second_input] != SYNAPTIK_METAL_VALUE_CANONICAL
-                            || !node_has_no_attributes(node)
                             || ((node.operation == SYNAPTIK_METAL_BOOL_AND
                                             || node.operation == SYNAPTIK_METAL_BOOL_OR)
-                                    && ([shapes[node.first_input] count] == 0U
-                                            || [shapes[node.second_input] count] == 0U
-                                            || [shapes[node.output] count] == 0U))
+                                    ? states[node.second_input] == SYNAPTIK_METAL_VALUE_UNAVAILABLE
+                                    : states[node.second_input]
+                                            != SYNAPTIK_METAL_VALUE_CANONICAL)
+                            || !node_has_no_attributes(node)
                             || !shape_broadcasts_exactly_to(
                                     shapes[node.first_input],
                                     shapes[node.second_input],
@@ -3429,25 +3756,15 @@ static int32_t synaptik_metal_create_decoded(
                     used[node.second_input] = 1U;
                     break;
                 case SYNAPTIK_METAL_BOOL_WHERE:
-                    if ((states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
-                                    && states[node.first_input]
-                                            != SYNAPTIK_METAL_VALUE_AFFINE_VIEW)
+                    if (states[node.first_input] == SYNAPTIK_METAL_VALUE_UNAVAILABLE
                             || node.second_input >= value_count
                             || node.auxiliary >= value_count
-                            || (states[node.second_input] != SYNAPTIK_METAL_VALUE_CANONICAL
-                                    && states[node.second_input]
-                                            != SYNAPTIK_METAL_VALUE_AFFINE_VIEW)
-                            || (states[node.auxiliary] != SYNAPTIK_METAL_VALUE_CANONICAL
-                                    && states[node.auxiliary]
-                                            != SYNAPTIK_METAL_VALUE_AFFINE_VIEW)
+                            || states[node.second_input] == SYNAPTIK_METAL_VALUE_UNAVAILABLE
+                            || states[node.auxiliary] == SYNAPTIK_METAL_VALUE_UNAVAILABLE
                             || node.attribute_kind != SYNAPTIK_METAL_MPSGRAPH_ATTR_NONE
                             || node.attribute_count != 0U
                             || node.axis != UINT32_MAX
                             || !node_values_are_zero_from(node, 0U)
-                            || [shapes[node.first_input] count] == 0U
-                            || [shapes[node.second_input] count] == 0U
-                            || [shapes[node.auxiliary] count] == 0U
-                            || [shapes[node.output] count] == 0U
                             || !shape_broadcasts_exactly_to(
                                     shapes[node.second_input],
                                     shapes[node.auxiliary],
@@ -3460,13 +3777,13 @@ static int32_t synaptik_metal_create_decoded(
                     used[node.second_input] = 1U;
                     used[node.auxiliary] = 1U;
                     break;
-                case SYNAPTIK_METAL_MPSGRAPH_CONTIGUOUS:
+                case SYNAPTIK_METAL_CUSTOM_CONTIGUOUS:
                     if (node.second_input != UINT32_MAX
                             || !node_has_no_attributes(node)
                             || ![shapes[node.first_input] isEqualToArray:shapes[node.output]])
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     break;
-                case SYNAPTIK_METAL_MPSGRAPH_RESHAPE:
+                case SYNAPTIK_METAL_CUSTOM_RESHAPE:
                     affine_view = YES;
                     if (node.second_input != UINT32_MAX
                             || !node_target_matches(node, shapes[node.output])
@@ -3474,7 +3791,7 @@ static int32_t synaptik_metal_create_decoded(
                                     != shape_element_count(shapes[node.output]))
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     break;
-                case SYNAPTIK_METAL_MPSGRAPH_EXPAND:
+                case SYNAPTIK_METAL_CUSTOM_EXPAND:
                     affine_view = YES;
                     if (node.second_input != UINT32_MAX
                             || !node_target_matches(node, shapes[node.output])
@@ -3482,7 +3799,7 @@ static int32_t synaptik_metal_create_decoded(
                                     shapes[node.first_input], shapes[node.output]))
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     break;
-                case SYNAPTIK_METAL_MPSGRAPH_PERMUTE:
+                case SYNAPTIK_METAL_CUSTOM_PERMUTE:
                     affine_view = YES;
                     if (node.second_input != UINT32_MAX
                             || !node_permutation_matches(
@@ -3496,7 +3813,7 @@ static int32_t synaptik_metal_create_decoded(
                         local_transpose_sources[node.output] = node.first_input;
                     }
                     break;
-                case SYNAPTIK_METAL_MPSGRAPH_EXPAND_DIMS:
+                case SYNAPTIK_METAL_CUSTOM_EXPAND_DIMS:
                     affine_view = YES;
                     if (node.second_input != UINT32_MAX
                             || !node_expand_dims_matches(
@@ -3510,7 +3827,7 @@ static int32_t synaptik_metal_create_decoded(
                         local_singleton_height_sources[node.output] = node.first_input;
                     }
                     break;
-                case SYNAPTIK_METAL_MPSGRAPH_SQUEEZE:
+                case SYNAPTIK_METAL_CUSTOM_SQUEEZE:
                     affine_view = YES;
                     if (node.second_input != UINT32_MAX
                             || !node_squeeze_matches(
@@ -3726,19 +4043,19 @@ static int32_t synaptik_metal_create_decoded(
                     if (!custom_node) contains_matmul = YES;
                     break;
                 }
-                case SYNAPTIK_METAL_MPSGRAPH_GATHER: {
-                    if (states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
+                case SYNAPTIK_METAL_CUSTOM_GATHER: {
+                    if (states[node.first_input] == SYNAPTIK_METAL_VALUE_UNAVAILABLE
                             || node.second_input >= value_count
-                            || value_ranks[node.second_input] == 0U
-                            || states[node.second_input] != SYNAPTIK_METAL_VALUE_CANONICAL
+                            || states[node.second_input] == SYNAPTIK_METAL_VALUE_UNAVAILABLE
                             || !node_gather_matches(
                                     node,
                                     shapes[node.first_input],
                                     shapes[node.second_input],
                                     shapes[node.output]))
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-                    NSUInteger position =
-                            feed_position(node.second_input, feed_count, feed_indices);
+                    NSUInteger position = route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM
+                            ? node.second_input
+                            : feed_position(node.second_input, feed_count, feed_indices);
                     if (position == NSNotFound)
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     SynaptikMetalIndexValidation *validation =
@@ -3746,8 +4063,13 @@ static int32_t synaptik_metal_create_decoded(
                     if (validation == nil)
                         return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
                     validation.operation = node.operation;
+                    validation.indexValue = node.second_input;
+                    validation.indexType = declared_types[node.second_input];
                     validation.nodeIndex = node_index;
                     validation.feedPosition = position;
+                    validation.preflight =
+                            feed_position(node.second_input, feed_count, feed_indices)
+                            != NSNotFound;
                     validation.elementCount =
                             shape_element_count(shapes[node.second_input]);
                     validation.bound = [shapes[node.first_input][node.axis]
@@ -3757,14 +4079,12 @@ static int32_t synaptik_metal_create_decoded(
                     used[node.second_input] = 1U;
                     break;
                 }
-                case SYNAPTIK_METAL_MPSGRAPH_SCATTER_ELEMENTS: {
-                    if (states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
+                case SYNAPTIK_METAL_CUSTOM_SCATTER_ELEMENTS: {
+                    if (states[node.first_input] == SYNAPTIK_METAL_VALUE_UNAVAILABLE
                             || node.second_input >= value_count
                             || node.auxiliary >= value_count
-                            || value_ranks[node.second_input] == 0U
-                            || value_ranks[node.auxiliary] == 0U
-                            || states[node.second_input] != SYNAPTIK_METAL_VALUE_CANONICAL
-                            || states[node.auxiliary] != SYNAPTIK_METAL_VALUE_CANONICAL
+                            || states[node.second_input] == SYNAPTIK_METAL_VALUE_UNAVAILABLE
+                            || states[node.auxiliary] == SYNAPTIK_METAL_VALUE_UNAVAILABLE
                             || !node_scatter_elements_matches(
                                     node,
                                     shapes[node.first_input],
@@ -3772,8 +4092,9 @@ static int32_t synaptik_metal_create_decoded(
                                     shapes[node.auxiliary],
                                     shapes[node.output]))
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-                    NSUInteger position =
-                            feed_position(node.second_input, feed_count, feed_indices);
+                    NSUInteger position = route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM
+                            ? node.second_input
+                            : feed_position(node.second_input, feed_count, feed_indices);
                     if (position == NSNotFound)
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     uint64_t element_count =
@@ -3810,8 +4131,13 @@ static int32_t synaptik_metal_create_decoded(
                     }
                     validation.targetCount = element_count;
                     validation.operation = node.operation;
+                    validation.indexValue = node.second_input;
+                    validation.indexType = declared_types[node.second_input];
                     validation.nodeIndex = node_index;
                     validation.feedPosition = position;
+                    validation.preflight =
+                            feed_position(node.second_input, feed_count, feed_indices)
+                            != NSNotFound;
                     validation.elementCount = element_count;
                     validation.bound = [shapes[node.first_input][node.axis]
                             unsignedLongLongValue];
@@ -3841,16 +4167,16 @@ static int32_t synaptik_metal_create_decoded(
                 case SYNAPTIK_METAL_MPSGRAPH_FOLD_AXIS:
                 case SYNAPTIK_METAL_MPSGRAPH_FOLD2D:
                 case SYNAPTIK_METAL_MPSGRAPH_FOLD3D: {
-                    BOOL storage_layout_operation =
-                            node.operation == SYNAPTIK_METAL_CUSTOM_SELECT
-                            || node.operation == SYNAPTIK_METAL_CUSTOM_SLICE;
+                    BOOL task0066_operation =
+                            operation_is_task0066_selected(node.operation);
                     for (uint32_t input = 0U; input < node.input_count; input++) {
                         uint8_t input_state = states[node.inputs[input]];
-                        if ((!storage_layout_operation
-                                        && input_state != SYNAPTIK_METAL_VALUE_CANONICAL)
-                                || (storage_layout_operation
+                        if ((task0066_operation
                                         && input_state
-                                                == SYNAPTIK_METAL_VALUE_UNAVAILABLE))
+                                                == SYNAPTIK_METAL_VALUE_UNAVAILABLE)
+                                || (!task0066_operation
+                                        && input_state
+                                                != SYNAPTIK_METAL_VALUE_CANONICAL))
                             return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     }
                     if (!task0059_validate_shape(node, shapes))
@@ -3896,6 +4222,7 @@ static int32_t synaptik_metal_create_decoded(
                         if (validation == nil)
                             return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
                         validation.operation = node.operation;
+                        validation.indexValue = node.second_input;
                         validation.nodeIndex = node_index;
                         validation.feedPosition = position;
                         validation.preflight =
@@ -4005,20 +4332,21 @@ static int32_t synaptik_metal_create_decoded(
                     used[node.second_input] = 1U;
                     break;
                 }
-                case SYNAPTIK_METAL_MPSGRAPH_UNFOLD_AXIS:
-                    if (states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
+                case SYNAPTIK_METAL_CUSTOM_UNFOLD_AXIS:
+                    if (states[node.first_input] == SYNAPTIK_METAL_VALUE_UNAVAILABLE
                             || !node_unfold_axis_matches(
                                     node, shapes[node.first_input], shapes[node.output]))
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     break;
-                case SYNAPTIK_METAL_MPSGRAPH_ONE_HOT: {
-                    if (states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
+                case SYNAPTIK_METAL_CUSTOM_ONE_HOT: {
+                    if (states[node.first_input] == SYNAPTIK_METAL_VALUE_UNAVAILABLE
                             || node.second_input != UINT32_MAX
                             || !node_one_hot_matches(
                                     node, shapes[node.first_input], shapes[node.output]))
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-                    NSUInteger position =
-                            feed_position(node.first_input, feed_count, feed_indices);
+                    NSUInteger position = route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM
+                            ? node.first_input
+                            : feed_position(node.first_input, feed_count, feed_indices);
                     if (position == NSNotFound)
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     SynaptikMetalIndexValidation *validation =
@@ -4026,8 +4354,13 @@ static int32_t synaptik_metal_create_decoded(
                     if (validation == nil)
                         return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
                     validation.operation = node.operation;
+                    validation.indexValue = node.first_input;
+                    validation.indexType = declared_types[node.first_input];
                     validation.nodeIndex = node_index;
                     validation.feedPosition = position;
+                    validation.preflight =
+                            feed_position(node.first_input, feed_count, feed_indices)
+                            != NSNotFound;
                     validation.elementCount =
                             shape_element_count(shapes[node.first_input]);
                     validation.bound = node.attribute_values[0];
@@ -4090,11 +4423,6 @@ static int32_t synaptik_metal_create_decoded(
                 case SYNAPTIK_METAL_MPSGRAPH_SILU:
                 case SYNAPTIK_METAL_CUSTOM_EXP:
                 case SYNAPTIK_METAL_CUSTOM_SIGMOID:
-                case SYNAPTIK_METAL_MPSGRAPH_CONTIGUOUS:
-                case SYNAPTIK_METAL_MPSGRAPH_RESHAPE:
-                case SYNAPTIK_METAL_MPSGRAPH_EXPAND:
-                case SYNAPTIK_METAL_MPSGRAPH_EXPAND_DIMS:
-                case SYNAPTIK_METAL_MPSGRAPH_SQUEEZE:
                 case SYNAPTIK_METAL_MPSGRAPH_SUM:
                 case SYNAPTIK_METAL_MPSGRAPH_MEAN:
                 case SYNAPTIK_METAL_CUSTOM_SCALAR_MIN:
@@ -4104,7 +4432,6 @@ static int32_t synaptik_metal_create_decoded(
                 case SYNAPTIK_METAL_CUSTOM_REDUCTION_MAX:
                 case SYNAPTIK_METAL_CUSTOM_CUM_SUM:
                 case SYNAPTIK_METAL_CUSTOM_CUM_PROD:
-                case SYNAPTIK_METAL_MPSGRAPH_UNFOLD_AXIS:
                 case SYNAPTIK_METAL_MPSGRAPH_LOG_SUM_EXP:
                 case SYNAPTIK_METAL_MPSGRAPH_VARIANCE:
                 case SYNAPTIK_METAL_MPSGRAPH_STANDARD_DEVIATION:
@@ -4117,13 +4444,16 @@ static int32_t synaptik_metal_create_decoded(
                                     value_types, node.output,
                                     SYNAPTIK_METAL_TYPE_FLOAT32);
                     break;
-                case SYNAPTIK_METAL_MPSGRAPH_PERMUTE: {
+                case SYNAPTIK_METAL_CUSTOM_RESHAPE:
+                case SYNAPTIK_METAL_CUSTOM_EXPAND:
+                case SYNAPTIK_METAL_CUSTOM_PERMUTE:
+                case SYNAPTIK_METAL_CUSTOM_EXPAND_DIMS:
+                case SYNAPTIK_METAL_CUSTOM_SQUEEZE:
+                case SYNAPTIK_METAL_CUSTOM_CONTIGUOUS:
+                case SYNAPTIK_METAL_CUSTOM_UNFOLD_AXIS: {
                     uint8_t type = declared_types[node.first_input];
-                    type_valid = type == declared_types[node.output]
-                            && (type == SYNAPTIK_METAL_TYPE_FLOAT32
-                                    || type == SYNAPTIK_METAL_TYPE_BFLOAT16
-                                    || type == SYNAPTIK_METAL_TYPE_INT32
-                                    || type == SYNAPTIK_METAL_TYPE_INT64);
+                    type_valid = task0066_is_carrier(type)
+                            && type == declared_types[node.output];
                     break;
                 }
                 case SYNAPTIK_METAL_CUSTOM_SORT:
@@ -4241,9 +4571,8 @@ static int32_t synaptik_metal_create_decoded(
                 case SYNAPTIK_METAL_BOOL_IS_FINITE:
                 case SYNAPTIK_METAL_BOOL_IS_NAN:
                 case SYNAPTIK_METAL_BOOL_IS_INF:
-                    type_valid = require_value_type(
-                                    value_types, node.first_input,
-                                    SYNAPTIK_METAL_TYPE_FLOAT32)
+                    type_valid = task0066_is_floating(
+                                    declared_types[node.first_input])
                             && require_value_type(
                                     value_types, node.output,
                                     SYNAPTIK_METAL_TYPE_BOOL);
@@ -4268,20 +4597,17 @@ static int32_t synaptik_metal_create_decoded(
                                     value_types, node.output,
                                     SYNAPTIK_METAL_TYPE_BOOL);
                     break;
-                case SYNAPTIK_METAL_BOOL_WHERE:
+                case SYNAPTIK_METAL_BOOL_WHERE: {
+                    uint8_t true_type = declared_types[node.second_input];
+                    uint8_t false_type = declared_types[node.auxiliary];
                     type_valid = require_value_type(
                                     value_types, node.first_input,
                                     SYNAPTIK_METAL_TYPE_BOOL)
-                            && require_value_type(
-                                    value_types, node.second_input,
-                                    SYNAPTIK_METAL_TYPE_FLOAT32)
-                            && require_value_type(
-                                    value_types, node.auxiliary,
-                                    SYNAPTIK_METAL_TYPE_FLOAT32)
-                            && require_value_type(
-                                    value_types, node.output,
-                                    SYNAPTIK_METAL_TYPE_FLOAT32);
+                            && declared_types[node.output]
+                                    == task0066_promote_floating(
+                                            true_type, false_type);
                     break;
+                }
                 case SYNAPTIK_METAL_CUSTOM_GT:
                 case SYNAPTIK_METAL_CUSTOM_GE:
                 case SYNAPTIK_METAL_CUSTOM_LT:
@@ -4298,52 +4624,39 @@ static int32_t synaptik_metal_create_decoded(
                                     value_types, node.output,
                                     SYNAPTIK_METAL_TYPE_BOOL);
                     break;
-                case SYNAPTIK_METAL_MPSGRAPH_GATHER:
-                    type_valid = require_value_type(
-                                    value_types, node.first_input,
-                                    SYNAPTIK_METAL_TYPE_FLOAT32)
-                            && require_value_type(
-                                    value_types, node.second_input,
-                                    SYNAPTIK_METAL_TYPE_INT32)
-                            && require_value_type(
-                                    value_types, node.output,
-                                    SYNAPTIK_METAL_TYPE_FLOAT32);
+                case SYNAPTIK_METAL_CUSTOM_GATHER: {
+                    uint8_t data_type = declared_types[node.first_input];
+                    uint8_t index_type = declared_types[node.second_input];
+                    type_valid = task0066_is_carrier(data_type)
+                            && data_type == declared_types[node.output]
+                            && (index_type == SYNAPTIK_METAL_TYPE_INT32
+                                    || index_type == SYNAPTIK_METAL_TYPE_INT64);
                     break;
-                case SYNAPTIK_METAL_MPSGRAPH_SCATTER_ELEMENTS:
-                    type_valid = require_value_type(
-                                    value_types, node.first_input,
-                                    SYNAPTIK_METAL_TYPE_FLOAT32)
-                            && require_value_type(
-                                    value_types, node.second_input,
-                                    SYNAPTIK_METAL_TYPE_INT32)
-                            && require_value_type(
-                                    value_types, node.auxiliary,
-                                    SYNAPTIK_METAL_TYPE_FLOAT32)
-                            && require_value_type(
-                                    value_types, node.output,
-                                    SYNAPTIK_METAL_TYPE_FLOAT32);
+                }
+                case SYNAPTIK_METAL_CUSTOM_SCATTER_ELEMENTS: {
+                    uint8_t data_type = declared_types[node.first_input];
+                    uint8_t index_type = declared_types[node.second_input];
+                    type_valid = task0066_is_carrier(data_type)
+                            && data_type == declared_types[node.auxiliary]
+                            && data_type == declared_types[node.output]
+                            && (index_type == SYNAPTIK_METAL_TYPE_INT32
+                                    || index_type == SYNAPTIK_METAL_TYPE_INT64);
                     break;
-                case SYNAPTIK_METAL_MPSGRAPH_ONE_HOT:
-                    type_valid = require_value_type(
-                                    value_types, node.first_input,
-                                    SYNAPTIK_METAL_TYPE_INT32)
+                }
+                case SYNAPTIK_METAL_CUSTOM_ONE_HOT: {
+                    uint8_t index_type = declared_types[node.first_input];
+                    type_valid = (index_type == SYNAPTIK_METAL_TYPE_INT32
+                                    || index_type == SYNAPTIK_METAL_TYPE_INT64)
                             && require_value_type(
                                     value_types, node.output,
                                     SYNAPTIK_METAL_TYPE_BOOL);
                     break;
+                }
                 case SYNAPTIK_METAL_CUSTOM_CAST: {
                     uint8_t source = declared_types[node.first_input];
                     uint8_t target = declared_types[node.output];
-                    BOOL approved = source == target
-                            || source == SYNAPTIK_METAL_TYPE_BOOL
-                            || target == SYNAPTIK_METAL_TYPE_BOOL
-                            || ((source == SYNAPTIK_METAL_TYPE_INT32
-                                            && target == SYNAPTIK_METAL_TYPE_INT64)
-                                    || (source == SYNAPTIK_METAL_TYPE_INT64
-                                            && target == SYNAPTIK_METAL_TYPE_INT32))
-                            || (source == SYNAPTIK_METAL_TYPE_BFLOAT16
-                                    && target == SYNAPTIK_METAL_TYPE_FLOAT32);
-                    type_valid = approved
+                    type_valid = task0066_is_carrier(source)
+                            && task0066_is_carrier(target)
                             && node.attribute_values[0] == target;
                     break;
                 }
@@ -4414,27 +4727,39 @@ static int32_t synaptik_metal_create_decoded(
                             && declared_types[node.first_input]
                                     == declared_types[node.output];
                     break;
-                case SYNAPTIK_METAL_MPSGRAPH_FOLD_AXIS:
+                case SYNAPTIK_METAL_MPSGRAPH_FOLD_AXIS: {
+                    uint8_t type = declared_types[node.first_input];
+                    type_valid = task0066_is_carrier(type)
+                            && type != SYNAPTIK_METAL_TYPE_BOOL
+                            && type == declared_types[node.output];
+                    break;
+                }
                 case SYNAPTIK_METAL_MPSGRAPH_FOLD2D:
                 case SYNAPTIK_METAL_MPSGRAPH_FOLD3D: {
                     uint8_t type = declared_types[node.first_input];
-                    BOOL mps_type = type == SYNAPTIK_METAL_TYPE_FLOAT32
-                            || type == SYNAPTIK_METAL_TYPE_FLOAT64
-                            || type == SYNAPTIK_METAL_TYPE_BFLOAT16;
-                    type_valid = type == declared_types[node.output] && mps_type;
+                    type_valid = type == declared_types[node.output]
+                            && task0066_is_floating(type);
                     break;
                 }
                 default:
                     break;
             }
             if (!type_valid) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-            uint8_t output_state =
-                    node.operation == SYNAPTIK_METAL_CUSTOM_SELECT
-                                    || node.operation == SYNAPTIK_METAL_CUSTOM_SLICE
-                            ? SYNAPTIK_METAL_VALUE_MATERIALIZED_LAYOUT
-                            : (affine_view
-                                    ? SYNAPTIK_METAL_VALUE_AFFINE_VIEW
-                                    : SYNAPTIK_METAL_VALUE_CANONICAL);
+            uint8_t output_state;
+            if (node.operation == SYNAPTIK_METAL_CUSTOM_SELECT
+                    || node.operation == SYNAPTIK_METAL_CUSTOM_SLICE) {
+                output_state = has_layouts
+                        ? declared_states[node.output]
+                        : SYNAPTIK_METAL_VALUE_MATERIALIZED_LAYOUT;
+                if (output_state != SYNAPTIK_METAL_VALUE_AFFINE_VIEW
+                        && output_state
+                                != SYNAPTIK_METAL_VALUE_MATERIALIZED_LAYOUT)
+                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            } else {
+                output_state = affine_view
+                        ? SYNAPTIK_METAL_VALUE_AFFINE_VIEW
+                        : SYNAPTIK_METAL_VALUE_CANONICAL;
+            }
             for (uint32_t output = 0U; output < node.output_count; output++) {
                 uint32_t value = node.outputs[output];
                 if (has_layouts && declared_states[value] != output_state)
@@ -4459,11 +4784,35 @@ static int32_t synaptik_metal_create_decoded(
             targeted[value] = 1U;
         }
         NSMutableData *physical_state_data = [state_data mutableCopy];
-        if (physical_state_data == nil)
+        NSMutableData *target_relative_data = [NSMutableData dataWithLength:value_count];
+        size_t physical_stride_bytes =
+                (size_t)value_count * SYNAPTIK_MAX_RANK * sizeof(uint64_t);
+        NSMutableData *physical_stride_data =
+                [NSMutableData dataWithLength:physical_stride_bytes];
+        NSMutableData *physical_offset_data =
+                [NSMutableData dataWithLength:(size_t)value_count * sizeof(uint64_t)];
+        NSMutableData *physical_span_data =
+                [NSMutableData dataWithLength:(size_t)value_count * sizeof(uint64_t)];
+        if (physical_state_data == nil || target_relative_data == nil
+                || physical_stride_data == nil || physical_offset_data == nil
+                || physical_span_data == nil)
             return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
         uint8_t *physical_states = physical_state_data.mutableBytes;
+        uint8_t *target_relative = target_relative_data.mutableBytes;
+        uint64_t *physical_value_strides = physical_stride_data.mutableBytes;
+        uint64_t *physical_layout_offsets = physical_offset_data.mutableBytes;
+        uint64_t *physical_layout_spans = physical_span_data.mutableBytes;
+        for (uint32_t node_index = 0U; node_index < node_count; node_index++) {
+            SynaptikMetalDecodedNode node = nodes[node_index];
+            if (node.operation == SYNAPTIK_METAL_CUSTOM_SELECT
+                    || node.operation == SYNAPTIK_METAL_CUSTOM_SLICE)
+                target_relative[node.output] = 1U;
+        }
         for (uint32_t value = 0U; value < value_count; value++) {
             if (physical_states[value] == SYNAPTIK_METAL_VALUE_AFFINE_VIEW
+                    && target_relative[value] != 0U) {
+                physical_states[value] = SYNAPTIK_METAL_VALUE_MATERIALIZED_LAYOUT;
+            } else if (physical_states[value] == SYNAPTIK_METAL_VALUE_AFFINE_VIEW
                     && local_transpose[value] != 2U
                     && local_singleton_height[value] != 2U) {
                 /*
@@ -4474,15 +4823,44 @@ static int32_t synaptik_metal_create_decoded(
                  */
                 physical_states[value] = SYNAPTIK_METAL_VALUE_CANONICAL;
             }
+            uint64_t offset = 0U;
+            if (!custom_physical_layout(
+                        shapes[value], value, value_strides, layout_offsets,
+                        physical_states,
+                        &physical_value_strides[
+                                (size_t)value * SYNAPTIK_MAX_RANK],
+                        &offset))
+                return SYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE;
+            physical_layout_offsets[value] = offset;
+            physical_layout_spans[value] =
+                    physical_states[value] == SYNAPTIK_METAL_VALUE_CANONICAL
+                    ? element_counts[value].unsignedLongLongValue
+                    : layout_spans[value];
+        }
+        for (uint32_t node_index = 0U; node_index < node_count; node_index++) {
+            if (!task0066_derive_physical_view(
+                        nodes[node_index], value_ranks, value_dimensions,
+                        physical_value_strides, physical_layout_offsets,
+                        physical_layout_spans))
+                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+        }
+        for (SynaptikMetalIndexValidation *validation in index_validations) {
+            if (!configure_index_validation_layout(
+                        validation,
+                        shapes,
+                        physical_value_strides,
+                        physical_layout_offsets,
+                        physical_states))
+                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
         }
         NSMutableArray<NSNumber *> *bytes = [NSMutableArray arrayWithCapacity:value_count];
         for (uint32_t value = 0; value < value_count; value++) {
             if (used[value] == 0U || value_types[value] == SYNAPTIK_METAL_TYPE_UNAVAILABLE)
                 return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
             uint64_t width = value_type_width(value_types[value]);
-            uint64_t elements = has_layouts
-                            && states[value] == SYNAPTIK_METAL_VALUE_MATERIALIZED_LAYOUT
-                    ? layout_spans[value]
+            uint64_t elements =
+                    physical_states[value] == SYNAPTIK_METAL_VALUE_MATERIALIZED_LAYOUT
+                    ? physical_layout_spans[value]
                     : element_counts[value].unsignedLongLongValue;
             if (width == 0U || elements > UINT64_MAX / width
                     || elements * width > (uint64_t)NSUIntegerMax)
@@ -4496,19 +4874,15 @@ static int32_t synaptik_metal_create_decoded(
         if (physical_strides == nil || physical_offsets == nil)
             return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
         for (uint32_t value = 0U; value < value_count; value++) {
-            uint64_t stride_cells[SYNAPTIK_MAX_RANK] = {0U};
-            uint64_t offset = 0U;
-            if (!custom_physical_layout(
-                        shapes[value], value, value_strides, layout_offsets,
-                        physical_states, stride_cells, &offset))
-                return SYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE;
             NSMutableArray<NSNumber *> *stride_values =
                     [NSMutableArray arrayWithCapacity:value_ranks[value]];
             if (stride_values == nil) return SYNAPTIK_METAL_STATUS_ALLOCATION_FAILED;
             for (uint32_t axis = 0U; axis < value_ranks[value]; axis++)
-                [stride_values addObject:@(stride_cells[axis])];
+                [stride_values addObject:@(
+                        physical_value_strides[
+                                (size_t)value * SYNAPTIK_MAX_RANK + axis])];
             [physical_strides addObject:[stride_values copy]];
-            [physical_offsets addObject:@(offset)];
+            [physical_offsets addObject:@(physical_layout_offsets[value])];
         }
         if (contains_custom) {
             SynaptikMetalContextBox *ctx = (__bridge SynaptikMetalContextBox *)context;
@@ -4523,8 +4897,9 @@ static int32_t synaptik_metal_create_decoded(
                     stringByAppendingString:SynaptikTask0061MatmulKernelSource]
                     stringByAppendingString:SynaptikTask0063OrderingKernelSource]
                     stringByAppendingString:SynaptikTask0064ConvolutionPoolingKernelSource];
-            kernel_source = [kernel_source
-                    stringByAppendingString:SynaptikTask0065RngDropoutKernelSource];
+            kernel_source = [[kernel_source
+                    stringByAppendingString:SynaptikTask0065RngDropoutKernelSource]
+                    stringByAppendingString:SynaptikTask0066DtypeLayoutKernelSource];
             if (task0053_domain_approved) {
                 kernel_source = [kernel_source
                         stringByAppendingString:SynaptikTask0053CandidateKernelSource];
@@ -4540,14 +4915,21 @@ static int32_t synaptik_metal_create_decoded(
                 SynaptikMetalDecodedNode node = nodes[node_index];
                 if (local_transpose[node.output] == 2U
                         || local_singleton_height[node.output] == 2U) continue;
-                BOOL custom_step = node_uses_custom_kernel(node, shapes, value_types);
+                BOOL custom_step = node_uses_custom_kernel(node, shapes, value_types)
+                        || (node.operation == SYNAPTIK_METAL_MPSGRAPH_MATMUL
+                                && (local_transpose[node.first_input] != 0U
+                                        || local_transpose[node.second_input] != 0U));
                 if (custom_step) {
                     uint32_t final_stage =
-                            node.operation == SYNAPTIK_METAL_MPSGRAPH_SCATTER_ND ? 1U : 0U;
+                            node.operation == SYNAPTIK_METAL_CUSTOM_SCATTER_ELEMENTS
+                                            || node.operation
+                                                    == SYNAPTIK_METAL_MPSGRAPH_SCATTER_ND
+                                    ? 1U : 0U;
                     for (uint32_t stage = 0U; stage <= final_stage; stage++) {
                         SynaptikMetalProgramStep *step = make_custom_step(
-                                node, shapes, value_types, value_strides,
-                                layout_offsets, physical_states, local_transpose_sources,
+                                node, shapes, value_types, physical_value_strides,
+                                physical_layout_offsets, physical_states,
+                                local_transpose_sources,
                                 local_singleton_height_sources,
                                 ctx.device, library, stage);
                         if (step == nil)
@@ -4567,7 +4949,7 @@ static int32_t synaptik_metal_create_decoded(
                 }
 
                 uint32_t input_count = 1U;
-                if (node.operation == SYNAPTIK_METAL_MPSGRAPH_SCATTER_ELEMENTS)
+                if (node.operation == SYNAPTIK_METAL_CUSTOM_SCATTER_ELEMENTS)
                     input_count = 3U;
                 else if (node.operation == SYNAPTIK_METAL_MPSGRAPH_ADD
                         || node.operation == SYNAPTIK_METAL_MPSGRAPH_SUB
@@ -4575,7 +4957,7 @@ static int32_t synaptik_metal_create_decoded(
                         || node.operation == SYNAPTIK_METAL_MPSGRAPH_DIV
                         || node.operation == SYNAPTIK_METAL_MPSGRAPH_TENSOR_POW
                         || node.operation == SYNAPTIK_METAL_MPSGRAPH_MATMUL
-                        || node.operation == SYNAPTIK_METAL_MPSGRAPH_GATHER
+                        || node.operation == SYNAPTIK_METAL_CUSTOM_GATHER
                         || node.operation == SYNAPTIK_METAL_MPSGRAPH_MSE)
                     input_count = 2U;
                 BOOL nested_transposed_matmul =
@@ -4612,17 +4994,16 @@ static int32_t synaptik_metal_create_decoded(
                             &value_dimensions[
                                     (size_t)feed_source * SYNAPTIK_MAX_RANK],
                             SYNAPTIK_MAX_RANK * sizeof(uint64_t));
-                    if (nested_transposed_matmul) {
-                        memcpy(
-                                &compact_strides[
-                                        (size_t)input_index * SYNAPTIK_MAX_RANK],
-                                &value_strides[
-                                        (size_t)feed_source * SYNAPTIK_MAX_RANK],
-                                SYNAPTIK_MAX_RANK * sizeof(uint64_t));
-                        compact_offsets[input_index] = layout_offsets[feed_source];
-                        compact_spans[input_index] = layout_spans[feed_source];
-                        compact_states[input_index] = declared_states[feed_source];
-                    }
+                    memcpy(
+                            &compact_strides[
+                                    (size_t)input_index * SYNAPTIK_MAX_RANK],
+                            &physical_value_strides[
+                                    (size_t)feed_source * SYNAPTIK_MAX_RANK],
+                            SYNAPTIK_MAX_RANK * sizeof(uint64_t));
+                    compact_offsets[input_index] =
+                            physical_layout_offsets[feed_source];
+                    compact_spans[input_index] = physical_layout_spans[feed_source];
+                    compact_states[input_index] = physical_states[feed_source];
                     [step_feeds addObject:@(feed_source)];
                 }
                 SynaptikMetalDecodedNode compact_nodes[3] = {0};
@@ -4644,7 +5025,7 @@ static int32_t synaptik_metal_create_decoded(
                         }
                         if (producer_index == UINT32_MAX
                                 || nodes[producer_index].operation
-                                        != SYNAPTIK_METAL_MPSGRAPH_PERMUTE)
+                                        != SYNAPTIK_METAL_CUSTOM_PERMUTE)
                             return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
                         SynaptikMetalDecodedNode transpose = nodes[producer_index];
                         transpose.first_input = operand;
@@ -4707,6 +5088,16 @@ static int32_t synaptik_metal_create_decoded(
                             &value_dimensions[
                                     (size_t)node.output * SYNAPTIK_MAX_RANK],
                             SYNAPTIK_MAX_RANK * sizeof(uint64_t));
+                    memcpy(
+                            &compact_strides[
+                                    (size_t)input_count * SYNAPTIK_MAX_RANK],
+                            &physical_value_strides[
+                                    (size_t)node.output * SYNAPTIK_MAX_RANK],
+                            SYNAPTIK_MAX_RANK * sizeof(uint64_t));
+                    compact_offsets[input_count] =
+                            physical_layout_offsets[node.output];
+                    compact_spans[input_count] = physical_layout_spans[node.output];
+                    compact_states[input_count] = physical_states[node.output];
                     SynaptikMetalDecodedNode compact = node;
                     compact.first_input = 0U;
                     compact.second_input = input_count >= 2U ? 1U : UINT32_MAX;
@@ -4717,7 +5108,7 @@ static int32_t synaptik_metal_create_decoded(
                             input_index < input_count;
                             input_index++)
                         compact.inputs[input_index] = input_index;
-                    if (node.operation == SYNAPTIK_METAL_MPSGRAPH_SCATTER_ELEMENTS)
+                    if (node.operation == SYNAPTIK_METAL_CUSTOM_SCATTER_ELEMENTS)
                         compact.auxiliary = 2U;
                     compact_nodes[0] = compact;
                     compact_node_count = 1U;
@@ -4731,10 +5122,10 @@ static int32_t synaptik_metal_create_decoded(
                         compact_value_count,
                         compact_ranks,
                         compact_dimensions,
-                        nested_transposed_matmul ? compact_strides : NULL,
-                        nested_transposed_matmul ? compact_offsets : NULL,
-                        nested_transposed_matmul ? compact_spans : NULL,
-                        nested_transposed_matmul ? compact_states : NULL,
+                        compact_strides,
+                        compact_offsets,
+                        compact_spans,
+                        compact_states,
                         compact_types,
                         compact_node_count,
                         compact_nodes,
@@ -5070,27 +5461,27 @@ static int32_t synaptik_metal_create_decoded(
                     output = [graph matrixMultiplicationWithPrimaryTensor:first
                             secondaryTensor:second name:nil];
                     break;
-                case SYNAPTIK_METAL_MPSGRAPH_CONTIGUOUS:
+                case SYNAPTIK_METAL_CUSTOM_CONTIGUOUS:
                     output = [graph reshapeTensor:first
                             withShape:shapes[node.output] name:nil];
                     break;
-                case SYNAPTIK_METAL_MPSGRAPH_RESHAPE:
+                case SYNAPTIK_METAL_CUSTOM_RESHAPE:
                     output = [graph reshapeTensor:first
                             withShape:node_attribute_array(node) name:nil];
                     break;
-                case SYNAPTIK_METAL_MPSGRAPH_EXPAND:
+                case SYNAPTIK_METAL_CUSTOM_EXPAND:
                     output = [graph broadcastTensor:first
                             toShape:node_attribute_array(node) name:nil];
                     break;
-                case SYNAPTIK_METAL_MPSGRAPH_PERMUTE:
+                case SYNAPTIK_METAL_CUSTOM_PERMUTE:
                     output = [graph transposeTensor:first
                             permutation:node_attribute_array(node) name:nil];
                     break;
-                case SYNAPTIK_METAL_MPSGRAPH_EXPAND_DIMS:
+                case SYNAPTIK_METAL_CUSTOM_EXPAND_DIMS:
                     output = [graph expandDimsOfTensor:first
                             axis:(NSInteger)node.axis name:nil];
                     break;
-                case SYNAPTIK_METAL_MPSGRAPH_SQUEEZE:
+                case SYNAPTIK_METAL_CUSTOM_SQUEEZE:
                     output = [graph squeezeTensor:first
                             axis:(NSInteger)node.axis name:nil];
                     break;
@@ -5736,7 +6127,7 @@ static int32_t synaptik_metal_create_decoded(
                             : accumulator;
                     break;
                 }
-                case SYNAPTIK_METAL_MPSGRAPH_UNFOLD_AXIS: {
+                case SYNAPTIK_METAL_CUSTOM_UNFOLD_AXIS: {
                     NSUInteger rank = shapes[node.first_input].count;
                     uint64_t size = node.attribute_values[0];
                     uint64_t step = node.attribute_values[1];
@@ -5781,14 +6172,14 @@ static int32_t synaptik_metal_create_decoded(
                             dimension:(NSInteger)rank name:nil];
                     break;
                 }
-                case SYNAPTIK_METAL_MPSGRAPH_GATHER:
+                case SYNAPTIK_METAL_CUSTOM_GATHER:
                     output = [graph gatherWithUpdatesTensor:first
                             indicesTensor:second
                             axis:(NSInteger)node.axis
                             batchDimensions:0U
                             name:nil];
                     break;
-                case SYNAPTIK_METAL_MPSGRAPH_SCATTER_ELEMENTS:
+                case SYNAPTIK_METAL_CUSTOM_SCATTER_ELEMENTS:
                     output = [graph scatterAlongAxis:(NSInteger)node.axis
                             withDataTensor:first
                             updatesTensor:auxiliary
@@ -5796,7 +6187,7 @@ static int32_t synaptik_metal_create_decoded(
                             mode:MPSGraphScatterModeSet
                             name:nil];
                     break;
-                case SYNAPTIK_METAL_MPSGRAPH_ONE_HOT:
+                case SYNAPTIK_METAL_CUSTOM_ONE_HOT:
                     output = [graph oneHotWithIndicesTensor:first
                             depth:(NSUInteger)node.attribute_values[0]
                             dataType:MPSDataTypeBool
@@ -6239,18 +6630,6 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                         || (stateful_flags & 1U) != 0U)
                     return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
             }
-            if (operation == SYNAPTIK_METAL_MPSGRAPH_PERMUTE) {
-                uint32_t input_value = synaptik_read_le32(
-                        program + references_offset + (uint64_t)input_offset * 4U);
-                uint32_t output_value = synaptik_read_le32(
-                        program + references_offset + (uint64_t)output_offset * 4U);
-                uint32_t input_flags = synaptik_read_le32(
-                        program + values_offset + (uint64_t)input_value * 40U + 16U);
-                uint32_t output_flags = synaptik_read_le32(
-                        program + values_offset + (uint64_t)output_value * 40U + 16U);
-                if ((input_flags & 1U) != (output_flags & 1U))
-                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-            }
             if ((operation >= SYNAPTIK_METAL_CUSTOM_SORT
                             && operation <= SYNAPTIK_METAL_CUSTOM_TOP_K)
                     || (operation >= SYNAPTIK_METAL_CUSTOM_ARG_MAX
@@ -6338,22 +6717,76 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                 if (!type_valid || input_gradient != output_gradient)
                     return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
             }
-            BOOL task0059_no_gradient = operation == SYNAPTIK_METAL_CUSTOM_CAST
-                    || operation == SYNAPTIK_METAL_CUSTOM_GATHER_ELEMENTS
-                    || operation == SYNAPTIK_METAL_CUSTOM_GATHER_ND
-                    || (operation >= SYNAPTIK_METAL_CUSTOM_SELECT
-                            && operation <= SYNAPTIK_METAL_CUSTOM_SLICE)
-                    || (operation >= SYNAPTIK_METAL_CUSTOM_CONCAT
-                            && operation <= SYNAPTIK_METAL_CUSTOM_TILE)
-                    || operation == SYNAPTIK_METAL_CUSTOM_UNFOLD2D
-                    || operation == SYNAPTIK_METAL_CUSTOM_UNFOLD3D
-                    || operation == SYNAPTIK_METAL_MPSGRAPH_SCATTER_ND
-                    || operation == SYNAPTIK_METAL_MPSGRAPH_FOLD_AXIS
-                    || operation == SYNAPTIK_METAL_MPSGRAPH_FOLD2D
-                    || operation == SYNAPTIK_METAL_MPSGRAPH_FOLD3D
-                    || (operation >= SYNAPTIK_METAL_CUSTOM_PROD
-                            && operation <= SYNAPTIK_METAL_CUSTOM_ANY);
-            if (task0059_no_gradient) {
+            if (operation_is_task0066_selected(operation)) {
+                BOOL gradients[SYNAPTIK_MAX_NODE_INPUTS] = {NO};
+                BOOL any_input_gradient = NO;
+                for (uint32_t input = 0U; input < input_count; input++) {
+                    uint32_t value = synaptik_read_le32(
+                            program + references_offset
+                                    + (uint64_t)(input_offset + input) * 4U);
+                    gradients[input] = (synaptik_read_le32(
+                            program + values_offset + (uint64_t)value * 40U + 16U)
+                            & 1U) != 0U;
+                    if (gradients[input]
+                            && !task0066_is_floating(declared_types[value]))
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    any_input_gradient |= gradients[input];
+                }
+                uint32_t output_value = synaptik_read_le32(
+                        program + references_offset + (uint64_t)output_offset * 4U);
+                BOOL output_gradient = (synaptik_read_le32(
+                        program + values_offset + (uint64_t)output_value * 40U + 16U)
+                        & 1U) != 0U;
+                if (output_gradient
+                        && !task0066_is_floating(declared_types[output_value]))
+                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                BOOL expected = gradients[0];
+                if (operation == SYNAPTIK_METAL_CUSTOM_CAST) {
+                    uint32_t input_value = synaptik_read_le32(
+                            program + references_offset
+                                    + (uint64_t)input_offset * 4U);
+                    expected = gradients[0]
+                            && task0066_is_floating(declared_types[input_value])
+                            && task0066_is_floating(declared_types[output_value]);
+                } else if (operation >= SYNAPTIK_METAL_BOOL_IS_FINITE
+                        && operation <= SYNAPTIK_METAL_BOOL_NOT) {
+                    expected = NO;
+                    if (operation == SYNAPTIK_METAL_BOOL_AND
+                            || operation == SYNAPTIK_METAL_BOOL_OR
+                            || operation == SYNAPTIK_METAL_BOOL_NOT) {
+                        if (any_input_gradient)
+                            return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    }
+                } else if (operation == SYNAPTIK_METAL_BOOL_WHERE) {
+                    if (gradients[0])
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    expected = gradients[1] || gradients[2];
+                } else if (operation == SYNAPTIK_METAL_CUSTOM_ONE_HOT) {
+                    if (gradients[0])
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    expected = NO;
+                } else if (operation == SYNAPTIK_METAL_CUSTOM_GATHER
+                        || operation == SYNAPTIK_METAL_CUSTOM_GATHER_ELEMENTS
+                        || operation == SYNAPTIK_METAL_CUSTOM_GATHER_ND) {
+                    if (gradients[1])
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    expected = gradients[0];
+                } else if (operation == SYNAPTIK_METAL_CUSTOM_SCATTER_ELEMENTS
+                        || operation == SYNAPTIK_METAL_MPSGRAPH_SCATTER_ND) {
+                    if (gradients[1])
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    expected = gradients[0] || gradients[2];
+                } else if (operation == SYNAPTIK_METAL_MPSGRAPH_SLICE_UPDATE) {
+                    expected = gradients[0] || gradients[1];
+                } else if (operation == SYNAPTIK_METAL_CUSTOM_CONCAT
+                        || operation == SYNAPTIK_METAL_CUSTOM_STACK) {
+                    expected = any_input_gradient;
+                }
+                if (output_gradient != expected)
+                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            }
+            if (operation >= SYNAPTIK_METAL_CUSTOM_PROD
+                    && operation <= SYNAPTIK_METAL_CUSTOM_ANY) {
                 for (uint32_t reference = input_offset;
                         reference < output_offset + output_count; reference++) {
                     uint32_t value = synaptik_read_le32(
@@ -6657,7 +7090,7 @@ static int32_t run_custom_program_box(
     NSUInteger cursor = 0U;
     while (cursor < box.programSteps.count) {
         SynaptikMetalProgramStep *step = box.programSteps[cursor];
-        if (step.indexValidation != nil) {
+        if (step.indexValidation != nil && !step.indexValidation.preflight) {
             if (step.indexValidation.feedPosition >= input_count)
                 return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
             SynaptikMetalBufferBox *index_buffer =
@@ -6705,8 +7138,11 @@ static int32_t run_custom_program_box(
                     (__bridge SynaptikMetalBufferBox *)input_buffers[step.output];
             [encoder setBuffer:first.buffer offset:0U atIndex:0U];
             BOOL where = step.operation == SYNAPTIK_METAL_BOOL_WHERE;
-            BOOL scatter = step.operation == SYNAPTIK_METAL_MPSGRAPH_SCATTER_ND
-                    && step.stage == 1U;
+            BOOL scatter =
+                    (step.operation == SYNAPTIK_METAL_CUSTOM_SCATTER_ELEMENTS
+                                    || step.operation
+                                            == SYNAPTIK_METAL_MPSGRAPH_SCATTER_ND)
+                            && step.stage == 1U;
             BOOL task0063 = (step.operation >= SYNAPTIK_METAL_CUSTOM_SORT
                             && step.operation <= SYNAPTIK_METAL_CUSTOM_TOP_K)
                     || (step.operation >= SYNAPTIK_METAL_CUSTOM_ARG_MAX
@@ -6717,6 +7153,7 @@ static int32_t run_custom_program_box(
                             && step.operation <= SYNAPTIK_METAL_CUSTOM_TENSOR_MAX)
                     || step.operation == SYNAPTIK_METAL_BOOL_AND
                     || step.operation == SYNAPTIK_METAL_BOOL_OR
+                    || step.operation == SYNAPTIK_METAL_CUSTOM_GATHER
                     || step.operation == SYNAPTIK_METAL_CUSTOM_GATHER_ELEMENTS
                     || step.operation == SYNAPTIK_METAL_CUSTOM_GATHER_ND
                     || step.operation == SYNAPTIK_METAL_MPSGRAPH_SLICE_UPDATE
@@ -6840,6 +7277,10 @@ static int32_t run_custom_program_box(
             [encoder dispatchThreads:step.grid threadsPerThreadgroup:
                     MTLSizeMake(step.threadsPerThreadgroup, 1U, 1U)];
             cursor++;
+            if (cursor < box.programSteps.count
+                    && box.programSteps[cursor].custom
+                    && box.programSteps[cursor].indexValidation == nil)
+                [encoder memoryBarrierWithScope:MTLBarrierScopeBuffers];
         } while (cursor < box.programSteps.count
                 && box.programSteps[cursor].custom
                 && box.programSteps[cursor].indexValidation == nil);

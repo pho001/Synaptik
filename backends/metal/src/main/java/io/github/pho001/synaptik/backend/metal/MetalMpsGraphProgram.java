@@ -18,9 +18,9 @@ import java.util.Optional;
 /**
  * Immutable schema-fifteen Metal program and its canonical bounded image encoder.
  *
- * <p>The image supports zero-input nodes and ordered multi-output nodes. Task 0065 uses those
- * existing cardinality ranges for raw INT64 state initialization and FLOAT32 dropout's value,
- * BOOL mask, and next-state outputs; it adds no public ABI or schema version.</p>
+ * <p>The image supports zero-input nodes and ordered multi-output nodes. Task 0066 retains schema
+ * version fifteen while carrying complete logical layout geometry and gradient flags for the
+ * native/JVM-authenticated all-carrier custom-program closure. No public ABI or wire changes.
  */
 final class MetalMpsGraphProgram {
     static final int SCHEMA_VERSION = 15;
@@ -91,10 +91,10 @@ final class MetalMpsGraphProgram {
         SUM(13, 1, 1, 1, 1, AttributeKind.REDUCTION, ValueState.CANONICAL, false, true),
         MEAN(14, 1, 1, 1, 1, AttributeKind.REDUCTION, ValueState.CANONICAL, false, true),
         MATMUL(15, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, true, true),
-        GATHER(16, 2, 2, 1, 1, AttributeKind.AXIS, ValueState.CANONICAL, false, true),
-        ONE_HOT(17, 1, 1, 1, 1, AttributeKind.DEPTH, ValueState.CANONICAL, false, true),
-        SCATTER_ELEMENTS(18, 3, 3, 1, 1, AttributeKind.SCATTER_ELEMENTS, ValueState.CANONICAL, false, true),
-        UNFOLD_AXIS(19, 1, 1, 1, 1, AttributeKind.WINDOW_AXIS, ValueState.CANONICAL, false, true),
+        GATHER(16, 2, 2, 1, 1, AttributeKind.AXIS, ValueState.CANONICAL, true, true),
+        ONE_HOT(17, 1, 1, 1, 1, AttributeKind.DEPTH, ValueState.CANONICAL, true, true),
+        SCATTER_ELEMENTS(18, 3, 3, 1, 1, AttributeKind.SCATTER_ELEMENTS, ValueState.CANONICAL, true, true),
+        UNFOLD_AXIS(19, 1, 1, 1, 1, AttributeKind.WINDOW_AXIS, ValueState.CANONICAL, true, true),
         GT(20, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         GE(21, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         LT(22, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
@@ -117,13 +117,13 @@ final class MetalMpsGraphProgram {
                 ValueState.CANONICAL, false, true),
         TENSOR_POW(38, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         CAST(39, 1, 1, 1, 1, AttributeKind.CAST_TARGET,
-                ValueState.CANONICAL, false, true),
-        IS_FINITE(40, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
-        IS_NAN(41, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
-        IS_INF(42, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
-        LOGICAL_AND(43, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
-        LOGICAL_OR(44, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
-        LOGICAL_NOT(45, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
+                ValueState.CANONICAL, true, true),
+        IS_FINITE(40, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, true, true),
+        IS_NAN(41, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, true, true),
+        IS_INF(42, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, true, true),
+        LOGICAL_AND(43, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, true, true),
+        LOGICAL_OR(44, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, true, true),
+        LOGICAL_NOT(45, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, true, true),
         SCALAR_ADD(46, 1, 1, 1, 1, AttributeKind.SCALAR_VALUE, ValueState.CANONICAL, false, true),
         SCALAR_SUB(47, 1, 1, 1, 1, AttributeKind.SCALAR_VALUE, ValueState.CANONICAL, false, true),
         SCALAR_MUL(48, 1, 1, 1, 1, AttributeKind.SCALAR_VALUE, ValueState.CANONICAL, false, true),
@@ -148,37 +148,37 @@ final class MetalMpsGraphProgram {
         GELU_TANH_APPROXIMATION(67, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         SILU(68, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         GATHER_ELEMENTS(69, 2, 2, 1, 1, AttributeKind.AXIS,
-                ValueState.CANONICAL, false, true),
+                ValueState.CANONICAL, true, true),
         SCATTER_ADD(70, 3, 3, 1, 1, AttributeKind.AXIS,
                 ValueState.CANONICAL, false, true),
         GATHER_ND(71, 2, 2, 1, 1, AttributeKind.GATHER_ND,
-                ValueState.CANONICAL, false, true),
+                ValueState.CANONICAL, true, true),
         SCATTER_ND(72, 3, 3, 1, 1, AttributeKind.SCATTER_ND,
-                ValueState.CANONICAL, false, true),
+                ValueState.CANONICAL, true, true),
         SELECT(73, 1, 1, 1, 1, AttributeKind.SELECT,
                 ValueState.MATERIALIZED_LAYOUT, true, true),
         PAD(74, 1, 1, 1, 1, AttributeKind.PAD,
-                ValueState.CANONICAL, false, true),
+                ValueState.CANONICAL, true, true),
         SLICE(75, 1, 1, 1, 1, AttributeKind.SLICE,
                 ValueState.MATERIALIZED_LAYOUT, true, true),
         SLICE_UPDATE(76, 2, 2, 1, 1, AttributeKind.SLICE,
-                ValueState.CANONICAL, false, true),
+                ValueState.CANONICAL, true, true),
         CONCAT(77, 1, Integer.MAX_VALUE, 1, 1, AttributeKind.AXIS,
-                ValueState.CANONICAL, false, true),
+                ValueState.CANONICAL, true, true),
         STACK(78, 1, Integer.MAX_VALUE, 1, 1, AttributeKind.AXIS,
-                ValueState.CANONICAL, false, true),
+                ValueState.CANONICAL, true, true),
         TILE(79, 1, 1, 1, 1, AttributeKind.TILE,
-                ValueState.CANONICAL, false, true),
+                ValueState.CANONICAL, true, true),
         FOLD_AXIS(80, 1, 1, 1, 1, AttributeKind.WINDOW_AXIS,
-                ValueState.CANONICAL, false, true),
+                ValueState.CANONICAL, true, true),
         UNFOLD2D(81, 1, 1, 1, 1, AttributeKind.WINDOW_2D,
-                ValueState.CANONICAL, false, true),
+                ValueState.CANONICAL, true, true),
         FOLD2D(82, 1, 1, 1, 1, AttributeKind.FOLD_WINDOW_2D,
-                ValueState.CANONICAL, false, true),
+                ValueState.CANONICAL, true, true),
         UNFOLD3D(83, 1, 1, 1, 1, AttributeKind.WINDOW_3D,
-                ValueState.CANONICAL, false, true),
+                ValueState.CANONICAL, true, true),
         FOLD3D(84, 1, 1, 1, 1, AttributeKind.FOLD_WINDOW_3D,
-                ValueState.CANONICAL, false, true),
+                ValueState.CANONICAL, true, true),
         MEAN_SQUARED_ERROR(
                 85, 2, 2, 1, 1, AttributeKind.MSE,
                 ValueState.CANONICAL, false, true),
@@ -281,25 +281,33 @@ final class MetalMpsGraphProgram {
                     || wireIdentity >= 97 && wireIdentity <= 102) {
                 return true;
             }
-            return wireIdentity >= 20 && wireIdentity <= 34
+            return wireIdentity >= 6 && wireIdentity <= 11
+          || wireIdentity >= 16 && wireIdentity <= 19
+          || wireIdentity >= 20 && wireIdentity <= 34
                     || wireIdentity == 39
                     || wireIdentity >= 40 && wireIdentity <= 45
                     || wireIdentity == 51
                     || wireIdentity >= 60 && wireIdentity <= 63
                     || wireIdentity == 69
-                    || wireIdentity == 71
-                    || wireIdentity == 72
-                    || wireIdentity >= 73 && wireIdentity <= 76
-                    || wireIdentity >= 77 && wireIdentity <= 84
+                    || wireIdentity >= 71 && wireIdentity <= 84
                     || wireIdentity >= 94 && wireIdentity <= 96
                     || wireIdentity >= 109 && wireIdentity <= 110
                     || wireIdentity >= 106 && wireIdentity <= 108;
         }
-        boolean accepts(ValueState inputState) {
+        boolean isTask0066Selected() {
+      return wireIdentity >= 6 && wireIdentity <= 11
+          || wireIdentity >= 16 && wireIdentity <= 19
+          || wireIdentity >= 39 && wireIdentity <= 45
+          || wireIdentity == 51
+          || wireIdentity == 69
+          || wireIdentity >= 71 && wireIdentity <= 84;
+    }
+
+    boolean accepts(ValueState inputState) {
             return inputState == ValueState.CANONICAL
                     || (inputState == ValueState.AFFINE_VIEW && acceptsAffineView)
                     || (inputState == ValueState.MATERIALIZED_LAYOUT
-                            && (this == SELECT || this == SLICE));
+                            && (isTask0066Selected() ||this == SELECT || this == SLICE));
         }
         boolean acceptsCardinality(int inputs, int outputs) {
             if (this == LAYER_NORM && inputs == 2) return false;

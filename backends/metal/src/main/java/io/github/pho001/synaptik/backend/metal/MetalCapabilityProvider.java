@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.backend.metal;
 import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.DataTypePromotion;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
@@ -11,34 +12,37 @@ import io.github.pho001.synaptik.model.operation.convolution.Conv2dKind;
 import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
 import io.github.pho001.synaptik.model.operation.convolution.Conv3dKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
-import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
-import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
+import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
+import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
+import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ClampRangeAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
-import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
-import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
+import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
 import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
-import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
 import io.github.pho001.synaptik.model.operation.index.GatherNdAttrs;
 import io.github.pho001.synaptik.model.operation.index.GatherNdKind;
-import io.github.pho001.synaptik.model.operation.index.SelectAttrs;
-import io.github.pho001.synaptik.model.operation.index.SelectKind;
+import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
-import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.model.operation.index.ScatterNdAttrs;
 import io.github.pho001.synaptik.model.operation.index.ScatterNdKind;
+import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
+import io.github.pho001.synaptik.model.operation.index.SelectAttrs;
+import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
-import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Fold3dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
@@ -49,31 +53,20 @@ import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
-import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
-import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
-import io.github.pho001.synaptik.model.operation.layout.Fold3dAttrs;
-import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
-import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.Unfold2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Unfold3dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.loss.LossKind;
 import io.github.pho001.synaptik.model.operation.loss.LossReduction;
 import io.github.pho001.synaptik.model.operation.loss.MeanSquaredErrorAttrs;
-import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
-import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
-import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
-import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
 import io.github.pho001.synaptik.model.operation.ordering.SortAttrs;
 import io.github.pho001.synaptik.model.operation.ordering.TopKAttrs;
 import io.github.pho001.synaptik.model.operation.ordering.TopKKind;
-import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaAttrs;
-import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
-import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
-import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
@@ -84,98 +77,89 @@ import io.github.pho001.synaptik.model.operation.random.DropoutAttrs;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngStateAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
+import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
+import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
-import java.util.List;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 /**
  * Reports the exact operation-occurrence capability of the current Metal backend.
  *
  * <p>This provider is immutable and performs no native loading, device discovery, allocation,
- * registration, or caching. Under either numerical profile, support includes unary {@code NEG},
- * {@code ABS}, {@code FLOOR}, {@code CEIL}, {@code SIGN}, and {@code RELU}, five FLOAT32 affine
- * transforms, the explicit {@code CONTIGUOUS} canonicalization barrier, bounded canonical FLOAT32
- * {@code UNFOLD_AXIS} materialization, canonical positive-rank INT32 {@code GATHER} indices
- * selecting FLOAT32 data, canonical positive-rank INT32 {@code ONE_HOT} indices producing
- * canonical BOOL values, canonical FLOAT32/INT32/FLOAT32 {@code SCATTER_ELEMENTS} replacement
- * with unique valid targets, and the exact profile-common wires for FLOAT32 classification, BOOL
- * logic, and FLOAT32 {@code WHERE}. Classification and logic require canonical positive rank
- * {@code 1..16}. WHERE admits canonical or exact zero-offset affine-view inputs, propagates the
- * branch gradient OR, and applies branch-first then condition broadcasting.
+ * registration, or caching. Both profiles admit the Task-0066 exact movement closure: all six
+ * represented carriers across {@code RESHAPE}, {@code EXPAND}, {@code PERMUTE}, {@code
+ * EXPAND_DIMS}, {@code SQUEEZE}, {@code CONTIGUOUS}, axis/ND gather and replacement scatter,
+ * select/slice/pad/composition/tile, and the declared non-overlapping window rows. Reads may use
+ * authenticated static affine or transferred materialized layouts; outputs use the operation's
+ * exact logical view or a canonical materialization. Scalar Shapes compose where the Model permits
+ * them. External zero-stride aliases, negative strides, overlap, empty or dynamic geometry,
+ * additive scatter, and accumulation-requiring folds remain unsupported.
+ *
+ * <p>Both profiles also admit all 36 ordered {@code CAST} pairs. The nine floating-to-floating
+ * pairs preserve the Model gradient relation; integral and BOOL roles remain non-differentiable.
+ * FLOAT64/ FLOAT32/BFLOAT16 classification, scalar/affine BOOL logic, and all nine promoted floating
+ * {@code WHERE} signatures use exact right-aligned broadcasting and branch- gradient OR metadata.
  * {@code ACCELERATOR} additionally admits tensor {@code ADD}/{@code SUB}/{@code MUL}/{@code DIV},
  * canonical FLOAT32 {@code SUM}/{@code MEAN}/{@code SUM_TO_SHAPE}, same-type canonical positive-
  * rank FLOAT32 {@code MEAN_SQUARED_ERROR} with {@code NONE}/{@code SUM}/{@code MEAN}, every
  * positive-static FLOAT32 {@code MATMUL} vector, matrix, batched, and right-aligned broadcast
- * geometry, and canonical positive-rank FLOAT32 no-gradient scalar {@code ADD}/{@code SUB}/
- * {@code MUL}/{@code DIV} and {@code RECIPROCAL}. MSE preserves the exact input Shape for
- * {@code NONE}, publishes a scalar for {@code SUM}/{@code MEAN}, and propagates the input-gradient
- * logical OR as output metadata without claiming generated backward ownership. Scalar arithmetic
- * retains the exact FLOAT32 raw attribute and operand order; reciprocal is exact
- * {@code 1 / input}. Both profiles admit no-gradient INT32/INT64 MATMUL pairs with INT64-dominant
- * promotion and modular result arithmetic. Accelerator also admits no-gradient BFLOAT16/FLOAT32
- * and FLOAT32/BFLOAT16 operands with a FLOAT32 result. BFLOAT16/BFLOAT16 and every FLOAT64-result
- * pair remain unsupported. Each MATMUL operand is canonical or the exact identity-prefix,
- * last-two-axis transpose layout that complete-partition analysis authenticates to a local
- * {@code PERMUTE} from a canonical source. FLOAT32 output gradient metadata is the exact operand
- * OR; integral and mixed-carrier rows are no-grad. Accelerator reductions admit full, normalized
- * single-axis, ordered normalized multi-axis (including empty-axis identity), and binding-resolved
- * sum-to-Shape forms. The exact Task-0060 integral PROD and BOOL ALL/ANY domain below is profile-
- * common. Other strict reductions remain unsupported. Reduction and MSE inputs are canonical with
- * positive dimensions; canonical outputs may be rank zero only as locally produced results.
- * Binary inputs and outputs are canonical dense non-views with exact right-aligned broadcasting.
- * The six exact unary descriptor pairs are canonical. An affine or contiguous input may be
- * canonical or an exact resolved zero-offset logical view; complete-partition analysis
- * authenticates every admitted view as a prior local affine result. Task-0064 convolution/pooling
- * may additionally receive only the exact singleton-height view shape used by Conv1d/Pool1d;
- * preparation authenticates its local producer and physical source.
- * Every admitted occurrence uses checked positive extents. GATHER requires its exact replacement-
- * axis output formula and matched data/output gradient flag; ONE_HOT appends its positive depth
- * and is entirely non-differentiable.
- * SCATTER_ELEMENTS requires reduction NONE, equal indices/update Shapes, matching non-axis data
- * extents, exact data-shaped output, non-differentiable indices, and data/update gradient OR.
- * UNFOLD_AXIS requires a canonical rank {@code 1..15} input, size {@code 1..16}, exact floor-count
- * Shape with the window size appended, and a fresh canonical materialization.</p>
+ * geometry, and canonical positive-rank FLOAT32 no-gradient scalar {@code ADD}/{@code SUB}/ {@code
+ * MUL}/{@code DIV} and {@code RECIPROCAL}. MSE preserves the exact input Shape for {@code NONE},
+ * publishes a scalar for {@code SUM}/{@code MEAN}, and propagates the input-gradient logical OR as
+ * output metadata without claiming generated backward ownership. Scalar arithmetic retains the
+ * exact FLOAT32 raw attribute and operand order; reciprocal is exact {@code 1 / input}. Both
+ * profiles admit no-gradient INT32/INT64 MATMUL pairs with INT64-dominant promotion and modular
+ * result arithmetic. Accelerator also admits no-gradient BFLOAT16/FLOAT32 and FLOAT32/BFLOAT16
+ * operands with a FLOAT32 result. BFLOAT16/BFLOAT16 and every FLOAT64-result pair remain
+ * unsupported. Each MATMUL operand is canonical or the exact identity-prefix, last-two-axis
+ * transpose layout that complete-partition analysis authenticates to a local {@code PERMUTE} from a
+ * canonical source. FLOAT32 output gradient metadata is the exact operand OR; integral and
+ * mixed-carrier rows are no-grad. Accelerator reductions admit full, normalized single-axis,
+ * ordered normalized multi-axis (including empty-axis identity), and binding-resolved sum-to-Shape
+ * forms. The exact Task-0060 integral PROD and BOOL ALL/ANY domain below is profile- common. Other
+ * strict reductions remain unsupported. Reduction and MSE inputs are canonical with positive
+ * dimensions; canonical outputs may be rank zero only as locally produced results. Binary inputs
+ * and outputs are canonical dense non-views with exact right-aligned broadcasting. Selected
+ * Task-0066 inputs may be canonical or exact authenticated affine/materialized reads; preparation
+ * proves local zero-stride provenance and rejects external zero-stride aliases. Every admitted
+ * occurrence has checked positive extents and rank {@code 0..16} where its Model signature allows
+ * scalars. GATHER/ONE_HOT and every replacement index role accept INT32 or INT64, and all index
+ * values are bounds-checked before execution. Replacement scatter destinations are additionally
+ * proved unique before any write. {@code UNFOLD_AXIS} accepts exact static windows without the
+ * former selector-size cap; {@code FOLD_AXIS} accepts every non-BOOL carrier only when {@code step
+ * >= windowSize}. Image unfolds/folds retain the three floating carriers and reject overlap.
  *
- * <p>The profile-common Task-0059 domain also admits exactly nineteen static canonical no-gradient
- * CAST carrier pairs: six identities, BOOL to or from each other carrier, INT32/INT64 in both
- * directions, and BFLOAT16 to FLOAT32. GATHER_ELEMENTS and GATHER_ND preserve any of the six data
- * carriers and require canonical INT32 or INT64 indices. PAD, CONCAT, STACK, and TILE preserve any
- * carrier; UNFOLD2D and UNFOLD3D accept only Model-legal FLOAT64, FLOAT32, or BFLOAT16 inputs.
- * SELECT and positive-step SLICE preserve all six carriers through authenticated physical
- * storage-layout materializations. They require exact static positive-rank Shapes, resolved
- * positive-stride non-overlapping layouts, exact operation-derived offset/stride/span geometry,
- * normalized attributes, and no gradients. Unresolved, zero-stride, negative-stride, overlapping,
- * empty, gradient-bearing, and every unlisted conversion occurrence remains unsupported.</p>
+ * <p>Legal forward gradient metadata is distinct from a CPU-free generated backward graph. Inverse
+ * affine moves, floating casts, same-shape WHERE, positive-step select/slice/update,
+ * pad/composition, unique replacement scatter/gather, and non-overlapping unfold/fold can close.
+ * Additive gather adjoints, broadcast reductions, positive-rank tile adjoints,overlapping windows,
+ * multi-path cotangent addition, and every non-floating derivative remain blocked. Integral PROD
+ * admits INT32/INT64 modular multiplication; ALL and ANY admit canonical BOOL. LOG_SUM_EXP through
+ * L2_NORM remain production-false.
  *
- * <p>The profile-common Task-0060 domain additionally admits replacement-only SCATTER_ND and
- * signed non-zero-step SLICE_UPDATE for all six carriers, including target-relative crop
- * placement. Every scatter tuple is bounds-checked and globally destination-unique before any
- * write. FOLD_AXIS, FOLD2D, and FOLD3D admit only FLOAT64, FLOAT32, or BFLOAT16 with statically
- * proven non-overlapping windows, so every in-bounds contributor is a raw copy and every uncovered
- * cell is the carrier's exact zero.
- * Integral PROD admits INT32/INT64 modular multiplication; ALL and ANY admit canonical BOOL.
- * Those reductions accept full, single-axis, and ordered multi-axis forms, including empty-axis
- * identity on positive-dimensional and rank-zero tensors. All Task-0060 rows are static,
- * canonical, no-gradient, and shape-exact. Zero-length slice updates, scatter reductions,
- * colliding scatter destinations, overlapping folds, floating PROD, non-BOOL ALL/ANY, and
- * LOG_SUM_EXP through L2_NORM remain production-false.</p>
- *
- * <p>Task 0063 admits profile-common canonical dense {@code SORT}, {@code ARGSORT}, and
- * positive-K {@code TOP_K} for all six carriers and {@code ARG_MAX}/{@code ARG_MIN} for the five
- * numeric carriers. Task 0064 admits exact FLOAT64/FLOAT32/BFLOAT16 maximum Pool2d/Pool3d under
- * both profiles. Accelerator additionally admits FLOAT32-result grouped Conv2d/Conv3d over
+ * <p>Task 0063 admits profile-common canonical dense {@code SORT}, {@code ARGSORT}, and positive-K
+ * {@code TOP_K} for all six carriers and {@code ARG_MAX}/{@code ARG_MIN} for the five numeric
+ * carriers. Task 0064 admits exact FLOAT64/FLOAT32/BFLOAT16 maximum Pool2d/Pool3d under both
+ * profiles. Accelerator additionally admits FLOAT32-result grouped Conv2d/Conv3d over
  * FLOAT32/BFLOAT16 operands with at least one FLOAT32 role, plus FLOAT32 average Pool2d/Pool3d.
  * Mixed convolution is no-gradient; all-FLOAT32 convolution and every pooling row require exact
  * input/output gradient metadata. Every Task-0063/0064 geometry, count, coordinate, and dispatch
  * width is fully static, positive where required, and bounded to unsigned 32 bits. Strict
- * convolution/average pooling, alternate layouts, dynamic or empty geometry, attention,
- * convolution transpose, generated Conv3d or maximum-pool backward, mixed convolution gradients,
- * and overlap-accumulating generated folds remain unsupported.</p>
+ * convolution/average pooling, alternate layouts, dynamic or empty geometry, attention, convolution
+ * transpose, generated Conv3d or maximum-pool backward, mixed convolution gradients, and
+ * overlap-accumulating generated folds remain unsupported.
  *
  * <p>Task 0065 additionally admits canonical no-gradient {@code INITIAL_STATE} under both profiles
  * and accelerator-only canonical FLOAT32 {@code DROPOUT}. The initializer has no inputs and
@@ -184,7 +168,7 @@ import java.util.Objects;
  * preserved while mask and state roles are non-differentiable. Rank {@code 0..16}, each extent,
  * element count, referenced span, and dispatch width must fit unsigned 32 bits. Every recurrent
  * kind and every non-FLOAT32, strict, dynamic, malformed-state, or over-limit dropout occurrence
- * remains unsupported.</p>
+ * remains unsupported.
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
     private static final long UINT32_MAX = 0xffff_ffffL;
@@ -194,15 +178,15 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
      * Stable Planning ownership identity for the Metal backend.
      *
      * <p>The immutable value is shared by every provider instance and says nothing about device
-     * availability or executable readiness.</p>
+     * availability or executable readiness.
      */
     public static final BackendId METAL_BACKEND_ID = new BackendId("metal");
 
     /**
      * Creates a stateless, immutable, and thread-safe Metal capability provider.
      *
-     * <p>Construction performs no native loading, device discovery, registration, allocation,
-     * or caching.</p>
+     * <p>Construction performs no native loading, device discovery, registration, allocation, or
+     * caching.
      */
     public MetalCapabilityProvider() {}
 
@@ -219,10 +203,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     /**
      * Reports support only for the exact profile-qualified prepared Metal domain.
      *
-     * @param query the non-null immutable operation occurrence to classify without probing a
-     *     device or native library
-     * @return {@code true} exactly for one occurrence in the complete strict or accelerator
-     *     matrix
+     * @param query the non-null immutable operation occurrence to classify without probing a device
+     * or native library
+     * @return {@code true} exactly for one occurrence in the complete strict or accelerator     matrix
      * @throws NullPointerException if {@code query} is {@code null}, with message {@code query}
      */
     @Override
@@ -233,8 +216,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     }
 
     /**
-     * Validates one projected occurrence against the same profile-qualified domain used by
-     * Planning.
+     * Validates one projected occurrence against the same profile-qualified domain used by Planning.
      *
      * @param numericalProfile non-null cold graph-wide numerical-profile identity
      * @param operation non-null typed operation
@@ -570,11 +552,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             return false;
         }
         TensorDescriptor input = inputs.getFirst();
-        if (!supportedStorageLayout(input, 2)
-                || !supportedStorageLayout(output, 1)
+        if (!selectedAffineRead(input, false)
+                || !selectedAffineRead(output, true)
                 || input.dataType() != output.dataType()
-                || input.requiresGrad()
-                || output.requiresGrad()) {
+                || input.requiresGrad() != output.requiresGrad()) {
             return false;
         }
         long[] inputShape = input.shape().toLongArray();
@@ -610,11 +591,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             return false;
         }
         TensorDescriptor input = inputs.getFirst();
-        if (!supportedStorageLayout(input, 1)
-                || !supportedStorageLayout(output, 1)
+        if (!selectedAffineRead(input, true)
+                || !selectedAffineRead(output, true)
                 || input.dataType() != output.dataType()
-                || input.requiresGrad()
-                || output.requiresGrad()
+                || input.requiresGrad() != output.requiresGrad()
                 || input.shape().rank() != output.shape().rank()) {
             return false;
         }
@@ -738,19 +718,12 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         TensorDescriptor input = inputs.getFirst();
         DataType source = input.dataType();
         DataType target = attrs.targetDataType();
-        boolean provedPair = source == target
-                || source == DataType.BOOL
-                || target == DataType.BOOL
-                || source == DataType.INT32 && target == DataType.INT64
-                || source == DataType.INT64 && target == DataType.INT32
-                || source == DataType.BFLOAT16 && target == DataType.FLOAT32;
-        return provedPair
-                && canonicalAny(input, true)
+        boolean expectedGradient = input.requiresGrad() && isFloating( source) && isFloating( target);
+        return selectedAffineRead(input, true)
                 && canonicalAny(output, true)
-                && !input.requiresGrad()
-                && !output.requiresGrad()
                 && output.dataType() == target
-                && input.shape().equals(output.shape());
+                && input.shape().equals(output.shape())
+        && output.requiresGrad() == expectedGradient;
     }
 
     private static boolean supportsGatherElements(
@@ -760,12 +733,11 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         }
         TensorDescriptor data = inputs.get(0);
         TensorDescriptor indices = inputs.get(1);
-        if (!canonicalAny(data, false)
-                || !canonicalIndex(indices)
+        if (!selectedAffineRead(data, false)
+                || !selectedIndexRead(indices, false)
                 || !canonicalAny(output, false)
-                || data.requiresGrad()
                 || indices.requiresGrad()
-                || output.requiresGrad()
+                || output.requiresGrad() != data.requiresGrad()
                 || output.dataType() != data.dataType()
                 || !output.shape().equals(indices.shape())) {
             return false;
@@ -788,12 +760,11 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         }
         TensorDescriptor data = inputs.get(0);
         TensorDescriptor indices = inputs.get(1);
-        if (!canonicalAny(data, false)
-                || !canonicalIndex(indices)
+        if (!selectedAffineRead(data, false)
+                || !selectedIndexRead(indices, false)
                 || !canonicalAny(output, true)
-                || data.requiresGrad()
                 || indices.requiresGrad()
-                || output.requiresGrad()
+                || output.requiresGrad() != data.requiresGrad()
                 || output.dataType() != data.dataType()) {
             return false;
         }
@@ -824,12 +795,11 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             return false;
         }
         TensorDescriptor input = inputs.getFirst();
-        if (!canonicalAny(input, true)
+        if (!selectedAffineRead(input, true)
                 || !canonicalAny(output, true)
                 || input.dataType() != output.dataType()
                 || attrs.constantValue().dataType() != input.dataType()
-                || input.requiresGrad()
-                || output.requiresGrad()) {
+                || input.requiresGrad() != output.requiresGrad()) {
             return false;
         }
         long[] inputShape = input.shape().toLongArray();
@@ -855,15 +825,19 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             TensorCompositionKind kind) {
         if (!(operation.attrs() instanceof CompositionAxisAttrs attrs)
                 || inputs.isEmpty() || inputs.size() > MetalMpsGraphProgram.MAX_SELECTOR_EXPANSION
-                || !canonicalAny(output, kind == TensorCompositionKind.STACK)
-                || output.requiresGrad()) {
+                || !canonicalAny(output, kind == TensorCompositionKind.STACK)) {
             return false;
         }
         DataType type = output.dataType();
+    boolean expectedGradient = false;
         for (TensorDescriptor input : inputs) {
-            if (!canonicalAny(input, kind == TensorCompositionKind.STACK)
-                    || input.dataType() != type || input.requiresGrad()) return false;
-        }
+            if (!selectedAffineRead(input, kind == TensorCompositionKind.STACK)
+                    || input.dataType() != type) {
+        return false;
+      }
+      expectedGradient |= input.requiresGrad();
+    }
+    if (output.requiresGrad() != expectedGradient) return false;
         long[] first = inputs.getFirst().shape().toLongArray();
         if (kind == TensorCompositionKind.CONCAT) {
             if (first.length == 0 || attrs.axis() >= first.length
@@ -898,11 +872,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
         if (!(operation.attrs() instanceof TileAttrs attrs) || inputs.size() != 1) return false;
         TensorDescriptor input = inputs.getFirst();
-        if (!canonicalAny(input, true)
+        if (!selectedAffineRead(input, true)
                 || !canonicalAny(output, true)
                 || input.dataType() != output.dataType()
-                || input.requiresGrad()
-                || output.requiresGrad()) {
+                || input.requiresGrad() != output.requiresGrad()) {
             return false;
         }
         long[] inputShape = input.shape().toLongArray();
@@ -919,11 +892,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
         if (inputs.size() != 1) return false;
         TensorDescriptor input = inputs.getFirst();
-        if (!canonicalAny(input, false)
+        if (!selectedAffineRead(input, false)
                 || !canonicalAny(output, false)
                 || input.dataType() != output.dataType()
-                || input.requiresGrad()
-                || output.requiresGrad()
+                || input.requiresGrad() != output.requiresGrad()
                 || output.shape().rank() != 3) {
             return false;
         }
@@ -995,14 +967,13 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         TensorDescriptor data = inputs.get(0);
         TensorDescriptor indices = inputs.get(1);
         TensorDescriptor updates = inputs.get(2);
-        if (!canonicalAny(data, false)
-                || !canonicalIndex(indices)
-                || !canonicalAny(updates, true)
+        if (!selectedAffineRead(data, false)
+                || !selectedIndexRead(indices, false)
+                || !selectedAffineRead(updates, true)
                 || !canonicalAny(output, false)
-                || data.requiresGrad()
                 || indices.requiresGrad()
-                || updates.requiresGrad()
-                || output.requiresGrad()
+                || output.requiresGrad() != (data.requiresGrad()
+                || updates.requiresGrad())
                 || data.dataType() != updates.dataType()
                 || data.dataType() != output.dataType()
                 || !data.shape().equals(output.shape())) {
@@ -1039,12 +1010,11 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         if (inputs.size() != 2) return false;
         TensorDescriptor data = inputs.get(0);
         TensorDescriptor updates = inputs.get(1);
-        if (!canonicalAny(data, false)
-                || !canonicalAny(updates, false)
-                || !canonicalAny(output, false)
-                || data.requiresGrad()
-                || updates.requiresGrad()
-                || output.requiresGrad()
+        if (!selectedAffineRead(data, true)
+                || !selectedAffineRead(updates, true)
+                || !canonicalAny(output, true)
+                || output.requiresGrad() != ( data.requiresGrad()
+                || updates.requiresGrad())
                 || data.dataType() != updates.dataType()
                 || data.dataType() != output.dataType()
                 || !data.shape().equals(output.shape())) {
@@ -1103,13 +1073,14 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         if (inputs.size() != 1) return false;
         TensorDescriptor input = inputs.getFirst();
         DataType type = input.dataType();
-        if ((type != DataType.FLOAT64
-                        && type != DataType.FLOAT32
-                        && type != DataType.BFLOAT16)
-                || !canonicalAny(input, false)
+    boolean supportedType =
+        operation.kind () == WindowTransformKind.FOLD_AXIS
+            ?type != DataType.BOOL
+            : isFloating( type);
+    if ( !supportedType
+                || !selectedAffineRead(input, false)
                 || !canonicalAny(output, false)
-                || input.requiresGrad()
-                || output.requiresGrad()
+                || input.requiresGrad() != output.requiresGrad()
                 || type != output.dataType()) {
             return false;
         }
@@ -1231,9 +1202,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         }
         TensorDescriptor data = inputs.get(0);
         TensorDescriptor indices = inputs.get(1);
-        if (!canonical(data)
-                || !canonicalTyped(indices, DataType.INT32)
-                || !canonical(output)
+        if (!selectedAffineRead(data, false)
+                || !selectedIndexRead(indices, true)
+                || !canonicalAny(output, true)
+        || data.dataType() != output.dataType()
                 || indices.requiresGrad()
                 || data.requiresGrad() != output.requiresGrad()) {
             return false;
@@ -1242,7 +1214,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         long[] indexShape = indices.shape().toLongArray();
         int axis = attrs.axis();
         int outputRank = Math.addExact(Math.subtractExact(dataShape.length, 1), indexShape.length);
-        if (axis >= dataShape.length || outputRank < 1 || outputRank > 16
+        if (axis >= dataShape.length || outputRank < 0 || outputRank > 16
                 || output.shape().rank() != outputRank) {
             return false;
         }
@@ -1264,12 +1236,14 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         TensorDescriptor data = inputs.get(0);
         TensorDescriptor indices = inputs.get(1);
         TensorDescriptor updates = inputs.get(2);
-        if (!canonical(data)
-                || !canonicalTyped(indices, DataType.INT32)
-                || !canonical(updates)
-                || !canonical(output)
+        if (!selectedAffineRead(data, false)
+                || !selectedIndexRead(indices, false)
+                || !selectedAffineRead(updates, false)
+                || !canonicalAny(output, false)
                 || indices.requiresGrad()
                 || output.requiresGrad() != (data.requiresGrad() || updates.requiresGrad())
+        || data.dataType() != updates.dataType()
+        || data.dataType() != output.dataType()
                 || !indices.shape().equals(updates.shape())
                 || !data.shape().equals(output.shape())) {
             return false;
@@ -1294,7 +1268,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             return false;
         }
         TensorDescriptor indices = inputs.getFirst();
-        if (!canonicalTyped(indices, DataType.INT32)
+        if (!selectedIndexRead(indices, true)
                 || !canonicalTyped(output, DataType.BOOL)
                 || indices.requiresGrad()
                 || output.requiresGrad()
@@ -1314,15 +1288,15 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         }
         TensorDescriptor input = inputs.getFirst();
         int rank = input.shape().rank();
-        if (!canonical(input)
-                || !canonical(output)
+        if (!selectedAffineRead(input, false)
+                || !canonicalAny(output, false)
+        || input.dataType() != output.dataType()
                 || input.requiresGrad() != output.requiresGrad()
                 || rank < 1
                 || rank > 15
                 || output.shape().rank() != rank + 1
                 || attrs.axis() >= rank
                 || attrs.size() < 1L
-                || attrs.size() > MetalMpsGraphProgram.MAX_SELECTOR_EXPANSION
                 || attrs.step() <= 0L) {
             return false;
         }
@@ -1362,8 +1336,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             return false;
         }
         TensorDescriptor input = inputs.getFirst();
-        return canonical(input)
-                && canonicalTyped(output, DataType.BOOL)
+        return isFloating(input.dataType())
+                && selectedAffineRead(input, true)
+        && output.dataType() == DataType.BOOL
+        && canonicalAny(output, true)
                 && input.shape().equals(output.shape())
                 && !output.requiresGrad();
     }
@@ -1379,8 +1355,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         if (kind == BooleanLogicalKind.NOT) {
             if (inputs.size() != 1) return false;
             TensorDescriptor input = inputs.getFirst();
-            return canonicalTyped(input, DataType.BOOL)
-                    && canonicalTyped(output, DataType.BOOL)
+            return selectedAffineRead(input, true)
+          && input.dataType() == DataType.BOOL
+                    && output.dataType() == DataType.BOOL
+          && canonicalAny(output, true)
                     && !input.requiresGrad()
                     && !output.requiresGrad()
                     && input.shape().equals(output.shape());
@@ -1388,9 +1366,12 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         if (inputs.size() != 2) return false;
         TensorDescriptor left = inputs.get(0);
         TensorDescriptor right = inputs.get(1);
-        return canonicalTyped(left, DataType.BOOL)
-                && canonicalTyped(right, DataType.BOOL)
-                && canonicalTyped(output, DataType.BOOL)
+        return selectedAffineRead(left, true)
+        && left.dataType() == DataType.BOOL
+        && selectedAffineRead(right, true)
+                && right.dataType() == DataType.BOOL
+                && output.dataType() == DataType.BOOL
+        && canonicalAny(output, true)
                 && !left.requiresGrad()
                 && !right.requiresGrad()
                 && !output.requiresGrad()
@@ -1405,10 +1386,14 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         TensorDescriptor condition = inputs.get(0);
         TensorDescriptor whenTrue = inputs.get(1);
         TensorDescriptor whenFalse = inputs.get(2);
-        if (!affineInput(condition, DataType.BOOL, false)
-                || !affineInput(whenTrue, DataType.FLOAT32, false)
-                || !affineInput(whenFalse, DataType.FLOAT32, false)
-                || !canonical(output)
+    DataType resultType =
+        DataTypePromotion.promoteFloating(whenTrue.dataType(), whenFalse.dataType());
+        if (!selectedAffineRead(condition, true)
+        || condition.dataType() != DataType.BOOL
+        || !selectedAffineRead(whenTrue, true)
+                || !selectedAffineRead(whenFalse, true)
+                || !canonicalAny(output, true)
+                || output.dataType() != resultType
                 || condition.requiresGrad()
                 || output.requiresGrad()
                         != (whenTrue.requiresGrad() || whenFalse.requiresGrad())) {
@@ -2042,17 +2027,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             return false;
         }
         TensorDescriptor input = inputs.getFirst();
-        DataType carrierType = input.dataType();
-        boolean carrierPermute = operation.kind() == AxisTransformKind.PERMUTE
-                && (carrierType == DataType.FLOAT32
-                        || carrierType == DataType.BFLOAT16
-                        || carrierType == DataType.INT32
-                        || carrierType == DataType.INT64);
-        boolean scalarExpand = operation.kind() == ShapeTransformKind.EXPAND
-                && input.shape().rank() == 0;
-        if ((!carrierPermute && carrierType != DataType.FLOAT32)
-                || !affineInput(input, carrierType, scalarExpand)
-                || !geometry(output, carrierType, false)
+    if (!selectedAffineRead(input, true)
+        || !selectedAffineRead(output, true)
+        || input.dataType() != output.dataType()
                 || input.requiresGrad() != output.requiresGrad()) {
             return false;
         }
@@ -2064,36 +2041,32 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 return false;
             }
             if (kind == ShapeTransformKind.RESHAPE) {
-                if (!inputLayout.isContiguous()) {
-                    return false;
-                }
-                if (input.shape().knownElementCount().orElseThrow()
+                if (!inputLayout.isContiguous()
+            ||input.shape().knownElementCount().orElseThrow()
                         != output.shape().knownElementCount().orElseThrow()) {
                     return false;
                 }
                 expected = LayoutDescriptor.of(
                         output.shape(),
                         LayoutDescriptor.contiguous(output.shape()).strides(),
-                        0L,
+                inputLayout.storageOffset(),
                         true);
             } else if (kind == ShapeTransformKind.EXPAND) {
                 long[] inputShape = input.shape().toLongArray();
                 long[] outputShape = output.shape().toLongArray();
-                if (inputShape.length > outputShape.length) {
+                if (inputShape.length > outputShape.length)
                     return false;
-                }
                 long[] strides = new long[outputShape.length];
                 int padding = outputShape.length - inputShape.length;
                 for (int axis = 0; axis < inputShape.length; axis++) {
                     long source = inputShape[axis];
                     long target = outputShape[axis + padding];
-                    if (source != target && source != 1L) {
+                    if (source != target && source != 1L)
                         return false;
-                    }
                     strides[axis + padding] = source == 1L && target != 1L
                             ? 0L : inputLayout.stride(axis);
                 }
-                expected = LayoutDescriptor.of(output.shape(), strides, 0L, true);
+                expected = LayoutDescriptor.of(output.shape(), strides, inputLayout.storageOffset(), true);
             } else {
                 return false;
             }
@@ -2110,21 +2083,18 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 long[] strides = new long[inputShape.length];
                 for (int axis = 0; axis < inputShape.length; axis++) {
                     int source = attrs.axes().get(axis);
-                    if (source < 0 || source >= inputShape.length || seen[source]) {
+                    if (source < 0 || source >= inputShape.length || seen[source])
                         return false;
-                    }
                     seen[source] = true;
                     expectedShape[axis] = inputShape[source];
                     strides[axis] = inputLayout.stride(source);
                 }
-                if (!java.util.Arrays.equals(expectedShape, output.shape().toLongArray())) {
+                if (!Arrays.equals(expectedShape, output.shape().toLongArray()))
                     return false;
-                }
-                expected = LayoutDescriptor.of(output.shape(), strides, 0L, true);
+                expected = LayoutDescriptor.of(output.shape(), strides, inputLayout.storageOffset(), true);
             } else {
-                if (!(operation.attrs() instanceof AxisTransformAttrs attrs)) {
+                if (!(operation.attrs() instanceof AxisTransformAttrs attrs))
                     return false;
-                }
                 int axis = attrs.axis();
                 if (kind == AxisTransformKind.EXPAND_DIMS) {
                     if (axis < 0 || axis > inputShape.length
@@ -2147,10 +2117,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                             strides[outputAxis] = inputLayout.stride(source);
                         }
                     }
-                    if (!java.util.Arrays.equals(expectedShape, output.shape().toLongArray())) {
+                    if (!Arrays.equals(expectedShape, output.shape().toLongArray()))
                         return false;
-                    }
-                    expected = LayoutDescriptor.of(output.shape(), strides, 0L, true);
+                    expected = LayoutDescriptor.of(output.shape(), strides, inputLayout.storageOffset(), true);
                 } else if (kind == AxisTransformKind.SQUEEZE) {
                     if (axis < 0 || axis >= inputShape.length || inputShape[axis] != 1L
                             || output.shape().rank() != inputShape.length - 1) {
@@ -2164,10 +2133,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                             strides[target++] = inputLayout.stride(source);
                         }
                     }
-                    if (!java.util.Arrays.equals(expectedShape, output.shape().toLongArray())) {
+                    if (!Arrays.equals(expectedShape, output.shape().toLongArray()))
                         return false;
-                    }
-                    expected = LayoutDescriptor.of(output.shape(), strides, 0L, true);
+                    expected = LayoutDescriptor.of(output.shape(), strides, inputLayout.storageOffset(), true);
                 } else {
                     return false;
                 }
@@ -2178,17 +2146,6 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         return output.layout().orElseThrow().equals(expected);
     }
 
-    private static boolean affineInput(
-            TensorDescriptor descriptor, DataType dataType, boolean allowScalar) {
-        if (!geometry(descriptor, dataType, allowScalar)) {
-            return false;
-        }
-        LayoutDescriptor layout = descriptor.layout().orElseThrow();
-        return layout.storageOffset() == 0L
-                && (layout.equals(LayoutDescriptor.contiguous(descriptor.shape()))
-                        || layout.isView());
-    }
-
 
     private static boolean supportsContiguous(
             Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
@@ -2196,20 +2153,45 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             return false;
         }
         TensorDescriptor input = inputs.getFirst();
-        return affineInput(input)
-                && canonical(output)
+        return selectedAffineRead(input, true)
+                && canonicalAny(output, true)
+        && input.dataType() == output.dataType()
                 && input.shape().equals(output.shape())
                 && input.requiresGrad() == output.requiresGrad();
     }
 
-    private static boolean affineInput(TensorDescriptor descriptor) {
-        if (!geometry(descriptor)) {
+    private static boolean selectedIndexRead(TensorDescriptor descriptor, boolean allowScalar) {
+    return !descriptor.requiresGrad()
+        && (descriptor.dataType() == DataType.INT32 || descriptor.dataType() == DataType.INT64)
+        && selectedAffineRead(descriptor, allowScalar);
+  }
+
+  private static boolean selectedAffineRead(TensorDescriptor descriptor, boolean allowScalar) {
+    int rank = descriptor.shape().rank();
+        if (!descriptor.shape().isFullyStatic()
+        || rank < (allowScalar ? 0 : 1)
+        || rank > MetalMpsGraphProgram.MAX_RANK
+        ||descriptor.layout().isEmpty()) {
             return false;
+    }
+    long elements = 1L;
+    for (long dimension : descriptor.shape().toLongArray()) {
+      if (dimension <= 0L) return false;
+      elements = Math.multiplyExact(elements, dimension);
         }
         LayoutDescriptor layout = descriptor.layout().orElseThrow();
-        return layout.storageOffset() == 0L
-                && (layout.equals(LayoutDescriptor.contiguous(descriptor.shape()))
-                        || layout.isView());
+    Math.multiplyExact(elements, descriptor.dataType().byteWidth());
+    Math.multiplyExact (layout.referencedElementSpan(),descriptor.dataType().byteWidth());
+    if (layout.hasZeroStride()) {
+      return layout.isView();
+    }
+    return supportedStorageLayout(descriptor, allowScalar ? 0 : 1);
+  }
+
+  private static boolean isFloating(DataType dataType) {
+    return dataType == DataType.FLOAT64
+        || dataType == DataType.FLOAT32
+        || dataType == DataType.BFLOAT16;
     }
 
     private static boolean canonical(TensorDescriptor descriptor) {

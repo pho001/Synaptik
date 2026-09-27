@@ -138,7 +138,8 @@ final class MetalBackendRuntime implements AutoCloseable {
         return scheduleAssembler;
     }
 
-    /** @return the retained physical-creation contributor used by shared mixed-owner assembly */
+    /**
+   * @return the retained physical-creation contributor used by shared mixed-owner assembly */
     PreparedScheduleContributor scheduleContributor() {
         return (PreparedScheduleContributor) scheduleAssembler;
     }
@@ -149,8 +150,8 @@ final class MetalBackendRuntime implements AutoCloseable {
      * <p>The upload is complete before return. All six model data types transfer their exact raw
      * physical storage bytes. This descriptor-free borrow does not interpret BOOL bytes: later
      * descriptor-aware execution, transfer, and publication paths validate logical BOOL positions
-     * while leaving prefix and gap bytes uninterpreted. The representation retains the storage as
-     * a non-owning borrow and owns only its Metal buffer.</p>
+     * while leaving prefix and gap bytes uninterpreted. The representation retains the storage as a
+     * non-owning borrow and owns only its Metal buffer.
      *
      * @param storage non-null live accessible host storage; never closed here
      * @return a new non-null Metal buffer representation owned by the caller
@@ -237,9 +238,9 @@ final class MetalBackendRuntime implements AutoCloseable {
     /**
      * Cold-binds one exact Metal source to a physical storage-layout download action.
      *
-     * <p>BOOL allocates one automatically managed private native staging span during this cold
-     * bind. The reusable action serializes access to that span, validates every logical BOOL byte,
-     * and commits only after complete validation. Its hot invocation allocates nothing.</p>
+     * <p>BOOL allocates one automatically managed private native staging span during this cold bind.
+   * The reusable action serializes access to that span, validates every logical BOOL byte, and
+     * commits only after complete validation. Its hot invocation allocates nothing.
      *
      * @param representation non-null candidate source
      * @param descriptor non-null exact logical descriptor
@@ -270,21 +271,21 @@ final class MetalBackendRuntime implements AutoCloseable {
     }
 
     /**
-     * Downloads one canonical or authenticated storage-layout publication into row-major
-     * big-endian bytes.
+     * Downloads one canonical or authenticated storage-layout publication into row-major big-endian
+   * bytes.
      *
-     * <p>Canonical non-view rank-0..16 publications and authenticated SELECT/SLICE storage-layout
-     * publications support all six model data types. BOOL logical elements must be zero or one;
-     * prefix and gap bytes are not interpreted. Other authenticated affine publication remains
-     * FLOAT32-only. The logical descriptor is validated but never rewritten.</p>
+     * <p>Canonical non-view rank-0..16 publications, including scalars, and every authenticated
+   * rank-0..16 affine or SELECT/SLICE storage-layout publication support all six model data types.
+   * BOOL logical elements must be zero or one; prefix and gap bytes are not interpreted. The
+     * logical descriptor is validated but never rewritten.
      *
      * @param representation non-null live representation owned by this context
      * @param descriptor non-null exact canonical or authenticated publication descriptor
      * @param maximumBytes non-negative caller byte ceiling
      * @return fresh non-null canonical bytes
      * @throws NullPointerException if an object argument is {@code null}
-     * @throws IllegalArgumentException if type, layout, size, representation, BOOL value, or limit
-     *     is invalid
+     * @throws IllegalArgumentException if type, layout, size, representation, BOOL value, or limit is
+     * invalid
      * @throws IllegalStateException if the representation or context is closed
      * @throws ArithmeticException if checked size arithmetic overflows
      * @throws RuntimeException if native download fails
@@ -313,20 +314,21 @@ final class MetalBackendRuntime implements AutoCloseable {
                 && layout != null
                 && layout.equals(LayoutDescriptor.contiguous(descriptor.shape()));
         boolean authenticatedPublication = descriptor.shape().isFullyStatic()
-                && rank >= 1
+                && rank >= 0
                 && rank <= 16
                 && layout != null
                 && metal.authenticatesPublication(descriptor);
-        boolean storagePublication = authenticatedPublication
-                && metal.authenticatedPublicationUsesStorageLayout(descriptor);
+    LayoutDescriptor storageLayout =
+        authenticatedPublication ? metal.authenticatedPublicationStorageLayout(descriptor) : null;
+        boolean storagePublication = storageLayout != null;
         if (!canonical && !authenticatedPublication) {
             throw new IllegalArgumentException(
                     "Metal materialization requires a canonical rank-0..16 descriptor"
                             + " or authenticated layout publication");
         }
-        if (storagePublication && !isStorageTransfer(descriptor)) {
+        if (storagePublication && !isStorageTransfer(descriptor, storageLayout)) {
             throw new IllegalArgumentException(
-                    "authenticated storage publication has unsupported layout geometry");
+          "authenticated storage publication has unsupported physical geometry");
         }
         long elements = 1L;
         for (long dimension : descriptor.shape().toLongArray()) {
@@ -342,21 +344,21 @@ final class MetalBackendRuntime implements AutoCloseable {
             throw new IllegalArgumentException("canonical payload exceeds maximumBytes");
         }
         long physicalByteCount = storagePublication
-                ? transferByteCount(descriptor)
+                ? Math.multiplyExact(storageLayout.referencedElementSpan(), width)
                 : byteCount;
         if (metal.byteSize() < physicalByteCount) {
             throw new IllegalArgumentException("Metal representation is smaller than descriptor");
         }
         byte[] result = new byte[Math.toIntExact(byteCount)];
         long[] dimensions = descriptor.shape().toLongArray();
-        long[] strides = layout.strides();
+        long[] strides = storagePublication ? storageLayout.strides() : layout.strides();
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment staging = arena.allocate(physicalByteCount, width);
             metal.download(0L, staging, 0L, physicalByteCount);
             for (long ordinal = 0L; ordinal < elements; ordinal++) {
                 long sourceElement = storagePublication
                         ? storageElementIndex(
-                                ordinal, dimensions, strides, layout.storageOffset())
+                                ordinal, dimensions, strides, storageLayout.storageOffset())
                         : ordinal;
                 long sourceOffset = Math.multiplyExact(sourceElement, width);
                 long destinationOffset = Math.multiplyExact(ordinal, width);
@@ -384,13 +386,15 @@ final class MetalBackendRuntime implements AutoCloseable {
     }
 
     private static boolean isStorageTransfer(TensorDescriptor descriptor) {
+    return descriptor.layout().filter(layout -> isStorageTransfer(descriptor, layout)).isPresent();
+  }
+
+  private static boolean isStorageTransfer(TensorDescriptor descriptor, LayoutDescriptor layout) {
         if (!descriptor.shape().isFullyStatic()
-                || descriptor.shape().rank() > 16
-                || descriptor.layout().isEmpty()) {
+                || descriptor.shape().rank() > 16) {
             return false;
         }
         long[] dimensions = descriptor.shape().toLongArray();
-        LayoutDescriptor layout = descriptor.layout().orElseThrow();
         long[] strides = layout.strides();
         long[] activeStrides = new long[strides.length];
         long[] activeDimensions = new long[strides.length];

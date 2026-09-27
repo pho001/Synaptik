@@ -1,8 +1,8 @@
 package io.github.pho001.synaptik.backend.metal;
-
-import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import java.lang.foreign.MemorySegment;
 import java.util.Objects;
 
@@ -12,9 +12,9 @@ import java.util.Objects;
  * <p>The representation owns one opaque native buffer handle and one child lease on its device
  * context. It may belong directly to a run or to an immutable prepared splat resource whose fresh
  * read-only run bindings never expose this owner for mutation. Upload and download expose only
- * explicitly requested byte ranges and interpret no tensor element type. Access, close, and
- * context close are coordinated so an admitted access completes before its relevant close gate
- * proceeds. Closing is thread-safe, idempotent, and consumes the native handle at most once.</p>
+ * explicitly requested byte ranges and interpret no tensor element type. Access, close, and context
+ * close are coordinated so an admitted access completes before its relevant close gate proceeds.
+ * Closing is thread-safe, idempotent, and consumes the native handle at most once.
  */
 final class MetalBufferRepresentation implements BufferRepresentation {
     private final MetalDeviceContext context;
@@ -71,12 +71,13 @@ final class MetalBufferRepresentation implements BufferRepresentation {
         }
     }
 
-    /** @return the exact non-negative logical byte extent, including zero */
+    /**
+   * @return the exact non-negative logical byte extent, including zero */
     long byteSize() {
         return logicalByteSize;
     }
 
-    /** @return whether this live representation belongs to the exact supplied device context */
+    /*** @return whether this live representation belongs to the exact supplied device context */
     synchronized boolean belongsTo(MetalDeviceContext expected) {
         return !closed && context == expected;
     }
@@ -90,15 +91,16 @@ final class MetalBufferRepresentation implements BufferRepresentation {
                         context, descriptor, logicalByteSize);
     }
 
-    /** Returns whether authenticated publication bytes use the descriptor's physical storage. */
-    synchronized boolean authenticatedPublicationUsesStorageLayout(
+    /** Returns the authenticated physical publication layout, or {@code null}. */
+    synchronized LayoutDescriptor authenticatedPublicationStorageLayout(
             TensorDescriptor descriptor) {
         Objects.requireNonNull(descriptor, "descriptor");
         return !closed
                 && denseAffinePublication != null
                 && denseAffinePublication.authenticates(
                         context, descriptor, logicalByteSize)
-                && denseAffinePublication.usesStorageLayout();
+        ? denseAffinePublication.storageLayout()
+        : null;
     }
 
     /**
@@ -112,7 +114,7 @@ final class MetalBufferRepresentation implements BufferRepresentation {
         return handle;
     }
 
-    /** @return whether close has begun; safe to query concurrently */
+    /*** @return whether close has begun; safe to query concurrently */
     synchronized boolean isClosed() {
         return closed;
     }
@@ -121,15 +123,15 @@ final class MetalBufferRepresentation implements BufferRepresentation {
      * Uploads exactly one bounded range from caller-owned native memory.
      *
      * @param bufferOffset non-negative destination offset in this logical buffer
-     * @param source non-null live, current-thread-accessible native source segment; retained only
-     *     for the duration of this call
+     * @param source non-null live, current-thread-accessible native source segment; retained only for
+     * the duration of this call
      * @param sourceOffset non-negative byte offset in {@code source}
      * @param byteCount non-negative number of bytes to copy
      * @throws NullPointerException if {@code source} is {@code null}
-     * @throws IllegalStateException if this resource or its context is closed, or the segment is
-     *     not alive or accessible by the current thread
-     * @throws IllegalArgumentException if an offset/count is negative, either range is out of
-     *     bounds, or {@code source} is not native memory
+     * @throws IllegalStateException if this resource or its context is closed, or the segment is not
+     * alive or accessible by the current thread
+     * @throws IllegalArgumentException if an offset/count is negative, either range is out of     bounds,
+   * or {@code source} is not native memory
      * @throws RuntimeException if the native copy fails
      */
     synchronized void upload(
@@ -153,10 +155,10 @@ final class MetalBufferRepresentation implements BufferRepresentation {
      * @param destinationOffset non-negative byte offset in {@code destination}
      * @param byteCount non-negative number of bytes to copy
      * @throws NullPointerException if {@code destination} is {@code null}
-     * @throws IllegalStateException if this resource or its context is closed, or the segment is
-     *     not alive or accessible by the current thread
-     * @throws IllegalArgumentException if an offset/count is negative, either range is out of
-     *     bounds, or {@code destination} is non-native or read-only
+     * @throws IllegalStateException if this resource or its context is closed, or the segment is not
+     * alive or accessible by the current thread
+     * @throws IllegalArgumentException if an offset/count is negative, either range is out of     bounds,
+   * or {@code destination} is non-native or read-only
      * @throws RuntimeException if the native copy fails
      */
     synchronized void download(
@@ -178,8 +180,8 @@ final class MetalBufferRepresentation implements BufferRepresentation {
      * Marks this representation closed, consumes its native handle once, and ends its lease.
      *
      * <p>Repeated and concurrent calls are inert after the first attempt. A native buffer-release
-     * failure remains primary; a distinct deferred context-cleanup failure is suppressed on it.
-     * No failed release is retried.</p>
+     * failure remains primary; a distinct deferred context-cleanup failure is suppressed on it. No
+     * failed release is retried.
      *
      * @throws RuntimeException if buffer or deferred context cleanup fails
      * @throws Error if cleanup reports an error
@@ -259,6 +261,7 @@ final class MetalBufferRepresentation implements BufferRepresentation {
         private final MetalMpsGraphProgram.NodeKind producerKind;
         private final TensorDescriptor descriptor;
         private final long byteSize;
+    private final LayoutDescriptor physicalLayout;
         DenseAffinePublication(
                 MetalNegPreparedExecutable executable,
                 int targetPosition,
@@ -273,6 +276,9 @@ final class MetalBufferRepresentation implements BufferRepresentation {
             this.producerKind = Objects.requireNonNull(producerKind, "producerKind");
             this.descriptor = Objects.requireNonNull(descriptor, "descriptor");
             this.byteSize = byteSize;
+      this.physicalLayout =
+          plan.publicationPhysicalLayout(targetPosition, valueId, descriptor, byteSize)
+              .orElse(null);
             if (plan.publicationProducerKind(
                     targetPosition, valueId, descriptor, byteSize)
                     .filter(producerKind::equals)
@@ -296,9 +302,8 @@ final class MetalBufferRepresentation implements BufferRepresentation {
                             .isPresent();
         }
 
-        private boolean usesStorageLayout() {
-            return producerKind == MetalMpsGraphProgram.NodeKind.SELECT
-                    || producerKind == MetalMpsGraphProgram.NodeKind.SLICE;
+        private LayoutDescriptor storageLayout() {
+            return physicalLayout;
         }
     }
 }

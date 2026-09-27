@@ -25,7 +25,7 @@ import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphMatmulNativeTest {
     @Test
-    void realRankTwoMatmulRunsDirectAndEveryAuthenticatedTransposeFormAcrossReuse() {
+    void rankTwoMatmulKeepsCanonicalDirectAndRoutesAuthenticatedTransposeFormsCustomAcrossReuse() {
         String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
         assumeTrue(configured != null && !configured.isBlank(),
                 "SYNAPTIK_METAL_TEST_LIBRARY is not set");
@@ -224,7 +224,7 @@ class MetalMpsGraphMatmulNativeTest {
     }
 
     @Test
-    void customProgramKeepsTransposedRankTwoFloatMatmulAsNestedMpsGraphStep() {
+    void customProgramConsumesTransposedRankTwoFloatMatmulWithoutMpsGraphViewFallback() {
         Path library = configuredLibrary();
         Shape leftShape = Shape.of(2, 3);
         Shape rightShape = Shape.of(3, 2);
@@ -418,8 +418,9 @@ class MetalMpsGraphMatmulNativeTest {
         MetalNativeApi.Handle executable = null;
         var inputs = new ArrayList<MetalNativeApi.Handle>();
         var outputs = new ArrayList<MetalNativeApi.Handle>();
+    var internals = new ArrayList<MetalNativeApi.Handle>();
         try {
-            executable = api.createMpsGraphExecutable(context, NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks, dimensions, program), program, new int[] {0, 1, 2, 3}, new int[] {4, 5, 6, 7}, MetalPreparedRoute.MPSGRAPH);
+            executable = api.createMpsGraphExecutable(context, NumericalProfile.ACCELERATOR, MetalTestProgram.descriptors(ranks, dimensions, program), program, new int[] {0, 1, 2, 3}, new int[] {4, 5, 6, 7}, MetalPreparedRoute.CUSTOM_PROGRAM);
             for (int[] bits : inputBits) {
                 MetalNativeApi.Handle buffer = api.createBuffer(
                         context, Math.multiplyExact((long) bits.length, Integer.BYTES));
@@ -430,11 +431,22 @@ class MetalMpsGraphMatmulNativeTest {
                 outputs.add(api.createBuffer(
                         context, Math.multiplyExact((long) expected.length, Integer.BYTES)));
             }
+      internals.add(
+          api.createBuffer(context, Math.multiplyExact((long) inputBits[2].length, Integer.BYTES)));
+      internals.add(
+          api.createBuffer(context, Math.multiplyExact((long) inputBits[3].length, Integer.BYTES)));
             try (Arena arena = Arena.ofConfined()) {
-                MemorySegment inputAddresses = arena.allocate(ADDRESS, inputs.size());
+                MemorySegment inputAddresses = arena.allocate(ADDRESS, inputs.size() + outputs.size() + internals.size());
                 MemorySegment outputAddresses = arena.allocate(ADDRESS, outputs.size());
                 for (int index = 0; index < inputs.size(); index++) {
                     inputAddresses.setAtIndex(ADDRESS, index, inputs.get(index).carrier());
+        }
+        for (int index = 0; index < outputs.size(); index++) {
+          inputAddresses.setAtIndex(ADDRESS, inputs.size() + index, outputs.get(index).carrier());
+        }
+        for (int index = 0; index < internals.size(); index++) {
+          inputAddresses.setAtIndex(
+              ADDRESS, inputs.size() + outputs.size() + index, internals.get(index).carrier());
                 }
                 for (int index = 0; index < outputs.size(); index++) {
                     outputAddresses.setAtIndex(ADDRESS, index, outputs.get(index).carrier());
@@ -448,7 +460,7 @@ class MetalMpsGraphMatmulNativeTest {
                     }
                     api.runExecutable(
                             executable,
-                            inputs.size(),
+                            inputs.size() + outputs.size() + internals.size(),
                             inputAddresses,
                             outputs.size(),
                             outputAddresses);
@@ -469,6 +481,9 @@ class MetalMpsGraphMatmulNativeTest {
         } finally {
             for (int index = outputs.size(); index-- > 0;) {
                 api.releaseBuffer(outputs.get(index));
+      }
+      for (int index = internals.size(); index-- > 0; ) {
+        api.releaseBuffer(internals.get(index));
             }
             for (int index = inputs.size(); index-- > 0;) {
                 api.releaseBuffer(inputs.get(index));

@@ -8,8 +8,8 @@ import static java.lang.foreign.ValueLayout.JAVA_INT_UNALIGNED;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -29,7 +29,6 @@ import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.NodeId;
 import io.github.pho001.synaptik.model.graph.ValueId;
-import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
@@ -47,8 +46,11 @@ import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
+import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.SliceKind;
+import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.loss.LossKind;
 import io.github.pho001.synaptik.model.operation.loss.LossReduction;
@@ -57,30 +59,30 @@ import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKin
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
-import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
-import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
 import io.github.pho001.synaptik.planning.partition.PlannedPartition;
-import io.github.pho001.synaptik.prepare.analysis.PartitionDag;
-import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalization;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalizationResult;
 import io.github.pho001.synaptik.prepare.GraphPreparation;
 import io.github.pho001.synaptik.prepare.PartitionPreparation;
+import io.github.pho001.synaptik.prepare.PreparationResourceAssignment;
 import io.github.pho001.synaptik.prepare.PreparedBufferAssignment;
 import io.github.pho001.synaptik.prepare.PreparedPartition;
-import io.github.pho001.synaptik.prepare.PreparationResourceAssignment;
-import io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement;
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis;
+import io.github.pho001.synaptik.prepare.analysis.PartitionDag;
+import io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement;
+import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.memory.BufferSlot;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import io.github.pho001.synaptik.runtime.memory.WorkspaceSlot;
-import io.github.pho001.synaptik.runtime.run.PreparedExecutionRunner;
 import io.github.pho001.synaptik.runtime.run.BufferRepresentationBinding;
+import io.github.pho001.synaptik.runtime.run.PreparedExecutionRunner;
 import io.github.pho001.synaptik.runtime.run.RunResourceOwnership;
 import io.github.pho001.synaptik.runtime.run.RunState;
 import io.github.pho001.synaptik.trace.TraceEvent;
@@ -1313,7 +1315,10 @@ class MetalNegPreparedExecutionTest {
                             buffer, RunResourceOwnership.BORROWED)))
                     .toList();
             var workspace = new MetalNegPreparedExecutable.AddressWorkspace(
-                    context, buffers.size());
+                    context,
+              Math.toIntExact(
+                  route.analysis().plan().addressWorkspace().orElseThrow().byteSize()
+                      / Long.BYTES));
             state = new RunState(finalization.memoryPlan(), bindings, List.of(workspace));
             var invocation = executable.bind(state);
             api.runStatus = 11;
@@ -1355,7 +1360,7 @@ class MetalNegPreparedExecutionTest {
         IndexingRoute splatRoute =
                 indexingRoute(context, Map.of(route.oneHotIndices(), ScalarValue.int32(2)));
         MetalNegPreparationPlan plan = route.analysis().plan();
-        assertEquals(MetalPreparedRoute.MPSGRAPH, plan.route());
+        assertEquals(MetalPreparedRoute.CUSTOM_PROGRAM, plan.route());
         assertEquals(
                 List.of(MetalMpsGraphProgram.NodeKind.GATHER,
                         MetalMpsGraphProgram.NodeKind.ONE_HOT),
@@ -1397,7 +1402,8 @@ class MetalNegPreparedExecutionTest {
                             buffer, RunResourceOwnership.BORROWED)))
                     .toList();
             var workspace = new MetalNegPreparedExecutable.AddressWorkspace(
-                    context, buffers.size());
+                    context,
+              Math.toIntExact(plan.addressWorkspace().orElseThrow().byteSize() / Long.BYTES));
             state = new RunState(finalization.memoryPlan(), bindings, List.of(workspace));
             var invocation = executable.bind(state);
             api.runStatus = 5;
@@ -1476,7 +1482,10 @@ class MetalNegPreparedExecutionTest {
                             buffer, RunResourceOwnership.BORROWED)))
                     .toList();
             var workspace = new MetalNegPreparedExecutable.AddressWorkspace(
-                    context, buffers.size());
+                    context,
+              Math.toIntExact(
+                  route.analysis().plan().addressWorkspace().orElseThrow().byteSize()
+                      / Long.BYTES));
             state = new RunState(finalization.memoryPlan(), bindings, List.of(workspace));
             var invocation = executable.bind(state);
             api.runStatus = 5;
@@ -1596,7 +1605,7 @@ class MetalNegPreparedExecutionTest {
             BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
                     analyze(fixture, context, NumericalProfile.ACCELERATOR);
             MetalNegPreparationPlan plan = analysis.plan();
-            assertEquals(MetalPreparedRoute.MPSGRAPH, plan.route());
+            assertEquals(MetalPreparedRoute.CUSTOM_PROGRAM, plan.route());
             assertEquals(List.of(
                     MetalMpsGraphProgram.NodeKind.PERMUTE,
                     MetalMpsGraphProgram.NodeKind.PERMUTE,
@@ -1612,7 +1621,7 @@ class MetalNegPreparedExecutionTest {
             assertEquals(MetalMpsGraphProgram.NO_AXIS, matmul.axis());
             assertEquals(List.of(fixture.v0(), fixture.v1()), plan.feedValueIds());
             assertEquals(List.of(fixture.v4()), plan.targetValueIds());
-            assertTrue(plan.internalValueIds().isEmpty());
+      assertEquals(List.of(fixture.v2(), fixture.v3()),plan.internalValueIds());
             assertEquals(List.of(
                     MetalMpsGraphProgram.ValueState.CANONICAL,
                     MetalMpsGraphProgram.ValueState.AFFINE_VIEW,
@@ -1622,20 +1631,22 @@ class MetalNegPreparedExecutionTest {
                     plan.valueStates());
 
             try (var left = context.createBuffer(24);
-                    var right = context.createBuffer(48);
+                    var leftViewBuffer = context.createBuffer(24);
+          var right = context.createBuffer(48);
+          var rightViewBuffer = context.createBuffer(48);
                     var output = context.createBuffer(32);
-                    var workspace = addressWorkspace(context, left, right, output);
+                    var workspace = addressWorkspace(context, left, leftViewBuffer, right, rightViewBuffer, output, output);
                     var resource = context.createMpsGraphExecutable(plan)) {
                 resource.run(
-                        2,
-                        workspace.segment().asSlice(0, 2L * Long.BYTES),
+            5,
+                        workspace.segment().asSlice(0, 5L * Long.BYTES),
                         1,
-                        workspace.segment().asSlice(2L * Long.BYTES, Long.BYTES));
+                        workspace.segment().asSlice(5L * Long.BYTES, Long.BYTES));
                 resource.run(
-                        2,
-                        workspace.segment().asSlice(0, 2L * Long.BYTES),
+            5,
+                        workspace.segment().asSlice(0, 5L * Long.BYTES),
                         1,
-                        workspace.segment().asSlice(2L * Long.BYTES, Long.BYTES));
+                        workspace.segment().asSlice(5L * Long.BYTES, Long.BYTES));
                 assertEquals(1, api.executableCreates.get());
                 assertEquals(2, api.runCalls.get());
                 assertArrayEquals(
@@ -1643,7 +1654,7 @@ class MetalNegPreparedExecutionTest {
                                 plan.programValueDescriptors(),
                                 plan.feedValueIndices(),
                                 plan.targetValueIndices(),
-                                MetalPreparedRoute.MPSGRAPH),
+                    plan.route()),
                         api.createdProgramImage);
             }
             assertEquals(1, api.executableReleases.get());
@@ -2784,7 +2795,7 @@ class MetalNegPreparedExecutionTest {
                     analyze(fixture, context);
             MetalNegPreparationPlan plan = analysis.plan();
 
-            assertEquals(MetalPreparedRoute.MPSGRAPH, plan.route());
+            assertEquals(MetalPreparedRoute.CUSTOM_PROGRAM, plan.route());
             assertEquals(fixture.feeds(), plan.feedValueIds());
             assertEquals(fixture.targets(), plan.targetValueIds());
             assertArrayEquals(new int[] {0, 2, 4, 6, 8}, plan.feedValueIndices());
@@ -2801,7 +2812,7 @@ class MetalNegPreparedExecutionTest {
                     List.of(24L, 12L, 24L, 24L, 24L, 24L, 24L, 24L, 24L, 24L),
                     plan.declarations().stream().map(
                             PreparationResourceRequirement.Buffer::byteSize).toList());
-            assertEquals(80L, plan.addressWorkspace().orElseThrow().byteSize());
+            assertEquals(120L, plan.addressWorkspace().orElseThrow().byteSize());
 
             List<MetalMpsGraphProgram.Node> nodes = plan.graphProgram().nodes();
             assertTypedNode(nodes.get(0), MetalMpsGraphProgram.NodeKind.RESHAPE,
@@ -2833,7 +2844,8 @@ class MetalNegPreparedExecutionTest {
                     plan.graphProgram().encodedProgramImage(
                             plan.programValueDescriptors(),
                             plan.feedValueIndices(),
-                            plan.targetValueIndices()),
+                            plan.targetValueIndices(),
+                  plan.route()),
                     api.createdProgramImage);
 
             context.close();
@@ -3229,6 +3241,104 @@ class MetalNegPreparedExecutionTest {
                 ordinal++;
             }
         } finally {
+      runtime.close();
+    }
+    assertTrue(api.liveBufferHandles().isEmpty());
+  }
+
+  @Test
+  void cropOfExpandedValuePublishesFromIndependentPhysicalOffsetAndSpan() {
+    RecordingNativeApi api = new RecordingNativeApi();
+    MetalDeviceContext context = MetalDeviceContext.open(api);
+    MetalBackendRuntime runtime = new MetalBackendRuntime(context);
+    BackendPartitionFinalizationResult finalized = null;
+    MetalBufferRepresentation publication = null;
+    try {
+      Shape feedShape = Shape.of(1);
+      Shape expandedShape = Shape.of(4);
+      Shape targetShape = Shape.of(2);
+      TensorDescriptor feedDescriptor =
+          new TensorDescriptor(
+              DataType.BOOL, feedShape, Optional.of(LayoutDescriptor.contiguous(feedShape)), false);
+      TensorDescriptor expandedDescriptor =
+          new TensorDescriptor(
+              DataType.BOOL,
+              expandedShape,
+              Optional.of(LayoutDescriptor.of(expandedShape, new long[] {0L}, 0L, true)),
+              false);
+      TensorDescriptor targetDescriptor =
+          new TensorDescriptor(
+              DataType.BOOL,
+              targetShape,
+              Optional.of(LayoutDescriptor.of(targetShape, new long[] {0L}, 0L, true)),
+              false);
+      ValueId feed = new ValueId(760L);
+      ValueId expanded = new ValueId(761L);
+      ValueId target = new ValueId(762L);
+      CompiledNode expand =
+          new CompiledNode(
+              new NodeId(760L),
+              new Operation(ShapeTransformKind.EXPAND, new TargetShapeAttrs(expandedShape)),
+              List.of(feed),
+              List.of(expanded));
+      CompiledNode crop =
+          new CompiledNode(
+              new NodeId(761L),
+              new Operation(SliceKind.SLICE, new CropToShapeAttrs(targetShape, Shape.of(1))),
+              List.of(expanded),
+              List.of(target));
+      PlannedPartition partition =
+          new PlannedPartition(
+              MetalCapabilityProvider.METAL_BACKEND_ID, List.of(expand.id(), crop.id()));
+      BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
+          new MetalNegPartitionPreparer()
+              .analyze(
+                  new PrepareContext<>(
+                      NumericalProfile.STRICT_IEEE,
+                      new PartitionDag(partition, List.of(expand, crop)),
+                      List.of(
+                          new GraphValue(feed, feedDescriptor),
+                          new GraphValue(expanded, expandedDescriptor),
+                          new GraphValue(target, targetDescriptor)),
+                      List.of(
+                          requirement(
+                              feed, feedDescriptor, Optional.empty(), List.of(partition), false),
+                          requirement(
+                              expanded,
+                              expandedDescriptor,
+                              Optional.of(partition),
+                              List.of(partition),
+                              false),
+                          requirement(
+                              target, targetDescriptor, Optional.of(partition), List.of(), true)),
+                      Map.of(),
+                      new MetalNegAnalysisInputs(context)));
+      int targetValue = analysis.plan().targetValueIndices()[0];
+      LayoutDescriptor physicalTarget = analysis.plan().physicalLayouts().get(targetValue);
+      assertEquals(LayoutDescriptor.of(targetShape, new long[] {1L}, 1L, true), physicalTarget);
+      assertArrayEquals(new long[] {3L}, analysis.plan().targetRequiredBytes());
+      FinalizationFixture assignment = finalization(analysis);
+      finalized =
+          new MetalNegPartitionFinalizer(context).finalizePartition(assignment.finalization());
+      MetalNegPreparedExecutable executable = (MetalNegPreparedExecutable) finalized.executable();
+      publication =
+          context.createBuffer(3L, executable.denseAffinePublication(target).orElseThrow());
+      try (Arena arena = Arena.ofConfined()) {
+        MemorySegment physical = arena.allocate(3L, 1L);
+        physical.setAtIndex(JAVA_BYTE, 0L, (byte) 0x5a);
+        physical.setAtIndex(JAVA_BYTE, 1L, (byte) 1);
+        physical.setAtIndex(JAVA_BYTE, 2L, (byte) 0);
+        publication.upload(0L, physical, 0L, 3L);
+        byte[] canonical = runtime.copyToCanonicalHostBytes(publication, targetDescriptor, 2L);
+        assertArrayEquals(new byte[] {1, 0}, canonical);
+      }
+    } finally {
+      if (publication != null) publication.close();
+      if (finalized != null) {
+        for (int index = finalized.resources().size() - 1; index >= 0; index--) {
+          finalized.resources().get(index).close();
+        }
+      }
             runtime.close();
         }
         assertTrue(api.liveBufferHandles().isEmpty());

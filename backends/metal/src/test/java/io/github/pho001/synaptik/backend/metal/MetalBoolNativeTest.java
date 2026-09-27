@@ -2,7 +2,6 @@ package io.github.pho001.synaptik.backend.metal;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
-import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -159,7 +158,13 @@ class MetalBoolNativeTest {
                         0x3f800000, 0x40800000, 0x40000000,
                         0x40a00000, 0x40400000, 0x40c00000
                     },
-                    bytesToInts(download(api, buffers.get(4), 6 * Integer.BYTES)));
+                    bytesToInts(download(api, buffers.get(1), 6 * Integer.BYTES)));
+      assertArrayEquals(
+          new int[] {
+            0x3f800000, 0x40800000, 0x40000000,
+            0x40a00000, 0x40400000, 0x40c00000
+          },
+          bytesToInts(download(api, buffers.get(4), 6 * Integer.BYTES)));
         } finally {
             for (int index = buffers.size(); index-- > 0;) api.releaseBuffer(buffers.get(index));
             if (executable != null) api.releaseExecutable(executable);
@@ -232,7 +237,7 @@ class MetalBoolNativeTest {
     }
 
     @Test
-    void directMpsGraphCandidateExecutesEveryAuditedBoolSelector() {
+    void fixedCustomProgramExecutesEveryAuditedBoolKernel() {
         Path library = configuredLibrary();
         for (NumericalProfile profile : NumericalProfile.values()) {
             assertArrayEquals(FINITE, executeDirect(
@@ -285,8 +290,7 @@ class MetalBoolNativeTest {
         MetalNativeApi api = MetalNativeApi.open(library);
         MetalNativeApi.Handle context = null;
         MetalNativeApi.Handle executable = null;
-        var inputs = new ArrayList<MetalNativeApi.Handle>();
-        MetalNativeApi.Handle output = null;
+        var buffers = new ArrayList<MetalNativeApi.Handle>();
         try {
             context = api.createContext();
             var program = new MetalMpsGraphProgram(List.of(node));
@@ -294,27 +298,17 @@ class MetalBoolNativeTest {
             int target = values.size() - 1;
             executable = api.createMpsGraphExecutable(
                     context, profile, values, program, feeds, new int[] {target},
-                    MetalPreparedRoute.MPSGRAPH);
-            for (int index = 0; index < feedBytes.size(); index++) {
-                MetalNativeApi.Handle buffer = api.createBuffer(context, feedBytes.get(index).length);
-                inputs.add(buffer);
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            for (int index = 0; index < values.size(); index++) {
+                MetalNativeApi.Handle buffer = api.createBuffer(context, values.get(index).byteCount());
+        buffers.add(buffer);
+        if (index < feedBytes.size())
                 upload(api, buffer, feedBytes.get(index));
             }
-            output = api.createBuffer(context, values.get(target).byteCount());
-            try (Arena arena = Arena.ofConfined()) {
-                MemorySegment inputAddresses = arena.allocate(ADDRESS, inputs.size());
-                for (int index = 0; index < inputs.size(); index++) {
-                    inputAddresses.setAtIndex(ADDRESS, index, inputs.get(index).carrier());
-                }
-                MemorySegment outputAddresses = arena.allocate(ADDRESS);
-                outputAddresses.set(ADDRESS, 0L, output.carrier());
-                api.runExecutable(
-                        executable, inputs.size(), inputAddresses, 1, outputAddresses);
-            }
-            return download(api, output, Math.toIntExact(values.get(target).byteCount()));
+      runCustom( api, executable, buffers, new int[] {target});
+      return download(api, buffers.get(target), Math.toIntExact(values.get(target).byteCount()));
         } finally {
-            if (output != null) api.releaseBuffer(output);
-            for (int index = inputs.size(); index-- > 0;) api.releaseBuffer(inputs.get(index));
+            for (int index = buffers.size(); index-- > 0;) api.releaseBuffer(buffers.get(index));
             if (executable != null) api.releaseExecutable(executable);
             if (context != null) api.releaseContext(context);
             api.close();

@@ -5,11 +5,11 @@ import java.util.Objects;
 /**
  * Describes the current structural route state of every schema-fifteen Metal operation kind.
  *
- * <p>This package-private catalog is cold descriptive metadata. It neither admits an occurrence
- * nor approves an implementation route: {@link MetalCapabilityProvider} remains the capability
+ * <p>This package-private catalog is cold descriptive metadata. It neither admits an occurrence nor
+ * approves an implementation route: {@link MetalCapabilityProvider} remains the capability
  * authority and the partition preparer separately enforces the current route freeze. Lookup is an
- * exhaustive enum switch returning shared enum constants, so it performs no allocation, map
- * lookup, reflection, wire-number duplication, or string dispatch.</p>
+ * exhaustive enum switch returning shared enum constants, so it performs no allocation, map lookup,
+ * reflection, wire-number duplication, or string dispatch.
  */
 final class MetalOperationRouteCatalog {
     /** Structural MPSGraph realization state, independent of correctness approval. */
@@ -76,6 +76,7 @@ final class MetalOperationRouteCatalog {
         CA_0063,
         CA_0064,
         CA_0065,
+    CA_0066,
         CP_POINT,
         CP_POWER,
         CP_ELEMENTARY,
@@ -89,8 +90,8 @@ final class MetalOperationRouteCatalog {
     /**
      * Shared immutable combinations returned by exhaustive lookup.
      *
-     * <p>Constants may describe several operation kinds that have the same four catalog facts.
-     * They are metadata only and intentionally contain no selector, capability, or route choice.</p>
+     * <p>Constants may describe several operation kinds that have the same four catalog facts. They
+     * are metadata only and intentionally contain no selector, capability, or route choice.
      */
     enum Entry {
         DIRECT_ARITH_CUSTOM_NEG(MpsGraphState.DIRECT, MpsGraphReason.MD_ARITH,
@@ -115,6 +116,11 @@ final class MetalOperationRouteCatalog {
                 CustomKernelState.AVAILABLE, CustomKernelReason.CA_0059),
         DIRECT_SHAPE_CUSTOM_0060(MpsGraphState.DIRECT, MpsGraphReason.MD_SHAPE,
                 CustomKernelState.AVAILABLE, CustomKernelReason.CA_0060),
+    DIRECT_SHAPE_CUSTOM_0066(
+        MpsGraphState.DIRECT,
+        MpsGraphReason.MD_SHAPE,
+        CustomKernelState.AVAILABLE,
+        CustomKernelReason.CA_0066),
         DIRECT_REDUCE_PENDING_AGGREGATE(MpsGraphState.DIRECT, MpsGraphReason.MD_REDUCE,
                 CustomKernelState.PENDING, CustomKernelReason.CP_AGGREGATE),
         DIRECT_REDUCE_CUSTOM_0060(MpsGraphState.DIRECT, MpsGraphReason.MD_REDUCE,
@@ -127,9 +133,19 @@ final class MetalOperationRouteCatalog {
                 CustomKernelState.AVAILABLE, CustomKernelReason.CA_0059),
         DIRECT_INDEX_CUSTOM_0060(MpsGraphState.DIRECT, MpsGraphReason.MD_INDEX,
                 CustomKernelState.AVAILABLE, CustomKernelReason.CA_0060),
+    DIRECT_INDEX_CUSTOM_0066(
+        MpsGraphState.DIRECT,
+        MpsGraphReason.MD_INDEX,
+        CustomKernelState.AVAILABLE,
+        CustomKernelReason.CA_0066),
         COMPOSED_UNFOLD_AXIS_PENDING_MOVE(MpsGraphState.COMPOSED,
                 MpsGraphReason.MC_UNFOLD_AXIS, CustomKernelState.PENDING,
                 CustomKernelReason.CP_MOVE),
+    COMPOSED_UNFOLD_AXIS_CUSTOM_0066(
+        MpsGraphState.COMPOSED,
+        MpsGraphReason.MC_UNFOLD_AXIS,
+        CustomKernelState.AVAILABLE,
+        CustomKernelReason.CA_0066),
         DIRECT_PRED_CUSTOM_0052(MpsGraphState.DIRECT, MpsGraphReason.MD_PRED,
                 CustomKernelState.AVAILABLE, CustomKernelReason.CA_0052),
         DIRECT_PRED_CUSTOM_0057(MpsGraphState.DIRECT, MpsGraphReason.MD_PRED,
@@ -297,7 +313,7 @@ final class MetalOperationRouteCatalog {
             case TENSOR_POW -> Entry.DIRECT_ARITH_PENDING_POWER;
             case CAST -> Entry.DIRECT_CAST_CUSTOM_0059;
             case RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, CONTIGUOUS ->
-                    Entry.DIRECT_SHAPE_PENDING_MOVE;
+                    Entry.DIRECT_SHAPE_CUSTOM_0066;
             case SLICE_UPDATE -> Entry.DIRECT_SHAPE_CUSTOM_0060;
             case PAD, SLICE, CONCAT, TILE -> Entry.DIRECT_SHAPE_CUSTOM_0059;
             case ABS, EXP, SIGMOID -> Entry.DIRECT_ARITH_PENDING_POINT;
@@ -308,11 +324,12 @@ final class MetalOperationRouteCatalog {
             case SUM, MEAN, VARIANCE -> Entry.DIRECT_REDUCE_PENDING_AGGREGATE;
             case PROD, ALL, ANY -> Entry.DIRECT_REDUCE_CUSTOM_0060;
             case MATMUL -> Entry.DIRECT_MATMUL_CUSTOM_0061;
-            case GATHER, ONE_HOT, SCATTER_ELEMENTS, SCATTER_ADD ->
+            case GATHER, ONE_HOT, SCATTER_ELEMENTS -> Entry.DIRECT_INDEX_CUSTOM_0066;
+      case SCATTER_ADD ->
                     Entry.DIRECT_INDEX_PENDING_MOVE;
             case SCATTER_ND -> Entry.DIRECT_INDEX_CUSTOM_0060;
             case GATHER_ELEMENTS, GATHER_ND -> Entry.DIRECT_INDEX_CUSTOM_0059;
-            case UNFOLD_AXIS -> Entry.COMPOSED_UNFOLD_AXIS_PENDING_MOVE;
+            case UNFOLD_AXIS -> Entry.COMPOSED_UNFOLD_AXIS_CUSTOM_0066;
             case GT, GE, LT, LE, EQ, NE -> Entry.DIRECT_PRED_CUSTOM_0052;
             case TENSOR_MIN, TENSOR_MAX, CLAMP -> Entry.DIRECT_ARITH_CUSTOM_0052;
             case SCALAR_MIN, SCALAR_MAX -> Entry.COMPOSED_SCALAR_CUSTOM_0052;

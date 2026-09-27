@@ -11,7 +11,9 @@ import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.OperationSignature;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
 import io.github.pho001.synaptik.model.operation.ordering.TopKAttrs;
 import io.github.pho001.synaptik.model.operation.ordering.TopKKind;
@@ -242,7 +244,66 @@ final class CapturedGraphInferenceTest {
     }
 
     @Test
-    void exposesNoPublicCompilerDeclarations() throws Exception {
+    void defersOnlyNewlyDerivedCropLayoutAndRejectsEveryOtherDescriptorMismatch() {
+    Shape inputShape = Shape.of(4);
+    Shape cropShape = Shape.of(2);
+    TensorDescriptor input =
+        new TensorDescriptor(
+            DataType.FLOAT32,
+            inputShape,
+            Optional.of(LayoutDescriptor.contiguous(inputShape)),
+            false);
+    Operation crop = new Operation(SliceKind.SLICE, new CropToShapeAttrs(cropShape, Shape.of(1)));
+    TensorDescriptor unresolved =
+        new TensorDescriptor(DataType.FLOAT32, cropShape, Optional.empty(), false);
+
+    assertDoesNotThrow(
+        () ->
+            CapturedGraphInference.inferAndValidate(
+                singleNodeGraph(crop, List.of(input), List.of(unresolved))));
+    Operation cropUpdate =
+        new Operation(SliceKind.SLICE_UPDATE, new CropToShapeAttrs(cropShape, Shape.of(1)));
+    TensorDescriptor update =
+        new TensorDescriptor(
+            DataType.FLOAT32,
+            cropShape,
+            Optional.of(LayoutDescriptor.contiguous(cropShape)),
+            false);
+    TensorDescriptor resolvedUpdateMismatch =
+        new TensorDescriptor(
+            DataType.FLOAT32,
+            inputShape,
+            Optional.of(LayoutDescriptor.contiguous(inputShape)),
+            false);
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            CapturedGraphInference.inferAndValidate(
+                singleNodeGraph(
+                    cropUpdate, List.of(input, update), List.of(resolvedUpdateMismatch))));
+
+    List<TensorDescriptor> mismatches =
+        List.of(
+            new TensorDescriptor(DataType.INT32, cropShape, Optional.empty(), false),
+            new TensorDescriptor(DataType.FLOAT32, Shape.of(1), Optional.empty(), false),
+            new TensorDescriptor(DataType.FLOAT32, cropShape, Optional.empty(), true),
+            new TensorDescriptor(
+                DataType.FLOAT32,
+                cropShape,
+                Optional.of(LayoutDescriptor.contiguous(cropShape)),
+                false));
+    for (TensorDescriptor mismatch : mismatches) {
+      assertThrows(
+          IllegalArgumentException.class,
+          () ->
+              CapturedGraphInference.inferAndValidate(
+                  singleNodeGraph(crop, List.of(input), List.of(mismatch))),
+          mismatch.toString());
+    }
+  }
+
+  @Test
+  void exposesNoPublicCompilerDeclarations() throws Exception {
         assertFalse(Modifier.isPublic(CapturedGraphInference.class.getModifiers()));
         assertFalse(Modifier.isPublic(ValidatedGraph.class.getModifiers()));
         assertFalse(Modifier.isPublic(DeferredGraphConstraint.class.getModifiers()));

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.pho001.synaptik.model.datatype.*;
 import io.github.pho001.synaptik.model.graph.*;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.layout.*;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
@@ -77,6 +78,48 @@ final class LayoutInferenceTest {
             assertDoesNotThrow(() -> CapturedGraphInference.inferAndValidate(
                     GraphCapture.capture(List.of(output))));
         }
+  }
+
+  @Test
+  void infersFullyStaticTargetRelativeCropLayoutsWithoutGuessingUnresolvedDomains() {
+    Shape baseShape = Shape.of(3, 4);
+    LayoutDescriptor baseLayout = LayoutDescriptor.of(baseShape, new long[] {0, 2}, 5, true);
+    TensorDescriptor base =
+        new TensorDescriptor(DataType.FLOAT32, baseShape, Optional.of(baseLayout), true);
+    var resolved =
+        LayoutInference.infer(
+            new Operation(SliceKind.SLICE, new CropToShapeAttrs(Shape.of(2, 2), Shape.of(1, 1))),
+            List.of(base));
+    var scalar =
+        LayoutInference.infer(
+            new Operation(SliceKind.SLICE, new CropToShapeAttrs(Shape.scalar(), Shape.scalar())),
+            List.of(
+                new TensorDescriptor(
+                    DataType.FLOAT32,
+                    Shape.scalar(),
+                    Optional.of(LayoutDescriptor.of(Shape.scalar(), new long[0], 3, true)),
+                    true)));
+    DynamicDimension n = new DynamicDimension("N");
+    var dynamic =
+        LayoutInference.infer(
+            new Operation(SliceKind.SLICE, new CropToShapeAttrs(Shape.of(1), Shape.of(0))),
+            List.of(descriptor(Shape.ofDimensions(n))));
+    var empty =
+        LayoutInference.infer(
+            new Operation(SliceKind.SLICE, new CropToShapeAttrs(Shape.of(0), Shape.of(0))),
+            List.of(descriptor(Shape.of(2))));
+
+    assertAll(
+        () ->
+            assertEquals(
+                LayoutDescriptor.of(Shape.of(2, 2), new long[] {0, 2}, 7, true),
+                resolved.outputs().getFirst().layout().orElseThrow()),
+        () ->
+            assertEquals(
+                LayoutDescriptor.of(Shape.scalar(), new long[0], 3, true),
+                scalar.outputs().getFirst().layout().orElseThrow()),
+        () -> assertTrue(dynamic.outputs().getFirst().layout().isEmpty()),
+        () -> assertTrue(empty.outputs().getFirst().layout().isEmpty()));
     }
 
     @Test

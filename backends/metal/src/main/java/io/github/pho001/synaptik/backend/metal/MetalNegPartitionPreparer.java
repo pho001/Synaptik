@@ -13,27 +13,26 @@ import io.github.pho001.synaptik.model.operation.convolution.Conv2dKind;
 import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
 import io.github.pho001.synaptik.model.operation.convolution.Conv3dKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
-import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
-import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
+import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
+import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
+import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ClampRangeAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
-import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
-import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
+import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
 import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
-import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
 import io.github.pho001.synaptik.model.operation.index.GatherNdAttrs;
 import io.github.pho001.synaptik.model.operation.index.GatherNdKind;
+import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
 import io.github.pho001.synaptik.model.operation.index.ScatterNdAttrs;
 import io.github.pho001.synaptik.model.operation.index.ScatterNdKind;
-import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.model.operation.index.SelectAttrs;
 import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
@@ -41,41 +40,32 @@ import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Fold3dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
-import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
+import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
-import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
-import io.github.pho001.synaptik.model.operation.layout.Fold3dAttrs;
-import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
-import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
-import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.Unfold2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Unfold3dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.loss.LossKind;
 import io.github.pho001.synaptik.model.operation.loss.MeanSquaredErrorAttrs;
-import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
-import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
-import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
-import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
-import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionAttrs;
 import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
 import io.github.pho001.synaptik.model.operation.ordering.SortAttrs;
 import io.github.pho001.synaptik.model.operation.ordering.TopKAttrs;
 import io.github.pho001.synaptik.model.operation.ordering.TopKKind;
-import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaAttrs;
-import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
-import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
-import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
@@ -86,6 +76,15 @@ import io.github.pho001.synaptik.model.operation.random.DropoutAttrs;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngStateAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
+import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
+import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis;
@@ -104,37 +103,35 @@ import java.util.Optional;
  *
  * <p>The deterministic analysis assigns stable native value indices, retains every node kind and
  * ordered operand, and derives unique feeds and targets before selecting a closed private route.
- * For both profiles, it walks explicit unavailable/canonical/affine-view/materialized-layout
- * states in node order for the retained exact unary, affine, canonicalization, movement/indexing,
+ * For both profiles, it walks explicit unavailable/canonical/affine-view/materialized-layout states
+ * in node order for the retained exact unary, affine, canonicalization, movement/indexing,
  * replacement/fold/aggregate, BOOL, ordering/arg-extrema, maximum-pooling, promoted integral
- * MATMUL, and zero-input {@code INITIAL_STATE} domains. Under {@code ACCELERATOR}, it additionally
- * accepts the documented FLOAT32 arithmetic/reduction/MSE/MATMUL/convolution/average-pooling rows,
- * no-gradient BFLOAT16/FLOAT32 mixed MATMUL, and canonical FLOAT32 {@code DROPOUT}. Task-0065
- * lowering preserves initializer key/counter words and dropout's raw binary64 probability plus all
- * ordered value, mask, and state edges. Every admitted random node fixes the whole partition to
- * {@code CUSTOM_PROGRAM}; recurrent nodes remain rejected.
- * An affine MATMUL operand is authenticated to the exact earlier local identity-prefix,
- * last-two-axis {@code PERMUTE} on that consuming edge. WHERE may consume an exact earlier local
- * affine view, including the positive-zero expansion generated by dropout backward; native
- * metadata retains its physical strides and offset.
+ * MATMUL, and zero-input {@code INITIAL_STATE} domains. Task 0066 admits all six carriers through
+ * exact affine movement, INT32/INT64 index roles, all 36 cast pairs, floating classification and
+ * promotion, and the precise legal first-order saved-role relations. Authenticated local
+ * zero-stride descendants retain their logical layouts while preparation assigns independently safe
+ * physical buffers. Under {@code ACCELERATOR}, analysis additionally accepts the documented FLOAT32
+ * arithmetic/reduction/MSE/MATMUL/convolution/average-pooling rows, no-gradient BFLOAT16/FLOAT32
+ * mixed MATMUL, and canonical FLOAT32 {@code DROPOUT}. Random lowering preserves initializer
+ * key/counter words, dropout's raw binary64 probability, and all ordered value, mask, and state
+ * edges; recurrent nodes remain rejected. An affine MATMUL operand is authenticated to the exact
+ * earlier local identity-prefix, last-two-axis {@code PERMUTE} on that consuming edge.
  * Schema-fifteen lowering emits one bounded self-describing image over stable type wires 1..6,
  * complete operation registry 1..115, attribute registry 0..41, and the explicit prepared route.
  * Production capability is exactly 83 operation kinds; additional structural recipes remain
- * inaccessible to this analysis. Ordinary graph feeds are canonical and explicitly typed.
- * SELECT/SLICE feeds may instead use the exact supported resolved positive-stride non-overlapping
- * storage layout. Rank-zero values participate only where exact capability permits them. Exact
- * BOOL results may feed admitted logic and selection nodes or cross owner boundaries.
- * Analysis freshly regenerates the complete candidate batch. Every supplied handoff authenticates
- * its exact partition, schema, workload, profile, and session target; an absent decision preserves
- * the singleton-NEG heuristic, while a present decision must additionally authenticate its
- * candidate identity. Any shared custom-program node fixes the whole partition to its custom
- * program route before exact declarations, including a declared run-owned buffer for every
- * internal logical value. Package-private tests may force only another candidate already approved
- * by that freshly validated batch; production has no corresponding input or switch.
- * Published SELECT/SLICE values retain logical storage layouts and declarations cover their full
- * physical referenced spans; other affine views retain the existing dense represented-order
- * geometry. Analysis allocates no physical resource and never changes partition ownership or
- * capability.</p>
+ * inaccessible to this analysis. Every selected Task-0066 occurrence fixes the whole partition to
+ * {@code CUSTOM_PROGRAM}, with no MPSGraph candidate, retry, fallback, timing, or autotuning.
+ * Rank-zero values participate only where exact capability permits them. Analysis freshly
+ * regenerates the complete candidate batch. Every supplied handoff authenticates its exact
+ * partition, schema, workload, profile, and session target; an absent decision preserves the
+ * singleton-NEG heuristic, while a present decision must additionally authenticate its candidate
+ * identity. Any shared custom-program node fixes the whole partition to its custom program route
+ * before exact declarations, including a declared run-owned buffer for every internal logical
+ * value. Package-private tests may force only another candidate already approved by that freshly
+ * validated batch; production has no corresponding input or switch. Published SELECT/SLICE values
+ * retain logical storage layouts and declarations cover their full physical referenced spans; other
+ * affine views retain the existing dense represented-order geometry. Analysis allocates no physical
+ * resource and never changes partition ownership or capability.
  */
 final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         MetalNegAnalysisInputs, MetalNegPreparationPlan> {
@@ -158,16 +155,16 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
     /**
      * Exercises an exact currently approved route without exposing a production selector.
      *
-     * <p>The ordinary analysis, capability checks, candidate regeneration, and any supplied
-     * handoff authentication complete first. The force succeeds only when the exact route is a
-     * member of that freshly generated batch; otherwise analysis fails before native creation.</p>
+     * <p>The ordinary analysis, capability checks, candidate regeneration, and any supplied handoff
+     * authentication complete first. The force succeeds only when the exact route is a member of that
+   * freshly generated batch; otherwise analysis fails before native creation.
      *
      * @param context non-null complete partition-local facts and borrowed Metal context
      * @param forcedRoute non-null exact route to require
      * @return non-null analysis retaining the exact planned partition and forced route
      * @throws NullPointerException if an argument is {@code null}
-     * @throws IllegalArgumentException if normal analysis rejects the partition or the route is
-     *     not currently approved for it
+     * @throws IllegalArgumentException if normal analysis rejects the partition or the route is not
+     * currently approved for it
      */
     BackendPartitionAnalysis<MetalNegPreparationPlan> analyzeForTesting(
             PrepareContext<MetalNegAnalysisInputs> context, MetalPreparedRoute forcedRoute) {
@@ -195,6 +192,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         var feeds = new ArrayList<ValueId>();
         var localTranspose = new LinkedHashMap<ValueId, Boolean>();
         var localSingletonHeight = new LinkedHashMap<ValueId, Boolean>();
+    var physicalLayouts = new LinkedHashMap<ValueId, LayoutDescriptor>();
         int nodeCount = context.nodes().size();
         var programNodes = new ArrayList<MetalMpsGraphProgram.Node>(nodeCount);
         for (int nodeIndex = 0; nodeIndex < nodeCount; nodeIndex++) {
@@ -224,6 +222,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     feeds.add(inputId);
                     localTranspose.put(inputId, false);
                     localSingletonHeight.put(inputId, false);
+          physicalLayouts.put(inputId, inputValue.descriptor().layout().orElseThrow());
                 }
                 inputStates.add(state);
             }
@@ -322,10 +321,23 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                             inputDescriptors,
                             outputDescriptors.getFirst(),
                             node.operation());
-            for (ValueId outputId : node.outputs()) {
+            for (int outputPosition = 0; outputPosition < node.outputs().size(); outputPosition++) {
+        ValueId outputId = node.outputs().get(outputPosition);
                 localTranspose.put(outputId, exactLocalTranspose);
                 localSingletonHeight.put(outputId, exactLocalSingletonHeight);
-                states.put(outputId, lowered.kind().outputState());
+        TensorDescriptor outputDescriptor = outputDescriptors.get(outputPosition);
+        physicalLayouts.put(
+            outputId,
+            physicalOutputLayout(
+                node.operation(), node.inputs(), outputDescriptor, physicalLayouts));
+        boolean denseLogicalView =
+            (lowered.kind() == MetalMpsGraphProgram.NodeKind.SELECT
+                    || lowered.kind() == MetalMpsGraphProgram.NodeKind.SLICE)
+                && outputDescriptor.layout().orElseThrow().hasZeroStride();
+                states.put(outputId,
+            denseLogicalView
+                ? MetalMpsGraphProgram.ValueState.AFFINE_VIEW
+                : lowered.kind().outputState());
             }
         }
         var graphProgram = new MetalMpsGraphProgram(programNodes);
@@ -384,8 +396,8 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
 
         int[] feedIndices = indices(feeds, valueIndexes);
         int[] targetIndices = indices(targets, valueIndexes);
-        long[] feedBytes = requiredBytes(feeds, graphValues, states);
-        long[] targetBytes = requiredBytes(targets, graphValues, states);
+        long[] feedBytes = requiredBytes(feeds, graphValues, physicalLayouts);
+        long[] targetBytes = requiredBytes(targets, graphValues, physicalLayouts);
         boolean containsCustomProgram = graphProgram.nodes().stream()
                 .anyMatch(node -> usesCustomProgram(node, descriptors));
         long singletonElements = feedBytes.length == 1 ? feedBytes[0] / Float.BYTES : 0L;
@@ -409,7 +421,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             }
         }
         int[] internalIndices = indices(internalValues, valueIndexes);
-        long[] internalBytes = requiredBytes(internalValues, graphValues, states);
+        long[] internalBytes = requiredBytes(internalValues, graphValues, physicalLayouts);
         var declarations = new ArrayList<PreparationResourceRequirement.Buffer>(
                 feeds.size() + targets.size() + internalValues.size());
         for (int index = 0; index < feeds.size(); index++) {
@@ -430,11 +442,18 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         }
         Optional<PreparationResourceRequirement.Workspace> heuristicWorkspace = workspace(
                 route, feeds.size(), targets.size(), valueIds.size());
+    List<LayoutDescriptor> physicalValueLayouts =
+        valueIds.stream()
+            .map(
+                value ->
+                    Objects.requireNonNull(physicalLayouts.get(value), "physical value layout"))
+            .toList();
         var heuristicPlan = new MetalNegPreparationPlan(
                 context.numericalProfile(),
                 context.partition(), context.partitionDag(), deviceContext,
                 route,
-                valueIds, descriptors, valueStates, graphProgram,
+                valueIds, descriptors,
+            physicalValueLayouts, valueStates, graphProgram,
                 feeds, feedIndices, targets, targetIndices,
                 internalValues, internalIndices, internalBytes, declarations, feedSplats,
                 feedSplatSources, heuristicWorkspace, feedBytes, targetBytes);
@@ -483,7 +502,8 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         context.numericalProfile(),
                         context.partition(), context.partitionDag(), deviceContext,
                         route,
-                        valueIds, descriptors, valueStates, graphProgram,
+                        valueIds, descriptors,
+                physicalValueLayouts, valueStates, graphProgram,
                         feeds, feedIndices, targets, targetIndices,
                         internalValues, internalIndices, internalBytes, declarations, feedSplats,
                         feedSplatSources, selectedWorkspace, feedBytes, targetBytes, traceUnit);
@@ -586,14 +606,77 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         return result;
     }
 
-    private static long[] requiredBytes(
+    private static LayoutDescriptor physicalOutputLayout(
+      Operation operation,
+      List<ValueId> inputIds,
+      TensorDescriptor output,
+      Map<ValueId, LayoutDescriptor> physicalLayouts) {
+    if (operation.kind() != SelectKind.SELECT && operation.kind() != SliceKind.SLICE) {
+      return LayoutDescriptor.contiguous(output.shape());
+    }
+    if (inputIds.size() != 1) {
+      throw new IllegalArgumentException("Metal physical view derivation requires one input");
+    }
+    LayoutDescriptor input =
+        Objects.requireNonNull(physicalLayouts.get(inputIds.getFirst()), "physical input layout");
+    long[] strides = input.strides();
+    long offset = input.storageOffset();
+    if (operation.kind() == SelectKind.SELECT) {
+      SelectAttrs attrs = (SelectAttrs) operation.attrs();
+      int axis = attrs.axis();
+      offset = Math.addExact(offset, Math.multiplyExact(attrs.index(), strides[axis]));
+      long[] selected = new long[strides.length - 1];
+      System.arraycopy(strides, 0, selected, 0, axis);
+      System.arraycopy(strides, axis + 1, selected, axis, strides.length - axis - 1);
+      strides = selected;
+    } else if (operation.attrs() instanceof CropToShapeAttrs crop) {
+      long[] prefix = crop.prefixShape().toLongArray();
+      if (prefix.length != strides.length) {
+        throw new IllegalArgumentException("Metal CropToShape physical rank is incompatible");
+      }
+      for (int axis = 0; axis < strides.length; axis++) {
+        offset = Math.addExact(offset, Math.multiplyExact(prefix[axis], strides[axis]));
+      }
+    } else {
+      SliceAttrs attrs = (SliceAttrs) operation.attrs();
+      for (int index = 0; index < attrs.axes().size(); index++) {
+        int axis = attrs.axes().get(index);
+        long step = attrs.steps().get(index);
+        if (step <= 0L) {
+          throw new IllegalArgumentException(
+              "Metal SLICE physical derivation requires positive steps");
+        }
+        offset =
+            Math.addExact(offset, Math.multiplyExact(attrs.starts().get(index), strides[axis]));
+        strides[axis] = Math.multiplyExact(strides[axis], step);
+      }
+    }
+    LayoutDescriptor physical = LayoutDescriptor.of(output.shape(), strides, offset, true);
+    TensorDescriptor physicalDescriptor =
+        new TensorDescriptor(
+            output.dataType(),
+            output.shape(),
+            java.util.Optional.of(physical),
+            output.requiresGrad());
+    if (!MetalCapabilityProvider.supportedStorageLayout(physicalDescriptor, 0)) {
+      throw new IllegalArgumentException(
+          "Metal derived physical view is not positive and non-overlapping");
+    }
+    return physical;
+  }
+
+  private static long[] requiredBytes(
             List<ValueId> ids,
             Map<ValueId, GraphValue> values,
-            Map<ValueId, MetalMpsGraphProgram.ValueState> states) {
+            Map<ValueId, LayoutDescriptor> physicalLayouts) {
         long[] result = new long[ids.size()];
         for (int index = 0; index < result.length; index++) {
             ValueId id = ids.get(index);
-            result[index] = byteSize(values.get(id).descriptor(), states.get(id));
+      LayoutDescriptor physical =
+          Objects.requireNonNull(physicalLayouts.get(id), "physicalLayouts[" + id + "]");
+            result[index] =
+          Math.multiplyExact(
+              physical.referencedElementSpan(),values.get(id).descriptor().dataType().byteWidth());
         }
         return result;
     }

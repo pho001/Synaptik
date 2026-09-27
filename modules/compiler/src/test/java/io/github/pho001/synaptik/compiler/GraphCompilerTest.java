@@ -17,8 +17,8 @@ import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
-import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.GraphPhase;
+import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.convolution.Conv1dAttrs;
@@ -28,12 +28,15 @@ import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
 import io.github.pho001.synaptik.model.operation.convolution.Conv3dKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
+import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
-import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.BatchNormTrainingResult;
+import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
@@ -532,7 +535,20 @@ final class GraphCompilerTest {
     }
 
     @Test
-    void dynamicConv1dCompositionKeepsMappedConv2dAndSqueezeLayoutsUnresolved() {
+    void closesActualPadAndConcatBackwardCropsAfterScalarSeedExpansion() {
+    Tensor padTarget = staticTensor(Shape.of(2), true);
+    Tensor padObjective =
+        padTarget.pad(new long[] {1}, new long[] {2}, ScalarValue.float32(0)).sum();
+    assertGeneratedExpandedSeedCropCloses(padObjective, padTarget);
+
+    Tensor first = staticTensor(Shape.of(2), true);
+    Tensor second = staticTensor(Shape.of(3), true);
+    Tensor concatObjective = Tensor.concat(0, first, second).sum();
+    assertGeneratedExpandedSeedCropCloses(concatObjective, second);
+  }
+
+  @Test
+  void dynamicConv1dCompositionKeepsMappedConv2dAndSqueezeLayoutsUnresolved() {
         Shape inputShape = Shape.ofDimensions(
                 new StaticDimension(1), new StaticDimension(1), new DynamicDimension("W"));
         Tensor input = TensorFactory.create(new TensorDescriptor(
@@ -1122,4 +1138,40 @@ final class GraphCompilerTest {
         field.setAccessible(true);
         return ((AtomicLong) field.get(null)).get();
     }
+
+  private static void assertGeneratedExpandedSeedCropCloses(Tensor objective, Tensor target) {
+    GraphCompilation compilation =
+        GraphCompiler.compile(
+            CompileMode.FORWARD_AND_BACKWARD,
+            List.of(objective),
+            Optional.of(FunctionalGradientTestSupport.request(objective, List.of(target))),
+            CompileTimeConstantGraph.Ingress.empty(),
+            GraphOptimizationConfig.disabled());
+    var graph = compilation.validatedGraph().graph();
+    Map<ValueId, io.github.pho001.synaptik.model.graph.CompiledNode> producers =
+        graph.nodes().stream()
+            .collect(
+                java.util.stream.Collectors.toMap(node -> node.outputs().getFirst(), node -> node));
+    var crop =
+        graph.nodes().stream()
+            .filter(node -> graph.nodePhases().get(node.id()) == GraphPhase.BACKWARD)
+            .filter(node -> node.operation().kind() == SliceKind.SLICE)
+            .filter(node -> node.operation().attrs() instanceof CropToShapeAttrs)
+            .filter(
+                node ->
+                    producers.get(node.inputs().getFirst()).operation().kind()
+                        == ShapeTransformKind.EXPAND)
+            .findFirst()
+            .orElseThrow();
+    GraphValue cropResult =
+        graph.values().stream()
+            .filter(value -> value.id().equals(crop.outputs().getFirst()))
+            .findFirst()
+            .orElseThrow();
+
+    assertEquals(
+        LayoutDescriptor.of(target.descriptor().shape(), new long[] {0
+}, 0, true),
+        cropResult.descriptor().layout().orElseThrow());
+  }
 }

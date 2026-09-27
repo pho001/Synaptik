@@ -87,7 +87,7 @@ class MetalMpsGraphAffineNativeTest {
             MetalMpsGraphProgram.NodeKind.RESHAPE,
             3,
             4,
-            new long[] {4, 6}))), new int[] {0}, new int[] {1, 2, 3, 4}, MetalPreparedRoute.MPSGRAPH);
+            new long[] {4, 6}))), new int[] {0}, new int[] {1, 2, 3, 4}, MetalPreparedRoute.CUSTOM_PROGRAM);
             input = api.createBuffer(context, 96L);
             for (int target = 0; target < 4; target++) {
                 outputs.add(api.createBuffer(context, 96L));
@@ -98,10 +98,11 @@ class MetalMpsGraphAffineNativeTest {
                     source.setAtIndex(JAVA_INT, index, ADVERSARIAL_BITS[index]);
                 }
                 api.upload(input, 0L, source, 96L);
-                MemorySegment inputs = arena.allocate(ADDRESS);
+                MemorySegment inputs = arena.allocate(ADDRESS, 5);
                 MemorySegment targetAddresses = arena.allocate(ADDRESS, outputs.size());
                 inputs.setAtIndex(ADDRESS, 0L, input.carrier());
                 for (int target = 0; target < outputs.size(); target++) {
+          inputs.setAtIndex(ADDRESS, target + 1L, outputs.get(target).carrier());
                     targetAddresses.setAtIndex(
                             ADDRESS, target, outputs.get(target).carrier());
                 }
@@ -110,7 +111,7 @@ class MetalMpsGraphAffineNativeTest {
                     downloaded.add(arena.allocate(96L, Integer.BYTES));
                 }
                 for (int iteration = 0; iteration < 2; iteration++) {
-                    api.runExecutable(executable, 1, inputs, 4, targetAddresses);
+                    api.runExecutable(executable, 5, inputs, 4, targetAddresses);
                     for (int target = 0; target < outputs.size(); target++) {
                         api.download(outputs.get(target), 0L, downloaded.get(target), 96L);
                     }
@@ -509,7 +510,7 @@ class MetalMpsGraphAffineNativeTest {
             long[] dimensions = new long[32];
             System.arraycopy(test.inputShape(), 0, dimensions, 0, test.inputShape().length);
             System.arraycopy(test.outputShape(), 0, dimensions, 16, test.outputShape().length);
-            executable = api.createMpsGraphExecutable(context, NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(ranks, dimensions, new MetalMpsGraphProgram(List.of(test.node()))), new MetalMpsGraphProgram(List.of(test.node())), new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH);
+            executable = api.createMpsGraphExecutable(context, NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(ranks, dimensions, new MetalMpsGraphProgram(List.of(test.node()))), new MetalMpsGraphProgram(List.of(test.node())), new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM);
             input = api.createBuffer(context, inputBytes);
             output = api.createBuffer(context, outputBytes);
             try (Arena arena = Arena.ofConfined()) {
@@ -520,9 +521,10 @@ class MetalMpsGraphAffineNativeTest {
                     source.setAtIndex(JAVA_INT, index, sourceBits[index]);
                 }
                 api.upload(input, 0L, source, inputBytes);
-                MemorySegment inputHandle = arena.allocate(ADDRESS);
+                MemorySegment allValues = arena.allocate(ADDRESS, 2);
                 MemorySegment outputHandle = arena.allocate(ADDRESS);
-                inputHandle.setAtIndex(ADDRESS, 0L, input.carrier());
+        allValues.setAtIndex(ADDRESS, 0L, input.carrier());
+        allValues.setAtIndex(ADDRESS, 1L, output.carrier());
                 outputHandle.setAtIndex(ADDRESS, 0L, output.carrier());
                 MemorySegment sentinel = arena.allocate(outputBytes, Integer.BYTES);
                 MemorySegment actual = arena.allocate(outputBytes, Integer.BYTES);
@@ -531,7 +533,7 @@ class MetalMpsGraphAffineNativeTest {
                         sentinel.setAtIndex(JAVA_INT, index, 0xdeadbeef);
                     }
                     api.upload(output, 0L, sentinel, outputBytes);
-                    api.runExecutable(executable, 1, inputHandle, 1, outputHandle);
+                    api.runExecutable(executable, 2, allValues, 1, outputHandle);
                     api.download(output, 0L, actual, outputBytes);
                     for (int outputIndex = 0; outputIndex < outputCount; outputIndex++) {
                         int inputIndex = test.inputIndex(outputIndex);

@@ -15,41 +15,40 @@ import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
-import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
 import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
-import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
-import io.github.pho001.synaptik.model.operation.elementwise.scalar.ClampRangeAttrs;
-import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
-import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
 import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ClampRangeAttrs;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
+import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
 import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
 import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
-import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.model.operation.index.ScatterNdAttrs;
 import io.github.pho001.synaptik.model.operation.index.ScatterNdKind;
+import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.model.operation.index.SelectAttrs;
 import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
-import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Fold3dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
-import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
-import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
-import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
-import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
-import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
-import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
+import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
+import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.loss.DenseCategoricalCrossEntropyWithLogitsAttrs;
 import io.github.pho001.synaptik.model.operation.loss.IndexCategoricalCrossEntropyWithLogitsAttrs;
@@ -66,6 +65,7 @@ import io.github.pho001.synaptik.model.operation.normalization.RmsNormAttrs;
 import io.github.pho001.synaptik.model.operation.normalization.RmsNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxAttrs;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
+import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MaskedReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
@@ -283,12 +283,7 @@ class MetalCapabilityProviderTest {
         for (NumericalProfile profile : NumericalProfile.values()) {
             for (DataType source : DataType.values()) {
                 for (DataType target : DataType.values()) {
-                    boolean expected = source == target
-                            || source == DataType.BOOL
-                            || target == DataType.BOOL
-                            || source == DataType.INT32 && target == DataType.INT64
-                            || source == DataType.INT64 && target == DataType.INT32
-                            || source == DataType.BFLOAT16 && target == DataType.FLOAT32;
+                    boolean expected = true;
                     assertEquals(
                             expected,
                             provider.supports(new OperationCapabilityQuery(
@@ -364,7 +359,7 @@ class MetalCapabilityProviderTest {
                 Optional.of(LayoutDescriptor.of(
                         unsafeShape, new long[] {0, 1}, 0L, true)),
                 false);
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+    assertTrue(provider.supports(new OperationCapabilityQuery(
                 NumericalProfile.STRICT_IEEE,
                 new Operation(SelectKind.SELECT, new SelectAttrs(0, 0)),
                 List.of(broadcast),
@@ -385,11 +380,51 @@ class MetalCapabilityProviderTest {
                 List.of(negativeSliceOutput))));
         assertThrows(IllegalArgumentException.class, () -> new SliceAttrs(
                 List.of(0L), List.of(1L), List.of(0), List.of(0L)));
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+    assertTrue(provider.supports(new OperationCapabilityQuery(
                 NumericalProfile.STRICT_IEEE,
                 new Operation(CastKind.CAST, new CastAttrs(DataType.BOOL)),
                 List.of(typed(DataType.FLOAT32, Shape.of(2), true)),
                 List.of(typed(DataType.BOOL, Shape.of(2), false)))));
+  }
+
+  @Test
+  void task0066EnforcesTheNineFloatingCastGradientRelations() {
+    List<DataType> floating = List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16);
+    for (NumericalProfile profile : NumericalProfile.values()) {
+      for (DataType source : floating) {
+        for (DataType target : floating) {
+          Operation cast = new Operation(CastKind.CAST, new CastAttrs(target));
+          assertTrue(
+              provider.supports(
+                  new OperationCapabilityQuery(
+                      profile,
+                      cast,
+                      List.of(typed(source, Shape.of(2), true)),
+                      List.of(typed(target, Shape.of(2), true)))));
+          assertFalse(
+              provider.supports(
+                  new OperationCapabilityQuery(
+                      profile,
+                      cast,
+                      List.of(typed(source, Shape.of(2), true)),
+                      List.of(typed(target, Shape.of(2), false)))));
+          assertFalse(
+              provider.supports(
+                  new OperationCapabilityQuery(
+                      profile,
+                      cast,
+                      List.of(typed(source, Shape.of(2), false)),
+                      List.of(typed(target, Shape.of(2), true)))));
+        }
+        assertTrue(
+            provider.supports(
+                new OperationCapabilityQuery(
+                    profile,
+                    new Operation(CastKind.CAST, new CastAttrs(DataType.INT64)),
+                    List.of(typed(source, Shape.of(2), true)),
+                    List.of(typed(DataType.INT64, Shape.of(2), false)))));
+      }
+    }
     }
 
     @Test
@@ -476,7 +511,8 @@ class MetalCapabilityProviderTest {
                         List.of(typed(type, Shape.of(1, 1, 3, 3, 3), false)))));
             }
             for (DataType type : List.of(DataType.INT32, DataType.INT64, DataType.BOOL)) {
-                assertFalse(provider.supports(new OperationCapabilityQuery(
+        assertEquals(
+            type != DataType.BOOL,provider.supports(new OperationCapabilityQuery(
                         profile,
                         foldAxis,
                         List.of(typed(type, Shape.of(2, 2, 2), false)),
@@ -871,9 +907,9 @@ class MetalCapabilityProviderTest {
         Operation capExceeded = new Operation(
                 WindowTransformKind.UNFOLD_AXIS, new UnfoldAxisAttrs(1, 17, 1));
         for (NumericalProfile profile : NumericalProfile.values()) {
-            assertFalse(provider.supports(new OperationCapabilityQuery(
+      assertTrue(provider.supports(new OperationCapabilityQuery(
                     profile, capExceeded, List.of(capInput), List.of(capOutput))),
-                    profile + " rejects size 17 solely at the selector-expansion cap");
+                    profile + " admits exact static windows beyond the old selector cap");
         }
 
         assertThrows(IllegalArgumentException.class, () ->
@@ -930,12 +966,12 @@ class MetalCapabilityProviderTest {
                 Optional.of(LayoutDescriptor.of(
                         input.shape(), new long[] {7, 1}, 0L, true)),
                 true);
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+    assertTrue(provider.supports(new OperationCapabilityQuery(
                 NumericalProfile.STRICT_IEEE,
                 unfold,
                 List.of(inputView),
                 List.of(output))),
-                "input layout must be canonical independently of gradient state");
+        "authenticated affine input layouts are admitted");
         TensorDescriptor outputView = new TensorDescriptor(
                 DataType.FLOAT32,
                 output.shape(),
@@ -1011,7 +1047,7 @@ class MetalCapabilityProviderTest {
                 new Operation(AxisGatherKind.GATHER_ELEMENTS, new IndexAxisAttrs(1)),
                 List.of(data, indices),
                 List.of(gathered))));
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+    assertTrue(provider.supports(new OperationCapabilityQuery(
                 NumericalProfile.ACCELERATOR,
                 gather,
                 List.of(data, typed(DataType.INT64, Shape.of(5, 6), false)),
@@ -1026,7 +1062,7 @@ class MetalCapabilityProviderTest {
                 gather,
                 List.of(data, indices),
                 List.of(typed(DataType.FLOAT32, gathered.shape(), false)))));
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+    assertTrue(provider.supports(new OperationCapabilityQuery(
                 NumericalProfile.STRICT_IEEE,
                 encode,
                 List.of(typed(DataType.INT64, Shape.of(2, 3), false)),
@@ -1042,7 +1078,7 @@ class MetalCapabilityProviderTest {
                         new ScatterElementsAttrs(1, ScatterReduction.ADD)),
                 List.of(scatterData, scatterIndices, scatterUpdates),
                 List.of(scattered))));
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+    assertTrue(provider.supports(new OperationCapabilityQuery(
                 NumericalProfile.STRICT_IEEE,
                 scatter,
                 List.of(
@@ -1670,7 +1706,7 @@ class MetalCapabilityProviderTest {
                 new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE),
                 List.of(boolRow, trueBranch, falseBranch),
                 List.of(typed(DataType.FLOAT32, Shape.of(2, 3), false)))));
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+    assertTrue(provider.supports(new OperationCapabilityQuery(
                 NumericalProfile.STRICT_IEEE,
                 new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE),
                 List.of(
@@ -1678,16 +1714,16 @@ class MetalCapabilityProviderTest {
                         trueBranch,
                         falseBranch),
                 List.of(selected))),
-                "rank-zero BOOL constants stay outside the advertised Metal WHERE domain");
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+        "rank-zero BOOL conditions broadcast across WHERE");
+    assertTrue(provider.supports(new OperationCapabilityQuery(
                 NumericalProfile.STRICT_IEEE,
                 new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE),
                 List.of(
-                        boolRow,
+                    typed(DataType.BOOL, Shape.scalar(), false),
                         typed(DataType.FLOAT32, Shape.scalar(), false),
                         typed(DataType.FLOAT32, Shape.scalar(), false)),
                 List.of(typed(DataType.FLOAT32, Shape.scalar(), false)))),
-                "rank-zero FLOAT32 branches stay outside the advertised Metal WHERE domain");
+        "rank-zero floating branches compose through WHERE");
         Shape rankSeventeen =
                 Shape.of(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
         assertFalse(provider.supports(new OperationCapabilityQuery(

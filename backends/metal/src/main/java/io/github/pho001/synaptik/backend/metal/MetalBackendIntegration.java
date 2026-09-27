@@ -19,10 +19,10 @@ import java.util.function.Consumer;
  * validates its ABI, creates native ownership, and rolls back every partially opened native owner
  * before failing. The integration and its immutable collaborators may be used concurrently while
  * Engine coordinates their lifetime. It performs no library discovery, CPU fallback, backend
- * registration, transfer scheduling, tuning measurement, or cache input/output. It exposes
- * retained local-workload and complete-plan tuning collaborations, a physical schedule
- * contributor, and checked native upload/download binders that Engine uses for the bounded
- * mixed-owner CPU/Metal transfer domain.</p>
+ * registration, transfer scheduling, tuning measurement, or cache input/output. It exposes retained
+ * local-workload and complete-plan tuning collaborations, a physical schedule contributor, and
+ * checked native upload/download binders that Engine uses for the bounded mixed-owner CPU/Metal
+ * transfer domain.
  */
 public final class MetalBackendIntegration implements AutoCloseable {
     private final MetalBackendConfiguration configuration;
@@ -57,8 +57,8 @@ public final class MetalBackendIntegration implements AutoCloseable {
      * <p>The observer is retained but never closed. Its callback may be invoked concurrently.
      * Callback {@link RuntimeException RuntimeExceptions} disable later tracing without changing
      * backend work or outcomes. Callback {@link Error Errors} propagate from success reporting;
-     * during failure reporting, the backend failure remains primary and receives a distinct
-     * acyclic callback error as a suppressed failure.</p>
+     * during failure reporting, the backend failure remains primary and receives a distinct acyclic
+     * callback error as a suppressed failure.
      *
      * @param configuration non-null validated configuration; its immutable value is snapshotted
      * @param observer non-null caller-owned thread-safe observer retained for this integration
@@ -141,7 +141,7 @@ public final class MetalBackendIntegration implements AutoCloseable {
      *
      * <p>The collaboration is session-scoped, exposes candidates only for exact singleton NEG
      * partitions having both custom-kernel and MPSGraph routes, and borrows this integration's
-     * lifetime. It performs no execution, measurement, or cache input/output.</p>
+     * lifetime. It performs no execution, measurement, or cache input/output.
      *
      * @return the same non-null collaboration on every call
      * @throws IllegalStateException if native ownership is no longer available when used
@@ -153,9 +153,9 @@ public final class MetalBackendIntegration implements AutoCloseable {
     /**
      * Returns the retained Metal fixed-route complete-plan tuning collaboration.
      *
-     * <p>The collaboration is session-scoped, exposes one authenticated candidate after a local
-     * route selection, and borrows this integration's lifetime. It performs no execution,
-     * measurement, or cache input/output.</p>
+     * <p>The collaboration is session-scoped, exposes one authenticated candidate after a local route
+     * selection, and borrows this integration's lifetime. It performs no execution, measurement, or
+   * cache input/output.
      *
      * @return the same non-null collaboration on every call
      * @throws IllegalStateException if native ownership is no longer available when used
@@ -175,8 +175,7 @@ public final class MetalBackendIntegration implements AutoCloseable {
     }
 
     /**
-     * Returns the retained Metal physical-creation contributor used by shared mixed-owner
-     * assembly.
+     * Returns the retained Metal physical-creation contributor used by shared mixed-owner assembly.
      *
      * @return non-null retained immutable contributor; ownership remains with this integration
      * @throws IllegalStateException if native ownership is no longer available when used
@@ -202,8 +201,8 @@ public final class MetalBackendIntegration implements AutoCloseable {
     }
 
     /**
-     * Reports whether a nominal representation is the exact live readable Metal side of a
-     * prepared storage-layout transfer for any model data type.
+     * Reports whether a nominal representation is the exact live readable Metal side of a prepared
+     * storage-layout transfer for any model data type.
      *
      * <p>The admitted descriptor has positive static extents and a resolved, positive-stride,
      * non-overlapping physical span. Unresolved, negative, zero-stride broadcast, and overlapping
@@ -211,7 +210,7 @@ public final class MetalBackendIntegration implements AutoCloseable {
      * backend-issued immutable prepared-splat binding may both be readable sources. This predicate
      * alone does not authorize destination mutation; {@link #bindStorageLayoutUpload(
      * BufferRepresentation, TensorDescriptor)} separately requires the ordinary writable
-     * representation.</p>
+     * representation.
      *
      * @param representation non-null candidate Metal representation
      * @param descriptor non-null exact logical descriptor
@@ -226,9 +225,9 @@ public final class MetalBackendIntegration implements AutoCloseable {
     /**
      * Cold-binds one exact writable Metal destination to a physical storage-layout upload.
      *
-     * <p>The returned action retains the typed destination directly. It validates only logical
-     * BOOL elements before native mutation, leaving prefix and gap bytes uninterpreted. An
-     * immutable prepared-splat binding is always rejected as a destination.</p>
+     * <p>The returned action retains the typed destination directly. It validates only logical BOOL
+     * elements before native mutation, leaving prefix and gap bytes uninterpreted. An immutable
+     * prepared-splat binding is always rejected as a destination.
      *
      * @param representation non-null exact writable destination representation
      * @param descriptor non-null exact supported static rank-0..16 storage descriptor
@@ -246,10 +245,10 @@ public final class MetalBackendIntegration implements AutoCloseable {
      * Cold-binds one exact readable Metal source to a physical storage-layout download.
      *
      * <p>Non-BOOL transfers download the physical referenced span directly. BOOL cold binding
-     * allocates one private automatically managed native staging span; each hot call downloads
-     * there, validates every logical element, and only then commits the complete span to the
-     * supplied host destination, so malformed device BOOL cannot partially publish. A live
-     * backend-issued immutable prepared-splat binding is an eligible source.</p>
+     * allocates one private automatically managed native staging span; each hot call downloads there,
+   * validates every logical element, and only then commits the complete span to the supplied host
+   * destination, so malformed device BOOL cannot partially publish. A live backend-issued immutable
+   * prepared-splat binding is an eligible source.
      *
      * @param representation non-null exact readable source representation
      * @param descriptor non-null exact supported static rank-0..16 storage descriptor
@@ -265,10 +264,10 @@ public final class MetalBackendIntegration implements AutoCloseable {
     /**
      * Downloads one live readable Metal representation into detached canonical host bytes.
      *
-     * <p>Canonical non-view rank-0..16 publications and authenticated SELECT/SLICE storage-layout
-     * publications support all six model data types and use big-endian canonical element bytes.
-     * BOOL logical elements are validated as zero or one while layout holes remain uninterpreted.
-     * Other authenticated positive-rank affine publication remains FLOAT32-only.</p>
+     * <p>Canonical non-view rank-0..16 publications, including scalars, and every authenticated
+   * rank-0..16 affine or SELECT/SLICE storage-layout publication support all six model data types
+   * and use big-endian canonical element bytes. BOOL logical elements are validated as zero or one
+   * while layout holes remain uninterpreted.
      *
      * @param representation non-null live representation owned by this integration
      * @param descriptor non-null exact canonical or authenticated publication descriptor
@@ -289,8 +288,8 @@ public final class MetalBackendIntegration implements AutoCloseable {
     }
 
     /**
-     * Closes native ownership after Engine has closed results and prepared handles.
-     * Repeated calls are idempotent; context release may be deferred to a remaining child lease.
+     * Closes native ownership after Engine has closed results and prepared handles. Repeated calls
+   * are idempotent; context release may be deferred to a remaining child lease.
      *
      * @throws RuntimeException if native cleanup fails
      * @throws Error if cleanup reports a fatal failure

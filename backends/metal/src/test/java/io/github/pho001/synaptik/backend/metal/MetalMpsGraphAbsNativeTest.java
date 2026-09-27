@@ -11,8 +11,6 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,7 +34,7 @@ class MetalMpsGraphAbsNativeTest {
     };
 
     @Test
-    void JavaPreflightClosesAbsProfileStateTransitions() {
+    void JavaPreflightClosesAbsProfileAndRejectsSelectedMpsGraphViewNodes() {
 
         int[] ranks = {1, 1};
         long[] dimensions = dimensions(2, INPUT_BITS.length);
@@ -64,7 +62,10 @@ class MetalMpsGraphAbsNativeTest {
                         new long[] {INPUT_BITS.length}),
                 MetalMpsGraphProgram.Node.contiguous(1, 2),
                 MetalMpsGraphProgram.Node.abs(2, 3)));
-        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(new int[] {1, 1, 1, 1}, dimensions(4, INPUT_BITS.length), canonicalizedAbs), canonicalizedAbs, new int[] {0}, new int[] {3}, MetalPreparedRoute.MPSGRAPH);
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(NumericalProfile.STRICT_IEEE, MetalTestProgram.descriptors(new int[] {1, 1, 1, 1}, dimensions(4, INPUT_BITS.length), canonicalizedAbs), canonicalizedAbs, new int[] {0}, new int[] {3}, MetalPreparedRoute.MPSGRAPH));
     }
 
     @Test

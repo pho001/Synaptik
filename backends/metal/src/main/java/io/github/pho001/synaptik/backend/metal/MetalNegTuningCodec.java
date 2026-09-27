@@ -16,7 +16,7 @@ import java.util.zip.CRC32;
  *
  * <p>The format is a backend-local defensive transport, not the tools-owned workload-cache
  * artifact. It contains no executable, native handle, file path, objective, sample, or timing.
- * Decoding is fail-closed and performs no I/O or native work.</p>
+ * Decoding is fail-closed and performs no I/O or native work.
  */
 final class MetalNegTuningCodec {
     static final int MAX_WORKLOAD_BYTES = 64;
@@ -27,7 +27,7 @@ final class MetalNegTuningCodec {
     private static final int COMPATIBILITY_MAGIC = 0x4d4e434d; // MNCM
     private static final int CANDIDATE_MAGIC = 0x4d4e4341; // MNCA
     private static final int DECISION_MAGIC = 0x4d4e4443; // MNDC
-    private static final int CODEC_VERSION = 21;
+    private static final int CODEC_VERSION = 22;
     private static final int SESSION_SCOPE = 1;
 
     /**

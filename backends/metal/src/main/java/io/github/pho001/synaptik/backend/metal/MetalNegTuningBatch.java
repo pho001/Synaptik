@@ -12,16 +12,16 @@ import java.util.Optional;
  *
  * <p>The stable candidate order begins with the current safe heuristic. The value owns no
  * measurement, cache location, native handle, executable, physical allocation, or Runtime state.
- * Shared Prepare can transport it only through the method-free
- * {@link BackendTuningCandidateBatch} role.</p>
+ * Shared Prepare can transport it only through the method-free {@link BackendTuningCandidateBatch}
+ * role.
  */
 final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
     /** Current candidate and decision meaning. */
-    static final int CANDIDATE_SCHEMA_VERSION = 21;
+    static final int CANDIDATE_SCHEMA_VERSION = 22;
     /** Current canonical workload/target compatibility meaning. */
-    static final int COMPATIBILITY_SCHEMA_VERSION = 21;
+    static final int COMPATIBILITY_SCHEMA_VERSION = 22;
     /** Current exact profile-qualified Metal operation-composition policy meaning. */
-    static final int ROUTE_POLICY_VERSION = 21;
+    static final int ROUTE_POLICY_VERSION = 22;
 
     /** Stable complete private route configurations. */
     enum Candidate {
@@ -38,10 +38,11 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
             this.route = Objects.requireNonNull(route, "route");
         }
 
-        /** @return stable positive identity owned by the canonical prepared route */
+        /**
+     * @return stable positive identity owned by the canonical prepared route */
         int wireIdentity() { return route.wireIdentity(); }
 
-        /** @return exact canonical preparation route represented by this candidate */
+        /*** @return exact canonical preparation route represented by this candidate */
         MetalPreparedRoute route() { return route; }
 
         /**
@@ -66,7 +67,7 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
      * Canonical bounded workload-fingerprint bytes independent of graph-local object identities.
      *
      * <p>The constructor and accessor defensively copy the byte sequence. Equality and hashing
-     * compare byte content.</p>
+     * compare byte content.
      */
     static final class WorkloadSignature {
         private final byte[] bytes;
@@ -74,8 +75,8 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
         /**
          * Snapshots canonical schema-fifteen workload-fingerprint bytes.
          *
-         * <p>The bytes include the stable explicit numerical-profile wire identity, so otherwise
-         * equal workloads under different profiles cannot share workload identity.</p>
+         * <p>The bytes include the stable explicit numerical-profile wire identity, so otherwise equal
+         * workloads under different profiles cannot share workload identity.
          *
          * @param bytes non-null non-empty canonical bytes within the generator bound
          * @throws IllegalArgumentException if {@code bytes} is empty or exceeds the bound
@@ -88,7 +89,7 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
             this.bytes = bytes.clone();
         }
 
-        /** @return a fresh copy of the canonical bytes */
+        /*** @return a fresh copy of the canonical bytes */
         byte[] bytes() { return bytes.clone(); }
 
         @Override
@@ -158,8 +159,8 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
      * @param compatibility non-null exact workload/session compatibility
      * @param candidates non-null non-empty ordered distinct valid candidates
      * @throws NullPointerException if an argument or candidate is {@code null}
-     * @throws IllegalArgumentException if candidates are empty, duplicated, or do not start with
-     *     a valid safe heuristic
+     * @throws IllegalArgumentException if candidates are empty, duplicated, or do not start with a
+     * valid safe heuristic
      */
     MetalNegTuningBatch(Compatibility compatibility, List<Candidate> candidates) {
         this.compatibility = Objects.requireNonNull(compatibility, "compatibility");
@@ -173,10 +174,11 @@ final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
         }
     }
 
-    /** @return exact immutable compatibility */
+    /**
+   * @return exact immutable compatibility */
     Compatibility compatibility() { return compatibility; }
 
-    /** @return immutable ordered candidates with the safe heuristic first */
+    /*** @return immutable ordered candidates with the safe heuristic first */
     List<Candidate> candidates() { return candidates; }
 
     /**

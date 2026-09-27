@@ -24,9 +24,10 @@ import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithm
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.index.SelectAttrs;
 import io.github.pho001.synaptik.model.operation.index.SelectKind;
-import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
+import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
@@ -158,7 +159,63 @@ final class StaticResultLogicalLayoutClosureTest {
     }
 
     @Test
-    void closesStaticSplatsButPreservesBindableInputsAndDynamicResults() {
+    void retriesStaticCropAfterClosingMaterializedAndBroadcastInputs() {
+    Shape row = Shape.of(1, 3);
+    Shape matrix = Shape.of(2, 3);
+    Shape cropShape = Shape.of(1, 2);
+    List<CompiledNode> nodes =
+        List.of(
+            node(27, UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE, List.of(0), List.of(1)),
+            node(
+                28,
+                SliceKind.SLICE,
+                new CropToShapeAttrs(cropShape, Shape.of(1, 1)),
+                List.of(1),
+                List.of(2)),
+            node(
+                29,
+                ShapeTransformKind.EXPAND,
+                new TargetShapeAttrs(matrix),
+                List.of(3),
+                List.of(4)),
+            node(
+                30,
+                SliceKind.SLICE,
+                new CropToShapeAttrs(cropShape, Shape.of(1, 1)),
+                List.of(4),
+                List.of(5)));
+    CompiledGraphModel graph =
+        graph(
+            List.of(
+                resolved(matrix, LayoutDescriptor.contiguous(matrix)),
+                unresolved(matrix),
+                unresolved(cropShape),
+                unresolved(row),
+                unresolved(matrix),
+                unresolved(cropShape)),
+            nodes,
+            List.of(0, 3),
+            List.of(2, 5));
+    ValidatedGraph result =
+        StaticResultLogicalLayoutClosure.close(
+            validated(
+                graph,
+                Map.of(id(3), new CompileTimeConstantGraph.Splat(ScalarValue.float32(2.0f))),
+                Map.of(id(0), new TensorId(203))));
+
+    assertAll(
+        () ->
+            assertEquals(
+                LayoutDescriptor.of(cropShape, new long[] {3, 1}, 4, true),
+                result.graph().values().get(2).descriptor().layout().orElseThrow()),
+        () ->
+            assertEquals(
+                LayoutDescriptor.of(cropShape, new long[] {0, 1}, 1, true),
+                result.graph().values().get(5).descriptor().layout().orElseThrow()));
+  }
+
+  @Test
+  void closesStaticSplatsButPreservesBindableInputsAndDynamicResults() {
         Shape staticShape = Shape.of(2, 3);
         Shape dynamicShape = Shape.ofDimensions(
                 new StaticDimension(2), new DynamicDimension("N"));

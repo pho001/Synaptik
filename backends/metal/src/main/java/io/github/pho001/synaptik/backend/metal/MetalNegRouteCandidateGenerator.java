@@ -19,26 +19,25 @@ import java.util.Optional;
 /**
  * Generates complete, stable, budget-bounded Metal supported-operation route candidates.
  *
- * <p>The workload fingerprint uses only versioned semantics and structural positions, including
- * the cold numerical profile, schema-fifteen program image, exact logical descriptors, ordered
- * edges, explicit value states, target sets, dense represented-order geometry, ABI identity,
- * typed splats, and the scalar-composition source wire, exact raw constant, rank-one
- * {@code [1]} shape, operand order, and primitive opcode. Graph-local identities, partition object
- * identity, native handles, measurements, and cache state are excluded. Generation is cold,
- * thread-safe, deterministic, and performs no native work.</p>
+ * <p>The workload fingerprint uses only versioned semantics and structural positions, including the
+ * cold numerical profile, schema-fifteen program image, exact logical descriptors, ordered edges,
+ * explicit value states, target sets, dense represented-order geometry, ABI identity, typed splats,
+ * and the scalar-composition source wire, exact raw constant, rank-one {@code [1]} shape, operand
+ * order, and primitive opcode. Graph-local identities, partition object identity, native handles,
+ * measurements, and cache state are excluded. Generation is cold, thread-safe, deterministic, and
+ * performs no native work.
  */
 final class MetalNegRouteCandidateGenerator {
     private static final long UINT32_MAX = 0xffff_ffffL;
-    private static final int WORKLOAD_SIGNATURE_VERSION = 21;
-    private static final int EXACT_DEFAULT_POLICY = 21;
+    private static final int WORKLOAD_SIGNATURE_VERSION = 22;
+    private static final int EXACT_DEFAULT_POLICY = 22;
 
     /**
      * Generates every currently valid complete candidate up to a positive budget.
      *
      * @param context non-null current validated Prepare projection
      * @param plan non-null plan containing the validated structural lowering facts; its retained
-     *     route does not restrict otherwise valid candidates, and it must belong to
-     *     {@code context}
+     *     route does not restrict otherwise valid candidates, and it must belong to     {@code context}
      * @param budget positive maximum number of candidates
      * @return non-null immutable batch whose first candidate is the existing safe heuristic
      * @throws NullPointerException if a reference is {@code null}
@@ -98,7 +97,8 @@ final class MetalNegRouteCandidateGenerator {
                 && feedBytes / Float.BYTES <= UINT32_MAX;
     }
 
-    /** Returns whether one exact custom-program occurrence has a direct MPSGraph candidate. */
+    /**
+   * Returns whether one exact non-Task-0066 custom occurrence keeps a direct MPSGraph candidate. */
     private static boolean directCustomProgramCandidateIsValid(MetalNegPreparationPlan plan) {
         if (plan.partitionDag().nodes().size() != 1
                 || plan.graphProgram().nodes().size() != 1
@@ -107,9 +107,7 @@ final class MetalNegRouteCandidateGenerator {
             return false;
         }
         int wire = plan.graphProgram().nodes().getFirst().kind().wireIdentity();
-        return wire >= 40 && wire <= 45
-                || wire == 51
-                || wire >= 60 && wire <= 63;
+        return wire >= 60 && wire <= 63;
     }
 
     /**
