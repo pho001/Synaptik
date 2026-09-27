@@ -80,6 +80,29 @@ order with negative-infinity padding. Average pooling includes conceptual positi
 in the fixed full-kernel divisor. Convolution preserves each grouped contributor and optional bias
 placement. Direct/composed MPSGraph family metadata remains structural only.
 
+Task 0065 adds profile-common zero-input `INITIAL_STATE` and accelerator FLOAT32 `DROPOUT`.
+Initializer output is canonical no-gradient `INT64[2]` containing the raw key and counter words.
+Dropout accepts canonical rank `0..16`, preserves value gradient eligibility, publishes canonical
+FLOAT32 output, canonical BOOL mask, and canonical no-gradient `INT64[2]` next state, and advances
+the counter by the logical element count modulo $2^{64}$. Every extent, count, referenced span, and
+dispatch width fits unsigned 32 bits. Both rows use only the fixed custom program. The private
+`SYNAPTIK_METAL_SPLITMIX64_COUNTER_V1` mapping hashes
+`counter + ordinal + mix64(key + 0x9e3779b97f4a7c15)` modulo $2^{64}$ and compares its top 53 bits
+with the exact integer threshold $\lceil p2^{53}\rceil$. Kept values use FLOAT32
+`input * (1.0f / float(1.0d - p))`; dropped values are raw positive zero. The mapping is a
+versioned Metal-private replay boundary, not a portable stream, entropy source, public option, or
+random-quality claim.
+
+The initializer supports a genuine zero-feed graph, and dropout retains all three distinct
+outputs even when only a subset is public. The saved mask remains live through generated backward
+`WHERE`; its positive-zero branch may be an authenticated local zero-stride affine view. The
+nested affine step materializes that logical view into its assigned dense buffer, and custom WHERE
+indexes the canonical physical representation actually bound at runtime. Evaluation-mode NN
+dropout constructs no wire 101 and returns the original value and state. `RNN_TANH`,
+`GRU_RESET_AFTER`, and `LSTM` remain capability-false: both directions and bias variants have no
+approved complete elementary-function/recurrence route, runtime valid-length validation, or BPTT
+ownership.
+
 Wires `111..115` (`LOG_SUM_EXP`, `VARIANCE`, `STANDARD_DEVIATION`, `L1_NORM`, and `L2_NORM`)
 now have package-private forceable MPSGraph recipes. The log-sum-exp composition is stable, and
 variance/deviation apply the exact correction scale when requested. They remain production-false:
@@ -113,8 +136,9 @@ custom logic writes exact zero or one, and FLOAT32 WHERE copies the selected rep
 Every descriptor is fully static and has the operation-specific exact type, layout, Shape, and
 gradient relationship. The common exact operations have the same Model result contract in both
 profiles; Task-0052 operations, the no-gradient scalar/reciprocal subset, floating MATMUL, bounded
-MSE forward execution, convolution, and average pooling exist only under ACCELERATOR. The complete
-115-row capability ledger is `81 true / 34 false` under the exact occurrence restrictions above.
+MSE forward execution, convolution, average pooling, and dropout exist only under ACCELERATOR.
+INITIAL_STATE is common. The complete 115-row capability ledger is `83 true / 32 false` under the
+exact occurrence restrictions above.
 
 ```text
 capability -> Planning ownership -> Metal analysis and typed candidates
@@ -126,10 +150,10 @@ capability -> Planning ownership -> Metal analysis and typed candidates
 
 Capability applies per occurrence. Preparation then authenticates the complete maximal partition:
 common exact-unary/affine/canonicalization/indexing/classification/logic/WHERE,
-movement/replacement/fold/aggregate, ordering/top-K/arg-extrema, integral-MATMUL, and maximum-pool
-graphs and, under accelerator, valid compositions with binary, comparison, extrema, scalar,
-reduction, scan, general FLOAT32 MATMUL, mixed-carrier MATMUL, same-type canonical positive-rank
-FLOAT32 MSE `NONE`/`SUM`/`MEAN`, convolution, and average-pool nodes.
+movement/replacement/fold/aggregate, ordering/top-K/arg-extrema, integral-MATMUL, maximum-pool, and
+zero-input INITIAL_STATE graphs and, under accelerator, valid compositions with binary, comparison,
+extrema, scalar, reduction, scan, general FLOAT32 MATMUL, mixed-carrier MATMUL, same-type canonical
+positive-rank FLOAT32 MSE `NONE`/`SUM`/`MEAN`, convolution, average-pool, and dropout nodes.
 A positive-rank reduction or MSE `NONE` result may compose with other supported accelerator nodes;
 a scalar reduction or MSE `SUM`/`MEAN` result is a direct target only. Canonical BOOL comparison,
 ONE_HOT, classification, and logic values may publish or feed another admitted BOOL-domain node.
@@ -156,7 +180,8 @@ and selects one of three private routes:
 - `CUSTOM_PROGRAM` for a complete partition containing any Task-0052 node, any of the seven
   BOOL-domain nodes, exact raw `FLOOR`/`CEIL`/`SIGN`/`RELU`, an admitted
   Task-0059/Task-0060 exact custom node, any Task-0063 ordering/arg-extrema node, any Task-0064
-  convolution/pooling node, or MATMUL outside the retained all-FLOAT32 rank-two MPSGraph slice; or
+  convolution/pooling node, either Task-0065 RNG node, or MATMUL outside the retained all-FLOAT32
+  rank-two MPSGraph slice; or
 - `MPSGRAPH` for every other supported partition.
 
 The seven BOOL-domain and four exact raw unary nodes also expose direct MPSGraph candidates only as
@@ -251,7 +276,7 @@ distinct non-physical identities. The first is an abstract availability slot, th
 trace correlation token, and the third a session-compatibility identity that makes no stable-device
 claim. No mapping among them is implied. ABI 5 and the thirteen native exports remain fixed.
 The route-bearing image is schema 15 and every workload/exact-policy/candidate/compatibility/
-route/codec identity is version 20; schema 14 and identity-19 values fail closed. Tuning remains
+route/codec identity is version 21; schema 14 and identity-20 values fail closed. Tuning remains
 session-scoped and non-persistent.
 
 Future asynchronous execution requires a separate cross-module contract for completion/failure,
@@ -362,16 +387,14 @@ The package-private `MetalOperationRouteCatalog` separately describes every one 
 schema-fifteen `NodeKind` values. Exhaustive enum switching yields shared immutable entries with
 closed MPSGraph state/reason and custom-kernel state/reason values: MPSGraph totals are
 `75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE`; custom totals are
-`58 AVAILABLE / 57 PENDING / 0 UNAVAILABLE_WITH_PROOF`. The normative
+`60 AVAILABLE / 55 PENDING / 0 UNAVAILABLE_WITH_PROOF`. The normative
 [per-wire evidence audit](../planning/backends/metal/tasks/0056-route-evidence-audit.md) supplies
-the exact installed-SDK selector or finite composition and current Model source for every row.
-The closed MPSGraph reasons include a dedicated `MD_CAST` identity for wire 39, matching
-`SHAPE::castTensor:toType:name:` rather than classifying that selector as arithmetic. Wires
-`46..49` and `52` are finite compositions because they materialize one exact raw rank-one
-constant before the one arithmetic primitive. This catalog performs no capability admission and
-no selection. It is never consulted by Runtime; 34 kinds remain capability-false even when the
-catalog records a structurally direct or composed MPSGraph realization. Structural executable
-status separately covers 99 wires with 16 nonexecutable rows and never grants production ownership.
+the installed-SDK selector or finite composition and current Model source for every pre-0065 row;
+Task 0065 records both random rows as MPSGraph-unavailable/custom-available. This catalog performs
+no capability admission and no selection. It is never consulted by Runtime; 32 kinds remain
+capability-false even when the catalog records a structurally direct or composed MPSGraph
+realization. Structural executable status separately covers 101 wires with 14 nonexecutable rows
+and never grants production ownership.
 
 After Planning creates one maximal Metal partition, analysis walks nodes in partition order with
 explicit unavailable, canonical, affine-view, and materialized-layout states. Ordinary graph feeds
@@ -386,9 +409,11 @@ consumes canonical FLOAT32 data and canonical INT32 indices and produces canonic
 canonical FLOAT32 data, canonical INT32 indices, and canonical FLOAT32 updates and produces
 canonical FLOAT32. Classification consumes canonical FLOAT32 and produces canonical BOOL. Logic
 consumes canonical BOOL and produces canonical BOOL with exact broadcast Shape. WHERE consumes
-canonical BOOL plus canonical FLOAT32 branches and produces canonical FLOAT32 with exact
-branch-first broadcast Shape. Accelerator binary, reduction, and MSE nodes consume only canonical
-FLOAT32 values. Binary nodes preserve the exact broadcast Shape; reduction lowering preserves its
+canonical or authenticated local affine BOOL/FLOAT32 inputs and produces canonical FLOAT32 with
+exact branch-first broadcast Shape; a nested MPSGraph affine producer materializes densely before
+custom WHERE derives physical addressing from that runtime representation. Accelerator binary,
+reduction, and MSE nodes consume only canonical FLOAT32 values.
+Binary nodes preserve the exact broadcast Shape; reduction lowering preserves its
 typed form, ordered axes, keep-dimensions state, sum-to-Shape target, and checked term geometry.
 MSE retains ordered prediction/target inputs and reduction wire `1`, `2`, or `3`; native graph
 construction expands it to fixed subtraction, self-multiplication, and optional full SUM or MEAN.
@@ -419,21 +444,22 @@ consuming a caller position. Existing shared `GraphPreparation` tests independen
 chain `CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
 Once stable values, states, feeds, targets, checked byte geometry, and typed node records are known,
-analysis creates a version-twenty candidate batch and workload fingerprint.
+analysis creates a version-twenty-one candidate batch and workload fingerprint.
 Partitions without an exact custom node or custom-only MATMUL retain the ordinary MPSGraph
 candidate, with the existing bounded singleton-NEG alternative where eligible. A partition
-containing an exact custom node, Task-0064 convolution/pooling node, or MATMUL outside the
-all-FLOAT32 rank-two slice has the fixed `CUSTOM_PROGRAM` production candidate. Package-private
-structural forcing remains available only for previously audited dual-route nodes; Task-0063 and
-Task-0064 production kinds never receive an MPSGraph candidate.
+containing an exact custom node, Task-0064 convolution/pooling node, either Task-0065 random node,
+or MATMUL outside the all-FLOAT32 rank-two slice has the fixed `CUSTOM_PROGRAM` production
+candidate. Package-private structural forcing remains available only for previously audited
+dual-route nodes; Task-0063, Task-0064, and Task-0065 production kinds never receive an MPSGraph
+candidate.
 
-The version-twenty canonical workload fingerprint covers the explicit numerical-profile wire,
+The version-twenty-one canonical workload fingerprint covers the explicit numerical-profile wire,
 the schema-fifteen route-bearing program image, ordered input and output references, all typed
 attributes, value states, authenticated local-transpose and singleton-height provenance, complete
 tensor descriptors and storage layouts, target and internal-value sets, exact scalar/splat bits,
 logical-boundary roles, policy/candidate/route schemas, and ABI version. It encodes structural
 positions rather than graph object identity. Target compatibility also contains a fresh private
-nonce from the exact `MetalDeviceContext`; identity 19 and earlier decisions fail closed.
+nonce from the exact `MetalDeviceContext`; identity 20 and earlier decisions fail closed.
 Metal can construct an absent- or present-decision `BackendPartitionTuningHandoff`. Fresh analysis
 always regenerates the current batch. Every supplied handoff is accepted only when the exact
 partition, candidate schema, workload fingerprint, and context session match. An absent decision
@@ -458,15 +484,15 @@ input exposes this test seam.
 
 ### Session decision codec and limitations
 
-The package-private version-twenty Metal codec produces bounded canonical compatibility, candidate,
-and checksummed decision bytes. Decode rejects wrong magic, schema, session scope, numerical
-profile, malformed or truncated content, trailing or corrupt bytes, changed workload or context,
-and unknown or pruned candidates. The bytes contain no native handle or executable. Identity-19
-and earlier codec bytes and cross-profile decisions fail closed even when their trailing checksum
-is otherwise valid.
+The package-private version-twenty-one Metal codec produces bounded canonical compatibility,
+candidate, and checksummed decision bytes. Decode rejects wrong magic, schema, session scope,
+numerical profile, malformed or truncated content, trailing or corrupt bytes, changed workload or
+context, and unknown or pruned candidates. The bytes contain no native handle or executable.
+Identity 20 and earlier codec bytes and cross-profile decisions fail closed even when their
+trailing checksum is otherwise valid.
 
 The public `MetalLocalWorkloadTuning` retained by `MetalBackendIntegration` wraps this codec and
-candidate generator without changing their version-twenty bytes. It returns a handoff only for
+candidate generator without changing their version-twenty-one bytes. It returns a handoff only for
 an exact singleton NEG whose complete ordered candidate list is `[CUSTOM_SINGLE_NEG, MPSGRAPH]`.
 `MetalCompletePlanTuning` authenticates the exact Phase-1 association and exposes one complete-plan
 candidate fixed to that selected route. Both collaborations use opaque exact-owner/batch values,
@@ -480,7 +506,7 @@ model-plan path. Cross-session Metal reuse still requires a separately authorize
 device/library fingerprint.
 
 Schema-fifteen workload bytes and workload compatibility include the fixed route. Candidate and
-decision bytes retain route wires `1..3`, route-policy version twenty, and the target session.
+decision bytes retain route wires `1..3`, route-policy version twenty-one, and the target session.
 Prepared plans and native resources are route-specific. A future executable-cache key would
 therefore require the tuple `(workload compatibility, route wire, route-policy version, target
 session)` rather than a workload digest alone. The repository has no persistent Metal executable
@@ -852,8 +878,8 @@ sides, and consists of a 64-byte header, 40-byte value descriptors, 32-byte node
 and 64-bit attribute words. Each value descriptor carries layout presence, kind, view and dense-
 physical flags, stride-pool offset, storage offset, and referenced span. The header embeds fixed
 route wire `2` or `3`; schema 14, route zero, and every other schema or route fail closed.
-Production capability admits exactly 81 operation kinds while 34 remain false; structural native
-execution covers 99 kinds and leaves 16 nonexecutable. Attribute wires `0..41` and type wires
+Production capability admits exactly 83 operation kinds while 32 remain false; structural native
+execution covers 101 kinds and leaves 14 nonexecutable. Attribute wires `0..41` and type wires
 `1..6` cover all current Model signatures and carriers.
 
 Java and native code independently require exact operation/attribute/type/cardinality agreement,
@@ -1057,7 +1083,7 @@ persistent Metal splat binding is accepted only as a Metal read source; it canno
 destination. Runtime executes only the resulting direct prepared references.
 
 For one exact singleton NEG Metal plan, public `prepareTuned(...)` measures the complete two-route
-local batch, authenticates the selected version-twenty decision, then correctness-checks and
+local batch, authenticates the selected version-twenty-one decision, then correctness-checks and
 times one complete-plan candidate fixed to that route. The returned production recipe is freshly
 prepared after representative cleanup. Metal policy, producer, and decision-codec identities are
 adapter-owned and distinct from CPU identities; existing CPU bytes and behavior remain unchanged.
@@ -1109,12 +1135,14 @@ The fixed shared custom route is not a general custom-kernel
 framework: cold preparation owns the reviewed kernels and interleaved existing-node executables,
 every logical value has a declared assigned buffer, and hot Java execution makes one synchronous
 native call with no host staging, retry, fallback, or hidden materialization.
-There is no asynchronous API, general
-output/workspace pool, executable serialization, discovery, persistent route cache, alias promise,
-general backward route, or performance claim. Immutable source-owned splat buffers persist only
-within their exact `PreparedExecution`; mutable outputs and address workspaces remain fresh per run.
-The executable backward path consists only of the explicitly seeded general FLOAT32 MATMUL and
-bounded Task-0064 Conv2d/average-pool formulas described above. Model task 0026 must define FLOAT16
+There is no asynchronous API, general output/workspace pool, executable serialization, discovery,
+persistent route cache, alias promise, general backward route, portable RNG stream, entropy source,
+random-quality claim, or performance claim. Immutable source-owned splat buffers persist only
+within their exact `PreparedExecution`; mutable outputs, masks, next-state values, and workspaces
+remain fresh per run. The executable backward path consists only of the explicitly seeded general
+FLOAT32 MATMUL, bounded Task-0064 Conv2d/average-pool formulas, and primitive-closed Task-0065
+dropout formula described above. RNN, GRU, and LSTM remain unavailable under both profiles,
+including zero-length/no-work special cases and all gradients. Model task 0026 must define FLOAT16
 semantics before any backend can advertise it.
 
 Related documentation:
@@ -1140,27 +1168,30 @@ Related documentation:
 - [Metal task 0062](../planning/backends/metal/tasks/0062-accelerator-mse-and-normalization-loss-boundary.md)
 - [Metal task 0063](../planning/backends/metal/tasks/0063-exact-ordering-and-arg-extrema.md)
 - [Metal task 0064](../planning/backends/metal/tasks/0064-convolution-pooling-and-attention-boundary.md)
+- [Metal task 0065](../planning/backends/metal/tasks/0065-explicit-state-rng-dropout-and-recurrent-boundary.md)
 - [Native ABI and build guide](../../native/metal-macos-arm64/README.md)
 
 ## Numerical profiles
 
 Metal capability and preparation make the listed exact canonical movement, affine, indexing,
 classification, BOOL logic, WHERE, `NEG`/`ABS`/`FLOOR`/`CEIL`/`SIGN`/`RELU`, no-gradient promoted
-INT32/INT64 MATMUL, Task-0063 ordering/top-K/numeric arg-extrema, and Task-0064 exact
-FLOAT64/FLOAT32/BFLOAT16 maximum-pool rows common to both profile matrices. `ACCELERATOR`
-additionally admits tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`/`MIN`/`MAX`, all six comparisons,
-scalar MIN/MAX/CLAMP, canonical FLOAT32 SUM/MEAN/MIN/MAX/SUM_TO_SHAPE, every CUM_SUM/CUM_PROD scan
-mode, every positive-static FLOAT32 MATMUL rank/broadcast geometry with authenticated local
-transposes, the no-gradient mixed BFLOAT16/FLOAT32 pairs, same-type positive-rank FLOAT32 MSE for
-`NONE`, `SUM`, and `MEAN`, FLOAT32-result grouped convolution over FLOAT32/BFLOAT16 roles, and
-FLOAT32 average pooling. Task-0063 and Task-0064 rows are positive-static, custom-only, and
-unsigned-32-bit bounded; only exact locally authenticated singleton-height Task-0064 views depart
-from canonical input layout. These arithmetic routes remain inside Model's exact/discrete or
-recursive primitive/aggregate floors; they gain no generic final-output tolerance. MSE owns no
-generated backward graph and grants no neighboring normalization/loss-family capability. The
-profile is retained in partition plans and every route/tuning/codec/workload identity. Java
-enforces the boundary before native entry. ABI version `5` retains thirteen export names and
-accepts one bounded schema-15 route-bearing image; operation wires `1..115`, attribute wires
-`0..41`, and type wires `1..6` cover the current structural registry without widening capability.
-Route, candidate, compatibility, workload, exact-policy, and codec identities are version `20`;
-version `19` fails closed. The complete-plan wrapper remains version `1`.
+INT32/INT64 MATMUL, Task-0063 ordering/top-K/numeric arg-extrema, Task-0064 exact
+FLOAT64/FLOAT32/BFLOAT16 maximum-pool rows, and Task-0065 INITIAL_STATE common to both profile
+matrices. `ACCELERATOR` additionally admits tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`/`MIN`/`MAX`,
+all six comparisons, scalar MIN/MAX/CLAMP, canonical FLOAT32
+SUM/MEAN/MIN/MAX/SUM_TO_SHAPE, every CUM_SUM/CUM_PROD scan mode, every positive-static FLOAT32
+MATMUL rank/broadcast geometry with authenticated local transposes, the no-gradient mixed
+BFLOAT16/FLOAT32 pairs, same-type positive-rank FLOAT32 MSE for `NONE`, `SUM`, and `MEAN`,
+FLOAT32-result grouped convolution over FLOAT32/BFLOAT16 roles, FLOAT32 average pooling, and
+canonical FLOAT32 dropout. Task-0063 through Task-0065 production rows are custom-only and
+unsigned-32-bit bounded where applicable; only exact authenticated local views in WHERE,
+MATMUL, and Task-0064 composition depart from canonical input layout. These arithmetic routes
+remain inside Model's exact/discrete or recursive primitive/aggregate floors; they gain no generic
+final-output tolerance. MSE owns no generated backward graph, while dropout backward is owned only
+when its complete saved-mask/scalar-DIV/WHERE partition is independently capable. The profile is
+retained in partition plans and every route/tuning/codec/workload identity. Java enforces the
+boundary before native entry. ABI version `5` retains thirteen export names and accepts one bounded
+schema-15 route-bearing image; operation wires `1..115`, attribute wires `0..41`, and type wires
+`1..6` cover the current structural registry without widening capability. Route, candidate,
+compatibility, workload, exact-policy, and codec identities are version `21`; version `20` fails
+closed. The complete-plan wrapper remains version `1`.

@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0064; 0065 Ready; 0053 Blocked | [Metal 0064](backends/metal/tasks/0064-convolution-pooling-and-attention-boundary.md) is Complete through `3df362e1`. [Metal 0065](backends/metal/tasks/0065-explicit-state-rng-dropout-and-recurrent-boundary.md) is independently approved and Ready for exact both-profile `INITIAL_STATE` and accelerator FLOAT32 `DROPOUT` through one fixed custom route; generic eager distributions add no graph row and all recurrent rows remain blocked on elementary proof and BPTT. Current production remains `81/34`, structural execution `99/16`, catalogs `75/35/5` and `58/57/0`, schema 15, identity 20, ABI 5, and thirteen exports until implementation completes. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0065; 0053 Blocked | [Metal 0065](backends/metal/tasks/0065-explicit-state-rng-dropout-and-recurrent-boundary.md) is Complete through approved plan `9ceee2b53c88a8c87ca4b8a42cdd2c92682074c9`, implementation `05d83074`, and correctness remediation `ed7a3369`: exact both-profile `INITIAL_STATE` and accelerator FLOAT32 `DROPOUT` use one fixed custom route; eager distributions add no graph row and all recurrent rows remain blocked. Current production is `83/32`, structural execution `101/14`, catalogs `75/35/5` and `60/55/0`, schema 15, identity 21, ABI 5, and thirteen exports. No Metal task is Ready. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -515,25 +515,25 @@ is `Complete` at `42c4cfbf` plus `fb102a46` after the operation-by-operation DAZ
 validation, combined serial checkpoint, and independent Class C approval all passed.
 
 Current Metal uses ABI 5, exactly thirteen exports, and one bounded schema-15 route-bearing program
-image. Both profiles retain the exact common unary, affine, canonicalization, indexing, BOOL,
-Task-0059 movement, Task-0060 replacement/fold/aggregate, no-gradient promoted INT32/INT64 MATMUL,
-Task-0063 ordering/top-K/arg-extrema, and exact FLOAT64/FLOAT32/BFLOAT16 maximum Pool2d/Pool3d
-rows. Accelerator additionally admits the documented FLOAT32 arithmetic, extrema, scalar,
-reduction, and scan rows; every positive-static FLOAT32 MATMUL vector, matrix, batched, and
-broadcast geometry; no-gradient BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 result; same-type
-canonical positive-rank FLOAT32 MSE forward execution for `NONE`, `SUM`, and `MEAN`;
-FLOAT32-result grouped Conv2d/Conv3d over FLOAT32/BFLOAT16 roles; and FLOAT32 average
-Pool2d/Pool3d. Existing all-FLOAT32 rank-two matrix products retain MPSGraph; all other admitted
-MATMUL forms and all six Task-0064 rows use the fixed custom program. MSE remains the fixed nested
-MPSGraph composition when a containing partition selects the custom program. Task-0063 ordering
-and arg-extrema and Task-0064 convolution/pooling are custom-only. A partition containing an exact
-custom node materializes each required logical value in a declared run-owned physical storage span
-and invokes one fixed shared custom-program native executable per hot run.
+image. Its common exact domain includes the documented unary, affine, canonicalization, indexing,
+BOOL, Task-0059 movement, Task-0060 replacement/fold/aggregate, promoted integral MATMUL,
+Task-0063 ordering/top-K/arg-extrema, exact FLOAT64/FLOAT32/BFLOAT16 maximum Pool2d/Pool3d, and
+Task-0065 raw zero-input INITIAL_STATE rows. Accelerator additionally admits the documented
+FLOAT32 arithmetic, extrema, scalar, reduction, and scan rows; every positive-static FLOAT32
+MATMUL vector, matrix, batched, and broadcast geometry; no-gradient BFLOAT16/FLOAT32 mixed MATMUL
+with FLOAT32 result; same-type canonical positive-rank FLOAT32 MSE forward execution for `NONE`,
+`SUM`, and `MEAN`; FLOAT32-result grouped Conv2d/Conv3d over FLOAT32/BFLOAT16 roles; FLOAT32
+average Pool2d/Pool3d; and canonical FLOAT32 explicit-state dropout. Existing all-FLOAT32 rank-two
+matrix products retain MPSGraph; all other admitted MATMUL forms, all six Task-0064 rows, and both
+Task-0065 random rows use the fixed custom program. MSE remains the fixed nested MPSGraph
+composition when a containing partition selects the custom program. Task-0063 through Task-0065
+production rows are custom-only. A partition containing an exact custom node materializes each
+required logical value in a declared run-owned physical storage span and invokes one fixed shared
+custom-program native executable per hot run.
 Schema 15 carries type wires `1..6`, operation wires `1..115`, attribute wires `0..41`, route wire
-`2` or `3`, and complete positive-stride storage-layout geometry; exactly 99 operation kinds are
-structurally executable and 81 are production-capable. Workload, policy, candidate, compatibility,
-route, and codec identities are version twenty; candidate wires and complete-plan wrapper remain
-stable.
+`2` or `3`, and complete storage-layout geometry; exactly 101 operation kinds are structurally
+executable and 83 are production-capable. Workload, policy, candidate, compatibility, route, and
+codec identities are version twenty-one; candidate wires and complete-plan wrapper remain stable.
 
 Metal 0025 remains Complete at reviewed revision `f88066e3`; its schema-11/version-twelve facts are
 historical. Blocked 0026–0027/0030–0037/0039–0040 changed no executable capability. Complete 0041
@@ -644,15 +644,16 @@ matrix with narrowing, or infer capability from registered schema.
 Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
 0017, Trace 0003, and Metal
 0015/0019/0020/0021/0022/0023/0024/0025/0038/0041/0042/0043/0044/0045/0046/0048/0049/0050/0054/
-0055/0056/0057/0058/0059/0060/0061/0062/0063/0064 are Complete. Metal 0016–0018, 0026–0027,
+0055/0056/0057/0058/0059/0060/0061/0062/0063/0064/0065 are Complete. Metal 0016–0018, 0026–0027,
 0030–0037, planning-only 0039, failed-gate 0040, provider-gated 0047, historical consumed-oracle
 0051, and proof-blocked 0053 remain Blocked under their recorded contracts. Task 0052 is Complete;
 Task 0054 remains its exact historical pre-cutover inventory. Tasks 0055–0061 remain completed
 foundation/catalog and operation-family prerequisites, Complete Task 0062 owns the bounded MSE
-forward cutover, Complete Task 0063 owns the exact ordering/top-K/arg-extrema cutover, and Complete
-Task 0064 owns the six convolution/pooling rows through final reconciliation `3df362e1`. Task 0065
-is `Ready` after independent remediated-plan approval with zero unresolved P0/P1/P2 and is the sole
-Metal production frontier.
+forward cutover, Complete Task 0063 owns the exact ordering/top-K/arg-extrema cutover, Complete
+Task 0064 owns the six convolution/pooling rows through final reconciliation `3df362e1`, and
+Complete Task 0065 owns the two explicit-state random rows through approved plan
+`9ceee2b53c88a8c87ca4b8a42cdd2c92682074c9`, implementation `05d83074`, and correctness
+remediation `ed7a3369`.
 - Metal 0063 is Complete through implementation `9931d5f8`, documentation `f7800a26`, remediation
   `8a74b499`, final source/test correction `86399d53`, and active-document reconciliation
   `c80d79c0`. Its exact custom domain accepts only static canonical positive Shapes whose
@@ -666,9 +667,18 @@ Metal production frontier.
 - Metal 0064 is Complete through `3df362e1` with fixed custom accelerator Conv2d/Conv3d and average
   Pool2d/Pool3d plus exact both-profile max Pool2d/Pool3d. Attention remains blocked on the
   unproved exponential/softmax core and incomplete opaque selector/output contract; ConvTranspose
-  has no Model or registry contract. Current capability is `81/34`, structural execution is
-  `99/16`, catalogs are `75/35/5` MPSGraph and `58/57/0` custom, schema is 15, identity is 20,
-  ABI is 5, and thirteen exports remain fixed.
+  has no Model or registry contract. Its completion boundary was capability `81/34`, structural
+  execution `99/16`, catalogs `75/35/5` MPSGraph and `58/57/0` custom, schema 15, identity 20,
+  ABI 5, and thirteen exports.
+- Metal 0065 is Complete through implementation `05d83074` and correctness remediation
+  `ed7a3369`, with independent cumulative code/evidence/documentation and security/determinism
+  review returning `APPROVE` with zero unresolved P0/P1/P2. Exact both-profile zero-input
+  INITIAL_STATE and accelerator FLOAT32 DROPOUT use one fixed custom program. Saved-mask backward,
+  evaluation bypass, replay, branching/chaining, prepared reuse, and independent/concurrent
+  sessions are covered without hidden RNG state or CPU fallback. Generic eager distributions remain
+  host leaves; RNN, GRU, and LSTM remain fail-closed. Current capability is `83/32`, structural
+  execution is `101/14`, catalogs are `75/35/5` MPSGraph and `60/55/0` custom, schema is 15,
+  identity is 21, ABI is 5, and thirteen exports remain fixed.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -682,22 +692,16 @@ Metal production frontier.
 
 ## Nearest next step
 
-Metal Task 0065 is the nearest production frontier. Its independently approved
-[five-row plan](backends/metal/tasks/0065-explicit-state-rng-dropout-and-recurrent-boundary.md)
-covers wires 101..105, exact Model/Compiler state, mask, dropout, recurrent, gradient, and
-train/evaluation contracts, exact eager-distribution mappings and their non-operation boundary,
-retained MPSGraph evidence, one versioned Metal-private counter route, zero-feed/multi-output
-lifecycle, unsigned-32-bit bounds, identity/count deltas, public Engine evidence, and recurrent
-blockers.
+No Metal production task is Ready. Complete Task 0065 closes the authorized explicit-state
+RNG/dropout frontier with one Metal-private versioned counter route, zero-feed/multi-output
+lifecycle, unsigned-32-bit bounds, public Engine execution, and retained recurrent blockers.
+Proof-blocked Task 0053 may resume only after its pinned constructive-real exponential bridge
+exists; no current task authorizes a recurrent or generic random-distribution cutover.
 
-The proposed production cutover is exactly both-profile `INITIAL_STATE` plus accelerator FLOAT32
-`DROPOUT` over the complete explicit key/counter and binary64 probability domains. It plans fixed
-custom-only routing with no entropy source, hidden RNG, timing, autotuning, cache winner, retry, or
-fallback. `TensorRandoms` remains eager caller-owned host sampling. RNN/GRU/LSTM remain false until
-complete TANH/EXP/SIGMOID proof and Compiler BPTT exist. Current capability remains `81/34`,
-structural execution `99/16`, MPSGraph catalog `75/35/5`, custom catalog `58/57/0`, schema 15,
-identity 20, ABI 5, and thirteen exports. The approved plan authorizes one serial production
-cutover; these current production values remain unchanged until it lands.
+Current capability is `83/32`, structural execution `101/14`, MPSGraph catalog `75/35/5`, custom
+catalog `60/55/0`, schema 15, identity 21, ABI 5, and thirteen exports. `TensorRandoms` remains
+eager caller-owned host sampling. RNN/GRU/LSTM remain false until complete TANH/EXP/SIGMOID proof
+and Compiler BPTT exist.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
@@ -812,10 +816,9 @@ loop or complete TANH/EXP/SIGMOID proof exists and Compiler still rejects BPTT. 
 three recurrent rows fail-closed rather than advertising a no-work or selected-value special case.
 
 Schema 15, operation wires `1..115`, attributes `0..41`, local types `1..6`, ABI 5, and
-version-twenty identities remain current after Complete Task 0064. Task 0065 is `Ready` but changes
-none of them before implementation. Complete Tasks 0055–0064 remain historical
-foundation/catalog/route/domain prerequisites; blocked Metal 0053 remains fail-closed without
-production capability. Metal 0026/0027 remain separately finalized Blocked.
+version-twenty-one identities remain current after Complete Task 0065. Complete Tasks 0055–0065
+remain historical foundation/catalog/route/domain prerequisites; blocked Metal 0053 remains
+fail-closed without production capability. Metal 0026/0027 remain separately finalized Blocked.
 Documentation/audit-only Metal 0038 is Complete. Planning-only Metal 0039 is Blocked on Draft Model
 0026. Metal 0040 is Blocked by its failed one-execution BFLOAT16 raw-bit gate. Metal 0041 is
 Complete at implementation `ba16d942` plus remediation `386705ca`; Metal 0042 is Complete at
@@ -826,8 +829,8 @@ independently approved implementation `89f9fbb9`; documentation-only Metal 0049 
 remediation `6d4246f7`; Metal 0050 final verification, Task 0052, and historical documentation/
 audit-only Metal 0054 and exact BOOL Task 0057 are Complete. Historical Metal 0051 and successor
 Metal 0053 are Blocked. Task 0054 remains the exact pre-cutover `19+2+15+79=115` record, not a
-current count; current capability is `81 true / 34 false = 115` and current structural execution is
-`99 true / 16 false = 115`.
+current count; current capability is `83 true / 32 false = 115` and current structural execution is
+`101 true / 14 false = 115`.
 
 ## History policy
 

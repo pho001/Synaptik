@@ -2,20 +2,22 @@
 
 ## Status
 
-Ready — independent Model/Compiler, native/schema/lifecycle, and security/determinism reviewers
-approved the remediated plan with zero unresolved P0/P1/P2. This brief, the Metal master plan, and
-the project roadmap are the only planning edits; no production, native, test, package, probe, or
-benchmark file changed. This approval authorizes one serial implementation without another
-approval checkpoint.
+Complete — approved plan `9ceee2b53c88a8c87ca4b8a42cdd2c92682074c9` was implemented by
+`05d83074` plus correctness remediation `ed7a3369`. The cutover adds exact both-profile
+`INITIAL_STATE` and accelerator FLOAT32 `DROPOUT`, while eager distributions and all recurrent rows
+remain fail-closed. Native package, complete Metal, focused Compiler, conformance, public Engine,
+Javadoc/architecture, full repository test/build, and documentation/diff validation passed after
+remediation. Independent cumulative code/evidence/documentation and security/determinism reviews
+returned `APPROVE` with zero unresolved P0/P1/P2.
 
 ## Change class
 
-Class C — the reviewed implementation will add the first Metal explicit-state random execution,
-zero-feed native creation, one genuine three-output custom operation, saved-mask gradient use,
-private generator identity, and public Engine behavior. It will not advertise a recurrent row:
-all three recurrent kinds remain fail-closed for explicit elementary-function, recurrence, and
-BPTT reasons. An independent cumulative code, evidence, documentation, and security review is
-required after implementation.
+Class C — the implementation adds the first Metal explicit-state random execution, zero-feed
+native creation, one genuine three-output custom operation, saved-mask gradient use, private
+generator identity, and public Engine behavior. It advertises no recurrent row: all three recurrent
+kinds remain fail-closed for explicit elementary-function, recurrence, and BPTT reasons.
+Independent cumulative code/evidence/documentation and security review was the final completion
+gate and returned `APPROVE` after correctness remediation.
 
 ## Goal
 
@@ -418,7 +420,7 @@ Task 0035 by choosing a separately specified custom RNG route. Task 0037 remains
 
 ## Files and symbols
 
-Expected implementation owners:
+Implementation owners:
 
 - `MetalCapabilityProvider`, `MetalMpsGraphProgram`, `MetalNegPartitionPreparer`,
   `MetalNegPreparationPlan`, `MetalNativeApi`, `MetalOperationRouteCatalog`, custom route candidate/
@@ -433,8 +435,9 @@ Expected implementation owners:
 - Metal/backend/native guides, public API scope/capability/preparer status, targeted glossary and
   architecture identity claims, this brief, master plan, and roadmap after behavior stabilizes.
 
-No Compiler or Model production edit is planned. The planning-only revision changes exactly this
-brief, the Metal master plan, and the roadmap.
+No Compiler or Model production edit was required. The original planning-only revision changed
+exactly this brief, the Metal master plan, and the roadmap; implementation then changed only the
+approved Metal Java/native/test, public Engine integration, and current documentation scopes.
 
 ## Acceptance criteria
 
@@ -514,10 +517,15 @@ remediation changes executable behavior.
 
 ## Planning result
 
-The audited maximal current cutover is two fixed custom explicit-state RNG rows, not a generic
-random-distribution or recurrent implementation. Independent Model/Compiler,
-native/schema/lifecycle, and security/determinism reviews approved the remediated plan with zero
-unresolved P0/P1/P2. Current production remains unchanged at `81/34` capability and `99/16`
-structural execution; catalogs remain `75/35/5` MPSGraph and `58/57/0` custom, schema 15, identity
-20, ABI 5, and thirteen exports until the implementation/evidence cutover completes. Recurrent
-execution remains empty pending a complete TANH/EXP/SIGMOID proof and Compiler BPTT decision.
+The audited maximal cutover is two fixed custom explicit-state RNG rows, not a generic
+random-distribution or recurrent implementation. Both-profile zero-input `INITIAL_STATE` publishes
+raw key/counter bits; accelerator canonical FLOAT32 `DROPOUT` publishes value, saved BOOL mask, and
+next state using the private `SYNAPTIK_METAL_SPLITMIX64_COUNTER_V1` replay boundary. Exact threshold,
+scaling, counter wrap, target-subset liveness, saved-mask backward, evaluation bypass, reuse, and
+session/concurrency isolation are implemented and proven without Compiler or Model production
+changes.
+
+Production is now `83/32` capability and `101/14` structural execution; catalogs are `75/35/5`
+MPSGraph and `60/55/0` custom. Schema 15, ABI 5, and thirteen exports remain fixed; all
+backend-local identities are 21 and identity 20 fails closed. Recurrent execution remains empty
+pending a complete TANH/EXP/SIGMOID proof and Compiler BPTT decision.

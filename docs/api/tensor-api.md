@@ -118,15 +118,16 @@ capability, compile artifacts, Prepare, and backend identity. For any backend, s
 and behavior are an accelerator subset for the same occurrence domain. CPU executes both profiles
 with the same exact current semantics. Metal's common exact domain contains the exact unary,
 affine, canonicalization, indexing, BOOL-domain, Task-0059 movement, Task-0060
-replacement/fold/aggregate, Task-0063 ordering/top-K/numeric arg-extrema, and no-gradient promoted
-INT32/INT64 MATMUL rows. Accelerator additionally admits the documented FLOAT32 arithmetic,
-extrema, scalar, reduction, and scan rows; every positive-static FLOAT32 MATMUL vector, matrix,
-batched, and broadcast geometry; and no-gradient BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 output.
-Every unlisted occurrence fails closed before route selection. Metal uses ABI 5 with the same
-thirteen exports and one bounded schema-15 route-bearing program image. Operation wires `1..115`,
-attribute wires `0..41`, and type wires `1..6` cover current structural vocabulary;
-version-nineteen identities authenticate that meaning without widening capability, and version
-eighteen fails closed.
+replacement/fold/aggregate, Task-0063 ordering/top-K/numeric arg-extrema, no-gradient promoted
+INT32/INT64 MATMUL, Task-0064 maximum pooling, and Task-0065 raw INITIAL_STATE rows. Accelerator
+additionally admits the documented FLOAT32 arithmetic, extrema, scalar, reduction, and scan rows;
+every positive-static FLOAT32 MATMUL vector, matrix, batched, and broadcast geometry; no-gradient
+BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 output; Task-0064 convolution/average pooling; and
+Task-0065 FLOAT32 dropout. Every unlisted occurrence fails closed before route selection. Metal
+uses ABI 5 with the same thirteen exports and one bounded schema-15 route-bearing program image.
+Operation wires `1..115`, attribute wires `0..41`, and type wires `1..6` cover current structural
+vocabulary; version-twenty-one identities authenticate that meaning without widening capability,
+and version twenty fails closed.
 Model remains the sole semantic owner of profile meaning.
 
 The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
@@ -2157,6 +2158,21 @@ This is inverted dropout: kept values are scaled so their ideal expectation matc
 Dropped values are positive zero even for negative zero, NaN, or infinite input. Kept signed zero
 and infinity retain their sign; kept NaN remains NaN without a payload promise. Construction does
 not evaluate this formula or select its finite-precision algorithm.
+
+The current Metal backend executes `GraphRngState.initial` under both profiles and canonical
+FLOAT32 dropout only under `ACCELERATOR`, for static rank `0..16` geometry whose extents, element
+count, referenced span, and dispatch width fit unsigned 32 bits. Both rows select one fixed custom
+program. Its private `SYNAPTIK_METAL_SPLITMIX64_COUNTER_V1` replay identity derives each word from
+the raw key, counter, and row-major ordinal; draw membership compares the top 53 bits with exact
+integer $\lceil p2^{53}\rceil$. The FLOAT32 complement is narrowed after binary64 subtraction, and
+kept values use one FLOAT32 division followed by multiplication. This is not a public generator,
+portable cross-backend stream, entropy source, or random-quality promise.
+
+Metal retains all three outputs in ordinary run-local storage, including when only the value is a
+public target. Compiler-generated first-order backward consumes the exact saved mask through
+`where(mask, gradient / typed(1 - probability), positiveZero)` and never resamples or differentiates
+mask/state. Repeated calls, independent sessions, and concurrent invocations share no mutable RNG
+state. The NN evaluation path remains an identity bypass and constructs no dropout producer.
 
 #### Complete dropout-construction example
 

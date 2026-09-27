@@ -314,28 +314,30 @@ one identical exact matrix and unchanged routes.
 
 Metal's common exact occurrence domain under both profiles contains the exact unary, affine,
 canonicalization, indexing, classification, BOOL, Task-0059 movement, Task-0060 replacement/fold/
-aggregate, unsigned-32-bit-bounded ordering/top-K/numeric arg-extrema, and exact
-FLOAT64/FLOAT32/BFLOAT16 maximum Pool2d/Pool3d rows. Task 0059 includes nineteen proved CAST pairs
-and all-carrier SELECT/positive-step SLICE over resolved positive-stride non-overlapping layouts.
-Task 0060 includes all-carrier replacement SCATTER_ND/SLICE_UPDATE,
-FLOAT64/FLOAT32/BFLOAT16 non-overlap folds, modular INT32/INT64 PROD, and BOOL ALL/ANY. Both
-profiles also admit no-gradient INT32/INT64 MATMUL pairs with INT64-dominant promotion and modular
-result arithmetic. The accelerator-only set adds the documented FLOAT32 tensor/scalar arithmetic,
-comparisons, extrema, reductions, and scans; every positive-static FLOAT32 MATMUL vector, matrix,
-batched, and right-aligned broadcast geometry; no-gradient BFLOAT16/FLOAT32 or
-FLOAT32/BFLOAT16 MATMUL with FLOAT32 result; same-type canonical positive-rank FLOAT32 MSE under
-`NONE`, `SUM`, or `MEAN`; FLOAT32-result grouped Conv2d/Conv3d over FLOAT32/BFLOAT16 roles; and
-FLOAT32 average Pool2d/Pool3d. MATMUL operands are canonical or authenticated local
-identity-prefix, last-two-axis transposes. Conv1d/Pool1d may use only authenticated local
-singleton-height views. Existing rank-two FLOAT32 matrix products retain direct MPSGraph; newly
-admitted MATMUL forms and all six convolution/pooling rows use the fixed custom program. The five
+aggregate, unsigned-32-bit-bounded ordering/top-K/numeric arg-extrema, exact
+FLOAT64/FLOAT32/BFLOAT16 maximum Pool2d/Pool3d, and zero-input raw INT64[2] INITIAL_STATE rows.
+Task 0059 includes nineteen proved CAST pairs and all-carrier SELECT/positive-step SLICE over
+resolved positive-stride non-overlapping layouts. Task 0060 includes all-carrier replacement
+SCATTER_ND/SLICE_UPDATE, FLOAT64/FLOAT32/BFLOAT16 non-overlap folds, modular INT32/INT64 PROD, and
+BOOL ALL/ANY. Both profiles also admit no-gradient INT32/INT64 MATMUL pairs with INT64-dominant
+promotion and modular result arithmetic. The accelerator-only set adds the documented FLOAT32
+tensor/scalar arithmetic, comparisons, extrema, reductions, and scans; every positive-static
+FLOAT32 MATMUL vector, matrix, batched, and right-aligned broadcast geometry; no-gradient
+BFLOAT16/FLOAT32 or FLOAT32/BFLOAT16 MATMUL with FLOAT32 result; same-type canonical positive-rank
+FLOAT32 MSE under `NONE`, `SUM`, or `MEAN`; FLOAT32-result grouped Conv2d/Conv3d over
+FLOAT32/BFLOAT16 roles; FLOAT32 average Pool2d/Pool3d; and canonical FLOAT32 explicit-state
+dropout. MATMUL operands are canonical or authenticated local identity-prefix, last-two-axis
+transposes. Conv1d/Pool1d may use only authenticated local singleton-height views. Existing
+rank-two FLOAT32 matrix products retain direct MPSGraph; newly admitted MATMUL forms, all six
+convolution/pooling rows, and both random rows use the fixed custom program. The five
 ordering/arg-extrema kinds are custom-only and TOP_K retains both ordered outputs through one
 step. MSE uses one fixed MPSGraph `SUB -> MUL -> qualified full reduction` composition and grants
 no generated backward ownership. Metal generated gradients are limited to primitive-closed
-all-FLOAT32 Conv2d roles and non-overlapping FLOAT32 average-pool folds; Conv3d, maximum-pool,
-mixed/joint convolution, and overlapping-fold gradients remain fail-closed. Attention and
-convolution transpose remain unsupported. Strict capability remains a subset because every common
-occurrence has the same answer under accelerator; strict rejects every accelerator-only addition.
+all-FLOAT32 Conv2d roles, non-overlapping FLOAT32 average-pool folds, and saved-mask FLOAT32
+dropout; Conv3d, maximum-pool, mixed/joint convolution, overlapping-fold, and recurrent gradients
+remain fail-closed. Attention, recurrent execution, and convolution transpose remain unsupported.
+Strict capability remains a subset because every common occurrence has the same answer under
+accelerator; strict rejects every accelerator-only addition.
 Direct CPU/Metal transfer supports
 all six current data types at ranks `0..16` over canonical or resolved positive-stride
 non-overlapping storage layouts; BOOL validation visits logical elements only.
@@ -344,14 +346,14 @@ Accelerator operations must produce only results admitted by Model's total recur
 exact/discrete, primitive, aggregate, and composite-inheritance floors. Every other
 profile/operation occurrence fails closed before route selection; transporting profile identity
 never authorizes a result outside the Model-owned set. The shared custom-program route is realized
-by fixed reviewed safe-math/raw-word/integer/movement/convolution/pooling kernels behind one
+by fixed reviewed safe-math/raw-word/integer/movement/convolution/pooling/random kernels behind one
 whole-program native invocation, with declared assigned buffers for every logical value and no
-hidden materialization, host staging, hot compilation, retry, or fallback.
+hidden materialization, host staging, hot compilation, mutable RNG state, retry, or fallback.
 
 The package uses ABI 5 with the same thirteen exports. Node schema 15 is one bounded
 self-describing, route-bearing image over type wires `1..6`, operation wires `1..115`, attribute
 wires `0..41`, and complete optional storage-layout geometry. Structural execution covers exactly
-99 kinds with 16 remaining nonexecutable; production capability is exactly 81 kinds with 34
+101 kinds with 14 remaining nonexecutable; production capability is exactly 83 kinds with 32
 remaining false. Workload, exact-policy, candidate, compatibility, route-policy, and codec
-identities are version twenty; schema 14 and identity 19 fail closed. The complete-plan wrapper
+identities are version twenty-one; schema 14 and identity 20 fail closed. The complete-plan wrapper
 remains version one.

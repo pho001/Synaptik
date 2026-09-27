@@ -1056,8 +1056,9 @@ failure. Config only records this choice; later composition implements the contr
 
 A non-public BOOL result of a multi-output operation that records which logical positions were
 selected during eventual forward execution. Current dropout describes its keep mask at producer
-output slot one while returning only output slots zero and two. A later compiler may capture and
-retain the mask for backward construction; no current compiler or gradient rule does so.
+output slot one while returning only output slots zero and two. Current Compiler capture retains
+the canonical same-occurrence wrapper and its first-order rule consumes that mask through WHERE;
+current CPU and Metal execution keep the physical mask live for the generated consumer.
 
 ### Backend
 
@@ -2355,15 +2356,17 @@ multi-input-broadcasting rule above.
 A reproducibility promise limited to the same conforming prepared implementation path and
 configuration. Equal graph RNG key/counter state and equal consuming-operation inputs request
 equal results within that boundary. It is not a cross-backend or cross-version bitstream promise,
-because no portable pseudorandom-number-generator algorithm is currently selected.
+because no portable pseudorandom-number-generator algorithm is selected.
 
-The current CPU backend provides one such boundary for explicit-state dropout:
-`SYNAPTIK_CPU_SPLITMIX64_COUNTER_V1`. The name identifies a CPU-private generated-artifact
-configuration, not a public Model option or serialized RNG format. Within that exact
-configuration, a draw depends only on the explicit key, counter, and row-major logical ordinal;
-scalar and parallel-scalar chunking therefore replay identically. See the [CPU backend
-guide](backend-guide/cpu-backend.md#current-explicit-state-rng-and-dropout-family) for the mapping,
-finite-precision order, and limitations.
+The current CPU and Metal backends each provide such a boundary for explicit-state dropout.
+CPU names `SYNAPTIK_CPU_SPLITMIX64_COUNTER_V1`; Metal names
+`SYNAPTIK_METAL_SPLITMIX64_COUNTER_V1`. Each name identifies a backend-private generated-artifact
+or custom-kernel configuration, not a public Model option or serialized RNG format. Within its
+exact configuration, a draw depends only on the explicit key, counter, and row-major logical
+ordinal, so reuse, independent sessions, and concurrent invocations do not interact. Matching V1
+names do not grant a public portability guarantee. See the [CPU backend
+guide](backend-guide/cpu-backend.md#current-explicit-state-rng-and-dropout-family) and
+[Metal backend guide](backend-guide/metal-backend.md) for each finite-precision order and boundary.
 
 ### Bindable input
 
@@ -2800,8 +2803,11 @@ explicit graph RNG state and returns the next state; construction itself perform
 scaling, masking, or execution. Its Model `DropoutResult` describes public slots from that one
 training producer, so it cannot also describe an evaluation bypass with no producer. The current
 NN `Dropout` layer therefore owns a separate `DropoutForwardResult` and uses its explicit forward
-context to choose either Model construction or identity-preserving evaluation. There is no
-model-level training flag or inference rewrite. See
+context to choose either Model construction or identity-preserving evaluation. Current CPU and
+accelerator Metal execute bounded explicit-state domains; Metal uses a fixed private V1 custom
+route, retains the saved mask for backward, and gives each run isolated output/state buffers.
+There is no model-level training flag, inference rewrite, implicit seed, or portable stream
+promise. See
 [Neural-network module, parameter, buffer, and forward context](#neural-network-module-parameter-buffer-and-forward-context)
 and [Explicit-state dropout construction](api/tensor-api.md#explicit-state-dropout-construction).
 

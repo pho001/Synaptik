@@ -32,6 +32,8 @@ it returns the exact rank-plus-one floor-count Shape, preserves addressed FLOAT3
 mutate or alias its source. Replacement scatter validates complete bounds then target uniqueness
 before dispatch and writes, preserves exact addressed-update and unaddressed-base bits, and leaves
 inputs unchanged.
+Common Metal capability also includes zero-input `GraphRngState.initial`: it publishes exact raw
+key/counter words in one canonical no-gradient `INT64[2]` value and consumes no caller input.
 Accelerator Metal additionally supports canonical tensor `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, and
 `MAX`; all six comparisons with local canonical BOOL publication; exact FLOAT32 scalar `MIN`,
 `MAX`, and `CLAMP`; canonical positive-rank no-gradient FLOAT32 scalar `ADD`, `SUB`, `MUL`, and
@@ -48,6 +50,15 @@ layouts, and canonical values except authenticated local singleton-height Conv1d
 Maximum pooling fixes NaN-first, positive-zero-over-negative-zero, first-logical-winner raw-bit
 publication; average pooling uses the full kernel-position divisor and conceptual positive-zero
 padding.
+Accelerator Metal additionally executes canonical FLOAT32 explicit-state dropout over ranks
+`0..16` within unsigned-32-bit extent/count/span limits. One fixed custom program publishes
+distinct output, canonical BOOL keep-mask, and next-state values through the private versioned
+`SYNAPTIK_METAL_SPLITMIX64_COUNTER_V1` replay boundary. Equal explicit state and input replay within
+that exact prepared implementation/configuration; this is not a portable stream or entropy claim.
+Generated first-order backward retains the exact same-occurrence mask and routes exceptional
+dropped cotangents to raw positive zero. The NN evaluation branch constructs no dropout occurrence
+and returns the original input/state references. Strict dropout, eager random leaf factories,
+host sampling/repair, and all recurrent kinds remain fail-closed before native resource creation.
 
 Scalar arithmetic uses exact four-byte raw rank-one constants in source operand order; reciprocal
 uses one exact `+1.0f / input` division. Strict rejects every accelerator-only row before native
@@ -56,12 +67,14 @@ public transfer boundaries support all six carriers. Exact Task-0059 SELECT/SLIC
 intermediates may use authenticated positive-stride, non-overlapping storage layouts with nonzero
 offsets and holes; other canonical-only operations retain their documented descriptor
 restrictions. Affine operations under either profile may consume exact zero-offset views produced
-earlier in the same maximal Metal partition. MATMUL may consume only canonical state or the exact
-local identity-prefix, last-two-axis `PERMUTE` view of a canonical source and always produces
-canonical state; the transpose may otherwise be published or used by another valid affine
-consumer. `CONTIGUOUS` converts available canonical or authenticated local affine-view state to
-canonical state before a subsequent canonical-only operation. External affine convolution/pooling
-feeds remain rejected. Canonical and exact authenticated SELECT/SLICE publications for all six
+earlier in the same maximal Metal partition. Exact custom WHERE may consume those authenticated
+views, including dropout backward's positive-zero expansion, using physical strides and offset.
+MATMUL may consume only canonical state or the exact local identity-prefix, last-two-axis
+`PERMUTE` view of a canonical source and always produces canonical state; the transpose may
+otherwise be published or used by another valid affine consumer. `CONTIGUOUS` converts available
+canonical or authenticated local affine-view state to canonical state before a subsequent
+canonical-only operation. External affine convolution/pooling feeds remain rejected. Canonical and
+exact authenticated SELECT/SLICE publications for all six
 carriers may materialize to detached canonical host bytes. Caller ingress preserves exact physical
 storage bytes; cross-owner transfer accepts rank-0..16 static canonical or positive-stride
 non-overlapping layouts with checked physical spans.

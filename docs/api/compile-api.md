@@ -1870,11 +1870,12 @@ output selects producer slot zero and its opaque next-state wrapper retains slot
 also describes slot one as a same-Shape BOOL auxiliary keep mask even though `DropoutResult` exposes
 no mask Tensor. Current internal capture creates graph values for all three slots by reading the
 reachable producer's ordered descriptors and also preserves the zero-input initial-state producer
-and its edge into dropout. It needs no public sibling-output lookup. Auxiliary-value lifetime
-policy and physical saved-value lifetime remain planned. Current floating values-slot autograd
-retrieves the exact canonical mask wrapper at producer slot one and constructs
+and its edge into dropout. It needs no public sibling-output lookup. Current floating values-slot
+autograd retrieves the exact canonical mask wrapper at producer slot one and constructs
 `where(mask, g / (1 - probability), zero)`. It never resamples, infers a mask from values, or
-advances/differentiates graph RNG state.
+advances/differentiates graph RNG state. The current Metal Task-0065 path gives all three forward
+outputs ordinary run-local storage and keeps the mask live through that exact generated WHERE;
+other backend-specific saved-value policies remain separately owned.
 
 Explicit attention output-and-weights construction uses the same foundation without an auxiliary
 or hidden output. `ScaledDotProductAttentionResult.output()` and `weights()` expose the exact

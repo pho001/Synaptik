@@ -10,7 +10,7 @@ complete variable-cardinality operation, attribute, reference, dimension, gradie
 storage-layout metadata; no native type, shape, or layout inference is part of the boundary.
 
 The schema registry reserves operation wires `1..115` and attribute wires `0..41`. The native graph
-can structurally execute exactly 99 operation kinds; production capability remains exactly 81
+can structurally execute exactly 101 operation kinds; production capability remains exactly 83
 kinds. Task 0059 adds exact movement/indexing rows and complete positive-stride storage geometry.
 Task 0060 adds replacement/fold rows `72`, `76`, `80`, `82`, and `84` plus exact aggregate rows
 `106..108`. Task 0061 widens existing `MATMUL=15` without adding a wire: both profiles admit
@@ -48,18 +48,30 @@ over-negative-zero, first-logical-winner order with negative-infinity padding. A
 uses the full kernel-position divisor and conceptual positive-zero padding, including ceil-mode
 all-padding windows.
 
-The remaining 34 production rows fail closed before native creation. A structurally valid
+Task 0065 adds custom-only `101=DROPOUT` and `102=INITIAL_STATE`.
+`INITIAL_STATE` has zero inputs and writes one canonical raw `INT64[2]` key/counter output under
+both profiles. ACCELERATOR FLOAT32 dropout consumes ordered value/state inputs and writes distinct
+value, one-byte canonical BOOL mask, and raw next-state outputs. Rank `0..16`, every positive
+extent, element count, referenced span, and one-dimensional dispatch width fit unsigned 32 bits.
+The fixed `SYNAPTIK_METAL_SPLITMIX64_COUNTER_V1` kernel maps each logical ordinal to
+`mix64(counter + ordinal + mix64(key + 0x9e3779b97f4a7c15))`, compares the top 53 bits with the
+exact host-precomputed $\lceil p2^{53}\rceil$ threshold, and advances the counter modulo $2^{64}$.
+Dropped output is raw positive zero; kept output uses FLOAT32 division then multiplication with the
+complement narrowed only after binary64 subtraction. State has one writer, all live outputs use
+ordinary run-local buffers, and direct MPSGraph creation rejects both wires.
+
+The remaining 32 production rows fail closed before native creation. A structurally valid
 registered operation without a native recipe returns the dedicated unsupported-operation status
-rather than masquerading as malformed input. Candidate and route identity are version 20. Java
+rather than masquerading as malformed input. Candidate and route identity are version 21. Java
 owns exactly three prepared-route identities: custom singleton NEG wire 1, MPSGraph wire 2, and
 shared custom-program wire 3. Schema 15 embeds wire 2 or 3 in each graph image; schema 14 and every
 other schema or route value fail closed. The exhaustive Java structural catalog adds no native
 route selection, capability, autotuning, fallback, telemetry, or performance authority.
 
-For admitted nodes, the version-20 workload signature binds operation wire, source/target carrier
+For admitted nodes, the version-21 workload signature binds operation wire, source/target carrier
 types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes, exact
 scalar bits, variadic input/output order and count, and complete encoded storage-layout geometry.
-The schema-15 and identity-20 cutover has no compatibility reader or migration alias; identity 19
+The schema-15 and identity-21 cutover has no compatibility reader or migration alias; identity 20
 and earlier fail closed.
 
 ```text
@@ -226,6 +238,10 @@ input_offset, input_count, output_offset, output_count, attribute_offset, attrib
 References are ordered feeds, targets, then each node's inputs and outputs. Descriptor offsets must
 name exactly those contiguous subranges. Dimensions, strides, references, and attributes are
 contiguous with no gaps, overlap, or trailing data. The optional alignment word must be zero.
+
+Feed count may be zero only when topology produces every value, as in Task-0065 INITIAL_STATE.
+The Java FFM boundary then passes no fabricated feed pointer; target and node reference sections
+remain ordinary nonempty image data. Execution binds the produced value buffer normally.
 Native validation checks all arithmetic, section bounds, reserved bits, layout kind/span
 reconstruction, registered operation cardinality, attribute pairing and word count,
 type/rank/dimension rules, topological availability, feed and target uniqueness, and executable
@@ -271,6 +287,16 @@ copies the selected raw bits. Average pooling includes every padded kernel posit
 divisor, uses FLOAT32 accumulation and one final division, and preserves the specified all-negative-
 zero result. All writes remain one-writer and direct.
 
+Task 0065 kernels require no scratch, host payload inspection, host output repair, retry, fallback,
+or mutable generator state. Threshold and complement words are fixed at cold lowering from the raw
+binary64 probability. The mask remains a live ordinary output until every generated WHERE consumer
+finishes; target subsets do not elide sibling mask or next-state production. Exact BOOL WHERE
+accepts authenticated local affine views. Ordinary nested MPSGraph affine steps materialize into
+dense assigned buffers, so custom WHERE derives canonical physical strides and zero offset from
+the representation actually bound at runtime rather than reapplying declared logical-view
+geometry. Repeated runs, sessions, and concurrent invocations therefore share only immutable
+executable metadata, never a counter.
+
 The prior FLOAT32 scalar `ADD/SUB/MUL/DIV` and `RECIPROCAL` domain remains canonical rank `1..16`
 with equal input/output Shape and no-gradient input and output. Each scalar arithmetic recipe
 creates one exact four-byte raw FLOAT32 MPSGraph constant with Shape `[1]` and applies exactly one
@@ -282,15 +308,15 @@ input/output Shape and gradient eligibility, and no attributes.
 
 Raw structural fixtures additionally create prior wires `38`, `50`, `53..54`, `56..59`, and
 `65..68` only under ACCELERATOR, all Task-0059 wires `39` and `69..84` under both profiles,
-production-exact convolution/pooling wires `36`, `37`, and `97..100`, aggregate wires `106..108`,
-and structural-only wires `111..115`. Task-0059 recipes cover direct
-cast/index/pad/slice/concat/tile/im2col/col2im selectors and explicit stack, fold-axis, and
-3D-window compositions. Task-0060 adds stable log-sum-exp, correction-aware
+production-exact convolution/pooling wires `36`, `37`, and `97..100`, Task-0065 custom wires
+`101..102`, aggregate wires `106..108`, and structural-only wires `111..115`. Task-0059 recipes
+cover direct cast/index/pad/slice/concat/tile/im2col/col2im selectors and explicit stack,
+fold-axis, and 3D-window compositions. Task-0060 adds stable log-sum-exp, correction-aware
 variance/standard-deviation, and L1/L2 norm structural compositions. Task-0061 retains only
 all-FLOAT32 rank-two MATMUL in the MPSGraph recipe; typed custom forms are rejected by that route.
-Task-0064 direct/composed MPSGraph family metadata remains structural only; its six production
-rows always select the custom program. Structural creation and execution do not widen production
-capability.
+Task-0064 direct/composed MPSGraph family metadata remains structural only. Its six production
+rows and both Task-0065 random rows always select the custom program. Structural creation and
+execution do not widen production capability.
 
 ### Status values
 
@@ -570,7 +596,10 @@ Task 0064 adds no strict convolution/average arithmetic, FLOAT64/BFLOAT16 convol
 FLOAT64/BFLOAT16 average pooling, generated Conv3d or maximum-pool backward, overlap accumulation,
 attention, convolution transpose, asymmetric padding, alternate layouts, dynamic/empty geometry,
 general affine input, scratch, atomics, or host repair. The six admitted rows use only the fixed
-bounded custom kernels described above.
+bounded custom kernels described above. Task 0065 adds no strict dropout, non-FLOAT32 dropout,
+portable or configurable generator, entropy, random-quality promise, host/eager distribution
+route, or recurrent execution. RNN, GRU, and LSTM remain unsupported in both directions and bias
+forms, including zero-length/no-work cases and every gradient.
 
 The public Java Metal surface is `MetalCapabilityProvider`, `MetalBackendConfiguration`, and
 `MetalBackendIntegration`; Engine accepts an explicitly opened integration through
