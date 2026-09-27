@@ -5,6 +5,7 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.layout.LayoutKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
@@ -276,14 +277,16 @@ final class MetalMpsGraphProgram {
         }
         boolean isAffine() { return outputState == ValueState.AFFINE_VIEW; }
         boolean executable() { return executable; }
+
         boolean isCustomProgramOperation() {
-            if (wireIdentity == 36 || wireIdentity == 37
+            if (wireIdentity == 36
+                    || wireIdentity == 37
                     || wireIdentity >= 97 && wireIdentity <= 102) {
                 return true;
             }
             return wireIdentity >= 6 && wireIdentity <= 11
-          || wireIdentity >= 16 && wireIdentity <= 19
-          || wireIdentity >= 20 && wireIdentity <= 34
+                    || wireIdentity >= 16 && wireIdentity <= 19
+                    || wireIdentity >= 20 && wireIdentity <= 34
                     || wireIdentity == 39
                     || wireIdentity >= 40 && wireIdentity <= 45
                     || wireIdentity == 51
@@ -294,25 +297,29 @@ final class MetalMpsGraphProgram {
                     || wireIdentity >= 109 && wireIdentity <= 110
                     || wireIdentity >= 106 && wireIdentity <= 108;
         }
-        boolean isTask0066Selected() {
-      return wireIdentity >= 6 && wireIdentity <= 11
-          || wireIdentity >= 16 && wireIdentity <= 19
-          || wireIdentity >= 39 && wireIdentity <= 45
-          || wireIdentity == 51
-          || wireIdentity == 69
-          || wireIdentity >= 71 && wireIdentity <= 84;
-    }
 
-    boolean accepts(ValueState inputState) {
+        boolean isTask0066Selected() {
+            return wireIdentity >= 6 && wireIdentity <= 11
+                    || wireIdentity >= 16 && wireIdentity <= 19
+                    || wireIdentity >= 39 && wireIdentity <= 45
+                    || wireIdentity == 51
+                    || wireIdentity == 69
+                    || wireIdentity >= 71 && wireIdentity <= 84;
+        }
+
+        boolean accepts(ValueState inputState) {
             return inputState == ValueState.CANONICAL
                     || (inputState == ValueState.AFFINE_VIEW && acceptsAffineView)
                     || (inputState == ValueState.MATERIALIZED_LAYOUT
-                            && (isTask0066Selected() ||this == SELECT || this == SLICE));
+                            && (isTask0066Selected() || this == SELECT || this == SLICE));
         }
+
         boolean acceptsCardinality(int inputs, int outputs) {
             if (this == LAYER_NORM && inputs == 2) return false;
-            return inputs >= minimumInputs && inputs <= maximumInputs
-                    && outputs >= minimumOutputs && outputs <= maximumOutputs;
+            return inputs >= minimumInputs
+                    && inputs <= maximumInputs
+                    && outputs >= minimumOutputs
+                    && outputs <= maximumOutputs;
         }
     }
 
@@ -464,10 +471,12 @@ final class MetalMpsGraphProgram {
             this.attributeKind = Objects.requireNonNull(attributeKind, "attributeKind");
             this.attributeWords = Objects.requireNonNull(attributeWords, "attributeWords").clone();
             if (!kind.acceptsCardinality(this.inputs.length, this.outputs.length)) {
-                throw new IllegalArgumentException("node cardinality disagrees with operation kind");
+        throw new IllegalArgumentException("node cardinality disagrees with operation kind");
             }
-            for (int input : this.inputs) if (input < 0) throw new IllegalArgumentException("input index must be non-negative");
-            for (int output : this.outputs) if (output < 0) throw new IllegalArgumentException("output index must be non-negative");
+      for (int input : this.inputs)
+        if (input < 0) throw new IllegalArgumentException("input index must be non-negative");
+      for (int output : this.outputs)
+        if (output < 0) throw new IllegalArgumentException("output index must be non-negative");
             if (!acceptsAttribute(kind, attributeKind)) {
                 throw new IllegalArgumentException("attribute kind disagrees with operation kind");
             }
@@ -511,7 +520,8 @@ final class MetalMpsGraphProgram {
         static Node reduction(NodeKind kind, int input, int output, ReductionForm form,
                 List<Integer> axes, boolean keepDimensions) {
             Objects.requireNonNull(form, "form");
-            if (form == ReductionForm.SUM_TO_SHAPE) throw new IllegalArgumentException("sum-to-Shape requires dimensions");
+      if (form == ReductionForm.SUM_TO_SHAPE)
+        throw new IllegalArgumentException("sum-to-Shape requires dimensions");
             long[] items = longValues(Objects.requireNonNull(axes, "axes"));
             long[] words = new long[3 + items.length];
             words[0] = form.wireIdentity();
@@ -586,7 +596,8 @@ final class MetalMpsGraphProgram {
         }
         private static long[] longValues(List<Integer> values) {
             long[] result = new long[values.size()];
-            for (int i = 0; i < values.size(); i++) result[i] = Objects.requireNonNull(values.get(i), "value");
+      for (int i = 0; i < values.size(); i++)
+        result[i] = Objects.requireNonNull(values.get(i), "value");
             return result;
         }
         private static boolean acceptsAttribute(NodeKind kind, AttributeKind attribute) {
@@ -596,6 +607,7 @@ final class MetalMpsGraphProgram {
             if (kind == NodeKind.UNFOLD3D && attribute == AttributeKind.PADDED_WINDOW_3D) return true;
             return kind.attributeKind() == attribute;
         }
+
         private void validateAttributes() {
             switch (attributeKind) {
                 case NONE -> requireWords(0);
@@ -613,9 +625,7 @@ final class MetalMpsGraphProgram {
                 case WINDOW_AXIS -> {
                     requireWords(3);
                     requireAxis(attributeWords[0]);
-                    if (attributeWords[1] <= 0L || attributeWords[2] <= 0L
-                            || (kind == NodeKind.UNFOLD_AXIS
-                            && attributeWords[1] > MAX_SELECTOR_EXPANSION)) throw malformed();
+                    if (attributeWords[1] <= 0L || attributeWords[2] <= 0L) throw malformed();
                 }
                 case SCALAR_VALUE -> {
                     requireWords(2);
@@ -626,8 +636,7 @@ final class MetalMpsGraphProgram {
                     requireWords(4);
                     validateScalar(attributeWords, 0);
                     validateScalar(attributeWords, 2);
-                    if (kind.executable()
-                            && (attributeWords[0] != 1L || attributeWords[2] != 1L)) {
+                    if (kind.executable() && (attributeWords[0] != 1L || attributeWords[2] != 1L)) {
                         throw malformed();
                     }
                 }
@@ -712,8 +721,8 @@ final class MetalMpsGraphProgram {
                 case DROPOUT -> {
                     requireWords(1);
                     double probability = Double.longBitsToDouble(attributeWords[0]);
-                    if (!Double.isFinite(probability) || probability < 0.0d
-                            || probability >= 1.0d) throw malformed();
+                    if (!Double.isFinite(probability) || probability < 0.0d || probability >= 1.0d)
+                        throw malformed();
                 }
                 case GRAPH_RNG_STATE -> requireWords(2);
                 case RECURRENT_DIRECTION -> {
@@ -732,12 +741,12 @@ final class MetalMpsGraphProgram {
                 case CONV_3D -> validateConvolution(3);
             }
         }
+
         private void validatePermutation() {
             int count = checkedCount(attributeWords, 0);
-            if (count < 1 || count > MAX_RANK) throw malformed();
+            if (count > MAX_RANK) throw malformed();
             requireWords(count + 1);
-            validateAxes(Arrays.copyOfRange(attributeWords, 1, attributeWords.length),
-                    count, true);
+            validateAxes(Arrays.copyOfRange(attributeWords, 1, attributeWords.length), count, true);
         }
 
         private void validateCrop() {
@@ -896,10 +905,12 @@ final class MetalMpsGraphProgram {
                 }
             }
         }
+
         private static void validateShapeWords(long[] words) {
             int end = validateShape(words, 0);
-            if (words[0] < 1L || end != words.length) throw malformed();
+            if (end != words.length) throw malformed();
         }
+
         private static int validateShape(long[] words, int offset) {
             int rank = checkedCount(words, offset);
             if (rank > MAX_RANK || offset + 1 + rank > words.length) throw malformed();
@@ -931,7 +942,9 @@ final class MetalMpsGraphProgram {
         }
         private static void requireAxis(long axis) { if (axis < 0L || axis >= MAX_RANK) throw malformed(); }
         private void requireWords(int count) { if (attributeWords.length != count) throw malformed(); }
-        private static IllegalArgumentException malformed() { return new IllegalArgumentException("node attributes are malformed"); }
+        private static IllegalArgumentException malformed() {
+      return new IllegalArgumentException("node attributes are malformed");
+    }
 
         NodeKind kind() { return kind; }
         int[] inputs() { return inputs.clone(); }
@@ -999,7 +1012,8 @@ final class MetalMpsGraphProgram {
 
     MetalMpsGraphProgram(List<Node> nodes) {
         this.nodes = List.copyOf(nodes);
-        if (this.nodes.isEmpty()) throw new IllegalArgumentException("Metal program must contain a node");
+    if (this.nodes.isEmpty())
+      throw new IllegalArgumentException("Metal program must contain a node");
     }
 
     List<Node> nodes() { return nodes; }
@@ -1094,7 +1108,8 @@ final class MetalMpsGraphProgram {
         Objects.requireNonNull(feeds, "feeds");
         Objects.requireNonNull(targets, "targets");
         validateTopology(values.size(), feeds, targets);
-        if (values.isEmpty() || targets.length == 0) throw new IllegalArgumentException("program values and targets must be non-empty");
+    if (values.isEmpty() || targets.length == 0)
+      throw new IllegalArgumentException("program values and targets must be non-empty");
         long dimensions = 0L;
         long strides = 0L;
         long references = (long) feeds.length + targets.length;
@@ -1166,7 +1181,7 @@ final class MetalMpsGraphProgram {
         for (int target : targets) {
             requireValueIndex(target, valueCount);
             if (!produced[target] || targeted[target]) {
-                throw new IllegalArgumentException("program target must be a unique produced value");
+        throw new IllegalArgumentException("program target must be a unique produced value");
             }
             targeted[target] = true;
             consumed[target] = true;
@@ -1249,7 +1264,8 @@ final class MetalMpsGraphProgram {
         }
         if ((out.position() & 7) != 0) out.putInt(0);
         for (Node node : nodes) for (long word : node.attributeWords) out.putLong(word);
-        if (out.position() != layout.totalBytes) throw new AssertionError("program image size mismatch");
+    if (out.position() != layout.totalBytes)
+      throw new AssertionError("program image size mismatch");
     }
 
     static long dropoutThreshold(long probabilityBits) {

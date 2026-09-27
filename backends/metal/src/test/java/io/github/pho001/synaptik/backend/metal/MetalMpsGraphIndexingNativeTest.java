@@ -1,21 +1,24 @@
 package io.github.pho001.synaptik.backend.metal;
 
-import static java.lang.foreign.ValueLayout.ADDRESS;
-import static java.lang.foreign.ValueLayout.JAVA_BYTE;
-import static java.lang.foreign.ValueLayout.JAVA_INT;
-import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import static java.lang.foreign.ValueLayout.ADDRESS;
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
+import static java.lang.foreign.ValueLayout.JAVA_INT;
+import static java.lang.foreign.ValueLayout.JAVA_LONG;
+
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
+
+import org.junit.jupiter.api.Test;
+
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphIndexingNativeTest {
     private static final int[] DATA_BITS = {
@@ -96,6 +99,64 @@ class MetalMpsGraphIndexingNativeTest {
             }
         } finally {
             for (int index = inputs.size(); index-- > 0;) api.releaseBuffer(inputs.get(index));
+            if (executable != null) api.releaseExecutable(executable);
+            if (context != null) api.releaseContext(context);
+            api.close();
+        }
+    }
+
+    @Test
+    void task0066ScalarGatherAndOneHotExecuteThroughCustomProgram() {
+        Path library = configuredLibrary();
+        MetalNativeApi api = MetalNativeApi.open(library);
+        MetalNativeApi.Handle context = null;
+        MetalNativeApi.Handle executable = null;
+        var buffers = new ArrayList<MetalNativeApi.Handle>();
+        try {
+            context = api.createContext();
+            var program =
+                    new MetalMpsGraphProgram(
+                            List.of(
+                                    MetalMpsGraphProgram.Node.gather(0, 1, 2, 0),
+                                    MetalMpsGraphProgram.Node.oneHot(3, 4, 5)));
+            long[][] shapes = {{4}, {}, {}, {}, {5}};
+            executable =
+                    api.createMpsGraphExecutable(
+                            context,
+                            NumericalProfile.STRICT_IEEE,
+                            MetalTestProgram.descriptors(
+                                    ranks(shapes), dimensions(shapes), program),
+                            program,
+                            new int[] {0, 1, 3},
+                            new int[] {2, 4},
+                            MetalPreparedRoute.CUSTOM_PROGRAM);
+            buffers.add(api.createBuffer(context, 4L * Integer.BYTES));
+            buffers.add(api.createBuffer(context, Integer.BYTES));
+            buffers.add(api.createBuffer(context, Integer.BYTES));
+            buffers.add(api.createBuffer(context, Integer.BYTES));
+            buffers.add(api.createBuffer(context, 5L));
+            uploadInts(
+                    api,
+                    buffers.get(0),
+                    new int[] {DATA_BITS[0], DATA_BITS[1], DATA_BITS[2], DATA_BITS[3]});
+            uploadInts(api, buffers.get(1), new int[] {2});
+            uploadInts(api, buffers.get(3), new int[] {3});
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment allValues = arena.allocate(ADDRESS, buffers.size());
+                for (int index = 0; index < buffers.size(); index++) {
+                    allValues.setAtIndex(ADDRESS, index, buffers.get(index).carrier());
+                }
+                MemorySegment targets = arena.allocate(ADDRESS, 2);
+                targets.setAtIndex(ADDRESS, 0, buffers.get(2).carrier());
+                targets.setAtIndex(ADDRESS, 1, buffers.get(4).carrier());
+                api.runExecutable(executable, buffers.size(), allValues, 2, targets);
+            }
+            assertArrayEquals(new int[] {DATA_BITS[2]}, downloadInts(api, buffers.get(2), 1));
+            assertArrayEquals(new byte[] {0, 0, 0, 1, 0}, downloadBytes(api, buffers.get(4), 5));
+        } finally {
+            for (int index = buffers.size(); index-- > 0; ) {
+                api.releaseBuffer(buffers.get(index));
+            }
             if (executable != null) api.releaseExecutable(executable);
             if (context != null) api.releaseContext(context);
             api.close();
@@ -456,6 +517,58 @@ class MetalMpsGraphIndexingNativeTest {
         allValues.setAtIndex(ADDRESS, 1, output.carrier());
                 outputAddress.setAtIndex(ADDRESS, 0, output.carrier());
                 api.runExecutable(executable, 2, allValues, 1, outputAddress);
+            }
+            assertArrayEquals(expected, downloadInts(api, output, expected.length));
+            assertArrayEquals(inputBits, downloadInts(api, input, inputBits.length));
+        } finally {
+            if (output != null) api.releaseBuffer(output);
+            if (input != null) api.releaseBuffer(input);
+            if (executable != null) api.releaseExecutable(executable);
+            if (context != null) api.releaseContext(context);
+            api.close();
+        }
+    }
+
+    @Test
+    void task0066UnfoldAxisWindowMayExceedHistoricalSelectorLimit() {
+        Path library = configuredLibrary();
+        MetalNativeApi api = MetalNativeApi.open(library);
+        MetalNativeApi.Handle context = null;
+        MetalNativeApi.Handle executable = null;
+        MetalNativeApi.Handle input = null;
+        MetalNativeApi.Handle output = null;
+        int[] inputBits = new int[20];
+        for (int index = 0; index < inputBits.length; index++) {
+            inputBits[index] = 0x3f000000 + index;
+        }
+        int[] expected = new int[17];
+        System.arraycopy(inputBits, 0, expected, 0, expected.length);
+        try {
+            context = api.createContext();
+            long[][] shapes = {{20}, {1, 17}};
+            var program =
+                    new MetalMpsGraphProgram(
+                            List.of(MetalMpsGraphProgram.Node.unfoldAxis(0, 1, 0, 17, 4)));
+            executable =
+                    api.createMpsGraphExecutable(
+                            context,
+                            NumericalProfile.STRICT_IEEE,
+                            MetalTestProgram.descriptors(
+                                    ranks(shapes), dimensions(shapes), program),
+                            program,
+                            new int[] {0},
+                            new int[] {1},
+                            MetalPreparedRoute.CUSTOM_PROGRAM);
+            input = api.createBuffer(context, (long) inputBits.length * Integer.BYTES);
+            output = api.createBuffer(context, (long) expected.length * Integer.BYTES);
+            uploadInts(api, input, inputBits);
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment allValues = arena.allocate(ADDRESS, 2);
+                allValues.setAtIndex(ADDRESS, 0, input.carrier());
+                allValues.setAtIndex(ADDRESS, 1, output.carrier());
+                MemorySegment target = arena.allocate(ADDRESS);
+                target.set(ADDRESS, 0L, output.carrier());
+                api.runExecutable(executable, 2, allValues, 1, target);
             }
             assertArrayEquals(expected, downloadInts(api, output, expected.length));
             assertArrayEquals(inputBits, downloadInts(api, input, inputBits.length));

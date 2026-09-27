@@ -1,13 +1,14 @@
 package io.github.pho001.synaptik.backend.metal;
 
-import static java.lang.foreign.ValueLayout.ADDRESS;
-import static java.lang.foreign.ValueLayout.JAVA_BYTE;
-import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+
+import static java.lang.foreign.ValueLayout.ADDRESS;
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
+import static java.lang.foreign.ValueLayout.JAVA_INT;
 
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -16,12 +17,14 @@ import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
+
+import org.junit.jupiter.api.Test;
+
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphAffineNativeTest {
     private static final int[] ADVERSARIAL_BITS = {
@@ -560,40 +563,72 @@ class MetalMpsGraphAffineNativeTest {
 
     private static List<AffineCase> cases() {
         return List.of(
-                target("reshape-identity", Kind.RESHAPE,
-                        new long[] {24}, new long[] {24}),
-                target("reshape-shape-change", Kind.RESHAPE,
-                        new long[] {2, 3, 4}, new long[] {4, 6}),
-                target("expand-leading", Kind.EXPAND,
-                        new long[] {3}, new long[] {2, 3}),
-                target("expand-singleton", Kind.EXPAND,
-                        new long[] {2, 1, 3}, new long[] {2, 4, 3}),
-                target("expand-multi-axis", Kind.EXPAND,
-                        new long[] {1, 2, 1}, new long[] {3, 2, 4}),
-                target("expand-same-shape", Kind.EXPAND,
-                        new long[] {2, 3}, new long[] {2, 3}),
-                permutation("permute-identity",
-                        new long[] {2, 3}, new long[] {2, 3}, 0, 1),
-                permutation("permute-rank-two-transpose",
-                        new long[] {2, 3}, new long[] {3, 2}, 1, 0),
-                permutation("permute-rank-three",
-                        new long[] {2, 3, 4}, new long[] {4, 2, 3}, 2, 0, 1),
-                permutation("permute-rank-sixteen",
+                target("reshape-scalar-identity", Kind.RESHAPE, new long[] {}, new long[] {}),
+                target("reshape-scalar-to-singleton", Kind.RESHAPE, new long[] {}, new long[] {1}),
+                target("reshape-singleton-to-scalar", Kind.RESHAPE, new long[] {1}, new long[] {}),
+                permutation("permute-scalar", new long[] {}, new long[] {}),
+                axis("expand-dims-scalar", Kind.EXPAND_DIMS, new long[] {}, new long[] {1}, 0),
+                axis("squeeze-to-scalar", Kind.SQUEEZE, new long[] {1}, new long[] {}, 0),
+                target("reshape-identity", Kind.RESHAPE, new long[] {24}, new long[] {24}),
+                target(
+                        "reshape-shape-change",
+                        Kind.RESHAPE,
+                        new long[] {2, 3, 4},
+                        new long[] {4, 6}),
+                target("expand-leading", Kind.EXPAND, new long[] {3}, new long[] {2, 3}),
+                target("expand-singleton", Kind.EXPAND, new long[] {2, 1, 3}, new long[] {2, 4, 3}),
+                target(
+                        "expand-multi-axis",
+                        Kind.EXPAND,
+                        new long[] {1, 2, 1},
+                        new long[] {3, 2, 4}),
+                target("expand-same-shape", Kind.EXPAND, new long[] {2, 3}, new long[] {2, 3}),
+                permutation("permute-identity", new long[] {2, 3}, new long[] {2, 3}, 0, 1),
+                permutation(
+                        "permute-rank-two-transpose", new long[] {2, 3}, new long[] {3, 2}, 1, 0),
+                permutation(
+                        "permute-rank-three", new long[] {2, 3, 4}, new long[] {4, 2, 3}, 2, 0, 1),
+                permutation(
+                        "permute-rank-sixteen",
                         new long[] {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3},
                         new long[] {3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
-                        15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0),
-                axis("expand-dims-front", Kind.EXPAND_DIMS,
-                        new long[] {2, 3}, new long[] {1, 2, 3}, 0),
-                axis("expand-dims-middle", Kind.EXPAND_DIMS,
-                        new long[] {2, 3}, new long[] {2, 1, 3}, 1),
-                axis("expand-dims-end", Kind.EXPAND_DIMS,
-                        new long[] {2, 3}, new long[] {2, 3, 1}, 2),
-                axis("squeeze-front", Kind.SQUEEZE,
-                        new long[] {1, 2, 3}, new long[] {2, 3}, 0),
-                axis("squeeze-middle", Kind.SQUEEZE,
-                        new long[] {2, 1, 3}, new long[] {2, 3}, 1),
-                axis("squeeze-end", Kind.SQUEEZE,
-                        new long[] {2, 3, 1}, new long[] {2, 3}, 2));
+                        15,
+                        14,
+                        13,
+                        12,
+                        11,
+                        10,
+                        9,
+                        8,
+                        7,
+                        6,
+                        5,
+                        4,
+                        3,
+                        2,
+                        1,
+                        0),
+                axis(
+                        "expand-dims-front",
+                        Kind.EXPAND_DIMS,
+                        new long[] {2, 3},
+                        new long[] {1, 2, 3},
+                        0),
+                axis(
+                        "expand-dims-middle",
+                        Kind.EXPAND_DIMS,
+                        new long[] {2, 3},
+                        new long[] {2, 1, 3},
+                        1),
+                axis(
+                        "expand-dims-end",
+                        Kind.EXPAND_DIMS,
+                        new long[] {2, 3},
+                        new long[] {2, 3, 1},
+                        2),
+                axis("squeeze-front", Kind.SQUEEZE, new long[] {1, 2, 3}, new long[] {2, 3}, 0),
+                axis("squeeze-middle", Kind.SQUEEZE, new long[] {2, 1, 3}, new long[] {2, 3}, 1),
+                axis("squeeze-end", Kind.SQUEEZE, new long[] {2, 3, 1}, new long[] {2, 3}, 2));
     }
 
     private static AffineCase target(

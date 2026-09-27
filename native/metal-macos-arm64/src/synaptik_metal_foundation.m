@@ -18,7 +18,6 @@
 
 #define SYNAPTIK_EXPORT __attribute__((visibility("default")))
 #define SYNAPTIK_MAX_RANK 16U
-#define SYNAPTIK_MAX_SELECTOR_EXPANSION 16U
 #define SYNAPTIK_MAX_NODE_INPUTS 16U
 #define SYNAPTIK_MAX_NODE_OUTPUTS 5U
 #define SYNAPTIK_MAX_ATTRIBUTE_WORDS 65U
@@ -395,12 +394,12 @@ static BOOL synaptik_attribute_is_valid(
     if (kind == 0U) return count == 0U;
     if (kind == 1U) {
         uint32_t cursor = 0U;
-        return synaptik_shape_is_valid(words, count, &cursor, YES) && cursor == count;
+        return synaptik_shape_is_valid(words, count, &cursor, NO) && cursor == count;
     }
     if (kind == 2U) {
-        if (count < 2U) return NO;
+        if (count < 1U) return NO;
         uint64_t axes = synaptik_attribute_word(words, 0U);
-        return axes >= 1U && axes <= SYNAPTIK_MAX_RANK && count == axes + 1U
+        return axes <= SYNAPTIK_MAX_RANK && count == axes + 1U
                 && synaptik_axes_are_valid(words, 1U, (uint32_t)axes, (uint32_t)axes, YES);
     }
     if (kind == 3U || kind == 37U)
@@ -430,9 +429,7 @@ static BOOL synaptik_attribute_is_valid(
         return count == 3U
                 && synaptik_attribute_word(words, 0U) < SYNAPTIK_MAX_RANK
                 && synaptik_word_is_positive(synaptik_attribute_word(words, 1U))
-                && synaptik_word_is_positive(synaptik_attribute_word(words, 2U))
-                && (operation != 19U
-                        || synaptik_attribute_word(words, 1U) <= SYNAPTIK_MAX_SELECTOR_EXPANSION);
+                && synaptik_word_is_positive(synaptik_attribute_word(words, 2U));
     if (kind == 7U)
         return count == 2U && synaptik_scalar_is_valid(words, count, 0U)
                 && (operation > 34U || synaptik_attribute_word(words, 0U) == 1U);
@@ -953,7 +950,6 @@ static BOOL node_target_matches(
         SynaptikMetalDecodedNode node, MPSShape *output) {
     if (node.attribute_kind != SYNAPTIK_METAL_MPSGRAPH_ATTR_TARGET_SHAPE
             || node.attribute_count != output.count
-            || node.attribute_count == 0U
             || node.attribute_count > SYNAPTIK_MAX_RANK
             || node.axis != UINT32_MAX
             || node.auxiliary != 0U
@@ -1927,7 +1923,6 @@ static BOOL node_permutation_matches(
     if (node.attribute_kind != SYNAPTIK_METAL_MPSGRAPH_ATTR_PERMUTATION
             || node.attribute_count != input.count
             || output.count != input.count
-            || node.attribute_count == 0U
             || node.attribute_count > SYNAPTIK_MAX_RANK
             || node.axis != UINT32_MAX
             || node.auxiliary != 0U
@@ -6870,7 +6865,7 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                 if (attribute_word_count != 0U)
                     return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
             } else if (attribute_kind == 1U || attribute_kind == 2U) {
-                if (attribute_word_count < 2U
+                if (attribute_word_count < 1U
                         || synaptik_read_le64(words) != attribute_word_count - 1U
                         || attribute_word_count - 1U > SYNAPTIK_MAX_RANK)
                     return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;

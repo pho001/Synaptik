@@ -90,6 +90,7 @@ import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
+
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -1769,7 +1770,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     private static long task0064WindowExtent(
             long input, long kernel, long stride, long padding, long dilation, boolean ceil) {
         long effective = Math.addExact(Math.multiplyExact(dilation, kernel - 1L), 1L);
-        if (effective > UINT32_MAX) throw new ArithmeticException("effective kernel exceeds uint32");
+    if (effective > UINT32_MAX) throw new ArithmeticException("effective kernel exceeds uint32");
         long padded = Math.addExact(input, Math.multiplyExact(2L, padding));
         if (padded > UINT32_MAX || padded < effective) {
             throw new ArithmeticException("window does not fit");
@@ -2027,9 +2028,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             return false;
         }
         TensorDescriptor input = inputs.getFirst();
-    if (!selectedAffineRead(input, true)
-        || !selectedAffineRead(output, true)
-        || input.dataType() != output.dataType()
+        if (!selectedAffineRead(input, true)
+                || !selectedAffineRead(output, true)
+                || input.dataType() != output.dataType()
                 || input.requiresGrad() != output.requiresGrad()) {
             return false;
         }
@@ -2042,31 +2043,32 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             }
             if (kind == ShapeTransformKind.RESHAPE) {
                 if (!inputLayout.isContiguous()
-            ||input.shape().knownElementCount().orElseThrow()
-                        != output.shape().knownElementCount().orElseThrow()) {
+                        || input.shape().knownElementCount().orElseThrow()
+                                != output.shape().knownElementCount().orElseThrow()) {
                     return false;
                 }
-                expected = LayoutDescriptor.of(
-                        output.shape(),
-                        LayoutDescriptor.contiguous(output.shape()).strides(),
-                inputLayout.storageOffset(),
-                        true);
+                expected =
+                        LayoutDescriptor.of(
+                                output.shape(),
+                                LayoutDescriptor.contiguous(output.shape()).strides(),
+                                inputLayout.storageOffset(),
+                                true);
             } else if (kind == ShapeTransformKind.EXPAND) {
                 long[] inputShape = input.shape().toLongArray();
                 long[] outputShape = output.shape().toLongArray();
-                if (inputShape.length > outputShape.length)
-                    return false;
+                if (inputShape.length > outputShape.length) return false;
                 long[] strides = new long[outputShape.length];
                 int padding = outputShape.length - inputShape.length;
                 for (int axis = 0; axis < inputShape.length; axis++) {
                     long source = inputShape[axis];
                     long target = outputShape[axis + padding];
-                    if (source != target && source != 1L)
-                        return false;
-                    strides[axis + padding] = source == 1L && target != 1L
-                            ? 0L : inputLayout.stride(axis);
+                    if (source != target && source != 1L) return false;
+                    strides[axis + padding] =
+                            source == 1L && target != 1L ? 0L : inputLayout.stride(axis);
                 }
-                expected = LayoutDescriptor.of(output.shape(), strides, inputLayout.storageOffset(), true);
+                expected =
+                        LayoutDescriptor.of(
+                                output.shape(), strides, inputLayout.storageOffset(), true);
             } else {
                 return false;
             }
@@ -2083,21 +2085,21 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 long[] strides = new long[inputShape.length];
                 for (int axis = 0; axis < inputShape.length; axis++) {
                     int source = attrs.axes().get(axis);
-                    if (source < 0 || source >= inputShape.length || seen[source])
-                        return false;
+                    if (source < 0 || source >= inputShape.length || seen[source]) return false;
                     seen[source] = true;
                     expectedShape[axis] = inputShape[source];
                     strides[axis] = inputLayout.stride(source);
                 }
-                if (!Arrays.equals(expectedShape, output.shape().toLongArray()))
-                    return false;
-                expected = LayoutDescriptor.of(output.shape(), strides, inputLayout.storageOffset(), true);
+                if (!Arrays.equals(expectedShape, output.shape().toLongArray())) return false;
+                expected =
+                        LayoutDescriptor.of(
+                                output.shape(), strides, inputLayout.storageOffset(), true);
             } else {
-                if (!(operation.attrs() instanceof AxisTransformAttrs attrs))
-                    return false;
+                if (!(operation.attrs() instanceof AxisTransformAttrs attrs)) return false;
                 int axis = attrs.axis();
                 if (kind == AxisTransformKind.EXPAND_DIMS) {
-                    if (axis < 0 || axis > inputShape.length
+                    if (axis < 0
+                            || axis > inputShape.length
                             || output.shape().rank() != inputShape.length + 1) {
                         return false;
                     }
@@ -2106,22 +2108,26 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                     for (int outputAxis = 0; outputAxis < expectedShape.length; outputAxis++) {
                         if (outputAxis == axis) {
                             expectedShape[outputAxis] = 1L;
-                            strides[outputAxis] = outputAxis == inputShape.length
-                                    ? 1L
-                                    : Math.multiplyExact(
-                                            inputLayout.stride(outputAxis),
-                                            inputShape[outputAxis]);
+                            strides[outputAxis] =
+                                    outputAxis == inputShape.length
+                                            ? 1L
+                                            : Math.multiplyExact(
+                                                    inputLayout.stride(outputAxis),
+                                                    inputShape[outputAxis]);
                         } else {
                             int source = outputAxis < axis ? outputAxis : outputAxis - 1;
                             expectedShape[outputAxis] = inputShape[source];
                             strides[outputAxis] = inputLayout.stride(source);
                         }
                     }
-                    if (!Arrays.equals(expectedShape, output.shape().toLongArray()))
-                        return false;
-                    expected = LayoutDescriptor.of(output.shape(), strides, inputLayout.storageOffset(), true);
+                    if (!Arrays.equals(expectedShape, output.shape().toLongArray())) return false;
+                    expected =
+                            LayoutDescriptor.of(
+                                    output.shape(), strides, inputLayout.storageOffset(), true);
                 } else if (kind == AxisTransformKind.SQUEEZE) {
-                    if (axis < 0 || axis >= inputShape.length || inputShape[axis] != 1L
+                    if (axis < 0
+                            || axis >= inputShape.length
+                            || inputShape[axis] != 1L
                             || output.shape().rank() != inputShape.length - 1) {
                         return false;
                     }
@@ -2133,9 +2139,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                             strides[target++] = inputLayout.stride(source);
                         }
                     }
-                    if (!Arrays.equals(expectedShape, output.shape().toLongArray()))
-                        return false;
-                    expected = LayoutDescriptor.of(output.shape(), strides, inputLayout.storageOffset(), true);
+                    if (!Arrays.equals(expectedShape, output.shape().toLongArray())) return false;
+                    expected =
+                            LayoutDescriptor.of(
+                                    output.shape(), strides, inputLayout.storageOffset(), true);
                 } else {
                     return false;
                 }
@@ -2146,7 +2153,6 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         return output.layout().orElseThrow().equals(expected);
     }
 
-
     private static boolean supportsContiguous(
             Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
         if (operation.attrs() != NoOperationAttrs.INSTANCE || inputs.size() != 1) {
@@ -2155,43 +2161,44 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         TensorDescriptor input = inputs.getFirst();
         return selectedAffineRead(input, true)
                 && canonicalAny(output, true)
-        && input.dataType() == output.dataType()
+                && input.dataType() == output.dataType()
                 && input.shape().equals(output.shape())
                 && input.requiresGrad() == output.requiresGrad();
     }
 
     private static boolean selectedIndexRead(TensorDescriptor descriptor, boolean allowScalar) {
-    return !descriptor.requiresGrad()
-        && (descriptor.dataType() == DataType.INT32 || descriptor.dataType() == DataType.INT64)
-        && selectedAffineRead(descriptor, allowScalar);
-  }
-
-  private static boolean selectedAffineRead(TensorDescriptor descriptor, boolean allowScalar) {
-    int rank = descriptor.shape().rank();
-        if (!descriptor.shape().isFullyStatic()
-        || rank < (allowScalar ? 0 : 1)
-        || rank > MetalMpsGraphProgram.MAX_RANK
-        ||descriptor.layout().isEmpty()) {
-            return false;
+        return !descriptor.requiresGrad()
+                && (descriptor.dataType() == DataType.INT32
+                        || descriptor.dataType() == DataType.INT64)
+                && selectedAffineRead(descriptor, allowScalar);
     }
-    long elements = 1L;
-    for (long dimension : descriptor.shape().toLongArray()) {
-      if (dimension <= 0L) return false;
-      elements = Math.multiplyExact(elements, dimension);
+
+    private static boolean selectedAffineRead(TensorDescriptor descriptor, boolean allowScalar) {
+        int rank = descriptor.shape().rank();
+        if (!descriptor.shape().isFullyStatic()
+                || rank < (allowScalar ? 0 : 1)
+                || rank > MetalMpsGraphProgram.MAX_RANK
+                || descriptor.layout().isEmpty()) {
+            return false;
+        }
+        long elements = 1L;
+        for (long dimension : descriptor.shape().toLongArray()) {
+            if (dimension <= 0L) return false;
+            elements = Math.multiplyExact(elements, dimension);
         }
         LayoutDescriptor layout = descriptor.layout().orElseThrow();
-    Math.multiplyExact(elements, descriptor.dataType().byteWidth());
-    Math.multiplyExact (layout.referencedElementSpan(),descriptor.dataType().byteWidth());
-    if (layout.hasZeroStride()) {
-      return layout.isView();
+        Math.multiplyExact(elements, descriptor.dataType().byteWidth());
+        Math.multiplyExact(layout.referencedElementSpan(), descriptor.dataType().byteWidth());
+        if (layout.hasZeroStride()) {
+            return layout.isView();
+        }
+        return supportedStorageLayout(descriptor, allowScalar ? 0 : 1);
     }
-    return supportedStorageLayout(descriptor, allowScalar ? 0 : 1);
-  }
 
-  private static boolean isFloating(DataType dataType) {
-    return dataType == DataType.FLOAT64
-        || dataType == DataType.FLOAT32
-        || dataType == DataType.BFLOAT16;
+    private static boolean isFloating(DataType dataType) {
+        return dataType == DataType.FLOAT64
+                || dataType == DataType.FLOAT32
+                || dataType == DataType.BFLOAT16;
     }
 
     private static boolean canonical(TensorDescriptor descriptor) {
