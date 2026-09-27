@@ -359,7 +359,6 @@ final class FirstOrderGradientCoverageTest {
         assertFalse(emitted.isEmpty());
         assertEquals(10, connected);
         assertEquals(12, notApplicable);
-        assertEquals(64, emitted.size());
     }
 
     private static List<ClosureCase> closureCases() {

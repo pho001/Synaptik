@@ -86,6 +86,7 @@ import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorProducer;
 import io.github.pho001.synaptik.model.tensor.TensorProvenance;
 import java.util.ArrayDeque;
@@ -1474,8 +1475,20 @@ final class AutogradPreflight {
                         WindowTransformKind.FOLD3D,
                         new Fold3dAttrs(input.shape(), window)),
                 unfolded.outputs());
-        if (folded.outputs().size() != 1 || !folded.outputs().getFirst().equals(input)) {
-            throw new IllegalArgumentException("Pool3d fold formula must restore input descriptor");
+        if (folded.outputs().size() != 1) {
+            throw new IllegalArgumentException("Pool3d fold formula must have one output");
+        }
+        var canonicalized = LayoutInference.infer(
+                new Operation(ContiguousKind.CONTIGUOUS, NoOperationAttrs.INSTANCE),
+                folded.outputs());
+        if (canonicalized.outputs().size() != 1) {
+            throw new IllegalArgumentException("Pool3d canonicalization must have one output");
+        }
+        TensorDescriptor restored = canonicalized.outputs().getFirst();
+        if (restored.dataType() != input.dataType()
+                || !restored.shape().equals(input.shape())
+                || restored.requiresGrad() != input.requiresGrad()) {
+            throw new IllegalArgumentException("Pool3d fold formula must restore input semantics");
         }
     }
 

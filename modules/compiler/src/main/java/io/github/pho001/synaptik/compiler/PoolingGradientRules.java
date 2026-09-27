@@ -84,10 +84,12 @@ final class PoolingGradientRules {
 
         Tensor divisor = constants.oneBase(input.descriptor().dataType())
                 .expand(Shape.of(attrs.kernelHeight(), attrs.kernelWidth()))
+                .contiguous()
                 .sum();
         Tensor perPosition = gradient
                 .reshape(Shape.ofDimensions(
                         output.dimension(0), channels, positions))
+                .contiguous()
                 .div(divisor);
         Tensor columns = perPosition
                 .expandDims(2)
@@ -96,10 +98,12 @@ final class PoolingGradientRules {
                         channels,
                         new StaticDimension(kernelElements),
                         positions))
+                .contiguous()
                 .reshape(Shape.ofDimensions(
                         output.dimension(0),
                         DimensionExpressions.multiply(channels, kernelElements),
-                        positions));
+                        positions))
+                .contiguous();
         return columns.fold2d(input.descriptor().shape(), window);
     }
 
@@ -202,9 +206,11 @@ final class PoolingGradientRules {
 
         Tensor divisor = constants.oneBase(input.descriptor().dataType())
                 .expand(Shape.of(attrs.kernelDepth(), attrs.kernelHeight(), attrs.kernelWidth()))
+                .contiguous()
                 .sum();
         Tensor perPosition = gradient
                 .reshape(Shape.ofDimensions(output.dimension(0), channels, positions))
+                .contiguous()
                 .div(divisor);
         Tensor columns = perPosition
                 .expandDims(2)
@@ -213,11 +219,13 @@ final class PoolingGradientRules {
                         channels,
                         new StaticDimension(kernelElements),
                         positions))
+                .contiguous()
                 .reshape(Shape.ofDimensions(
                         output.dimension(0),
                         DimensionExpressions.multiply(channels, kernelElements),
-                        positions));
-        return columns.fold3d(input.descriptor().shape(), window);
+                        positions))
+                .contiguous();
+        return columns.fold3d(input.descriptor().shape(), window).contiguous();
     }
 
     /**
@@ -287,7 +295,7 @@ final class PoolingGradientRules {
                         batch,
                         DimensionExpressions.multiply(channels, kernelElements),
                         positions));
-        return columns.fold3d(input.descriptor().shape(), window);
+        return columns.fold3d(input.descriptor().shape(), window).contiguous();
     }
 
     /**

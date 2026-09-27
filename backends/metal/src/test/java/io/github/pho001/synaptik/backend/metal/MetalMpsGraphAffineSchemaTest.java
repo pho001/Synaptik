@@ -5,9 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphAffineSchemaTest {
@@ -21,8 +24,8 @@ class MetalMpsGraphAffineSchemaTest {
             assertEquals(index + 1, operations[index].wireIdentity());
             if (operations[index].executable()) executable++;
         }
-        assertEquals(93, executable);
-        assertEquals(22, operations.length - executable);
+        assertEquals(99, executable);
+        assertEquals(16, operations.length - executable);
 
         MetalMpsGraphProgram.AttributeKind[] attributes =
                 MetalMpsGraphProgram.AttributeKind.values();
@@ -323,6 +326,57 @@ class MetalMpsGraphAffineSchemaTest {
         }
         expected.putLong(0L);
         org.junit.jupiter.api.Assertions.assertArrayEquals(expected.array(), actual);
+    }
+
+    @Test
+    void task0064SingletonHeightViewRequiresTheExactLocalExpandDimsProducer() {
+        Shape viewShape = Shape.of(2, 3, 1, 4);
+        var view = new MetalMpsGraphProgram.ValueDescriptor(
+                DataType.FLOAT32,
+                viewShape.toLongArray(),
+                Optional.of(LayoutDescriptor.of(
+                        viewShape, new long[] {12, 4, 4, 1}, 0, true)),
+                false,
+                true);
+        List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.FLOAT32, new long[] {2, 3, 4}, false),
+                view,
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.FLOAT32, new long[] {2, 3, 1, 3}, false));
+        var pool = MetalMpsGraphProgram.Node.generic(
+                MetalMpsGraphProgram.NodeKind.MAX_POOL2D,
+                new int[] {1},
+                new int[] {2},
+                MetalMpsGraphProgram.AttributeKind.WINDOW_2D,
+                new long[] {1, 2, 1, 1, 0, 0, 1, 1, 0});
+        var localProgram = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.axis(
+                        MetalMpsGraphProgram.NodeKind.EXPAND_DIMS, 0, 1, 2),
+                pool));
+        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                NumericalProfile.STRICT_IEEE,
+                values,
+                localProgram,
+                new int[] {0},
+                new int[] {2},
+                MetalPreparedRoute.CUSTOM_PROGRAM);
+
+        var externalProgram = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.MAX_POOL2D,
+                        new int[] {0},
+                        new int[] {1},
+                        MetalMpsGraphProgram.AttributeKind.WINDOW_2D,
+                        new long[] {1, 2, 1, 1, 0, 0, 1, 1, 0})));
+        assertThrows(IllegalArgumentException.class,
+                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                        NumericalProfile.STRICT_IEEE,
+                        List.of(view, values.get(2)),
+                        externalProgram,
+                        new int[] {0},
+                        new int[] {1},
+                        MetalPreparedRoute.CUSTOM_PROGRAM));
     }
 
     private static void putValue(

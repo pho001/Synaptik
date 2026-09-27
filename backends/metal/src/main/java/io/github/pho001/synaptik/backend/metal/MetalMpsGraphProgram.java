@@ -105,8 +105,10 @@ final class MetalMpsGraphProgram {
         CUM_SUM(33, 1, 1, 1, 1, AttributeKind.SCAN, ValueState.CANONICAL, false, true),
         CUM_PROD(34, 1, 1, 1, 1, AttributeKind.SCAN, ValueState.CANONICAL, false, true),
         SCALED_DOT_PRODUCT_ATTENTION(35, 3, 4, 1, 2, AttributeKind.ATTENTION),
-        CONV2D(36, 2, 3, 1, 1, AttributeKind.CONV_2D),
-        CONV3D(37, 2, 3, 1, 1, AttributeKind.CONV_3D),
+        CONV2D(36, 2, 3, 1, 1, AttributeKind.CONV_2D,
+                ValueState.CANONICAL, true, true),
+        CONV3D(37, 2, 3, 1, 1, AttributeKind.CONV_3D,
+                ValueState.CANONICAL, false, true),
         TENSOR_POW(38, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         CAST(39, 1, 1, 1, 1, AttributeKind.CAST_TARGET,
                 ValueState.CANONICAL, false, true),
@@ -188,10 +190,14 @@ final class MetalMpsGraphProgram {
                 ValueState.CANONICAL, false, true),
         TOP_K(96, 1, 1, 2, 2, AttributeKind.TOP_K,
                 ValueState.CANONICAL, false, true),
-        MAX_POOL2D(97, 1, 1, 1, 1, AttributeKind.WINDOW_2D),
-        AVERAGE_POOL2D(98, 1, 1, 1, 1, AttributeKind.WINDOW_2D),
-        MAX_POOL3D(99, 1, 1, 1, 1, AttributeKind.WINDOW_3D),
-        AVERAGE_POOL3D(100, 1, 1, 1, 1, AttributeKind.WINDOW_3D),
+        MAX_POOL2D(97, 1, 1, 1, 1, AttributeKind.WINDOW_2D,
+                ValueState.CANONICAL, true, true),
+        AVERAGE_POOL2D(98, 1, 1, 1, 1, AttributeKind.WINDOW_2D,
+                ValueState.CANONICAL, true, true),
+        MAX_POOL3D(99, 1, 1, 1, 1, AttributeKind.WINDOW_3D,
+                ValueState.CANONICAL, false, true),
+        AVERAGE_POOL3D(100, 1, 1, 1, 1, AttributeKind.WINDOW_3D,
+                ValueState.CANONICAL, false, true),
         DROPOUT(101, 2, 2, 3, 3, AttributeKind.DROPOUT),
         INITIAL_STATE(102, 0, 0, 1, 1, AttributeKind.GRAPH_RNG_STATE),
         RNN_TANH(103, 5, 6, 2, 2, AttributeKind.RECURRENT_DIRECTION),
@@ -263,6 +269,10 @@ final class MetalMpsGraphProgram {
         boolean isAffine() { return outputState == ValueState.AFFINE_VIEW; }
         boolean executable() { return executable; }
         boolean isCustomProgramOperation() {
+            if (wireIdentity == 36 || wireIdentity == 37
+                    || wireIdentity >= 97 && wireIdentity <= 100) {
+                return true;
+            }
             return wireIdentity >= 20 && wireIdentity <= 34
                     || wireIdentity == 39
                     || wireIdentity >= 40 && wireIdentity <= 45

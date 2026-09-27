@@ -74,6 +74,7 @@ final class MetalOperationRouteCatalog {
         CA_0060,
         CA_0061,
         CA_0063,
+        CA_0064,
         CP_POINT,
         CP_POWER,
         CP_ELEMENTARY,
@@ -143,6 +144,8 @@ final class MetalOperationRouteCatalog {
                 CustomKernelReason.CP_CONTRACT),
         DIRECT_CONV_PENDING_CONTRACT(MpsGraphState.DIRECT, MpsGraphReason.MD_CONV_BASE,
                 CustomKernelState.PENDING, CustomKernelReason.CP_CONTRACT),
+        DIRECT_CONV_CUSTOM_0064(MpsGraphState.DIRECT, MpsGraphReason.MD_CONV_BASE,
+                CustomKernelState.AVAILABLE, CustomKernelReason.CA_0064),
         DIRECT_PRED_PENDING_POINT(MpsGraphState.DIRECT, MpsGraphReason.MD_PRED,
                 CustomKernelState.PENDING, CustomKernelReason.CP_POINT),
         COMPOSED_SCALAR_PENDING_POINT(MpsGraphState.COMPOSED,
@@ -222,9 +225,15 @@ final class MetalOperationRouteCatalog {
         DIRECT_POOL2D_PENDING_AGGREGATE(MpsGraphState.DIRECT,
                 MpsGraphReason.MD_POOL2D, CustomKernelState.PENDING,
                 CustomKernelReason.CP_AGGREGATE),
+        DIRECT_POOL2D_CUSTOM_0064(MpsGraphState.DIRECT,
+                MpsGraphReason.MD_POOL2D, CustomKernelState.AVAILABLE,
+                CustomKernelReason.CA_0064),
         COMPOSED_WINDOW3D_PENDING_AGGREGATE(MpsGraphState.COMPOSED,
                 MpsGraphReason.MC_WINDOW3D, CustomKernelState.PENDING,
                 CustomKernelReason.CP_AGGREGATE),
+        COMPOSED_WINDOW3D_CUSTOM_0064(MpsGraphState.COMPOSED,
+                MpsGraphReason.MC_WINDOW3D, CustomKernelState.AVAILABLE,
+                CustomKernelReason.CA_0064),
         UNAVAILABLE_RNG_PENDING_STATE(MpsGraphState.UNAVAILABLE, MpsGraphReason.MU_RNG,
                 CustomKernelState.PENDING, CustomKernelReason.CP_STATE),
         UNAVAILABLE_RECURRENT_PENDING_STATE(MpsGraphState.UNAVAILABLE,
@@ -309,7 +318,7 @@ final class MetalOperationRouteCatalog {
             case REDUCTION_MIN, REDUCTION_MAX, CUM_SUM, CUM_PROD ->
                     Entry.DIRECT_REDUCE_CUSTOM_0052;
             case SCALED_DOT_PRODUCT_ATTENTION -> Entry.DIRECT_ATTENTION_PENDING_CONTRACT;
-            case CONV2D, CONV3D -> Entry.DIRECT_CONV_PENDING_CONTRACT;
+            case CONV2D, CONV3D -> Entry.DIRECT_CONV_CUSTOM_0064;
             case IS_FINITE, IS_NAN, IS_INF, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT, WHERE ->
                     Entry.DIRECT_PRED_CUSTOM_0057;
             case SCALAR_ADD, SCALAR_SUB, SCALAR_MUL, SCALAR_DIV ->
@@ -339,8 +348,8 @@ final class MetalOperationRouteCatalog {
             case SORT -> Entry.DIRECT_SORT_CUSTOM_0063;
             case ARGSORT, TOP_K, ARG_MAX, ARG_MIN ->
                     Entry.COMPOSED_INDEX64_CUSTOM_0063;
-            case MAX_POOL2D, AVERAGE_POOL2D -> Entry.DIRECT_POOL2D_PENDING_AGGREGATE;
-            case MAX_POOL3D, AVERAGE_POOL3D -> Entry.COMPOSED_WINDOW3D_PENDING_AGGREGATE;
+            case MAX_POOL2D, AVERAGE_POOL2D -> Entry.DIRECT_POOL2D_CUSTOM_0064;
+            case MAX_POOL3D, AVERAGE_POOL3D -> Entry.COMPOSED_WINDOW3D_CUSTOM_0064;
             case DROPOUT, INITIAL_STATE -> Entry.UNAVAILABLE_RNG_PENDING_STATE;
             case RNN_TANH, GRU_RESET_AFTER, LSTM -> Entry.UNAVAILABLE_RECURRENT_PENDING_STATE;
             case LOG_SUM_EXP -> Entry.COMPOSED_LOGSUMEXP_PENDING_AGGREGATE;

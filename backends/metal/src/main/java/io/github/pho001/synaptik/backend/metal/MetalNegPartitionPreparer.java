@@ -8,6 +8,10 @@ import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
+import io.github.pho001.synaptik.model.operation.convolution.Conv2dKind;
+import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
+import io.github.pho001.synaptik.model.operation.convolution.Conv3dKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
 import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
@@ -72,6 +76,12 @@ import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.Pool2dKind;
+import io.github.pho001.synaptik.model.operation.pooling.Pool3dKind;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis;
@@ -181,6 +191,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         var states = new LinkedHashMap<ValueId, MetalMpsGraphProgram.ValueState>();
         var feeds = new ArrayList<ValueId>();
         var localTranspose = new LinkedHashMap<ValueId, Boolean>();
+        var localSingletonHeight = new LinkedHashMap<ValueId, Boolean>();
         int nodeCount = context.nodes().size();
         var programNodes = new ArrayList<MetalMpsGraphProgram.Node>(nodeCount);
         for (int nodeIndex = 0; nodeIndex < nodeCount; nodeIndex++) {
@@ -209,6 +220,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     states.put(inputId, state);
                     feeds.add(inputId);
                     localTranspose.put(inputId, false);
+                    localSingletonHeight.put(inputId, false);
                 }
                 inputStates.add(state);
             }
@@ -274,6 +286,18 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     }
                 }
             }
+            if (isTask0064TwoDimensional(lowered.kind())) {
+                for (int inputIndex = 0; inputIndex < inputStates.size(); inputIndex++) {
+                    if (inputStates.get(inputIndex)
+                                    == MetalMpsGraphProgram.ValueState.AFFINE_VIEW
+                            && !Boolean.TRUE.equals(localSingletonHeight.get(
+                                    node.inputs().get(inputIndex)))) {
+                        throw new IllegalArgumentException(
+                                "Metal Conv2d/Pool2d affine input is not an authenticated local"
+                                        + " singleton-height expansion");
+                    }
+                }
+            }
             if (!lowered.kind().acceptsCardinality(
                             inputStates.size(), outputIndices.length)
                     || inputStates.stream().anyMatch(state -> !lowered.kind().accepts(state))) {
@@ -288,8 +312,16 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                             inputDescriptors,
                             outputDescriptors.getFirst(),
                             node.operation());
+            boolean exactLocalSingletonHeight = outputIndices.length == 1
+                    && isExactLocalSingletonHeight(
+                            lowered,
+                            inputStates,
+                            inputDescriptors,
+                            outputDescriptors.getFirst(),
+                            node.operation());
             for (ValueId outputId : node.outputs()) {
                 localTranspose.put(outputId, exactLocalTranspose);
+                localSingletonHeight.put(outputId, exactLocalSingletonHeight);
                 states.put(outputId, lowered.kind().outputState());
             }
         }
@@ -577,6 +609,40 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 || right.shape().rank() != 2
                 || output.shape().rank() != 2;
     }
+    private static boolean isTask0064TwoDimensional(
+            MetalMpsGraphProgram.NodeKind kind) {
+        return kind == MetalMpsGraphProgram.NodeKind.CONV2D
+                || kind == MetalMpsGraphProgram.NodeKind.MAX_POOL2D
+                || kind == MetalMpsGraphProgram.NodeKind.AVERAGE_POOL2D;
+    }
+
+    private static boolean isExactLocalSingletonHeight(
+            MetalMpsGraphProgram.Node lowered,
+            List<MetalMpsGraphProgram.ValueState> inputStates,
+            List<TensorDescriptor> inputs,
+            TensorDescriptor output,
+            Operation operation) {
+        if (lowered.kind() != MetalMpsGraphProgram.NodeKind.EXPAND_DIMS
+                || inputStates.getFirst() != MetalMpsGraphProgram.ValueState.CANONICAL
+                || !(operation.attrs() instanceof AxisTransformAttrs attrs)
+                || attrs.axis() != 2
+                || inputs.getFirst().shape().rank() != 3
+                || output.shape().rank() != 4
+                || output.shape().toLongArray()[2] != 1L) {
+            return false;
+        }
+        long[] shape = output.shape().toLongArray();
+        LayoutDescriptor expected = LayoutDescriptor.of(
+                output.shape(),
+                new long[] {
+                    Math.multiplyExact(shape[1], shape[3]), shape[3], shape[3], 1L
+                },
+                0L,
+                true);
+        return output.layout().filter(expected::equals).isPresent();
+    }
+
+
 
     private static boolean isExactLocalTranspose(
             MetalMpsGraphProgram.Node lowered,
@@ -625,6 +691,93 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             List<TensorDescriptor> inputDescriptors,
             List<TensorDescriptor> outputDescriptors) {
         OperationKind kind = operation.kind();
+        if (kind == Conv2dKind.CONV2D) {
+            Conv2dAttrs attrs = (Conv2dAttrs) operation.attrs();
+            return MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.CONV2D,
+                    inputs,
+                    outputs,
+                    MetalMpsGraphProgram.AttributeKind.CONV_2D,
+                    new long[] {
+                        attrs.strideHeight(), attrs.strideWidth(),
+                        attrs.paddingHeight(), attrs.paddingWidth(),
+                        attrs.dilationHeight(), attrs.dilationWidth(), attrs.groups()
+                    });
+        }
+        if (kind == Conv3dKind.CONV3D) {
+            Conv3dAttrs attrs = (Conv3dAttrs) operation.attrs();
+            return MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.CONV3D,
+                    inputs,
+                    outputs,
+                    MetalMpsGraphProgram.AttributeKind.CONV_3D,
+                    new long[] {
+                        attrs.strideDepth(), attrs.strideHeight(), attrs.strideWidth(),
+                        attrs.paddingDepth(), attrs.paddingHeight(), attrs.paddingWidth(),
+                        attrs.dilationDepth(), attrs.dilationHeight(), attrs.dilationWidth(),
+                        attrs.groups()
+                    });
+        }
+        if (kind instanceof Pool2dKind pool) {
+            long[] words;
+            if (pool == Pool2dKind.MAX_POOL2D) {
+                MaxPool2dAttrs attrs = (MaxPool2dAttrs) operation.attrs();
+                words = new long[] {
+                    attrs.kernelHeight(), attrs.kernelWidth(),
+                    attrs.strideHeight(), attrs.strideWidth(),
+                    attrs.paddingHeight(), attrs.paddingWidth(),
+                    attrs.dilationHeight(), attrs.dilationWidth(),
+                    attrs.ceilMode() ? 1L : 0L
+                };
+            } else {
+                AveragePool2dAttrs attrs = (AveragePool2dAttrs) operation.attrs();
+                words = new long[] {
+                    attrs.kernelHeight(), attrs.kernelWidth(),
+                    attrs.strideHeight(), attrs.strideWidth(),
+                    attrs.paddingHeight(), attrs.paddingWidth(),
+                    attrs.dilationHeight(), attrs.dilationWidth(),
+                    attrs.ceilMode() ? 1L : 0L
+                };
+            }
+            return MetalMpsGraphProgram.Node.generic(
+                    pool == Pool2dKind.MAX_POOL2D
+                            ? MetalMpsGraphProgram.NodeKind.MAX_POOL2D
+                            : MetalMpsGraphProgram.NodeKind.AVERAGE_POOL2D,
+                    inputs,
+                    outputs,
+                    MetalMpsGraphProgram.AttributeKind.WINDOW_2D,
+                    words);
+        }
+        if (kind instanceof Pool3dKind pool) {
+            long[] words;
+            if (pool == Pool3dKind.MAX_POOL3D) {
+                MaxPool3dAttrs attrs = (MaxPool3dAttrs) operation.attrs();
+                words = new long[] {
+                    attrs.kernelDepth(), attrs.kernelHeight(), attrs.kernelWidth(),
+                    attrs.strideDepth(), attrs.strideHeight(), attrs.strideWidth(),
+                    attrs.paddingDepth(), attrs.paddingHeight(), attrs.paddingWidth(),
+                    attrs.dilationDepth(), attrs.dilationHeight(), attrs.dilationWidth(),
+                    attrs.ceilMode() ? 1L : 0L
+                };
+            } else {
+                AveragePool3dAttrs attrs = (AveragePool3dAttrs) operation.attrs();
+                words = new long[] {
+                    attrs.kernelDepth(), attrs.kernelHeight(), attrs.kernelWidth(),
+                    attrs.strideDepth(), attrs.strideHeight(), attrs.strideWidth(),
+                    attrs.paddingDepth(), attrs.paddingHeight(), attrs.paddingWidth(),
+                    attrs.dilationDepth(), attrs.dilationHeight(), attrs.dilationWidth(),
+                    attrs.ceilMode() ? 1L : 0L
+                };
+            }
+            return MetalMpsGraphProgram.Node.generic(
+                    pool == Pool3dKind.MAX_POOL3D
+                            ? MetalMpsGraphProgram.NodeKind.MAX_POOL3D
+                            : MetalMpsGraphProgram.NodeKind.AVERAGE_POOL3D,
+                    inputs,
+                    outputs,
+                    MetalMpsGraphProgram.AttributeKind.WINDOW_3D,
+                    words);
+        }
         int output = outputs[0];
         TensorDescriptor outputDescriptor = outputDescriptors.getFirst();
         if (kind instanceof OrderingKind ordering) {

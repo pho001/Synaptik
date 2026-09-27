@@ -533,11 +533,16 @@ abstract class MetalNativeApi implements AutoCloseable {
             boolean[] used = new boolean[valueCount];
             boolean[] produced = new boolean[valueCount];
             boolean[] localTranspose = new boolean[valueCount];
+            boolean[] localSingletonHeight = new boolean[valueCount];
             for (int feed : feeds) {
                 requireIndex(feed, valueCount, "feed");
                 if (states[feed] != MetalMpsGraphProgram.ValueState.UNAVAILABLE) {
                     throw new IllegalArgumentException(
                             "Metal MPSGraph feed indices must be unique");
+                }
+                if (values.get(feed).densePhysical()) {
+                    throw new IllegalArgumentException(
+                            "Metal MPSGraph affine views must be produced inside the partition");
                 }
                 states[feed] = MetalMpsGraphProgram.ValueState.CANONICAL;
                 used[feed] = true;
@@ -555,6 +560,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                     && graphProgram.nodes().stream()
                             .anyMatch(node -> task0052CustomOnly(node.kind())
                                     || task0063CustomOnly(node.kind())
+                                    || task0064CustomOnly(node.kind())
                                     || usesCustomMatmul(node, types, valueRanks))) {
                 throw new IllegalArgumentException(
                         "custom-only operations have no approved direct MPSGraph route");
@@ -756,9 +762,13 @@ abstract class MetalNativeApi implements AutoCloseable {
                         localTranspose[output] = exactLocalTranspose(
                                 node, left, output, states, valueRanks, values);
                     }
-                    case EXPAND_DIMS -> requireShape(
-                            expandDimsMatches(node, left, output, valueRanks, valueDimensions),
-                            "EXPAND_DIMS axis and output shape disagree");
+                    case EXPAND_DIMS -> {
+                        requireShape(
+                                expandDimsMatches(node, left, output, valueRanks, valueDimensions),
+                                "EXPAND_DIMS axis and output shape disagree");
+                        localSingletonHeight[output] = exactLocalSingletonHeight(
+                                node, left, output, states, valueRanks, values);
+                    }
                     case SQUEEZE -> requireShape(
                             squeezeMatches(node, left, output, valueRanks, valueDimensions),
                             "SQUEEZE axis and output shape disagree");
@@ -868,6 +878,28 @@ abstract class MetalNativeApi implements AutoCloseable {
                                 && !task0059LayoutMatches(node, values)) {
                             throw new IllegalArgumentException(
                                     node.kind() + " attributes and output layout disagree");
+                        }
+                    }
+                    case CONV2D, CONV3D, MAX_POOL2D, AVERAGE_POOL2D,
+                            MAX_POOL3D, AVERAGE_POOL3D -> {
+                        if (!task0064ShapeMatches(node, values)) {
+                            throw new IllegalArgumentException(
+                                    node.kind() + " attributes, unsigned geometry, and output"
+                                            + " shape disagree");
+                        }
+                        if (node.kind() == MetalMpsGraphProgram.NodeKind.CONV2D
+                                || node.kind() == MetalMpsGraphProgram.NodeKind.MAX_POOL2D
+                                || node.kind()
+                                        == MetalMpsGraphProgram.NodeKind.AVERAGE_POOL2D) {
+                            for (int input : node.inputs()) {
+                                if (states[input]
+                                                == MetalMpsGraphProgram.ValueState.AFFINE_VIEW
+                                        && !localSingletonHeight[input]) {
+                                    throw new IllegalArgumentException(
+                                            "Conv2d/Pool2d affine input must be an authenticated"
+                                                    + " local singleton-height expansion");
+                                }
+                            }
                         }
                     }
                     case UNFOLD_AXIS -> requireShape(
@@ -1071,6 +1103,29 @@ abstract class MetalNativeApi implements AutoCloseable {
                             }
                         }
                     }
+                    case CONV2D, CONV3D ->
+                            validateTask0064ConvolutionTypesAndGradients(
+                                    node, types, values);
+                    case MAX_POOL2D, MAX_POOL3D -> {
+                        if (types[left] != types[output]
+                                || types[left] != ValueType.FLOAT64
+                                        && types[left] != ValueType.FLOAT32
+                                        && types[left] != ValueType.BFLOAT16
+                                || values.get(left).requiresGrad()
+                                        != values.get(output).requiresGrad()) {
+                            throw new IllegalArgumentException(
+                                    "max pool carrier or gradient metadata is incompatible");
+                        }
+                    }
+                    case AVERAGE_POOL2D, AVERAGE_POOL3D -> {
+                        requireType(types, left, ValueType.FLOAT32);
+                        requireType(types, output, ValueType.FLOAT32);
+                        if (values.get(left).requiresGrad()
+                                != values.get(output).requiresGrad()) {
+                            throw new IllegalArgumentException(
+                                    "average pool gradient metadata is incompatible");
+                        }
+                    }
                     case UNFOLD2D, UNFOLD3D -> {
                         if (types[left] != types[output]
                                 || types[left] != ValueType.FLOAT32
@@ -1139,6 +1194,183 @@ abstract class MetalNativeApi implements AutoCloseable {
                 }
             }
         }
+        private static boolean task0064ShapeMatches(
+                MetalMpsGraphProgram.Node node,
+                List<MetalMpsGraphProgram.ValueDescriptor> values) {
+            try {
+                boolean convolution = node.kind() == MetalMpsGraphProgram.NodeKind.CONV2D
+                        || node.kind() == MetalMpsGraphProgram.NodeKind.CONV3D;
+                int spatial = node.kind() == MetalMpsGraphProgram.NodeKind.CONV2D
+                                || node.kind() == MetalMpsGraphProgram.NodeKind.MAX_POOL2D
+                                || node.kind()
+                                        == MetalMpsGraphProgram.NodeKind.AVERAGE_POOL2D
+                        ? 2 : 3;
+                int rank = spatial + 2;
+                int[] inputs = node.inputs();
+                MetalMpsGraphProgram.ValueDescriptor source = values.get(inputs[0]);
+                MetalMpsGraphProgram.ValueDescriptor output =
+                        values.get(node.outputIndex());
+                if (!task0064Image(source, rank, spatial == 2)
+                        || !task0064Canonical(output, rank)) {
+                    return false;
+                }
+                long[] sourceShape = source.dimensions();
+                long[] outputShape = output.dimensions();
+                long[] words = node.attributeWords();
+                if (sourceShape[0] != outputShape[0]) return false;
+                if (convolution) {
+                    if (inputs.length < 2 || inputs.length > 3
+                            || words.length != spatial * 3 + 1) {
+                        return false;
+                    }
+                    MetalMpsGraphProgram.ValueDescriptor weight =
+                            values.get(inputs[1]);
+                    if (!task0064Image(weight, rank, spatial == 2)) return false;
+                    long[] weightShape = weight.dimensions();
+                    long groups = words[spatial * 3];
+                    if (!task0064Positive(groups)
+                            || sourceShape[1] % groups != 0L
+                            || weightShape[0] % groups != 0L
+                            || weightShape[1] != sourceShape[1] / groups
+                            || outputShape[1] != weightShape[0]) {
+                        return false;
+                    }
+                    if (inputs.length == 3) {
+                        MetalMpsGraphProgram.ValueDescriptor bias =
+                                values.get(inputs[2]);
+                        if (!task0064Canonical(bias, 1)
+                                || bias.dimensions()[0] != weightShape[0]) {
+                            return false;
+                        }
+                    }
+                    long contributors = weightShape[1];
+                    for (int axis = 0; axis < spatial; axis++) {
+                        long stride = words[axis];
+                        long padding = words[spatial + axis];
+                        long dilation = words[spatial * 2 + axis];
+                        if (outputShape[axis + 2] != task0064WindowExtent(
+                                sourceShape[axis + 2],
+                                weightShape[axis + 2],
+                                stride,
+                                padding,
+                                dilation,
+                                false)) {
+                            return false;
+                        }
+                        contributors =
+                                Math.multiplyExact(contributors, weightShape[axis + 2]);
+                    }
+                    return contributors <= UINT32_MAX;
+                }
+                if (inputs.length != 1 || words.length != spatial * 4 + 1
+                        || sourceShape[1] != outputShape[1]
+                        || words[spatial * 4] < 0L
+                        || words[spatial * 4] > 1L) {
+                    return false;
+                }
+                long divisor = 1L;
+                for (int axis = 0; axis < spatial; axis++) {
+                    long kernel = words[axis];
+                    long stride = words[spatial + axis];
+                    long padding = words[spatial * 2 + axis];
+                    long dilation = words[spatial * 3 + axis];
+                    if (outputShape[axis + 2] != task0064WindowExtent(
+                            sourceShape[axis + 2],
+                            kernel,
+                            stride,
+                            padding,
+                            dilation,
+                            words[spatial * 4] != 0L)) {
+                        return false;
+                    }
+                    divisor = Math.multiplyExact(divisor, kernel);
+                }
+                return divisor <= UINT32_MAX;
+            } catch (ArithmeticException | IndexOutOfBoundsException exception) {
+                return false;
+            }
+        }
+
+        private static boolean task0064Canonical(
+                MetalMpsGraphProgram.ValueDescriptor descriptor, int rank) {
+            return descriptor.rank() == rank
+                    && task0064Bounded(descriptor)
+                    && descriptor.layout().filter(
+                            LayoutDescriptor.contiguous(Shape.of(descriptor.dimensions()))::equals)
+                            .isPresent();
+        }
+
+        private static boolean task0064Image(
+                MetalMpsGraphProgram.ValueDescriptor descriptor,
+                int rank,
+                boolean allowSingletonHeight) {
+            if (descriptor.rank() != rank || !task0064Bounded(descriptor)) return false;
+            LayoutDescriptor layout = descriptor.layout().orElseThrow();
+            if (layout.equals(LayoutDescriptor.contiguous(
+                    Shape.of(descriptor.dimensions())))) {
+                return true;
+            }
+            long[] shape = descriptor.dimensions();
+            return allowSingletonHeight
+                    && rank == 4
+                    && shape[2] == 1L
+                    && layout.storageOffset() == 0L
+                    && layout.isView()
+                    && Arrays.equals(
+                            layout.strides(),
+                            new long[] {
+                                Math.multiplyExact(shape[1], shape[3]),
+                                shape[3],
+                                shape[3],
+                                1L
+                            })
+                    && layout.referencedElementSpan()
+                            == Math.multiplyExact(
+                                    Math.multiplyExact(shape[0], shape[1]), shape[3]);
+        }
+
+        private static boolean task0064Bounded(
+                MetalMpsGraphProgram.ValueDescriptor descriptor) {
+            long elements = 1L;
+            for (long extent : descriptor.dimensions()) {
+                if (!task0064Positive(extent)) return false;
+                elements = Math.multiplyExact(elements, extent);
+                if (elements > UINT32_MAX) return false;
+            }
+            return descriptor.layout().isPresent()
+                    && descriptor.layout().orElseThrow().referencedElementSpan() <= UINT32_MAX;
+        }
+
+        private static long task0064WindowExtent(
+                long input,
+                long kernel,
+                long stride,
+                long padding,
+                long dilation,
+                boolean ceil) {
+            if (!task0064Positive(kernel)
+                    || !task0064Positive(stride)
+                    || padding < 0L || padding > UINT32_MAX
+                    || !task0064Positive(dilation)) {
+                throw new ArithmeticException("window word exceeds uint32");
+            }
+            long effective = Math.addExact(Math.multiplyExact(dilation, kernel - 1L), 1L);
+            long padded = Math.addExact(input, Math.multiplyExact(2L, padding));
+            if (effective > UINT32_MAX || padded > UINT32_MAX || padded < effective) {
+                throw new ArithmeticException("window does not fit uint32");
+            }
+            long numerator = padded - effective;
+            long result = Math.addExact(
+                    numerator / stride + (ceil && numerator % stride != 0L ? 1L : 0L),
+                    1L);
+            if (result > UINT32_MAX) throw new ArithmeticException("grid exceeds uint32");
+            return result;
+        }
+
+        private static boolean task0064Positive(long value) {
+            return value > 0L && value <= UINT32_MAX;
+        }
+
         private static boolean task0063ShapeMatches(
                 MetalMpsGraphProgram.Node node,
                 List<MetalMpsGraphProgram.ValueDescriptor> values) {
@@ -1715,6 +1947,14 @@ abstract class MetalNativeApi implements AutoCloseable {
                 default -> false;
             };
         }
+        private static boolean task0064CustomOnly(MetalMpsGraphProgram.NodeKind kind) {
+            return switch (kind) {
+                case CONV2D, CONV3D, MAX_POOL2D, AVERAGE_POOL2D,
+                        MAX_POOL3D, AVERAGE_POOL3D -> true;
+                default -> false;
+            };
+        }
+
 
         private static boolean usesCustomMatmul(
                 MetalMpsGraphProgram.Node node, ValueType[] types, int[] ranks) {
@@ -1729,6 +1969,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                     || ranks[right] != 2
                     || ranks[output] != 2;
         }
+
 
         private static boolean exactLocalTranspose(
                 MetalMpsGraphProgram.Node node,
@@ -1763,6 +2004,63 @@ abstract class MetalNativeApi implements AutoCloseable {
                     LayoutDescriptor.of(
                             Shape.of(descriptor.dimensions()), outputStrides, 0L, true);
             return descriptor.layout().filter(expected::equals).isPresent();
+        }
+
+        private static boolean exactLocalSingletonHeight(
+                MetalMpsGraphProgram.Node node,
+                int input,
+                int output,
+                MetalMpsGraphProgram.ValueState[] states,
+                int[] ranks,
+                List<MetalMpsGraphProgram.ValueDescriptor> values) {
+            if (node.kind() != MetalMpsGraphProgram.NodeKind.EXPAND_DIMS
+                    || node.axis() != 2
+                    || states[input] != MetalMpsGraphProgram.ValueState.CANONICAL
+                    || ranks[input] != 3 || ranks[output] != 4) {
+                return false;
+            }
+            MetalMpsGraphProgram.ValueDescriptor descriptor = values.get(output);
+            long[] shape = descriptor.dimensions();
+            if (!descriptor.densePhysical() || shape[2] != 1L) return false;
+            LayoutDescriptor expected = LayoutDescriptor.of(
+                    Shape.of(shape),
+                    new long[] {
+                        Math.multiplyExact(shape[1], shape[3]),
+                        shape[3],
+                        shape[3],
+                        1L
+                    },
+                    0L,
+                    true);
+            return descriptor.layout().filter(expected::equals).isPresent();
+        }
+
+        private static void validateTask0064ConvolutionTypesAndGradients(
+                MetalMpsGraphProgram.Node node,
+                ValueType[] types,
+                List<MetalMpsGraphProgram.ValueDescriptor> values) {
+            boolean anyFloat32 = false;
+            boolean anyBfloat16 = false;
+            boolean anyGradient = false;
+            for (int input : node.inputs()) {
+                ValueType type = types[input];
+                if (type != ValueType.FLOAT32 && type != ValueType.BFLOAT16) {
+                    throw new IllegalArgumentException(
+                            "convolution input carrier is incompatible");
+                }
+                anyFloat32 |= type == ValueType.FLOAT32;
+                anyBfloat16 |= type == ValueType.BFLOAT16;
+                anyGradient |= values.get(input).requiresGrad();
+            }
+            int output = node.outputIndex();
+            boolean incompatibleGradient = anyBfloat16
+                    ? anyGradient || values.get(output).requiresGrad()
+                    : values.get(output).requiresGrad() != anyGradient;
+            if (!anyFloat32 || types[output] != ValueType.FLOAT32
+                    || incompatibleGradient) {
+                throw new IllegalArgumentException(
+                        "convolution carrier or gradient metadata is incompatible");
+            }
         }
 
         private static void validateMatmulTypesAndGradients(
@@ -1815,7 +2113,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                             WHERE, CAST, GATHER_ELEMENTS, SCATTER_ADD, GATHER_ND, SCATTER_ND,
                             SELECT, PAD, SLICE, SLICE_UPDATE, CONCAT, STACK, TILE, FOLD_AXIS,
                             UNFOLD2D, FOLD2D, UNFOLD3D, FOLD3D, PROD, ALL, ANY, MATMUL,
-                            SORT, ARGSORT, TOP_K, ARG_MAX, ARG_MIN -> true;
+                            SORT, ARGSORT, TOP_K, ARG_MAX, ARG_MIN, MAX_POOL2D, MAX_POOL3D -> true;
                     default -> false;
                 };
                 case ACCELERATOR -> true;

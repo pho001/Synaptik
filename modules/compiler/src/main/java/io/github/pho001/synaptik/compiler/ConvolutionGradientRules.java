@@ -66,17 +66,22 @@ final class ConvolutionGradientRules {
         Tensor groupedGradient = gradient
                 .reshape(Shape.ofDimensions(
                         batch, groups, outputPerGroup, outputPositions))
-                .permute(1, 0, 2, 3);
+                .permute(1, 0, 2, 3)
+                .contiguous();
 
         if (selectedInputs[0]) {
             Tensor groupedWeight = weight.reshape(
-                    Shape.ofDimensions(groups, outputPerGroup, kernelPerGroup));
+                            Shape.ofDimensions(groups, outputPerGroup, kernelPerGroup))
+                    .contiguous();
             Tensor groupedColumns = swapLastTwo(groupedWeight)
                     .expandDims(1)
+                    .contiguous()
                     .matmul(groupedGradient);
             Tensor columns = groupedColumns
                     .permute(1, 0, 2, 3)
-                    .reshape(Shape.ofDimensions(batch, groupedChannels, outputPositions));
+                    .contiguous()
+                    .reshape(Shape.ofDimensions(batch, groupedChannels, outputPositions))
+                    .contiguous();
             result[0] = normalize(
                     columns.fold2d(originalInput.descriptor().shape(), window),
                     originalInput);
@@ -86,12 +91,15 @@ final class ConvolutionGradientRules {
             Tensor inputColumns = input.unfold2d(window)
                     .reshape(Shape.ofDimensions(
                             batch, groups, kernelPerGroup, outputPositions))
-                    .permute(1, 0, 2, 3);
+                    .permute(1, 0, 2, 3)
+                    .contiguous();
             Tensor groupedWeightGradient = groupedGradient
                     .matmul(swapLastTwo(inputColumns))
                     .sum(1, false);
             result[1] = normalize(
-                    groupedWeightGradient.reshape(originalWeight.descriptor().shape()),
+                    groupedWeightGradient
+                            .reshape(originalWeight.descriptor().shape())
+                            .contiguous(),
                     originalWeight);
         }
 

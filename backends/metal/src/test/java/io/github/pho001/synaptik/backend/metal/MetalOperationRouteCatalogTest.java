@@ -56,11 +56,11 @@ class MetalOperationRouteCatalogTest {
         assertEquals(75, direct);
         assertEquals(35, composed);
         assertEquals(5, unavailable);
-        assertEquals(52, customAvailable);
-        assertEquals(63, customPending);
+        assertEquals(58, customAvailable);
+        assertEquals(57, customPending);
         assertEquals(0, customUnavailableWithProof);
-        assertEquals(93, executable);
-        assertEquals(22, kinds.length - executable);
+        assertEquals(99, executable);
+        assertEquals(16, kinds.length - executable);
         assertThrows(NullPointerException.class, () -> MetalOperationRouteCatalog.entry(null));
     }
 
@@ -184,6 +184,36 @@ class MetalOperationRouteCatalogTest {
                     MetalOperationRouteCatalog.MpsGraphReason.MC_INDEX64,
                     MetalOperationRouteCatalog.CustomKernelState.AVAILABLE,
                     MetalOperationRouteCatalog.CustomKernelReason.CA_0063);
+        }
+        for (MetalMpsGraphProgram.NodeKind kind : Set.of(
+                MetalMpsGraphProgram.NodeKind.CONV2D,
+                MetalMpsGraphProgram.NodeKind.CONV3D)) {
+            assertCatalog(
+                    kind,
+                    MetalOperationRouteCatalog.MpsGraphState.DIRECT,
+                    MetalOperationRouteCatalog.MpsGraphReason.MD_CONV_BASE,
+                    MetalOperationRouteCatalog.CustomKernelState.AVAILABLE,
+                    MetalOperationRouteCatalog.CustomKernelReason.CA_0064);
+        }
+        for (MetalMpsGraphProgram.NodeKind kind : Set.of(
+                MetalMpsGraphProgram.NodeKind.MAX_POOL2D,
+                MetalMpsGraphProgram.NodeKind.AVERAGE_POOL2D)) {
+            assertCatalog(
+                    kind,
+                    MetalOperationRouteCatalog.MpsGraphState.DIRECT,
+                    MetalOperationRouteCatalog.MpsGraphReason.MD_POOL2D,
+                    MetalOperationRouteCatalog.CustomKernelState.AVAILABLE,
+                    MetalOperationRouteCatalog.CustomKernelReason.CA_0064);
+        }
+        for (MetalMpsGraphProgram.NodeKind kind : Set.of(
+                MetalMpsGraphProgram.NodeKind.MAX_POOL3D,
+                MetalMpsGraphProgram.NodeKind.AVERAGE_POOL3D)) {
+            assertCatalog(
+                    kind,
+                    MetalOperationRouteCatalog.MpsGraphState.COMPOSED,
+                    MetalOperationRouteCatalog.MpsGraphReason.MC_WINDOW3D,
+                    MetalOperationRouteCatalog.CustomKernelState.AVAILABLE,
+                    MetalOperationRouteCatalog.CustomKernelReason.CA_0064);
         }
         for (MetalMpsGraphProgram.NodeKind kind : Set.of(
                 MetalMpsGraphProgram.NodeKind.DROPOUT,

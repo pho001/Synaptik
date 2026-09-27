@@ -112,6 +112,11 @@ final class MetalNegPreparedScheduleAssembler
                             assignment.valueId(),
                             descriptor,
                             bytes);
+            boolean authenticatedAffineInternal = authenticatedAffineInternal(
+                    scheduleContext.partitions(),
+                    assignment.valueId(),
+                    descriptor,
+                    bytes);
             boolean canonical = descriptor != null
                     && descriptor.layout().isPresent()
                     && descriptor.layout().orElseThrow().equals(
@@ -121,6 +126,7 @@ final class MetalNegPreparedScheduleAssembler
             if (descriptor == null
                     || !task0059Carrier(dataType)
                     || (!canonical
+                            && !authenticatedAffineInternal
                             && affinePublication.isEmpty()
                             && !MetalCapabilityProvider.supportedStorageLayout(descriptor, 0))) {
                 throw new IllegalArgumentException(
@@ -386,6 +392,38 @@ final class MetalNegPreparedScheduleAssembler
                     "Metal splat feed has no exact prepared source resource");
         }
         return found;
+    }
+
+
+    private static boolean authenticatedAffineInternal(
+            List<PreparedPartition> partitions,
+            ValueId valueId,
+            TensorDescriptor descriptor,
+            long byteSize) {
+        if (descriptor == null) return false;
+        for (PreparedPartition partition : partitions) {
+            if (partition.executable() instanceof MetalNegPreparedExecutable executable) {
+                MetalNegPreparationPlan candidate = executable.preparationPlan();
+                int value = candidate.valueIds().indexOf(valueId);
+                if (value >= 0
+                        && candidate.internalValueIds().contains(valueId)
+                        && candidate.valueStates().get(value)
+                                == MetalMpsGraphProgram.ValueState.AFFINE_VIEW
+                        && candidate.descriptors().get(value).equals(descriptor)
+                        && logicalByteSize(descriptor) == byteSize) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static long logicalByteSize(TensorDescriptor descriptor) {
+        long elements = 1L;
+        for (long dimension : descriptor.shape().toLongArray()) {
+            elements = Math.multiplyExact(elements, dimension);
+        }
+        return Math.multiplyExact(elements, descriptor.dataType().byteWidth());
     }
 
 

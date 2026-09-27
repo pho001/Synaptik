@@ -817,6 +817,101 @@ class MetalMpsGraphRawAbiNativeTest {
         }
     }
 
+    @Test
+    void task0064JavaAndRawNativePreflightsRejectHostileGeometryBeforeExecutionResources()
+            throws Throwable {
+        Path library = configuredLibrary();
+        long uint32Max = 0xffff_ffffL;
+        try (RawAbi abi = new RawAbi(library)) {
+            var convolution = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.CONV2D,
+                            new int[] {0, 1},
+                            new int[] {2},
+                            MetalMpsGraphProgram.AttributeKind.CONV_2D,
+                            new long[] {1, 1, 0, 0, 1, 1, 1})));
+            List<MetalMpsGraphProgram.ValueDescriptor> exactConvolution = List.of(
+                    descriptor(DataType.FLOAT32, 1, 1, 1, uint32Max),
+                    descriptor(DataType.FLOAT32, 1, 1, 1, 1),
+                    descriptor(DataType.FLOAT32, 1, 1, 1, uint32Max));
+            assertTask0064AcceptedByJavaAndNative(
+                    abi, NumericalProfile.ACCELERATOR, convolution, exactConvolution,
+                    new int[] {0, 1}, new int[] {2}, "convolution exact UINT32_MAX");
+
+            List<MetalMpsGraphProgram.ValueDescriptor> overLimitConvolution = List.of(
+                    descriptor(DataType.FLOAT32, 1, 1, 1, uint32Max + 1L),
+                    descriptor(DataType.FLOAT32, 1, 1, 1, 1),
+                    descriptor(DataType.FLOAT32, 1, 1, 1, uint32Max + 1L));
+            assertTask0064RejectedByJavaAndNative(
+                    abi, NumericalProfile.ACCELERATOR, convolution, overLimitConvolution,
+                    new int[] {0, 1}, new int[] {2}, "convolution one past UINT32_MAX");
+
+            List<MetalMpsGraphProgram.ValueDescriptor> wrongConvolutionCarrier = List.of(
+                    descriptor(DataType.FLOAT64, 1, 1, 1, 4),
+                    descriptor(DataType.FLOAT32, 1, 1, 1, 1),
+                    descriptor(DataType.FLOAT32, 1, 1, 1, 4));
+            assertTask0064RejectedByJavaAndNative(
+                    abi, NumericalProfile.ACCELERATOR, convolution, wrongConvolutionCarrier,
+                    new int[] {0, 1}, new int[] {2}, "convolution FLOAT64 input");
+
+            var maximum = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.MAX_POOL2D,
+                            new int[] {0},
+                            new int[] {1},
+                            MetalMpsGraphProgram.AttributeKind.WINDOW_2D,
+                            new long[] {1, 1, 1, 1, 0, 0, 1, 1, 0})));
+            List<MetalMpsGraphProgram.ValueDescriptor> exactMaximum = List.of(
+                    descriptor(DataType.BFLOAT16, 1, 1, 1, uint32Max),
+                    descriptor(DataType.BFLOAT16, 1, 1, 1, uint32Max));
+            assertTask0064AcceptedByJavaAndNative(
+                    abi, NumericalProfile.STRICT_IEEE, maximum, exactMaximum,
+                    new int[] {0}, new int[] {1}, "maximum pool exact UINT32_MAX");
+
+            List<MetalMpsGraphProgram.ValueDescriptor> wrongMaximumShape = List.of(
+                    descriptor(DataType.BFLOAT16, 1, 1, 1, 4),
+                    descriptor(DataType.BFLOAT16, 1, 1, 1, 3));
+            assertTask0064RejectedByJavaAndNative(
+                    abi, NumericalProfile.STRICT_IEEE, maximum, wrongMaximumShape,
+                    new int[] {0}, new int[] {1}, "maximum pool wrong output geometry");
+
+        }
+    }
+
+    private static void assertTask0064AcceptedByJavaAndNative(
+            RawAbi abi,
+            NumericalProfile profile,
+            MetalMpsGraphProgram program,
+            List<MetalMpsGraphProgram.ValueDescriptor> values,
+            int[] feeds,
+            int[] targets,
+            String message) throws Throwable {
+        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                profile, values, program, feeds, targets, MetalPreparedRoute.CUSTOM_PROGRAM);
+        byte[] image = program.encodedProgramImage(
+                values, feeds, targets, MetalPreparedRoute.CUSTOM_PROGRAM);
+        assertEquals(0, abi.create(image, image.length), message);
+    }
+
+    private static void assertTask0064RejectedByJavaAndNative(
+            RawAbi abi,
+            NumericalProfile profile,
+            MetalMpsGraphProgram program,
+            List<MetalMpsGraphProgram.ValueDescriptor> values,
+            int[] feeds,
+            int[] targets,
+            String message) throws Throwable {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                        profile, values, program, feeds, targets,
+                        MetalPreparedRoute.CUSTOM_PROGRAM),
+                message);
+        byte[] image = program.encodedProgramImage(
+                values, feeds, targets, MetalPreparedRoute.CUSTOM_PROGRAM);
+        assertEquals(1, abi.create(image, image.length), message);
+    }
+
     private static Task0063Case task0063Case(
             MetalMpsGraphProgram.NodeKind kind, long... inputDimensions) {
         int axis = inputDimensions.length - 1;

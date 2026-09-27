@@ -6,6 +6,10 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
+import io.github.pho001.synaptik.model.operation.convolution.Conv2dKind;
+import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
+import io.github.pho001.synaptik.model.operation.convolution.Conv3dKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
 import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
@@ -70,6 +74,12 @@ import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool3dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.Pool2dKind;
+import io.github.pho001.synaptik.model.operation.pooling.Pool3dKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -261,6 +271,14 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             }
             if (operation.kind() == TileKind.TILE) {
                 return supportsTile(operation, inputs, output);
+            }
+            if (operation.kind() == Conv2dKind.CONV2D
+                    || operation.kind() == Conv3dKind.CONV3D) {
+                return supportsConvolution(numericalProfile, operation, inputs, output);
+            }
+            if (operation.kind() instanceof Pool2dKind
+                    || operation.kind() instanceof Pool3dKind) {
+                return supportsPooling(numericalProfile, operation, inputs, output);
             }
             if (operation.kind() == WindowTransformKind.UNFOLD2D
                     || operation.kind() == WindowTransformKind.UNFOLD3D) {
@@ -1319,18 +1337,29 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 && output.shape().rank() == 1
                 && ((left.shape().rank() == 0 && right.shape().rank() == 1)
                         || (right.shape().rank() == 0 && left.shape().rank() == 1));
+        boolean tensorScalarDivide = binary == BinaryArithmeticKind.DIV
+                && left.shape().rank() > 0
+                && right.shape().rank() == 0
+                && !left.requiresGrad()
+                && !right.requiresGrad()
+                && !output.requiresGrad();
         boolean gradientsValid = binary == BinaryArithmeticKind.MIN
                         || binary == BinaryArithmeticKind.MAX
                 ? !left.requiresGrad() && !right.requiresGrad() && !output.requiresGrad()
                 : scalarVectorMultiply
                         ? output.requiresGrad() == (left.requiresGrad() || right.requiresGrad())
-                        : left.requiresGrad() == right.requiresGrad()
-                                && left.requiresGrad() == output.requiresGrad();
+                        : tensorScalarDivide
+                                || left.requiresGrad() == right.requiresGrad()
+                                        && left.requiresGrad() == output.requiresGrad();
         boolean storageValid = scalarVectorMultiply
                 ? canonicalReductionOutput(left)
                         && canonicalReductionOutput(right)
                         && canonical(output)
-                : canonical(left) && canonical(right) && canonical(output);
+                : tensorScalarDivide
+                        ? canonical(left)
+                                && canonicalReductionOutput(right)
+                                && canonical(output)
+                        : canonical(left) && canonical(right) && canonical(output);
         return storageValid
                 && gradientsValid
                 && ShapeBroadcast.broadcast(left.shape(), right.shape()).equals(output.shape());
@@ -1420,6 +1449,256 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 && !output.requiresGrad()
                 && input.shape().equals(output.shape())
                 && attrs.axis() < input.shape().rank();
+    }
+
+    private static boolean supportsConvolution(
+            NumericalProfile profile,
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            TensorDescriptor output) {
+        int spatial = operation.kind() == Conv2dKind.CONV2D ? 2 : 3;
+        if (profile != NumericalProfile.ACCELERATOR
+                || inputs.size() < 2 || inputs.size() > 3
+                || output.dataType() != DataType.FLOAT32
+                || !task0064Canonical(output, spatial + 2)) {
+            return false;
+        }
+        if (spatial == 2 && !(operation.attrs() instanceof Conv2dAttrs)
+                || spatial == 3 && !(operation.attrs() instanceof Conv3dAttrs)) {
+            return false;
+        }
+        TensorDescriptor input = inputs.get(0);
+        TensorDescriptor weight = inputs.get(1);
+        if (!task0064Image(input, spatial + 2, spatial == 2)
+                || !task0064Image(weight, spatial + 2, spatial == 2)
+                || !task0064FloatCarrier(input.dataType())
+                || !task0064FloatCarrier(weight.dataType())) {
+            return false;
+        }
+        TensorDescriptor bias = inputs.size() == 3 ? inputs.get(2) : null;
+        if (bias != null
+                && (!task0064Canonical(bias, 1)
+                        || !task0064FloatCarrier(bias.dataType()))) {
+            return false;
+        }
+        boolean anyFloat32 = input.dataType() == DataType.FLOAT32
+                || weight.dataType() == DataType.FLOAT32
+                || bias != null && bias.dataType() == DataType.FLOAT32;
+        if (!anyFloat32) return false;
+        boolean anyBfloat16 = input.dataType() == DataType.BFLOAT16
+                || weight.dataType() == DataType.BFLOAT16
+                || bias != null && bias.dataType() == DataType.BFLOAT16;
+        boolean inputGradient = inputs.stream().anyMatch(TensorDescriptor::requiresGrad);
+        if (anyBfloat16) {
+            if (inputGradient || output.requiresGrad()) return false;
+        } else if (output.requiresGrad() != inputGradient) {
+            return false;
+        }
+        long[] source = input.shape().toLongArray();
+        long[] kernel = weight.shape().toLongArray();
+        long[] target = output.shape().toLongArray();
+        long groups;
+        long[] strides = new long[spatial];
+        long[] padding = new long[spatial];
+        long[] dilation = new long[spatial];
+        if (spatial == 2) {
+            Conv2dAttrs attrs = (Conv2dAttrs) operation.attrs();
+            groups = attrs.groups();
+            strides[0] = attrs.strideHeight();
+            strides[1] = attrs.strideWidth();
+            padding[0] = attrs.paddingHeight();
+            padding[1] = attrs.paddingWidth();
+            dilation[0] = attrs.dilationHeight();
+            dilation[1] = attrs.dilationWidth();
+        } else {
+            Conv3dAttrs attrs = (Conv3dAttrs) operation.attrs();
+            groups = attrs.groups();
+            strides[0] = attrs.strideDepth();
+            strides[1] = attrs.strideHeight();
+            strides[2] = attrs.strideWidth();
+            padding[0] = attrs.paddingDepth();
+            padding[1] = attrs.paddingHeight();
+            padding[2] = attrs.paddingWidth();
+            dilation[0] = attrs.dilationDepth();
+            dilation[1] = attrs.dilationHeight();
+            dilation[2] = attrs.dilationWidth();
+        }
+        if (!task0064Unsigned(groups)
+                || source[0] != target[0]
+                || kernel[0] != target[1]
+                || source[1] % groups != 0
+                || kernel[0] % groups != 0
+                || kernel[1] != source[1] / groups
+                || bias != null && (bias.shape().toLongArray()[0] != kernel[0])) {
+            return false;
+        }
+        long contributors = kernel[1];
+        for (int axis = 0; axis < spatial; axis++) {
+            if (!task0064Unsigned(strides[axis])
+                    || !task0064UnsignedOrZero(padding[axis])
+                    || !task0064Unsigned(dilation[axis])
+                    || target[axis + 2] != task0064WindowExtent(
+                            source[axis + 2], kernel[axis + 2], strides[axis],
+                            padding[axis], dilation[axis], false)) {
+                return false;
+            }
+            contributors = Math.multiplyExact(contributors, kernel[axis + 2]);
+        }
+        return contributors <= UINT32_MAX;
+    }
+
+    private static boolean supportsPooling(
+            NumericalProfile profile,
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            TensorDescriptor output) {
+        if (inputs.size() != 1) return false;
+        int spatial = operation.kind() instanceof Pool2dKind ? 2 : 3;
+        boolean maximum = operation.kind() == Pool2dKind.MAX_POOL2D
+                || operation.kind() == Pool3dKind.MAX_POOL3D;
+        TensorDescriptor input = inputs.getFirst();
+        if (!task0064Image(input, spatial + 2, spatial == 2)
+                || !task0064Canonical(output, spatial + 2)
+                || !input.shape().isFullyStatic()
+                || input.dataType() != output.dataType()
+                || input.requiresGrad() != output.requiresGrad()) {
+            return false;
+        }
+        if (maximum) {
+            if (input.dataType() != DataType.FLOAT64
+                    && input.dataType() != DataType.FLOAT32
+                    && input.dataType() != DataType.BFLOAT16) {
+                return false;
+            }
+        } else if (profile != NumericalProfile.ACCELERATOR
+                || input.dataType() != DataType.FLOAT32) {
+            return false;
+        }
+        long[] kernel = new long[spatial];
+        long[] stride = new long[spatial];
+        long[] padding = new long[spatial];
+        long[] dilation = new long[spatial];
+        boolean ceil;
+        if (spatial == 2 && maximum && operation.attrs() instanceof MaxPool2dAttrs attrs) {
+            kernel[0] = attrs.kernelHeight(); kernel[1] = attrs.kernelWidth();
+            stride[0] = attrs.strideHeight(); stride[1] = attrs.strideWidth();
+            padding[0] = attrs.paddingHeight(); padding[1] = attrs.paddingWidth();
+            dilation[0] = attrs.dilationHeight(); dilation[1] = attrs.dilationWidth();
+            ceil = attrs.ceilMode();
+        } else if (spatial == 2 && !maximum
+                && operation.attrs() instanceof AveragePool2dAttrs attrs) {
+            kernel[0] = attrs.kernelHeight(); kernel[1] = attrs.kernelWidth();
+            stride[0] = attrs.strideHeight(); stride[1] = attrs.strideWidth();
+            padding[0] = attrs.paddingHeight(); padding[1] = attrs.paddingWidth();
+            dilation[0] = attrs.dilationHeight(); dilation[1] = attrs.dilationWidth();
+            ceil = attrs.ceilMode();
+        } else if (spatial == 3 && maximum
+                && operation.attrs() instanceof MaxPool3dAttrs attrs) {
+            kernel[0] = attrs.kernelDepth(); kernel[1] = attrs.kernelHeight();
+            kernel[2] = attrs.kernelWidth();
+            stride[0] = attrs.strideDepth(); stride[1] = attrs.strideHeight();
+            stride[2] = attrs.strideWidth();
+            padding[0] = attrs.paddingDepth(); padding[1] = attrs.paddingHeight();
+            padding[2] = attrs.paddingWidth();
+            dilation[0] = attrs.dilationDepth(); dilation[1] = attrs.dilationHeight();
+            dilation[2] = attrs.dilationWidth();
+            ceil = attrs.ceilMode();
+        } else if (spatial == 3 && !maximum
+                && operation.attrs() instanceof AveragePool3dAttrs attrs) {
+            kernel[0] = attrs.kernelDepth(); kernel[1] = attrs.kernelHeight();
+            kernel[2] = attrs.kernelWidth();
+            stride[0] = attrs.strideDepth(); stride[1] = attrs.strideHeight();
+            stride[2] = attrs.strideWidth();
+            padding[0] = attrs.paddingDepth(); padding[1] = attrs.paddingHeight();
+            padding[2] = attrs.paddingWidth();
+            dilation[0] = attrs.dilationDepth(); dilation[1] = attrs.dilationHeight();
+            dilation[2] = attrs.dilationWidth();
+            ceil = attrs.ceilMode();
+        } else {
+            return false;
+        }
+        long[] source = input.shape().toLongArray();
+        long[] target = output.shape().toLongArray();
+        if (source[0] != target[0] || source[1] != target[1]) return false;
+        long divisor = 1L;
+        for (int axis = 0; axis < spatial; axis++) {
+            if (!task0064Unsigned(kernel[axis])
+                    || !task0064Unsigned(stride[axis])
+                    || !task0064UnsignedOrZero(padding[axis])
+                    || !task0064Unsigned(dilation[axis])
+                    || target[axis + 2] != task0064WindowExtent(
+                            source[axis + 2], kernel[axis], stride[axis],
+                            padding[axis], dilation[axis], ceil)) {
+                return false;
+            }
+            divisor = Math.multiplyExact(divisor, kernel[axis]);
+        }
+        return divisor <= UINT32_MAX;
+    }
+
+    private static boolean task0064FloatCarrier(DataType type) {
+        return type == DataType.FLOAT32 || type == DataType.BFLOAT16;
+    }
+
+    private static boolean task0064Canonical(TensorDescriptor descriptor, int rank) {
+        return descriptor.shape().rank() == rank
+                && task0064Bounded(descriptor)
+                && descriptor.layout().orElseThrow().equals(
+                        LayoutDescriptor.contiguous(descriptor.shape()));
+    }
+
+    private static boolean task0064Image(
+            TensorDescriptor descriptor, int rank, boolean allowSingletonHeightView) {
+        if (descriptor.shape().rank() != rank || !task0064Bounded(descriptor)) return false;
+        LayoutDescriptor layout = descriptor.layout().orElseThrow();
+        if (layout.equals(LayoutDescriptor.contiguous(descriptor.shape()))) return true;
+        if (!allowSingletonHeightView || rank != 4
+                || descriptor.shape().toLongArray()[2] != 1L
+                || layout.storageOffset() != 0L || !layout.isView()) {
+            return false;
+        }
+        long[] shape = descriptor.shape().toLongArray();
+        long[] expected = new long[] {
+            Math.multiplyExact(shape[1], shape[3]), shape[3], shape[3], 1L
+        };
+        return Arrays.equals(layout.strides(), expected)
+                && layout.referencedElementSpan()
+                        == Math.multiplyExact(Math.multiplyExact(shape[0], shape[1]), shape[3]);
+    }
+
+    private static boolean task0064Bounded(TensorDescriptor descriptor) {
+        if (!descriptor.shape().isFullyStatic() || descriptor.layout().isEmpty()) return false;
+        long elements = 1L;
+        for (long extent : descriptor.shape().toLongArray()) {
+            if (!task0064Unsigned(extent)) return false;
+            elements = Math.multiplyExact(elements, extent);
+            if (elements > UINT32_MAX) return false;
+        }
+        LayoutDescriptor layout = descriptor.layout().orElseThrow();
+        return layout.referencedElementSpan() <= UINT32_MAX;
+    }
+
+    private static long task0064WindowExtent(
+            long input, long kernel, long stride, long padding, long dilation, boolean ceil) {
+        long effective = Math.addExact(Math.multiplyExact(dilation, kernel - 1L), 1L);
+        if (effective > UINT32_MAX) throw new ArithmeticException("effective kernel exceeds uint32");
+        long padded = Math.addExact(input, Math.multiplyExact(2L, padding));
+        if (padded > UINT32_MAX || padded < effective) {
+            throw new ArithmeticException("window does not fit");
+        }
+        long numerator = padded - effective;
+        long result = Math.addExact(
+                numerator / stride + (ceil && numerator % stride != 0L ? 1L : 0L), 1L);
+        if (result > UINT32_MAX) throw new ArithmeticException("window count exceeds uint32");
+        return result;
+    }
+
+    private static boolean task0064Unsigned(long value) {
+        return value > 0L && value <= UINT32_MAX;
+    }
+
+    private static boolean task0064UnsignedOrZero(long value) {
+        return value >= 0L && value <= UINT32_MAX;
     }
 
     private static boolean supportsMatmul(
@@ -1663,8 +1942,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                         || carrierType == DataType.BFLOAT16
                         || carrierType == DataType.INT32
                         || carrierType == DataType.INT64);
+        boolean scalarExpand = operation.kind() == ShapeTransformKind.EXPAND
+                && input.shape().rank() == 0;
         if ((!carrierPermute && carrierType != DataType.FLOAT32)
-                || !affineInput(input, carrierType)
+                || !affineInput(input, carrierType, scalarExpand)
                 || !geometry(output, carrierType, false)
                 || input.requiresGrad() != output.requiresGrad()) {
             return false;
@@ -1791,8 +2072,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         return output.layout().orElseThrow().equals(expected);
     }
 
-    private static boolean affineInput(TensorDescriptor descriptor, DataType dataType) {
-        if (!geometry(descriptor, dataType, false)) {
+    private static boolean affineInput(
+            TensorDescriptor descriptor, DataType dataType, boolean allowScalar) {
+        if (!geometry(descriptor, dataType, allowScalar)) {
             return false;
         }
         LayoutDescriptor layout = descriptor.layout().orElseThrow();
@@ -1800,6 +2082,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 && (layout.equals(LayoutDescriptor.contiguous(descriptor.shape()))
                         || layout.isView());
     }
+
 
     private static boolean supportsContiguous(
             Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
