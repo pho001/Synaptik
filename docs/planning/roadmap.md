@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0065; 0053 Blocked | [Metal 0065](backends/metal/tasks/0065-explicit-state-rng-dropout-and-recurrent-boundary.md) is Complete through approved plan `9ceee2b53c88a8c87ca4b8a42cdd2c92682074c9`, implementation `05d83074`, and correctness remediation `ed7a3369`: exact both-profile `INITIAL_STATE` and accelerator FLOAT32 `DROPOUT` use one fixed custom route; eager distributions add no graph row and all recurrent rows remain blocked. Current production is `83/32`, structural execution `101/14`, catalogs `75/35/5` and `60/55/0`, schema 15, identity 21, ABI 5, and thirteen exports. No Metal task is Ready. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0065; Task 0066 Ready; 0053 Blocked | [Metal 0066](backends/metal/tasks/0066-dtype-layout-gradient-gap-closure.md) is the sole Ready Metal frontier after independent plan `APPROVE` with zero P0/P1/P2. It selects existing wires `6..11,16..19,39..45,51,69,71..84`, plans only backend-neutral fully-static target-relative crop inference/closure in Compiler, preserves all 32 production-false semantic blockers and current `83/32` capability, and targets custom catalog `70/45/0` plus identity 22 without changing schema 15, ABI 5, or thirteen exports. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -679,6 +679,15 @@ remediation `ed7a3369`.
   host leaves; RNN, GRU, and LSTM remain fail-closed. Current capability is `83/32`, structural
   execution is `101/14`, catalogs are `75/35/5` MPSGraph and `60/55/0` custom, schema is 15,
   identity is 21, ABI is 5, and thirteen exports remain fixed.
+- Metal 0066 is `Ready` as the independently approved planning-only dtype/layout/gradient occurrence
+  closure from clean post-Task-0065 revision
+  `c48b94d7fb2dfa6391901ede580cf886d74cc889`. It selects exactly wires
+  `6..11,16..19,39..45,51,69,71..84`; plans all 36 casts, all-six-carrier exact movement,
+  rank-zero and authenticated affine composition, INT64 indexing parity, bounded generated-
+  gradient/saved-role closure, and only the backend-neutral fully-static target-relative crop
+  inference plus post-input-layout closure needed by generated PAD/CONCAT graphs. Independent plan
+  review returned `APPROVE` with zero P0/P1/P2. The plan preserves the exact 32 false semantic rows
+  and proposes no operation-kind, schema, ABI, export, or public API addition.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -692,16 +701,17 @@ remediation `ed7a3369`.
 
 ## Nearest next step
 
-No Metal production task is Ready. Complete Task 0065 closes the authorized explicit-state
-RNG/dropout frontier with one Metal-private versioned counter route, zero-feed/multi-output
-lifecycle, unsigned-32-bit bounds, public Engine execution, and retained recurrent blockers.
-Proof-blocked Task 0053 may resume only after its pinned constructive-real exponential bridge
-exists; no current task authorizes a recurrent or generic random-distribution cutover.
+Task 0066 is `Ready` and is the sole authorized next Metal production frontier. Independent plan
+review returned `APPROVE` with zero P0/P1/P2; no further approval stop precedes its one serial
+cutover. That cutover may add only the narrow backend-neutral static-crop Compiler layout closure,
+broaden existing wires `6..11,16..19,39..45,51,69,71..84`, move ten custom rows from pending to
+available, and advance backend-local identity; it must preserve the transcendental,
+reduction/additive, attention, recurrent, empty/dynamic, signed-stride, and unsafe-overlap blockers.
 
-Current capability is `83/32`, structural execution `101/14`, MPSGraph catalog `75/35/5`, custom
-catalog `60/55/0`, schema 15, identity 21, ABI 5, and thirteen exports. `TensorRandoms` remains
-eager caller-owned host sampling. RNN/GRU/LSTM remain false until complete TANH/EXP/SIGMOID proof
-and Compiler BPTT exist.
+Current capability remains `83/32`, structural execution `101/14`, MPSGraph catalog `75/35/5`,
+custom catalog `60/55/0`, schema 15, identity 21, ABI 5, and thirteen exports until implementation.
+The approved Task-0066 target is unchanged operation-kind counts, custom `70/45/0`, and identity 22.
+Proof-blocked Task 0053 may resume only after its pinned constructive-real exponential bridge exists.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
