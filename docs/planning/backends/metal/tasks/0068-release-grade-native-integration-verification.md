@@ -48,9 +48,13 @@ structural execution `101/14`; MPSGraph `75/35/5`; custom `70/45/0`; production 
   `io.github.pho001.synaptik.metal.foundation`, no timestamp, and no Team ID.
 - Every runtime test must use the absolute dylib path extracted from the freshly generated Gradle
   ZIP, not the build output or canonical package member.
-- No benchmark, warmup, latency comparison, route race, fallback, retry, host repair, cache choice,
-  or autotuning command may run. Gradle may compile ordinary benchmark-module sources as part of a
-  full build, but no benchmark entry point is invoked and no elapsed time is evidence.
+- No standalone benchmark, timing, route-race, cache-choice, or autotuning command may run, and no
+  elapsed value or locally selected winner may become verification evidence or a release/source
+  decision. The mandatory complete JVM/public Engine suites retain their ordinary behavioral tests
+  of measured tuning, warmup, fallback, and cache paths; those results are asserted only as API
+  behavior and are never inspected, compared, or promoted into this verification decision. No
+  production fallback, retry, or host repair is permitted. Gradle may compile ordinary
+  benchmark-module sources as part of a full build, but no benchmark entry point is invoked.
 - A throwaway actual Engine smoke is allowed only after the permanent runtime inventory proves one
   requested surface has no existing behavioral coverage. It must exercise only that uncovered
   surface and be removed before final validation and commit. No smoke is created merely to add a
@@ -150,7 +154,7 @@ ABI 5, schema 15, and the exact thirteen exports.
 | `V8` | Metal conformance plus every `*Metal*` public integration surface passed; `38/38` tasks executed. |
 | `V10` | Architecture tests plus Javadoc passed; `47/47` tasks executed. Javadoc emitted the existing 100 missing-`@param` warnings in CPU-internal constructors; they were visible and are outside native warnings-as-errors scope. |
 | `V11` | `./gradlew test --rerun-tasks` passed against the extracted dylib; `76/76` tasks executed. |
-| `V12` | `./gradlew build --rerun-tasks` passed against the same extracted dylib; `87/87` tasks executed. Ordinary benchmark-module sources were compiled, but no benchmark entry point, warmup, timing comparison, fallback, retry, host repair, or autotuning command ran. |
+| `V12` | `./gradlew build --rerun-tasks` passed against the same extracted dylib; `87/87` tasks executed. Ordinary benchmark-module sources were compiled, but no benchmark entry point or standalone timing/autotuning command ran, and no local elapsed value or selected winner informed verification or source. Mandatory full-suite tuning tests exercised only their permanent public API assertions. |
 
 The JVM emitted its existing restricted-native-access and incubator-vector warnings, and one
 existing CPU test compilation note about unchecked operations. They did not hide a failed task,
