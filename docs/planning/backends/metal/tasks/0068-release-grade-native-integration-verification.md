@@ -2,8 +2,11 @@
 
 ## Status
 
-Ready — verification matrix registered from exact clean independently approved Task-0067 revision
-`cb830587c0922e63be7a8e2d47822fe18e2b2bd6`. Execution has not started.
+Verification gates `V0..V13` passed from Task-0067 native/source base
+`cb830587c0922e63be7a8e2d47822fe18e2b2bd6` with registered-matrix commit
+`6820dd631cbd28f855640a0edc5d125ae6a905a6`. No source defect, environmental failure, relevant
+skip, or uncovered runtime surface was found. Independent final code/security/evidence review is
+the only remaining gate.
 
 ## Change class
 
@@ -93,3 +96,108 @@ canonically packaged, Gradle-ingested, ZIP-extracted dylib; artifact identity an
 recorded; no throwaway remains; the tree is clean; all active planning status is updated; and
 independent final code/security/evidence review reports zero remaining P0/P1/P2. Package integrity
 is local verification, not Developer ID authentication, notarization, publication, or provenance.
+
+## Executed artifact chain
+
+The warnings-as-errors build completed from current Objective-C source with no compiler output.
+The resulting dylib was signed with the fixed ad-hoc identifier, packaged, independently verified,
+ingested by Gradle, archived, extracted permission-preservingly into fresh directory
+`/tmp/synaptik-metal-task0068.XXx4yf`, and independently verified again. Recursive comparison found
+the canonical and extracted three-member packages byte-identical. Every runtime command used only:
+
+```text
+/tmp/synaptik-metal-task0068.XXx4yf/macos-arm64/libsynaptik_metal_foundation.dylib
+```
+
+The extraction directory was removed after all runtime evidence and final JUnit results were
+captured.
+
+Canonical package identities:
+
+- dylib: `468416` bytes, mode `0755`, SHA-256
+  `32660991dd284af45c5b550a04bc8c12233f4b64014b783c1c06bbed111306d6`;
+- `manifest.json`: `512` bytes, mode `0644`, SHA-256
+  `edeb697628d0618020c339205fbb6a8059dbadc191b4e1fb835c37d9b7dad405`;
+- `SHA256SUMS`: `181` bytes, mode `0644`, SHA-256
+  `47d9753ffe220428848654e7ba375d173a5050ffcf81c34825152b111f637ad6`;
+- ad-hoc signature identifier `io.github.pho001.synaptik.metal.foundation`, no Team ID, CDHash
+  `0b9bc598e347def859990d24496bfd1c014a25f4`.
+
+Gradle local ZIP identity:
+
+- `backends/metal/build/distributions/synaptik-metal-macos-arm64-local.zip`;
+- `139951` bytes, SHA-256
+  `e3bbac2e47be15694b22d518f7ec0cc8f50d5fe4450ede1ab677b2085046aa1b`;
+- four ordered entries with fixed `1980-02-01 00:00:00` timestamps: directory mode `0755`, dylib
+  mode `0755`, and both metadata files mode `0644`;
+- `469109` uncompressed and `139415` compressed member bytes.
+
+Both verifiers proved arm64 Mach-O 64-bit `DYLIB`, macOS minimum `26.0`, install name
+`@rpath/libsynaptik_metal_foundation.dylib`, no `LC_RPATH` or legacy minimum-version command,
+normalized system dependencies with Foundation/Metal/MetalPerformanceShadersGraph exactly once,
+ABI 5, schema 15, and the exact thirteen exports.
+
+## Command results
+
+| Gate | Result |
+|---|---|
+| `V1` | `./native/metal-macos-arm64/build.sh` passed with native `-Wall -Wextra -Werror` and no warning. |
+| `V2..V3` | Fixed-identifier signing, `package-local.sh`, and canonical `verify-package.sh` passed. |
+| `V4` | Gradle package verification and local ZIP creation passed; `2/2` tasks executed. |
+| `V5` | Fresh `ditto` extraction, extracted-package verification, and recursive byte comparison passed. |
+| `V6` | Complete `:backends:metal:test --rerun-tasks` passed; `19/19` tasks executed. |
+| `V7` | Complete `:modules:compiler:test --rerun-tasks` passed; `13/13` tasks executed. |
+| `V8` | Metal conformance plus every `*Metal*` public integration surface passed; `38/38` tasks executed. |
+| `V10` | Architecture tests plus Javadoc passed; `47/47` tasks executed. Javadoc emitted the existing 100 missing-`@param` warnings in CPU-internal constructors; they were visible and are outside native warnings-as-errors scope. |
+| `V11` | `./gradlew test --rerun-tasks` passed against the extracted dylib; `76/76` tasks executed. |
+| `V12` | `./gradlew build --rerun-tasks` passed against the same extracted dylib; `87/87` tasks executed. Ordinary benchmark-module sources were compiled, but no benchmark entry point, warmup, timing comparison, fallback, retry, host repair, or autotuning command ran. |
+
+The JVM emitted its existing restricted-native-access and incubator-vector warnings, and one
+existing CPU test compilation note about unchecked operations. They did not hide a failed task,
+native compiler warning, relevant skip, or Metal assertion.
+
+## Runtime coverage inventory
+
+No throwaway Engine smoke was created because every requested surface has permanent behavioral
+coverage:
+
+- `MetalOperationCompletenessAuditTest` executes the real-provider 115-row audit and proves
+  `83/32`, `101/14`, MPSGraph `75/35/5`, custom `70/45/0`, and route `68/13/1/1/32`;
+- `MetalMpsGraphAbsNativeTest`, `MetalMpsGraphAffineNativeTest`,
+  `MetalMpsGraphMatmulNativeTest`, `MetalNegPreparedExecutionTest`, and
+  `MetalRandomDropoutNativeTest` cover direct/custom route execution, repeated reuse, independent
+  and concurrent contexts/runs, lifecycle, affine storage, rank-zero transfer, and state isolation;
+- `MetalMpsGraphIndexingNativeTest`, `MetalMpsGraphRawAbiNativeTest`, and the raw alias cases cover
+  complete validation and bounds/duplicate/topology/alias rejection before mutation;
+- `DtypeLayoutGradientMetalIntegrationTest`,
+  `EngineExplicitCompositionMetalIntegrationTest`,
+  `EngineConvolutionPoolingMetalIntegrationTest`, `EngineOrderingMetalIntegrationTest`, and
+  `RandomDropoutMetalIntegrationTest` cover both profiles where permitted, all-carrier transfer,
+  rank zero/one/sixteen, affine reuse, saved roles/state, multi-output, route-specific MATMUL/NEG,
+  and direct/generated backward through public Engine;
+- the complete Compiler suite covers autograd preflight, saved-role liveness, direct/generated
+  formulas, static-result layout closure, and the exact supported/deferred inventory.
+
+## Final JUnit evidence
+
+All XML reports from the final full build were parsed:
+
+- repository: `558` suites, `3712` tests, `0` failures, `0` errors, `29` skips;
+- Metal-related: `306` tests, `0` failures, `0` errors, `0` skips;
+- Metal backend: `34` suites, `247` tests, `0` failures, `0` errors, `0` skips;
+- Compiler: `40` suites, `282` tests, `0` failures, `0` errors, `0` skips;
+- backend conformance: `3` suites, `22` tests, `0` failures, `0` errors, `0` skips;
+- integration: `13` suites, `69` tests, `0` failures, `0` errors, `1` skip;
+- architecture: `7` suites, `9` tests, `0` failures, `0` errors, `0` skips.
+
+The one integration skip is CPU-only
+`EngineModelAutotuningIntegrationTest.eligibleCpuAlternativesCompleteBothPublicTuningPhases`; the
+other 28 skips are CPU backend opt-in evidence/performance cases. No Metal-related test skipped.
+
+## Verification result before final review
+
+Gates `V0..V13` passed without a source change or diagnostic rerun. The package, archive, extracted
+dylib, native/backend behavior, public Engine behavior, Compiler backward closure, and repository
+build all match the Task-0067 approved boundary. No environmental blocker or Task-0068 blocker
+remains. Developer ID signing, notarization, authenticated publication, and the separate Task-0053
+constructive-real proof bridge remain outside this local verification.
