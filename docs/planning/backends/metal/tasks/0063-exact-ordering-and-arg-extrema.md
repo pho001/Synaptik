@@ -2,11 +2,11 @@
 
 ## Status
 
-Review needed — this planning-only specification starts from clean revision `b369b8aa` and now
-incorporates the external P1 correction that bounds every custom dispatch and logical index to the
-existing unsigned-32-bit Metal contract. Production, tests, schemas, identities, counts, and
-executable behavior remain unchanged. An independent Class C plan review with zero remaining
-P0/P1/P2 findings is the sole implementation gate; no separate approval stop follows that review.
+Implementation complete; final review pending — the approved plan review and external P1 correction
+preceded implementation `9931d5f8`. The implementation bounds every custom dispatch and logical
+index to the existing unsigned-32-bit Metal contract, preserves schema 15/ABI 5/thirteen exports,
+and advances the exact counts and private identities specified below. Native build/sign/package,
+packaged Metal, conformance, CPU-free public Engine, Javadoc, and architecture validation pass.
 
 ## Change class
 
@@ -30,7 +30,7 @@ assumption, timing, autotuning, runtime choice, retry, fallback, or host repair.
 
 The current registry has exactly five ordering/arg-extrema kinds in scope:
 
-| Wire/kind | Arity and attribute wire | Exact Model role | Current Metal state | Task-0063 decision |
+| Wire/kind | Arity and attribute wire | Exact Model role | Pre-cutover Metal state | Task-0063 decision |
 |---|---|---|---|---|
 | 94 `SORT` | 1 input/1 output; 31 `SORT` = `[axis, descending]` | stable represented values, same type/Shape/gradient metadata | non-executable; `DIRECT / MD_SORT`; custom `PENDING / CP_AGGREGATE` | exact custom route |
 | 95 `ARGSORT` | 1/1; 31 `SORT` | stable logical indices, fixed INT64/no-grad | non-executable; `COMPOSED / MC_INDEX64`; custom pending | exact custom route |
@@ -372,8 +372,9 @@ Expected implementation owners:
 - Metal/backend/root architecture and capability documentation, targeted API/glossary status,
   ADR identity claims if current, this brief, master plan, and roadmap.
 
-Planning-only Task 0063 changes exactly this brief, the Metal master plan, and the roadmap. It does
-not edit any production, test, native, API, architecture, guide, glossary, or build file.
+The original planning-only revision changed exactly this brief, the Metal master plan, and the
+roadmap. Implementation `9931d5f8` performs the reviewed production, native, and test cutover;
+the subsequent documentation revision updates the authorized explanatory and status surfaces.
 
 ## Acceptance criteria
 
@@ -440,3 +441,47 @@ semantics, cap parity and boundary negatives, metadata and byte/span overflow sa
 lifecycle, route exclusivity, negative-domain evidence, public Engine behavior, docs, and changed-
 path scope. Passing worker execution evidence may be reused unless remediation changes executable
 behavior.
+
+## Implementation and proof result
+
+Implementation `9931d5f8` delivers all five wires through the fixed custom-program route. The
+source uses only unsigned integer raw-word classification and keys: floating exponent/fraction
+tests separate every NaN encoding, sign complement/sign-bit toggle maps each non-NaN sign partition
+monotonically and joins at negative-zero-before-positive-zero, signed-integer sign-bit toggle maps
+signed order to unsigned order, and BOOL uses its complete `0/1` domain. The stable tuple is
+`(NaN class or numerical key, increasing logical index)`; predecessor counting therefore assigns
+one distinct rank in `0..N-1` to every source coordinate and one distinct destination writer.
+Direction reversal changes only non-NaN key order. TOP_K uses rank `< K` for its selected set and
+either rank or the count of earlier selected coordinates for output position. Arg extrema maintain
+the best-so-far invariant with NaN preference and explicit first/last replacement.
+
+`MetalOrderingComparatorProofTest` enumerates all 65,536 BFLOAT16 words, exhausts BOOL, checks the
+binary32/binary64 exponent/fraction partitions, verifies signed-key boundaries and deterministic
+domain samples, and exhausts boundary-alphabet sequences through length four for stable ranks,
+cutoffs, compaction, and ties. `MetalOrderingNativeTest` and
+`EngineOrderingMetalIntegrationTest` independently compute raw-word expectations and execute all
+six ordering/top-K carriers, five arg-extrema carriers, both profiles, directions, largest/smallest,
+sorted/compacted forms, both tie policies, signed extrema, zeros, subnormals, infinities, repeated
+values, and signed/payload/signaling NaNs on the real device. Exact input and selected raw words,
+INT64 logical indices, target subsets, nesting, fan-out, retained reuse, and independent sessions
+are observed.
+
+Java capability and Java/native image validation enforce ranks `1..16` and check every dimension,
+product, canonical stride, slice/output count, selected extent, K, and grid width in wider carriers
+before narrowing. The admitted positive values are at most `UINT32_MAX`; derived coordinates and
+indices remain at most `UINT32_MAX`, and every access is strictly below its governing count.
+The one-dimensional kernels use only `thread_position_in_grid.x` and half-open loops, so an
+exact-limit traversal never computes `extent + 1` or increments a loop variable from
+`UINT32_MAX`. Byte offsets multiply into 64-bit `ulong`, while Java/native byte/span validation
+remains independent. Allocation-free tests
+accept the exact limit and reject one-past/product overflow; excluded Engine graphs and generated
+SORT/TOP_K backward requests fail before preparation.
+
+The native bridge was rebuilt, ad-hoc signed with
+`io.github.pho001.synaptik.metal.foundation`, packaged, and independently verified. The complete
+packaged Metal suite, Metal conformance suite, dedicated three-case CPU-free Engine integration,
+Metal Javadoc, and architecture tests pass. Counts are exactly `75/40` capability, `93/22`
+structural execution, `75/35/5` MPSGraph catalog, and `52/63/0` custom catalog. Schema 15, ABI 5,
+type wires `1..6`, operation wires `1..115`, attribute wires `0..41`, route wires `1..3`, image
+grammar, and thirteen exports are unchanged. All backend-local identities are 19 and identity 18
+fails closed. No benchmark or timing result participates in the route.

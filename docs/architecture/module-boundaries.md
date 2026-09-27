@@ -53,16 +53,18 @@ Existing operation-local final exact-zero publication freedoms remain local to t
 results. The semantic contract, Config identity, and cold propagation spine are current.
 For any backend and occurrence domain, strict capability and behavior are an accelerator subset.
 CPU supports both profiles identically with exact current behavior. Metal supports the exact
-bounded canonical movement, indexing, replacement, fold, aggregate, and no-gradient promoted
-INT32/INT64 MATMUL domains under both profiles. Under `ACCELERATOR`, Metal additionally supports
-the documented FLOAT32 arithmetic/reduction/scan rows, every positive-static FLOAT32 MATMUL
-vector/matrix/batched/broadcast geometry with authenticated local last-two transposes, and
-no-gradient mixed BFLOAT16/FLOAT32 MATMUL; unsupported pairs fail closed. Rank-zero Metal support
-is local to produced reduction or vector/vector MATMUL targets plus explicit scalar-seed ingress
-for vector/vector gradients; it does not widen mixed-owner CPU/Metal transfer. The local explicitly
-seeded general FLOAT32 MATMUL gradient path and ordinary Compiler-generated backward occurrences
-remain backend execution of Compiler graphs, not implicit seeding, training ownership, or a
-complete Metal backward claim.
+bounded canonical movement, indexing, replacement, fold, aggregate, ordering/top-K/numeric
+arg-extrema, and no-gradient promoted INT32/INT64 MATMUL domains under both profiles. Ordering
+uses the fixed unsigned-32-bit-bounded custom program and TOP_K publishes one paired values/index
+occurrence. Under `ACCELERATOR`, Metal additionally supports the documented FLOAT32 arithmetic/
+reduction/scan rows, every positive-static FLOAT32 MATMUL vector/matrix/batched/broadcast geometry
+with authenticated local last-two transposes, and no-gradient mixed BFLOAT16/FLOAT32 MATMUL;
+unsupported pairs fail closed. Rank-zero Metal support is local to produced reduction,
+arg-extrema, or vector/vector MATMUL targets plus explicit scalar-seed ingress for vector/vector
+gradients; it does not widen mixed-owner CPU/Metal transfer. The local explicitly seeded general
+FLOAT32 MATMUL gradient path and ordinary Compiler-generated backward occurrences remain backend
+execution of Compiler graphs, not implicit seeding, training ownership, or a complete Metal
+backward claim.
 
 The current Model fixed recurrent scan follows this same flat boundary. Model owns the fixed
 `RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM` meanings, one `FORWARD` or `REVERSE` attribute, ordered

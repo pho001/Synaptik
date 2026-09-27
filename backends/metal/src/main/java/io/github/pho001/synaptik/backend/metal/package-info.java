@@ -121,14 +121,28 @@
  * backward graphs receive no new ownership. Strict IEEE, scalar inputs, other carriers or mixed
  * carriers, and every other normalization or loss kind remain false.</p>
  *
+ * <p>Task 0063 adds profile-common canonical dense {@code SORT}, {@code ARGSORT}, and positive-K
+ * {@code TOP_K} for all six carriers, plus {@code ARG_MAX} and {@code ARG_MIN} for the five
+ * numeric carriers. Ranks must be in {@code 1..16}; dimensions, element counts, strides, selected
+ * extents, K, output counts, and one-dimensional grid widths must be positive and no greater than
+ * {@code UINT32_MAX}; derived logical coordinates and indices must fit unsigned 32 bits.
+ * Validation and checked byte/span calculation precede resource creation. One integer-only
+ * raw-word comparator fixes stable order, NaNs last in both directions, negative zero below
+ * positive zero before direction reversal, exact selected-bit copying, top-K selected-set/output
+ * order, and NaN-preferred arg extrema with explicit first/last ties. TOP_K is one native step
+ * that materializes and publishes paired values and INT64 indices. These five wires always select
+ * {@code CUSTOM_PROGRAM}; there is no direct MPSGraph, host repair, timing, retry, fallback, or
+ * autotuning route. Floating value outputs retain input gradient metadata, index outputs are
+ * no-grad, and generated ordering backward graphs receive no new ownership.</p>
+ *
  * <p>The selected numerical profile participates in partition-plan, route, tuning,
  * decision-codec, and workload identity. Java rejects profile/schema mismatches before native
  * entry. ABI version five retains thirteen exports. Node schema version fifteen is one bounded
  * self-describing route-bearing image over stable type wires {@code 1..6}, operation wires
  * {@code 1..115}, attribute wires {@code 0..41}, and complete optional storage-layout geometry.
- * Native structural execution covers exactly 88 wires and leaves 27 nonexecutable. Production
- * capability is exactly 70 operation kinds and 45 remain false. Backend-local workload,
+ * Native structural execution covers exactly 93 wires and leaves 22 nonexecutable. Production
+ * capability is exactly 75 operation kinds and 40 remain false. Backend-local workload,
  * exact-policy, candidate, compatibility, route-policy, and codec identities are version
- * eighteen; schema fourteen and identity version seventeen fail closed.</p>
+ * nineteen; schema fourteen and identity version eighteen fail closed.</p>
  */
 package io.github.pho001.synaptik.backend.metal;

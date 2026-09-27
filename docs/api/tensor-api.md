@@ -4181,6 +4181,12 @@ positive when later proven or bound; no sentinel index represents an empty domai
 does not read storage, compare values, select an index, create gradients, capture a graph, lower an
 operation, report backend support, or execute.
 
+Current Metal execution covers the five numeric carriers under both profiles for fully static
+canonical dense ranks `1..16` whose positive geometry and logical indices fit unsigned 32 bits. It
+uses one exact custom program, retains INT64 outputs, and implements NaN preference and both tie
+policies; BOOL, dynamic/empty selected axes, over-limit geometry, and generated backward graphs
+remain outside that backend domain.
+
 Failure behavior is deterministic: a null explicit policy fails before input-type or axis
 validation; BOOL input fails before axis validation; and an axis outside
 `[-rank, rank - 1]` fails with `IndexOutOfBoundsException`, including every axis for a scalar
@@ -8990,6 +8996,12 @@ Construction checks only metadata and creates provenance. It neither compares va
 an algorithm, gradient rule, compiler behavior, backend route, runtime behavior, or execution
 support.
 
+Current Metal execution covers both kinds for all six carriers under both profiles for canonical
+dense ranks `1..16` whose positive dimensions, element counts, strides, selected extents, and
+one-dimensional grid fit unsigned 32 bits. Its integer-only custom route implements the order above
+and copies selected representations exactly. Dynamic, empty, noncanonical, over-limit, and
+generated-backward occurrences remain outside that backend domain.
+
 ### Top-K values and indices
 
 `input.topK(k, axis)` selects the largest `k` entries of each logical-axis slice and requests
@@ -9072,6 +9084,12 @@ failures occur before result-ID allocation.
 outputs. This current API constructs backend-neutral metadata and immutable pre-capture
 provenance. It does not provide a selection algorithm, value evaluation, gradient rule, compiler
 capture or dynamic-bound enforcement, backend support, runtime behavior, or execution.
+
+Current Metal execution covers positive-K TOP_K for all six carriers under both profiles over the
+same canonical dense unsigned-32-bit-bounded geometry. One custom native step always validates,
+materializes, and keeps the paired values and INT64 indices, including when only one role is a
+public target. Zero/dynamic K, empty/dynamic geometry, over-limit/noncanonical layouts, and
+generated backward graphs remain outside that backend domain.
 
 ## Host-visible storage
 

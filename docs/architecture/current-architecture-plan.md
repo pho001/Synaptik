@@ -62,15 +62,17 @@ CPU realizes both numerical profiles through identical exact behavior and routes
 `STRICT_IEEE` as the unchanged current contract and `ACCELERATOR` as its total recursive
 `FLOAT32` superset; that semantic reach does not imply backend support. Metal execution remains
 occurrence- and profile-qualified. Its common domain includes the exact unary, affine,
-canonicalization, indexing, classification, BOOL, Task-0059 movement, and Task-0060
-replacement/fold/aggregate rows. Both profiles additionally admit no-gradient INT32/INT64 MATMUL
-with INT64-dominant promotion and exact modular result arithmetic. Accelerator additionally admits
-the documented FLOAT32 arithmetic, extrema, scalar, reduction, and scan rows; every
-positive-static FLOAT32 MATMUL vector, matrix, batched, and right-aligned broadcast geometry; and
-no-gradient BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 result. MATMUL operands are canonical or
-authenticated local identity-prefix, last-two-axis transposes. Existing rank-two FLOAT32 matrix
-products retain direct MPSGraph; every new geometry and carrier pair uses the fixed custom program.
-Strict floating MATMUL and every other unlisted occurrence fail closed before route selection.
+canonicalization, indexing, classification, BOOL, Task-0059 movement, Task-0060
+replacement/fold/aggregate, and unsigned-32-bit-bounded ordering/top-K/numeric arg-extrema rows.
+Both profiles additionally admit no-gradient INT32/INT64 MATMUL with INT64-dominant promotion and
+exact modular result arithmetic. Accelerator additionally admits the documented FLOAT32
+arithmetic, extrema, scalar, reduction, and scan rows; every positive-static FLOAT32 MATMUL vector,
+matrix, batched, and right-aligned broadcast geometry; and no-gradient BFLOAT16/FLOAT32 mixed
+MATMUL with FLOAT32 result. MATMUL operands are canonical or authenticated local identity-prefix,
+last-two-axis transposes. Existing rank-two FLOAT32 matrix products retain direct MPSGraph; every
+new geometry and carrier pair uses the fixed custom program. The five ordering/arg-extrema kinds
+are custom-only, with one paired-output TOP_K step. Strict floating MATMUL and every other unlisted
+occurrence fail closed before route selection.
 Canonical typed host ingress/publication and direct CPU/Metal transfer support all six data types at
 ranks `0..16`; transfer also accepts resolved positive-stride non-overlapping physical storage
 layouts and rejects unresolved, zero-stride, negative-stride, or overlapping geometry. BOOL
@@ -79,8 +81,8 @@ route. Any partition containing an exact custom node or MATMUL outside the retai
 uses the fixed shared whole-program route with declared run-owned value buffers and one Java/native
 invocation. Current Metal uses ABI 5 with the same thirteen exports and one bounded schema-15
 route-bearing program image over type wires `1..6`, operation wires `1..115`, and attribute wires
-`0..41`; backend-local identities are version eighteen. Structural coverage is `88 / 27`;
-production capability is exactly `70 / 45`.
+`0..41`; backend-local identities are version nineteen. Structural coverage is `93 / 22`;
+production capability is exactly `75 / 40`.
 
 The Training extension now owns a public reusable
 Engine-backed scalar session with persistent SGD, accumulation, and detached in-memory state over

@@ -647,14 +647,14 @@ subset, prove its complete route results fall inside Model's recursive set, and 
 identity in every reusable plan/cache boundary. CPU admits both profiles through identical exact
 routes. Metal's common exact occurrence domain under both profiles contains its unary, affine,
 canonicalization, indexing, BOOL-domain, Task-0059 movement, Task-0060 replacement/fold/aggregate,
-and no-gradient promoted INT32/INT64 MATMUL rows. Accelerator additionally admits the documented
-FLOAT32 arithmetic, extrema, scalar, reduction, and scan rows; same-type canonical positive-rank
-FLOAT32 MSE for all three reductions; every positive-static FLOAT32 MATMUL vector, matrix, batched,
-and right-aligned broadcast geometry; and no-gradient BFLOAT16/FLOAT32 mixed MATMUL. Every other
-occurrence fails closed before route selection. ABI 5 retains thirteen exports and consumes one
-bounded schema-15 route-bearing image over type wires `1..6`, operation wires `1..115`, and
-attribute wires `0..41`; backend identities are version eighteen. Structural coverage is `88 / 27`
-and production capability is `70 / 45`. Direct
+unsigned-32-bit-bounded ordering/top-K/numeric arg-extrema, and no-gradient promoted INT32/INT64
+MATMUL rows. Accelerator additionally admits the documented FLOAT32 arithmetic, extrema, scalar,
+reduction, and scan rows; same-type canonical positive-rank FLOAT32 MSE for all three reductions;
+every positive-static FLOAT32 MATMUL vector, matrix, batched, and right-aligned broadcast geometry;
+and no-gradient BFLOAT16/FLOAT32 mixed MATMUL. Every other occurrence fails closed before route
+selection. ABI 5 retains thirteen exports and consumes one bounded schema-15 route-bearing image
+over type wires `1..6`, operation wires `1..115`, and attribute wires `0..41`; backend identities
+are version nineteen. Structural coverage is `93 / 22` and production capability is `75 / 40`.
 CPU/Metal transfer accepts canonical or resolved positive-stride non-overlapping all-carrier
 storage layouts without widening operation capability.
 Runtime therefore requires neither profile interpretation nor a policy lookup.

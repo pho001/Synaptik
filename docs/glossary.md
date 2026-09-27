@@ -547,6 +547,10 @@ semantics define the requested index independently of physical layout. The curre
 implementation traverses increasing logical coordinates and applies the policy in direct typed
 generated loops; that implementation does not make the policy a storage-order or backend-route
 contract.
+Current Metal realizes this policy for canonical dense fully static numeric occurrences whose
+positive geometry and logical indices fit unsigned 32 bits, under either numerical profile, through
+one custom program. It does not admit BOOL, empty/dynamic selected axes, over-limit geometry, or a
+generated backward graph.
 
 ### Stable full ordering
 
@@ -563,6 +567,9 @@ but produces non-differentiable INT64 indices. Both construct metadata and indep
 single-output provenance without comparing values or providing compiler, backend, runtime, or
 execution behavior. See [Stable sort and argsort
 expressions](api/tensor-api.md#stable-sort-and-argsort-expressions).
+Current Metal realizes both kinds for all six carriers under either profile over canonical dense
+fully static positive unsigned-32-bit-bounded geometry. Its custom route uses integer raw-word
+ordering, copies selected representations exactly, and provides no ordering backward ownership.
 
 ### Top-K selected set
 
@@ -580,6 +587,10 @@ static extent, and defers a dynamic or expression-bound capacity obligation to l
 binding validation. This is model meaning and provenance, not value evaluation, an algorithm,
 gradient construction, compiler support, backend lowering, runtime behavior, or execution. See
 [Top-K values and indices](api/tensor-api.md#top-k-values-and-indices).
+Current Metal realizes positive-K top-K for all six carriers under either profile over the same
+canonical dense unsigned-32-bit-bounded domain. One custom native step owns both values and INT64
+indices through target subsets, composition, reuse, and publication; zero/dynamic K and generated
+backward graphs remain excluded.
 
 ### Gather
 
@@ -2506,7 +2517,7 @@ batch as a plan batch would incorrectly repeat local route search.
 
 The profile-qualified Metal batch is session-scoped. It contains only the complete
 `CUSTOM_SINGLE_NEG`, `CUSTOM_PROGRAM`, and `MPSGRAPH` configurations valid for the exact partition
-and profile. Compatibility, candidate, and route-policy schemas are version eighteen, and no
+and profile. Compatibility, candidate, and route-policy identities are version nineteen, and no
 private field crosses the marker-role boundary.
 
 ### Complete-plan candidate

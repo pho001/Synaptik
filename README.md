@@ -25,8 +25,10 @@ executes non-empty single-owner plans or bounded mixed CPU/Metal plans through d
 owner-indexed representations and ordered transfer steps. Current cross-owner transfer supports
 fully static rank-0..16 values of all six carriers over canonical or approved positive-stride
 non-overlapping layouts. Metal executes a closed occurrence-specific matrix. Its common domain
-includes the exact unary, affine, canonicalization, indexing, BOOL, Task-0059 raw-movement, and
-Task-0060 replacement/fold/aggregate rows. `ACCELERATOR` additionally admits the documented
+includes the exact unary, affine, canonicalization, indexing, BOOL, Task-0059 raw-movement,
+Task-0060 replacement/fold/aggregate, and unsigned-32-bit-bounded stable ordering, top-K, and
+numeric arg-extrema rows. `SORT`, `ARGSORT`, and `TOP_K` admit all six carriers; `ARG_MIN` and
+`ARG_MAX` admit the five numeric carriers. `ACCELERATOR` additionally admits the documented
 FLOAT32 arithmetic, reductions, scans, every positive-static FLOAT32 `MATMUL` vector, matrix,
 batched, and broadcast geometry, and same-type canonical positive-rank FLOAT32 MSE forward
 execution for `NONE`, `SUM`, and `MEAN`. Both profiles admit no-gradient promoted INT32/INT64
@@ -36,9 +38,11 @@ FLOAT32 matrix products retain direct MPSGraph; new MATMUL geometries and carrie
 fixed custom program. MSE uses fixed MPSGraph subtraction, self-multiplication, and optional full
 reduction and grants no generated backward ownership; every other normalization/loss kind remains
 false. Every unlisted occurrence fails closed. Eligible singleton negation retains its custom
-alternative, and exact custom nodes fix their whole partition to one custom program with declared
-run-owned intermediates and direct targets. ABI 5, thirteen exports, and the schema-15 operation
-and attribute registries remain fixed; backend-local route and workload identities are version 18.
+alternative. Exact custom nodes, including the five ordering/arg-extrema wires, fix their whole
+partition to one custom program with declared run-owned intermediates and direct targets; top-K
+publishes paired values and INT64 indices from one step. ABI 5, thirteen exports, and the schema-15
+operation and attribute registries remain fixed; backend-local route and workload identities are
+version 19.
 Standard-Metal convenience, generic plugin registration/discovery, CUDA, broader optimizers,
 durable persistence, and generic graph/plan tuning remain planned.
 Focused documentation identifies the exact current boundary for each area.

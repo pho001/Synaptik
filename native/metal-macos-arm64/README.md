@@ -10,7 +10,7 @@ complete variable-cardinality operation, attribute, reference, dimension, gradie
 storage-layout metadata; no native type, shape, or layout inference is part of the boundary.
 
 The schema registry reserves operation wires `1..115` and attribute wires `0..41`. The native graph
-can structurally execute exactly 88 operation kinds; production capability remains exactly 70
+can structurally execute exactly 93 operation kinds; production capability remains exactly 75
 kinds. Task 0059 adds exact movement/indexing rows and complete positive-stride storage geometry.
 Task 0060 adds replacement/fold rows `72`, `76`, `80`, `82`, and `84` plus exact aggregate rows
 `106..108`. Task 0061 widens existing `MATMUL=15` without adding a wire: both profiles admit
@@ -23,19 +23,27 @@ executable only through the fixed MPSGraph composition `SUB(prediction, target)`
 delta)`, and optional full `SUM` or `MEAN`; no opaque MSE selector is used. Java production admits
 only ACCELERATOR same-type canonical positive-rank FLOAT32 for `NONE`, `SUM`, and `MEAN`, preserves
 the input-gradient logical OR as output metadata, and claims no generated backward ownership.
-The remaining 45 production rows fail closed before native creation. A structurally valid
-registered operation without a native recipe returns the dedicated unsupported-operation status
-rather than masquerading as malformed input. Candidate and route identity are version 18. Java
+Task 0063 adds custom-only wires `94=SORT`, `95=ARGSORT`, `96=TOP_K`, `109=ARG_MAX`, and
+`110=ARG_MIN`. The first three admit all six carriers and the arg operations admit five numeric
+carriers. Ranks are in `1..16`; one-dimensional dispatch, every positive
+dimension/count/stride/extent/K, and every derived logical index are bounded to unsigned 32 bits
+before resource creation, while byte/span checks remain independently size-safe. The integer-only
+comparator preserves raw selected words, stable order, NaNs-last sorting, signed-zero order, top-K
+pair order, and NaN-preferred arg ties.
+One TOP_K step owns both values and INT64 indices. The remaining 40 production rows fail closed
+before native creation. A structurally valid registered operation without a native recipe returns
+the dedicated unsupported-operation status rather than masquerading as malformed input. Candidate
+and route identity are version 19. Java
 owns exactly three prepared-route identities: custom singleton NEG wire 1, MPSGraph wire 2, and
 shared custom-program wire 3. Schema 15 embeds wire 2 or 3 in each graph image; schema 14 and every
 other schema or route value fail closed. The exhaustive Java structural catalog adds no native
 route selection, capability, autotuning, fallback, telemetry, or performance authority.
 
-For admitted nodes, the version-18 workload signature binds operation wire, source/target carrier
+For admitted nodes, the version-19 workload signature binds operation wire, source/target carrier
 types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes, exact
-scalar bits, variadic input order/count, and complete encoded storage-layout geometry. The
-schema-15 and identity-18 cutover has no compatibility reader or migration alias; identity 17 and
-earlier fail closed.
+scalar bits, variadic input/output order and count, and complete encoded storage-layout geometry.
+The schema-15 and identity-19 cutover has no compatibility reader or migration alias; identity 18
+and earlier fail closed.
 
 ```text
 Java analysis -> choose fixed whole-partition route -> declare every exact resource
