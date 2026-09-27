@@ -7324,6 +7324,9 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_run(
         }
         for (uint32_t output = 0; output < output_count; output++) {
             if (output_buffers[output] == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            for (uint32_t previous = 0; previous < output; previous++)
+                if (output_buffers[previous] == output_buffers[output])
+                    return SYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE;
             for (uint32_t input = 0; input < input_count; input++)
                 if (input_buffers[input] == output_buffers[output])
                     return SYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE;

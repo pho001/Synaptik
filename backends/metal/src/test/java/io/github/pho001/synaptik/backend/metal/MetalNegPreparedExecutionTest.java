@@ -2280,6 +2280,8 @@ class MetalNegPreparedExecutionTest {
             assertBindingRejected(executable, fixture.memoryPlan(), context, other,
                     BindingDefect.UNDERSIZED_BUFFER, api);
             assertBindingRejected(executable, fixture.memoryPlan(), context, other,
+                    BindingDefect.OUTPUT_ALIAS, api);
+            assertBindingRejected(executable, fixture.memoryPlan(), context, other,
                     BindingDefect.WRONG_WORKSPACE_CONTEXT, api);
             assertBindingRejected(executable, fixture.memoryPlan(), context, other,
                     BindingDefect.WRONG_WORKSPACE_COUNT, api);
@@ -2308,9 +2310,16 @@ class MetalNegPreparedExecutionTest {
         try {
             workspace.set(0, input0.executionHandle());
             workspace.set(1, input1.executionHandle());
+            workspace.set(2, output0.executionHandle());
+            workspace.set(3, output0.executionHandle());
+            workspace.set(4, output2.executionHandle());
+            assertThrows(IllegalArgumentException.class,
+                    () -> resource.run(2, workspace.segment().asSlice(0, 16),
+                            3, workspace.segment().asSlice(16, 24)));
+            assertEquals(0, api.runCalls.get());
+
             workspace.set(2, input0.executionHandle());
             workspace.set(3, output1.executionHandle());
-            workspace.set(4, output2.executionHandle());
             assertThrows(IllegalArgumentException.class,
                     () -> resource.run(2, workspace.segment().asSlice(0, 16),
                             3, workspace.segment().asSlice(16, 24)));
@@ -4429,7 +4438,11 @@ class MetalNegPreparedExecutionTest {
                 buffers.add(owner.createBuffer(allocated));
             }
             if (defect == BindingDefect.CLOSED_BUFFER) buffers.getFirst().close();
-            var bindings = buffers.stream()
+            var representations = new ArrayList<>(buffers);
+            if (defect == BindingDefect.OUTPUT_ALIAS) {
+                representations.set(3, representations.get(2));
+            }
+            var bindings = representations.stream()
                     .map(buffer -> List.of(new BufferRepresentationBinding(
                             buffer, RunResourceOwnership.BORROWED)))
                     .toList();
@@ -4441,6 +4454,13 @@ class MetalNegPreparedExecutionTest {
             var workspace = new MetalNegPreparedExecutable.AddressWorkspace(
                     workspaceContext, pointerCount);
             if (defect == BindingDefect.CLOSED_WORKSPACE) workspace.close();
+            if (defect == BindingDefect.OUTPUT_ALIAS) {
+                assertThrows(IllegalArgumentException.class,
+                        () -> new RunState(memoryPlan, bindings, List.of(workspace)));
+                workspace.close();
+                assertEquals(0, api.runCalls.get());
+                return;
+            }
             state = new RunState(memoryPlan, bindings, List.of(workspace));
             RunState boundState = state;
             assertThrows(IllegalArgumentException.class, () -> executable.bind(boundState));
@@ -4583,6 +4603,7 @@ class MetalNegPreparedExecutionTest {
         WRONG_BUFFER_CONTEXT,
         CLOSED_BUFFER,
         UNDERSIZED_BUFFER,
+        OUTPUT_ALIAS,
         WRONG_WORKSPACE_CONTEXT,
         WRONG_WORKSPACE_COUNT,
         CLOSED_WORKSPACE

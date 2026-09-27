@@ -2110,6 +2110,16 @@ abstract class MetalNativeApi implements AutoCloseable {
             }
             validateAddressSegment(inputBuffers, inputCount, "inputBuffers");
             validateAddressSegment(outputBuffers, outputCount, "outputBuffers");
+            for (int output = 0; output < outputCount; output++) {
+                long outputAddress = outputBuffers.getAtIndex(ADDRESS, output).address();
+                for (int previous = 0; previous < output; previous++) {
+                    if (outputAddress
+                            == outputBuffers.getAtIndex(ADDRESS, previous).address()) {
+                        throw new IllegalArgumentException(
+                                "Metal program output native buffers must not alias");
+                    }
+                }
+            }
             if (!allowInputOutputAlias) {
                 for (int input = 0; input < inputCount; input++) {
                     long inputAddress = inputBuffers.getAtIndex(ADDRESS, input).address();

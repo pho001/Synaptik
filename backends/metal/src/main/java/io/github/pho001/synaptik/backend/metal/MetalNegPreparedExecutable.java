@@ -244,7 +244,8 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         if (customResource != null) {
             MetalBufferRepresentation input = readInput(0, bufferRepresentations[0]);
             var output = (MetalBufferRepresentation) bufferRepresentations[1];
-            if (input == output) {
+            if (input.executionHandle().carrier().address()
+                    == output.executionHandle().carrier().address()) {
                 throw new IllegalArgumentException(
                         "Metal NEG input and output buffers must not alias");
             }
@@ -261,15 +262,25 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             workspace.set(index, inputBuffers[index].executionHandle());
         }
         int outputCount = targetCount;
+        var outputBuffers = new MetalBufferRepresentation[outputCount];
         for (int index = 0; index < outputCount; index++) {
             MetalBufferRepresentation output = (MetalBufferRepresentation)
                     bufferRepresentations[inputCount + index];
+            long outputHandle = output.executionHandle().carrier().address();
             for (MetalBufferRepresentation input : inputBuffers) {
-                if (input == output) {
+                if (input.executionHandle().carrier().address() == outputHandle) {
                     throw new IllegalArgumentException(
-                            "Metal NEG input and output buffers must not alias");
+                            "Metal MPSGraph input and output buffers must not alias");
                 }
             }
+            for (int previous = 0; previous < index; previous++) {
+                if (outputBuffers[previous].executionHandle().carrier().address()
+                        == outputHandle) {
+                    throw new IllegalArgumentException(
+                            "Metal MPSGraph output buffers must not alias");
+                }
+            }
+            outputBuffers[index] = output;
             workspace.set(inputCount + index, output.executionHandle());
         }
         MemorySegment inputs = workspace.segment().asSlice(0L, (long) inputCount * ADDRESS.byteSize());

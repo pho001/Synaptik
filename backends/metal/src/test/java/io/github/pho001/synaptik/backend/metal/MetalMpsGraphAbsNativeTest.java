@@ -167,6 +167,20 @@ class MetalMpsGraphAbsNativeTest {
                 for (int index = 0; index < outputs.size(); index++) {
                     outputAddresses.setAtIndex(ADDRESS, index, outputs.get(index).carrier());
                 }
+                MetalNativeApi.Handle runExecutable = executable;
+                outputAddresses.setAtIndex(ADDRESS, 1, outputs.getFirst().carrier());
+                MetalNativeApi.NativeFailure aliasFailure = assertThrows(
+                        MetalNativeApi.NativeFailure.class,
+                        () -> api.runExecutable(
+                                runExecutable,
+                                inputs.size(),
+                                inputAddresses,
+                                outputs.size(),
+                                outputAddresses));
+                assertEquals(
+                        MetalNativeApi.Status.INCOMPATIBLE_RESOURCE,
+                        aliasFailure.status());
+                outputAddresses.setAtIndex(ADDRESS, 1, outputs.get(1).carrier());
                 for (int repetition = 0; repetition < repetitions; repetition++) {
                     api.runExecutable(
                             executable,
