@@ -182,6 +182,8 @@ class MetalOperationCompletenessAuditTest {
         int composed = 0;
         int unavailable = 0;
         int customAvailable = 0;
+        int customPending = 0;
+        int customUnavailable = 0;
         for (int index = 0; index < kinds.length; index++) {
             MetalMpsGraphProgram.NodeKind kind = kinds[index];
             assertEquals(index + 1, kind.wireIdentity(), kind.name());
@@ -202,8 +204,11 @@ class MetalOperationCompletenessAuditTest {
                 case COMPOSED -> composed++;
                 case UNAVAILABLE -> unavailable++;
             }
-            if (catalog.customKernelState()
-                    == MetalOperationRouteCatalog.CustomKernelState.AVAILABLE) customAvailable++;
+            switch (catalog.customKernelState()) {
+                case AVAILABLE -> customAvailable++;
+                case PENDING -> customPending++;
+                case UNAVAILABLE_WITH_PROOF -> customUnavailable++;
+            }
             assertEquals(
                     kind == MetalMpsGraphProgram.NodeKind.NEG
                             || kind == MetalMpsGraphProgram.NodeKind.MATMUL
@@ -220,7 +225,8 @@ class MetalOperationCompletenessAuditTest {
         assertEquals(35, composed);
         assertEquals(5, unavailable);
         assertEquals(70, customAvailable);
-        assertEquals(45, kinds.length - customAvailable);
+        assertEquals(45, customPending);
+        assertEquals(0, customUnavailable);
         long productionCustom = Arrays.stream(kinds)
                 .filter(kind -> !PRODUCTION_FALSE.contains(kind))
                 .filter(MetalMpsGraphProgram.NodeKind::isCustomProgramOperation)
@@ -351,8 +357,16 @@ class MetalOperationCompletenessAuditTest {
             input = f32(2, 3);
             output = f32Scalar();
         }
-        return query(kind == AggregateReductionKind.SUM || kind == AggregateReductionKind.MEAN
-                        || kind == AggregateReductionKind.MIN || kind == AggregateReductionKind.MAX
+        boolean accelerator = kind == AggregateReductionKind.SUM
+                || kind == AggregateReductionKind.MEAN
+                || kind == AggregateReductionKind.MIN
+                || kind == AggregateReductionKind.MAX
+                || kind == AggregateReductionKind.LOG_SUM_EXP
+                || kind == AggregateReductionKind.VARIANCE
+                || kind == AggregateReductionKind.STANDARD_DEVIATION
+                || kind == AggregateReductionKind.L1_NORM
+                || kind == AggregateReductionKind.L2_NORM;
+        return query(accelerator
                         ? NumericalProfile.ACCELERATOR : NumericalProfile.STRICT_IEEE,
                 new Operation(kind, (io.github.pho001.synaptik.model.operation.OperationAttrs) attrs),
                 List.of(input), List.of(output));

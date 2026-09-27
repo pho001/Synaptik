@@ -203,15 +203,19 @@ final class EngineOrderingMetalIntegrationTest {
                         DataType.FLOAT32, Shape.of(2, 4), raw, arena);
 
                 Tensor sorted = input.sort(1);
+                long[] sortSeedWords = {
+                    0x3f80_0000L, 0x4000_0000L, 0x4040_0000L, 0x4080_0000L,
+                    0x40a0_0000L, 0x40c0_0000L, 0x40e0_0000L, 0x4100_0000L
+                };
+                long[] sortGradient = new long[raw.length];
+                for (int base = 0; base < raw.length; base += 4) {
+                    int[] permutation = order(DataType.FLOAT32, raw, base, 4, true);
+                    for (int rank = 0; rank < 4; rank++) {
+                        sortGradient[base + permutation[rank]] = sortSeedWords[base + rank];
+                    }
+                }
                 Tensor sortSeed = nativeTensor(
-                        DataType.FLOAT32,
-                        Shape.of(2, 4),
-                        new long[] {
-                            0x3f80_0000L, 0x3f80_0000L, 0x3f80_0000L, 0x3f80_0000L,
-                            0x3f80_0000L, 0x3f80_0000L, 0x3f80_0000L, 0x3f80_0000L
-                        },
-                        false,
-                        arena);
+                        DataType.FLOAT32, Shape.of(2, 4), sortSeedWords, false, arena);
                 var sortCompiled = engine.compile(
                         List.of(sorted), List.of(sortSeed), List.of(input));
                 assertEquals(
@@ -224,30 +228,21 @@ final class EngineOrderingMetalIntegrationTest {
                                     words(
                                             DataType.FLOAT32,
                                             orderedValues(DataType.FLOAT32, raw, true)),
-                                    words(
-                                            DataType.FLOAT32,
-                                            0x3f80_0000L, 0x3f80_0000L,
-                                            0x3f80_0000L, 0x3f80_0000L,
-                                            0x3f80_0000L, 0x3f80_0000L,
-                                            0x3f80_0000L, 0x3f80_0000L)));
+                                    words(DataType.FLOAT32, sortGradient)));
                 }
 
                 var top = input.topK(2, 1);
+                long[] topSeedWords = {
+                    0x3f80_0000L, 0x4000_0000L, 0x4040_0000L, 0x4080_0000L
+                };
                 Tensor topSeed = nativeTensor(
-                        DataType.FLOAT32,
-                        Shape.of(2, 2),
-                        new long[] {
-                            0x3f80_0000L, 0x3f80_0000L,
-                            0x3f80_0000L, 0x3f80_0000L
-                        },
-                        false,
-                        arena);
+                        DataType.FLOAT32, Shape.of(2, 2), topSeedWords, false, arena);
                 TopSelection selection = top(DataType.FLOAT32, raw, 2, false, true);
                 long[] topGradient = new long[raw.length];
                 for (int row = 0; row < 2; row++) {
                     for (int rank = 0; rank < 2; rank++) {
                         int index = Math.toIntExact(selection.indices()[row * 2 + rank]);
-                        topGradient[row * 4 + index] = 0x3f80_0000L;
+                        topGradient[row * 4 + index] = topSeedWords[row * 2 + rank];
                     }
                 }
                 var topCompiled = engine.compile(

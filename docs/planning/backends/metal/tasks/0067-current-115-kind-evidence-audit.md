@@ -2,10 +2,12 @@
 
 ## Status
 
-Audit plan and baseline ledger drafted from exact clean approved base
-`209ba28a973f9e59bd70ec4fe14d3402d2c793a9`. No production source, capability, route, schema,
-identity, ABI, native binary, test expectation, or historical evidence has changed. Independent plan
-review is required before remediation.
+Implementation and reviewed remediation are complete through the current cumulative-review fixes.
+The canonical plan/ledger progressed through `dbdf8b06`, corrected plan `4b583efe`, and independently
+approved final plan `6b8be016`. Primary remediation landed at `7f9601e1`, public Engine
+reconciliation at `2541c6f3`, dispositions at `1d52989a`, and evidence-review correction at
+`4e604605`. This revision closes the remaining code-review findings; independent cumulative
+re-review is the only gate before marking the task Complete.
 
 ## Change class
 
@@ -314,6 +316,20 @@ identity, and native preflight where applicable. Route-specific resource evidenc
   Commit `2541c6f3` executes both generated gradients through Metal with exact values; the review
   remediation preserves the pre-existing public Engine rejection for a Model-valid ordering extent
   above `UINT32_MAX`, and ordering index roles remain non-differentiable.
+
+The first cumulative code review reported five P2 evidence defects, all remediated before final
+approval:
+
+- `R-001` — custom catalog evidence derived the complement of `AVAILABLE`; it now counts and asserts
+  `AVAILABLE`, `PENDING`, and `UNAVAILABLE_WITH_PROOF` independently as `70/45/0`.
+- `R-002` — the five production-false advanced aggregate representatives used `STRICT_IEEE`, which
+  could not detect accidental accelerator broadening; they now query `ACCELERATOR`.
+- `R-003` — the initial A-006 remediation replaced the existing public Engine `UINT32_MAX` ordering
+  boundary with a Model-local check; `4e604605` restores the backend boundary.
+- `R-004` — uniform ordering cotangents proved ownership but not permutation association; the
+  `SORT` and `TOP_K` seeds are now lane-distinct and their exact scatters are asserted.
+- `R-005` — the active task, master-plan, and roadmap status still described the plan-review gate;
+  they now record completed implementation/remediation and the current cumulative-review gate.
 
 Other findings remain audit output, not assumptions. In particular `L1_NORM`, variance, and every
 other false row must stay false until complete Model/profile/formula/order/gradient/native evidence

@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0066; 0053 Blocked | [Metal 0066](backends/metal/tasks/0066-dtype-layout-gradient-gap-closure.md) completed the exact existing-wire dtype/layout/gradient occurrence cutover at wires `6..11,16..19,39..45,51,69,71..84`. Capability remains `83/32`, structural execution remains `101/14`, MPSGraph remains `75/35/5`, custom is `70/45/0`, schema is 15, identity is 22, ABI is 5, and thirteen exports remain fixed. All 32 production-false semantic blockers remain false. No Metal task is Ready. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0066; Task 0067 in cumulative re-review; 0053 Blocked | [Metal 0067](backends/metal/tasks/0067-current-115-kind-evidence-audit.md) has reconciled all 115 current operation kinds and remediated six evidence/test/documentation findings. Capability remains `83/32`, structural execution `101/14`, MPSGraph `75/35/5`, custom `70/45/0`, schema 15, identity 22, ABI 5, and thirteen exports. Its final cumulative re-review is the only open Task-0067 gate; no Metal task is Ready. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -692,6 +692,12 @@ remediation `ed7a3369`.
   occurrence uses one fixed custom route. Capability remains `83/32`, structural execution
   `101/14`, and MPSGraph `75/35/5`; custom is `70/45/0`, schema is 15, identity is 22, ABI is 5,
   and thirteen exports remain fixed. All 32 false semantic rows remain false.
+- Metal 0067 has completed its canonical 115-row audit and all current code-review remediations.
+  Plans `dbdf8b06`/`4b583efe`/`6b8be016`, implementation/evidence `7f9601e1`, public Engine
+  reconciliation `2541c6f3`, findings `1d52989a`, and evidence-review correction `4e604605`
+  preserve capability `83/32`, structural execution `101/14`, MPSGraph `75/35/5`, custom
+  `70/45/0`, schema 15, identity 22, ABI 5, and thirteen exports. Independent cumulative re-review
+  is its only remaining gate.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -705,19 +711,19 @@ remediation `ed7a3369`.
 
 ## Nearest next step
 
-Metal Task 0067 is active only at its canonical 115-row audit-plan review gate; no production
-remediation is authorized before independent approval. Task 0066 completed its one serial
-occurrence cutover without adding an operation kind, schema field, ABI export, route wire, or
-public API. The current boundary remains capability `83/32`, structural execution `101/14`,
-MPSGraph catalog `75/35/5`, custom catalog `70/45/0`, schema 15, identity 22, ABI 5, and thirteen
-exports. Identity 21 and every older backend-local identity fail closed.
+Metal Task 0067 has completed its canonical 115-row implementation/evidence reconciliation and is
+at the independent cumulative re-review gate after remediating every reported P2. It adds no
+operation kind, capability occurrence, schema field, ABI export, route wire, public API, fallback,
+retry, timing, or autotuning. The current boundary remains capability `83/32`, structural execution
+`101/14`, MPSGraph catalog `75/35/5`, custom catalog `70/45/0`, schema 15, identity 22, ABI 5, and
+thirteen exports. Identity 21 and every older backend-local identity fail closed.
 
-The selected wires `6..11,16..19,39..45,51,69,71..84` are custom-only at their admitted
-occurrences. Dynamic or empty geometry, signed-stride transfer, unsafe overlap, arithmetic
-scatter/reduction, transcendental, attention, and recurrent blockers remain unchanged. Task 0066
-supersedes only Task 0040's future direct-BFLOAT16-Gather route conclusion; Task 0040's observed
-`0xffa6 -> 0x7fc0` failure and all historical evidence remain unchanged. Proof-blocked Task 0053
-may resume only after its pinned constructive-real exponential bridge exists.
+The permanent audit now maps every wire to one unique Model kind, exercises one real capability
+query per row, closes every catalog state separately, and preserves Compiler
+`38/111/133 + 4 = 40/115/137`. Real native alias and public Engine tests cover the remediated
+evidence gaps. The 32 production-false rows and their semantic blockers remain false. Proof-blocked
+Task 0053 may resume only after its pinned constructive-real exponential bridge exists; that
+separate external blocker does not block Task 0067.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
@@ -832,9 +838,10 @@ loop or complete TANH/EXP/SIGMOID proof exists and Compiler still rejects BPTT. 
 three recurrent rows fail-closed rather than advertising a no-work or selected-value special case.
 
 Schema 15, operation wires `1..115`, attributes `0..41`, local types `1..6`, ABI 5, and
-version-twenty-two identities remain current after Complete Task 0066. Complete Tasks 0055–0066
-provide the current foundation/catalog/route/domain prerequisites; blocked Metal 0053 remains
-fail-closed without production capability. Metal 0026/0027 remain separately finalized Blocked.
+version-twenty-two identities remain current after Complete Task 0066 and the in-review Task-0067
+reconciliation. Complete Tasks 0055–0066 provide the current foundation/catalog/route/domain
+prerequisites; Task 0067 changes no production boundary. Blocked Metal 0053 remains fail-closed
+without production capability. Metal 0026/0027 remain separately finalized Blocked.
 Documentation/audit-only Metal 0038 is Complete. Planning-only Metal 0039 is Blocked on Draft Model
 0026. Metal 0040 is Blocked by its failed one-execution BFLOAT16 raw-bit gate. Metal 0041 is
 Complete at implementation `ba16d942` plus remediation `386705ca`; Metal 0042 is Complete at
