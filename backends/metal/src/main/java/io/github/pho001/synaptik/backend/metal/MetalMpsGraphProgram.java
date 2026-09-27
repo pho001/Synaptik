@@ -182,9 +182,12 @@ final class MetalMpsGraphProgram {
         RMS_NORM(91, 1, 2, 1, 1, AttributeKind.NORMALIZED_SHAPE_EPSILON),
         SOFTMAX(92, 1, 1, 1, 1, AttributeKind.AXIS),
         LOG_SOFTMAX(93, 1, 1, 1, 1, AttributeKind.AXIS),
-        SORT(94, 1, 1, 1, 1, AttributeKind.SORT),
-        ARGSORT(95, 1, 1, 1, 1, AttributeKind.SORT),
-        TOP_K(96, 1, 1, 2, 2, AttributeKind.TOP_K),
+        SORT(94, 1, 1, 1, 1, AttributeKind.SORT,
+                ValueState.CANONICAL, false, true),
+        ARGSORT(95, 1, 1, 1, 1, AttributeKind.SORT,
+                ValueState.CANONICAL, false, true),
+        TOP_K(96, 1, 1, 2, 2, AttributeKind.TOP_K,
+                ValueState.CANONICAL, false, true),
         MAX_POOL2D(97, 1, 1, 1, 1, AttributeKind.WINDOW_2D),
         AVERAGE_POOL2D(98, 1, 1, 1, 1, AttributeKind.WINDOW_2D),
         MAX_POOL3D(99, 1, 1, 1, 1, AttributeKind.WINDOW_3D),
@@ -200,8 +203,10 @@ final class MetalMpsGraphProgram {
                 ValueState.CANONICAL, false, true),
         ANY(108, 1, 1, 1, 1, AttributeKind.REDUCTION,
                 ValueState.CANONICAL, false, true),
-        ARG_MAX(109, 1, 1, 1, 1, AttributeKind.ARG_EXTREMA),
-        ARG_MIN(110, 1, 1, 1, 1, AttributeKind.ARG_EXTREMA),
+        ARG_MAX(109, 1, 1, 1, 1, AttributeKind.ARG_EXTREMA,
+                ValueState.CANONICAL, false, true),
+        ARG_MIN(110, 1, 1, 1, 1, AttributeKind.ARG_EXTREMA,
+                ValueState.CANONICAL, false, true),
         LOG_SUM_EXP(111, 1, 1, 1, 1, AttributeKind.REDUCTION,
                 ValueState.CANONICAL, false, true),
         VARIANCE(112, 1, 1, 1, 1, AttributeKind.STATISTICAL_REDUCTION,
@@ -268,6 +273,8 @@ final class MetalMpsGraphProgram {
                     || wireIdentity == 72
                     || wireIdentity >= 73 && wireIdentity <= 76
                     || wireIdentity >= 77 && wireIdentity <= 84
+                    || wireIdentity >= 94 && wireIdentity <= 96
+                    || wireIdentity >= 109 && wireIdentity <= 110
                     || wireIdentity >= 106 && wireIdentity <= 108;
         }
         boolean accepts(ValueState inputState) {
@@ -1120,6 +1127,11 @@ final class MetalMpsGraphProgram {
                 }
                 available[output] = true;
                 produced[output] = true;
+            }
+            if (node.kind == NodeKind.TOP_K) {
+                for (int output : node.outputs) {
+                    consumed[output] = true;
+                }
             }
         }
         boolean[] targeted = new boolean[valueCount];

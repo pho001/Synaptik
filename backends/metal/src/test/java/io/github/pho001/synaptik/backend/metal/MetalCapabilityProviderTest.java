@@ -84,7 +84,7 @@ import org.junit.jupiter.api.Test;
 class MetalCapabilityProviderTest {
     private final MetalCapabilityProvider provider = new MetalCapabilityProvider();
     @Test
-    void registeredWireCapabilityLedgerClosesAtSeventyTrueAndFortyFiveFalse() {
+    void registeredWireCapabilityLedgerClosesAtSeventyFiveTrueAndFortyFalse() {
         java.util.Set<MetalMpsGraphProgram.NodeKind> structuralOnly = java.util.Set.of(
                 MetalMpsGraphProgram.NodeKind.TENSOR_POW,
                 MetalMpsGraphProgram.NodeKind.SCALAR_POW,
@@ -109,8 +109,8 @@ class MetalCapabilityProviderTest {
                 .filter(MetalMpsGraphProgram.NodeKind::executable)
                 .filter(kind -> !structuralOnly.contains(kind))
                 .count();
-        assertEquals(70L, trueRows);
-        assertEquals(45L, MetalMpsGraphProgram.NodeKind.values().length - trueRows);
+        assertEquals(75L, trueRows);
+        assertEquals(40L, MetalMpsGraphProgram.NodeKind.values().length - trueRows);
         structuralOnly.forEach(kind -> assertTrue(kind.executable(), kind.name()));
         assertFalse(MetalMpsGraphProgram.NodeKind.EXP.executable());
         assertFalse(MetalMpsGraphProgram.NodeKind.SIGMOID.executable());

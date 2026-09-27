@@ -64,6 +64,12 @@ import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionAttrs;
+import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
+import io.github.pho001.synaptik.model.operation.ordering.SortAttrs;
+import io.github.pho001.synaptik.model.operation.ordering.TopKAttrs;
+import io.github.pho001.synaptik.model.operation.ordering.TopKKind;
+import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -206,25 +212,28 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 }
                 inputStates.add(state);
             }
-            if (node.outputs().size() != 1) {
+            if (node.outputs().isEmpty()) {
                 throw new IllegalArgumentException(
-                        "Metal supported-operation partition requires one output per node");
+                        "Metal supported-operation partition requires node outputs");
             }
-            ValueId outputId = node.outputs().getFirst();
-            GraphValue outputValue = graphValues.get(outputId);
-            if (outputValue == null) {
-                throw new IllegalArgumentException(
-                        "partition value is missing: " + outputId);
-            }
-            if (states.containsKey(outputId) || valueIndexes.containsKey(outputId)) {
-                throw new IllegalArgumentException(
-                        "Metal output must be produced exactly once in topological order");
+            var outputDescriptors = new ArrayList<TensorDescriptor>(node.outputs().size());
+            for (ValueId outputId : node.outputs()) {
+                GraphValue outputValue = graphValues.get(outputId);
+                if (outputValue == null) {
+                    throw new IllegalArgumentException(
+                            "partition value is missing: " + outputId);
+                }
+                if (states.containsKey(outputId) || valueIndexes.containsKey(outputId)) {
+                    throw new IllegalArgumentException(
+                            "Metal output must be produced exactly once in topological order");
+                }
+                outputDescriptors.add(outputValue.descriptor());
             }
             if (!MetalCapabilityProvider.supportsOccurrence(
                     numericalProfile,
                     node.operation(),
                     inputDescriptors,
-                    List.of(outputValue.descriptor()))) {
+                    outputDescriptors)) {
                 throw new IllegalArgumentException(
                         "Metal occurrence is outside the capability domain");
             }
@@ -237,14 +246,23 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         valueIds,
                         descriptors);
             }
-            int outputIndex = index(
-                    outputId, graphValues, valueIndexes, valueIds, descriptors);
+            int[] outputIndices = new int[node.outputs().size()];
+            for (int outputPosition = 0;
+                    outputPosition < outputIndices.length;
+                    outputPosition++) {
+                outputIndices[outputPosition] = index(
+                        node.outputs().get(outputPosition),
+                        graphValues,
+                        valueIndexes,
+                        valueIds,
+                        descriptors);
+            }
             MetalMpsGraphProgram.Node lowered = lower(
                     node.operation(),
                     inputIndices,
-                    outputIndex,
+                    outputIndices,
                     inputDescriptors,
-                    outputValue.descriptor());
+                    outputDescriptors);
             if (lowered.kind() == MetalMpsGraphProgram.NodeKind.MATMUL) {
                 for (int inputIndex = 0; inputIndex < inputStates.size(); inputIndex++) {
                     if (inputStates.get(inputIndex)
@@ -256,17 +274,24 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     }
                 }
             }
-            if (!lowered.kind().acceptsCardinality(inputStates.size(), 1)
+            if (!lowered.kind().acceptsCardinality(
+                            inputStates.size(), outputIndices.length)
                     || inputStates.stream().anyMatch(state -> !lowered.kind().accepts(state))) {
                 throw new IllegalArgumentException(
                         "Metal node input value state is unavailable or incompatible");
             }
             programNodes.add(lowered);
-            boolean exactLocalTranspose = isExactLocalTranspose(
-                    lowered, inputStates, inputDescriptors, outputValue.descriptor(),
-                    node.operation());
-            localTranspose.put(outputId, exactLocalTranspose);
-            states.put(outputId, lowered.kind().outputState());
+            boolean exactLocalTranspose = outputIndices.length == 1
+                    && isExactLocalTranspose(
+                            lowered,
+                            inputStates,
+                            inputDescriptors,
+                            outputDescriptors.getFirst(),
+                            node.operation());
+            for (ValueId outputId : node.outputs()) {
+                localTranspose.put(outputId, exactLocalTranspose);
+                states.put(outputId, lowered.kind().outputState());
+            }
         }
         var graphProgram = new MetalMpsGraphProgram(programNodes);
 
@@ -596,10 +621,53 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
     private static MetalMpsGraphProgram.Node lower(
             Operation operation,
             int[] inputs,
-            int output,
+            int[] outputs,
             List<TensorDescriptor> inputDescriptors,
-            TensorDescriptor outputDescriptor) {
+            List<TensorDescriptor> outputDescriptors) {
         OperationKind kind = operation.kind();
+        int output = outputs[0];
+        TensorDescriptor outputDescriptor = outputDescriptors.getFirst();
+        if (kind instanceof OrderingKind ordering) {
+            SortAttrs attrs = (SortAttrs) operation.attrs();
+            MetalMpsGraphProgram.NodeKind nodeKind = ordering == OrderingKind.SORT
+                    ? MetalMpsGraphProgram.NodeKind.SORT
+                    : MetalMpsGraphProgram.NodeKind.ARGSORT;
+            return MetalMpsGraphProgram.Node.generic(
+                    nodeKind,
+                    inputs,
+                    outputs,
+                    MetalMpsGraphProgram.AttributeKind.SORT,
+                    new long[] {attrs.axis(), attrs.descending() ? 1L : 0L});
+        }
+        if (kind == TopKKind.TOP_K) {
+            TopKAttrs attrs = (TopKAttrs) operation.attrs();
+            return MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.TOP_K,
+                    inputs,
+                    outputs,
+                    MetalMpsGraphProgram.AttributeKind.TOP_K,
+                    new long[] {
+                        attrs.axis(),
+                        attrs.k(),
+                        attrs.largest() ? 1L : 0L,
+                        attrs.sorted() ? 1L : 0L
+                    });
+        }
+        if (kind == AggregateReductionKind.ARG_MAX
+                || kind == AggregateReductionKind.ARG_MIN) {
+            ArgExtremaAttrs attrs = (ArgExtremaAttrs) operation.attrs();
+            long tie = attrs.tiePolicy() == ArgExtremaTiePolicy.FIRST_INDEX ? 1L : 2L;
+            return MetalMpsGraphProgram.Node.generic(
+                    kind == AggregateReductionKind.ARG_MAX
+                            ? MetalMpsGraphProgram.NodeKind.ARG_MAX
+                            : MetalMpsGraphProgram.NodeKind.ARG_MIN,
+                    inputs,
+                    outputs,
+                    MetalMpsGraphProgram.AttributeKind.ARG_EXTREMA,
+                    new long[] {
+                        attrs.axis(), attrs.keepDimensions() ? 1L : 0L, tie
+                    });
+        }
         if (kind == LossKind.MEAN_SQUARED_ERROR) {
             MeanSquaredErrorAttrs attrs = (MeanSquaredErrorAttrs) operation.attrs();
             long reduction = switch (attrs.reduction()) {

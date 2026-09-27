@@ -62,6 +62,12 @@ import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKin
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
+import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
+import io.github.pho001.synaptik.model.operation.ordering.SortAttrs;
+import io.github.pho001.synaptik.model.operation.ordering.TopKAttrs;
+import io.github.pho001.synaptik.model.operation.ordering.TopKKind;
+import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -144,6 +150,8 @@ import java.util.Objects;
  * LOG_SUM_EXP through L2_NORM remain production-false.</p>
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
+    private static final long UINT32_MAX = 0xffff_ffffL;
+
     /**
      * Stable Planning ownership identity for the Metal backend.
      *
@@ -205,11 +213,25 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         Objects.requireNonNull(operation, "operation");
         Objects.requireNonNull(inputs, "inputs");
         Objects.requireNonNull(outputs, "outputs");
+        if (operation.kind() == TopKKind.TOP_K) {
+            try {
+                return supportsTopK(operation, inputs, outputs);
+            } catch (IllegalArgumentException | ArithmeticException incompatible) {
+                return false;
+            }
+        }
         if (outputs.size() != 1) {
             return false;
         }
         TensorDescriptor output = outputs.getFirst();
         try {
+            if (operation.kind() instanceof OrderingKind ordering) {
+                return supportsOrdering(operation, inputs, output, ordering);
+            }
+            if (operation.kind() == AggregateReductionKind.ARG_MAX
+                    || operation.kind() == AggregateReductionKind.ARG_MIN) {
+                return supportsArgExtrema(operation, inputs, output);
+            }
             if (operation.kind() == CastKind.CAST) {
                 return supportsCast(operation, inputs, output);
             }
@@ -319,6 +341,109 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         } catch (IllegalArgumentException | ArithmeticException incompatible) {
             return false;
         }
+    }
+
+    private static boolean supportsOrdering(
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            TensorDescriptor output,
+            OrderingKind kind) {
+        if (!(operation.attrs() instanceof SortAttrs attrs) || inputs.size() != 1) {
+            return false;
+        }
+        TensorDescriptor input = inputs.getFirst();
+        if (!canonicalOrdering(input, false)
+                || !canonicalOrdering(output, false)
+                || attrs.axis() >= input.shape().rank()
+                || !input.shape().equals(output.shape())) {
+            return false;
+        }
+        if (kind == OrderingKind.SORT) {
+            return output.dataType() == input.dataType()
+                    && output.requiresGrad() == input.requiresGrad();
+        }
+        return output.dataType() == DataType.INT64 && !output.requiresGrad();
+    }
+
+    private static boolean supportsTopK(
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            List<TensorDescriptor> outputs) {
+        if (!(operation.attrs() instanceof TopKAttrs attrs)
+                || inputs.size() != 1 || outputs.size() != 2) {
+            return false;
+        }
+        TensorDescriptor input = inputs.getFirst();
+        TensorDescriptor values = outputs.get(0);
+        TensorDescriptor indices = outputs.get(1);
+        if (!canonicalOrdering(input, false)
+                || !canonicalOrdering(values, false)
+                || !canonicalOrdering(indices, false)
+                || attrs.axis() >= input.shape().rank()) {
+            return false;
+        }
+        long[] expected = input.shape().toLongArray();
+        if (attrs.k() < 1L || attrs.k() > expected[attrs.axis()]
+                || attrs.k() > UINT32_MAX) {
+            return false;
+        }
+        expected[attrs.axis()] = attrs.k();
+        Shape expectedShape = Shape.of(expected);
+        return values.dataType() == input.dataType()
+                && values.requiresGrad() == input.requiresGrad()
+                && values.shape().equals(expectedShape)
+                && indices.dataType() == DataType.INT64
+                && !indices.requiresGrad()
+                && indices.shape().equals(expectedShape);
+    }
+
+    private static boolean supportsArgExtrema(
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+        if (!(operation.attrs() instanceof ArgExtremaAttrs attrs) || inputs.size() != 1) {
+            return false;
+        }
+        TensorDescriptor input = inputs.getFirst();
+        if (!canonicalOrdering(input, false)
+                || !canonicalOrdering(output, true)
+                || input.dataType() == DataType.BOOL
+                || attrs.axis() >= input.shape().rank()
+                || output.dataType() != DataType.INT64
+                || output.requiresGrad()
+                || (attrs.tiePolicy() != ArgExtremaTiePolicy.FIRST_INDEX
+                        && attrs.tiePolicy() != ArgExtremaTiePolicy.LAST_INDEX)) {
+            return false;
+        }
+        long[] source = input.shape().toLongArray();
+        long[] expected;
+        if (attrs.keepDimensions()) {
+            expected = source.clone();
+            expected[attrs.axis()] = 1L;
+        } else {
+            expected = new long[source.length - 1];
+            System.arraycopy(source, 0, expected, 0, attrs.axis());
+            System.arraycopy(
+                    source, attrs.axis() + 1, expected, attrs.axis(),
+                    source.length - attrs.axis() - 1);
+        }
+        return output.shape().equals(Shape.of(expected));
+    }
+
+    private static boolean canonicalOrdering(
+            TensorDescriptor descriptor, boolean allowScalar) {
+        if (!canonicalAny(descriptor, allowScalar)) {
+            return false;
+        }
+        long elements = 1L;
+        for (long dimension : descriptor.shape().toLongArray()) {
+            if (dimension > UINT32_MAX) {
+                return false;
+            }
+            elements = Math.multiplyExact(elements, dimension);
+            if (elements > UINT32_MAX) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean supportsSelect(

@@ -481,6 +481,7 @@ abstract class MetalNativeApi implements AutoCloseable {
     /** Exact Java preflight for the schema-fifteen typed Metal program create contract. */
     static final class MpsGraphExecutableAbi {
         private static final int MAX_RANK = 16;
+        private static final long UINT32_MAX = 0xffff_ffffL;
 
         private MpsGraphExecutableAbi() {}
 
@@ -551,11 +552,9 @@ abstract class MetalNativeApi implements AutoCloseable {
                     .anyMatch(node -> node.kind().isCustomProgramOperation()
                             || usesCustomMatmul(node, types, valueRanks));
             if (route == MetalPreparedRoute.MPSGRAPH
-                    && graphProgram.nodes().stream().anyMatch(node -> {
-                        int wire = node.kind().wireIdentity();
-                        return wire >= 20 && wire <= 34
-                                || usesCustomMatmul(node, types, valueRanks);
-                    })) {
+                    && graphProgram.nodes().stream()
+                            .anyMatch(node -> task0063CustomOnly(node.kind())
+                                    || usesCustomMatmul(node, types, valueRanks))) {
                 throw new IllegalArgumentException(
                         "custom-only operations have no approved direct MPSGraph route");
             }
@@ -565,14 +564,17 @@ abstract class MetalNativeApi implements AutoCloseable {
                 int output = node.outputIndex();
                 int auxiliary = node.auxiliary();
                 requireIndex(left, valueCount, "first node input");
-                requireIndex(output, valueCount, "node output");
                 if (!node.kind().accepts(states[left])) {
                     throw new IllegalArgumentException(
                             "Metal MPSGraph node input value state is unavailable or incompatible");
                 }
-                if (states[output] != MetalMpsGraphProgram.ValueState.UNAVAILABLE) {
-                    throw new IllegalArgumentException(
-                            "Metal MPSGraph node outputs must be unique and not feeds");
+                for (int nodeOutput : node.outputs()) {
+                    requireIndex(nodeOutput, valueCount, "node output");
+                    if (states[nodeOutput]
+                            != MetalMpsGraphProgram.ValueState.UNAVAILABLE) {
+                        throw new IllegalArgumentException(
+                                "Metal MPSGraph node outputs must be unique and not feeds");
+                    }
                 }
                 for (int input : node.inputs()) {
                     requireIndex(input, valueCount, "node input");
@@ -613,6 +615,25 @@ abstract class MetalNativeApi implements AutoCloseable {
                                 || values.get(output).requiresGrad())) {
                     throw new IllegalArgumentException(
                             "Metal scalar arithmetic and reciprocal require no-grad values");
+                }
+                if (node.kind() == MetalMpsGraphProgram.NodeKind.SORT
+                        || node.kind() == MetalMpsGraphProgram.NodeKind.TOP_K) {
+                    if (values.get(left).requiresGrad()
+                            != values.get(output).requiresGrad()) {
+                        throw new IllegalArgumentException(
+                                "value ordering output must preserve input gradient metadata");
+                    }
+                } else if ((node.kind() == MetalMpsGraphProgram.NodeKind.ARGSORT
+                                || node.kind() == MetalMpsGraphProgram.NodeKind.ARG_MAX
+                                || node.kind() == MetalMpsGraphProgram.NodeKind.ARG_MIN)
+                        && values.get(output).requiresGrad()) {
+                    throw new IllegalArgumentException(
+                            "index ordering outputs must not require gradients");
+                }
+                if (node.kind() == MetalMpsGraphProgram.NodeKind.TOP_K
+                        && values.get(node.outputs()[1]).requiresGrad()) {
+                    throw new IllegalArgumentException(
+                            "TOP_K index output must not require gradients");
                 }
                 switch (node.kind()) {
                     case NEG, ABS, CONTIGUOUS, SCALAR_MIN, SCALAR_MAX, CLAMP, CUM_SUM, CUM_PROD,
@@ -757,6 +778,12 @@ abstract class MetalNativeApi implements AutoCloseable {
                                     statisticalReductionMatches(
                                             node, left, output, valueRanks, valueDimensions),
                                     "statistical reduction attributes and output shape disagree");
+                    case SORT, ARGSORT, TOP_K, ARG_MAX, ARG_MIN ->
+                            requireShape(
+                                    task0063ShapeMatches(node, values),
+                                    node.kind()
+                                            + " attributes, unsigned geometry, and output shape"
+                                            + " disagree");
                     case MATMUL -> {
                         requireIndex(right, valueCount, "second node input");
                         if (valueRanks[left] == 0
@@ -868,6 +895,28 @@ abstract class MetalNativeApi implements AutoCloseable {
                             throw new IllegalArgumentException(
                                     "PERMUTE has an unsupported carrier or gradient metadata");
                         }
+                    }
+                    case SORT -> {
+                        if (types[left] != types[output]) {
+                            throw new IllegalArgumentException(
+                                    "SORT must preserve its exact carrier type");
+                        }
+                    }
+                    case ARGSORT -> requireType(types, output, ValueType.INT64);
+                    case TOP_K -> {
+                        int[] nodeOutputs = node.outputs();
+                        if (types[left] != types[nodeOutputs[0]]) {
+                            throw new IllegalArgumentException(
+                                    "TOP_K values must preserve the exact input carrier");
+                        }
+                        requireType(types, nodeOutputs[1], ValueType.INT64);
+                    }
+                    case ARG_MAX, ARG_MIN -> {
+                        if (types[left] == ValueType.BOOL) {
+                            throw new IllegalArgumentException(
+                                    "arg extrema require a numeric input carrier");
+                        }
+                        requireType(types, output, ValueType.INT64);
                     }
                     case PROD -> {
                         if (types[left] != types[output]
@@ -1045,10 +1094,12 @@ abstract class MetalNativeApi implements AutoCloseable {
                         }
                     }
                 }
-                states[output] = node.kind().outputState();
+                for (int nodeOutput : node.outputs()) {
+                    states[nodeOutput] = node.kind().outputState();
+                    used[nodeOutput] = true;
+                    produced[nodeOutput] = true;
+                }
                 used[left] = true;
-                used[output] = true;
-                produced[output] = true;
             }
             if (route == MetalPreparedRoute.CUSTOM_PROGRAM && !containsCustomOperation) {
                 throw new IllegalArgumentException(
@@ -1087,6 +1138,94 @@ abstract class MetalNativeApi implements AutoCloseable {
                 }
             }
         }
+        private static boolean task0063ShapeMatches(
+                MetalMpsGraphProgram.Node node,
+                List<MetalMpsGraphProgram.ValueDescriptor> values) {
+            try {
+                int inputIndex = node.firstInputIndex();
+                int[] outputs = node.outputs();
+                long[] input = values.get(inputIndex).dimensions();
+                long[] words = node.attributeWords();
+                if (!task0063Uint32Bounded(input, false)) return false;
+                return switch (node.kind()) {
+                    case SORT, ARGSORT -> outputs.length == 1
+                            && words.length == 2
+                            && words[0] >= 0L && words[0] < input.length
+                            && words[1] >= 0L && words[1] <= 1L
+                            && task0063Uint32Bounded(
+                                    values.get(outputs[0]).dimensions(), false)
+                            && Arrays.equals(
+                                    input, values.get(outputs[0]).dimensions());
+                    case TOP_K -> {
+                        if (outputs.length != 2
+                                || words.length != 4
+                                || words[0] < 0L || words[0] >= input.length
+                                || words[1] < 1L || words[1] > UINT32_MAX
+                                || words[1] > input[Math.toIntExact(words[0])]
+                                || words[2] < 0L || words[2] > 1L
+                                || words[3] < 0L || words[3] > 1L) {
+                            yield false;
+                        }
+                        long[] expected = input.clone();
+                        expected[Math.toIntExact(words[0])] = words[1];
+                        yield task0063Uint32Bounded(
+                                        values.get(outputs[0]).dimensions(), false)
+                                && task0063Uint32Bounded(
+                                        values.get(outputs[1]).dimensions(), false)
+                                && Arrays.equals(
+                                        expected, values.get(outputs[0]).dimensions())
+                                && Arrays.equals(
+                                        expected, values.get(outputs[1]).dimensions());
+                    }
+                    case ARG_MAX, ARG_MIN -> {
+                        if (outputs.length != 1
+                                || words.length != 3
+                                || words[0] < 0L || words[0] >= input.length
+                                || words[1] < 0L || words[1] > 1L
+                                || words[2] < 1L || words[2] > 2L) {
+                            yield false;
+                        }
+                        int axis = Math.toIntExact(words[0]);
+                        boolean keep = words[1] != 0L;
+                        long[] expected = new long[keep ? input.length : input.length - 1];
+                        for (int source = 0, destination = 0;
+                                source < input.length;
+                                source++) {
+                            if (source == axis) {
+                                if (keep) expected[destination++] = 1L;
+                            } else {
+                                expected[destination++] = input[source];
+                            }
+                        }
+                        yield task0063Uint32Bounded(
+                                        values.get(outputs[0]).dimensions(), true)
+                                && Arrays.equals(
+                                        expected, values.get(outputs[0]).dimensions());
+                    }
+                    default -> false;
+                };
+            } catch (ArithmeticException | IndexOutOfBoundsException exception) {
+                return false;
+            }
+        }
+
+        private static boolean task0063Uint32Bounded(
+                long[] dimensions, boolean allowScalar) {
+            if ((!allowScalar && dimensions.length == 0)
+                    || dimensions.length > MAX_RANK) {
+                return false;
+            }
+            long elements = 1L;
+            for (long dimension : dimensions) {
+                if (dimension < 1L || dimension > UINT32_MAX
+                        || elements > UINT32_MAX / dimension) {
+                    return false;
+                }
+                elements *= dimension;
+            }
+            return true;
+        }
+
         private static boolean task0060NonOverlappingFold(
                 MetalMpsGraphProgram.Node node) {
             long[] words = node.attributeWords();
@@ -1563,6 +1702,13 @@ abstract class MetalNativeApi implements AutoCloseable {
             }
         }
 
+        private static boolean task0063CustomOnly(MetalMpsGraphProgram.NodeKind kind) {
+            return switch (kind) {
+                case SORT, ARGSORT, TOP_K, ARG_MAX, ARG_MIN -> true;
+                default -> false;
+            };
+        }
+
         private static boolean usesCustomMatmul(
                 MetalMpsGraphProgram.Node node, ValueType[] types, int[] ranks) {
             if (node.kind() != MetalMpsGraphProgram.NodeKind.MATMUL) return false;
@@ -1661,7 +1807,8 @@ abstract class MetalNativeApi implements AutoCloseable {
                             IS_FINITE, IS_NAN, IS_INF, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT,
                             WHERE, CAST, GATHER_ELEMENTS, SCATTER_ADD, GATHER_ND, SCATTER_ND,
                             SELECT, PAD, SLICE, SLICE_UPDATE, CONCAT, STACK, TILE, FOLD_AXIS,
-                            UNFOLD2D, FOLD2D, UNFOLD3D, FOLD3D, PROD, ALL, ANY, MATMUL -> true;
+                            UNFOLD2D, FOLD2D, UNFOLD3D, FOLD3D, PROD, ALL, ANY, MATMUL,
+                            SORT, ARGSORT, TOP_K, ARG_MAX, ARG_MIN -> true;
                     default -> false;
                 };
                 case ACCELERATOR -> true;

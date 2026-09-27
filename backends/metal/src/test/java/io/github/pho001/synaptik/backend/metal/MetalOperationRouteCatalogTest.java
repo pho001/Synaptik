@@ -56,11 +56,11 @@ class MetalOperationRouteCatalogTest {
         assertEquals(75, direct);
         assertEquals(35, composed);
         assertEquals(5, unavailable);
-        assertEquals(47, customAvailable);
-        assertEquals(68, customPending);
+        assertEquals(52, customAvailable);
+        assertEquals(63, customPending);
         assertEquals(0, customUnavailableWithProof);
-        assertEquals(88, executable);
-        assertEquals(27, kinds.length - executable);
+        assertEquals(93, executable);
+        assertEquals(22, kinds.length - executable);
         assertThrows(NullPointerException.class, () -> MetalOperationRouteCatalog.entry(null));
     }
 
@@ -167,6 +167,24 @@ class MetalOperationRouteCatalogTest {
                 MetalOperationRouteCatalog.MpsGraphReason.MC_LOGSUMEXP,
                 MetalOperationRouteCatalog.CustomKernelState.PENDING,
                 MetalOperationRouteCatalog.CustomKernelReason.CP_AGGREGATE);
+        assertCatalog(
+                MetalMpsGraphProgram.NodeKind.SORT,
+                MetalOperationRouteCatalog.MpsGraphState.DIRECT,
+                MetalOperationRouteCatalog.MpsGraphReason.MD_SORT,
+                MetalOperationRouteCatalog.CustomKernelState.AVAILABLE,
+                MetalOperationRouteCatalog.CustomKernelReason.CA_0063);
+        for (MetalMpsGraphProgram.NodeKind kind : Set.of(
+                MetalMpsGraphProgram.NodeKind.ARGSORT,
+                MetalMpsGraphProgram.NodeKind.TOP_K,
+                MetalMpsGraphProgram.NodeKind.ARG_MAX,
+                MetalMpsGraphProgram.NodeKind.ARG_MIN)) {
+            assertCatalog(
+                    kind,
+                    MetalOperationRouteCatalog.MpsGraphState.COMPOSED,
+                    MetalOperationRouteCatalog.MpsGraphReason.MC_INDEX64,
+                    MetalOperationRouteCatalog.CustomKernelState.AVAILABLE,
+                    MetalOperationRouteCatalog.CustomKernelReason.CA_0063);
+        }
         for (MetalMpsGraphProgram.NodeKind kind : Set.of(
                 MetalMpsGraphProgram.NodeKind.DROPOUT,
                 MetalMpsGraphProgram.NodeKind.INITIAL_STATE)) {

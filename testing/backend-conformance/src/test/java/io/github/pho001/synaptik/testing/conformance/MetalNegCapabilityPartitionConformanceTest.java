@@ -45,9 +45,15 @@ import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.loss.LossKind;
 import io.github.pho001.synaptik.model.operation.loss.LossReduction;
 import io.github.pho001.synaptik.model.operation.loss.MeanSquaredErrorAttrs;
+import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
+import io.github.pho001.synaptik.model.operation.ordering.SortAttrs;
+import io.github.pho001.synaptik.model.operation.ordering.TopKAttrs;
+import io.github.pho001.synaptik.model.operation.ordering.TopKKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -709,6 +715,71 @@ final class MetalNegCapabilityPartitionConformanceTest {
         assertEquals(1, partitions.size());
         assertSame(MetalCapabilityProvider.METAL_BACKEND_ID, partitions.getFirst().owner());
         assertEquals(List.of(unfold.id(), neg.id()), partitions.getFirst().nodeIds());
+    }
+
+    @Test
+    void orderingTopKAndArgExtremaProduceOneMaximalMetalRegion() {
+        ValueId input = new ValueId(120);
+        ValueId sorted = new ValueId(121);
+        ValueId topValues = new ValueId(122);
+        ValueId topIndices = new ValueId(123);
+        ValueId arg = new ValueId(124);
+        TensorDescriptor matrix = typed(DataType.FLOAT32, Shape.of(2, 4));
+        TensorDescriptor topMatrix = typed(DataType.FLOAT32, Shape.of(2, 2));
+        TensorDescriptor topIndexMatrix = typed(DataType.INT64, Shape.of(2, 2));
+        TensorDescriptor argVector = typed(DataType.INT64, Shape.of(2));
+        CompiledNode sort = new CompiledNode(
+                new NodeId(120),
+                new Operation(OrderingKind.SORT, new SortAttrs(1, true)),
+                List.of(input),
+                List.of(sorted));
+        CompiledNode top = new CompiledNode(
+                new NodeId(121),
+                new Operation(TopKKind.TOP_K, new TopKAttrs(1, 2, true, false)),
+                List.of(sorted),
+                List.of(topValues, topIndices));
+        CompiledNode maximum = new CompiledNode(
+                new NodeId(122),
+                new Operation(AggregateReductionKind.ARG_MAX,
+                        new ArgExtremaAttrs(
+                                1, false, ArgExtremaTiePolicy.LAST_INDEX)),
+                List.of(topValues),
+                List.of(arg));
+        var provider = new MetalCapabilityProvider();
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            assertTrue(provider.supports(query(
+                    profile, sort.operation(), List.of(matrix), List.of(matrix))));
+            assertTrue(provider.supports(query(
+                    profile, top.operation(), List.of(matrix),
+                    List.of(topMatrix, topIndexMatrix))));
+            assertTrue(provider.supports(query(
+                    profile, maximum.operation(), List.of(topMatrix), List.of(argVector))));
+        }
+        var graph = new CompiledGraphModel(
+                List.of(
+                        new GraphValue(input, matrix),
+                        new GraphValue(sorted, matrix),
+                        new GraphValue(topValues, topMatrix),
+                        new GraphValue(topIndices, topIndexMatrix),
+                        new GraphValue(arg, argVector)),
+                List.of(sort, top, maximum),
+                List.of(input),
+                List.of(sorted, topIndices, arg),
+                Map.of(
+                        sort.id(), GraphPhase.FORWARD,
+                        top.id(), GraphPhase.FORWARD,
+                        maximum.id(), GraphPhase.FORWARD));
+        var partitions = MaximalSameOwnerPartitioning.partition(
+                graph,
+                Map.of(
+                        sort.id(), MetalCapabilityProvider.METAL_BACKEND_ID,
+                        top.id(), MetalCapabilityProvider.METAL_BACKEND_ID,
+                        maximum.id(), MetalCapabilityProvider.METAL_BACKEND_ID));
+        assertEquals(1, partitions.size());
+        assertSame(MetalCapabilityProvider.METAL_BACKEND_ID, partitions.getFirst().owner());
+        assertEquals(
+                List.of(sort.id(), top.id(), maximum.id()),
+                partitions.getFirst().nodeIds());
     }
 
     private static OperationCapabilityQuery query(

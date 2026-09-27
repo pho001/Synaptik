@@ -73,6 +73,7 @@ final class MetalOperationRouteCatalog {
         CA_0059,
         CA_0060,
         CA_0061,
+        CA_0063,
         CP_POINT,
         CP_POWER,
         CP_ELEMENTARY,
@@ -213,11 +214,11 @@ final class MetalOperationRouteCatalog {
         COMPOSED_LOG_SOFTMAX_PENDING_AGGREGATE(MpsGraphState.COMPOSED,
                 MpsGraphReason.MC_LOG_SOFTMAX, CustomKernelState.PENDING,
                 CustomKernelReason.CP_AGGREGATE),
-        DIRECT_SORT_PENDING_AGGREGATE(MpsGraphState.DIRECT, MpsGraphReason.MD_SORT,
-                CustomKernelState.PENDING, CustomKernelReason.CP_AGGREGATE),
-        COMPOSED_INDEX64_PENDING_AGGREGATE(MpsGraphState.COMPOSED,
-                MpsGraphReason.MC_INDEX64, CustomKernelState.PENDING,
-                CustomKernelReason.CP_AGGREGATE),
+        DIRECT_SORT_CUSTOM_0063(MpsGraphState.DIRECT, MpsGraphReason.MD_SORT,
+                CustomKernelState.AVAILABLE, CustomKernelReason.CA_0063),
+        COMPOSED_INDEX64_CUSTOM_0063(MpsGraphState.COMPOSED,
+                MpsGraphReason.MC_INDEX64, CustomKernelState.AVAILABLE,
+                CustomKernelReason.CA_0063),
         DIRECT_POOL2D_PENDING_AGGREGATE(MpsGraphState.DIRECT,
                 MpsGraphReason.MD_POOL2D, CustomKernelState.PENDING,
                 CustomKernelReason.CP_AGGREGATE),
@@ -335,9 +336,9 @@ final class MetalOperationRouteCatalog {
             case RMS_NORM -> Entry.COMPOSED_RMS_PENDING_AGGREGATE;
             case SOFTMAX -> Entry.DIRECT_SOFTMAX_PENDING_AGGREGATE;
             case LOG_SOFTMAX -> Entry.COMPOSED_LOG_SOFTMAX_PENDING_AGGREGATE;
-            case SORT -> Entry.DIRECT_SORT_PENDING_AGGREGATE;
+            case SORT -> Entry.DIRECT_SORT_CUSTOM_0063;
             case ARGSORT, TOP_K, ARG_MAX, ARG_MIN ->
-                    Entry.COMPOSED_INDEX64_PENDING_AGGREGATE;
+                    Entry.COMPOSED_INDEX64_CUSTOM_0063;
             case MAX_POOL2D, AVERAGE_POOL2D -> Entry.DIRECT_POOL2D_PENDING_AGGREGATE;
             case MAX_POOL3D, AVERAGE_POOL3D -> Entry.COMPOSED_WINDOW3D_PENDING_AGGREGATE;
             case DROPOUT, INITIAL_STATE -> Entry.UNAVAILABLE_RNG_PENDING_STATE;
