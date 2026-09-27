@@ -444,6 +444,19 @@ class MetalCapabilityProviderTest {
                 scalarSeed,
                 gradientVector,
                 gradientVector)));
+        TensorDescriptor gradientMatrix = descriptor(Shape.of(2, 3), true);
+        assertFalse(provider.supports(binaryQuery(
+                NumericalProfile.ACCELERATOR,
+                BinaryArithmeticKind.MUL,
+                scalarSeed,
+                gradientMatrix,
+                gradientMatrix)));
+        assertFalse(provider.supports(binaryQuery(
+                NumericalProfile.ACCELERATOR,
+                BinaryArithmeticKind.MUL,
+                gradientMatrix,
+                row,
+                gradientMatrix)));
         for (UnaryElementwiseKind kind : UnaryElementwiseKind.values()) {
             assertEquals(exactRawUnary(kind),
                     provider.supports(unaryQuery(

@@ -1181,13 +1181,17 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         }
         TensorDescriptor left = inputs.get(0);
         TensorDescriptor right = inputs.get(1);
+        boolean scalarVectorMultiply = binary == BinaryArithmeticKind.MUL
+                && output.shape().rank() == 1
+                && ((left.shape().rank() == 0 && right.shape().rank() == 1)
+                        || (right.shape().rank() == 0 && left.shape().rank() == 1));
         boolean gradientsValid = binary == BinaryArithmeticKind.MIN
                         || binary == BinaryArithmeticKind.MAX
                 ? !left.requiresGrad() && !right.requiresGrad() && !output.requiresGrad()
-                : output.requiresGrad() == (left.requiresGrad() || right.requiresGrad());
-        boolean scalarVectorMultiply = binary == BinaryArithmeticKind.MUL
-                && ((left.shape().rank() == 0 && right.shape().rank() > 0)
-                        || (right.shape().rank() == 0 && left.shape().rank() > 0));
+                : scalarVectorMultiply
+                        ? output.requiresGrad() == (left.requiresGrad() || right.requiresGrad())
+                        : left.requiresGrad() == right.requiresGrad()
+                                && left.requiresGrad() == output.requiresGrad();
         boolean storageValid = scalarVectorMultiply
                 ? canonicalReductionOutput(left)
                         && canonicalReductionOutput(right)
