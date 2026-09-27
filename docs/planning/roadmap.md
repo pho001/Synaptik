@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0063; 0064 implementation complete with cumulative review pending; 0053 Blocked | [Metal 0064](backends/metal/tasks/0064-convolution-pooling-and-attention-boundary.md) implements six fixed custom convolution/pooling rows from approved plan `994cd69199cdb5e2524e9b7f48bbdd0fac4a9094` while attention remains blocked on exp/softmax and selector/output proof and ConvTranspose remains absent. Current production is `81/34`, structural execution `99/16`, catalogs are `75/35/5` and `58/57/0`, schema 15, identity 20, ABI 5, and thirteen exports; package/full validation and cumulative review remain the completion gate. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0064; 0065 Ready; 0053 Blocked | [Metal 0064](backends/metal/tasks/0064-convolution-pooling-and-attention-boundary.md) is Complete through `3df362e1`. [Metal 0065](backends/metal/tasks/0065-explicit-state-rng-dropout-and-recurrent-boundary.md) is independently approved and Ready for exact both-profile `INITIAL_STATE` and accelerator FLOAT32 `DROPOUT` through one fixed custom route; generic eager distributions add no graph row and all recurrent rows remain blocked on elementary proof and BPTT. Current production remains `81/34`, structural execution `99/16`, catalogs `75/35/5` and `58/57/0`, schema 15, identity 20, ABI 5, and thirteen exports until implementation completes. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -644,14 +644,15 @@ matrix with narrowing, or infer capability from registered schema.
 Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
 0017, Trace 0003, and Metal
 0015/0019/0020/0021/0022/0023/0024/0025/0038/0041/0042/0043/0044/0045/0046/0048/0049/0050/0054/
-0055/0056/0057/0058/0059/0060/0061/0062/0063 are Complete. Metal 0016–0018, 0026–0027,
+0055/0056/0057/0058/0059/0060/0061/0062/0063/0064 are Complete. Metal 0016–0018, 0026–0027,
 0030–0037, planning-only 0039, failed-gate 0040, provider-gated 0047, historical consumed-oracle
 0051, and proof-blocked 0053 remain Blocked under their recorded contracts. Task 0052 is Complete;
 Task 0054 remains its exact historical pre-cutover inventory. Tasks 0055–0061 remain completed
 foundation/catalog and operation-family prerequisites, Complete Task 0062 owns the bounded MSE
-forward cutover, and Complete Task 0063 owns the exact ordering/top-K/arg-extrema cutover. Task 0064
-has approved plan `994cd69199cdb5e2524e9b7f48bbdd0fac4a9094` and production implementation
-`58d1da7f`; package/full validation and cumulative independent review remain its completion gate.
+forward cutover, Complete Task 0063 owns the exact ordering/top-K/arg-extrema cutover, and Complete
+Task 0064 owns the six convolution/pooling rows through final reconciliation `3df362e1`. Task 0065
+is `Ready` after independent remediated-plan approval with zero unresolved P0/P1/P2 and is the sole
+Metal production frontier.
 - Metal 0063 is Complete through implementation `9931d5f8`, documentation `f7800a26`, remediation
   `8a74b499`, final source/test correction `86399d53`, and active-document reconciliation
   `c80d79c0`. Its exact custom domain accepts only static canonical positive Shapes whose
@@ -662,12 +663,12 @@ has approved plan `994cd69199cdb5e2524e9b7f48bbdd0fac4a9094` and production impl
   cumulative review at `c80d79c0` returned `APPROVE` with zero P0/P1/P2 and confirmed the tracked
   full-width INT32 XOR key, clean worktree, tests, documentation, and counts. Historical
   direct-selector Task 0034 remains Blocked.
-- Metal 0064 implements fixed custom accelerator Conv2d/Conv3d and average Pool2d/Pool3d plus exact
-  both-profile max Pool2d/Pool3d. Attention remains blocked on the unproved exponential/softmax
-  core and incomplete opaque selector/output contract; ConvTranspose has no Model or registry
-  contract. Current capability is `81/34`, structural execution is `99/16`, catalogs are
-  `75/35/5` MPSGraph and `58/57/0` custom, schema is 15, identity is 20, ABI is 5, and thirteen
-  exports remain fixed.
+- Metal 0064 is Complete through `3df362e1` with fixed custom accelerator Conv2d/Conv3d and average
+  Pool2d/Pool3d plus exact both-profile max Pool2d/Pool3d. Attention remains blocked on the
+  unproved exponential/softmax core and incomplete opaque selector/output contract; ConvTranspose
+  has no Model or registry contract. Current capability is `81/34`, structural execution is
+  `99/16`, catalogs are `75/35/5` MPSGraph and `58/57/0` custom, schema is 15, identity is 20,
+  ABI is 5, and thirteen exports remain fixed.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -681,21 +682,22 @@ has approved plan `994cd69199cdb5e2524e9b7f48bbdd0fac4a9094` and production impl
 
 ## Nearest next step
 
-Metal Task 0064 is the nearest completion gate. Its approved
-[seven-row audit](backends/metal/tasks/0064-convolution-pooling-and-attention-boundary.md) covers
-wires 35..37 and 97..100, exact Model/Compiler formulas and gradients, retained direct/composed
-MPSGraph evidence, fixed custom algorithms, unsigned-32-bit bounds, identity/count deltas, public
-Engine evidence, and the absence of a ConvTranspose contract. Production implementation
-`58d1da7f` contains exactly six custom-only rows: accelerator FLOAT32-result Conv2d/Conv3d,
-both-profile exact maximum Pool2d/Pool3d, and accelerator FLOAT32 average Pool2d/Pool3d, including
-authenticated Conv1d/Pool1d composition.
+Metal Task 0065 is the nearest production frontier. Its independently approved
+[five-row plan](backends/metal/tasks/0065-explicit-state-rng-dropout-and-recurrent-boundary.md)
+covers wires 101..105, exact Model/Compiler state, mask, dropout, recurrent, gradient, and
+train/evaluation contracts, exact eager-distribution mappings and their non-operation boundary,
+retained MPSGraph evidence, one versioned Metal-private counter route, zero-feed/multi-output
+lifecycle, unsigned-32-bit bounds, identity/count deltas, public Engine evidence, and recurrent
+blockers.
 
-Attention remains false pending a complete exponential/softmax proof and exact
-mask/causal/saved-weights selector or custom route. Current capability is `81/34`, structural
-execution `99/16`, MPSGraph catalog `75/35/5`, custom catalog `58/57/0`, schema 15, identity 20,
-ABI 5, and thirteen exports; Task 0053 remains Blocked on its external constructive-real bridge.
-Task 0064 requires package/full validation and independent cumulative Class C approval before its
-status becomes Complete. No later Metal task is Ready.
+The proposed production cutover is exactly both-profile `INITIAL_STATE` plus accelerator FLOAT32
+`DROPOUT` over the complete explicit key/counter and binary64 probability domains. It plans fixed
+custom-only routing with no entropy source, hidden RNG, timing, autotuning, cache winner, retry, or
+fallback. `TensorRandoms` remains eager caller-owned host sampling. RNN/GRU/LSTM remain false until
+complete TANH/EXP/SIGMOID proof and Compiler BPTT exist. Current capability remains `81/34`,
+structural execution `99/16`, MPSGraph catalog `75/35/5`, custom catalog `58/57/0`, schema 15,
+identity 20, ABI 5, and thirteen exports. The approved plan authorizes one serial production
+cutover; these current production values remain unchanged until it lands.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
@@ -799,20 +801,21 @@ or route. Max Pool3d retains exact winner-selection obligations, and Task 0030's
 evidence forbids generic MPSGraph max assumptions. UNFOLD3D/FOLD3D require separate custom
 movement/overlap planning. Unblocking requires a conforming route with complete structural and
 recursive-subset proof.
-Metal 0037 remains Blocked without a device probe. Its smallest candidate is profile-common
+Metal 0037 remains Blocked without a device probe. Its historical smallest candidate was
 canonical positive static FLOAT32 no-grad bias-free FORWARD RNN_TANH over the complete runtime
-valid-length domain. Complete Model 0030 recursively reaches `ACCELERATOR` contractions,
+valid-length domain. Complete Model 0030 now recursively reaches `ACCELERATOR` contractions,
 additions, tanh/sigmoid sites, and state arithmetic. The macOS-12.3 direct selector nevertheless
 has no INT64 valid-length input, atomic validation, skipped padded work, positive-zero padding
-contract, or `finalHidden`; its optional training output has the wrong role. The opaque selector
-lacks complete recurrence/state-publication proof, and GRU/LSTM add their own output-role/order and
-gradient obligations. Unblocking requires a conforming custom or proved selector route plus the
-complete five-input/two-output/caller-INT64 schema, native lifecycle, and proof.
+contract, or `finalHidden`; its optional training output has the wrong role. Schema 15 now carries
+the complete variable-cardinality, multi-output, and INT64 vocabulary, but no custom recurrent
+loop or complete TANH/EXP/SIGMOID proof exists and Compiler still rejects BPTT. Task 0065 keeps all
+three recurrent rows fail-closed rather than advertising a no-work or selected-value special case.
 
 Schema 15, operation wires `1..115`, attributes `0..41`, local types `1..6`, ABI 5, and
-version-twenty identities are current after Task 0064 implementation. Complete Tasks 0055–0063
-remain historical foundation/catalog/route/domain prerequisites; blocked Metal 0053 remains
-fail-closed without production capability. Metal 0026/0027 remain separately finalized Blocked.
+version-twenty identities remain current after Complete Task 0064. Task 0065 is `Ready` but changes
+none of them before implementation. Complete Tasks 0055–0064 remain historical
+foundation/catalog/route/domain prerequisites; blocked Metal 0053 remains fail-closed without
+production capability. Metal 0026/0027 remain separately finalized Blocked.
 Documentation/audit-only Metal 0038 is Complete. Planning-only Metal 0039 is Blocked on Draft Model
 0026. Metal 0040 is Blocked by its failed one-execution BFLOAT16 raw-bit gate. Metal 0041 is
 Complete at implementation `ba16d942` plus remediation `386705ca`; Metal 0042 is Complete at
