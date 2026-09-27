@@ -182,7 +182,7 @@ device discovery.
 
 | Stage or resource | Owner and current behavior |
 |---|---|
-| Capability truth | Public `MetalCapabilityProvider` reports the exact common unary, affine, canonicalization, indexing, BOOL-domain, Task-0059 movement, Task-0060 replacement/fold/aggregate, and promoted integral MATMUL rows under both profiles. Accelerator additionally reports the documented FLOAT32 arithmetic/reduction/scan rows, every positive-static FLOAT32 MATMUL geometry, no-gradient BFLOAT16/FLOAT32 mixed MATMUL, and same-type canonical positive-rank FLOAT32 MSE for `NONE`, `SUM`, and `MEAN`. |
+| Capability truth | Public `MetalCapabilityProvider` reports the exact common unary, affine, canonicalization, indexing, BOOL-domain, Task-0059 movement, Task-0060 replacement/fold/aggregate, promoted integral MATMUL, and Task-0063 ordering/top-K/numeric arg-extrema rows under both profiles. Accelerator additionally reports the documented FLOAT32 arithmetic/reduction/scan rows, every positive-static FLOAT32 MATMUL geometry, no-gradient BFLOAT16/FLOAT32 mixed MATMUL, and same-type canonical positive-rank FLOAT32 MSE for `NONE`, `SUM`, and `MEAN`. |
 | Native configuration and integration | Public `MetalBackendConfiguration` and `MetalBackendIntegration` belong to Metal. Metal validates configuration, opens native ownership, and rolls partial construction back before Engine can take the completed integration. |
 | Backend ownership | Planning chooses `owner = metal` and groups consecutive equal owners; it never selects MPSGraph or a custom kernel. |
 | Analysis | Package-private Metal code validates the complete partition, assigns stable structural value order, regenerates typed route candidates and session compatibility, authenticates any supplied decision, fixes one route, and declares that route's exact resources. |
@@ -1071,23 +1071,26 @@ Related documentation:
 - [Metal task 0058](../planning/backends/metal/tasks/0058-remaining-elementwise-arithmetic.md)
 - [Metal task 0061](../planning/backends/metal/tasks/0061-general-static-matmul-domain.md)
 - [Metal task 0062](../planning/backends/metal/tasks/0062-accelerator-mse-and-normalization-loss-boundary.md)
+- [Metal task 0063](../planning/backends/metal/tasks/0063-exact-ordering-and-arg-extrema.md)
 - [Native ABI and build guide](../../native/metal-macos-arm64/README.md)
 
 ## Numerical profiles
 
 Metal capability and preparation make the listed exact canonical movement, affine, indexing,
-classification, BOOL logic, WHERE, `NEG`/`ABS`/`FLOOR`/`CEIL`/`SIGN`/`RELU`, and no-gradient
-promoted INT32/INT64 MATMUL rows common to both profile matrices. `ACCELERATOR` additionally admits
-tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`/`MIN`/`MAX`, all six comparisons, scalar MIN/MAX/CLAMP,
-canonical FLOAT32 SUM/MEAN/MIN/MAX/SUM_TO_SHAPE, every CUM_SUM/CUM_PROD scan mode, every
-positive-static FLOAT32 MATMUL rank/broadcast geometry with authenticated local transposes, the
-no-gradient mixed BFLOAT16/FLOAT32 pairs, and same-type positive-rank FLOAT32 MSE for `NONE`,
-`SUM`, and `MEAN`. These arithmetic routes remain inside Model's exact/discrete or recursive
-primitive/aggregate floors; they gain no generic final-output tolerance. MSE owns no generated
-backward graph and grants no neighboring normalization/loss-family capability. The profile is
-retained in partition plans and every route/tuning/codec/workload identity. Java enforces the
-boundary before native entry. ABI version `5` retains thirteen export names and accepts one bounded
-schema-15 route-bearing image; operation wires `1..115`, attribute wires `0..41`, and type wires
-`1..6` cover the current structural registry without widening capability. Route, candidate,
-compatibility, workload, exact-policy, and codec identities are version `18`; the complete-plan
-wrapper remains version `1`.
+classification, BOOL logic, WHERE, `NEG`/`ABS`/`FLOOR`/`CEIL`/`SIGN`/`RELU`, no-gradient promoted
+INT32/INT64 MATMUL, and Task-0063 ordering/top-K/numeric arg-extrema rows common to both profile
+matrices. `ACCELERATOR` additionally admits tensor FLOAT32 `ADD`/`SUB`/`MUL`/`DIV`/`MIN`/`MAX`,
+all six comparisons, scalar MIN/MAX/CLAMP, canonical FLOAT32 SUM/MEAN/MIN/MAX/SUM_TO_SHAPE, every
+CUM_SUM/CUM_PROD scan mode, every positive-static FLOAT32 MATMUL rank/broadcast geometry with
+authenticated local transposes, the no-gradient mixed BFLOAT16/FLOAT32 pairs, and same-type
+positive-rank FLOAT32 MSE for `NONE`, `SUM`, and `MEAN`. Task-0063 rows are canonical-dense,
+positive-static, custom-only, and unsigned-32-bit bounded under both profiles. These arithmetic
+routes remain inside Model's exact/discrete or recursive primitive/aggregate floors; they gain no
+generic final-output tolerance. MSE owns no generated backward graph and grants no neighboring
+normalization/loss-family capability. The profile is retained in partition plans and every
+route/tuning/codec/workload identity. Java enforces the boundary before native entry. ABI version
+`5` retains thirteen export names and accepts one bounded schema-15 route-bearing image; operation
+wires `1..115`, attribute wires `0..41`, and type wires `1..6` cover the current structural
+registry without widening capability. Route, candidate, compatibility, workload, exact-policy,
+and codec identities are version `19`; version `18` fails closed. The complete-plan wrapper remains
+version `1`.

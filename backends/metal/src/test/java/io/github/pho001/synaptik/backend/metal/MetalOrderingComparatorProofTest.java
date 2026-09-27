@@ -1,5 +1,6 @@
 package io.github.pho001.synaptik.backend.metal;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -156,18 +157,39 @@ class MetalOrderingComparatorProofTest {
                             sequence[coordinate], coordinate, ascending) < 0);
                 }
             }
+            int[] ranks = new int[sequence.length];
+            for (int source = 0; source < sequence.length; source++) {
+                for (int candidate = 0; candidate < sequence.length; candidate++) {
+                    if (compare(
+                            type,
+                            sequence[candidate],
+                            candidate,
+                            sequence[source],
+                            source,
+                            ascending) < 0) {
+                        ranks[source]++;
+                    }
+                }
+            }
             for (boolean sorted : List.of(false, true)) {
                 for (int k = 1; k <= sequence.length; k++) {
-                    int[] selected = Arrays.copyOf(order, k);
-                    boolean[] member = new boolean[sequence.length];
-                    for (int coordinate : selected) member[coordinate] = true;
-                    if (!sorted) Arrays.sort(selected);
-                    for (int position = 0; position < selected.length; position++) {
-                        assertTrue(member[selected[position]]);
-                        if (!sorted && position > 0) {
-                            assertTrue(selected[position - 1] < selected[position]);
+                    int[] expected = Arrays.copyOf(order, k);
+                    if (!sorted) Arrays.sort(expected);
+                    int[] placed = new int[k];
+                    Arrays.fill(placed, -1);
+                    for (int source = 0; source < sequence.length; source++) {
+                        if (ranks[source] >= k) continue;
+                        int position = ranks[source];
+                        if (!sorted) {
+                            position = 0;
+                            for (int earlier = 0; earlier < source; earlier++) {
+                                if (ranks[earlier] < k) position++;
+                            }
                         }
+                        assertEquals(-1, placed[position]);
+                        placed[position] = source;
                     }
+                    assertArrayEquals(expected, placed);
                 }
             }
         }

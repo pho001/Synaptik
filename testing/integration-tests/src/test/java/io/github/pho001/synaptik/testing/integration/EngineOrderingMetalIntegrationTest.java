@@ -108,6 +108,73 @@ final class EngineOrderingMetalIntegrationTest {
             }
         }
     }
+
+    @Test
+    void int32SameSignMagnitudesReachEveryPublicOrderingResult() {
+        Path library = configuredMetalLibrary();
+        for (NumericalProfile profile : NumericalProfile.values()) {
+            try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
+                builder.numericalProfile(profile);
+                builder.takeOwnership(MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library)));
+                try (Engine engine = builder.build()) {
+                    Tensor input = nativeTensor(
+                            DataType.INT32, Shape.of(6),
+                            new long[] {7, 3, -2, -9, 7, -9}, arena);
+                    Tensor ascending = input.sort(0, false);
+                    Tensor descending = input.sort(0, true);
+                    Tensor ascendingIndices = input.argsort(0, false);
+                    Tensor descendingIndices = input.argsort(0, true);
+                    var largest = input.topK(4, 0, true, true);
+                    var smallest = input.topK(4, 0, false, false);
+                    Tensor maxFirst = input.argMax(
+                            0, true, ArgExtremaTiePolicy.FIRST_INDEX);
+                    Tensor maxLast = input.argMax(
+                            0, true, ArgExtremaTiePolicy.LAST_INDEX);
+                    Tensor minFirst = input.argMin(
+                            0, true, ArgExtremaTiePolicy.FIRST_INDEX);
+                    Tensor minLast = input.argMin(
+                            0, true, ArgExtremaTiePolicy.LAST_INDEX);
+                    Tensor orderedTopIndices = largest.indices().sort(0, false);
+                    var outputs = List.of(
+                            ascending,
+                            descending,
+                            ascendingIndices,
+                            descendingIndices,
+                            largest.values(),
+                            largest.indices(),
+                            smallest.values(),
+                            smallest.indices(),
+                            maxFirst,
+                            maxLast,
+                            minFirst,
+                            minLast,
+                            orderedTopIndices);
+                    var compiled = engine.compile(outputs);
+                    assertEquals(List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(compiled));
+                    List<byte[]> expected = List.of(
+                            words(DataType.INT32, -9, -9, -2, 3, 7, 7),
+                            words(DataType.INT32, 7, 7, 3, -2, -9, -9),
+                            longWords(3, 5, 2, 1, 0, 4),
+                            longWords(0, 4, 1, 2, 3, 5),
+                            words(DataType.INT32, 7, 7, 3, -2),
+                            longWords(0, 4, 1, 2),
+                            words(DataType.INT32, 3, -2, -9, -9),
+                            longWords(1, 2, 3, 5),
+                            longWords(0),
+                            longWords(4),
+                            longWords(3),
+                            longWords(5),
+                            longWords(0, 1, 2, 4));
+                    try (var session = engine.session(compiled)) {
+                        assertResults(session.run(List.of(input)), expected);
+                    }
+                }
+            }
+        }
+    }
+
     @Test
     void cpuFreeEngineRejectsOverLimitAndGeneratedOrderingBackwardBeforePreparation() {
         Path library = configuredMetalLibrary();

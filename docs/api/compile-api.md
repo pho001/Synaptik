@@ -1266,8 +1266,10 @@ with the exact original input, normalized axis, and direction, then routes the c
 that permutation. The current fail-closed CPU path advertises, lowers, prepares, and executes only
 fully static, resolved-layout SORT/ARGSORT occurrences over all six represented input types with
 an exact normalized axis, input-shaped same-type values or INT64 indices, stable NaN-last and
-signed-zero order, and an injective output. Gradient support remains limited to the floating SORT
-role above. Dynamic binding and other-backend execution remain planned.
+signed-zero order, and an injective output. The current Metal path separately admits both kinds
+under both profiles for canonical dense ranks `1..16` whose positive geometry and logical indices
+fit unsigned 32 bits, and always selects its fixed custom program. Gradient support remains limited
+to the floating SORT role above. Dynamic binding and unlisted-backend execution remain planned.
 
 Preflight requires the exact SORT input/output descriptors, `SortAttrs`, normalized axis,
 direction, and matching one-input/one-output ARGSORT constructibility before any derivative Tensor
@@ -1287,11 +1289,14 @@ and proves or retains the selected-extent obligation without binding an extent o
 The current fail-closed CPU path advertises, lowers, prepares, and executes only fully static,
 resolved-layout TOP_K occurrences over all six represented input types with exact normalized
 axis, `0 <= k <= selected extent`, largest/smallest and sorted/unsorted attributes, same-type
-values plus non-differentiable INT64 indices, equal output Shapes, and two injective outputs.
-Dynamic selected-extent binding and other-backend execution remain planned. Current floating TOP_K
-values-slot autograd uses the exact canonical indices wrapper at producer slot one and never
-recomputes selection. Indices remain non-differentiable; stable cutoff membership, NaN membership,
-direction, and sorted-output order are routed without selected-set averaging.
+values plus non-differentiable INT64 indices, equal output Shapes, and two injective outputs. The
+current Metal path separately admits positive K under both profiles for canonical dense ranks
+`1..16` whose positive geometry and logical indices fit unsigned 32 bits. One fixed custom step
+retains both outputs through target subsets, composition, reuse, and publication. Dynamic selected-
+extent binding and unlisted-backend execution remain planned. Current floating TOP_K values-slot
+autograd uses the exact canonical indices wrapper at producer slot one and never recomputes
+selection. Indices remain non-differentiable; stable cutoff membership, NaN membership, direction,
+and sorted-output order are routed without selected-set averaging.
 `Tensor.embedding(indices)` currently validates a rank-two floating weight receiver and exact
 INT32/INT64 indices, then constructs the existing ordinary axis-zero GATHER occurrence directly.
 The result Shape is the complete indices Shape plus the exact weight axis-one Dimension; result
@@ -1377,8 +1382,11 @@ does not compare values or select an index. Current compiler capture and verific
 separate. The current fail-closed CPU path advertises, lowers, prepares, and executes only the
 fully static, resolved-layout five-numeric-type ARG_MIN/ARG_MAX subset with a positive selected
 extent, exact keep/remove-Dimension Shape, fixed non-gradient INT64 result, tie policy, and
-injective output. A future binding boundary must prove or validate that a dynamic selected extent
-is positive before index selection; dynamic binding and other-backend execution remain planned.
+injective output. The current Metal path separately admits the canonical dense subset under both
+profiles for ranks `1..16` whose positive geometry and logical indices fit unsigned 32 bits, using
+the same NaN-preferred extrema and explicit first/last tie semantics. A future binding boundary
+must prove or validate that a dynamic selected extent is positive before index selection; dynamic
+binding and unlisted-backend execution remain planned.
 The 26 multi-axis/statistical methods accept ordered distinct positive or negative axes. Caller
 order is retained in immutable `MultiAxisReductionAttrs` or `StatisticalReductionAttrs`; Shape
 derivation uses membership to remove selected axes or retain them with extent one. An empty axis

@@ -22,12 +22,15 @@ cross-module integration service-provider interface (SPI). The CPU backend expos
 identical exact execution under both numerical profiles. The Metal backend exposes
 `MetalBackendConfiguration`, `MetalBackendIntegration`, `MetalTraceObserver`, and a closed
 profile-qualified domain. Its common domain includes exact unary, affine, canonicalization,
-indexing, classification, BOOL, Task-0059 raw-movement, Task-0060 replacement/fold/aggregate, and
-no-gradient promoted INT32/INT64 MATMUL rows. UNFOLD_AXIS accepts canonical input rank 1..15, size
-1..16, positive step, and size no larger than the selected extent; it returns the exact
-rank-plus-one floor-count Shape, preserves addressed FLOAT32 bits, and does not mutate or alias its
-source. Replacement scatter validates complete bounds then target uniqueness before dispatch and
-writes, preserves exact addressed-update and unaddressed-base bits, and leaves inputs unchanged.
+indexing, classification, BOOL, Task-0059 raw-movement, Task-0060 replacement/fold/aggregate,
+no-gradient promoted INT32/INT64 MATMUL, and Task-0063 ordering/top-K/numeric arg-extrema rows.
+SORT/ARGSORT/positive-K TOP_K admit all six carriers, while ARG_MIN/ARG_MAX admit the five numeric
+carriers, over canonical dense ranks `1..16` with positive unsigned-32-bit-bounded geometry and
+logical indices. UNFOLD_AXIS accepts canonical input rank 1..15, size 1..16, positive step, and size
+no larger than the selected extent; it returns the exact rank-plus-one floor-count Shape, preserves
+addressed FLOAT32 bits, and does not mutate or alias its source. Replacement scatter validates
+complete bounds then target uniqueness before dispatch and writes, preserves exact addressed-update
+and unaddressed-base bits, and leaves inputs unchanged.
 Accelerator Metal additionally supports canonical tensor `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, and
 `MAX`; all six comparisons with local canonical BOOL publication; exact FLOAT32 scalar `MIN`,
 `MAX`, and `CLAMP`; canonical positive-rank no-gradient FLOAT32 scalar `ADD`, `SUB`, `MUL`, and

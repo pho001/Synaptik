@@ -19,6 +19,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -704,6 +705,194 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
 
+    @Test
+    void task0063JavaAndRawNativePreflightsAgreeAtUint32AndOnHostileImages()
+            throws Throwable {
+        Path library = configuredLibrary();
+        long uint32Max = 0xffff_ffffL;
+        try (RawAbi abi = new RawAbi(library)) {
+            for (MetalMpsGraphProgram.NodeKind kind : List.of(
+                    MetalMpsGraphProgram.NodeKind.SORT,
+                    MetalMpsGraphProgram.NodeKind.ARGSORT,
+                    MetalMpsGraphProgram.NodeKind.TOP_K,
+                    MetalMpsGraphProgram.NodeKind.ARG_MAX,
+                    MetalMpsGraphProgram.NodeKind.ARG_MIN)) {
+                Task0063Case exact = task0063Case(kind, 1L, uint32Max);
+                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                        NumericalProfile.STRICT_IEEE,
+                        exact.values(),
+                        exact.program(),
+                        new int[] {0},
+                        exact.targets(),
+                        MetalPreparedRoute.CUSTOM_PROGRAM);
+                byte[] exactImage = exact.program().encodedProgramImage(
+                        exact.values(),
+                        new int[] {0},
+                        exact.targets(),
+                        MetalPreparedRoute.CUSTOM_PROGRAM);
+                assertEquals(0, abi.create(exactImage, exactImage.length),
+                        kind + " exact UINT32_MAX");
+
+                Task0063Case onePast = task0063Case(kind, 1L, uint32Max + 1L);
+                assertTask0063RejectedByJavaAndNative(abi, onePast, kind + " one past");
+            }
+
+            Task0063Case productOverflow = task0063Case(
+                    MetalMpsGraphProgram.NodeKind.SORT, 65_536L, 65_536L);
+            assertTask0063RejectedByJavaAndNative(
+                    abi, productOverflow, "product one past UINT32_MAX");
+
+            Task0063Case exactSort = task0063Case(
+                    MetalMpsGraphProgram.NodeKind.SORT, 1L, uint32Max);
+            byte[] exactSortImage = exactSort.program().encodedProgramImage(
+                    exactSort.values(),
+                    new int[] {0},
+                    exactSort.targets(),
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            int firstSpan = MetalMpsGraphProgram.HEADER_BYTES + 32;
+            assertEquals(1, abi.create(
+                    rewriteLong(exactSortImage, firstSpan, uint32Max + 1L),
+                    exactSortImage.length), "malformed byte span");
+            int strideOffset = MetalMpsGraphProgram.HEADER_BYTES
+                    + exactSort.values().size() * MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES
+                    + MetalMpsGraphProgram.NODE_DESCRIPTOR_BYTES
+                    + 4 * Long.BYTES;
+            assertEquals(1, abi.create(
+                    rewriteLong(exactSortImage, strideOffset, uint32Max + 1L),
+                    exactSortImage.length), "one-past canonical stride");
+
+            Task0063Case topK = task0063Case(
+                    MetalMpsGraphProgram.NodeKind.TOP_K, 6L);
+            byte[] validTopK = topK.program().encodedProgramImage(
+                    topK.values(),
+                    new int[] {0},
+                    topK.targets(),
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            assertEquals(0, abi.create(validTopK, validTopK.length));
+
+            List<List<MetalMpsGraphProgram.ValueDescriptor>> malformedCompanions =
+                    List.of(
+                            List.of(
+                                    descriptor(DataType.INT32, 6),
+                                    descriptor(DataType.INT32, 1),
+                                    descriptor(DataType.INT32, 1)),
+                            List.of(
+                                    descriptor(DataType.INT32, 6),
+                                    descriptor(DataType.INT32, 1),
+                                    descriptor(DataType.INT64, 2)),
+                            List.of(
+                                    descriptor(DataType.INT32, 6),
+                                    descriptor(DataType.INT32, 1),
+                                    new MetalMpsGraphProgram.ValueDescriptor(
+                                            DataType.INT64, new long[] {1}, true)));
+            for (List<MetalMpsGraphProgram.ValueDescriptor> values
+                    : malformedCompanions) {
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                                NumericalProfile.STRICT_IEEE,
+                                values,
+                                topK.program(),
+                                new int[] {0},
+                                topK.targets(),
+                                MetalPreparedRoute.CUSTOM_PROGRAM));
+                byte[] malformed = topK.program().encodedProgramImage(
+                        values,
+                        new int[] {0},
+                        topK.targets(),
+                        MetalPreparedRoute.CUSTOM_PROGRAM);
+                assertEquals(1, abi.create(malformed, malformed.length));
+            }
+
+            int referencesOffset = MetalMpsGraphProgram.HEADER_BYTES
+                    + topK.values().size() * MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES
+                    + MetalMpsGraphProgram.NODE_DESCRIPTOR_BYTES
+                    + 6 * Long.BYTES;
+            assertEquals(1, abi.create(
+                    rewriteInt(
+                            validTopK,
+                            referencesOffset + 4 * Integer.BYTES,
+                            topK.values().size()),
+                    validTopK.length), "out-of-range TOP_K companion");
+        }
+    }
+
+    private static Task0063Case task0063Case(
+            MetalMpsGraphProgram.NodeKind kind, long... inputDimensions) {
+        int axis = inputDimensions.length - 1;
+        MetalMpsGraphProgram.Node node;
+        var values = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>();
+        values.add(descriptor(DataType.INT32, inputDimensions));
+        switch (kind) {
+            case SORT -> {
+                node = MetalMpsGraphProgram.Node.generic(
+                        kind,
+                        new int[] {0},
+                        new int[] {1},
+                        MetalMpsGraphProgram.AttributeKind.SORT,
+                        new long[] {axis, 0});
+                values.add(descriptor(DataType.INT32, inputDimensions));
+            }
+            case ARGSORT -> {
+                node = MetalMpsGraphProgram.Node.generic(
+                        kind,
+                        new int[] {0},
+                        new int[] {1},
+                        MetalMpsGraphProgram.AttributeKind.SORT,
+                        new long[] {axis, 0});
+                values.add(descriptor(DataType.INT64, inputDimensions));
+            }
+            case TOP_K -> {
+                node = MetalMpsGraphProgram.Node.generic(
+                        kind,
+                        new int[] {0},
+                        new int[] {1, 2},
+                        MetalMpsGraphProgram.AttributeKind.TOP_K,
+                        new long[] {axis, 1, 1, 1});
+                long[] outputDimensions = inputDimensions.clone();
+                outputDimensions[axis] = 1L;
+                values.add(descriptor(DataType.INT32, outputDimensions));
+                values.add(descriptor(DataType.INT64, outputDimensions));
+            }
+            case ARG_MAX, ARG_MIN -> {
+                node = MetalMpsGraphProgram.Node.generic(
+                        kind,
+                        new int[] {0},
+                        new int[] {1},
+                        MetalMpsGraphProgram.AttributeKind.ARG_EXTREMA,
+                        new long[] {axis, 0, kind == MetalMpsGraphProgram.NodeKind.ARG_MAX ? 1 : 2});
+                values.add(descriptor(
+                        DataType.INT64,
+                        Arrays.copyOf(inputDimensions, inputDimensions.length - 1)));
+            }
+            default -> throw new IllegalArgumentException("not a Task0063 kind: " + kind);
+        }
+        return new Task0063Case(
+                new MetalMpsGraphProgram(List.of(node)),
+                List.copyOf(values),
+                new int[] {1});
+    }
+
+    private static void assertTask0063RejectedByJavaAndNative(
+            RawAbi abi, Task0063Case fixture, String message) throws Throwable {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                        NumericalProfile.STRICT_IEEE,
+                        fixture.values(),
+                        fixture.program(),
+                        new int[] {0},
+                        fixture.targets(),
+                        MetalPreparedRoute.CUSTOM_PROGRAM),
+                message);
+        byte[] image = fixture.program().encodedProgramImage(
+                fixture.values(),
+                new int[] {0},
+                fixture.targets(),
+                MetalPreparedRoute.CUSTOM_PROGRAM);
+        assertEquals(1, abi.create(image, image.length), message);
+    }
+
     private static byte[] validNegImage() {
         var program = new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.neg(0, 1)));
         return program.encodedProgramImage(
@@ -753,6 +942,12 @@ class MetalMpsGraphRawAbiNativeTest {
     private static MetalMpsGraphProgram.ValueDescriptor descriptor(long... dimensions) {
         return new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, dimensions, false);
     }
+
+    private static MetalMpsGraphProgram.ValueDescriptor descriptor(
+            DataType dataType, long... dimensions) {
+        return new MetalMpsGraphProgram.ValueDescriptor(dataType, dimensions, false);
+    }
+
     private static MetalMpsGraphProgram.Node matmulNode(int left, int right, int output) {
         return MetalMpsGraphProgram.Node.matmul(left, right, output);
     }
@@ -760,7 +955,6 @@ class MetalMpsGraphRawAbiNativeTest {
     private static int readInt(byte[] source, int offset) {
         return ByteBuffer.wrap(source).order(ByteOrder.LITTLE_ENDIAN).getInt(offset);
     }
-
 
     private static ScalarCase scalarCase(MetalMpsGraphProgram.NodeKind kind) {
         DataType[] inputTypes;
@@ -811,6 +1005,20 @@ class MetalMpsGraphRawAbiNativeTest {
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             int[] feeds,
             int[] targets) {}
+
+    private record Task0063Case(
+            MetalMpsGraphProgram program,
+            List<MetalMpsGraphProgram.ValueDescriptor> values,
+            int[] targets) {
+        private Task0063Case {
+            targets = targets.clone();
+        }
+
+        @Override
+        public int[] targets() {
+            return targets.clone();
+        }
+    }
 
     private static int nodeOffset(int valueCount) {
         return MetalMpsGraphProgram.HEADER_BYTES

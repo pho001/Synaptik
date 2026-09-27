@@ -118,14 +118,15 @@ capability, compile artifacts, Prepare, and backend identity. For any backend, s
 and behavior are an accelerator subset for the same occurrence domain. CPU executes both profiles
 with the same exact current semantics. Metal's common exact domain contains the exact unary,
 affine, canonicalization, indexing, BOOL-domain, Task-0059 movement, Task-0060
-replacement/fold/aggregate, and no-gradient promoted INT32/INT64 MATMUL rows. Accelerator
-additionally admits the documented FLOAT32 arithmetic, extrema, scalar, reduction, and scan rows;
-every positive-static FLOAT32 MATMUL vector, matrix, batched, and broadcast geometry; and
-no-gradient BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 output. Every unlisted occurrence fails
-closed before route selection. Metal uses ABI 5 with the same thirteen exports and one bounded
-schema-15 route-bearing program image. Operation wires `1..115`, attribute wires `0..41`, and type
-wires `1..6` cover current structural vocabulary; version-eighteen identities authenticate that
-meaning without widening capability.
+replacement/fold/aggregate, Task-0063 ordering/top-K/numeric arg-extrema, and no-gradient promoted
+INT32/INT64 MATMUL rows. Accelerator additionally admits the documented FLOAT32 arithmetic,
+extrema, scalar, reduction, and scan rows; every positive-static FLOAT32 MATMUL vector, matrix,
+batched, and broadcast geometry; and no-gradient BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 output.
+Every unlisted occurrence fails closed before route selection. Metal uses ABI 5 with the same
+thirteen exports and one bounded schema-15 route-bearing program image. Operation wires `1..115`,
+attribute wires `0..41`, and type wires `1..6` cover current structural vocabulary;
+version-nineteen identities authenticate that meaning without widening capability, and version
+eighteen fails closed.
 Model remains the sole semantic owner of profile meaning.
 
 The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).

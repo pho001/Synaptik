@@ -122,6 +122,66 @@ class MetalOrderingNativeTest {
         }
     }
 
+    @Test
+    void int32SameSignMagnitudesDriveEveryNativeOrderingPath() {
+        var program = new MetalMpsGraphProgram(List.of(
+                node(MetalMpsGraphProgram.NodeKind.SORT, new int[] {0}, new int[] {1},
+                        MetalMpsGraphProgram.AttributeKind.SORT, 0, 0),
+                node(MetalMpsGraphProgram.NodeKind.SORT, new int[] {0}, new int[] {2},
+                        MetalMpsGraphProgram.AttributeKind.SORT, 0, 1),
+                node(MetalMpsGraphProgram.NodeKind.ARGSORT, new int[] {0}, new int[] {3},
+                        MetalMpsGraphProgram.AttributeKind.SORT, 0, 0),
+                node(MetalMpsGraphProgram.NodeKind.ARGSORT, new int[] {0}, new int[] {4},
+                        MetalMpsGraphProgram.AttributeKind.SORT, 0, 1),
+                node(MetalMpsGraphProgram.NodeKind.TOP_K, new int[] {0}, new int[] {5, 6},
+                        MetalMpsGraphProgram.AttributeKind.TOP_K, 0, 4, 1, 1),
+                node(MetalMpsGraphProgram.NodeKind.TOP_K, new int[] {0}, new int[] {7, 8},
+                        MetalMpsGraphProgram.AttributeKind.TOP_K, 0, 4, 0, 0),
+                node(MetalMpsGraphProgram.NodeKind.ARG_MAX, new int[] {0}, new int[] {9},
+                        MetalMpsGraphProgram.AttributeKind.ARG_EXTREMA, 0, 1, 1),
+                node(MetalMpsGraphProgram.NodeKind.ARG_MAX, new int[] {0}, new int[] {10},
+                        MetalMpsGraphProgram.AttributeKind.ARG_EXTREMA, 0, 1, 2),
+                node(MetalMpsGraphProgram.NodeKind.ARG_MIN, new int[] {0}, new int[] {11},
+                        MetalMpsGraphProgram.AttributeKind.ARG_EXTREMA, 0, 1, 1),
+                node(MetalMpsGraphProgram.NodeKind.ARG_MIN, new int[] {0}, new int[] {12},
+                        MetalMpsGraphProgram.AttributeKind.ARG_EXTREMA, 0, 1, 2)));
+        var values = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>();
+        values.add(typed(DataType.INT32, 6));
+        values.add(typed(DataType.INT32, 6));
+        values.add(typed(DataType.INT32, 6));
+        values.add(typed(DataType.INT64, 6));
+        values.add(typed(DataType.INT64, 6));
+        for (int output = 0; output < 2; output++) {
+            values.add(typed(DataType.INT32, 4));
+            values.add(typed(DataType.INT64, 4));
+        }
+        for (int output = 0; output < 4; output++) {
+            values.add(typed(DataType.INT64, 1));
+        }
+        int[] targets = new int[12];
+        for (int index = 0; index < targets.length; index++) targets[index] = index + 1;
+
+        List<byte[]> actual = execute(
+                program,
+                values,
+                new int[] {0},
+                targets,
+                intWords(7, 3, -2, -9, 7, -9));
+
+        assertArrayEquals(intWords(-9, -9, -2, 3, 7, 7), actual.get(0));
+        assertArrayEquals(intWords(7, 7, 3, -2, -9, -9), actual.get(1));
+        assertArrayEquals(longWords(3, 5, 2, 1, 0, 4), actual.get(2));
+        assertArrayEquals(longWords(0, 4, 1, 2, 3, 5), actual.get(3));
+        assertArrayEquals(intWords(7, 7, 3, -2), actual.get(4));
+        assertArrayEquals(longWords(0, 4, 1, 2), actual.get(5));
+        assertArrayEquals(intWords(3, -2, -9, -9), actual.get(6));
+        assertArrayEquals(longWords(1, 2, 3, 5), actual.get(7));
+        assertArrayEquals(longWords(0), actual.get(8));
+        assertArrayEquals(longWords(4), actual.get(9));
+        assertArrayEquals(longWords(3), actual.get(10));
+        assertArrayEquals(longWords(5), actual.get(11));
+    }
+
     private static CarrierCase carrierCase(DataType type) {
         if (type.isFloating()) {
             long nanA;

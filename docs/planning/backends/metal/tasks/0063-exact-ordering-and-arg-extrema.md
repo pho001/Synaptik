@@ -90,8 +90,9 @@ Admit each occurrence under both `STRICT_IEEE` and `ACCELERATOR` only when all o
   forms, and both tie policies; BOOL is invalid, and the result is always INT64/no-grad with the
   selected dimension removed or replaced by extent one exactly as requested; and
 - repeated input identity and arbitrary fan-out are valid. A `TOP_K` node always computes both
-  ordered outputs even when only one is a graph target; either or both roles may be published,
-  reused internally, repeated as targets, or consumed by later admitted custom-program nodes.
+  ordered outputs even when only one is a graph target; either or both roles may be identity-unique
+  targets in one compilation, requested again in independent compilations or sessions, reused
+  internally, or consumed by later admitted custom-program nodes.
 
 The fixed dispatch truth table is:
 
@@ -393,8 +394,9 @@ the subsequent documentation revision updates the authorized explanatory and sta
    one-past-limit rejection, and overflow rejection have Java/native parity and occur before
    pipeline, buffer, or other resource creation.
 5. One TOP_K step validates, materializes, writes, retains, consumes, and publishes both ordered
-   outputs. Values and INT64 indices remain paired under target subsets, nesting, fan-out, reuse,
-   repeated targets, sessions, rollback, and close; malformed second-output state cannot hide.
+   outputs. Values and INT64 indices remain paired under identity-unique target subsets, nesting,
+   fan-out, reuse, repeated role selection across independent compilations and sessions, rollback,
+   and close; malformed second-output state cannot hide.
 6. Every admitted occurrence has only `CUSTOM_PROGRAM`; direct MPSGraph, host repair, retry,
    fallback, timing, autotuning, multi-dimensional/64-bit dispatch, and value-dependent selection
    are absent.
