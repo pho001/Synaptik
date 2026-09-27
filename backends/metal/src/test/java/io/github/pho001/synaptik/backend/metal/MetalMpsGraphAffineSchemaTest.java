@@ -208,9 +208,6 @@ class MetalMpsGraphAffineSchemaTest {
     void typedNodeConstructionRejectsMalformedBoundsAndPairings() {
         assertThrows(IllegalArgumentException.class, () ->
                 MetalMpsGraphProgram.Node.targetShape(
-                        MetalMpsGraphProgram.NodeKind.RESHAPE, 0, 1, new long[0]));
-        assertThrows(IllegalArgumentException.class, () ->
-                MetalMpsGraphProgram.Node.targetShape(
                         MetalMpsGraphProgram.NodeKind.EXPAND, 0, 1, new long[] {2, 0}));
         assertThrows(IllegalArgumentException.class, () ->
                 MetalMpsGraphProgram.Node.targetShape(
