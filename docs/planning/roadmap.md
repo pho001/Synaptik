@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0067; 0053 Blocked | [Metal 0067](backends/metal/tasks/0067-current-115-kind-evidence-audit.md) reconciled all 115 current operation kinds at exact capability `83/32`, structural execution `101/14`, MPSGraph `75/35/5`, custom `70/45/0`, schema 15, identity 22, ABI 5, and thirteen exports. Independent cumulative code/security/evidence review at `453ecf22` approved with zero remaining P0/P1/P2 and no Task-0067 blocker. No Metal task is Ready. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0067; Task 0068 Ready; 0053 Blocked | [Metal 0068](backends/metal/tasks/0068-release-grade-native-integration-verification.md) is registered from clean approved `cb830587` for one serial warnings-as-errors native build, fixed signing/package/Gradle ZIP/extracted-dylib matrix, complete Metal/Compiler/Engine/JVM/build proof, artifact identities, and independent final reviews. It changes no production boundary and runs no timing or benchmark. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -712,20 +712,18 @@ remediation `ed7a3369`.
 
 ## Nearest next step
 
-No Metal task is Ready. Task 0067 is Complete after its canonical 115-row
-implementation/evidence reconciliation, full validation, and independent cumulative code,
-security, and evidence approval with zero remaining P0/P1/P2. It adds no operation kind,
-capability occurrence, schema field, ABI export, route wire, public API, fallback, retry, timing,
-or autotuning. The current boundary remains capability `83/32`, structural execution `101/14`,
-MPSGraph catalog `75/35/5`, custom catalog `70/45/0`, schema 15, identity 22, ABI 5, and thirteen
-exports. Identity 21 and every older backend-local identity fail closed.
+Metal Task 0068 is Ready from exact clean independently approved Task-0067 revision `cb830587`.
+Its registered serial matrix rebuilds native source with warnings as errors, applies the fixed local
+ad-hoc identifier, creates and independently verifies the canonical package and Gradle ZIP, and
+uses only the freshly extracted packaged dylib for the complete Metal native/backend, conformance,
+public Engine, Compiler/autograd, architecture, Javadoc, full-test, and full-build surfaces.
 
-The permanent audit maps every wire to one unique Model kind, exercises one real capability query
-per row, closes every catalog state separately, and preserves Compiler
-`38/111/133 + 4 = 40/115/137`. Real native alias and public Engine tests cover every remediated
-evidence gap. The 32 production-false rows and their semantic blockers remain false. Proof-blocked
-Task 0053 may resume only after its pinned constructive-real exponential bridge exists; that
-separate external blocker does not block completed Task 0067.
+The matrix must reprove the Task-0067 closure (`115` unique rows, capability `83/32`, structural
+`101/14`, MPSGraph `75/35/5`, custom `70/45/0`, route split
+`68/13/1/1/32`, Compiler `38/111/133 + 4 = 40/115/137`) and runtime reuse, session, concurrency,
+transfer, rank-zero, affine, saved-state, multi-output, generated-backward, and
+error-before-mutation behavior. No benchmark, local latency decision, fallback, retry, host repair,
+or autotuning is authorized. Proof-blocked Task 0053 remains separate.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
