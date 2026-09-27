@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0067; Task 0068 in final review; 0053 Blocked | [Metal 0068](backends/metal/tasks/0068-release-grade-native-integration-verification.md) passed the registered fresh native/package/Gradle ZIP/extracted-dylib matrix and complete Metal/Compiler/Engine/JVM/build proof without source remediation, relevant skip, benchmark entry point, production fallback/retry/host repair, or local timing/tuning result used as evidence or decision. Independent code/security/evidence review remains. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0068; 0053 Blocked | [Metal 0068](backends/metal/tasks/0068-release-grade-native-integration-verification.md) passed the fresh native/package/Gradle ZIP/extracted-dylib matrix and complete Metal/Compiler/Engine/JVM/build proof. Evidence correction `1775081a` then received independent code/security/evidence `APPROVE` with zero P0/P1/P2. No Metal task is Ready. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -712,12 +712,12 @@ remediation `ed7a3369`.
 
 ## Nearest next step
 
-Metal Task 0068 passed its registered serial execution matrix from exact clean independently
-approved Task-0067 revision `cb830587` and matrix commit `6820dd63`. Current native source built
-with warnings as errors; fixed-identifier signing, canonical package verification, Gradle
-ingestion/ZIP creation, fresh extraction, extracted-package verification, and byte comparison all
-passed. Only that extracted packaged dylib ran the complete Metal native/backend, conformance,
-public Engine, Compiler/autograd, architecture, Javadoc, full-test, and full-build surfaces.
+Metal Task 0068 is Complete from exact clean independently approved Task-0067 revision `cb830587`,
+registered matrix `6820dd63`, and evidence correction `1775081a`. Current native source built with
+warnings as errors; fixed-identifier signing, canonical package verification, Gradle ingestion/ZIP
+creation, fresh extraction, extracted-package verification, and byte comparison all passed. Only
+that extracted packaged dylib ran the complete Metal native/backend, conformance, public Engine,
+Compiler/autograd, architecture, Javadoc, full-test, and full-build surfaces.
 
 The final parsed matrix reports `247` Metal backend tests, `282` Compiler tests, `22` conformance
 tests, `48` focused Metal integration tests, and `3712` repository tests with zero failure or error
@@ -725,10 +725,12 @@ and no relevant Metal skip. It reproved Task-0067 closure (`115` unique rows, ca
 structural `101/14`, MPSGraph `75/35/5`, custom `70/45/0`, route split `68/13/1/1/32`, Compiler
 `38/111/133 + 4 = 40/115/137`) plus all requested runtime lifecycle, transfer, state, output, and
 error-before-mutation surfaces. No source remediation, benchmark entry point, local latency/tuning
-decision, production fallback/retry, or host repair occurred. Mandatory full-suite tests still
-exercised their permanent public tuning/fallback behavior, but no measured value or selected winner
-informed verification or source. The only remaining Task-0068 gate is independent cumulative
-code/security/evidence review. Proof-blocked Task 0053 remains separate.
+decision, production fallback/retry, or host repair occurred. Mandatory full-suite tests retained
+their public tuning/fallback assertions, but no measured value or selected winner informed
+verification or source.
+
+Independent cumulative code, security, and evidence review at exact clean `1775081a` returned
+`APPROVE` with zero P0/P1/P2. No Metal task is Ready. Proof-blocked Task 0053 remains separate.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly

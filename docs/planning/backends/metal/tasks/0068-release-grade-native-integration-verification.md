@@ -2,11 +2,10 @@
 
 ## Status
 
-Verification gates `V0..V13` passed from Task-0067 native/source base
+Complete — gates `V0..V14` passed from Task-0067 native/source base
 `cb830587c0922e63be7a8e2d47822fe18e2b2bd6` with registered-matrix commit
-`6820dd631cbd28f855640a0edc5d125ae6a905a6`. No source defect, environmental failure, relevant
-skip, or uncovered runtime surface was found. Independent final code/security/evidence review is
-the only remaining gate.
+`6820dd631cbd28f855640a0edc5d125ae6a905a6`. No production source defect, environmental failure,
+relevant skip, uncovered runtime surface, or remaining P0/P1/P2 was found.
 
 ## Change class
 
@@ -198,10 +197,28 @@ The one integration skip is CPU-only
 `EngineModelAutotuningIntegrationTest.eligibleCpuAlternativesCompleteBothPublicTuningPhases`; the
 other 28 skips are CPU backend opt-in evidence/performance cases. No Metal-related test skipped.
 
-## Verification result before final review
+## Final verification result
 
-Gates `V0..V13` passed without a source change or diagnostic rerun. The package, archive, extracted
-dylib, native/backend behavior, public Engine behavior, Compiler backward closure, and repository
-build all match the Task-0067 approved boundary. No environmental blocker or Task-0068 blocker
-remains. Developer ID signing, notarization, authenticated publication, and the separate Task-0053
-constructive-real proof bridge remain outside this local verification.
+Gates `V0..V13` passed without a production source change or diagnostic rerun. The package, archive,
+extracted dylib, native/backend behavior, public Engine behavior, Compiler backward closure, and
+repository build all match the Task-0067 approved boundary. No environmental blocker or
+Task-0068 blocker remains. Developer ID signing, notarization, authenticated publication, and the
+separate Task-0053 constructive-real proof bridge remain outside this local verification.
+
+The initial code/evidence reviews at `372d0261` found one P1 evidence contradiction: the prose said
+no tuning or fallback path ran even though the mandatory complete public Engine/full JVM suites
+exercise measured tuning and safe-heuristic fallback as permanent API behavior. Revision
+`1775081ab1de43789006b0e704a222195e94edde` corrected Task/master/roadmap consistently: no
+standalone benchmark/timing/autotuning command ran, no production fallback/retry/host repair
+occurred, and no elapsed value or locally selected winner informed verification or source. The
+full-suite behavior remains included rather than silently excluded. No runtime rerun was needed
+because neither source, command, artifact, test selection, nor result changed; the affected
+documentation was independently re-reviewed.
+
+Independent cumulative code, security, and evidence reviewers each returned `APPROVE` with zero
+remaining P0/P1/P2 at exact clean revision
+`1775081ab1de43789006b0e704a222195e94edde`. The code reviewer confirmed the docs-only delta,
+packaged-dylib chain, permanent coverage, and no local timing authority; the security reviewer
+confirmed the signing/package/archive/loading/fail-closed boundary and local ad-hoc limitations;
+the evidence reviewer reconciled all arithmetic, identities, counts, skips, cleanup, and active
+planning status.
