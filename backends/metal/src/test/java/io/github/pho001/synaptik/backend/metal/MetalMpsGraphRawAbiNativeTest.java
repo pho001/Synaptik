@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.github.pho001.synaptik.config.compile.NumericalProfile;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
@@ -1191,6 +1193,192 @@ class MetalMpsGraphRawAbiNativeTest {
                 message);
         byte[] image = program.encodedProgramImage(
                 values, feeds, targets, MetalPreparedRoute.CUSTOM_PROGRAM);
+        assertEquals(1, abi.create(image, image.length), message);
+    }
+
+    @Test
+    void task0065JavaAndNativePreflightAgreeOnZeroFeedsRolesAndUint32SpanBoundaries()
+            throws Throwable {
+        Path library = configuredLibrary();
+        try (RawAbi abi = new RawAbi(library)) {
+            var initial = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.INITIAL_STATE,
+                            new int[0],
+                            new int[] {0},
+                            MetalMpsGraphProgram.AttributeKind.GRAPH_RNG_STATE,
+                            new long[] {-1L, Long.MIN_VALUE})));
+            List<MetalMpsGraphProgram.ValueDescriptor> initialValues =
+                    List.of(descriptor(DataType.INT64, 2));
+            for (NumericalProfile profile : NumericalProfile.values()) {
+                MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                        profile,
+                        initialValues,
+                        initial,
+                        new int[0],
+                        new int[] {0},
+                        MetalPreparedRoute.CUSTOM_PROGRAM);
+            }
+            byte[] initialImage = initial.encodedProgramImage(
+                    initialValues,
+                    new int[0],
+                    new int[] {0},
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            assertEquals(0, abi.create(initialImage, initialImage.length), "zero-feed initializer");
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                            NumericalProfile.STRICT_IEEE,
+                            initialValues,
+                            initial,
+                            new int[0],
+                            new int[] {0},
+                            MetalPreparedRoute.MPSGRAPH));
+
+            var dropout = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.DROPOUT,
+                            new int[] {0, 1},
+                            new int[] {2, 3, 4},
+                            MetalMpsGraphProgram.AttributeKind.DROPOUT,
+                            new long[] {Double.doubleToRawLongBits(0.5d)})));
+            List<MetalMpsGraphProgram.ValueDescriptor> exactMaximum = List.of(
+                    descriptor(DataType.FLOAT32, 0xffff_ffffL),
+                    descriptor(DataType.INT64, 2),
+                    descriptor(DataType.FLOAT32, 0xffff_ffffL),
+                    descriptor(DataType.BOOL, 0xffff_ffffL),
+                    descriptor(DataType.INT64, 2));
+            assertTask0065AcceptedByJavaAndNative(
+                    abi, dropout, exactMaximum, "exact UINT32_MAX dropout");
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                            NumericalProfile.STRICT_IEEE,
+                            exactMaximum,
+                            dropout,
+                            new int[] {0, 1},
+                            new int[] {2},
+                            MetalPreparedRoute.CUSTOM_PROGRAM),
+                    "dropout is accelerator-only");
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                            NumericalProfile.ACCELERATOR,
+                            exactMaximum,
+                            dropout,
+                            new int[] {0, 1},
+                            new int[] {2},
+                            MetalPreparedRoute.MPSGRAPH),
+                    "dropout has no direct MPSGraph route");
+
+            List<MetalMpsGraphProgram.ValueDescriptor> extentOver = List.of(
+                    descriptor(DataType.FLOAT32, 0x1_0000_0000L),
+                    descriptor(DataType.INT64, 2),
+                    descriptor(DataType.FLOAT32, 0x1_0000_0000L),
+                    descriptor(DataType.BOOL, 0x1_0000_0000L),
+                    descriptor(DataType.INT64, 2));
+            assertTask0065RejectedByJavaAndNative(
+                    abi, dropout, extentOver, "one-past UINT32 extent");
+            List<MetalMpsGraphProgram.ValueDescriptor> productOver = List.of(
+                    descriptor(DataType.FLOAT32, 65_536, 65_536),
+                    descriptor(DataType.INT64, 2),
+                    descriptor(DataType.FLOAT32, 65_536, 65_536),
+                    descriptor(DataType.BOOL, 65_536, 65_536),
+                    descriptor(DataType.INT64, 2));
+            assertTask0065RejectedByJavaAndNative(
+                    abi, dropout, productOver, "one-past UINT32 element count");
+
+            Shape one = Shape.of(1);
+            var onePastSpanInput = new MetalMpsGraphProgram.ValueDescriptor(
+                    DataType.FLOAT32,
+                    one.toLongArray(),
+                    java.util.Optional.of(LayoutDescriptor.of(
+                            one, new long[] {1L}, 0xffff_ffffL, true)),
+                    false,
+                    false);
+            List<MetalMpsGraphProgram.ValueDescriptor> spanOver = List.of(
+                    onePastSpanInput,
+                    descriptor(DataType.INT64, 2),
+                    descriptor(DataType.FLOAT32, 1),
+                    descriptor(DataType.BOOL, 1),
+                    descriptor(DataType.INT64, 2));
+            assertTask0065RejectedByJavaAndNative(
+                    abi, dropout, spanOver, "one-past UINT32 referenced span");
+
+            List<MetalMpsGraphProgram.ValueDescriptor> small = List.of(
+                    descriptor(DataType.FLOAT32, 4),
+                    descriptor(DataType.INT64, 2),
+                    descriptor(DataType.FLOAT32, 4),
+                    descriptor(DataType.BOOL, 4),
+                    descriptor(DataType.INT64, 2));
+            byte[] valid = dropout.encodedProgramImage(
+                    small,
+                    new int[] {0, 1},
+                    new int[] {2},
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            assertEquals(0, abi.create(valid, valid.length));
+            int stateFlags = MetalMpsGraphProgram.HEADER_BYTES
+                    + MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES + 16;
+            int outputFlags = MetalMpsGraphProgram.HEADER_BYTES
+                    + 2 * MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES + 16;
+            int maskFlags = MetalMpsGraphProgram.HEADER_BYTES
+                    + 3 * MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES + 16;
+            assertEquals(1, abi.create(
+                    rewriteInt(valid, stateFlags, readInt(valid, stateFlags) | 1),
+                    valid.length), "state gradient");
+            assertEquals(1, abi.create(
+                    rewriteInt(valid, outputFlags, readInt(valid, outputFlags) | 1),
+                    valid.length), "primary gradient mismatch");
+            assertEquals(1, abi.create(
+                    rewriteInt(valid, maskFlags, readInt(valid, maskFlags) | 1),
+                    valid.length), "mask gradient");
+            assertEquals(1, abi.create(
+                    rewriteLong(valid, valid.length - Long.BYTES,
+                            Double.doubleToRawLongBits(1.0d)),
+                    valid.length), "invalid probability");
+        }
+    }
+
+    private static void assertTask0065AcceptedByJavaAndNative(
+            RawAbi abi,
+            MetalMpsGraphProgram program,
+            List<MetalMpsGraphProgram.ValueDescriptor> values,
+            String message) throws Throwable {
+        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                NumericalProfile.ACCELERATOR,
+                values,
+                program,
+                new int[] {0, 1},
+                new int[] {2},
+                MetalPreparedRoute.CUSTOM_PROGRAM);
+        byte[] image = program.encodedProgramImage(
+                values,
+                new int[] {0, 1},
+                new int[] {2},
+                MetalPreparedRoute.CUSTOM_PROGRAM);
+        assertEquals(0, abi.create(image, image.length), message);
+    }
+
+    private static void assertTask0065RejectedByJavaAndNative(
+            RawAbi abi,
+            MetalMpsGraphProgram program,
+            List<MetalMpsGraphProgram.ValueDescriptor> values,
+            String message) throws Throwable {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                        NumericalProfile.ACCELERATOR,
+                        values,
+                        program,
+                        new int[] {0, 1},
+                        new int[] {2},
+                        MetalPreparedRoute.CUSTOM_PROGRAM),
+                message);
+        byte[] image = program.encodedProgramImage(
+                values,
+                new int[] {0, 1},
+                new int[] {2},
+                MetalPreparedRoute.CUSTOM_PROGRAM);
         assertEquals(1, abi.create(image, image.length), message);
     }
 

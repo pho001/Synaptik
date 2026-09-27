@@ -56,11 +56,11 @@ class MetalOperationRouteCatalogTest {
         assertEquals(75, direct);
         assertEquals(35, composed);
         assertEquals(5, unavailable);
-        assertEquals(58, customAvailable);
-        assertEquals(57, customPending);
+        assertEquals(60, customAvailable);
+        assertEquals(55, customPending);
         assertEquals(0, customUnavailableWithProof);
-        assertEquals(99, executable);
-        assertEquals(16, kinds.length - executable);
+        assertEquals(101, executable);
+        assertEquals(14, kinds.length - executable);
         assertThrows(NullPointerException.class, () -> MetalOperationRouteCatalog.entry(null));
     }
 
@@ -222,8 +222,8 @@ class MetalOperationRouteCatalogTest {
                     kind,
                     MetalOperationRouteCatalog.MpsGraphState.UNAVAILABLE,
                     MetalOperationRouteCatalog.MpsGraphReason.MU_RNG,
-                    MetalOperationRouteCatalog.CustomKernelState.PENDING,
-                    MetalOperationRouteCatalog.CustomKernelReason.CP_STATE);
+                    MetalOperationRouteCatalog.CustomKernelState.AVAILABLE,
+                    MetalOperationRouteCatalog.CustomKernelReason.CA_0065);
         }
         for (MetalMpsGraphProgram.NodeKind kind : Set.of(
                 MetalMpsGraphProgram.NodeKind.RNN_TANH,
@@ -243,7 +243,8 @@ class MetalOperationRouteCatalogTest {
         assertTrue(MetalMpsGraphProgram.NodeKind.STANDARD_DEVIATION.executable());
         assertTrue(MetalMpsGraphProgram.NodeKind.L1_NORM.executable());
         assertTrue(MetalMpsGraphProgram.NodeKind.L2_NORM.executable());
-        assertFalse(MetalMpsGraphProgram.NodeKind.DROPOUT.executable());
+        assertTrue(MetalMpsGraphProgram.NodeKind.DROPOUT.executable());
+        assertTrue(MetalMpsGraphProgram.NodeKind.INITIAL_STATE.executable());
         assertTrue(MetalMpsGraphProgram.NodeKind.NEG.executable());
         assertTrue(MetalMpsGraphProgram.NodeKind.GT.executable());
         assertTrue(MetalMpsGraphProgram.NodeKind.FLOOR.executable());

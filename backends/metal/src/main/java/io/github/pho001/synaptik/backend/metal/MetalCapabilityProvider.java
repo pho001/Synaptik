@@ -80,6 +80,10 @@ import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.MaxPool3dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.Pool2dKind;
 import io.github.pho001.synaptik.model.operation.pooling.Pool3dKind;
+import io.github.pho001.synaptik.model.operation.random.DropoutAttrs;
+import io.github.pho001.synaptik.model.operation.random.DropoutKind;
+import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
+import io.github.pho001.synaptik.model.operation.random.GraphRngStateAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -100,10 +104,9 @@ import java.util.Objects;
  * selecting FLOAT32 data, canonical positive-rank INT32 {@code ONE_HOT} indices producing
  * canonical BOOL values, canonical FLOAT32/INT32/FLOAT32 {@code SCATTER_ELEMENTS} replacement
  * with unique valid targets, and the exact profile-common wires for FLOAT32 classification, BOOL
- * logic, and FLOAT32 {@code WHERE}. The seven BOOL-domain operations require canonical positive
- * rank {@code 1..16}; classification accepts either input gradient flag and produces no-grad BOOL,
- * logic is entirely no-grad, and WHERE propagates the branch gradient OR after branch-first then
- * condition broadcasting.
+ * logic, and FLOAT32 {@code WHERE}. Classification and logic require canonical positive rank
+ * {@code 1..16}. WHERE admits canonical or exact zero-offset affine-view inputs, propagates the
+ * branch gradient OR, and applies branch-first then condition broadcasting.
  * {@code ACCELERATOR} additionally admits tensor {@code ADD}/{@code SUB}/{@code MUL}/{@code DIV},
  * canonical FLOAT32 {@code SUM}/{@code MEAN}/{@code SUM_TO_SHAPE}, same-type canonical positive-
  * rank FLOAT32 {@code MEAN_SQUARED_ERROR} with {@code NONE}/{@code SUM}/{@code MEAN}, every
@@ -173,6 +176,15 @@ import java.util.Objects;
  * convolution/average pooling, alternate layouts, dynamic or empty geometry, attention,
  * convolution transpose, generated Conv3d or maximum-pool backward, mixed convolution gradients,
  * and overlap-accumulating generated folds remain unsupported.</p>
+ *
+ * <p>Task 0065 additionally admits canonical no-gradient {@code INITIAL_STATE} under both profiles
+ * and accelerator-only canonical FLOAT32 {@code DROPOUT}. The initializer has no inputs and
+ * publishes one INT64 {@code Shape[2]} state. Dropout consumes ordered value/state inputs and
+ * publishes ordered value, BOOL mask, and next-state outputs; value gradient eligibility is
+ * preserved while mask and state roles are non-differentiable. Rank {@code 0..16}, each extent,
+ * element count, referenced span, and dispatch width must fit unsigned 32 bits. Every recurrent
+ * kind and every non-FLOAT32, strict, dynamic, malformed-state, or over-limit dropout occurrence
+ * remains unsupported.</p>
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
     private static final long UINT32_MAX = 0xffff_ffffL;
@@ -239,6 +251,16 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         Objects.requireNonNull(operation, "operation");
         Objects.requireNonNull(inputs, "inputs");
         Objects.requireNonNull(outputs, "outputs");
+        if (operation.kind() == GraphRngKind.INITIAL_STATE
+                || operation.kind() == DropoutKind.DROPOUT) {
+            try {
+                return operation.kind() == GraphRngKind.INITIAL_STATE
+                        ? supportsInitialState(operation, inputs, outputs)
+                        : supportsDropout(numericalProfile, operation, inputs, outputs);
+            } catch (IllegalArgumentException | ArithmeticException incompatible) {
+                return false;
+            }
+        }
         if (operation.kind() == TopKKind.TOP_K) {
             try {
                 return supportsTopK(operation, inputs, outputs);
@@ -375,6 +397,68 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         } catch (IllegalArgumentException | ArithmeticException incompatible) {
             return false;
         }
+    }
+
+    private static boolean supportsInitialState(
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            List<TensorDescriptor> outputs) {
+        if (operation.kind() != GraphRngKind.INITIAL_STATE
+                || !(operation.attrs() instanceof GraphRngStateAttrs)
+                || !inputs.isEmpty()
+                || outputs.size() != 1) {
+            return false;
+        }
+        TensorDescriptor output = outputs.getFirst();
+        return task0065Canonical(output, DataType.INT64, false)
+                && output.shape().equals(Shape.of(2))
+                && !output.requiresGrad();
+    }
+
+    private static boolean supportsDropout(
+            NumericalProfile profile,
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            List<TensorDescriptor> outputs) {
+        if (profile != NumericalProfile.ACCELERATOR
+                || operation.kind() != DropoutKind.DROPOUT
+                || !(operation.attrs() instanceof DropoutAttrs)
+                || inputs.size() != 2
+                || outputs.size() != 3) {
+            return false;
+        }
+        TensorDescriptor value = inputs.get(0);
+        TensorDescriptor state = inputs.get(1);
+        TensorDescriptor output = outputs.get(0);
+        TensorDescriptor mask = outputs.get(1);
+        TensorDescriptor nextState = outputs.get(2);
+        return task0065Canonical(value, DataType.FLOAT32, true)
+                && task0065Canonical(output, DataType.FLOAT32, true)
+                && task0065Canonical(mask, DataType.BOOL, true)
+                && task0065Canonical(state, DataType.INT64, false)
+                && task0065Canonical(nextState, DataType.INT64, false)
+                && value.shape().equals(output.shape())
+                && value.shape().equals(mask.shape())
+                && state.shape().equals(Shape.of(2))
+                && nextState.shape().equals(Shape.of(2))
+                && value.requiresGrad() == output.requiresGrad()
+                && !mask.requiresGrad()
+                && !state.requiresGrad()
+                && !nextState.requiresGrad();
+    }
+
+    private static boolean task0065Canonical(
+            TensorDescriptor descriptor, DataType type, boolean allowScalar) {
+        if (descriptor.dataType() != type || !canonicalAny(descriptor, allowScalar)) {
+            return false;
+        }
+        long elements = 1L;
+        for (long extent : descriptor.shape().toLongArray()) {
+            if (extent > UINT32_MAX) return false;
+            elements = Math.multiplyExact(elements, extent);
+            if (elements > UINT32_MAX) return false;
+        }
+        return descriptor.layout().orElseThrow().referencedElementSpan() <= UINT32_MAX;
     }
 
     private static boolean supportsOrdering(
@@ -1321,9 +1405,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         TensorDescriptor condition = inputs.get(0);
         TensorDescriptor whenTrue = inputs.get(1);
         TensorDescriptor whenFalse = inputs.get(2);
-        if (!canonicalTyped(condition, DataType.BOOL)
-                || !canonical(whenTrue)
-                || !canonical(whenFalse)
+        if (!affineInput(condition, DataType.BOOL, false)
+                || !affineInput(whenTrue, DataType.FLOAT32, false)
+                || !affineInput(whenFalse, DataType.FLOAT32, false)
                 || !canonical(output)
                 || condition.requiresGrad()
                 || output.requiresGrad()

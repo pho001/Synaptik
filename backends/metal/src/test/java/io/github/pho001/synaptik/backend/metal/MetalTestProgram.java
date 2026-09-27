@@ -85,6 +85,17 @@ final class MetalTestProgram {
         }
         for (MetalMpsGraphProgram.Node node : program.nodes()) {
             switch (node.kind()) {
+                case INITIAL_STATE ->
+                        require(result, parent, node.outputIndex(), DataType.INT64);
+                case DROPOUT -> {
+                    int[] inputs = node.inputs();
+                    int[] outputs = node.outputs();
+                    require(result, parent, inputs[0], DataType.FLOAT32);
+                    require(result, parent, inputs[1], DataType.INT64);
+                    require(result, parent, outputs[0], DataType.FLOAT32);
+                    require(result, parent, outputs[1], DataType.BOOL);
+                    require(result, parent, outputs[2], DataType.INT64);
+                }
                 case GATHER -> {
                     require(result, parent, node.firstInputIndex(), DataType.FLOAT32);
                     require(result, parent, node.secondInputIndex(), DataType.INT32);

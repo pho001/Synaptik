@@ -29,8 +29,8 @@ import java.util.Optional;
  */
 final class MetalNegRouteCandidateGenerator {
     private static final long UINT32_MAX = 0xffff_ffffL;
-    private static final int WORKLOAD_SIGNATURE_VERSION = 20;
-    private static final int EXACT_DEFAULT_POLICY = 20;
+    private static final int WORKLOAD_SIGNATURE_VERSION = 21;
+    private static final int EXACT_DEFAULT_POLICY = 21;
 
     /**
      * Generates every currently valid complete candidate up to a positive budget.

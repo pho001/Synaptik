@@ -75,6 +75,7 @@ final class MetalOperationRouteCatalog {
         CA_0061,
         CA_0063,
         CA_0064,
+        CA_0065,
         CP_POINT,
         CP_POWER,
         CP_ELEMENTARY,
@@ -234,8 +235,8 @@ final class MetalOperationRouteCatalog {
         COMPOSED_WINDOW3D_CUSTOM_0064(MpsGraphState.COMPOSED,
                 MpsGraphReason.MC_WINDOW3D, CustomKernelState.AVAILABLE,
                 CustomKernelReason.CA_0064),
-        UNAVAILABLE_RNG_PENDING_STATE(MpsGraphState.UNAVAILABLE, MpsGraphReason.MU_RNG,
-                CustomKernelState.PENDING, CustomKernelReason.CP_STATE),
+        UNAVAILABLE_RNG_CUSTOM_0065(MpsGraphState.UNAVAILABLE, MpsGraphReason.MU_RNG,
+                CustomKernelState.AVAILABLE, CustomKernelReason.CA_0065),
         UNAVAILABLE_RECURRENT_PENDING_STATE(MpsGraphState.UNAVAILABLE,
                 MpsGraphReason.MU_RECURRENT, CustomKernelState.PENDING,
                 CustomKernelReason.CP_STATE),
@@ -350,7 +351,7 @@ final class MetalOperationRouteCatalog {
                     Entry.COMPOSED_INDEX64_CUSTOM_0063;
             case MAX_POOL2D, AVERAGE_POOL2D -> Entry.DIRECT_POOL2D_CUSTOM_0064;
             case MAX_POOL3D, AVERAGE_POOL3D -> Entry.COMPOSED_WINDOW3D_CUSTOM_0064;
-            case DROPOUT, INITIAL_STATE -> Entry.UNAVAILABLE_RNG_PENDING_STATE;
+            case DROPOUT, INITIAL_STATE -> Entry.UNAVAILABLE_RNG_CUSTOM_0065;
             case RNN_TANH, GRU_RESET_AFTER, LSTM -> Entry.UNAVAILABLE_RECURRENT_PENDING_STATE;
             case LOG_SUM_EXP -> Entry.COMPOSED_LOGSUMEXP_PENDING_AGGREGATE;
             case STANDARD_DEVIATION -> Entry.COMPOSED_STDDEV_PENDING_AGGREGATE;

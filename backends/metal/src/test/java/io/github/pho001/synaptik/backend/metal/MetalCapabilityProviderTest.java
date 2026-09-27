@@ -84,7 +84,7 @@ import org.junit.jupiter.api.Test;
 class MetalCapabilityProviderTest {
     private final MetalCapabilityProvider provider = new MetalCapabilityProvider();
     @Test
-    void registeredWireCapabilityLedgerClosesAtEightyOneTrueAndThirtyFourFalse() {
+    void registeredWireCapabilityLedgerClosesAtEightyThreeTrueAndThirtyTwoFalse() {
         java.util.Set<MetalMpsGraphProgram.NodeKind> structuralOnly = java.util.Set.of(
                 MetalMpsGraphProgram.NodeKind.TENSOR_POW,
                 MetalMpsGraphProgram.NodeKind.SCALAR_POW,
@@ -109,8 +109,8 @@ class MetalCapabilityProviderTest {
                 .filter(MetalMpsGraphProgram.NodeKind::executable)
                 .filter(kind -> !structuralOnly.contains(kind))
                 .count();
-        assertEquals(81L, trueRows);
-        assertEquals(34L, MetalMpsGraphProgram.NodeKind.values().length - trueRows);
+        assertEquals(83L, trueRows);
+        assertEquals(32L, MetalMpsGraphProgram.NodeKind.values().length - trueRows);
         structuralOnly.forEach(kind -> assertTrue(kind.executable(), kind.name()));
         assertFalse(MetalMpsGraphProgram.NodeKind.EXP.executable());
         assertFalse(MetalMpsGraphProgram.NodeKind.SIGMOID.executable());
@@ -1640,6 +1640,11 @@ class MetalCapabilityProviderTest {
                     new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE),
                     List.of(boolRow, trueBranch, falseBranch),
                     List.of(selected))));
+            assertTrue(provider.supports(new OperationCapabilityQuery(
+                    profile,
+                    new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE),
+                    List.of(boolRow, trueBranch, view(Shape.of(2, 3), 0L, 0L)),
+                    List.of(selected))), profile + " WHERE affine positive-zero branch");
         }
 
         assertFalse(provider.supports(new OperationCapabilityQuery(

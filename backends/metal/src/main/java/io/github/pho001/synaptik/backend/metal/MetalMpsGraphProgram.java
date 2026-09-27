@@ -15,7 +15,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-/** Immutable schema-fifteen Metal program and its canonical bounded image encoder. */
+/**
+ * Immutable schema-fifteen Metal program and its canonical bounded image encoder.
+ *
+ * <p>The image supports zero-input nodes and ordered multi-output nodes. Task 0065 uses those
+ * existing cardinality ranges for raw INT64 state initialization and FLOAT32 dropout's value,
+ * BOOL mask, and next-state outputs; it adds no public ABI or schema version.</p>
+ */
 final class MetalMpsGraphProgram {
     static final int SCHEMA_VERSION = 15;
     static final int MAX_RANK = 16;
@@ -123,7 +129,7 @@ final class MetalMpsGraphProgram {
         SCALAR_MUL(48, 1, 1, 1, 1, AttributeKind.SCALAR_VALUE, ValueState.CANONICAL, false, true),
         SCALAR_DIV(49, 1, 1, 1, 1, AttributeKind.SCALAR_VALUE, ValueState.CANONICAL, false, true),
         SCALAR_POW(50, 1, 1, 1, 1, AttributeKind.SCALAR_VALUE, ValueState.CANONICAL, false, true),
-        WHERE(51, 3, 3, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
+        WHERE(51, 3, 3, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, true, true),
         RECIPROCAL(52, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         LOG(53, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
         LOG1P(54, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
@@ -198,8 +204,10 @@ final class MetalMpsGraphProgram {
                 ValueState.CANONICAL, false, true),
         AVERAGE_POOL3D(100, 1, 1, 1, 1, AttributeKind.WINDOW_3D,
                 ValueState.CANONICAL, false, true),
-        DROPOUT(101, 2, 2, 3, 3, AttributeKind.DROPOUT),
-        INITIAL_STATE(102, 0, 0, 1, 1, AttributeKind.GRAPH_RNG_STATE),
+        DROPOUT(101, 2, 2, 3, 3, AttributeKind.DROPOUT,
+                ValueState.CANONICAL, false, true),
+        INITIAL_STATE(102, 0, 0, 1, 1, AttributeKind.GRAPH_RNG_STATE,
+                ValueState.CANONICAL, false, true),
         RNN_TANH(103, 5, 6, 2, 2, AttributeKind.RECURRENT_DIRECTION),
         GRU_RESET_AFTER(104, 5, 6, 2, 2, AttributeKind.RECURRENT_DIRECTION),
         LSTM(105, 6, 7, 3, 3, AttributeKind.RECURRENT_DIRECTION),
@@ -270,7 +278,7 @@ final class MetalMpsGraphProgram {
         boolean executable() { return executable; }
         boolean isCustomProgramOperation() {
             if (wireIdentity == 36 || wireIdentity == 37
-                    || wireIdentity >= 97 && wireIdentity <= 100) {
+                    || wireIdentity >= 97 && wireIdentity <= 102) {
                 return true;
             }
             return wireIdentity >= 20 && wireIdentity <= 34
@@ -934,7 +942,9 @@ final class MetalMpsGraphProgram {
         }
         AttributeKind attributeKind() { return attributeKind; }
         long[] attributeWords() { return attributeWords.clone(); }
-        int firstInputIndex() { return inputs[0]; }
+        int firstInputIndex() {
+            return inputs.length == 0 ? NO_SECOND_INPUT : inputs[0];
+        }
         int secondInputIndex() { return inputs.length >= 2 ? inputs[1] : NO_SECOND_INPUT; }
         int outputIndex() { return outputs[0]; }
         int auxiliary() {
@@ -1138,7 +1148,7 @@ final class MetalMpsGraphProgram {
                 available[output] = true;
                 produced[output] = true;
             }
-            if (node.kind == NodeKind.TOP_K) {
+            if (node.kind == NodeKind.TOP_K || node.kind == NodeKind.DROPOUT) {
                 for (int output : node.outputs) {
                     consumed[output] = true;
                 }
@@ -1232,6 +1242,31 @@ final class MetalMpsGraphProgram {
         if ((out.position() & 7) != 0) out.putInt(0);
         for (Node node : nodes) for (long word : node.attributeWords) out.putLong(word);
         if (out.position() != layout.totalBytes) throw new AssertionError("program image size mismatch");
+    }
+
+    static long dropoutThreshold(long probabilityBits) {
+        double probability = Double.longBitsToDouble(probabilityBits);
+        if (!Double.isFinite(probability) || probability < 0.0d || probability >= 1.0d) {
+            throw new IllegalArgumentException("dropout probability bits are outside [0,1)");
+        }
+        long magnitude = probabilityBits & Long.MAX_VALUE;
+        if (magnitude == 0L) return 0L;
+        int exponent = (int) ((magnitude >>> 52) & 0x7ffL);
+        if (exponent == 0) return 1L;
+        long significand = (1L << 52) | (magnitude & ((1L << 52) - 1L));
+        int denominatorShift = 1022 - exponent;
+        if (denominatorShift <= 0) return significand;
+        if (denominatorShift >= 63) return 1L;
+        long denominator = 1L << denominatorShift;
+        return (significand + denominator - 1L) >>> denominatorShift;
+    }
+
+    static int dropoutComplementBits(long probabilityBits) {
+        double probability = Double.longBitsToDouble(probabilityBits);
+        if (!Double.isFinite(probability) || probability < 0.0d || probability >= 1.0d) {
+            throw new IllegalArgumentException("dropout probability bits are outside [0,1)");
+        }
+        return Float.floatToRawIntBits((float) (1.0d - probability));
     }
 
     static int dataTypeWire(DataType dataType) {

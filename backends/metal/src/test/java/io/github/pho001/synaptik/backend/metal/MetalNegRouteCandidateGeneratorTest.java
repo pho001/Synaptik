@@ -950,8 +950,8 @@ class MetalNegRouteCandidateGeneratorTest {
                     route.wireIdentity()).orElseThrow());
             assertArrayEquals(new byte[] {
                     0x4d, 0x4e, 0x43, 0x41,
-                    0x00, 0x00, 0x00, 0x14,
-                    0x00, 0x00, 0x00, 0x14,
+                    0x00, 0x00, 0x00, 0x15,
+                    0x00, 0x00, 0x00, 0x15,
                     0x00, 0x00, 0x00, (byte) route.wireIdentity()
             }, codec.encodeCandidate(candidate));
         }
@@ -973,14 +973,14 @@ class MetalNegRouteCandidateGeneratorTest {
                     MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
                     current.batch().compatibility(), MetalNegTuningBatch.Candidate.MPSGRAPH);
             var codec = new MetalNegTuningCodec();
-            assertEquals(20, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
-            assertEquals(20, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
-            assertEquals(20, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
+            assertEquals(21, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
+            assertEquals(21, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
+            assertEquals(21, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
             byte[] first = codec.encodeDecision(decision);
-            assertEquals(20, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
-            assertEquals(20, current.batch().compatibility().schemaVersion());
-            assertEquals(20, current.batch().compatibility().candidateSchemaVersion());
-            assertEquals(20, current.batch().compatibility().routePolicyVersion());
+            assertEquals(21, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
+            assertEquals(21, current.batch().compatibility().schemaVersion());
+            assertEquals(21, current.batch().compatibility().candidateSchemaVersion());
+            assertEquals(21, current.batch().compatibility().routePolicyVersion());
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());
@@ -1039,6 +1039,9 @@ class MetalNegRouteCandidateGeneratorTest {
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, 4, 18), current.batch()).isEmpty(),
                     "checksummed version-eighteen decisions must fail closed");
+            assertTrue(codec.decodeDecision(
+                    rewriteInt(first, 4, 20), current.batch()).isEmpty(),
+                    "checksummed version-twenty decisions must fail closed");
             assertTrue(codec.decodeDecision(rewriteInt(first, 8, 99), current.batch()).isEmpty());
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, first.length - 8, 99), current.batch()).isEmpty());
