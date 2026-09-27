@@ -344,8 +344,13 @@ The unfiltered serialized `./gradlew test --rerun-tasks --no-daemon --max-worker
 76 actionable tasks in 3m. The final unfiltered serialized
 `./gradlew build --rerun-tasks --no-daemon --max-workers=1` passes all 87 actionable tasks in
 2m59s, including the completed remediation, with no exclusion, suppression, waiver, fallback, or
-timing evidence. Final independent review found the two residual P2 gaps, verified their raw-matrix
-and active-documentation remediations, and approved with no remaining P0/P1/P2 blockers.
+timing evidence. Initial independent review found the two residual raw-matrix/documentation P2
+gaps and approved their remediation. A subsequent independent rereview found one remaining
+documentation-only P2 in the active candidate-generator, partition-preparer, and accepted
+device-contract ADR passages. Those passages and the remaining active Metal master/roadmap status
+and identity claims are reconciled to the current schema-16/version-24/custom-program contract;
+historical checkpoint and rejection references remain intact. Final rereview approves with no
+remaining P0/P1/P2 blockers. No production behavior changed in either documentation remediation.
 Current ledgers are capability `85/30`, structural `101/14`, MPSGraph `75/35/5`, custom
 `72/43/0`, schema 16, ABI 5, thirteen exports, and identity 24; identity 23 and every older value
 fail closed. `VARIANCE` remains false and Slice 3 is not authorized.

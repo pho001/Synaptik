@@ -2499,8 +2499,9 @@ occurrences and broader Compiler/Planning candidate orchestration remain planned
 
 Profile-qualified Metal preparation has a second internal generator. It emits the custom
 singleton-NEG heuristic first, followed by MPSGraph, for an eligible singleton NEG under either
-profile. MPSGraph is the sole candidate for every ABS partition and every other supported
-partition. Positive budgets return stable complete prefixes, and generation performs no native
+profile. Every selected Task-0066 or Task-0069 occurrence instead emits only the fixed
+`CUSTOM_PROGRAM` production candidate; other partitions retain their established exact candidate
+sets. Positive budgets return stable complete prefixes, and generation performs no native
 allocation.
 
 ### Candidate batch
@@ -2520,8 +2521,9 @@ batch as a plan batch would incorrectly repeat local route search.
 
 The profile-qualified Metal batch is session-scoped. It contains only the complete
 `CUSTOM_SINGLE_NEG`, `CUSTOM_PROGRAM`, and `MPSGRAPH` configurations valid for the exact partition
-and profile. Compatibility, candidate, and route-policy identities are version nineteen, and no
-private field crosses the marker-role boundary.
+and profile. Compatibility, candidate, and route-policy identities are version twenty-four;
+version twenty-three and every older identity fail closed, and no private field crosses the
+marker-role boundary.
 
 ### Complete-plan candidate
 

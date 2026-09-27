@@ -538,21 +538,23 @@ eligible route stays within Model's result set, and retains the profile in every
 compatibility identity that could otherwise be reused. CPU admits both profiles with identical
 exact routes and distinct identities.
 Metal admits the exact common unary, affine, canonicalization, indexing, BOOL-domain, Task-0059 raw
-movement, Task-0060 replacement/fold/aggregate, Task-0063 ordering/top-K/numeric arg-extrema, and
-promoted integral MATMUL rows under both profiles. Accelerator additionally admits the existing
-arithmetic/reduction/scan rows, same-type canonical positive-rank FLOAT32 MSE for all three
-reductions, every positive-static FLOAT32 MATMUL geometry, and no-gradient mixed BFLOAT16/FLOAT32
-MATMUL. The preparer authenticates a local MATMUL affine operand as the exact identity-prefix,
+movement, Task-0060 replacement/fold/aggregate, Task-0063 ordering/top-K/numeric arg-extrema,
+promoted integral MATMUL, Task-0064 maximum-pooling, and Task-0065 raw INITIAL_STATE rows under both
+profiles. Accelerator additionally admits the established arithmetic/reduction/scan rows,
+same-type canonical positive-rank FLOAT32 MSE, every positive-static FLOAT32 MATMUL geometry,
+no-gradient mixed BFLOAT16/FLOAT32 MATMUL, Task-0064 convolution/average-pooling, Task-0065 FLOAT32
+dropout, and the exact Task-0069 rank-one FLOAT32 L1_NORM and SCATTER_ADD domains.
+The preparer authenticates a local MATMUL affine operand as the exact identity-prefix,
 last-two-axis transpose of its canonical source; keeps canonical BOOL values available to admitted
 consumers; retains exact storage layouts for SELECT/positive-step SLICE; and declares every
 internal logical value for a shared custom-program route. It lowers MSE to one typed MPSGraph node
 whose native recipe is fixed subtraction, self-multiplication, and optional full SUM or MEAN. It
-lowers Task-0060 scatter preflight, signed slice placement, single-writer non-overlap folds, and
-exact modular/logical reductions without atomics. It lowers every Task-0063 row to the fixed custom
-program, retaining both TOP_K outputs even when only one is public. It preserves typed ingress,
-target and internal physical byte geometry, window/index obligations, unsigned-32-bit ordering
-geometry, and the profile in the schema-fifteen/version-nineteen route identity without widening
-capability. Version eighteen fails closed.
+lowers Task-0060 scatter preflight, signed slice placement, single-writer non-overlap folds, exact
+modular/logical reductions, every Task-0063 row, and selected Task-0066/Task-0069 occurrences to
+their fixed custom programs without atomics or fallback. It preserves typed ingress, target and
+internal physical byte geometry, window/index obligations, unsigned-32-bit geometry, and the
+profile in the schema-sixteen/version-twenty-four route identity without widening capability.
+Version twenty-three and every older identity fail closed.
 
 Metal's one closed prepared-route identity owns the existing candidate wires `1..3` and the
 MPSGraph/custom-kernel family. Candidate serialization delegates to it. A returned plan retains one
