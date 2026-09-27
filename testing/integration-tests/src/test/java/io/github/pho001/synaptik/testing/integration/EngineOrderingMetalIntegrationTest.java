@@ -176,52 +176,89 @@ final class EngineOrderingMetalIntegrationTest {
     }
 
     @Test
-    void cpuFreeEngineRejectsOverLimitAndGeneratedOrderingBackwardBeforePreparation() {
+    void modelRejectsOverLimitAndEngineExecutesGeneratedOrderingBackward() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
+            builder.numericalProfile(NumericalProfile.ACCELERATOR);
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library)));
             try (Engine engine = builder.build()) {
-                Tensor overLimit = TensorFactory.create(
-                        new TensorDescriptor(
-                                DataType.BOOL,
-                                Shape.of(0x1_0000_0000L),
-                                Optional.of(LayoutDescriptor.contiguous(
-                                        Shape.of(0x1_0000_0000L))),
-                                false),
-                        Optional.empty(),
-                        Optional.empty());
-                IllegalStateException overLimitFailure = assertThrows(
-                        IllegalStateException.class,
-                        () -> engine.compile(List.of(overLimit.sort(0))));
-                assertTrue(overLimitFailure.getMessage().contains(
-                        "no hard-eligible backend is available for ownership selection"));
+                IllegalArgumentException overLimitFailure = assertThrows(
+                        IllegalArgumentException.class,
+                        () -> nativeTensor(
+                                        DataType.INT32,
+                                        Shape.of(1, 4),
+                                        new long[] {1, 2, 3, 4},
+                                        false,
+                                        arena)
+                                .topK(5, 1));
+                assertTrue(overLimitFailure.getMessage()
+                        .contains("k must not exceed selected static extent"));
 
+                long[] raw = corpus(DataType.FLOAT32);
                 Tensor input = nativeTensor(
-                        DataType.FLOAT32, Shape.of(2, 4), corpus(DataType.FLOAT32), arena);
+                        DataType.FLOAT32, Shape.of(2, 4), raw, arena);
+
+                Tensor sorted = input.sort(1);
                 Tensor sortSeed = nativeTensor(
-                        DataType.FLOAT32, Shape.of(2, 4),
+                        DataType.FLOAT32,
+                        Shape.of(2, 4),
                         new long[] {
                             0x3f80_0000L, 0x3f80_0000L, 0x3f80_0000L, 0x3f80_0000L,
                             0x3f80_0000L, 0x3f80_0000L, 0x3f80_0000L, 0x3f80_0000L
-                        }, false, arena);
-                assertThrows(
-                        IllegalStateException.class,
-                        () -> engine.compile(
-                                List.of(input.sort(1)),
-                                List.of(sortSeed),
-                                List.of(input)));
+                        },
+                        false,
+                        arena);
+                var sortCompiled = engine.compile(
+                        List.of(sorted), List.of(sortSeed), List.of(input));
+                assertEquals(
+                        List.of("metal"),
+                        EngineMixedOwnerTestAccess.partitionOwners(sortCompiled));
+                try (var session = engine.session(sortCompiled)) {
+                    assertResults(
+                            session.run(List.of(input, sortSeed)),
+                            List.of(
+                                    words(
+                                            DataType.FLOAT32,
+                                            orderedValues(DataType.FLOAT32, raw, true)),
+                                    words(
+                                            DataType.FLOAT32,
+                                            0x3f80_0000L, 0x3f80_0000L,
+                                            0x3f80_0000L, 0x3f80_0000L,
+                                            0x3f80_0000L, 0x3f80_0000L,
+                                            0x3f80_0000L, 0x3f80_0000L)));
+                }
+
                 var top = input.topK(2, 1);
                 Tensor topSeed = nativeTensor(
-                        DataType.FLOAT32, Shape.of(2, 2),
-                        new long[] {0x3f80_0000L, 0x3f80_0000L, 0x3f80_0000L, 0x3f80_0000L},
-                        false, arena);
-                assertThrows(
-                        IllegalStateException.class,
-                        () -> engine.compile(
-                                List.of(top.values()),
-                                List.of(topSeed),
-                                List.of(input)));
+                        DataType.FLOAT32,
+                        Shape.of(2, 2),
+                        new long[] {
+                            0x3f80_0000L, 0x3f80_0000L,
+                            0x3f80_0000L, 0x3f80_0000L
+                        },
+                        false,
+                        arena);
+                TopSelection selection = top(DataType.FLOAT32, raw, 2, false, true);
+                long[] topGradient = new long[raw.length];
+                for (int row = 0; row < 2; row++) {
+                    for (int rank = 0; rank < 2; rank++) {
+                        int index = Math.toIntExact(selection.indices()[row * 2 + rank]);
+                        topGradient[row * 4 + index] = 0x3f80_0000L;
+                    }
+                }
+                var topCompiled = engine.compile(
+                        List.of(top.values()), List.of(topSeed), List.of(input));
+                assertEquals(
+                        List.of("metal"),
+                        EngineMixedOwnerTestAccess.partitionOwners(topCompiled));
+                try (var session = engine.session(topCompiled)) {
+                    assertResults(
+                            session.run(List.of(input, topSeed)),
+                            List.of(
+                                    words(DataType.FLOAT32, selection.values()),
+                                    words(DataType.FLOAT32, topGradient)));
+                }
             }
         }
     }

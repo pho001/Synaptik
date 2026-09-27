@@ -220,7 +220,7 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
     }
 
     @Test
-    void generatedConv2dBackwardOwnsEachSeparateFloat32SourceRole() {
+    void generatedConv2dBackwardOwnsSeparateAndJointFloat32SourceRoles() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
             builder.numericalProfile(NumericalProfile.ACCELERATOR);
@@ -293,11 +293,20 @@ final class EngineConvolutionPoolingMetalIntegrationTest {
                 Tensor jointOutput = jointInput.conv2d(jointWeight, Conv2dAttrs.defaults());
                 Tensor jointSeed = tensor(
                         arena, Shape.of(1, 1, 2, 2), false, 1, 1, 1, 1);
-                assertThrows(IllegalStateException.class,
-                        () -> engine.compile(
-                                List.of(jointOutput),
-                                List.of(jointSeed),
-                                List.of(jointInput, jointWeight)));
+                var jointCompiled = engine.compile(
+                        List.of(jointOutput),
+                        List.of(jointSeed),
+                        List.of(jointInput, jointWeight));
+                assertEquals(List.of("metal"),
+                        EngineMixedOwnerTestAccess.partitionOwners(jointCompiled));
+                try (var session = engine.session(jointCompiled)) {
+                    assertResults(
+                            session.run(List.of(jointInput, jointWeight, jointSeed)),
+                            List.of(
+                                    floats(2, 4, 6, 8),
+                                    floats(2, 2, 2, 2),
+                                    floats(10)));
+                }
             }
         }
     }

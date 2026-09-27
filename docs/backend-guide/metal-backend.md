@@ -56,7 +56,9 @@ negative zero below positive zero before direction reversal, and preserves selec
 Top-K emits paired values and indices from one native step; `sorted=false` compacts its selected
 set in original logical-coordinate order. Arg extrema prefer NaN for both min and max, treat NaNs
 as ties, and honor explicit first/last policy. Floating value outputs preserve input gradient
-metadata, index outputs are no-grad, and generated ordering backward graphs remain unsupported.
+metadata. Generated floating `SORT` and `TOP_K` values-output backward graphs are owned through,
+respectively, one matching stable `ARGSORT` or the retained canonical indices, followed by
+replacement scatter; `ARGSORT` and `TOP_K` index outputs remain no-grad.
 All five wires select one fixed `CUSTOM_PROGRAM` route under either profile, without a direct
 MPSGraph candidate, host repair, timing, retry, fallback, or autotuning.
 
@@ -738,8 +740,8 @@ dominates negative zero, and the first logical coordinate wins a tie. Average po
 entire dilated kernel rectangle/box, supplies positive zero for out-of-bounds positions, divides
 once by the full kernel-position count, and applies the specified all-negative-zero rule.
 
-Compiler-generated accelerator FLOAT32 Conv2d gradients are owned only when exactly one requested
-input, weight, or bias role forms a primitive-closed partition. Explicit `CONTIGUOUS` nodes
+Compiler-generated accelerator FLOAT32 Conv2d gradients are owned when one or more requested
+input, weight, or optional bias roles form a primitive-closed partition. Explicit `CONTIGUOUS` nodes
 materialize group reshapes/permutations, matrix operands/results, unfolded columns, and fold inputs.
 The input cotangent additionally requires a non-overlapping `FOLD2D`. Average Pool2d cotangents
 explicitly materialize the expanded divisor, seed, and columns; the compiler's static-result
@@ -747,8 +749,9 @@ logical-layout closure canonicalizes the final fold descriptor without an expres
 `CONTIGUOUS`. Average Pool3d additionally materializes the final fold result explicitly. Both
 require non-overlapping folds. Pool3d constructibility compares semantic type/Shape/gradient
 metadata after that final materialization rather than requiring the original input layout to be
-canonical. Joint or mixed Conv2d gradients, every Conv3d gradient, every maximum-pool gradient, and
-every overlap-accumulating fold fail before native creation. These bounded cases add no implicit
+canonical. Joint all-FLOAT32 Conv2d gradients are admitted. Mixed-carrier Conv2d gradients, every
+Conv3d gradient, every maximum-pool gradient, and every overlap-accumulating fold fail before native
+creation. These bounded cases add no implicit
 seed, backend autograd, or unrestricted training ownership.
 
 ### Exact GATHER and ONE_HOT

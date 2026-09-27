@@ -1216,7 +1216,7 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
-    void task0060PublicEngineRejectsIntegralAndBoolFolds() {
+    void task0060PublicEngineRunsIntegralAxisFoldAndRejectsOtherIntegralAndBoolFolds() {
         Path library = configuredMetalLibrary();
         Window2dAttrs window2d =
                 new Window2dAttrs(2, 2, 2, 2, 0, 0, 1, 1, false);
@@ -1255,11 +1255,20 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                 builder.takeOwnership(MetalBackendIntegration.open(
                         new MetalBackendConfiguration(library)));
                 try (Engine engine = builder.build()) {
-                    IllegalStateException failure = assertThrows(
-                            IllegalStateException.class,
-                            () -> engine.compile(List.of(unsupportedAxis)));
-                    assertTrue(failure.getMessage().contains(
-                            "no hard-eligible backend is available for ownership selection"));
+                    var compiled = engine.compile(List.of(unsupportedAxis));
+                    assertEquals(
+                            List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(compiled));
+                    try (InferenceSession session = engine.session(compiled);
+                            var result = session.run(List.of(integralAxis))) {
+                        assertEquals(1, result.resultCount());
+                        assertRawBits(
+                                result.materialize(
+                                                result.publications().getFirst(),
+                                                4L * Integer.BYTES)
+                                        .bytes(),
+                                new int[] {1, 2, 3, 4});
+                    }
                 }
             }
         }

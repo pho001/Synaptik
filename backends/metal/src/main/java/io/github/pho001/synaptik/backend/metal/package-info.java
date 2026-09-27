@@ -100,7 +100,8 @@
  *
  * <p>Task 0060 adds exact profile-common no-gradient replacement SCATTER_ND and signed
  * SLICE_UPDATE, non-overlapping FLOAT64/FLOAT32/BFLOAT16 FOLD_AXIS/FOLD2D/FOLD3D, modular
- * INT32/INT64 PROD, and canonical BOOL ALL/ANY. Integral and BOOL folds remain false. Every
+ * INT32/INT64 PROD, and canonical BOOL ALL/ANY. Task 0066 additionally admits non-overlapping
+ * INT32/INT64 FOLD_AXIS; BOOL FOLD_AXIS and integral or BOOL FOLD2D/FOLD3D remain false. Every
  * replacement validates all indices and destination uniqueness before writes; every admitted fold
  * has one output writer and skips conceptual padding. Empty reduction axes are point identities
  * without admitting zero-dimensional extents. LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, L1_NORM,
@@ -124,8 +125,10 @@
  * NaN-preferred arg extrema with explicit first/last ties. TOP_K is one native step that
  * materializes and publishes paired values and INT64 indices. These five wires always select {@code
  * CUSTOM_PROGRAM}; there is no direct MPSGraph, host repair, timing, retry, fallback, or autotuning
- * route. Floating value outputs retain input gradient metadata, index outputs are no-grad, and
- * generated ordering backward graphs receive no new ownership.
+ * route. Floating value outputs retain input gradient metadata. Task 0066 subsequently owns
+ * generated floating SORT and TOP_K values-output backward through, respectively, one matching
+ * stable ARGSORT or the retained canonical indices followed by replacement scatter; index roles
+ * remain no-grad.
  *
  * <p>Task 0064 adds one fixed custom-program route for {@code CONV2D}, {@code CONV3D}, {@code
  * MAX_POOL2D}, {@code AVERAGE_POOL2D}, {@code MAX_POOL3D}, and {@code AVERAGE_POOL3D}. Convolution
