@@ -214,7 +214,7 @@ and remediations must cite a wire from this table.
 | `D66-AFF` | Wires 6–11: profile-common all-six-carrier static rank-0..16 RESHAPE/EXPAND/PERMUTE/EXPAND_DIMS/SQUEEZE/CONTIGUOUS over authenticated logical/physical layouts; fixed custom route and Task-0066 raw/public/generated-gradient evidence. |
 | `D66-BOOL` | Wires 40–45: profile-common three-floating-carrier classification and BOOL logical operations over admitted scalar/broadcast/affine occurrences; fixed custom route and Task-0057/0066 tests. |
 | `D66-CAST` | Wire 39: all 36 ordered casts over the six Model carriers, with floating-to-floating differentiation only and exact integer-defined conversion; fixed custom route and Task-0059/0066 exhaustive tests. |
-| `D66-IDX` | Wires 16, 18–19, and 69: profile-common admitted all-carrier GATHER/SCATTER replacement/UNFOLD_AXIS movement with INT32/INT64 index parity where applicable, scalar support, bounds/uniqueness before mutation, and no additive semantics. Wire 17 ONE_HOT instead admits canonical INT32/INT64 scalar-or-tensor indices, positive depth, and canonical BOOL output whose final dimension is depth. All use fixed custom routes and Task-0066 tests. |
+| `D66-IDX` | Wires 16, 18–19, and 69: profile-common admitted all-carrier GATHER/SCATTER replacement/UNFOLD_AXIS movement with INT32/INT64 index parity where applicable, scalar support, bounds/uniqueness before mutation, and no additive semantics. Wire 17 ONE_HOT instead admits selected affine/materialized INT32/INT64 scalar-or-tensor indices (including authenticated positive- and zero-stride views), positive depth, and canonical BOOL output whose final dimension is depth. All use fixed custom routes and Task-0066 tests. |
 | `D66-MOVE` | Wires 71–79: profile-common exact all-carrier ND/replacement/select/pad/slice/composition/tile movement over authenticated static layouts; fixed custom route and Task-0059/0060/0066 tests. |
 | `D66-WHERE` | Wire 51: profile-common BOOL-conditioned admitted floating promotion/broadcast selection with saved condition role and exact output carrier; fixed custom route and Task-0057/0066 tests. |
 | `D66-WINDOW` | Wires 80–84: admitted non-overlap folds plus 2D/3D window movement; FOLD_AXIS excludes BOOL, image windows/folds use FLOAT64/FLOAT32/BFLOAT16, and overlap/additive cases remain false; fixed custom route and Task-0059/0060/0066 tests. |
@@ -279,7 +279,7 @@ identity, and native preflight where applicable. Route-specific resource evidenc
 
 | Route | Required valid topology | Required rejection and fail-before-mutation evidence |
 |---|---|---|
-| `MPSGRAPH` | Distinct inputs and outputs. | Reject every input/output and output/output alias in Java before downcall and at raw native run; targets retain sentinels. |
+| `MPSGRAPH` | Inputs may intentionally repeat; outputs are pairwise distinct and distinct from every input. | Prove a repeated-input positive case. Reject every input/output and output/output alias in Java before downcall and at raw native run; targets retain sentinels. |
 | `CUSTOM_PROGRAM` | Complete value table is pairwise distinct; each `output[i]` equals exactly `values[targetValueIndices[i]]`. | Reject duplicate value handles, wrong/swapped/duplicate target handles, and extra aliases in Java and raw native paths before execution; inputs and target sentinels remain unchanged. |
 | `CUSTOM_SINGLE_NEG` | Distinct input and output. | Reject input/output alias before dispatch and retain sentinels. |
 
