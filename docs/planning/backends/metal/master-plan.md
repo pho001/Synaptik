@@ -381,6 +381,7 @@ before extracting a package or widening another type.
 | 0066 | [Dtype, layout, and gradient gap closure](tasks/0066-dtype-layout-gradient-gap-closure.md) | Complete | 0065 Complete through documentation `c48b94d7fb2dfa6391901ede580cf886d74cc889`; approved plan `e0ec3d2360b0b7ab1119ce0613a612bf3e18b218`; current exact six-carrier Model cast/layout/indexing/window contracts; Compiler generated-gradient, saved-role, and logical-layout closure contracts | Every concurrent Metal capability/schema/native/custom-source/catalog/candidate/route/preparation/resource/publication/transfer/package/shared-document scope; concurrent Compiler layout/gradient or transfer-contract edits; resumed 0053 production | None | Approved plan with zero P0/P1/P2 → implementation `0b88f897` → package/documentation reconciliation → cumulative independent Class C review | Native build/sign/package; complete Metal, focused Compiler direct/generated-graph, conformance, CPU-free public Engine forward/backward/saved-role evidence, Javadoc/architecture, one full test/build, documentation/diff, and cumulative independent Class C review | Broadens exactly existing wires `6..11,16..19,39..45,51,69,71..84`; adds only the bounded Compiler static-crop/layout accommodations; keeps capability `83/32`, structural `101/14`, MPSGraph `75/35/5`, schema 15, ABI 5, and thirteen exports; completes custom `70/45/0` and identity 22 while preserving every semantic blocker. |
 | 0067 | [Current 115-kind evidence audit and reconciliation](tasks/0067-current-115-kind-evidence-audit.md) | Complete | 0066 Complete through reviewed documentation `209ba28a`; current 40-family/115-kind Model registry; current Compiler inference/autograd/saved-role contracts; schema-15/identity-22 Metal boundary | Every concurrent Metal or Compiler capability/inference/autograd/schema/native/catalog/route/preparation/test/package/shared-document scope; resumed 0053 production | None | Canonical plans `dbdf8b06`/`4b583efe`/`6b8be016` → implementation/evidence `7f9601e1` → public Engine reconciliation `2541c6f3` → findings `1d52989a` → evidence correction `4e604605` → code-review remediation and cumulative approval `453ecf22` | Permanent 115-wire capability/route/catalog audit; real native alias and public Engine proof; native build; complete Metal/Compiler; Metal conformance/integration; architecture/Javadoc; full test/build; docs/diff | Reconciles all 115 rows at exact `83/32`, `101/14`, MPSGraph `75/35/5`, custom `70/45/0`, and Compiler `38/111/133 + 4 = 40/115/137`; resolves A-001..A-006 and R-001..R-005 with independent code/security/evidence `APPROVE` and no Task-0067 blocker. |
 | 0068 | [Release-grade native integration verification](tasks/0068-release-grade-native-integration-verification.md) | Complete | 0067 Complete and independently approved at `cb830587`; current Tasks 0045–0046 package/archive contract; ABI-5/schema-15/identity-22 native boundary | Every concurrent Metal, Compiler, native, package, Gradle, test, planning, or shared-document edit during verification | None | Registered matrix `6820dd63` → fresh warnings-as-errors native build → fixed signing/package/Gradle ZIP/extracted-dylib verification → complete native/JVM/Engine/Compiler/build matrix → evidence correction `1775081a` → independent code/security/evidence `APPROVE` | Package/ZIP verification; 247 Metal backend + 10 Metal conformance + 47 tests across the five explicitly named Metal integration classes = 304 precisely scoped Metal tests; 282 Compiler and 22 complete conformance tests; 3712 repository tests; architecture/Javadoc; full `76`-task test and `87`-task build; JUnit inventory; artifact hashes; docs/diff/clean; three independent reviews | All gates passed without production-source remediation, relevant skip, environmental blocker, benchmark entry point, production fallback/retry/host repair, or local timing/tuning result used as evidence or decision. Mandatory full-suite tests retained their public tuning/fallback assertions. Independent code/security/evidence review at `1775081a` returned `APPROVE` with zero P0/P1/P2. |
+| 0069 | [Source-owned binary32 aggregate-floor slices](tasks/0069-source-owned-binary32-aggregate-slices.md) | Review needed | 0068 Complete at independently approved `1775081a`; Task 0067 current ledger; current Model aggregate/profile and Compiler gradient contracts; retained 0053/0060/0061 evidence only within its recorded limits | Every concurrent Metal capability/native/custom-source/catalog/route/identity/package/shared-document edit; Compiler indexing/reduction/autograd edits; resumed 0053 production | None | Planning approval authorizes only shared proof substrate plus L1_NORM; then separately reviewed SCATTER_ADD; then separately reviewed VARIANCE | Planning-only Markdown/link/status/diff validation, then per-slice proof/certificate/native/package/Metal/Compiler/conformance/Engine/architecture/Javadoc/full test/build gates | Defines source-owned rank-one ACCELERATOR/FLOAT32 no-gradient slices, exact contributor/tree proofs, validation-before-mutation, generated rank-one Gather closure, serial identity/count deltas, and fail-closed neighboring domains. No production edit is authorized before independent plan/evidence/security approval. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -436,6 +437,7 @@ Completed profile spine and serial successors:
 `0065 (Complete) + current dtype/layout/indexing/window and Compiler generated-gradient/saved-role/logical-layout contracts + schema-15 custom-program foundations -> 0066 (Complete)`
 `0066 (Complete) + current 115-kind Model/Compiler/Metal source and behavioral evidence -> 0067 (Complete)`
 `0067 (Complete) + current native/package/archive contracts -> 0068 (Complete)`
+`0068 (Complete) + current Model/Compiler contracts + retained 0053/0060/0061 evidence -> 0069 (Review needed; proof substrate + L1_NORM -> SCATTER_ADD -> VARIANCE serial checkpoints)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -590,9 +592,11 @@ another.
   security, and evidence review returned `APPROVE` with zero remaining P0/P1/P2 and no Task-0067
   blocker. Task 0068 is Complete after its fresh native/package/extracted-dylib matrix and evidence
   correction `1775081a`; independent code, security, and evidence review returned `APPROVE` with
-  zero remaining P0/P1/P2. No Metal task is Ready. Model 0028 owns the reduction semantic contract,
-  Complete Model 0029 owns the MATMUL final-publication semantic contract, and Complete Metal
-  0021–0025 retain reviewed implementations.
+  zero remaining P0/P1/P2. Task 0069 is planning-only and Review needed from clean current base
+  `69c07e30`; no production, proof, native, capability, route, or identity change is authorized
+  before independent plan/evidence/security approval. Model 0028 owns the reduction semantic
+  contract, Complete Model 0029 owns the MATMUL final-publication semantic contract, and Complete
+  Metal 0021–0025 retain reviewed implementations.
 
 ## Milestones and current frontier
 
@@ -742,7 +746,9 @@ Every selected occurrence uses `CUSTOM_PROGRAM`; dynamic/empty/signed-stride/ove
 additive/reduction, transcendental, attention, and recurrent blockers remain fail-closed. Current
 capability is `83/32`, structural execution is `101/14`, catalogs are `75/35/5` MPSGraph and
 `70/45/0` custom, schema is 15, backend-local identity is 22, ABI is 5, and thirteen exports remain
-fixed. No Metal task is Ready.
+fixed. Task 0067 preserves that ledger and Task 0068 independently verifies its release-grade
+native/package integration. Task 0069 is the sole proposed successor but remains Review needed:
+only its plan exists, all three selected rows remain false, and no Metal task is Ready.
 
 Metal 0006 remains historically `Blocked` after its frozen direct-selector
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH special-class and sign gate failures. Complete Model 0030
