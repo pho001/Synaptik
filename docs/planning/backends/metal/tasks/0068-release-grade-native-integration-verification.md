@@ -172,12 +172,14 @@ coverage:
   and concurrent contexts/runs, lifecycle, affine storage, rank-zero transfer, and state isolation;
 - `MetalMpsGraphIndexingNativeTest`, `MetalMpsGraphRawAbiNativeTest`, and the raw alias cases cover
   complete validation and bounds/duplicate/topology/alias rejection before mutation;
-- `DtypeLayoutGradientMetalIntegrationTest`,
-  `EngineExplicitCompositionMetalIntegrationTest`,
-  `EngineConvolutionPoolingMetalIntegrationTest`, `EngineOrderingMetalIntegrationTest`, and
-  `RandomDropoutMetalIntegrationTest` cover both profiles where permitted, all-carrier transfer,
-  rank zero/one/sixteen, affine reuse, saved roles/state, multi-output, route-specific MATMUL/NEG,
-  and direct/generated backward through public Engine;
+- `DtypeLayoutGradientMetalIntegrationTest` (`8` tests),
+  `EngineExplicitCompositionMetalIntegrationTest` (`26`),
+  `EngineConvolutionPoolingMetalIntegrationTest` (`6`),
+  `EngineOrderingMetalIntegrationTest` (`4`), and
+  `RandomDropoutMetalIntegrationTest` (`3`) form the five explicitly named Metal integration
+  classes (`8 + 26 + 6 + 4 + 3 = 47` tests). They cover both profiles where permitted, all-carrier
+  transfer, rank zero/one/sixteen, affine reuse, saved roles/state, multi-output, route-specific
+  MATMUL/NEG, and direct/generated backward through public Engine;
 - the complete Compiler suite covers autograd preflight, saved-role liveness, direct/generated
   formulas, static-result layout closure, and the exact supported/deferred inventory.
 
@@ -186,16 +188,21 @@ coverage:
 All XML reports from the final full build were parsed:
 
 - repository: `558` suites, `3712` tests, `0` failures, `0` errors, `29` skips;
-- Metal-related: `306` tests, `0` failures, `0` errors, `0` skips;
+- precisely scoped Metal runtime subset: `304` tests, `0` failures, `0` errors, `0` skips =
+  `247` Metal backend + `10` `MetalNegCapabilityPartitionConformanceTest` + `47` across the five
+  explicitly named Metal integration classes above;
 - Metal backend: `34` suites, `247` tests, `0` failures, `0` errors, `0` skips;
 - Compiler: `40` suites, `282` tests, `0` failures, `0` errors, `0` skips;
 - backend conformance: `3` suites, `22` tests, `0` failures, `0` errors, `0` skips;
 - integration: `13` suites, `69` tests, `0` failures, `0` errors, `1` skip;
 - architecture: `7` suites, `9` tests, `0` failures, `0` errors, `0` skips.
 
-The one integration skip is CPU-only
+The five-class `47` subtotal intentionally excludes `TrainingSessionCpuIntegrationTest`: that
+CPU-named class has three tests in the full `69`-test integration result, although one method name
+contains `Metal`. The one integration skip is CPU-only
 `EngineModelAutotuningIntegrationTest.eligibleCpuAlternativesCompleteBothPublicTuningPhases`; the
-other 28 skips are CPU backend opt-in evidence/performance cases. No Metal-related test skipped.
+other 28 skips are CPU backend opt-in evidence/performance cases. No test in the precisely scoped
+`304`-test Metal subset skipped.
 
 ## Final verification result
 

@@ -719,9 +719,12 @@ creation, fresh extraction, extracted-package verification, and byte comparison 
 that extracted packaged dylib ran the complete Metal native/backend, conformance, public Engine,
 Compiler/autograd, architecture, Javadoc, full-test, and full-build surfaces.
 
-The final parsed matrix reports `247` Metal backend tests, `282` Compiler tests, `22` conformance
-tests, `48` focused Metal integration tests, and `3712` repository tests with zero failure or error
-and no relevant Metal skip. It reproved Task-0067 closure (`115` unique rows, capability `83/32`,
+The final parsed matrix reports `247` Metal backend tests, `282` Compiler tests, `22` complete
+conformance tests, `47` tests across the five Metal integration classes explicitly named in Task
+0068, and `3712` repository tests with zero failure or error and no skip in that exact Metal scope.
+The precisely scoped `304`-test Metal subtotal is `247` backend + `10`
+`MetalNegCapabilityPartitionConformanceTest` + those `47` five-class integration tests. It reproved
+Task-0067 closure (`115` unique rows, capability `83/32`,
 structural `101/14`, MPSGraph `75/35/5`, custom `70/45/0`, route split `68/13/1/1/32`, Compiler
 `38/111/133 + 4 = 40/115/137`) plus all requested runtime lifecycle, transfer, state, output, and
 error-before-mutation surfaces. No source remediation, benchmark entry point, local latency/tuning
