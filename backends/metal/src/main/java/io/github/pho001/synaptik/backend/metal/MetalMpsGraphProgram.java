@@ -171,7 +171,9 @@ final class MetalMpsGraphProgram {
                 ValueState.CANONICAL, false, true),
         FOLD3D(84, 1, 1, 1, 1, AttributeKind.FOLD_WINDOW_3D,
                 ValueState.CANONICAL, false, true),
-        MEAN_SQUARED_ERROR(85, 2, 2, 1, 1, AttributeKind.MSE),
+        MEAN_SQUARED_ERROR(
+                85, 2, 2, 1, 1, AttributeKind.MSE,
+                ValueState.CANONICAL, false, true),
         DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS(86, 2, 2, 1, 1, AttributeKind.DENSE_CROSS_ENTROPY),
         INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS(87, 2, 2, 1, 1, AttributeKind.INDEX_CROSS_ENTROPY),
         BATCH_NORM_INFERENCE(88, 5, 5, 1, 1, AttributeKind.BATCH_NORM_INFERENCE),

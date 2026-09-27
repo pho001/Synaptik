@@ -42,6 +42,9 @@ import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
+import io.github.pho001.synaptik.model.operation.loss.LossKind;
+import io.github.pho001.synaptik.model.operation.loss.LossReduction;
+import io.github.pho001.synaptik.model.operation.loss.MeanSquaredErrorAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
@@ -221,6 +224,69 @@ final class MetalNegCapabilityPartitionConformanceTest {
                 contiguous,
                 List.of(matrix),
                 List.of(matrix))));
+    }
+
+    /** Proves all three accelerator MSE reductions form one maximal Metal partition. */
+    @Test
+    void acceleratorMseCapabilityAndMaximalPartitionAgree() {
+        var provider = new MetalCapabilityProvider();
+        TensorDescriptor tensor = descriptor(Shape.of(2, 3));
+        TensorDescriptor scalar = descriptor(Shape.scalar());
+        ValueId prediction = new ValueId(90);
+        ValueId target = new ValueId(91);
+        ValueId none = new ValueId(92);
+        ValueId sum = new ValueId(93);
+        ValueId mean = new ValueId(94);
+        List<ValueId> outputs = List.of(none, sum, mean);
+        List<LossReduction> reductions =
+                List.of(LossReduction.NONE, LossReduction.SUM, LossReduction.MEAN);
+        var nodes = new java.util.ArrayList<CompiledNode>();
+        for (int index = 0; index < reductions.size(); index++) {
+            Operation operation = new Operation(
+                    LossKind.MEAN_SQUARED_ERROR,
+                    new MeanSquaredErrorAttrs(reductions.get(index)));
+            TensorDescriptor output =
+                    reductions.get(index) == LossReduction.NONE ? tensor : scalar;
+            assertTrue(provider.supports(query(
+                    NumericalProfile.ACCELERATOR,
+                    operation,
+                    List.of(tensor, tensor),
+                    List.of(output))));
+            assertFalse(provider.supports(query(
+                    NumericalProfile.STRICT_IEEE,
+                    operation,
+                    List.of(tensor, tensor),
+                    List.of(output))));
+            nodes.add(new CompiledNode(
+                    new NodeId(90 + index),
+                    operation,
+                    List.of(prediction, target),
+                    List.of(outputs.get(index))));
+        }
+        var graph = new CompiledGraphModel(
+                List.of(
+                        new GraphValue(prediction, tensor),
+                        new GraphValue(target, tensor),
+                        new GraphValue(none, tensor),
+                        new GraphValue(sum, scalar),
+                        new GraphValue(mean, scalar)),
+                List.copyOf(nodes),
+                List.of(prediction, target),
+                outputs,
+                Map.of(
+                        nodes.get(0).id(), GraphPhase.FORWARD,
+                        nodes.get(1).id(), GraphPhase.FORWARD,
+                        nodes.get(2).id(), GraphPhase.FORWARD));
+        var owners = Map.of(
+                nodes.get(0).id(), MetalCapabilityProvider.METAL_BACKEND_ID,
+                nodes.get(1).id(), MetalCapabilityProvider.METAL_BACKEND_ID,
+                nodes.get(2).id(), MetalCapabilityProvider.METAL_BACKEND_ID);
+        var partitions = MaximalSameOwnerPartitioning.partition(graph, owners);
+        assertEquals(1, partitions.size());
+        assertSame(MetalCapabilityProvider.METAL_BACKEND_ID, partitions.getFirst().owner());
+        assertEquals(
+                nodes.stream().map(CompiledNode::id).toList(),
+                partitions.getFirst().nodeIds());
     }
 
     /** Proves an eligible NEG chain becomes one whole maximal Metal partition. */

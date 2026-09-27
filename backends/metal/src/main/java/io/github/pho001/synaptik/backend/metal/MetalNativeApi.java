@@ -668,6 +668,29 @@ abstract class MetalNativeApi implements AutoCloseable {
                                 "binary output must equal exact right-aligned broadcast");
                         used[right] = true;
                     }
+                    case MEAN_SQUARED_ERROR -> {
+                        requireIndex(right, valueCount, "MSE target input");
+                        if (valueRanks[left] < 1
+                                || !node.kind().accepts(states[right])
+                                || !sameShape(left, right, valueRanks, valueDimensions)) {
+                            throw new IllegalArgumentException(
+                                    "MSE inputs must be matching positive-rank canonical values");
+                        }
+                        long reduction = node.attributeWords()[0];
+                        requireShape(
+                                reduction == 1L
+                                        ? sameShape(
+                                                left, output, valueRanks, valueDimensions)
+                                        : valueRanks[output] == 0,
+                                "MSE output shape must match its reduction");
+                        if (values.get(output).requiresGrad()
+                                != (values.get(left).requiresGrad()
+                                        || values.get(right).requiresGrad())) {
+                            throw new IllegalArgumentException(
+                                    "MSE output gradient metadata must equal the input logical OR");
+                        }
+                        used[right] = true;
+                    }
                     case WHERE -> {
                         requireIndex(right, valueCount, "true branch input");
                         requireIndex(auxiliary, valueCount, "false branch input");
@@ -882,6 +905,11 @@ abstract class MetalNativeApi implements AutoCloseable {
                         requireType(types, output, ValueType.FLOAT32);
                     }
                     case ADD, SUB, MUL, DIV, TENSOR_POW, TENSOR_MIN, TENSOR_MAX -> {
+                        requireType(types, left, ValueType.FLOAT32);
+                        requireType(types, right, ValueType.FLOAT32);
+                        requireType(types, output, ValueType.FLOAT32);
+                    }
+                    case MEAN_SQUARED_ERROR -> {
                         requireType(types, left, ValueType.FLOAT32);
                         requireType(types, right, ValueType.FLOAT32);
                         requireType(types, output, ValueType.FLOAT32);

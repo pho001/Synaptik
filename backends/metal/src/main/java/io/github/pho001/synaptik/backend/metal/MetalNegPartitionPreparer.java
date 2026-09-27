@@ -57,6 +57,8 @@ import io.github.pho001.synaptik.model.operation.layout.Unfold3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
+import io.github.pho001.synaptik.model.operation.loss.LossKind;
+import io.github.pho001.synaptik.model.operation.loss.MeanSquaredErrorAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
@@ -85,21 +87,21 @@ import java.util.Optional;
  * For both profiles, it walks explicit unavailable/canonical/affine-view states in node order for
  * the retained six exact unary operations, affine, CONTIGUOUS, UNFOLD_AXIS, GATHER, ONE_HOT,
  * replacement SCATTER_ELEMENTS, and exact classification/BOOL-logic/WHERE domain. Under
- * {@code ACCELERATOR}, it additionally accepts existing arithmetic and reduction rows plus every
- * positive-static FLOAT32 MATMUL vector, matrix, batched, and broadcast geometry and the exact
- * Task-0052 comparisons, tensor/scalar extrema, clamp, reduction extrema, cumulative scans,
- * no-gradient scalar ADD/SUB/MUL/DIV, and no-gradient RECIPROCAL. Both profiles also admit exact
- * no-gradient promoted INT32/INT64 MATMUL; accelerator additionally admits no-gradient
- * BFLOAT16/FLOAT32 mixed MATMUL. An affine MATMUL operand is authenticated to the exact earlier
- * local identity-prefix, last-two-axis {@code PERMUTE} on that consuming edge. The profile-common
- * Task-0060 domain adds exact replacement SCATTER_ND and signed SLICE_UPDATE, non-overlapping
+ * {@code ACCELERATOR}, it additionally accepts existing arithmetic and reduction rows plus same-
+ * type canonical positive-rank FLOAT32 {@code MEAN_SQUARED_ERROR} for {@code NONE}/{@code SUM}/
+ * {@code MEAN}, every positive-static FLOAT32 MATMUL vector, matrix, batched, and broadcast
+ * geometry, and the exact Task-0052 comparisons, tensor/scalar extrema, clamp, reduction extrema,
+ * cumulative scans, no-gradient scalar ADD/SUB/MUL/DIV, and no-gradient RECIPROCAL. Both profiles
+ * also admit exact no-gradient promoted INT32/INT64 MATMUL; accelerator additionally admits no-
+ * gradient BFLOAT16/FLOAT32 mixed MATMUL. An affine MATMUL operand is authenticated to the exact
+ * earlier local identity-prefix, last-two-axis {@code PERMUTE} on that consuming edge. The profile-
+ * common Task-0060 domain adds exact replacement SCATTER_ND and signed SLICE_UPDATE, non-overlapping
  * FLOAT64/FLOAT32/BFLOAT16 FOLD_AXIS/FOLD2D/FOLD3D, modular INT32/INT64 PROD, and canonical BOOL
- * ALL/ANY. Schema-fifteen lowering emits one bounded
- * self-describing image over
- * stable type wires 1..6, complete operation registry 1..115, attribute registry 0..41, and the
- * explicit prepared route. Production capability is exactly 69 operation kinds; the additional
- * structural recipes remain inaccessible to this analysis. Ordinary graph feeds are canonical
- * and explicitly typed. SELECT/SLICE feeds may instead use the exact supported resolved
+ * ALL/ANY. Schema-fifteen lowering emits one bounded self-describing image over stable type wires
+ * 1..6, complete operation registry 1..115, attribute registry 0..41, and the explicit prepared
+ * route. Production capability is exactly 70 operation kinds; the additional structural recipes
+ * remain inaccessible to this analysis. Ordinary graph feeds are canonical and explicitly typed.
+ * SELECT/SLICE feeds may instead use the exact supported resolved
  * positive-stride non-overlapping storage layout. Rank-zero values participate only where exact
  * capability permits them. Exact BOOL results may feed admitted logic and selection nodes or
  * cross owner boundaries.
@@ -598,6 +600,20 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             List<TensorDescriptor> inputDescriptors,
             TensorDescriptor outputDescriptor) {
         OperationKind kind = operation.kind();
+        if (kind == LossKind.MEAN_SQUARED_ERROR) {
+            MeanSquaredErrorAttrs attrs = (MeanSquaredErrorAttrs) operation.attrs();
+            long reduction = switch (attrs.reduction()) {
+                case NONE -> 1L;
+                case SUM -> 2L;
+                case MEAN -> 3L;
+            };
+            return MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.MEAN_SQUARED_ERROR,
+                    inputs,
+                    new int[] {output},
+                    MetalMpsGraphProgram.AttributeKind.MSE,
+                    new long[] {reduction});
+        }
         if (kind == CastKind.CAST) {
             CastAttrs attrs = (CastAttrs) operation.attrs();
             return MetalMpsGraphProgram.Node.generic(

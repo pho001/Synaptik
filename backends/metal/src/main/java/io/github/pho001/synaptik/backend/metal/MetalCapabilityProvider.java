@@ -55,6 +55,9 @@ import io.github.pho001.synaptik.model.operation.layout.Unfold3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
+import io.github.pho001.synaptik.model.operation.loss.LossKind;
+import io.github.pho001.synaptik.model.operation.loss.LossReduction;
+import io.github.pho001.synaptik.model.operation.loss.MeanSquaredErrorAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
@@ -86,22 +89,25 @@ import java.util.Objects;
  * logic is entirely no-grad, and WHERE propagates the branch gradient OR after branch-first then
  * condition broadcasting.
  * {@code ACCELERATOR} additionally admits tensor {@code ADD}/{@code SUB}/{@code MUL}/{@code DIV},
- * canonical FLOAT32 {@code SUM}/{@code MEAN}/{@code SUM_TO_SHAPE}, every positive-static
- * FLOAT32 {@code MATMUL} vector, matrix, batched, and right-aligned broadcast geometry, and
- * canonical positive-rank FLOAT32 no-gradient scalar {@code ADD}/{@code SUB}/{@code MUL}/{@code
- * DIV} and {@code RECIPROCAL}. Scalar arithmetic retains the exact FLOAT32 raw attribute and
- * operand order; reciprocal is exact {@code 1 / input}. Both profiles admit no-gradient
- * INT32/INT64 MATMUL pairs with INT64-dominant promotion and modular result arithmetic.
- * Accelerator also admits no-gradient BFLOAT16/FLOAT32 and FLOAT32/BFLOAT16 operands with a
- * FLOAT32 result. BFLOAT16/BFLOAT16 and every FLOAT64-result pair remain unsupported.
- * Each MATMUL operand is canonical or the exact identity-prefix, last-two-axis transpose layout
- * that complete-partition analysis authenticates to a local {@code PERMUTE} from a canonical
- * source. FLOAT32 output gradient metadata is the exact operand OR; integral and mixed-carrier
- * rows are no-grad. Accelerator reductions admit full, normalized single-axis, ordered normalized
- * multi-axis (including empty-axis identity), and binding-resolved sum-to-Shape forms. The exact
- * Task-0060 integral PROD and BOOL ALL/ANY domain below is profile-common. Other strict reductions
- * remain unsupported. Reduction inputs are canonical with positive dimensions; canonical outputs
- * may be rank zero only as locally produced reduction results.
+ * canonical FLOAT32 {@code SUM}/{@code MEAN}/{@code SUM_TO_SHAPE}, same-type canonical positive-
+ * rank FLOAT32 {@code MEAN_SQUARED_ERROR} with {@code NONE}/{@code SUM}/{@code MEAN}, every
+ * positive-static FLOAT32 {@code MATMUL} vector, matrix, batched, and right-aligned broadcast
+ * geometry, and canonical positive-rank FLOAT32 no-gradient scalar {@code ADD}/{@code SUB}/
+ * {@code MUL}/{@code DIV} and {@code RECIPROCAL}. MSE preserves the exact input Shape for
+ * {@code NONE}, publishes a scalar for {@code SUM}/{@code MEAN}, and propagates the input-gradient
+ * logical OR as output metadata without claiming generated backward ownership. Scalar arithmetic
+ * retains the exact FLOAT32 raw attribute and operand order; reciprocal is exact
+ * {@code 1 / input}. Both profiles admit no-gradient INT32/INT64 MATMUL pairs with INT64-dominant
+ * promotion and modular result arithmetic. Accelerator also admits no-gradient BFLOAT16/FLOAT32
+ * and FLOAT32/BFLOAT16 operands with a FLOAT32 result. BFLOAT16/BFLOAT16 and every FLOAT64-result
+ * pair remain unsupported. Each MATMUL operand is canonical or the exact identity-prefix,
+ * last-two-axis transpose layout that complete-partition analysis authenticates to a local
+ * {@code PERMUTE} from a canonical source. FLOAT32 output gradient metadata is the exact operand
+ * OR; integral and mixed-carrier rows are no-grad. Accelerator reductions admit full, normalized
+ * single-axis, ordered normalized multi-axis (including empty-axis identity), and binding-resolved
+ * sum-to-Shape forms. The exact Task-0060 integral PROD and BOOL ALL/ANY domain below is profile-
+ * common. Other strict reductions remain unsupported. Reduction and MSE inputs are canonical with
+ * positive dimensions; canonical outputs may be rank zero only as locally produced results.
  * Binary inputs and outputs are canonical dense non-views with exact right-aligned broadcasting. The six exact
  * unary descriptor pairs are canonical. An affine or contiguous input may be canonical or an
  * exact resolved zero-offset logical view; complete-partition analysis authenticates every
@@ -289,6 +295,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 return supportsMatmul(numericalProfile, operation, inputs, output);
             }
             if (numericalProfile == NumericalProfile.ACCELERATOR) {
+                if (operation.kind() == LossKind.MEAN_SQUARED_ERROR) {
+                    return supportsMeanSquaredError(operation, inputs, output);
+                }
                 if (operation.kind() instanceof BinaryComparisonKind comparison) {
                     return supportsComparison(operation, inputs, output, comparison);
                 }
@@ -1418,6 +1427,34 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     }
 
 
+
+    private static boolean supportsMeanSquaredError(
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            TensorDescriptor output) {
+        if (!(operation.attrs() instanceof MeanSquaredErrorAttrs attrs)
+                || inputs.size() != 2) {
+            return false;
+        }
+        TensorDescriptor prediction = inputs.get(0);
+        TensorDescriptor target = inputs.get(1);
+        if (!canonicalTyped(prediction, DataType.FLOAT32)
+                || !canonicalTyped(target, DataType.FLOAT32)
+                || !prediction.shape().equals(target.shape())
+                || output.requiresGrad()
+                        != (prediction.requiresGrad() || target.requiresGrad())) {
+            return false;
+        }
+        if (attrs.reduction() == LossReduction.NONE) {
+            return canonicalTyped(output, DataType.FLOAT32)
+                    && output.shape().equals(prediction.shape());
+        }
+        return (attrs.reduction() == LossReduction.SUM
+                        || attrs.reduction() == LossReduction.MEAN)
+                && output.dataType() == DataType.FLOAT32
+                && canonicalReductionOutput(output)
+                && output.shape().rank() == 0;
+    }
 
     private static boolean supportsReduction(
             Operation operation,

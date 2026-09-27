@@ -59,8 +59,8 @@ class MetalOperationRouteCatalogTest {
         assertEquals(47, customAvailable);
         assertEquals(68, customPending);
         assertEquals(0, customUnavailableWithProof);
-        assertEquals(87, executable);
-        assertEquals(28, kinds.length - executable);
+        assertEquals(88, executable);
+        assertEquals(27, kinds.length - executable);
         assertThrows(NullPointerException.class, () -> MetalOperationRouteCatalog.entry(null));
     }
 
@@ -113,6 +113,12 @@ class MetalOperationRouteCatalogTest {
                 MetalOperationRouteCatalog.MpsGraphReason.MD_ARITH,
                 MetalOperationRouteCatalog.CustomKernelState.PENDING,
                 MetalOperationRouteCatalog.CustomKernelReason.CP_POWER);
+        assertCatalog(
+                MetalMpsGraphProgram.NodeKind.MEAN_SQUARED_ERROR,
+                MetalOperationRouteCatalog.MpsGraphState.COMPOSED,
+                MetalOperationRouteCatalog.MpsGraphReason.MC_MSE,
+                MetalOperationRouteCatalog.CustomKernelState.PENDING,
+                MetalOperationRouteCatalog.CustomKernelReason.CP_AGGREGATE);
         assertCatalog(
                 MetalMpsGraphProgram.NodeKind.SCALAR_ADD,
                 MetalOperationRouteCatalog.MpsGraphState.COMPOSED,

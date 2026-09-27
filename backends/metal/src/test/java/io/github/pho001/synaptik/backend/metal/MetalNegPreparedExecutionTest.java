@@ -50,6 +50,9 @@ import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
+import io.github.pho001.synaptik.model.operation.loss.LossKind;
+import io.github.pho001.synaptik.model.operation.loss.LossReduction;
+import io.github.pho001.synaptik.model.operation.loss.MeanSquaredErrorAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
@@ -1751,6 +1754,74 @@ class MetalNegPreparedExecutionTest {
                                 plan.feedValueIndices(),
                                 plan.targetValueIndices()),
                         api.createdProgramImage);
+            }
+            assertEquals(1, api.executableReleases.get());
+        } finally {
+            context.close();
+        }
+        assertEquals(1, api.contextReleases.get());
+    }
+
+    @Test
+    void acceleratorMseLowersEveryReductionToOneReusableMpsGraphExecutable() {
+        Fixture fixture = mseFixture();
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        try {
+            assertThrows(IllegalArgumentException.class,
+                    () -> analyze(fixture, context, NumericalProfile.STRICT_IEEE));
+            assertEquals(0, api.executableCreates.get());
+
+            BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
+                    analyze(fixture, context, NumericalProfile.ACCELERATOR);
+            MetalNegPreparationPlan plan = analysis.plan();
+            assertEquals(MetalPreparedRoute.MPSGRAPH, plan.route());
+            assertEquals(
+                    List.of(
+                            MetalMpsGraphProgram.NodeKind.MEAN_SQUARED_ERROR,
+                            MetalMpsGraphProgram.NodeKind.MEAN_SQUARED_ERROR,
+                            MetalMpsGraphProgram.NodeKind.MEAN_SQUARED_ERROR),
+                    plan.graphProgram().nodes().stream()
+                            .map(MetalMpsGraphProgram.Node::kind)
+                            .toList());
+            for (int index = 0; index < 3; index++) {
+                MetalMpsGraphProgram.Node node = plan.graphProgram().nodes().get(index);
+                assertArrayEquals(new int[] {0, 1}, node.inputs());
+                assertArrayEquals(new int[] {index + 2}, node.outputs());
+                assertEquals(MetalMpsGraphProgram.AttributeKind.MSE, node.attributeKind());
+                assertArrayEquals(new long[] {index + 1L}, node.attributeWords());
+            }
+            assertEquals(List.of(fixture.v0(), fixture.v1()), plan.feedValueIds());
+            assertArrayEquals(new int[] {0, 1}, plan.feedValueIndices());
+            assertEquals(
+                    List.of(fixture.v2(), fixture.v3(), fixture.v4()),
+                    plan.targetValueIds());
+            assertArrayEquals(new int[] {2, 3, 4}, plan.targetValueIndices());
+            assertTrue(plan.internalValueIds().isEmpty());
+            assertArrayEquals(new long[] {24, 24}, plan.feedRequiredBytes());
+            assertArrayEquals(new long[] {24, 4, 4}, plan.targetRequiredBytes());
+            assertEquals(5, plan.declarations().size());
+
+            try (var prediction = context.createBuffer(24);
+                    var target = context.createBuffer(24);
+                    var none = context.createBuffer(24);
+                    var sum = context.createBuffer(4);
+                    var mean = context.createBuffer(4);
+                    var workspace =
+                            addressWorkspace(context, prediction, target, none, sum, mean);
+                    var resource = context.createMpsGraphExecutable(plan)) {
+                resource.run(
+                        2,
+                        workspace.segment().asSlice(0, 2L * Long.BYTES),
+                        3,
+                        workspace.segment().asSlice(2L * Long.BYTES, 3L * Long.BYTES));
+                resource.run(
+                        2,
+                        workspace.segment().asSlice(0, 2L * Long.BYTES),
+                        3,
+                        workspace.segment().asSlice(2L * Long.BYTES, 3L * Long.BYTES));
+                assertEquals(1, api.executableCreates.get());
+                assertEquals(2, api.runCalls.get());
             }
             assertEquals(1, api.executableReleases.get());
         } finally {
@@ -3861,6 +3932,62 @@ class MetalNegPreparedExecutionTest {
                 requirement(v5, input, Optional.of(partition), List.of(), true));
         return new Fixture(
                 partition, nodes, values, requirements, v0, v1, v2, v3, v4, v5);
+    }
+
+    private static Fixture mseFixture() {
+        Shape shape = Shape.of(2, 3);
+        TensorDescriptor prediction = new TensorDescriptor(
+                DataType.FLOAT32,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                true);
+        TensorDescriptor target = descriptor(shape);
+        TensorDescriptor unreduced = new TensorDescriptor(
+                DataType.FLOAT32,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                true);
+        Shape scalarShape = Shape.scalar();
+        TensorDescriptor scalar = new TensorDescriptor(
+                DataType.FLOAT32,
+                scalarShape,
+                Optional.of(LayoutDescriptor.contiguous(scalarShape)),
+                true);
+        ValueId v0 = new ValueId(31_100);
+        ValueId v1 = new ValueId(31_101);
+        ValueId v2 = new ValueId(31_102);
+        ValueId v3 = new ValueId(31_103);
+        ValueId v4 = new ValueId(31_104);
+        List<LossReduction> reductions =
+                List.of(LossReduction.NONE, LossReduction.SUM, LossReduction.MEAN);
+        List<ValueId> outputs = List.of(v2, v3, v4);
+        List<CompiledNode> nodes = new ArrayList<>();
+        for (int index = 0; index < reductions.size(); index++) {
+            nodes.add(new CompiledNode(
+                    new NodeId(31_100 + index),
+                    new Operation(
+                            LossKind.MEAN_SQUARED_ERROR,
+                            new MeanSquaredErrorAttrs(reductions.get(index))),
+                    List.of(v0, v1),
+                    List.of(outputs.get(index))));
+        }
+        PlannedPartition partition = new PlannedPartition(
+                MetalCapabilityProvider.METAL_BACKEND_ID,
+                nodes.stream().map(CompiledNode::id).toList());
+        List<GraphValue> values = List.of(
+                new GraphValue(v0, prediction),
+                new GraphValue(v1, target),
+                new GraphValue(v2, unreduced),
+                new GraphValue(v3, scalar),
+                new GraphValue(v4, scalar));
+        List<LogicalMemoryRequirement> requirements = List.of(
+                requirement(v0, prediction, Optional.empty(), List.of(partition), false),
+                requirement(v1, target, Optional.empty(), List.of(partition), false),
+                requirement(v2, unreduced, Optional.of(partition), List.of(), true),
+                requirement(v3, scalar, Optional.of(partition), List.of(), true),
+                requirement(v4, scalar, Optional.of(partition), List.of(), true));
+        return new Fixture(
+                partition, List.copyOf(nodes), values, requirements, v0, v1, v2, v3, v4, v4);
     }
 
     private static IndexingRoute indexingRoute(

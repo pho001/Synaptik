@@ -114,14 +114,21 @@
  * STANDARD_DEVIATION, L1_NORM, and L2_NORM have forceable structural recipes only and remain
  * production-false.</p>
  *
+ * <p>Task 0062 adds only ACCELERATOR same-type canonical positive-rank FLOAT32
+ * MEAN_SQUARED_ERROR with NONE, SUM, or MEAN reduction. Native lowering fixes the Model formula to
+ * one subtraction, multiplication of that exact difference by itself, and the already qualified
+ * full SUM or MEAN reduction. Output gradient metadata is the exact input logical OR; generated
+ * backward graphs receive no new ownership. Strict IEEE, scalar inputs, other carriers or mixed
+ * carriers, and every other normalization or loss kind remain false.</p>
+ *
  * <p>The selected numerical profile participates in partition-plan, route, tuning,
  * decision-codec, and workload identity. Java rejects profile/schema mismatches before native
  * entry. ABI version five retains thirteen exports. Node schema version fifteen is one bounded
  * self-describing route-bearing image over stable type wires {@code 1..6}, operation wires
  * {@code 1..115}, attribute wires {@code 0..41}, and complete optional storage-layout geometry.
- * Native structural execution covers exactly 87 wires and leaves 28 nonexecutable. Production
- * capability is exactly 69 operation kinds and 46 remain false. Backend-local workload,
+ * Native structural execution covers exactly 88 wires and leaves 27 nonexecutable. Production
+ * capability is exactly 70 operation kinds and 45 remain false. Backend-local workload,
  * exact-policy, candidate, compatibility, route-policy, and codec identities are version
- * seventeen; schema fourteen and identity version sixteen fail closed.</p>
+ * eighteen; schema fourteen and identity version seventeen fail closed.</p>
  */
 package io.github.pho001.synaptik.backend.metal;

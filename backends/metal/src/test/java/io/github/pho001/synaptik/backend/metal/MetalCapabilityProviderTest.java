@@ -51,6 +51,21 @@ import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
+import io.github.pho001.synaptik.model.operation.loss.DenseCategoricalCrossEntropyWithLogitsAttrs;
+import io.github.pho001.synaptik.model.operation.loss.IndexCategoricalCrossEntropyWithLogitsAttrs;
+import io.github.pho001.synaptik.model.operation.loss.LossKind;
+import io.github.pho001.synaptik.model.operation.loss.LossReduction;
+import io.github.pho001.synaptik.model.operation.loss.MeanSquaredErrorAttrs;
+import io.github.pho001.synaptik.model.operation.normalization.AffineLayerNormAttrs;
+import io.github.pho001.synaptik.model.operation.normalization.BatchNormInferenceAttrs;
+import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
+import io.github.pho001.synaptik.model.operation.normalization.BatchNormTrainingAttrs;
+import io.github.pho001.synaptik.model.operation.normalization.LayerNormAttrs;
+import io.github.pho001.synaptik.model.operation.normalization.LayerNormKind;
+import io.github.pho001.synaptik.model.operation.normalization.RmsNormAttrs;
+import io.github.pho001.synaptik.model.operation.normalization.RmsNormKind;
+import io.github.pho001.synaptik.model.operation.normalization.SoftmaxAttrs;
+import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MaskedReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
@@ -69,7 +84,7 @@ import org.junit.jupiter.api.Test;
 class MetalCapabilityProviderTest {
     private final MetalCapabilityProvider provider = new MetalCapabilityProvider();
     @Test
-    void registeredWireCapabilityLedgerClosesAtSixtyOneTrueAndFiftyFourFalse() {
+    void registeredWireCapabilityLedgerClosesAtSeventyTrueAndFortyFiveFalse() {
         java.util.Set<MetalMpsGraphProgram.NodeKind> structuralOnly = java.util.Set.of(
                 MetalMpsGraphProgram.NodeKind.TENSOR_POW,
                 MetalMpsGraphProgram.NodeKind.SCALAR_POW,
@@ -94,13 +109,174 @@ class MetalCapabilityProviderTest {
                 .filter(MetalMpsGraphProgram.NodeKind::executable)
                 .filter(kind -> !structuralOnly.contains(kind))
                 .count();
-        assertEquals(69L, trueRows);
-        assertEquals(46L, MetalMpsGraphProgram.NodeKind.values().length - trueRows);
+        assertEquals(70L, trueRows);
+        assertEquals(45L, MetalMpsGraphProgram.NodeKind.values().length - trueRows);
         structuralOnly.forEach(kind -> assertTrue(kind.executable(), kind.name()));
         assertFalse(MetalMpsGraphProgram.NodeKind.EXP.executable());
         assertFalse(MetalMpsGraphProgram.NodeKind.SIGMOID.executable());
     }
 
+    @Test
+    void acceleratorMseIsTheOnlyNormalizationOrLossCapability() {
+        Shape shape = Shape.of(2, 3);
+        for (LossReduction reduction : LossReduction.values()) {
+            Operation mse = new Operation(
+                    LossKind.MEAN_SQUARED_ERROR, new MeanSquaredErrorAttrs(reduction));
+            for (boolean predictionGrad : List.of(false, true)) {
+                for (boolean targetGrad : List.of(false, true)) {
+                    TensorDescriptor prediction = descriptor(shape, predictionGrad);
+                    TensorDescriptor target = descriptor(shape, targetGrad);
+                    TensorDescriptor output = descriptor(
+                            reduction == LossReduction.NONE ? shape : Shape.scalar(),
+                            predictionGrad || targetGrad);
+                    OperationCapabilityQuery query = new OperationCapabilityQuery(
+                            NumericalProfile.ACCELERATOR,
+                            mse,
+                            List.of(prediction, target),
+                            List.of(output));
+                    assertTrue(provider.supports(query),
+                            reduction + " gradients " + predictionGrad + "/" + targetGrad);
+                    assertFalse(provider.supports(new OperationCapabilityQuery(
+                            NumericalProfile.STRICT_IEEE,
+                            mse,
+                            query.inputs(),
+                            query.outputs())));
+                }
+            }
+        }
+
+        Operation none = new Operation(
+                LossKind.MEAN_SQUARED_ERROR,
+                new MeanSquaredErrorAttrs(LossReduction.NONE));
+        TensorDescriptor value = descriptor(shape, false);
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                none,
+                List.of(typed(DataType.FLOAT64, shape, false), typed(DataType.FLOAT64, shape, false)),
+                List.of(typed(DataType.FLOAT64, shape, false)))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                none,
+                List.of(
+                        typed(DataType.BFLOAT16, shape, false),
+                        typed(DataType.FLOAT32, shape, false)),
+                List.of(typed(DataType.FLOAT32, shape, false)))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                none,
+                List.of(descriptor(Shape.scalar(), false), descriptor(Shape.scalar(), false)),
+                List.of(descriptor(Shape.scalar(), false)))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                none,
+                List.of(value, descriptor(Shape.of(3, 2), false)),
+                List.of(value))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                none,
+                List.of(value, value),
+                List.of(descriptor(shape, true)))));
+        TensorDescriptor dynamic = new TensorDescriptor(
+                DataType.FLOAT32,
+                Shape.ofDimensions(new DynamicDimension("N"), new StaticDimension(3)),
+                Optional.empty(),
+                false);
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                none,
+                List.of(dynamic, dynamic),
+                List.of(dynamic))));
+        TensorDescriptor empty = descriptor(Shape.of(2, 0), false);
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                none,
+                List.of(empty, empty),
+                List.of(empty))));
+        TensorDescriptor viewed = view(shape, 3, 1);
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                none,
+                List.of(viewed, value),
+                List.of(value))));
+
+        ScalarValue epsilon = ScalarValue.float32(1.0e-5f);
+        TensorDescriptor channel = descriptor(Shape.of(3), false);
+        TensorDescriptor sample = descriptor(Shape.of(2), false);
+        TensorDescriptor indexTarget = typed(DataType.INT32, Shape.of(2), false);
+        List<TensorDescriptor> batchInputs = List.of(value, channel, channel, channel, channel);
+        List<OperationCapabilityQuery> blockedQueries = List.of(
+                new OperationCapabilityQuery(
+                        NumericalProfile.ACCELERATOR,
+                        new Operation(
+                                LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
+                                new DenseCategoricalCrossEntropyWithLogitsAttrs(
+                                        1, LossReduction.NONE)),
+                        List.of(value, value),
+                        List.of(sample)),
+                new OperationCapabilityQuery(
+                        NumericalProfile.ACCELERATOR,
+                        new Operation(
+                                LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
+                                new IndexCategoricalCrossEntropyWithLogitsAttrs(
+                                        1, LossReduction.NONE, Optional.empty())),
+                        List.of(value, indexTarget),
+                        List.of(sample)),
+                new OperationCapabilityQuery(
+                        NumericalProfile.ACCELERATOR,
+                        new Operation(
+                                BatchNormKind.BATCH_NORM_INFERENCE,
+                                new BatchNormInferenceAttrs(1, epsilon)),
+                        batchInputs,
+                        List.of(value)),
+                new OperationCapabilityQuery(
+                        NumericalProfile.ACCELERATOR,
+                        new Operation(
+                                BatchNormKind.BATCH_NORM_TRAINING,
+                                new BatchNormTrainingAttrs(
+                                        1, ScalarValue.float32(0.5f), epsilon)),
+                        batchInputs,
+                        List.of(value, channel, channel, channel, channel)),
+                new OperationCapabilityQuery(
+                        NumericalProfile.ACCELERATOR,
+                        new Operation(
+                                LayerNormKind.LAYER_NORM,
+                                new LayerNormAttrs(Shape.of(3), epsilon)),
+                        List.of(value),
+                        List.of(value)),
+                new OperationCapabilityQuery(
+                        NumericalProfile.ACCELERATOR,
+                        new Operation(
+                                LayerNormKind.LAYER_NORM,
+                                new AffineLayerNormAttrs(Shape.of(3), epsilon)),
+                        List.of(value, channel, channel),
+                        List.of(value)),
+                new OperationCapabilityQuery(
+                        NumericalProfile.ACCELERATOR,
+                        new Operation(
+                                RmsNormKind.RMS_NORM,
+                                new RmsNormAttrs(Shape.of(3), epsilon)),
+                        List.of(value),
+                        List.of(value)),
+                new OperationCapabilityQuery(
+                        NumericalProfile.ACCELERATOR,
+                        new Operation(
+                                RmsNormKind.RMS_NORM,
+                                new RmsNormAttrs(Shape.of(3), epsilon)),
+                        List.of(value, channel),
+                        List.of(value)),
+                new OperationCapabilityQuery(
+                        NumericalProfile.ACCELERATOR,
+                        new Operation(SoftmaxKind.SOFTMAX, new SoftmaxAttrs(1)),
+                        List.of(value),
+                        List.of(value)),
+                new OperationCapabilityQuery(
+                        NumericalProfile.ACCELERATOR,
+                        new Operation(SoftmaxKind.LOG_SOFTMAX, new SoftmaxAttrs(1)),
+                        List.of(value),
+                        List.of(value)));
+        blockedQueries.forEach(query -> assertFalse(
+                provider.supports(query), query.operation().kind().toString()));
+    }
 
     @Test
     void task0059AdvertisesCastSelectAndSliceWithoutOpeningUnsafeLayouts() {

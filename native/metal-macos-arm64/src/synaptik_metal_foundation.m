@@ -116,6 +116,7 @@ typedef enum : uint32_t {
     SYNAPTIK_METAL_MPSGRAPH_FOLD2D = 82U,
     SYNAPTIK_METAL_CUSTOM_UNFOLD3D = 83U,
     SYNAPTIK_METAL_MPSGRAPH_FOLD3D = 84U,
+    SYNAPTIK_METAL_MPSGRAPH_MSE = 85U,
     SYNAPTIK_METAL_CUSTOM_PROD = 106U,
     SYNAPTIK_METAL_CUSTOM_ALL = 107U,
     SYNAPTIK_METAL_CUSTOM_ANY = 108U,
@@ -141,7 +142,8 @@ typedef enum : uint32_t {
     SYNAPTIK_METAL_MPSGRAPH_ATTR_WINDOW_AXIS = 6U,
     SYNAPTIK_METAL_CUSTOM_ATTR_SCALAR_VALUE = 7U,
     SYNAPTIK_METAL_CUSTOM_ATTR_CLAMP_RANGE = 8U,
-    SYNAPTIK_METAL_CUSTOM_ATTR_SCAN = 9U
+    SYNAPTIK_METAL_CUSTOM_ATTR_SCAN = 9U,
+    SYNAPTIK_METAL_MPSGRAPH_ATTR_MSE = 25U
 } SynaptikMetalAttribute;
 
 typedef enum : uint32_t {
@@ -2141,6 +2143,7 @@ static BOOL operation_has_direct_mpsgraph(uint32_t operation) {
             || operation == SYNAPTIK_METAL_CUSTOM_CAST
             || (operation >= SYNAPTIK_METAL_CUSTOM_GATHER_ELEMENTS
                     && operation <= SYNAPTIK_METAL_MPSGRAPH_FOLD3D)
+            || operation == SYNAPTIK_METAL_MPSGRAPH_MSE
             || (operation >= SYNAPTIK_METAL_CUSTOM_PROD
                     && operation <= SYNAPTIK_METAL_CUSTOM_ANY)
             || (operation >= SYNAPTIK_METAL_MPSGRAPH_LOG_SUM_EXP
@@ -3309,6 +3312,32 @@ static int32_t synaptik_metal_create_decoded(
                     }
                     break;
                 }
+                case SYNAPTIK_METAL_MPSGRAPH_MSE: {
+                    uint64_t reduction = node.attribute_values[0];
+                    BOOL output_shape_valid = reduction == 1U
+                            ? [shapes[node.first_input]
+                                    isEqualToArray:shapes[node.output]]
+                            : shapes[node.output].count == 0U;
+                    if (states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
+                            || node.second_input >= value_count
+                            || states[node.second_input]
+                                    != SYNAPTIK_METAL_VALUE_CANONICAL
+                            || shapes[node.first_input].count == 0U
+                            || ![shapes[node.first_input]
+                                    isEqualToArray:shapes[node.second_input]]
+                            || node.attribute_kind
+                                    != SYNAPTIK_METAL_MPSGRAPH_ATTR_MSE
+                            || node.attribute_count != 1U
+                            || reduction < 1U
+                            || reduction > 3U
+                            || node.axis != UINT32_MAX
+                            || node.auxiliary != 0U
+                            || !node_values_are_zero_from(node, 1U)
+                            || !output_shape_valid)
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    used[node.second_input] = 1U;
+                    break;
+                }
                 case SYNAPTIK_METAL_MPSGRAPH_UNFOLD_AXIS:
                     if (states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
                             || !node_unfold_axis_matches(
@@ -3427,6 +3456,7 @@ static int32_t synaptik_metal_create_decoded(
                 case SYNAPTIK_METAL_MPSGRAPH_TENSOR_POW:
                 case SYNAPTIK_METAL_CUSTOM_TENSOR_MIN:
                 case SYNAPTIK_METAL_CUSTOM_TENSOR_MAX:
+                case SYNAPTIK_METAL_MPSGRAPH_MSE:
                     type_valid = require_value_type(
                                     value_types, node.first_input,
                                     SYNAPTIK_METAL_TYPE_FLOAT32)
@@ -4181,6 +4211,37 @@ static int32_t synaptik_metal_create_decoded(
                     output = [graph powerWithPrimaryTensor:first
                             secondaryTensor:second name:nil];
                     break;
+                case SYNAPTIK_METAL_MPSGRAPH_MSE: {
+                    MPSGraphTensor *difference =
+                            [graph subtractionWithPrimaryTensor:first
+                                    secondaryTensor:second name:nil];
+                    MPSGraphTensor *square =
+                            [graph multiplicationWithPrimaryTensor:difference
+                                    secondaryTensor:difference name:nil];
+                    uint64_t reduction = node.attribute_values[0];
+                    if (reduction == 1U) {
+                        output = square;
+                    } else {
+                        NSMutableArray<NSNumber *> *axes =
+                                [NSMutableArray arrayWithCapacity:
+                                        shapes[node.first_input].count];
+                        for (NSUInteger axis = 0U;
+                                axis < shapes[node.first_input].count; axis++) {
+                            [axes addObject:@(axis)];
+                        }
+                        output = reduction == 2U
+                                ? [graph reductionSumWithTensor:square
+                                        axes:axes name:nil]
+                                : [graph meanOfTensor:square axes:axes name:nil];
+                        if (output != nil
+                                && ![output.shape
+                                        isEqualToArray:shapes[node.output]]) {
+                            output = [graph reshapeTensor:output
+                                    withShape:shapes[node.output] name:nil];
+                        }
+                    }
+                    break;
+                }
                 case SYNAPTIK_METAL_MPSGRAPH_SCALAR_ADD:
                 case SYNAPTIK_METAL_MPSGRAPH_SCALAR_SUB:
                 case SYNAPTIK_METAL_MPSGRAPH_SCALAR_MUL:
@@ -5338,6 +5399,25 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                     return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                 if (value_ranks[input_value] == 0U || value_ranks[output_value] == 0U)
                     return SYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE;
+            }
+            if (operation == SYNAPTIK_METAL_MPSGRAPH_MSE) {
+                uint32_t left_value = synaptik_read_le32(
+                        program + references_offset + (uint64_t)input_offset * 4U);
+                uint32_t right_value = synaptik_read_le32(
+                        program + references_offset
+                                + (uint64_t)(input_offset + 1U) * 4U);
+                uint32_t output_value = synaptik_read_le32(
+                        program + references_offset + (uint64_t)output_offset * 4U);
+                uint32_t left_flags = synaptik_read_le32(
+                        program + values_offset + (uint64_t)left_value * 40U + 16U);
+                uint32_t right_flags = synaptik_read_le32(
+                        program + values_offset + (uint64_t)right_value * 40U + 16U);
+                uint32_t output_flags = synaptik_read_le32(
+                        program + values_offset + (uint64_t)output_value * 40U + 16U);
+                BOOL input_gradient =
+                        (left_flags & 1U) != 0U || (right_flags & 1U) != 0U;
+                if (((output_flags & 1U) != 0U) != input_gradient)
+                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
             }
             if (operation == SYNAPTIK_METAL_MPSGRAPH_PERMUTE) {
                 uint32_t input_value = synaptik_read_le32(

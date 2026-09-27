@@ -32,6 +32,7 @@ import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
+import io.github.pho001.synaptik.model.operation.loss.LossReduction;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -387,6 +388,160 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                         assertThrows(IllegalStateException.class, () -> first.run(inputs));
                     } finally {
                         first.close();
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    void task0062CpuFreeAcceleratorRunsAllMseReductionsAndRejectsBackwardOwnership() {
+        Path library = configuredMetalLibrary();
+        List<ObservedTrace> events = new CopyOnWriteArrayList<>();
+        int[] predictionBits = {
+            Float.floatToRawIntBits(1.0f),
+            Float.floatToRawIntBits(2.0f),
+            Float.floatToRawIntBits(4.0f),
+            Float.floatToRawIntBits(8.0f)
+        };
+        int[] targetBits = {
+            Float.floatToRawIntBits(0.0f),
+            Float.floatToRawIntBits(1.0f),
+            Float.floatToRawIntBits(2.0f),
+            Float.floatToRawIntBits(4.0f)
+        };
+        try (Arena arena = Arena.ofShared()) {
+            Tensor prediction = nativeTensorBits(
+                    descriptor(Shape.of(2, 2), true), arena, predictionBits);
+            Tensor target = nativeTensorBits(
+                    descriptor(Shape.of(2, 2), true), arena, targetBits);
+            Tensor noGradPrediction = nativeTensorBits(
+                    descriptor(Shape.of(2, 2)), arena, predictionBits);
+            Tensor noGradTarget = nativeTensorBits(
+                    descriptor(Shape.of(2, 2)), arena, targetBits);
+            Tensor none = prediction.meanSquaredError(target, LossReduction.NONE);
+            Tensor sum = prediction.meanSquaredError(target, LossReduction.SUM);
+            Tensor mean = prediction.meanSquaredError(target, LossReduction.MEAN);
+            Tensor noGradNone =
+                    noGradPrediction.meanSquaredError(noGradTarget, LossReduction.NONE);
+            Tensor noGradSum =
+                    noGradPrediction.meanSquaredError(noGradTarget, LossReduction.SUM);
+            Tensor noGradMean =
+                    noGradPrediction.meanSquaredError(noGradTarget, LossReduction.MEAN);
+            List<Tensor> publications =
+                    List.of(none, sum, mean, noGradNone, noGradSum, noGradMean);
+
+            try (Engine.Builder strictBuilder = Engine.builder()) {
+                strictBuilder.takeOwnership(MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library)));
+                try (Engine strictEngine = strictBuilder.build()) {
+                    assertThrows(
+                            IllegalStateException.class,
+                            () -> strictEngine.compile(publications));
+                }
+            }
+
+            try (Engine.Builder builder = Engine.builder()) {
+                builder.numericalProfile(NumericalProfile.ACCELERATOR);
+                builder.takeOwnership(MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library), traceCollector(events)));
+                try (Engine engine = builder.build()) {
+                    var compiled = engine.compile(publications);
+                    assertEquals(
+                            List.of("metal"),
+                            EngineMixedOwnerTestAccess.partitionOwners(compiled));
+                    List<Tensor> inputs =
+                            List.of(prediction, target, noGradPrediction, noGradTarget);
+                    try (InferenceSession reused = engine.session(compiled);
+                            InferenceSession independent = engine.session(compiled)) {
+                        assertEquals(2, events.size());
+                        for (ObservedTrace event : events) {
+                            assertEquals("PREPARE", event.phase());
+                            assertEquals(
+                                    "GRAPH_EXECUTABLE",
+                                    enumName(component(event.payload(), "route")));
+                        }
+                        Object firstPublication;
+                        try (var first = reused.run(inputs)) {
+                            assertMsePublicResults(first);
+                            firstPublication = EngineMixedOwnerTestAccess
+                                    .runOwnedIdentities(first)
+                                    .publications()
+                                    .getFirst();
+                        }
+                        try (var repeated = reused.run(inputs)) {
+                            assertMsePublicResults(repeated);
+                            assertNotSame(
+                                    firstPublication,
+                                    EngineMixedOwnerTestAccess
+                                            .runOwnedIdentities(repeated)
+                                            .publications()
+                                            .getFirst());
+                        }
+                        try (var separate = independent.run(inputs)) {
+                            assertMsePublicResults(separate);
+                        }
+                    }
+                    assertArrayEquals(
+                            predictionBits,
+                            ((MemorySegmentStorage) prediction.hostStorage().orElseThrow())
+                                    .segment()
+                                    .toArray(ValueLayout.JAVA_INT));
+                    assertArrayEquals(
+                            targetBits,
+                            ((MemorySegmentStorage) target.hostStorage().orElseThrow())
+                                    .segment()
+                                    .toArray(ValueLayout.JAVA_INT));
+                    assertArrayEquals(
+                            predictionBits,
+                            ((MemorySegmentStorage) noGradPrediction.hostStorage().orElseThrow())
+                                    .segment()
+                                    .toArray(ValueLayout.JAVA_INT));
+                    assertArrayEquals(
+                            targetBits,
+                            ((MemorySegmentStorage) noGradTarget.hostStorage().orElseThrow())
+                                    .segment()
+                                    .toArray(ValueLayout.JAVA_INT));
+
+                    Tensor seed = nativeTensor(
+                            descriptor(Shape.scalar()), arena, 1.0f);
+                    assertThrows(
+                            IllegalStateException.class,
+                            () -> engine.compile(
+                                    List.of(mean),
+                                    List.of(seed),
+                                    List.of(prediction, target)),
+                            "MSE forward ownership does not claim generated backward nodes");
+
+                    Tensor bfloatPrediction = nativeBfloatTensor(
+                            Shape.of(2), arena, 1.0f, 2.0f);
+                    Tensor bfloatTarget = nativeBfloatTensor(
+                            Shape.of(2), arena, 0.0f, 1.0f);
+                    Tensor floatTarget = nativeTensor(
+                            descriptor(Shape.of(2)), arena, 0.0f, 1.0f);
+                    Tensor doublePrediction = nativeDoubleTensor(
+                            Shape.of(2), arena, 1.0, 2.0);
+                    Tensor doubleTarget = nativeDoubleTensor(
+                            Shape.of(2), arena, 0.0, 1.0);
+                    Tensor scalarPrediction = nativeTensor(
+                            descriptor(Shape.scalar()), arena, 1.0f);
+                    Tensor scalarTarget = nativeTensor(
+                            descriptor(Shape.scalar()), arena, 0.0f);
+                    for (Tensor blocked : List.of(
+                            bfloatPrediction.meanSquaredError(
+                                    bfloatTarget, LossReduction.NONE),
+                            bfloatPrediction.meanSquaredError(
+                                    floatTarget, LossReduction.NONE),
+                            doublePrediction.meanSquaredError(
+                                    doubleTarget, LossReduction.NONE),
+                            scalarPrediction.meanSquaredError(
+                                    scalarTarget, LossReduction.NONE),
+                            noGradPrediction.softmax(1),
+                            noGradPrediction.categoricalCrossEntropyWithLogits(
+                                    noGradTarget, 1, LossReduction.NONE))) {
+                        assertThrows(
+                                IllegalStateException.class,
+                                () -> engine.compile(List.of(blocked)));
                     }
                 }
             }
@@ -2756,6 +2911,16 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         assertPublication(result, 7,
                 71.0f, 78.0f, 85.0f, 92.0f,
                 83.0f, 90.0f, 97.0f, 104.0f);
+    }
+
+    private static void assertMsePublicResults(
+            io.github.pho001.synaptik.engine.RunResult result) {
+        assertEquals(6, result.resultCount());
+        for (int offset : List.of(0, 3)) {
+            assertPublication(result, offset, 1.0f, 1.0f, 4.0f, 16.0f);
+            assertPublication(result, offset + 1, 22.0f);
+            assertPublication(result, offset + 2, 5.5f);
+        }
     }
 
     private static void assertPublication(

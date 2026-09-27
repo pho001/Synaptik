@@ -584,6 +584,125 @@ class MetalMpsGraphRawAbiNativeTest {
                         MetalPreparedRoute.MPSGRAPH));
     }
 
+    @Test
+    void task0062JavaAndNativeMsePreflightsStayInParity() throws Throwable {
+        Path library = configuredLibrary();
+        var node = MetalMpsGraphProgram.Node.generic(
+                MetalMpsGraphProgram.NodeKind.MEAN_SQUARED_ERROR,
+                new int[] {0, 1},
+                new int[] {2},
+                MetalMpsGraphProgram.AttributeKind.MSE,
+                new long[] {1L});
+        var program = new MetalMpsGraphProgram(List.of(node));
+        List<MetalMpsGraphProgram.ValueDescriptor> valid = List.of(
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.FLOAT32, new long[] {2, 3}, true),
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.FLOAT32, new long[] {2, 3}, false),
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.FLOAT32, new long[] {2, 3}, true));
+        MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                NumericalProfile.ACCELERATOR,
+                valid,
+                program,
+                new int[] {0, 1},
+                new int[] {2},
+                MetalPreparedRoute.MPSGRAPH);
+        byte[] validImage = program.encodedProgramImage(
+                valid, new int[] {0, 1}, new int[] {2}, MetalPreparedRoute.MPSGRAPH);
+
+        List<List<MetalMpsGraphProgram.ValueDescriptor>> invalidValues = List.of(
+                List.of(
+                        new MetalMpsGraphProgram.ValueDescriptor(
+                                DataType.FLOAT32, new long[] {2, 3}, true),
+                        new MetalMpsGraphProgram.ValueDescriptor(
+                                DataType.FLOAT32, new long[] {2, 3}, false),
+                        new MetalMpsGraphProgram.ValueDescriptor(
+                                DataType.FLOAT32, new long[] {2, 3}, false)),
+                List.of(
+                        new MetalMpsGraphProgram.ValueDescriptor(
+                                DataType.FLOAT32, new long[] {2, 3}, false),
+                        new MetalMpsGraphProgram.ValueDescriptor(
+                                DataType.FLOAT64, new long[] {2, 3}, false),
+                        new MetalMpsGraphProgram.ValueDescriptor(
+                                DataType.FLOAT32, new long[] {2, 3}, false)),
+                List.of(
+                        new MetalMpsGraphProgram.ValueDescriptor(
+                                DataType.FLOAT32, new long[] {2, 3}, false),
+                        new MetalMpsGraphProgram.ValueDescriptor(
+                                DataType.FLOAT32, new long[] {3, 2}, false),
+                        new MetalMpsGraphProgram.ValueDescriptor(
+                                DataType.FLOAT32, new long[] {2, 3}, false)),
+                List.of(
+                        scalarDescriptor(DataType.FLOAT32),
+                        scalarDescriptor(DataType.FLOAT32),
+                        scalarDescriptor(DataType.FLOAT32)));
+
+        try (RawAbi abi = new RawAbi(library)) {
+            assertEquals(0, abi.create(validImage, validImage.length));
+            for (List<MetalMpsGraphProgram.ValueDescriptor> invalid : invalidValues) {
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                                NumericalProfile.ACCELERATOR,
+                                invalid,
+                                program,
+                                new int[] {0, 1},
+                                new int[] {2},
+                                MetalPreparedRoute.MPSGRAPH));
+                byte[] image = program.encodedProgramImage(
+                        invalid,
+                        new int[] {0, 1},
+                        new int[] {2},
+                        MetalPreparedRoute.MPSGRAPH);
+                assertEquals(1, abi.create(image, image.length));
+            }
+
+            int dimensionCount = readInt(validImage, 20);
+            int referenceCount = readInt(validImage, 24);
+            int strideCount = readInt(validImage, 44);
+            int dimensionsOffset = nodeOffset(3)
+                    + MetalMpsGraphProgram.NODE_DESCRIPTOR_BYTES;
+            int referencesOffset = dimensionsOffset
+                    + dimensionCount * Long.BYTES
+                    + strideCount * Long.BYTES;
+            int attributesOffset =
+                    referencesOffset + referenceCount * Integer.BYTES;
+            assertEquals(1, abi.create(
+                    rewriteLong(validImage, attributesOffset, 4L),
+                    validImage.length));
+            assertEquals(1, abi.create(
+                    rewriteInt(
+                            validImage,
+                            nodeOffset(3) + Integer.BYTES,
+                            MetalMpsGraphProgram.AttributeKind.NONE.wireIdentity()),
+                    validImage.length));
+
+            var sumProgram = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.MEAN_SQUARED_ERROR,
+                            new int[] {0, 1},
+                            new int[] {2},
+                            MetalMpsGraphProgram.AttributeKind.MSE,
+                            new long[] {2L})));
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> MetalNativeApi.MpsGraphExecutableAbi.validateCreate(
+                            NumericalProfile.ACCELERATOR,
+                            List.of(descriptor(2, 3), descriptor(2, 3), descriptor(2, 3)),
+                            sumProgram,
+                            new int[] {0, 1},
+                            new int[] {2},
+                            MetalPreparedRoute.MPSGRAPH));
+            byte[] wrongSumShape = sumProgram.encodedProgramImage(
+                    List.of(descriptor(2, 3), descriptor(2, 3), descriptor(2, 3)),
+                    new int[] {0, 1},
+                    new int[] {2},
+                    MetalPreparedRoute.MPSGRAPH);
+            assertEquals(1, abi.create(wrongSumShape, wrongSumShape.length));
+        }
+    }
+
 
     private static byte[] validNegImage() {
         var program = new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.neg(0, 1)));
