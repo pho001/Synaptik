@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0062; 0063 Review needed; 0053 Blocked | [Metal 0063](backends/metal/tasks/0063-exact-ordering-and-arg-extrema.md) is a planning-only exact-custom specification for SORT/ARGSORT/TOP_K/ARG_MAX/ARG_MIN. No production edit is authorized before independent Class C plan review. Current production remains `70/45`, structural execution `88/27`, catalogs `75/35/5` and `47/68/0`, schema 15, identity 18, ABI 5, and thirteen exports. No Metal task is Ready. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0062; 0063 Review needed; 0053 Blocked | [Metal 0063](backends/metal/tasks/0063-exact-ordering-and-arg-extrema.md) is a planning-only exact-custom specification for SORT/ARGSORT/TOP_K/ARG_MAX/ARG_MIN. Its external-P1 correction caps the future route to the existing unsigned-32-bit custom dispatch/index domain; no MPSGraph fallback is allowed. No production edit is authorized before independent Class C plan review. Current production remains `70/45`, structural execution `88/27`, catalogs `75/35/5` and `47/68/0`, schema 15, identity 18, ABI 5, and thirteen exports. No Metal task is Ready. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -647,10 +647,12 @@ proof-blocked 0053 remain Blocked under their recorded contracts. Task 0052 is C
 remains its exact historical pre-cutover inventory. Tasks 0055–0061 remain completed
 foundation/catalog and operation-family prerequisites, and Complete Task 0062 owns the bounded MSE
 forward cutover.
-- Metal 0063 is `Review needed`, not an active production frontier. It defines the complete static
-  canonical exact-custom ordering/arg-extrema domain and future `75/40`, `93/22`, `52/63/0`, and
-  identity-19 deltas, but current code and counts remain unchanged until independent Class C plan
-  review returns zero P0/P1/P2. Historical direct-selector Task 0034 remains Blocked.
+- Metal 0063 is `Review needed`, not an active production frontier. Its external-P1-corrected exact
+  custom domain is complete only for static canonical positive Shapes whose counts/extents are in
+  `1..UINT32_MAX` and derived coordinates/indices are unsigned-32-bit representable. It defines
+  future `75/40`, `93/22`, `52/63/0`, and identity-19 deltas, but current code and counts remain
+  unchanged until independent Class C plan review returns zero P0/P1/P2. Historical direct-selector
+  Task 0034 remains Blocked.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -666,14 +668,17 @@ forward cutover.
 
 Metal Task 0063 is `Review needed` from clean base `b369b8aa`. Its planning-only specification
 audits exactly registry wires 94 `SORT`, 95 `ARGSORT`, 96 `TOP_K`, 109 `ARG_MAX`, and 110
-`ARG_MIN`; fixes a custom-only integer-key route for the complete positive-static canonical domain;
-and defines exact NaN, signed-zero, stability, tie, INT64-index, K/order, two-output publication,
-overflow, gradient-boundary, lifecycle, and public Engine proof obligations. An independent Class C
-plan review with zero remaining P0/P1/P2 is the sole implementation gate; no production edit is
-authorized before it and no separate approval stop follows it. Current capability remains `70/45`,
-structural execution `88/27`, MPSGraph catalog `75/35/5`, custom catalog `47/68/0`, schema 15,
-identity 18, ABI 5, and thirteen exports. No Metal task is Ready; Task 0053 remains Blocked on its
-external constructive-real bridge.
+`ARG_MIN`; fixes a custom-only integer-key route for the positive-static canonical domain bounded
+by `1..UINT32_MAX` counts/extents and unsigned-32-bit derived coordinates/indices; and defines exact
+NaN, signed-zero, stability, tie, INT64-publication-index, K/order, two-output publication,
+byte/span overflow, gradient-boundary, lifecycle, and public Engine proof obligations. The external
+P1 correction requires Java/native exact-limit and one-past-limit parity plus allocation-free public
+Engine over-limit rejection before resources; no 64-bit/multi-dimensional dispatch or MPSGraph
+fallback is permitted. An independent Class C plan review with zero remaining P0/P1/P2 is the sole
+implementation gate; no production edit is authorized before it and no separate approval stop
+follows it. Current capability remains `70/45`, structural execution `88/27`, MPSGraph catalog
+`75/35/5`, custom catalog `47/68/0`, schema 15, identity 18, ABI 5, and thirteen exports. No Metal
+task is Ready; Task 0053 remains Blocked on its external constructive-real bridge.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly

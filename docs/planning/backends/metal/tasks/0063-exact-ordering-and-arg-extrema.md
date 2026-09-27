@@ -2,10 +2,11 @@
 
 ## Status
 
-Review needed — this planning-only specification starts from clean revision `b369b8aa`. Production,
-tests, schemas, identities, counts, and executable behavior remain unchanged. An independent Class C
-plan review with zero remaining P0/P1/P2 findings is the sole implementation gate; no separate
-approval stop follows that review.
+Review needed — this planning-only specification starts from clean revision `b369b8aa` and now
+incorporates the external P1 correction that bounds every custom dispatch and logical index to the
+existing unsigned-32-bit Metal contract. Production, tests, schemas, identities, counts, and
+executable behavior remain unchanged. An independent Class C plan review with zero remaining
+P0/P1/P2 findings is the sole implementation gate; no separate approval stop follows that review.
 
 ## Change class
 
@@ -66,9 +67,16 @@ Admit each occurrence under both `STRICT_IEEE` and `ACCELERATOR` only when all o
   input rank is `1..16`, every input dimension is positive, every output has its exact derived
   canonical Shape, and all output storage is fresh and pairwise non-overlapping with every input and
   other output;
-- the axis is already normalized and lies in `0..rank-1`; all element counts, byte widths, canonical
-  strides, selected-axis extents, K/output products, grid coordinates, `long`/`NSUInteger`/`uint64_t`
-  conversions, buffer spans, and metadata sizes pass checked positive arithmetic;
+- before capability returns true, checked `long`/`uint64_t` arithmetic proves that the input element
+  count, every output element count, every dimension, canonical element stride, slice count,
+  selected-axis extent, K, custom thread count, and one-dimensional grid width are each in
+  `1..UINT32_MAX`, while every derived logical coordinate, rank, compacted position, and linear
+  index is in `0..UINT32_MAX` and strictly below its governing count/extent when used for access.
+  Validation occurs before any unsigned-32-bit narrowing; a wider metadata carrier does not widen
+  the admitted index domain;
+- byte widths, byte offsets/spans, K/output products, metadata sizes, and every
+  `NSUInteger`/buffer conversion additionally pass the existing checked native-size and allocation
+  bounds without wrap;
 - legal floating input descriptors may be either no-grad or gradient-bearing; integral and Boolean
   inputs retain their Model-legal no-grad metadata; no capability decision inspects values;
 - `SORT` and `ARGSORT` accept FLOAT64, FLOAT32, BFLOAT16, INT32, INT64, and BOOL for either direction;
@@ -85,9 +93,24 @@ Admit each occurrence under both `STRICT_IEEE` and `ACCELERATOR` only when all o
   ordered outputs even when only one is a graph target; either or both roles may be published,
   reused internally, repeated as targets, or consumed by later admitted custom-program nodes.
 
-This is the maximal exact route inside the current static canonical Metal materialization boundary:
-there is no arbitrary value subset, direction, axis, carrier, positive K, tie policy, or positive
-static extent carve-out. Dynamic, scalar, empty, arbitrary-view, unresolved, negative/zero-stride,
+The fixed dispatch truth table is:
+
+| Family | One-dimensional thread count | Additional indexed quantities |
+|---|---:|---|
+| `SORT`, `ARGSORT` | exact input element count | selected-axis extent and every destination rank |
+| `TOP_K` | exact input element count | selected-axis extent, K, selected rank, and compacted output position |
+| `ARG_MAX`, `ARG_MIN` | exact output element count, including scalar count one | selected-axis scan extent and input/output linear coordinates |
+
+Every count and extent in the table is in `1..UINT32_MAX`; every coordinate, rank, position, and
+linear index is unsigned-32-bit representable and strictly below its governing count/extent when
+used for access. Java capability/preparation and native image validation enforce the same boundary
+before pipeline or buffer creation. The kernel uses no multi-dimensional flattening or 64-bit
+dispatch strategy, and an out-of-domain occurrence fails closed without MPSGraph or host fallback.
+
+This is the maximal exact route inside the current static canonical unsigned-32-bit Metal custom
+materialization boundary: there is no arbitrary value subset, direction, axis, carrier, positive K,
+tie policy, or Shape carve-out within that representable domain. Dynamic, scalar, empty,
+over-`UINT32_MAX` dispatch/index geometry, arbitrary-view, unresolved, negative/zero-stride,
 overlapping, aliased, in-place, and K-zero occurrences remain outside that boundary.
 
 ### Exact ordering and selection semantics
@@ -143,19 +166,26 @@ Add one Task-0063 custom Metal source/header whose comparisons are integer-only:
 - compare the original logical-axis index only after semantic equality. NaNs remain one semantic
   class, and descending/largest reverses the non-NaN value relation without reversing this tie key.
 
-For `SORT`, `ARGSORT`, and `TOP_K`, dispatch one logical thread per input element. The thread derives
-its slice and source axis coordinate, computes that source's unique stable rank by counting strict
-predecessors under `(semantic order, original index)`, and writes only its unique destination.
-`SORT` copies raw carrier bits; `ARGSORT` writes the non-negative logical coordinate as INT64.
-`TOP_K` writes nothing when rank is at least K; otherwise one thread writes both paired outputs,
-using `rank` for sorted output or the number of earlier source coordinates whose stable rank is
-below K for unsorted output. Recomputing ranks for the unsorted form is permitted; no scratch,
-allocation, atomic, race, timing choice, or data-dependent route exists.
+For `SORT`, `ARGSORT`, and `TOP_K`, dispatch one one-dimensional grid whose width is the exact input
+element count in `1..UINT32_MAX`. Each kernel reads only the 32-bit
+`thread_position_in_grid.x`; it does not reconstruct a wider identifier from `y`/`z`. The thread
+derives its slice and source axis coordinate, computes that source's unique stable rank by counting
+strict predecessors under `(semantic order, original index)`, and writes only its unique
+destination. `SORT` copies raw carrier bits; `ARGSORT` widens the validated non-negative 32-bit
+logical coordinate to INT64 only when storing the public result. `TOP_K` writes nothing when rank is
+at least K; otherwise one thread writes both paired outputs, using `rank` for sorted output or the
+number of earlier source coordinates whose stable rank is below K for unsorted output. Recomputing
+ranks for the unsorted form is permitted; no scratch, allocation, atomic, race, timing choice, or
+data-dependent route exists.
 
-For arg extrema, dispatch one thread per output cell. Scan the selected axis in increasing logical
+For arg extrema, dispatch one one-dimensional grid whose width is the exact positive output element
+count at most `UINT32_MAX`. Scan the validated selected-axis extent in increasing 32-bit logical
 coordinate, maintain one raw best word and INT64 best index under the NaN/value/tie invariant, and
-publish only the index. All address, rank, count, and coordinate arithmetic is checked or bounded by
-validated metadata; no index narrows through INT32.
+publish only the widened index. All dimension, stride, slice, rank, count, coordinate, and logical
+linear-index arithmetic stays in the prevalidated unsigned-32-bit domain; byte addressing retains
+the separate checked native-size contract. No index wraps or narrows from an out-of-range carrier.
+Every kernel traversal is half-open (`index < extent`), never computes `extent + 1`, and therefore
+terminates at an admitted `UINT32_MAX` extent without increment wrap.
 
 A `TOP_K` custom step binds one input, values output, indices output, and immutable metadata in one
 occurrence. Extend the internal decoded-node and program-step representations from a first-output
@@ -185,15 +215,23 @@ Authorization is source-structural and algebraic, never a sampled device-output 
    one distinct predecessor count in `0..N-1`, and distinct threads therefore have distinct writes.
    Prove raw-copy exactness, both TOP_K selected-set/output-order formulas, and the arg-extrema loop
    invariant for both operations and tie policies.
-4. Cross-check an independently written Java raw-word oracle against real-device kernels for all
+4. Prove every dimension, element count, stride, slice count, selected extent, K, rank, compacted
+   position, linear index, thread count, and grid width is checked in a wider carrier and is at most
+   `UINT32_MAX` before narrowing or resource creation; every access index is strictly below its
+   governing bound. Prove the one-dimensional kernel never derives a wider logical index and uses
+   only half-open traversals that terminate at the exact limit without `extent + 1` or increment
+   wrap. Exercise exact `UINT32_MAX` acceptance and `UINT32_MAX + 1`, product-overflow,
+   stride-overflow, and byte/span rejection in allocation-free Java/native validation tests.
+5. Cross-check an independently written Java raw-word oracle against real-device kernels for all
    carriers and operation modes. Include NaN signs/payloads/signaling forms, both zeros, subnormals,
    normals, infinities, repeated values, INT extrema, and BOOL. Exhaust all small finite sequences
    over a boundary alphabet to exercise stability, cutoff, unsorted compaction, and ties; use
-   representative rank/axis/large-extent cases only as implementation corroboration, not scope
-   authorization.
-5. Independently review the exact generated Metal source, fixed entrypoint selection, metadata,
-   integer widths, address derivation, output disjointness, absence of floating comparisons and
-   hidden route choices, and the proof-to-source correspondence.
+   representative rank/axis and safely materializable near-boundary cases only as implementation
+   corroboration, not scope authorization.
+6. Independently review the exact generated Metal source, fixed entrypoint selection, metadata,
+   unsigned-32-bit logical-index closure, integer widths, byte-address derivation, output
+   disjointness, absence of floating comparisons and hidden route choices, and the proof-to-source
+   correspondence.
 
 No benchmark or timing result is an acceptance gate or route input. If the implementation cannot
 supply this proof for one carrier or form, remove that entire carrier/form from a newly reviewed
@@ -217,9 +255,11 @@ Metal's current `SCATTER_ELEMENTS` domain requires canonical INT32 indices, so b
 floating backward graphs remain unsupported as complete partitions. Do not widen scatter or claim
 pooling gradients in this task. Prove CPU-free public Engine forward execution for legal no-grad and
 gradient-metadata inputs, both profiles, every family/output role, two-output publication, nested
-consumers, fan-out, retained executable reuse, and independent sessions. Prove generated ordering
-backward, pooling, K-zero, empty/dynamic/view/alias, wrong-role and malformed graphs fail ownership
-before resources/native invocation.
+consumers, fan-out, retained executable reuse, and independent sessions. With no CPU registered,
+compile an allocation-free static descriptor whose logical count or derived index extent is
+`UINT32_MAX + 1` and prove Metal declines ownership before native invocation or input/output
+allocation. Generated ordering backward, pooling, K-zero, empty/dynamic/view/alias, wrong-role,
+malformed, and every other over-limit graph must fail before resources/native invocation.
 
 ### Catalog, schema, identity, and lifecycle
 
@@ -242,12 +282,17 @@ before resources/native invocation.
 
 ## Provable exact domain versus blockers
 
-The exact domain is the complete static canonical positive-rank/positive-extent matrix above. Its
-proof is constructive and independent of opaque MPSGraph ordering behavior.
+The exact domain is the complete static canonical positive-rank/positive-extent matrix whose counts
+and extents are representable in `1..UINT32_MAX` and whose derived coordinates/indices are
+representable in `0..UINT32_MAX` as specified above. Its proof is constructive and independent of
+opaque MPSGraph ordering behavior.
 
 Remain explicitly blocked:
 
 - scalar, dynamic, expression, zero-extent, arbitrary affine/view/overlapping/in-place geometry;
+- any input/output element count, dimension, stride, slice count, selected extent, K, rank, compacted
+  position, logical linear index, or thread/grid count above `UINT32_MAX`, even when `long`,
+  `uint64_t`, `NSUInteger`, or the byte span can represent it;
 - Model-valid `TOP_K(k=0)`, because the current schema/native custom materialization contract is
   positive and this task adds no zero-dispatch/publication route;
 - BOOL arg extrema, which Model rejects; user comparators, named axes, unstable sorting, partial or
@@ -263,8 +308,9 @@ Remain explicitly blocked:
 
 No Model, Compiler, public Tensor, Config, Planning, Prepare, Runtime, Trace, or Engine API change;
 no schema field, wire, ABI export, general multi-output MPSGraph support, arbitrary layout, dynamic
-binding, empty-domain kernel, pooling, scatter widening, host calculation, benchmark, or new public
-option. No direct selector is rehabilitated. No historical blocked result is rewritten.
+binding, empty-domain kernel, 64-bit or multi-dimensional custom dispatch, pooling, scatter
+widening, host calculation, benchmark, or new public option. No direct selector is rehabilitated.
+No historical blocked result is rewritten.
 
 ## Contracts
 
@@ -285,15 +331,17 @@ option. No direct selector is rehabilitated. No historical blocked result is rew
   owns formula topology; [CPU ordering](../../cpu/tasks/0006c-portable-stable-ordering-and-selection.md)
   is an exact precedent, not Metal authorization.
 
-If implementation needs a new result freedom, arbitrary extent cap, opaque-selector assumption,
-runtime/value-dependent route, scratch allocation, shared lifecycle/API change, schema/ABI field,
-or wider scatter/pooling ownership, stop for a new independently reviewed plan.
+If implementation needs a new result freedom, a wider or different dispatch/index domain,
+opaque-selector assumption, runtime/value-dependent route, scratch allocation, shared lifecycle/API
+change, schema/ABI field, or wider scatter/pooling ownership, stop for a new independently reviewed
+plan.
 
 ## Dependencies and integration
 
 - Depends on: Task 0062 Complete through `06c57844`; current Model ordering/top-K/arg-extrema and
-  Compiler gradient contracts; completed Metal six-carrier transfer, INT64 materialization,
-  schema-15, custom-program, catalog, identity, lifecycle, and public Engine foundations.
+  Compiler gradient contracts; Task 0003's existing `1..UINT32_MAX` custom thread/grid contract;
+  and completed Metal six-carrier transfer, INT64 materialization, schema-15, custom-program,
+  catalog, identity, lifecycle, and public Engine foundations.
 - Supersedes only the future-route conclusion of historical Task 0034 by choosing its exact custom
   unblock. Task 0034 remains Blocked as a direct-MPSGraph task and its evidence remains immutable.
 - Conflicts with: every concurrent Metal capability/schema/native/custom-source/multi-output/route/
@@ -316,9 +364,11 @@ Expected implementation owners:
   tuning/codec identity owners, and affected package/type Javadocs;
 - native foundation decoded-node/program-step/output validation and binding, plus one Task-0063
   integer-ordering kernel source/header and the native package guide;
-- focused capability/catalog/schema/malformed/prepared/native/comparator-proof tests,
+- focused capability/catalog/schema/malformed/prepared/native/comparator-proof tests, including
+  allocation-free `UINT32_MAX`/`UINT32_MAX + 1` dispatch/index boundary and overflow parity,
   `MetalNegCapabilityPartitionConformanceTest`, and a dedicated CPU-free
-  `EngineOrderingMetalIntegrationTest` for observable output roles and lifecycle; and
+  `EngineOrderingMetalIntegrationTest` for observable output roles, over-limit pre-resource
+  rejection, and lifecycle; and
 - Metal/backend/root architecture and capability documentation, targeted API/glossary status,
   ADR identity claims if current, this brief, master plan, and roadmap.
 
@@ -328,26 +378,34 @@ not edit any production, test, native, API, architecture, guide, glossary, or bu
 ## Acceptance criteria
 
 1. The five-wire audit and tests retain exact kind, arity, output role/order, attribute, type, Shape,
-   layout, metadata, axis, direction, K, tie, index-width, overflow, and profile decisions. Every
-   excluded occurrence rejects before resource creation.
+   layout, metadata, axis, direction, K, tie, index-width, unsigned-32-bit dispatch/index cap,
+   byte/span overflow, and profile decisions. Every excluded occurrence rejects before resource
+   creation.
 2. The integer-only raw comparator and algorithm proof cover the complete admitted carrier domains;
    BFLOAT16/BOOL exhaustive checks, floating/integer partition proofs, small-sequence exhaustive
    checks, adversarial real-device corpora, and independent source review agree exactly.
 3. SORT/ARGSORT stability, NaNs-last, signed-zero and exact-copy behavior; TOP_K selected-set and
    both output orders; and arg-extrema NaN preference/ties are exact on every admitted axis/rank.
-4. One TOP_K step validates, materializes, writes, retains, consumes, and publishes both ordered
+4. Every logical coordinate/index is checked in a wider carrier before narrowing, is unsigned-
+   32-bit representable, and is strictly below its governing access bound; every positive
+   count/extent/dispatch quantity remains in `1..UINT32_MAX`. Half-open exact-limit termination,
+   one-past-limit rejection, and overflow rejection have Java/native parity and occur before
+   pipeline, buffer, or other resource creation.
+5. One TOP_K step validates, materializes, writes, retains, consumes, and publishes both ordered
    outputs. Values and INT64 indices remain paired under target subsets, nesting, fan-out, reuse,
    repeated targets, sessions, rollback, and close; malformed second-output state cannot hide.
-5. Every admitted occurrence has only `CUSTOM_PROGRAM`; direct MPSGraph, host repair, retry,
-   fallback, timing, autotuning, and value-dependent selection are absent.
-6. Counts become `75/40` capability, `93/22` structural, `75/35/5` MPSGraph, and `52/63/0` custom;
+6. Every admitted occurrence has only `CUSTOM_PROGRAM`; direct MPSGraph, host repair, retry,
+   fallback, timing, autotuning, multi-dimensional/64-bit dispatch, and value-dependent selection
+   are absent.
+7. Counts become `75/40` capability, `93/22` structural, `75/35/5` MPSGraph, and `52/63/0` custom;
    schema 15, ABI 5, and thirteen exports remain; all backend-local identities are 19 and identity
    18 rejects.
-7. CPU-free public Engine proves both profiles, six ordering/top-K carriers, five arg-extrema
+8. CPU-free public Engine proves both profiles, six ordering/top-K carriers, five arg-extrema
    carriers, all output roles and representative axes/directions/K/forms/ties, exact raw values and
    INT64 indices, input preservation, composition, reuse, and independent sessions with no skip.
-   Excluded domains and generated SORT/TOP_K backward reject without native invocation.
-8. Native/package, complete Metal, Metal conformance, dedicated Engine, Javadoc, architecture,
+   An allocation-free one-past-limit static graph, other excluded domains, and generated
+   SORT/TOP_K backward reject without native invocation or resource allocation.
+9. Native/package, complete Metal, Metal conformance, dedicated Engine, Javadoc, architecture,
    Markdown/link/diff checks pass; independent cumulative Class C review has no unresolved
    P0/P1/P2 finding.
 
@@ -372,10 +430,13 @@ public Engine, and architecture gates are stronger for this backend-local cutove
 ## Documentation and review impact
 
 The implementation must update every current capability/count/identity/ordering statement and
-explain the exact profile-common custom domain, two-output publication, direct-selector exclusion,
-gradient boundary, and remaining blockers. Preserve Task 0034 as historical direct-selector
-evidence. Independent plan review precedes every production edit. Independent final review must
-inspect the full plan-to-source proof, kernel integer semantics, metadata and overflow safety,
-multi-output lifecycle, route exclusivity, negative-domain evidence, public Engine behavior, docs,
-and changed-path scope. Passing worker execution evidence may be reused unless remediation changes
-executable behavior.
+describe the route as the exact profile-common **unsigned-32-bit-bounded** custom domain, never as
+all positive static extents. Public/backend/native/Javadoc wording must name the
+`1..UINT32_MAX` count/extent and `0..UINT32_MAX` coordinate/index boundary, pre-resource failure,
+two-output publication, direct-selector exclusion, gradient boundary, and remaining blockers.
+Preserve Task 0034 as historical direct-selector evidence. Independent plan review precedes every
+production edit. Independent final review must inspect the full plan-to-source proof, kernel integer
+semantics, cap parity and boundary negatives, metadata and byte/span overflow safety, multi-output
+lifecycle, route exclusivity, negative-domain evidence, public Engine behavior, docs, and changed-
+path scope. Passing worker execution evidence may be reused unless remediation changes executable
+behavior.
