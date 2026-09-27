@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready — independent plan review and remediation returned `APPROVE` with zero P0/P1/P2.
+In review — implementation and required validation completed at `1cf8a6ef`.
 
 ## Change class
 
@@ -207,4 +207,25 @@ glossary impact. Reuse passing execution evidence unless remediation changes exe
 
 ## Result
 
-Empty until execution.
+Implementation `1cf8a6ef` admits only ACCELERATOR same-type canonical positive-rank FLOAT32 MSE
+for `NONE`, `SUM`, and `MEAN`. Capability enforces exact Shape, layout, carrier, and gradient-OR
+metadata; lowering retains one typed wire-85 node and reduction value `1..3`; native construction
+emits exactly `SUB(prediction,target)`, `MUL(delta,delta)`, and the qualified full SUM or MEAN.
+Strict, rank-zero, dynamic, empty, view, mixed/other carriers, all eight neighboring
+normalization/loss wires, and generated MSE backward remain fail-closed.
+
+The source-derived oracle preserves the shared subtraction result at the self-multiplication site,
+enumerates primitive DAZ/FTZ choices, all-contributors-once reduction trees, final-only signed-zero
+freedom, mandatory mean division, and NaN class over rank-two/rank-sixteen ordinary and special
+corpora. Java/native malformed-image parity covers reduction, attribute, type, Shape, rank, and
+gradient metadata. Prepared, conformance, and public Engine proofs cover stable feed/target order,
+direct scalar publication, repeated input, retained executable reuse, isolated sessions, input
+preservation, both gradient-metadata classes, sole Metal ownership, excluded domains, blocked
+families, and generated-backward rejection.
+
+Native build, fixed ad-hoc signing, package publication, package verification, the complete
+packaged Metal suite, Metal conformance tests, the complete public explicit-composition Metal Engine
+class, Metal Javadoc, and architecture tests passed. Counts are `70/45` capability and `88/27`
+structural execution; catalogs remain `75/35/5` and `47/68/0`; schema 15, ABI 5, and thirteen
+exports remain fixed; every backend-local identity is 18 and identity 17 fails closed. No timing,
+benchmark, fallback, retry, compatibility reader, schema field, ABI export, or public API was added.

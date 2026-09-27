@@ -322,12 +322,15 @@ replacement SCATTER_ND/SLICE_UPDATE, FLOAT64/FLOAT32/BFLOAT16 non-overlap folds,
 INT32/INT64 PROD, and BOOL ALL/ANY. Both profiles also admit no-gradient INT32/INT64 MATMUL pairs
 with INT64-dominant promotion and modular result arithmetic. The accelerator-only set adds the
 documented FLOAT32 tensor/scalar arithmetic, comparisons, extrema, reductions, and scans; every
-positive-static FLOAT32 MATMUL vector, matrix, batched, and right-aligned broadcast geometry; and
-no-gradient BFLOAT16/FLOAT32 or FLOAT32/BFLOAT16 MATMUL with FLOAT32 result. MATMUL operands are
-canonical or authenticated local identity-prefix, last-two-axis transposes. Existing rank-two
-FLOAT32 matrix products retain direct MPSGraph; newly admitted forms use the fixed custom program.
-Strict capability remains a subset because every common occurrence has the same answer under
-accelerator; strict rejects every accelerator-only addition.
+positive-static FLOAT32 MATMUL vector, matrix, batched, and right-aligned broadcast geometry;
+no-gradient BFLOAT16/FLOAT32 or FLOAT32/BFLOAT16 MATMUL with FLOAT32 result; and same-type canonical
+positive-rank FLOAT32 MSE under `NONE`, `SUM`, or `MEAN`. MATMUL operands are canonical or
+authenticated local identity-prefix, last-two-axis transposes. Existing rank-two FLOAT32 matrix
+products retain direct MPSGraph; newly admitted forms use the fixed custom program. MSE uses one
+fixed MPSGraph `SUB -> MUL -> qualified full reduction` composition and grants no generated
+backward ownership; every other normalization or loss kind remains false. Strict capability remains
+a subset because every common occurrence has the same answer under accelerator; strict rejects
+every accelerator-only addition.
 Direct CPU/Metal transfer supports
 all six current data types at ranks `0..16` over canonical or resolved positive-stride
 non-overlapping storage layouts; BOOL validation visits logical elements only.
@@ -343,7 +346,7 @@ host staging, hot compilation, retry, or fallback.
 The package uses ABI 5 with the same thirteen exports. Node schema 15 is one bounded
 self-describing, route-bearing image over type wires `1..6`, operation wires `1..115`, attribute
 wires `0..41`, and complete optional storage-layout geometry. Structural execution covers exactly
-87 kinds with 28 remaining nonexecutable; production capability is exactly 69 kinds with 46
+88 kinds with 27 remaining nonexecutable; production capability is exactly 70 kinds with 45
 remaining false. Workload, exact-policy, candidate, compatibility, route-policy, and codec
-identities are version seventeen; schema 14 and identity 16 fail closed. The complete-plan wrapper
+identities are version eighteen; schema 14 and identity 17 fail closed. The complete-plan wrapper
 remains version one.

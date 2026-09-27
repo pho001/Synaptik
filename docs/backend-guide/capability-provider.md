@@ -262,14 +262,17 @@ with resolved positive-stride non-overlapping storage layouts. Task-0060 adds al
 replacement SCATTER_ND, signed SLICE_UPDATE/crop placement, statically non-overlapping folds,
 modular INT32/INT64 PROD, and BOOL ALL/ANY. Both profiles also admit no-gradient INT32/INT64
 MATMUL pairs with INT64-dominant promotion and modular result arithmetic. Accelerator additionally
-admits the documented FLOAT32 arithmetic, extrema, scalar, reduction, and scan rows; every
-positive-static FLOAT32 MATMUL vector, matrix, batched, and broadcast geometry; and no-gradient
-BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 result. Complete-partition analysis authenticates each
-affine MATMUL operand as the exact local identity-prefix, last-two-axis transpose of a canonical
-source and restricts BOOL values to canonical compositions. Existing rank-two FLOAT32 matrix
-products retain direct MPSGraph; newly admitted forms select the fixed custom program. Every
-unlisted occurrence is false; accelerator identity never means generic fast math. ABI 5 retains
-the thirteen export names and consumes one bounded schema-15 route-bearing program image.
-Operation wires `1..115`, attribute wires `0..41`, and type wires `1..6` are structural vocabulary
-only; version-seventeen workload, policy, candidate, compatibility, route, and codec identities
+admits the documented FLOAT32 arithmetic, extrema, scalar, reduction, and scan rows; same-type
+canonical positive-rank FLOAT32 MSE with `NONE`, `SUM`, or `MEAN`; every positive-static FLOAT32
+MATMUL vector, matrix, batched, and broadcast geometry; and no-gradient BFLOAT16/FLOAT32 mixed
+MATMUL with FLOAT32 result. MSE preserves the input Shape for `NONE`, publishes a scalar for the
+two reductions, and requires result gradient metadata to equal the input logical OR without
+claiming generated backward ownership. Complete-partition analysis authenticates each affine
+MATMUL operand as the exact local identity-prefix, last-two-axis transpose of a canonical source
+and restricts BOOL values to canonical compositions. Existing rank-two FLOAT32 matrix products
+retain direct MPSGraph; newly admitted forms select the fixed custom program. Every unlisted
+occurrence is false; accelerator identity never means generic fast math. ABI 5 retains the thirteen
+export names and consumes one bounded schema-15 route-bearing program image. Operation wires
+`1..115`, attribute wires `0..41`, and type wires `1..6` are structural vocabulary only;
+version-eighteen workload, policy, candidate, compatibility, route, and codec identities
 authenticate that meaning without adding capability.

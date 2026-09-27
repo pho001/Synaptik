@@ -124,7 +124,7 @@ every positive-static FLOAT32 MATMUL vector, matrix, batched, and broadcast geom
 no-gradient BFLOAT16/FLOAT32 mixed MATMUL with FLOAT32 output. Every unlisted occurrence fails
 closed before route selection. Metal uses ABI 5 with the same thirteen exports and one bounded
 schema-15 route-bearing program image. Operation wires `1..115`, attribute wires `0..41`, and type
-wires `1..6` cover current structural vocabulary; version-seventeen identities authenticate that
+wires `1..6` cover current structural vocabulary; version-eighteen identities authenticate that
 meaning without widening capability.
 Model remains the sole semantic owner of profile meaning.
 
@@ -4972,8 +4972,12 @@ These are current model metadata facts and do not define a Model-owned gradient 
 Package-private compiler first-order autograd now supports prediction and target roles for all
 three reductions, restores reduced cotangents through logical Tensor element counts, and uses
 exact typed scalar-operation coefficients `2` and `-2`. Compiler capture and deferred equality
-proof are current. Decomposition, backend support, numerical execution, runtime behavior, and
-training-session coordination remain separate planned responsibilities.
+proof are current. CPU owns its documented full MSE matrix. Metal additionally owns only
+ACCELERATOR same-type canonical positive-rank FLOAT32 forward MSE for `NONE`, `SUM`, and `MEAN`;
+it preserves the input-gradient logical OR as metadata but does not own the generated backward
+graph. Every other Metal loss or normalization family remains fail-closed. Broader decomposition,
+backend support, runtime behavior, and training-session coordination remain separate
+responsibilities.
 
 ### Categorical-cross-entropy-with-logits expressions
 

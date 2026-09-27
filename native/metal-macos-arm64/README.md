@@ -10,7 +10,7 @@ complete variable-cardinality operation, attribute, reference, dimension, gradie
 storage-layout metadata; no native type, shape, or layout inference is part of the boundary.
 
 The schema registry reserves operation wires `1..115` and attribute wires `0..41`. The native graph
-can structurally execute exactly 87 operation kinds; production capability remains exactly 69
+can structurally execute exactly 88 operation kinds; production capability remains exactly 70
 kinds. Task 0059 adds exact movement/indexing rows and complete positive-stride storage geometry.
 Task 0060 adds replacement/fold rows `72`, `76`, `80`, `82`, and `84` plus exact aggregate rows
 `106..108`. Task 0061 widens existing `MATMUL=15` without adding a wire: both profiles admit
@@ -18,19 +18,24 @@ no-gradient INT32/INT64 ordered pairs; accelerator additionally admits every pos
 FLOAT32 vector, matrix, batched, and broadcast geometry plus no-gradient BFLOAT16/FLOAT32 mixed
 pairs with FLOAT32 result. Existing all-FLOAT32 rank-two matrix products retain MPSGraph; every new
 MATMUL form selects the fixed custom program. Exact local identity-prefix, last-two-axis transpose
-inputs retain their physical source, offset, and strides. The remaining 46 production rows fail
-closed before native creation. A structurally valid registered operation without a native recipe
-returns the dedicated unsupported-operation status rather than masquerading as malformed input.
-Candidate and route identity are version 17. Java owns exactly three prepared-route identities:
-custom singleton NEG wire 1, MPSGraph wire 2, and shared custom-program wire 3. Schema 15 embeds
-wire 2 or 3 in each graph image; schema 14 and every other schema or route value fail closed. The
-exhaustive Java structural catalog adds no native route selection, capability, autotuning, fallback,
-telemetry, or performance authority.
+inputs retain their physical source, offset, and strides. Task 0062 makes `MEAN_SQUARED_ERROR=85`
+executable only through the fixed MPSGraph composition `SUB(prediction, target)`, `MUL(delta,
+delta)`, and optional full `SUM` or `MEAN`; no opaque MSE selector is used. Java production admits
+only ACCELERATOR same-type canonical positive-rank FLOAT32 for `NONE`, `SUM`, and `MEAN`, preserves
+the input-gradient logical OR as output metadata, and claims no generated backward ownership.
+The remaining 45 production rows fail closed before native creation. A structurally valid
+registered operation without a native recipe returns the dedicated unsupported-operation status
+rather than masquerading as malformed input. Candidate and route identity are version 18. Java
+owns exactly three prepared-route identities: custom singleton NEG wire 1, MPSGraph wire 2, and
+shared custom-program wire 3. Schema 15 embeds wire 2 or 3 in each graph image; schema 14 and every
+other schema or route value fail closed. The exhaustive Java structural catalog adds no native
+route selection, capability, autotuning, fallback, telemetry, or performance authority.
 
-For admitted nodes, the version-17 workload signature binds operation wire, source/target carrier
+For admitted nodes, the version-18 workload signature binds operation wire, source/target carrier
 types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes, exact
 scalar bits, variadic input order/count, and complete encoded storage-layout geometry. The
-schema-15 and identity-17 cutover has no compatibility reader or migration alias.
+schema-15 and identity-18 cutover has no compatibility reader or migration alias; identity 17 and
+earlier fail closed.
 
 ```text
 Java analysis -> choose fixed whole-partition route -> declare every exact resource
@@ -480,21 +485,35 @@ immutable inputs, reuse, independent sessions, and concurrency. Public CPU-free 
 cases additionally exercise integral execution under both profiles and general accelerator
 FLOAT32 forward/generated-gradient and mixed-carrier execution.
 
+MSE coverage executes `NONE`, `SUM`, and `MEAN` through direct targets, repeated inputs, retained
+executable reuse, isolated sessions, and immutable prediction/target buffers. Its independent
+source-derived oracle recursively enumerates permitted DAZ/FTZ choices at the subtraction and
+self-multiplication sites, every all-contributors-once binary reduction tree, final exact-count
+division, signed-zero freedoms, and NaN classification over zeros, subnormal/normal boundaries,
+maximum finite values, infinities, and quiet/signaling NaNs. Java/native malformed-image parity
+rejects wrong reductions, types, ranks, Shapes, and gradient flags. The fixed source composition
+against the already qualified primitive and full-reduction domains is the authorization proof;
+these executions corroborate it rather than grant capability by sampling. The packaged CPU-free
+Engine proof covers sole Metal ownership, all three publications including four-byte scalars,
+reused and independent sessions, input preservation, strict/excluded-domain rejection, and
+generated-backward rejection.
+
 ## Boundaries
 
 The bridge itself implements no library discovery, package selection or extraction, Engine
 composition, mixed-owner schedule, CPU fallback, asynchronous API, buffer pool, persistent constant
 buffer, executable serialization, FLOAT16, BFLOAT16-result MATMUL, FLOAT64 arithmetic, masked or
-unproved aggregate reductions, strict floating MATMUL, dynamic/zero-extent MATMUL, arbitrary affine
-MATMUL input, implicit-seed backward execution, alias promise, or performance claim. Accelerator
-arithmetic, reductions, and MATMUL use only their Model-owned result freedoms. Every MATMUL term
-occurs exactly once in increasing contraction order; corresponding FMA placement is permitted and
-only a complete nonempty exact-zero result receives the final zero-sign choice. Integer arithmetic
-is exact two's-complement modular arithmetic. Mixed BFLOAT16 inputs widen exactly and are never
-narrowed because the result is FLOAT32. Affine operands address their authenticated physical
-source directly; no hidden transpose materialization occurs. There is no tiling, atomics,
-autotuning, runtime route selection, retry, or fallback. Generated accelerator FLOAT32 gradients
-use the same admitted MATMUL domain but do not imply unrestricted Metal training.
+unproved aggregate reductions, strict floating MATMUL or MSE, non-FLOAT32 or rank-zero MSE,
+arbitrary normalization/loss ownership, dynamic/zero-extent MATMUL, arbitrary affine MATMUL input,
+implicit-seed or MSE backward execution, alias promise, or performance claim. Accelerator floating
+MATMUL contracts every scalar product through a fixed loop body whose multiply-add occurs exactly
+once in increasing contraction order; corresponding FMA placement is permitted and only a complete
+nonempty exact-zero result receives the final zero-sign choice. Integer arithmetic is exact
+two's-complement modular arithmetic. Mixed BFLOAT16 inputs widen exactly and are never narrowed
+because the result is FLOAT32. Affine operands address their authenticated physical source
+directly; no hidden transpose materialization occurs. There is no tiling, atomics, autotuning,
+runtime route selection, retry, or fallback. Generated accelerator FLOAT32 gradients use the same
+admitted MATMUL domain but do not imply unrestricted Metal training.
 
 The public Java Metal surface is `MetalCapabilityProvider`, `MetalBackendConfiguration`, and
 `MetalBackendIntegration`; Engine accepts an explicitly opened integration through

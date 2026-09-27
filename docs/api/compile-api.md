@@ -1519,8 +1519,11 @@ first-order autograd supports both prediction and target roles, restores `NONE`,
 coefficients `2` and `-2`. The current fail-closed CPU path advertises, lowers, prepares, and
 executes only fully static, resolved-layout BFLOAT16/FLOAT32/FLOAT64 MSE occurrences with exact
 equal prediction/target Shape, ordered promotion, reduction/result Shape, gradient eligibility,
-and injective output. Gradient support remains limited to the closed matrix above. Dynamic
-binding, training coordination, and other-backend execution remain planned.
+and injective output. Metal additionally owns only ACCELERATOR same-type canonical positive-rank
+FLOAT32 forward MSE for all three reductions; the result gradient flag is the exact input OR, but
+generated backward nodes receive no Metal ownership. Dynamic binding, training coordination,
+other carriers, mixed carriers, and all other Metal loss or normalization families remain
+fail-closed or planned.
 `Tensor.categoricalCrossEntropyWithLogits(target, classAxis, reduction)` is current one-output
 model metadata with ordered inputs `[logits, target]`. Exact floating target type dispatches to the
 unchanged dense target-weighted stable-log-softmax meaning, including floating promotion,

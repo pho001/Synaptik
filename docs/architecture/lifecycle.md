@@ -407,11 +407,12 @@ transports, queries, or realizes that meaning without reinterpreting it. CPU rea
 identically. Metal's common exact occurrence domain under both profiles contains its unary, affine,
 canonicalization, indexing, BOOL-domain, Task-0059 movement, Task-0060 replacement/fold/aggregate,
 and no-gradient promoted INT32/INT64 MATMUL rows. `ACCELERATOR` additionally admits the documented
-FLOAT32 arithmetic, extrema, scalar, reduction, and scan rows; every positive-static FLOAT32
-MATMUL vector, matrix, batched, and right-aligned broadcast geometry; and no-gradient
-BFLOAT16/FLOAT32 mixed MATMUL. Strict rejects floating MATMUL but retains the common integral rows;
-every other unlisted occurrence fails closed before route selection. ABI 5 retains thirteen
-exports and accepts one bounded schema-15 route-bearing program image over type wires `1..6`,
-operation wires `1..115`, and attribute wires `0..41`; backend identities are version seventeen.
-Structural coverage is `87 / 28` and production capability is `69 / 46`. Runtime
+FLOAT32 arithmetic, extrema, scalar, reduction, and scan rows; same-type canonical positive-rank
+FLOAT32 MSE for all three reductions; every positive-static FLOAT32 MATMUL vector, matrix, batched,
+and right-aligned broadcast geometry; and no-gradient BFLOAT16/FLOAT32 mixed MATMUL. Strict rejects
+floating MATMUL and MSE but retains the common integral rows; every other unlisted occurrence fails
+closed before route selection. ABI 5 retains thirteen exports and accepts one bounded schema-15
+route-bearing program image over type wires `1..6`, operation wires `1..115`, and attribute wires
+`0..41`; backend identities are version eighteen. Structural coverage is `88 / 27` and production
+capability is `70 / 45`. Runtime
 executes the prepared result with no profile branch.

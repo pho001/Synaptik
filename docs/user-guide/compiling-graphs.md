@@ -83,10 +83,10 @@ Compilation uses the profile captured by the Engine for every capability query a
 preparation. The default is `STRICT_IEEE`. CPU answers the same exact capability matrix under
 either profile. Metal's common exact domain includes its unary/affine/canonicalization/indexing/
 BOOL/movement/replacement/fold/aggregate rows and no-gradient promoted INT32/INT64 MATMUL.
-ACCELERATOR additionally admits the documented FLOAT32 arithmetic/reduction/scan rows, every
-positive-static FLOAT32 MATMUL geometry, and no-gradient BFLOAT16/FLOAT32 mixed MATMUL. Strict
-rejects floating MATMUL but retains the common integral rows; every other unlisted occurrence fails
-before route selection.
+ACCELERATOR additionally admits the documented FLOAT32 arithmetic/reduction/scan rows, same-type
+canonical positive-rank FLOAT32 MSE for all three reductions, every positive-static FLOAT32 MATMUL
+geometry, and no-gradient BFLOAT16/FLOAT32 mixed MATMUL. Strict rejects floating MATMUL and MSE but
+retains the common integral rows; every other unlisted occurrence fails before route selection.
 Compilation neither changes the requested profile nor falls back when an occurrence has no
 eligible owner.
 
@@ -98,8 +98,10 @@ execution. Rank-0..16 fully static cross-owner values may use `FLOAT64`, `FLOAT3
 physical spans. Exact custom nodes and MATMUL outside the retained all-FLOAT32 rank-two MPSGraph
 slice execute through one fixed native whole-program call with declared run-owned intermediates and
 direct targets. ABI 5 retains thirteen exports and consumes one bounded schema-15 program image
-with type wires `1..6`, operation wires `1..115`, attributes `0..41`, and version-seventeen
-identities. Registry presence does not widen capability; unsupported operations fail closed.
+with type wires `1..6`, operation wires `1..115`, attributes `0..41`, and version-eighteen
+identities. Accelerator Metal additionally owns same-type canonical positive-rank FLOAT32 MSE
+forward execution for `NONE`, `SUM`, and `MEAN`; it does not own the generated backward graph.
+Registry presence does not widen capability; unsupported operations fail closed.
 
 Model construction leaves Conv2d and Conv3d result layouts unresolved; Compiler closes
 only eligible fully static final convolution

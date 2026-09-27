@@ -636,14 +636,15 @@ matrix with narrowing, or infer capability from registered schema.
   compute, configured/available parallelism `1`/`1`, minimum elements per worker `1`, no worker
   group, and all existing fallbacks/thresholds. The report-only protocol is hardened; a future
   comparison still requires a separately reviewed, fully sealed matrix before measurement.
-- Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
-  0017, Trace 0003, and Metal
-  0015/0019/0020/0021/0022/0023/0024/0025/0038/0041/0042/0043/0044/0045/0046/0048/0049/0050/0054/
-  0055/0056/0057 are Complete. Metal 0016–0018, 0026–0027, 0030–0037, planning-only 0039,
-  failed-gate 0040, provider-gated 0047, historical consumed-oracle 0051, and proof-blocked 0053
-  remain Blocked under their recorded contracts. Task 0052 is Complete; Task 0054 remains its exact
-  historical pre-cutover inventory. Tasks 0055 and 0056 are the completed foundation/catalog
-  prerequisites, and Task 0057 is the completed exact BOOL production cutover.
+Model 0026 remains an independent FLOAT16 Draft. Model 0027–0029, Config 0006, Engine 0018, CPU
+0017, Trace 0003, and Metal
+0015/0019/0020/0021/0022/0023/0024/0025/0038/0041/0042/0043/0044/0045/0046/0048/0049/0050/0054/
+0055/0056/0057/0058/0059/0060/0061/0062 are Complete. Metal 0016–0018, 0026–0027, 0030–0037,
+planning-only 0039, failed-gate 0040, provider-gated 0047, historical consumed-oracle 0051, and
+proof-blocked 0053 remain Blocked under their recorded contracts. Task 0052 is Complete; Task 0054
+remains its exact historical pre-cutover inventory. Tasks 0055–0061 are completed
+foundation/catalog and operation-family prerequisites, and Task 0062 is the completed bounded MSE
+forward cutover.
 - Planning 0007 review found a stale glossary `Compile` status sentence and stale
   `GraphCompilationPort` Javadoc about the Engine facade. Compiler 0006B10 corrected and
   independently reviewed both without reopening Planning capability work.
@@ -657,17 +658,15 @@ matrix with narrowing, or infer capability from registered schema.
 
 ## Nearest next step
 
-Metal Task 0061 is Complete at corrected approved plan `d81ec940` and reviewed implementation head
-`3913bac1`. Both profiles admit every no-gradient INT32/INT64 ordered MATMUL pair with INT64-dominant
-promotion and modular result arithmetic. Accelerator additionally admits every positive-static
-FLOAT32 vector/matrix/batched/broadcast geometry with generated gradients and no-gradient
-BFLOAT16/FLOAT32 mixed pairs with FLOAT32 output. Exact local identity-prefix, last-two-axis
-transpose operands retain physical offset/stride provenance. Existing all-FLOAT32 rank-two matrix
-products retain MPSGraph, including authenticated transposes nested in a custom program; seven
-fixed custom signatures cover only newly admitted forms. Capability remains `69 / 46`, structural
-execution `87 / 28`, MPSGraph catalog `75 / 35 / 5`, and custom catalog `47 / 68 / 0`. Schema 15,
-ABI 5, and thirteen exports remain fixed; all backend-local identities are version 17 and reject
-version 16. Independent cumulative code, evidence, and security reviews returned zero P0/P1/P2.
+Metal Task 0062 is In review at implementation/proof `1cf8a6ef`. It admits only ACCELERATOR
+same-type canonical positive-rank FLOAT32 MSE forward execution for `NONE`, `SUM`, and `MEAN`
+through fixed MPSGraph subtraction, self-multiplication, and the qualified full reduction. Output
+gradient metadata is the exact input logical OR, while generated MSE backward and every other
+normalization/loss wire remain fail-closed. Source-derived recursive-oracle, Java/native parity,
+prepared lifecycle, conformance, and packaged CPU-free Engine validation passed. Capability is
+`70 / 45`, structural execution `88 / 27`, MPSGraph catalog `75 / 35 / 5`, and custom catalog
+`47 / 68 / 0`. Schema 15, ABI 5, and thirteen exports remain fixed; all backend-local identities
+are version 18 and reject version 17. The cumulative Class C review is the remaining closeout gate.
 No Metal task is Ready; Task 0053 remains Blocked on its external constructive-real bridge.
 
 Metal 0046 is Complete at independently approved implementation
@@ -783,7 +782,7 @@ gradient obligations. Unblocking requires a conforming custom or proved selector
 complete five-input/two-output/caller-INT64 schema, native lifecycle, and proof.
 
 Schema 15, operation wires `1..115`, attributes `0..41`, local types `1..6`, ABI 5, and
-version-seventeen identities are current after Task 0061 implementation. Complete Tasks 0055–0060
+version-eighteen identities are current after Task 0062 implementation. Complete Tasks 0055–0061
 remain historical foundation/catalog/route/domain prerequisites; blocked Metal 0053 remains
 fail-closed without production capability. Metal 0026/0027 remain separately finalized Blocked.
 Documentation/audit-only Metal 0038 is Complete. Planning-only Metal 0039 is Blocked on Draft Model
@@ -797,7 +796,7 @@ remediation `6d4246f7`; Metal 0050 final verification, Task 0052, and historical
 documentation/audit-only Metal 0054 and exact BOOL Task 0057 are Complete. Historical Metal 0051
 and successor Metal 0053 are Blocked. Task 0054 remains the exact pre-cutover
 `19+2+15+79=115` record, not a current count; current capability is
-`69 true / 46 false = 115` and current structural execution is `87 true / 28 false = 115`.
+`70 true / 45 false = 115` and current structural execution is `88 true / 27 false = 115`.
 
 ## History policy
 

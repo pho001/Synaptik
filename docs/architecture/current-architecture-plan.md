@@ -79,8 +79,8 @@ route. Any partition containing an exact custom node or MATMUL outside the retai
 uses the fixed shared whole-program route with declared run-owned value buffers and one Java/native
 invocation. Current Metal uses ABI 5 with the same thirteen exports and one bounded schema-15
 route-bearing program image over type wires `1..6`, operation wires `1..115`, and attribute wires
-`0..41`; backend-local identities are version seventeen. Structural coverage is `87 / 28`;
-production capability is exactly `69 / 46`.
+`0..41`; backend-local identities are version eighteen. Structural coverage is `88 / 27`;
+production capability is exactly `70 / 45`.
 
 The Training extension now owns a public reusable
 Engine-backed scalar session with persistent SGD, accumulation, and detached in-memory state over
