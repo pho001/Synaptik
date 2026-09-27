@@ -371,7 +371,7 @@ before extracting a package or widening another type.
 | 0059 | [Casts, layout, and indexing](tasks/0059-casts-layout-indexing.md) | Complete | 0055–0058 Complete; current Model cast/layout/indexing contracts; Compiler/Prepare/Runtime/Engine contracts; reviewer inventory from clean `67d68071` | Every concurrent Metal capability/schema/native/custom-source/catalog/candidate/route/preparation/resource/publication/test/package/documentation scope; any resumed 0053 work | None | Cutover plan `6478d249` → implementation/proof `783eabe1` → package/docs `ac0db5c4` → BOOL proof `536e52b8` → cumulative review remediation `02a097eb` → independent Class C `APPROVE` with zero P0/P1/P2 | Complete Metal JVM and focused native/schema/indexing/SELECT-SLICE suites; CPU/public Engine transfer proof; package/Gradle verification; changed-module Javadocs; no final full repository build | Landed exact `61/54` capability and `79/36` structural coverage; schema 15, identity 16, ABI 5, thirteen exports; all-carrier resolved positive-stride SELECT/SLICE; exact physical-span transfer and publication; every excluded domain remains false |
 | 0060 | [Exact replacement, non-overlap fold, and aggregate reductions](tasks/0060-exact-replacement-fold-and-aggregate-reductions.md) | Complete | 0059 Complete at `f3ad5e12`; current Model scatter/slice/fold/aggregate contracts; Compiler/Prepare/Runtime/Engine contracts | Every concurrent Metal capability/schema/native/custom-source/catalog/candidate/route/preparation/resource/publication/test/package/documentation scope; pooling and ordering successors; any resumed 0053 work | None | Plan `dd94e492` → implementation `d06db07e` → proof `eda09533` → docs `62f18cd8` → fold-domain/count remediation `a4fe4754` → independent cumulative re-review `APPROVE` with zero P0/P1/P2 | Complete Metal tests; packaged-dylib public positive/negative Engine proof, repetition/concurrency/failure recovery; package verifier; Javadocs; no final full build by request | Exact `69/46` capability and `87/28` structural execution; unchanged schema 15/identity 16/ABI 5/13 exports; replacement-only Scatter-ND/slice-update, FLOAT64/FLOAT32/BFLOAT16 non-overlap folds, modular integer PROD, BOOL ALL/ANY; integral/BOOL folds and other blockers remain false |
 | 0061 | [General static MATMUL domain](tasks/0061-general-static-matmul-domain.md) | Complete | 0060 Complete at `a4fe4754`; current Model MATMUL/promotion and Compiler gradient contracts | Every concurrent Metal capability/schema/native/custom/route/package/shared-document scope and resumed 0053 production | None | Corrected plan `d81ec940` → implementation/proof from `3cc49d94` through final remediation `3913bac1` → independent cumulative code/evidence/security `APPROVE` with zero P0/P1/P2 | Native build/sign/package; 187 Metal, 278 Compiler, 8 conformance, and 25 public Engine tests; certificate, Javadoc, architecture, docs/diff | Adds general promoted integral and accelerator FLOAT32/mixed MATMUL without new wire/schema/ABI/export; retains rank-two FLOAT32 MPSGraph, including authenticated nested transposes, and routes only new forms through seven fixed custom signatures |
-| 0062 | [ACCELERATOR MSE and normalization/loss proof boundary](tasks/0062-accelerator-mse-and-normalization-loss-boundary.md) | In review | 0061 Complete at reviewed head `3913bac1`; Model 0030/0031; current loss/normalization, Compiler-gradient, FLOAT32 primitive/reduction, catalog/schema/lifecycle contracts | Every concurrent Metal capability/schema/native/custom/route/package/shared-document scope and resumed 0053 production | None | Implementation/proof `1cf8a6ef` → package/docs/status → cumulative Class C review | Packaged-native Metal, conformance, CPU-free Engine, Javadoc/docs, identities/counts/exports, cumulative Class C review | Implements only same-type FLOAT32 ACCELERATOR MSE `NONE`/`SUM`/`MEAN` through one fixed proved MPSGraph composition; keeps the other eight normalization/loss wires and generated backward fail-closed. |
+| 0062 | [ACCELERATOR MSE and normalization/loss proof boundary](tasks/0062-accelerator-mse-and-normalization-loss-boundary.md) | Complete | 0061 Complete at reviewed head `3913bac1`; Model 0030/0031; current loss/normalization, Compiler-gradient, FLOAT32 primitive/reduction, catalog/schema/lifecycle contracts | Every concurrent Metal capability/schema/native/custom/route/package/shared-document scope and resumed 0053 production | None | Implementation/proof `1cf8a6ef` → documentation `3e0e4ea4` → nested-input remediation `b12dbe73` → evidence checkpoint `e80a03f6` → documentation remediation `06c57844` → independent cumulative code/evidence/security `APPROVE` with zero remaining P0/P1/P2 | Native build/sign/package/verification; 193 Metal, 9 conformance, 26 public Engine, and 9 architecture tests; Javadoc/docs/diff; identities/counts/exports | Implements only same-type FLOAT32 ACCELERATOR MSE `NONE`/`SUM`/`MEAN` through one fixed proved MPSGraph composition; keeps the other eight normalization/loss wires and generated backward fail-closed. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -420,7 +420,7 @@ Completed profile spine and serial successors:
 `0059 (Complete) + current replacement/fold/aggregate contracts -> 0060 (Complete)`
 
 `0060 (Complete) + current MATMUL/promotion/gradient contracts -> 0061 (Complete)`
-`0061 (Complete) + current loss/normalization and Compiler gradient contracts + proved FLOAT32 primitive/reduction routes -> 0062 (In review)`
+`0061 (Complete) + current loss/normalization and Compiler gradient contracts + proved FLOAT32 primitive/reduction routes -> 0062 (Complete)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -543,7 +543,7 @@ another.
 - Complete Task 0056 owns the internal 115-kind structural route catalog and one immutable
   prepared-route identity. Task 0057 advanced its candidate/codec identities to 15 and fixed the
   shared route name to `CUSTOM_PROGRAM`; Task 0059 advanced all backend-local identities to 16,
-  and Complete Task 0061 advances them to 17.
+  Complete Task 0061 advanced them to 17, and Complete Task 0062 advances them to 18.
   Catalog states still are not correctness approval; local timing is never authority, and only the
   existing cold authenticated handoff remains as a seam for separately approved controlled
   autotuning.
@@ -554,8 +554,8 @@ another.
   production surface.
 - Blocked Metal 0016–0018, 0026–0027, 0030–0037, 0039–0040, 0051, and 0053 have no active
   production write scope. Task 0061 is Complete through reviewed implementation head `3913bac1`.
-  Task 0062 is In review after implementation/proof `1cf8a6ef`, documentation `3e0e4ea4`, and
-  cumulative-review remediation `b12dbe73`; no Metal task is Ready.
+  Task 0062 is Complete through final documentation remediation `06c57844` after independent
+  cumulative code, evidence, and security approval; no Metal task is Ready.
   Model 0028 owns the reduction semantic contract, Complete Model 0029 owns the MATMUL
   final-publication semantic contract, and Complete Metal 0021–0025 retain reviewed implementations.
 
@@ -613,10 +613,10 @@ structurally maps full grouped NCHW/OIHW Conv2d geometry, but the selector gives
 algorithm contract, so one execution cannot prove the complete recursive output subset over every
 shape. Metal 0032 remains Blocked without a probe under its frozen profile-common premise. Its MSE
 formula is recursively reachable for `ACCELERATOR` through subtraction, `delta*delta`, reduction,
-and the exact divisor. In-review Task 0062 supersedes that premise only with an implemented
-same-type positive-rank FLOAT32 ACCELERATOR domain using the already-qualified
-SUB/MUL/full-SUM/full-MEAN routes. Production now reflects that bounded cutover; final completion
-still requires its cumulative Class C review gate.
+and the exact divisor. Complete Task 0062 supersedes that premise only with an implemented same-type
+positive-rank FLOAT32 ACCELERATOR domain using the already-qualified SUB/MUL/full-SUM/full-MEAN
+routes. Production reflects that bounded cutover after its cumulative Class C review gate passed
+with zero remaining P0/P1/P2 findings.
 Metal 0033 remains Blocked without a probe: attention arithmetic is recursively reachable for
 `ACCELERATOR`, but the macOS-15 direct unmasked output-only SDPA selector is opaque, additive mask
 semantics mismatch Model, and no
@@ -671,10 +671,10 @@ re-review of `55cdebc3..a4fe4754` returned `APPROVE` with zero P0/P1/P2. Task 00
 corrected approved plan `d81ec940` and reviewed implementation head
 `3913bac1`; independent cumulative code, evidence, and security reviews each returned `APPROVE`
 with zero P0/P1/P2. It retained `69/46` capability, `87/28` structural execution, `75/35/5`
-MPSGraph catalog, `47/68/0` custom catalog, and backend-local identity 17. Task 0062 is In review
-through cumulative-review remediation `b12dbe73`; its validated cutover advances capability to
-`70/45`, structural execution to `88/27`, and backend-local identity to 18 without changing either
-catalog.
+MPSGraph catalog, `47/68/0` custom catalog, and backend-local identity 17. Task 0062 is Complete
+through documentation remediation `06c57844`; independent cumulative code, evidence, and security
+review returned `APPROVE` with zero remaining P0/P1/P2. Its cutover advances capability to `70/45`,
+structural execution to `88/27`, and backend-local identity to 18 without changing either catalog.
 No Metal task is Ready; Task 0053 remains Blocked on its external constructive-real bridge.
 
 Metal 0006 remains historically `Blocked` after its frozen direct-selector
