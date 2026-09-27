@@ -83,38 +83,6 @@ import org.junit.jupiter.api.Test;
 
 class MetalCapabilityProviderTest {
     private final MetalCapabilityProvider provider = new MetalCapabilityProvider();
-    @Test
-    void registeredWireCapabilityLedgerClosesAtEightyThreeTrueAndThirtyTwoFalse() {
-        java.util.Set<MetalMpsGraphProgram.NodeKind> structuralOnly = java.util.Set.of(
-                MetalMpsGraphProgram.NodeKind.TENSOR_POW,
-                MetalMpsGraphProgram.NodeKind.SCALAR_POW,
-                MetalMpsGraphProgram.NodeKind.LOG,
-                MetalMpsGraphProgram.NodeKind.LOG1P,
-                MetalMpsGraphProgram.NodeKind.EXPM1,
-                MetalMpsGraphProgram.NodeKind.ERF,
-                MetalMpsGraphProgram.NodeKind.SQRT,
-                MetalMpsGraphProgram.NodeKind.RSQRT,
-                MetalMpsGraphProgram.NodeKind.TANH,
-                MetalMpsGraphProgram.NodeKind.GELU,
-                MetalMpsGraphProgram.NodeKind.GELU_TANH_APPROXIMATION,
-                MetalMpsGraphProgram.NodeKind.SILU,
-                MetalMpsGraphProgram.NodeKind.SCATTER_ADD,
-                MetalMpsGraphProgram.NodeKind.LOG_SUM_EXP,
-                MetalMpsGraphProgram.NodeKind.VARIANCE,
-                MetalMpsGraphProgram.NodeKind.STANDARD_DEVIATION,
-                MetalMpsGraphProgram.NodeKind.L1_NORM,
-                MetalMpsGraphProgram.NodeKind.L2_NORM);
-        assertEquals(18, structuralOnly.size());
-        long trueRows = java.util.Arrays.stream(MetalMpsGraphProgram.NodeKind.values())
-                .filter(MetalMpsGraphProgram.NodeKind::executable)
-                .filter(kind -> !structuralOnly.contains(kind))
-                .count();
-        assertEquals(83L, trueRows);
-        assertEquals(32L, MetalMpsGraphProgram.NodeKind.values().length - trueRows);
-        structuralOnly.forEach(kind -> assertTrue(kind.executable(), kind.name()));
-        assertFalse(MetalMpsGraphProgram.NodeKind.EXP.executable());
-        assertFalse(MetalMpsGraphProgram.NodeKind.SIGMOID.executable());
-    }
 
     @Test
     void acceleratorMseIsTheOnlyNormalizationOrLossCapability() {

@@ -113,6 +113,70 @@ class MetalMpsGraphAffineNativeTest {
                 for (int target = 0; target < outputs.size(); target++) {
                     downloaded.add(arena.allocate(96L, Integer.BYTES));
                 }
+                MemorySegment sentinel = arena.allocate(96L, Integer.BYTES);
+                for (int index = 0; index < ADVERSARIAL_BITS.length; index++) {
+                    sentinel.setAtIndex(JAVA_INT, index, 0x5a5a0000 | index);
+                }
+                for (MetalNativeApi.Handle output : outputs) {
+                    api.upload(output, 0L, sentinel, 96L);
+                }
+                MetalNativeApi.Handle runExecutable = executable;
+
+                inputs.setAtIndex(ADDRESS, 1, input.carrier());
+                assertIncompatibleResource(() -> api.runExecutable(
+                        runExecutable, 5, inputs, 4, targetAddresses));
+                inputs.setAtIndex(ADDRESS, 1, outputs.getFirst().carrier());
+
+                targetAddresses.setAtIndex(
+                        ADDRESS, 0, outputs.get(1).carrier());
+                assertIncompatibleResource(() -> api.runExecutable(
+                        runExecutable, 5, inputs, 4, targetAddresses));
+                targetAddresses.setAtIndex(
+                        ADDRESS, 0, outputs.getFirst().carrier());
+
+                targetAddresses.setAtIndex(
+                        ADDRESS, 0, outputs.get(1).carrier());
+                targetAddresses.setAtIndex(
+                        ADDRESS, 1, outputs.getFirst().carrier());
+                assertIncompatibleResource(() -> api.runExecutable(
+                        runExecutable, 5, inputs, 4, targetAddresses));
+                targetAddresses.setAtIndex(
+                        ADDRESS, 0, outputs.getFirst().carrier());
+                targetAddresses.setAtIndex(
+                        ADDRESS, 1, outputs.get(1).carrier());
+
+                targetAddresses.setAtIndex(
+                        ADDRESS, 1, outputs.getFirst().carrier());
+                assertIncompatibleResource(() -> api.runExecutable(
+                        runExecutable, 5, inputs, 4, targetAddresses));
+                targetAddresses.setAtIndex(
+                        ADDRESS, 1, outputs.get(1).carrier());
+
+                MemorySegment unchangedInput = arena.allocate(96L, Integer.BYTES);
+                api.download(input, 0L, unchangedInput, 96L);
+                for (int target = 0; target < outputs.size(); target++) {
+                    api.download(
+                            outputs.get(target),
+                            0L,
+                            downloaded.get(target),
+                            96L);
+                }
+                for (int index = 0; index < ADVERSARIAL_BITS.length; index++) {
+                    assertEquals(
+                            Integer.toUnsignedLong(ADVERSARIAL_BITS[index]),
+                            Integer.toUnsignedLong(
+                                    unchangedInput.getAtIndex(JAVA_INT, index)),
+                            "custom alias rejection must preserve input " + index);
+                    for (int target = 0; target < outputs.size(); target++) {
+                        assertEquals(
+                                Integer.toUnsignedLong(0x5a5a0000 | index),
+                                Integer.toUnsignedLong(
+                                        downloaded.get(target)
+                                                .getAtIndex(JAVA_INT, index)),
+                                "custom alias rejection must preserve target "
+                                        + target + '[' + index + ']');
+                    }
+                }
                 for (int iteration = 0; iteration < 2; iteration++) {
                     api.runExecutable(executable, 5, inputs, 4, targetAddresses);
                     for (int target = 0; target < outputs.size(); target++) {
@@ -644,6 +708,13 @@ class MetalMpsGraphAffineNativeTest {
     private static AffineCase axis(
             String name, Kind kind, long[] input, long[] output, int axis) {
         return new AffineCase(name, kind, input, output, new int[] {axis});
+    }
+
+    private static void assertIncompatibleResource(
+            org.junit.jupiter.api.function.Executable invocation) {
+        MetalNativeApi.NativeFailure failure = assertThrows(
+                MetalNativeApi.NativeFailure.class, invocation);
+        assertEquals(MetalNativeApi.Status.INCOMPATIBLE_RESOURCE, failure.status());
     }
 
     private enum Kind { RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE }

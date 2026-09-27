@@ -168,9 +168,46 @@ class MetalMpsGraphAbsNativeTest {
                     outputAddresses.setAtIndex(ADDRESS, index, outputs.get(index).carrier());
                 }
                 MetalNativeApi.Handle runExecutable = executable;
+                if (accelerator) {
+                    inputAddresses.setAtIndex(
+                            ADDRESS, 1, inputs.getFirst().carrier());
+                    api.runExecutable(
+                            runExecutable,
+                            inputs.size(),
+                            inputAddresses,
+                            outputs.size(),
+                            outputAddresses);
+                    inputAddresses.setAtIndex(
+                            ADDRESS, 1, inputs.get(1).carrier());
+                }
                 for (MetalNativeApi.Handle output : outputs) {
                     upload(api, output, INPUT_BITS);
                 }
+                outputAddresses.setAtIndex(
+                        ADDRESS, 0, inputs.getFirst().carrier());
+                MetalNativeApi.NativeFailure inputOutputAlias = assertThrows(
+                        MetalNativeApi.NativeFailure.class,
+                        () -> api.runExecutable(
+                                runExecutable,
+                                inputs.size(),
+                                inputAddresses,
+                                outputs.size(),
+                                outputAddresses));
+                assertEquals(
+                        MetalNativeApi.Status.INCOMPATIBLE_RESOURCE,
+                        inputOutputAlias.status());
+                assertArrayEquals(
+                        INPUT_BITS,
+                        download(api, inputs.getFirst()),
+                        "input/output alias rejection must precede input mutation");
+                for (MetalNativeApi.Handle output : outputs) {
+                    assertArrayEquals(
+                            INPUT_BITS,
+                            download(api, output),
+                            "input/output alias rejection must precede target mutation");
+                }
+                outputAddresses.setAtIndex(
+                        ADDRESS, 0, outputs.getFirst().carrier());
                 outputAddresses.setAtIndex(ADDRESS, 1, outputs.getFirst().carrier());
                 MetalNativeApi.NativeFailure aliasFailure = assertThrows(
                         MetalNativeApi.NativeFailure.class,

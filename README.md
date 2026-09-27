@@ -46,7 +46,7 @@ convolution transpose, and every other unlisted occurrence fail closed. Eligible
 negation retains its custom alternative. Exact custom nodes fix their whole partition to one
 custom program with declared run-owned intermediates and direct targets; top-K publishes paired
 values and INT64 indices from one step. ABI 5, thirteen exports, and the schema-15 operation and
-attribute registries remain fixed; backend-local route and workload identities are version 20.
+attribute registries remain fixed; backend-local route and workload identities are version 22.
 Standard-Metal convenience, generic plugin registration/discovery, CUDA, broader optimizers,
 durable persistence, and generic graph/plan tuning remain planned.
 Focused documentation identifies the exact current boundary for each area.

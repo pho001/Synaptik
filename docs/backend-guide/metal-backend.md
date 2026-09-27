@@ -532,6 +532,15 @@ binding and other created run resources without closing the prepared splat owner
 transfer and canonical materialization may unwrap a live splat binding as a read source;
 CPU-to-Metal upload and executable output binding reject it before native mutation.
 
+The address-workspace alias contracts are route-specific. Ordinary `MPSGRAPH` permits repeated
+input handles but requires outputs to be pairwise distinct and distinct from every input.
+`CUSTOM_PROGRAM` instead requires the complete materialized-value table to be pairwise distinct,
+then requires output position `i` to repeat exactly the authenticated
+`values[targetValueIndices[i]]` handle. Duplicate value handles and wrong, swapped, or duplicated
+target handles fail before command encoding or mutation. `CUSTOM_SINGLE_NEG` requires distinct
+input and output handles. Java binding repeats these checks before the downcall, and the raw native
+boundary treats every handle as untrusted.
+
 This is deliberately not a general buffer pool. Mutable outputs remain owned by `RunResult` beyond
 the synchronous call and concurrent results require distinct writable buffers. MPSGraph address
 workspaces are mutable per-run pointer arrays. Safe pooling would first require an explicit
