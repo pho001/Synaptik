@@ -372,7 +372,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                     return supportsScan(operation, inputs, output, scan);
                 }
                 if (operation.kind() instanceof AggregateReductionKind reduction) {
-                    return supportsReduction(operation, inputs, output, reduction);
+                    return reduction == AggregateReductionKind.L1_NORM
+                            ? supportsTask0069L1Norm(operation, inputs, output)
+                            : supportsReduction(operation, inputs, output, reduction);
                 }
                 return supportsBinary(operation, inputs, output);
             }
@@ -1950,6 +1952,32 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 && output.dataType() == DataType.FLOAT32
                 && canonicalReductionOutput(output)
                 && output.shape().rank() == 0;
+    }
+
+    private static boolean supportsTask0069L1Norm(
+            Operation operation,
+            List<TensorDescriptor> inputs,
+            TensorDescriptor output) {
+        if (!(operation.attrs() instanceof MultiAxisReductionAttrs attrs)
+                || !attrs.axes().equals(List.of(0))
+                || inputs.size() != 1) {
+            return false;
+        }
+        TensorDescriptor input = inputs.getFirst();
+        if (!canonical(input)
+                || !canonicalReductionOutput(output)
+                || input.requiresGrad()
+                || output.requiresGrad()
+                || input.shape().rank() != 1) {
+            return false;
+        }
+        long extent = input.shape().toLongArray()[0];
+        if (extent < 1L || extent > UINT32_MAX / Float.BYTES) {
+            return false;
+        }
+        long[] expected = attrs.keepDimensions() ? new long[] {1L} : new long[0];
+        return Arrays.equals(expected, output.shape().toLongArray())
+                && output.layout().orElseThrow().referencedElementSpan() == 1L;
     }
 
     private static boolean supportsReduction(

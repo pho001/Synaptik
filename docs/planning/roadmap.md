@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0068; 0053 Blocked; 0069 Review needed | [Metal 0069](backends/metal/tasks/0069-source-owned-binary32-aggregate-slices.md) is a planning-only, current-base serial proposal for a minimal proof substrate and independent L1_NORM, SCATTER_ADD, then VARIANCE slices. All selected rows remain false and no production edit is authorized before independent plan/evidence/security approval. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0068; 0053 Blocked; 0069 Review needed with Slice 1 complete | [Metal 0069](backends/metal/tasks/0069-source-owned-binary32-aggregate-slices.md) completed the minimal proof substrate and exact rank-one accelerator FLOAT32 no-gradient `L1_NORM` custom route. `SCATTER_ADD` and `VARIANCE` remain false; Slice 2 requires a fresh checkpoint and approval. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -735,16 +735,17 @@ verification or source.
 Independent cumulative code, security, and evidence review at exact clean `1775081a` returned
 `APPROVE` with zero P0/P1/P2. No Metal task is Ready. Proof-blocked Task 0053 remains separate.
 
-Metal Task 0069 is registered from clean `69c07e30` as Review needed. Its exact proposed frontier is
-the task-local binary32/contributor-tree proof substrate plus rank-one accelerator FLOAT32
-no-gradient `L1_NORM`; independently approved later checkpoints may consider rank-one
-`SCATTER_ADD`, including the exact generated Gather cotangent closure and an atomic backend-contract
-update, and then literal-formula singleton correction-zero `VARIANCE`. Each slice uses a
-source-owned fixed custom route, advances identity and one capability/custom-catalog row
-independently, and preserves schema 15, ABI 5, thirteen exports, structural `101/14`, MPSGraph
-`75/35/5`, and every other false row. This is not a promise that all three slices will ship: a
-failed proof, source certificate, validation-before-mutation, packaged-dylib, or independent review
-gate leaves that row and every later serial slice false.
+Metal Task 0069 has completed only its authorized shared proof substrate and Slice 1. The exact
+current frontier is accelerator FLOAT32 no-gradient `L1_NORM` over one canonical positive-static
+rank-one input, ordered multi-axis `[0]`, and scalar or retained `[1]` output. Its source-owned
+single-thread custom kernel raw-clears every contributor sign, initializes from ordinal zero,
+performs exactly `N-1` safe binary32 additions in increasing ordinal order, and publishes one
+logical result; `N=1` performs no addition. The Lean proof, source certificate, pinned exact
+runtime-source extraction, and Xcode 27.0 build 27A266a/Metal 32023.921/macOS SDK 27.0
+compiled-MSL/AIR audit pass. The current ledger is capability `84/31`, structural `101/14`,
+MPSGraph `75/35/5`, custom `71/44/0`, schema 15, ABI 5, thirteen exports, and identity 23.
+`SCATTER_ADD` and `VARIANCE` remain production-false; Slice 2 is not authorized before a fresh
+checkpoint and approval.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
@@ -873,7 +874,7 @@ independently approved implementation `89f9fbb9`; documentation-only Metal 0049 
 remediation `6d4246f7`; Metal 0050 final verification, Task 0052, and historical documentation/
 audit-only Metal 0054 and exact BOOL Task 0057 are Complete. Historical Metal 0051 and successor
 Metal 0053 are Blocked. Task 0054 remains the exact pre-cutover `19+2+15+79=115` record, not a
-current count; current capability is `83 true / 32 false = 115` and current structural execution is
+current count; current capability is `84 true / 31 false = 115` and current structural execution is
 `101 true / 14 false = 115`.
 
 ## History policy

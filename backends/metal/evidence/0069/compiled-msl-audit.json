@@ -1,0 +1,62 @@
+{
+  "task": "0069-source-owned-binary32-aggregate-slices-slice1-l1-norm",
+  "status": "accepted",
+  "toolchain": {
+    "developerDir": "/Applications/Xcode.app/Contents/Developer",
+    "xcodeVersion": "27.0",
+    "xcodeBuild": "27A266a",
+    "componentIdentifier": "com.apple.dt.toolchain.Metal.32023.921.5",
+    "compilerVersion": "Apple metal version 32023.921 (metalfe-32023.921.6)",
+    "metallibVersion": "AIR-LLD 32023.921 (metalfe-32023.921.6) (compatible with legacy metallib linker)",
+    "sdk": "macosx",
+    "sdkVersion": "27.0",
+    "sdkBuild": "26A425",
+    "sdkPath": "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk"
+  },
+  "options": [
+    "-std=metal3.2",
+    "-fno-fast-math",
+    "-Wall",
+    "-Werror",
+    "-isysroot",
+    "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk",
+    "-c"
+  ],
+  "runtimeCompilerSite": {
+    "api": "MTLDevice.newLibraryWithSource",
+    "mathMode": "MTLMathModeSafe",
+    "languageVersion": "MTLLanguageVersion3_2",
+    "sourceAssembly": "exact ordered concatenation extracted from the nine production NSString constants with the Task0053 source gate false"
+  },
+  "artifacts": {
+    "source": {
+      "path": "ephemeral/.task0069-msl-audit/runtime-source.metal",
+      "sha256": "070c910ff3be6853720274d670fb5a573c490ceec60d680eb323d9001c965c10"
+    },
+    "air": {
+      "path": "ephemeral/.task0069-msl-audit/runtime-source.air",
+      "sha256": "fc6258b8627ec607434f02fe63eb77dd05957f9b5821e95b157e1149f2fe3189"
+    },
+    "metallib": {
+      "path": "ephemeral/.task0069-msl-audit/runtime-source.metallib",
+      "sha256": "ffa3c751fbab39acff50c06f6fda720e4e831a3d06657ee459921f50d11ba8f3"
+    }
+  },
+  "compiledAirAudit": {
+    "targetTriple": "air64_v28-apple-macosx26.0.0",
+    "kernelSymbol": "l1_norm_f32_0069",
+    "rawAbs": "each static input path clears exactly the binary32 sign mask 2147483647 before bitcast to float",
+    "orderedFold": "ordinal zero initializes the accumulator; the later-contributor loop starts at one and increments by one",
+    "floatingAddInstructions": 1,
+    "floatingAddInstruction": "fadd float without fast, contract, reassoc, or afn flags",
+    "unsafeFloatingFlags": [],
+    "forbiddenFloatingInstructions": [
+      "fmul",
+      "fsub",
+      "fdiv",
+      "air.fma",
+      "llvm.fma"
+    ],
+    "output": "one static byte-store instruction in the single four-byte serialization loop reached only after the fold; no numeric output conversion"
+  }
+}

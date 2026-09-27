@@ -10,8 +10,8 @@ complete variable-cardinality operation, attribute, reference, dimension, gradie
 storage-layout metadata; no native type, shape, or layout inference is part of the boundary.
 
 The schema registry reserves operation wires `1..115` and attribute wires `0..41`. The native graph
-can structurally execute exactly 101 operation kinds; production capability remains exactly 83
-kinds. Task 0059 adds exact movement/indexing rows and complete positive-stride storage geometry.
+can structurally execute exactly 101 operation kinds; production capability is exactly 84 kinds.
+Task 0059 adds exact movement/indexing rows and complete positive-stride storage geometry.
 Task 0060 adds replacement/fold rows `72`, `76`, `80`, `82`, and `84` plus exact aggregate rows
 `106..108`. Task 0061 widens existing `MATMUL=15` without adding a wire: both profiles admit
 no-gradient INT32/INT64 ordered pairs; accelerator additionally admits every positive-static
@@ -60,19 +60,31 @@ Dropped output is raw positive zero; kept output uses FLOAT32 division then mult
 complement narrowed only after binary64 subtraction. State has one writer, all live outputs use
 ordinary run-local buffers, and direct MPSGraph creation rejects both wires.
 
-The remaining 32 production rows fail closed before native creation. A structurally valid
+Task 0069 Slice 1 adds source-owned custom-only `114=L1_NORM` for accelerator FLOAT32. The exact
+domain is one canonical positive-static rank-one no-gradient input, ordered multi-axis `[0]`, and
+a canonical scalar or retained `[1]` output. Element count, four-byte span, and the one-thread
+dispatch fit unsigned 32 bits; value-table buffers are distinct. `l1_norm_f32_0069` raw-clears
+every contributor sign bit, initializes from ordinal zero, performs exactly `N-1` safe binary32
+additions in increasing ordinal order, and serializes one final raw word; `N=1` performs no
+addition. The runtime compiler fixes `MTLMathModeSafe` and `MTLLanguageVersion3_2`. The exact
+assembled production source also passes the pinned Xcode 27.0/Metal 32023.921/macOS SDK 27.0
+compiled-MSL/AIR audit with `metal3.2`, no-fast-math, warnings as errors, and the explicit SDK
+isysroot. AIR exposes one unflagged `fadd` and no other floating arithmetic in the L1 kernel.
+SCATTER_ADD and VARIANCE remain production-false.
+
+The remaining 31 production rows fail closed before native creation. A structurally valid
 registered operation without a native recipe returns the dedicated unsupported-operation status
-rather than masquerading as malformed input. Candidate and route identity are version 22. Java
+rather than masquerading as malformed input. Candidate and route identity are version 23. Java
 owns exactly three prepared-route identities: custom singleton NEG wire 1, MPSGraph wire 2, and
 shared custom-program wire 3. Schema 15 embeds wire 2 or 3 in each graph image; schema 14 and every
 other schema or route value fail closed. The exhaustive Java structural catalog adds no native
 route selection, capability, autotuning, fallback, telemetry, or performance authority.
 
-For admitted nodes, the version-22 workload signature binds operation wire, source/target carrier
+For admitted nodes, the version-23 workload signature binds operation wire, source/target carrier
 types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes, exact
 scalar bits, variadic input/output order and count, complete encoded logical storage-layout
-geometry, and its independently safe physical materialization. The schema-15 and identity-22
-cutover has no compatibility reader or migration alias; identity 21 and earlier fail closed.
+geometry, and its independently safe physical materialization. The schema-15 and identity-23
+cutover has no compatibility reader or migration alias; identity 22 and earlier fail closed.
 
 ```text
 Java analysis -> choose fixed whole-partition route -> declare every exact resource

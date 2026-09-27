@@ -26,15 +26,19 @@
  * <p> {@code ACCELERATOR} additionally admits tensor {@code ADD}, {@code SUB}, {@code MUL}, {@code
  * DIV}, {@code MIN}, and {@code MAX}; all six binary comparisons with canonical one-byte {@code
  * BOOL} output; exact FLOAT32 scalar {@code MIN}, {@code MAX}, and fused {@code CLAMP}; canonical
- * {@code FLOAT32} {@code SUM}, {@code MEAN}, {@code MIN}, {@code MAX}, and binding-resolved {@code
- * SUM_TO_SHAPE}; all four exclusive/reverse modes of {@code CUM_SUM} and {@code CUM_PROD}; and
- * every positive-static FLOAT32 {@code MATMUL} vector, matrix, batched, and right-aligned broadcast
- * geometry. Both profiles admit no-gradient INT32/INT64 MATMUL pairs with INT64-dominant promotion
- * and modular result arithmetic. Accelerator additionally admits no-gradient BFLOAT16/FLOAT32 and
- * FLOAT32/BFLOAT16 operands with FLOAT32 result. Reductions support full, normalized single-axis,
- * ordered normalized multi-axis including empty, and exact keep-dimensions forms; reduction inputs
- * remain positive-rank while their target may be rank zero. Canonical host ingress/materialization
- * and bidirectional CPU/Metal transfer accept ranks {@code 0..16} for all six public data types
+ * {@code FLOAT32} {@code SUM}, {@code MEAN}, {@code MIN}, {@code MAX}, binding-resolved {@code
+ * SUM_TO_SHAPE}, and the Task-0069 source-owned {@code L1_NORM} slice; all four exclusive/reverse
+ * modes of {@code CUM_SUM} and {@code CUM_PROD}; and every positive-static FLOAT32 {@code MATMUL}
+ * vector, matrix, batched, and right-aligned broadcast geometry. The L1 slice is exactly one
+ * canonical no-gradient rank-one input, ordered axes {@code [0]}, positive extent and four-byte
+ * span bounded to unsigned 32 bits, and a canonical scalar or retained {@code [1]} output. Both
+ * profiles admit no-gradient INT32/INT64 MATMUL pairs with INT64-dominant promotion and modular
+ * result arithmetic. Accelerator additionally admits no-gradient BFLOAT16/FLOAT32 and
+ * FLOAT32/BFLOAT16 operands with FLOAT32 result. Other admitted reductions support full,
+ * normalized single-axis, ordered normalized multi-axis including empty, and exact keep-dimensions
+ * forms; reduction inputs remain positive-rank while their target may be rank zero.
+ * Canonical host ingress/materialization and bidirectional CPU/Metal transfer accept ranks
+ * {@code 0..16} for all six public data types
  * with exact widths; transfer additionally accepts resolved positive-stride non-overlapping storage
  * layouts and rejects unresolved, zero-stride, negative-stride, or overlapping geometry. Logical
  * BOOL bytes are validated while layout holes remain uninterpreted. Exact BOOL operation ingress
@@ -104,8 +108,9 @@
  * INT32/INT64 FOLD_AXIS; BOOL FOLD_AXIS and integral or BOOL FOLD2D/FOLD3D remain false. Every
  * replacement validates all indices and destination uniqueness before writes; every admitted fold
  * has one output writer and skips conceptual padding. Empty reduction axes are point identities
- * without admitting zero-dimensional extents. LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, L1_NORM,
- * and L2_NORM have forceable structural recipes only and remain production-false.
+ * without admitting zero-dimensional extents. LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, and
+ * L2_NORM have forceable structural recipes only and remain production-false. The exact bounded
+ * L1_NORM occurrence described above instead uses the fixed source-owned custom program.
  *
  * <p>Task 0062 adds only ACCELERATOR same-type canonical positive-rank FLOAT32 MEAN_SQUARED_ERROR
  * with NONE, SUM, or MEAN reduction. Native lowering fixes the Model formula to one subtraction,
@@ -166,14 +171,23 @@
  * reduction-dependent, additive, transcendental, attention, and recurrent blockers remain
  * fail-closed.
  *
+ * <p>Task 0069 Slice 1 adds one accelerator-only no-gradient FLOAT32 L1 norm occurrence at wire
+ * 114. One output thread raw-ABS-transforms every rank-one contributor, initializes from ordinal
+ * zero, performs exactly {@code N-1} safe binary32 additions in increasing ordinal order, and
+ * stores once; {@code N=1} is a direct raw ABS with no addition. Java and native validation
+ * independently enforce ordered axes {@code [0]}, canonical scalar or retained {@code [1]}
+ * output, unsigned-32-bit element/span bounds, and distinct value-table buffers before execution.
+ * The proof and source/compiler-site certificate are pinned under {@code evidence/0069}; no
+ * SCATTER_ADD or VARIANCE production row is included.
+ *
  * <p>The selected numerical profile participates in partition-plan, route, tuning, decision-codec,
  * and workload identity. Java rejects profile/schema mismatches before native entry. ABI version
  * five retains thirteen exports. Node schema version fifteen is one bounded self-describing
  * route-bearing image over stable type wires {@code 1..6}, operation wires {@code 1..115},
  * attribute wires {@code 0..41}, and complete optional storage-layout geometry. Native structural
  * execution covers exactly 101 wires and leaves 14 nonexecutable. Production capability is exactly
- * 83 operation kinds and 32 remain false. Backend-local workload, exact-policy, candidate,
- * compatibility, route-policy, and codec identities are version twenty-two; schema fourteen and
- * identity version twenty-one and earlier fail closed.
+ * 84 operation kinds and 31 remain false. Backend-local workload, exact-policy, candidate,
+ * compatibility, route-policy, and codec identities are version twenty-three; schema fourteen and
+ * identity version twenty-two and earlier fail closed.
  */
 package io.github.pho001.synaptik.backend.metal;

@@ -55,8 +55,8 @@ class MetalOperationRouteCatalogTest {
         assertEquals(75, direct);
         assertEquals(35, composed);
         assertEquals(5, unavailable);
-        assertEquals(70, customAvailable);
-        assertEquals(45, customPending);
+        assertEquals(71, customAvailable);
+        assertEquals(44, customPending);
         assertEquals(0, customUnavailableWithProof);
     Set<MetalMpsGraphProgram.NodeKind> task0066MovedToCustomAvailable =
         Arrays.stream(kinds)
@@ -186,6 +186,12 @@ class MetalOperationRouteCatalogTest {
                 MetalOperationRouteCatalog.MpsGraphReason.MC_LOGSUMEXP,
                 MetalOperationRouteCatalog.CustomKernelState.PENDING,
                 MetalOperationRouteCatalog.CustomKernelReason.CP_AGGREGATE);
+        assertCatalog(
+                MetalMpsGraphProgram.NodeKind.L1_NORM,
+                MetalOperationRouteCatalog.MpsGraphState.COMPOSED,
+                MetalOperationRouteCatalog.MpsGraphReason.MC_NORM,
+                MetalOperationRouteCatalog.CustomKernelState.AVAILABLE,
+                MetalOperationRouteCatalog.CustomKernelReason.CA_0069);
         assertCatalog(
                 MetalMpsGraphProgram.NodeKind.SORT,
                 MetalOperationRouteCatalog.MpsGraphState.DIRECT,

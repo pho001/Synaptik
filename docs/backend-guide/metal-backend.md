@@ -101,18 +101,23 @@ approved complete elementary-function/recurrence route, runtime valid-length val
 ownership.
 
 Wires `111..115` (`LOG_SUM_EXP`, `VARIANCE`, `STANDARD_DEVIATION`, `L1_NORM`, and `L2_NORM`)
-now have package-private forceable MPSGraph recipes. The log-sum-exp composition is stable, and
-variance/deviation apply the exact correction scale when requested. They remain production-false:
-their floating primitive-site and complete result-set proofs are deliberately deferred.
+have package-private forceable MPSGraph recipes. Task-0069 Slice 1 separately admits only the
+accelerator no-gradient FLOAT32 L1 occurrence with one canonical positive-static rank-one input,
+ordered multi-axis `[0]`, and a canonical scalar or retained `[1]` output. Its fixed custom kernel
+raw-clears every contributor sign, initializes from ordinal zero, performs exactly `N-1` safe
+binary32 additions in increasing ordinal order, and stores one final raw word; `N=1` performs no
+addition. LOG_SUM_EXP, VARIANCE, STANDARD_DEVIATION, all other L1 occurrences, and L2_NORM remain
+production-false.
 
 `ACCELERATOR` additionally admits tensor `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, and `MAX`; all six
 binary comparisons; exact FLOAT32 scalar `MIN`, `MAX`, fused `CLAMP`, and no-gradient `ADD`, `SUB`,
 `MUL`, and `DIV`; no-gradient `RECIPROCAL`; canonical FLOAT32 reductions; `CUM_SUM` and
 `CUM_PROD`; every positive-static FLOAT32 `MATMUL` vector, matrix, batched, and right-aligned
 broadcast geometry; no-gradient BFLOAT16/FLOAT32 or FLOAT32/BFLOAT16 MATMUL with FLOAT32 result;
-FLOAT32-result grouped Conv2d/Conv3d over FLOAT32/BFLOAT16 roles; and FLOAT32 average
-Pool2d/Pool3d. Both profiles admit no-gradient INT32/INT64 MATMUL pairs with INT64-dominant
-promotion and modular result arithmetic and exact FLOAT64/FLOAT32/BFLOAT16 maximum Pool2d/Pool3d.
+FLOAT32-result grouped Conv2d/Conv3d over FLOAT32/BFLOAT16 roles; FLOAT32 average Pool2d/Pool3d;
+and the exact Task-0069 L1 slice. Both profiles admit no-gradient INT32/INT64 MATMUL pairs with
+INT64-dominant promotion and modular result arithmetic and exact FLOAT64/FLOAT32/BFLOAT16 maximum
+Pool2d/Pool3d.
 Comparisons publish canonical one-byte BOOL. Extrema reductions join `SUM` and `MEAN` across full,
 normalized single-axis, ordered normalized multi-axis including the empty identity, and exact
 keep-dimensions forms; `SUM_TO_SHAPE` remains SUM-only. Scans accept every exclusive/reverse mode
@@ -134,7 +139,7 @@ Every descriptor is fully static and has the operation-specific exact type, layo
 gradient relationship. The common exact operations have the same Model result contract in both
 profiles; Task-0052 operations, the no-gradient scalar/reciprocal subset, floating MATMUL, bounded
 MSE forward execution, convolution, average pooling, and dropout exist only under ACCELERATOR.
-INITIAL_STATE is common. The complete 115-row capability ledger is `83 true / 32 false` under the
+INITIAL_STATE is common. The complete 115-row capability ledger is `84 true / 31 false` under the
 exact occurrence restrictions above.
 
 ```text
@@ -273,7 +278,7 @@ distinct non-physical identities. The first is an abstract availability slot, th
 trace correlation token, and the third a session-compatibility identity that makes no stable-device
 claim. No mapping among them is implied. ABI 5 and the thirteen native exports remain fixed.
 The route-bearing image is schema 15 and every workload/exact-policy/candidate/compatibility/
-route/codec identity is version 22; identity 21 and every older value fail closed. Tuning remains
+route/codec identity is version 23; identity 22 and every older value fail closed. Tuning remains
 session-scoped and non-persistent.
 
 Future asynchronous execution requires a separate cross-module contract for completion/failure,
@@ -371,11 +376,13 @@ The package-private `MetalOperationRouteCatalog` separately describes every one 
 schema-fifteen `NodeKind` values. Exhaustive enum switching yields shared immutable entries with
 closed MPSGraph state/reason and custom-kernel state/reason values: MPSGraph totals are
 `75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE`; custom totals are
-`70 AVAILABLE / 45 PENDING / 0 UNAVAILABLE_WITH_PROOF`. Task 0066 moves exactly wires `6..11` and
-`16..19` from pending to available under reason `CA_0066`; wire 70 remains pending. This catalog
-performs no capability admission and no selection. It is never consulted by Runtime; 32 kinds
-remain capability-false even when the catalog records a structurally direct or composed MPSGraph
-realization. Structural executable status separately covers 101 wires with 14 nonexecutable rows
+`71 AVAILABLE / 44 PENDING / 0 UNAVAILABLE_WITH_PROOF`. Task 0066 moves exactly wires `6..11` and
+`16..19` from pending to available under reason `CA_0066`; wire 70 remains pending. Task-0069
+Slice 1 moves wire `114=L1_NORM` from pending to available under reason `CA_0069` without changing
+its composed MPSGraph record. This catalog performs no capability admission and no selection. It
+is never consulted by Runtime; 31 kinds remain capability-false even when the catalog records a
+structurally direct or composed MPSGraph realization. Structural executable status separately
+covers 101 wires with 14 nonexecutable rows
 and never grants production ownership.
 
 After Planning creates one maximal Metal partition, analysis walks nodes in partition order with
@@ -853,7 +860,7 @@ sides, and consists of a 64-byte header, 40-byte value descriptors, 32-byte node
 and 64-bit attribute words. Each value descriptor carries layout presence, kind, view and dense-
 physical flags, stride-pool offset, storage offset, and referenced span. The header embeds fixed
 route wire `2` or `3`; schema 14, route zero, and every other schema or route fail closed.
-Production capability admits exactly 83 operation kinds while 32 remain false; structural native
+Production capability admits exactly 84 operation kinds while 31 remain false; structural native
 execution covers 101 kinds and leaves 14 nonexecutable. Attribute wires `0..41` and type wires
 `1..6` cover all current Model signatures and carriers.
 
@@ -1154,7 +1161,8 @@ classification, scalar/broadcast BOOL, promoted WHERE, raw movement/replacement,
 fold/window, no-gradient promoted INT32/INT64 MATMUL, ordering/top-K/numeric arg-extrema, maximum-
 pool, and initial-state occurrences common to both profile matrices. `ACCELERATOR` additionally
 admits the documented FLOAT32 tensor/scalar arithmetic, comparisons, reductions, scans, general
-MATMUL, MSE, grouped convolution, average pooling, and explicit-state dropout rows.
+MATMUL, MSE, grouped convolution, average pooling, explicit-state dropout, and the exact Task-0069
+rank-one no-gradient L1 slice.
 
 Every Task-0066 selected occurrence is custom-only. Exact authenticated local logical views may
 depart from canonical layout only where their physical descriptors and spans are independently
@@ -1163,11 +1171,20 @@ exact/discrete or recursive primitive/aggregate floors and gain no generic final
 The bounded generated-gradient closure is the exact capable graph, not a new semantic formula or
 general backward promise.
 
+Task-0069 L1 always selects the fixed custom program. The unsigned-32-bit element and four-byte
+span bounds, one-thread dispatch, distinct-buffer rule, raw ABS leaves, contributor order, and
+single logical output publication are independently authenticated in Java and native code. The
+task-local Lean proof and source certificate are paired with a compiled-MSL/AIR audit of the exact
+assembled runtime source under Xcode 27.0 build 27A266a, Metal 32023.921, macOS SDK 27.0,
+`metal3.2`, no-fast-math, warnings as errors, and the explicit SDK isysroot. AIR contains exactly
+one unflagged `fadd` in `l1_norm_f32_0069` and no other floating arithmetic in that kernel.
+SCATTER_ADD and VARIANCE remain outside production capability.
+
 The profile is retained in partition plans and every route/tuning/codec/workload identity. Java
 enforces the boundary before native entry. ABI version `5` retains thirteen export names and
 accepts one bounded schema-15 route-bearing image; operation wires `1..115`, attribute wires
 `0..41`, route wires `1..3`, and type wires `1..6` cover the current structural registry without
 widening capability. Route, candidate, compatibility, workload, exact-policy, and codec identities
-are version `22`; version `21` and every older identity fail closed. Catalogs are exactly
-`75/35/5` MPSGraph and `70/45/0` custom; capability/structural counts remain `83/32` and `101/14`.
+are version `23`; version `22` and every older identity fail closed. Catalogs are exactly
+`75/35/5` MPSGraph and `71/44/0` custom; capability/structural counts remain `84/31` and `101/14`.
 The complete-plan wrapper remains version `1`.

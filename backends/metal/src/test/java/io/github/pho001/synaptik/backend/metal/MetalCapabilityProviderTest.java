@@ -1264,6 +1264,81 @@ class MetalCapabilityProviderTest {
     }
 
     @Test
+    void task0069L1NormAdmitsOnlyTheExactBinary32LeftFoldDomain() {
+        Operation l1 = new Operation(
+                AggregateReductionKind.L1_NORM,
+                new MultiAxisReductionAttrs(List.of(0), false));
+        TensorDescriptor input = descriptor(Shape.of(4), false);
+        TensorDescriptor scalar = descriptor(Shape.scalar(), false);
+        assertTrue(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR, l1, List.of(input), List.of(scalar))));
+        assertTrue(provider.supports(reductionQuery(
+                NumericalProfile.ACCELERATOR,
+                AggregateReductionKind.L1_NORM,
+                new MultiAxisReductionAttrs(List.of(0), true),
+                descriptor(Shape.of(1), false),
+                descriptor(Shape.of(1), false))));
+
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.STRICT_IEEE, l1, List.of(input), List.of(scalar))));
+        assertFalse(provider.supports(reductionQuery(
+                NumericalProfile.ACCELERATOR,
+                AggregateReductionKind.L1_NORM,
+                new MultiAxisReductionAttrs(List.of(), false),
+                input,
+                input)));
+        assertFalse(provider.supports(reductionQuery(
+                NumericalProfile.ACCELERATOR,
+                AggregateReductionKind.L1_NORM,
+                new MultiAxisReductionAttrs(List.of(1), false),
+                descriptor(Shape.of(2, 2), false),
+                descriptor(Shape.of(2), false))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                l1,
+                List.of(descriptor(Shape.of(4), true)),
+                List.of(scalar))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                l1,
+                List.of(input),
+                List.of(descriptor(Shape.scalar(), true)))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                l1,
+                List.of(input),
+                List.of(descriptor(Shape.of(1), false)))));
+
+        TensorDescriptor noncanonicalInput = new TensorDescriptor(
+                DataType.FLOAT32,
+                Shape.of(4),
+                Optional.of(LayoutDescriptor.of(Shape.of(4), new long[] {2}, 0L, true)),
+                false);
+        TensorDescriptor float64Input = new TensorDescriptor(
+                DataType.FLOAT64,
+                Shape.of(4),
+                Optional.of(LayoutDescriptor.contiguous(Shape.of(4))),
+                false);
+        TensorDescriptor tooWide = descriptor(
+                Shape.of(0xffff_ffffL / Float.BYTES + 1L), false);
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                l1,
+                List.of(noncanonicalInput),
+                List.of(scalar))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                l1,
+                List.of(float64Input),
+                List.of(scalar))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                NumericalProfile.ACCELERATOR,
+                l1,
+                List.of(tooWide),
+                List.of(scalar))));
+    }
+
+    @Test
     void matmulCapabilityMatchesGeneralStaticTypeProfileGradientAndLayoutContract() {
         Operation matmul = new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE);
         TensorDescriptor left = descriptor(Shape.of(2, 3), true);

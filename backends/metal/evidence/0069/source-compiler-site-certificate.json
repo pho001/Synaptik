@@ -1,0 +1,99 @@
+{
+  "task": "0069-source-owned-binary32-aggregate-slices-slice1-l1-norm",
+  "status": "accepted",
+  "kernelSource": {
+    "path": "native/metal-macos-arm64/src/synaptik_task0069_aggregate_kernels.h",
+    "sha256": "89938c156cf00a0d19d6eccd9a2a34b850e13f45fd97fe8906b903dd5a944c0d"
+  },
+  "foundationSource": {
+    "path": "native/metal-macos-arm64/src/synaptik_metal_foundation.m",
+    "sha256": "cd9d7011a3e8a75d74a20f9b2a3abb10af2761ada451265181f24ed6b0096f5f"
+  },
+  "leanProofs": [
+    {
+      "path": "backends/metal/evidence/0069/proof/Task0069Binary32.lean",
+      "sha256": "c7ed8acd51d510672d55a9fc6260332a00b7288b19c8ff4f0e843a36bdba5880"
+    },
+    {
+      "path": "backends/metal/evidence/0069/proof/Task0069ReductionTree.lean",
+      "sha256": "8a9cf645cd52504761b18bfc8ba18f41c07d3cba472f3a02117d64af33322808"
+    }
+  ],
+  "compiledMslAudit": {
+    "path": "backends/metal/evidence/0069/compiled-msl-audit.json",
+    "sha256": "08d7a039163570a6e82e154eadc7930996017838d848d7b5ea7b01e7006544a6"
+  },
+  "compilerSite": {
+    "runtimeCompiler": "MTLDevice.newLibraryWithSource",
+    "mathMode": "MTLMathModeSafe",
+    "fastMathRequested": false,
+    "languageVersion": "MTLLanguageVersion3_2",
+    "compiledMslAuditRequired": true,
+    "compiledMslAuditBasis": "The exact assembled production NSString source was compiled with Xcode 27.0 build 27A266a, Metal 32023.921, macOS SDK 27.0, metal3.2, no-fast-math, warnings as errors, and the explicit SDK isysroot. AIR inspection proves one unflagged fadd in l1_norm_f32_0069, raw sign clearing, the increasing-ordinal loop, no other floating arithmetic, and one final raw serialization path.",
+    "offlineMetalCompilerAvailable": true,
+    "offlineCompilerAudit": "Accepted and pinned by compiled-msl-audit.json; its runner always sets DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer and the explicit MacOSX27.0.sdk isysroot."
+  },
+  "floatingContract": {
+    "carrier": "FLOAT32",
+    "leafTransform": "raw binary32 sign-bit clear for every contributor",
+    "contributorOrder": "strictly increasing source ordinal from zero through N-1",
+    "singleton": "one direct raw ABS load/store and zero additions",
+    "operationPerLaterContributor": "one explicit accumulator + contributor binary32 source site",
+    "sourceAdditionSites": 1,
+    "dynamicAdditions": "N-1",
+    "reassociationSites": 0,
+    "pretruncationSites": 0,
+    "stores": 1
+  },
+  "siteInventory": [
+    {
+      "id": "raw-load-and-abs",
+      "operation": "load_word followed by uint sign-bit clear and as_type<float>",
+      "floatingArithmetic": false,
+      "proof": "Each ordinal is loaded exactly once. Integer sign clearing is the exact raw ABS transform for zero, subnormal, normal, infinity, and NaN classes without payload truncation."
+    },
+    {
+      "id": "ordered-add",
+      "operation": "l1_add_0069(accumulator, contributor)",
+      "floatingArithmetic": true,
+      "proof": "The loop starts at ordinal one, advances by one while below N, and assigns the sole safe-mode addition result to the only accumulator. Thus N leaves induce exactly N-1 actual additions and no zero leaf or parallel partial sum."
+    },
+    {
+      "id": "raw-store",
+      "operation": "as_type<uint> followed by store_word",
+      "floatingArithmetic": false,
+      "proof": "The final accumulator bits are stored once without numeric conversion, epsilon, finite substitution, or pre-truncation."
+    }
+  ],
+  "contributorProof": {
+    "firstContributor": "ordinal zero initializes accumulator from its raw ABS word",
+    "loopInitialization": "contributor = 1",
+    "loopCondition": "contributor < m.inputExtents[0]",
+    "loopAdvance": "++contributor",
+    "noDrop": "There is no predicate, continue, finite-only branch, zero filter, or alternate update.",
+    "noSyntheticLeaf": "No zero or identity accumulator is initialized.",
+    "noReassociation": "One accumulator dependency chain, one output thread, one safe-mode addition site, and no reduction primitive fix the left-associated order.",
+    "singleton": "N=1 bypasses the loop and stores the raw ABS word directly."
+  },
+  "specialValueProof": {
+    "zero": "Raw ABS clears either input zero sign. Every later add is represented by the exact/RNE/DAZ/FTZ site relation; raw store preserves the device-selected permitted result bits.",
+    "subnormal": "A raw ABS leaf remains exact. At an addition site each subnormal operand is exact or same-sign zero under DAZ, and each subnormal rounded result is exact or same-sign zero under FTZ; the Lean relation admits no third choice.",
+    "normal": "Every finite normal contributor enters exactly one ordinal addition, and no source branch filters, rescales, or truncates it.",
+    "infinity": "ABS maps either infinity sign to positive infinity. Safe binary32 addition with non-NaN nonnegative contributors retains positive-infinity class; finite overflow may also publish positive infinity.",
+    "nan": "ABS preserves exponent and payload fields while clearing only sign. N=1 stores those raw bits directly; an N>1 safe addition publishes NaN class without a finite fallback.",
+    "daz": "The formal primitive relation enumerates exact input or same-sign zero only for a subnormal input.",
+    "ftz": "The formal primitive relation enumerates exact rounded output or same-sign zero only for a subnormal rounded output."
+  },
+  "formalProofBoundary": {
+    "proved": "Total raw classes, exact ABS class/sign behavior, complete set-valued DAZ/FTZ alternatives, labelled contributor multiplicity, permitted left tree, N-1 add nodes, N=1 direct ABS, and source-fold membership in the Model result set.",
+    "primitivePremise": "The single hardware addition is an RNE binary32 site with only the enumerated DAZ/FTZ alternatives; the audited MTLMathModeSafe/MTLLanguageVersion3_2 runtime site and compiled AIR source site supply this premise.",
+    "forbiddenAssumptions": "Both Lean files compile without sorry or axiom declarations."
+  },
+  "proof": {
+    "lean": "Task0069Binary32.lean and Task0069ReductionTree.lean compiled with Lean 4.34.1",
+    "nativeBuild": "native/metal-macos-arm64/build.sh completed successfully",
+    "runtimeCompilationAndExecution": "MetalL1NormNativeTest passed on Apple M3 Max, including singleton raw ABS, retained/scalar outputs, ordinal left-fold witness, infinity, and pre-dispatch alias rejection.",
+    "publicExecution": "EngineExplicitCompositionMetalIntegrationTest.task0069PublicAcceleratorEngineRunsSourceOwnedL1NormForBothOutputForms passed with Metal-only ownership.",
+    "compiledMslAudit": "The exact assembled runtime source compiled to AIR and metallib with the pinned Xcode 27 toolchain. The AIR body for l1_norm_f32_0069 contains one unflagged fadd, the raw sign masks, the ordinal loop starting at one, no other floating arithmetic, and only the final raw serialization store path."
+  }
+}

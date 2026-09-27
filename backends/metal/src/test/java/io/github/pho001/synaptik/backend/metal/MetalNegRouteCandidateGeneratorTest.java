@@ -168,6 +168,33 @@ class MetalNegRouteCandidateGeneratorTest {
         }
     }
     @Test
+    void task0069L1NormFixesTheExactOccurrenceToOneCustomProgramCandidate() {
+        TestNativeApi api = new TestNativeApi();
+        try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
+            Workload workload = operationWorkload(
+                    device,
+                    190_069L,
+                    NumericalProfile.ACCELERATOR,
+                    new Operation(
+                            AggregateReductionKind.L1_NORM,
+                            new MultiAxisReductionAttrs(List.of(0), false)),
+                    List.of(canonical(DataType.FLOAT32, Shape.of(4))),
+                    canonical(DataType.FLOAT32, Shape.scalar()));
+            Generated generated = generated(workload, 2);
+            assertSame(MetalPreparedRoute.CUSTOM_PROGRAM, generated.analysis().plan().route());
+            assertEquals(
+                    List.of(MetalMpsGraphProgram.NodeKind.L1_NORM),
+                    generated.analysis().plan().graphProgram().nodes().stream()
+                            .map(MetalMpsGraphProgram.Node::kind)
+                            .toList());
+            assertEquals(
+                    List.of(MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM),
+                    generated.batch().candidates());
+            assertEquals(0, api.nativeAllocations.get());
+        }
+    }
+
+    @Test
     void exactRawUnaryOccurrencesFixCustomProductionAndKeepDirectCandidatesForceable() {
         TestNativeApi api = new TestNativeApi();
         try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
@@ -974,8 +1001,8 @@ class MetalNegRouteCandidateGeneratorTest {
                     route.wireIdentity()).orElseThrow());
             assertArrayEquals(new byte[] {
                     0x4d, 0x4e, 0x43, 0x41,
-                    0x00, 0x00, 0x00, 0x16,
-                    0x00, 0x00, 0x00, 0x16,
+                    0x00, 0x00, 0x00, 0x17,
+                    0x00, 0x00, 0x00, 0x17,
                     0x00, 0x00, 0x00, (byte) route.wireIdentity()
             }, codec.encodeCandidate(candidate));
         }
@@ -997,14 +1024,14 @@ class MetalNegRouteCandidateGeneratorTest {
                     MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
                     current.batch().compatibility(), MetalNegTuningBatch.Candidate.MPSGRAPH);
             var codec = new MetalNegTuningCodec();
-            assertEquals(22, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
-            assertEquals(22, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
-            assertEquals(22, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
+            assertEquals(23, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
+            assertEquals(23, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
+            assertEquals(23, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
             byte[] first = codec.encodeDecision(decision);
-            assertEquals(22, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
-            assertEquals(22, current.batch().compatibility().schemaVersion());
-            assertEquals(22, current.batch().compatibility().candidateSchemaVersion());
-            assertEquals(22, current.batch().compatibility().routePolicyVersion());
+            assertEquals(23, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
+            assertEquals(23, current.batch().compatibility().schemaVersion());
+            assertEquals(23, current.batch().compatibility().candidateSchemaVersion());
+            assertEquals(23, current.batch().compatibility().routePolicyVersion());
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());

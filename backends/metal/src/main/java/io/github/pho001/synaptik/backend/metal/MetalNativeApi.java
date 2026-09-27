@@ -825,11 +825,29 @@ abstract class MetalNativeApi implements AutoCloseable {
                                 reductionMatches(node, left, output, valueRanks, valueDimensions),
                                 "reduction attributes, count, and output shape disagree");
                     }
-                    case PROD, ALL, ANY, LOG_SUM_EXP, L1_NORM, L2_NORM ->
+                    case PROD, ALL, ANY, LOG_SUM_EXP, L2_NORM ->
                             requireShape(
                                     reductionMatches(
                                             node, left, output, valueRanks, valueDimensions),
                                     "reduction attributes, count, and output shape disagree");
+                    case L1_NORM ->
+                            requireShape(
+                                    route != MetalPreparedRoute.CUSTOM_PROGRAM
+                                            ? reductionMatches(
+                                                    node,
+                                                    left,
+                                                    output,
+                                                    valueRanks,
+                                                    valueDimensions)
+                                            : task0069L1Matches(
+                                                    node,
+                                                    values.get(left),
+                                                    values.get(output),
+                                                    left,
+                                                    output,
+                                                    valueRanks,
+                                                    valueDimensions),
+                                    "L1_NORM attributes, storage, and output shape disagree");
                     case VARIANCE, STANDARD_DEVIATION ->
                             requireShape(
                                     statisticalReductionMatches(
@@ -1715,7 +1733,8 @@ abstract class MetalNativeApi implements AutoCloseable {
                         FOLD3D,
                         PROD,
                         ALL,
-                        ANY ->
+                        ANY,
+                        L1_NORM ->
                         true;
                 default -> false;
             };
@@ -2578,6 +2597,42 @@ abstract class MetalNativeApi implements AutoCloseable {
                 if (dimensions[inputRow + axis] != dimensions[outputRow + axis]) return false;
             }
             return dimensions[outputRow + inputRank] == attributes[0];
+        }
+
+        private static boolean task0069L1Matches(
+                MetalMpsGraphProgram.Node node,
+                MetalMpsGraphProgram.ValueDescriptor inputDescriptor,
+                MetalMpsGraphProgram.ValueDescriptor outputDescriptor,
+                int input,
+                int output,
+                int[] valueRanks,
+                long[] valueDimensions) {
+            long[] words = node.attributeValues();
+            long extent = valueRanks[input] == 1
+                    ? valueDimensions[input * MAX_RANK] : 0L;
+            return node.axis()
+                            == MetalMpsGraphProgram.ReductionForm.MULTI_AXIS.wireIdentity()
+                    && node.attributeCount() == 1
+                    && words.length == 1
+                    && words[0] == 0L
+                    && valueRanks[input] == 1
+                    && extent >= 1L
+                    && extent <= UINT32_MAX / Float.BYTES
+                    && valueRanks[output] == (node.auxiliary() == 1 ? 1 : 0)
+                    && (node.auxiliary() != 1
+                            || valueDimensions[output * MAX_RANK] == 1L)
+                    && inputDescriptor.layout().isPresent()
+                    && inputDescriptor.layout().orElseThrow().equals(
+                            LayoutDescriptor.contiguous(
+                                    Shape.of(inputDescriptor.dimensions())))
+                    && outputDescriptor.layout().isPresent()
+                    && outputDescriptor.layout().orElseThrow().equals(
+                            LayoutDescriptor.contiguous(
+                                    Shape.of(outputDescriptor.dimensions())))
+                    && !inputDescriptor.requiresGrad()
+                    && !outputDescriptor.requiresGrad()
+                    && reductionMatches(
+                            node, input, output, valueRanks, valueDimensions);
         }
 
         private static boolean reductionMatches(

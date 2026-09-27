@@ -294,8 +294,8 @@ final class MetalMpsGraphProgram {
                     || wireIdentity == 69
                     || wireIdentity >= 71 && wireIdentity <= 84
                     || wireIdentity >= 94 && wireIdentity <= 96
-                    || wireIdentity >= 109 && wireIdentity <= 110
-                    || wireIdentity >= 106 && wireIdentity <= 108;
+                    || wireIdentity >= 106 && wireIdentity <= 110
+                    || wireIdentity == 114;
         }
 
         boolean isTask0066Selected() {

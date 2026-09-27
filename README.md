@@ -31,9 +31,10 @@ arg-extrema, and exact FLOAT64/FLOAT32/BFLOAT16 maximum Pool2d/Pool3d rows. `SOR
 and `TOP_K` admit all six carriers; `ARG_MIN` and `ARG_MAX` admit the five numeric carriers.
 `ACCELERATOR` additionally admits the documented FLOAT32 arithmetic, reductions, scans, every
 positive-static FLOAT32 `MATMUL` vector, matrix, batched, and broadcast geometry, same-type
-canonical positive-rank FLOAT32 MSE forward execution for `NONE`, `SUM`, and `MEAN`,
-FLOAT32-result grouped Conv2d/Conv3d over FLOAT32/BFLOAT16 roles, and FLOAT32 average
-Pool2d/Pool3d. Convolution mixed operands are no-gradient; all-FLOAT32 convolution and pooling
+canonical positive-rank FLOAT32 MSE forward execution for `NONE`, `SUM`, and `MEAN`, exact
+no-gradient rank-one FLOAT32 `L1_NORM` over ordered axis `[0]`, FLOAT32-result grouped
+Conv2d/Conv3d over FLOAT32/BFLOAT16 roles, and FLOAT32 average Pool2d/Pool3d. Convolution mixed
+operands are no-gradient; all-FLOAT32 convolution and pooling
 preserve their exact supported gradient metadata. Both profiles admit no-gradient promoted
 INT32/INT64 `MATMUL`; accelerator also admits no-gradient BFLOAT16/FLOAT32 mixed pairs with
 FLOAT32 result. Canonical or authenticated local last-two-axis transpose MATMUL operands and the
@@ -46,7 +47,7 @@ convolution transpose, and every other unlisted occurrence fail closed. Eligible
 negation retains its custom alternative. Exact custom nodes fix their whole partition to one
 custom program with declared run-owned intermediates and direct targets; top-K publishes paired
 values and INT64 indices from one step. ABI 5, thirteen exports, and the schema-15 operation and
-attribute registries remain fixed; backend-local route and workload identities are version 22.
+attribute registries remain fixed; backend-local route and workload identities are version 23.
 Standard-Metal convenience, generic plugin registration/discovery, CUDA, broader optimizers,
 durable persistence, and generic graph/plan tuning remain planned.
 Focused documentation identifies the exact current boundary for each area.

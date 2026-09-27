@@ -142,7 +142,6 @@ class MetalOperationCompletenessAuditTest {
             MetalMpsGraphProgram.NodeKind.LOG_SUM_EXP,
             MetalMpsGraphProgram.NodeKind.VARIANCE,
             MetalMpsGraphProgram.NodeKind.STANDARD_DEVIATION,
-            MetalMpsGraphProgram.NodeKind.L1_NORM,
             MetalMpsGraphProgram.NodeKind.L2_NORM);
 
     private static final Set<MetalMpsGraphProgram.NodeKind> STRUCTURAL_ONLY = EnumSet.of(
@@ -162,7 +161,6 @@ class MetalOperationCompletenessAuditTest {
             MetalMpsGraphProgram.NodeKind.LOG_SUM_EXP,
             MetalMpsGraphProgram.NodeKind.VARIANCE,
             MetalMpsGraphProgram.NodeKind.STANDARD_DEVIATION,
-            MetalMpsGraphProgram.NodeKind.L1_NORM,
             MetalMpsGraphProgram.NodeKind.L2_NORM);
 
     private final MetalCapabilityProvider provider = new MetalCapabilityProvider();
@@ -171,8 +169,8 @@ class MetalOperationCompletenessAuditTest {
     void everyWireMapsOnceToAConstructibleModelOccurrenceAndActualCapabilityTruth() {
         MetalMpsGraphProgram.NodeKind[] kinds = MetalMpsGraphProgram.NodeKind.values();
         assertEquals(115, kinds.length);
-        assertEquals(32, PRODUCTION_FALSE.size());
-        assertEquals(18, STRUCTURAL_ONLY.size());
+        assertEquals(31, PRODUCTION_FALSE.size());
+        assertEquals(17, STRUCTURAL_ONLY.size());
         assertTrue(PRODUCTION_FALSE.containsAll(STRUCTURAL_ONLY));
 
         Set<String> modelKinds = new HashSet<>();
@@ -219,13 +217,13 @@ class MetalOperationCompletenessAuditTest {
         }
 
         assertEquals(115, modelKinds.size());
-        assertEquals(83, accepted);
+        assertEquals(84, accepted);
         assertEquals(101, executable);
         assertEquals(75, direct);
         assertEquals(35, composed);
         assertEquals(5, unavailable);
-        assertEquals(70, customAvailable);
-        assertEquals(45, customPending);
+        assertEquals(71, customAvailable);
+        assertEquals(44, customPending);
         assertEquals(0, customUnavailable);
         long productionCustom = Arrays.stream(kinds)
                 .filter(kind -> !PRODUCTION_FALSE.contains(kind))
@@ -237,7 +235,7 @@ class MetalOperationCompletenessAuditTest {
                 .filter(kind -> kind != MetalMpsGraphProgram.NodeKind.NEG)
                 .filter(kind -> kind != MetalMpsGraphProgram.NodeKind.MATMUL)
                 .count();
-        assertEquals(68, productionCustom);
+        assertEquals(69, productionCustom);
         assertEquals(13, productionMpsGraph);
         assertTrue(PRODUCTION_FALSE.stream()
                 .noneMatch(MetalMpsGraphProgram.NodeKind::isCustomProgramOperation));
@@ -332,7 +330,8 @@ class MetalOperationCompletenessAuditTest {
         Object attrs = switch (kind) {
             case ARG_MAX, ARG_MIN -> new ArgExtremaAttrs(
                     1, false, ArgExtremaTiePolicy.FIRST_INDEX);
-            case LOG_SUM_EXP, L1_NORM, L2_NORM -> new MultiAxisReductionAttrs(List.of(1), false);
+            case L1_NORM -> new MultiAxisReductionAttrs(List.of(0), false);
+            case LOG_SUM_EXP, L2_NORM -> new MultiAxisReductionAttrs(List.of(1), false);
             case VARIANCE, STANDARD_DEVIATION ->
                     new StatisticalReductionAttrs(List.of(1), false, 0);
             default -> NoOperationAttrs.INSTANCE;
@@ -349,6 +348,9 @@ class MetalOperationCompletenessAuditTest {
                 || kind == AggregateReductionKind.ARG_MIN) {
             input = f32(2, 3);
             output = descriptor(DataType.INT64, Shape.of(2), false);
+        } else if (kind == AggregateReductionKind.L1_NORM) {
+            input = f32(3);
+            output = f32Scalar();
         } else if (attrs instanceof MultiAxisReductionAttrs
                 || attrs instanceof StatisticalReductionAttrs) {
             input = f32(2, 3);

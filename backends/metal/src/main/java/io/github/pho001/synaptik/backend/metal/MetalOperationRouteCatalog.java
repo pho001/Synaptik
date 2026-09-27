@@ -76,7 +76,8 @@ final class MetalOperationRouteCatalog {
         CA_0063,
         CA_0064,
         CA_0065,
-    CA_0066,
+        CA_0066,
+        CA_0069,
         CP_POINT,
         CP_POWER,
         CP_ELEMENTARY,
@@ -262,6 +263,9 @@ final class MetalOperationRouteCatalog {
         COMPOSED_STDDEV_PENDING_AGGREGATE(MpsGraphState.COMPOSED,
                 MpsGraphReason.MC_STDDEV, CustomKernelState.PENDING,
                 CustomKernelReason.CP_AGGREGATE),
+        COMPOSED_NORM_CUSTOM_0069(MpsGraphState.COMPOSED,
+                MpsGraphReason.MC_NORM, CustomKernelState.AVAILABLE,
+                CustomKernelReason.CA_0069),
         COMPOSED_NORM_PENDING_AGGREGATE(MpsGraphState.COMPOSED,
                 MpsGraphReason.MC_NORM, CustomKernelState.PENDING,
                 CustomKernelReason.CP_AGGREGATE);
@@ -372,7 +376,8 @@ final class MetalOperationRouteCatalog {
             case RNN_TANH, GRU_RESET_AFTER, LSTM -> Entry.UNAVAILABLE_RECURRENT_PENDING_STATE;
             case LOG_SUM_EXP -> Entry.COMPOSED_LOGSUMEXP_PENDING_AGGREGATE;
             case STANDARD_DEVIATION -> Entry.COMPOSED_STDDEV_PENDING_AGGREGATE;
-            case L1_NORM, L2_NORM -> Entry.COMPOSED_NORM_PENDING_AGGREGATE;
+            case L1_NORM -> Entry.COMPOSED_NORM_CUSTOM_0069;
+            case L2_NORM -> Entry.COMPOSED_NORM_PENDING_AGGREGATE;
         };
     }
 }

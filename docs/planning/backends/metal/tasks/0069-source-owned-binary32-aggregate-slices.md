@@ -2,9 +2,9 @@
 
 ## Status
 
-Review needed. Planning only: no production or evidence implementation is authorized before independent plan,
-evidence, and security approval. Approval makes only the shared proof substrate plus Slice 1 the Metal frontier;
-Slices 2 and 3 require their preceding checkpoint and fresh approval.
+Review needed. The authorized shared proof substrate plus Slice 1 are implemented and locally
+validated; independent code, evidence, and security review remains the final Slice-1 checkpoint.
+Slices 2 and 3 are not authorized and require their preceding checkpoint plus fresh approval.
 
 ## Change class
 
@@ -197,4 +197,43 @@ code, numerical-evidence, and security/determinism review at every slice checkpo
 
 ## Result
 
-Empty until execution. This planning change records no production, proof, native, or test result.
+The authorized shared substrate and Slice 1 are implemented. Metal now admits only accelerator
+FLOAT32 no-gradient `L1_NORM` for one canonical positive-static rank-one input, ordered multi-axis
+`[0]`, and canonical scalar or retained `[1]` output. Wire 114 always selects the fixed
+source-owned `CUSTOM_PROGRAM` under `CA_0069`. Java/native validation independently enforces the
+exact domain, unsigned-32-bit element/four-byte-span/dispatch bounds, and distinct buffers. One
+thread raw-clears every contributor sign bit, initializes from ordinal zero, performs exactly
+`N-1` safe binary32 additions in increasing ordinal order, and publishes one logical result;
+`N=1` performs no addition. SCATTER_ADD and VARIANCE remain production-false.
+
+The two Lean files prove total raw classes, exact ABS, complete set-valued DAZ/FTZ alternatives,
+labelled contributor multiplicity, the source left tree's `N-1` add nodes, direct singleton ABS,
+and source-fold membership in the Model result set without `sorry` or axioms. The source
+certificate pins the exact kernel/foundation/proof inputs. The required compiled-MSL audit extracts
+the exact assembled runtime source and compiles it with `DEVELOPER_DIR` fixed to signed Xcode 27.0
+build 27A266a, Metal 32023.921, macOS SDK 27.0, `metal3.2`, no-fast-math, warnings as errors, and
+the explicit SDK isysroot. Pinned source/AIR/metallib SHA-256 values are
+`070c910ff3be6853720274d670fb5a573c490ceec60d680eb323d9001c965c10`,
+`fc6258b8627ec607434f02fe63eb77dd05957f9b5821e95b157e1149f2fe3189`, and
+`ffa3c751fbab39acff50c06f6fda720e4e831a3d06657ee459921f50d11ba8f3`. AIR inspection finds
+exactly one unflagged `fadd` in `l1_norm_f32_0069`, raw sign masks and the ordinal loop, no other
+floating arithmetic, and only the final raw serialization path.
+
+Native warnings-as-errors build, fixed-identifier signing, canonical package verification, Gradle
+package ingestion/ZIP creation, fresh extraction, extracted-package verification, and byte
+comparison passed. The packaged dylib is `484944` bytes with SHA-256
+`18a7c09f6fd8635c1c9091803eb3e236e01f93cc7fa7a800ab65737255493c18` and ad-hoc CDHash
+`2067328cac99cd319f9981f21b221f4ce5d5ae5c`; the local ZIP is `141229` bytes with SHA-256
+`cd9e8b770d24ba7dd586532ebf0485564078fc6d9dadbc363cc45bc31f3f8ba2`.
+
+Complete Metal, Compiler, Metal conformance, public Engine Metal integration, architecture,
+Javadoc, repository test, and serialized full-build gates passed against only the freshly
+extracted packaged dylib. Final JUnit inventory is `3718` tests with zero failure/error,
+including Metal `252`, Compiler `282`, conformance `22`, integration `70`, and architecture `9`;
+Metal, Compiler, and conformance have no skip. The first nonserialized repository test/build
+attempts each hit the existing CPU timing-evidence test with one fork lacking an accepted sample;
+its isolated rerun passed, the complete repository test rerun passed, and the serialized
+`87`-task full build passed without source remediation. Current ledgers are capability `84/31`,
+structural `101/14`, MPSGraph `75/35/5`, custom `71/44/0`, and identity 23; schema 15, ABI 5,
+thirteen exports, and all other false rows are unchanged. Independent cumulative Slice-1 review
+is pending; Slice 2 remains outside this checkpoint.

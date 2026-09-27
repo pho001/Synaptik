@@ -334,17 +334,20 @@ adjoints. Saved condition and index roles remain live until their backward consu
 Compiler's fully-static target-relative crop inference and narrow layout closure preserve exact
 scalar or affine crop layouts; 3D window counterpart validation compares semantic type, Shape, and
 gradient properties rather than incidental layout. Dynamic/empty geometry, additive scatter,
-overlap accumulation, arithmetic reduction, higher-order differentiation, and every
-production-false semantic family remain fail-closed.
+overlap accumulation, unlisted arithmetic-reduction ownership, higher-order differentiation, and
+every production-false semantic family remain fail-closed. Task-0069 L1 is deliberately
+no-gradient and creates no new generated-gradient closure.
 
 Both profiles additionally admit no-gradient INT32/INT64 MATMUL pairs with INT64-dominant
 promotion and modular result arithmetic. The accelerator-only set adds the documented FLOAT32
 tensor/scalar arithmetic, comparisons, extrema, reductions, and scans; every positive-static
 FLOAT32 MATMUL vector, matrix, batched, and right-aligned broadcast geometry; no-gradient
 BFLOAT16/FLOAT32 or FLOAT32/BFLOAT16 MATMUL with FLOAT32 result; same-type canonical positive-rank
-FLOAT32 MSE under `NONE`, `SUM`, or `MEAN`; FLOAT32-result grouped Conv2d/Conv3d over
-FLOAT32/BFLOAT16 roles; FLOAT32 average Pool2d/Pool3d; and canonical FLOAT32 explicit-state
-dropout. Conv1d/Pool1d may use only authenticated local singleton-height views. Strict capability
+FLOAT32 MSE under `NONE`, `SUM`, or `MEAN`; the exact canonical no-gradient rank-one FLOAT32
+`L1_NORM` slice over ordered axis `[0]`, with scalar or retained `[1]` output; FLOAT32-result
+grouped Conv2d/Conv3d over FLOAT32/BFLOAT16 roles; FLOAT32 average Pool2d/Pool3d; and canonical
+FLOAT32 explicit-state dropout. Conv1d/Pool1d may use only authenticated local singleton-height
+views. Strict capability
 remains a subset because every common occurrence has the same answer under accelerator; strict
 rejects every accelerator-only addition. Attention, recurrent execution, convolution transpose,
 overlapping folds, and the other recorded blockers remain unsupported.
@@ -356,6 +359,16 @@ operations may still use their retained routes, including direct rank-two FLOAT3
 shared custom route uses fixed reviewed raw-word/integer/movement/predicate kernels behind one
 whole-program invocation with declared assigned buffers for every logical value and no host repair.
 
+Task-0069 L1 at wire `114` is also fixed `CUSTOM_PROGRAM` under `CA_0069`. Java and native
+preflight require accelerator profile, FLOAT32, one canonical positive-static rank-one no-gradient
+input, ordered multi-axis `[0]`, a canonical scalar or retained `[1]` output, unsigned-32-bit
+element and four-byte span bounds, one dispatch thread, and distinct value-table buffers. That
+thread raw-clears each contributor's sign bit, initializes from ordinal zero, performs exactly
+`N-1` safe binary32 additions in increasing ordinal order, and stores the final raw word once;
+`N=1` performs no addition. Its task-local Lean proof, source certificate, and pinned Xcode-27
+compiled-MSL/AIR audit establish the bounded Model result-set membership. `SCATTER_ADD` and
+`VARIANCE` remain production-false.
+
 Direct CPU/Metal transfer supports all six current data types at ranks `0..16` over canonical or
 resolved positive-stride non-overlapping storage layouts; BOOL validation visits logical elements
 only. Local selected publication gathers logical elements from authenticated physical storage and
@@ -365,7 +378,7 @@ The package uses ABI 5 with the same thirteen exports. Node schema 15 is one bou
 self-describing, route-bearing image over type wires `1..6`, operation wires `1..115`, attribute
 wires `0..41`, route wires `1..3`, and complete optional storage-layout geometry. Structural
 execution covers exactly 101 kinds with 14 remaining nonexecutable; production capability is
-exactly 83 kinds with 32 remaining false. Catalog counts are exactly `75/35/5` MPSGraph and
-`70/45/0` custom. Workload, exact-policy, candidate, compatibility, route-policy, and codec
-identities are version twenty-two; identity twenty-one and every older identity fail closed. The
+exactly 84 kinds with 31 remaining false. Catalog counts are exactly `75/35/5` MPSGraph and
+`71/44/0` custom. Workload, exact-policy, candidate, compatibility, route-policy, and codec
+identities are version twenty-three; identity twenty-two and every older identity fail closed. The
 complete-plan wrapper remains version one.
