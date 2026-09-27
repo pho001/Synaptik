@@ -53,11 +53,12 @@ carrier, attribute, or gradient combination remain false.
 - Input rank is exactly one with extent `N>0`; `N`, the four-byte input span, and dispatch count
   must each fit unsigned 32-bit arithmetic. Axes are exactly `[0]`, never empty.
   `keepDimensions=false` produces canonical rank zero; `true` produces canonical `[1]`.
-- One output thread clears each input sign bit for exact raw `ABS`, initializes from contributor
-  zero, then applies one explicit safe binary32 addition in increasing contributor ordinal and
-  stores once. No invented identity, pre-truncation, fusion, epsilon, or hidden reduction exists.
+- One output thread clears each input sign bit for exact raw `ABS`. Its reduction tree has exactly
+  the `N` ABS values as leaves and exactly `N-1` actual safe binary32 additions in increasing
+  contributor order; it has no zero leaf. `N=1` is the direct ABS leaf with no add site. The result
+  stores once, with no invented identity, pre-truncation, fusion, epsilon, or hidden reduction.
 - Either input zero becomes `+0`; NaN remains NaN; infinity yields `+infinity` unless a NaN is
-  present; finite results are nonnegative. The point result is raw `ABS` without an add site.
+  present; finite results are nonnegative.
 - Gradient-bearing L1 remains false, so the existing sign/zero/NaN cotangent graph is not newly
   reachable.
 
@@ -80,33 +81,31 @@ carrier, attribute, or gradient combination remain false.
   positive static extents, and canonical cotangent. Compiler-generated zero base plus upstream
   updates must be captured and proved end to end. Gradient-bearing `SCATTER_ADD`, its base/update
   cotangents, Gather-Elements/Gather-ND, and higher order remain false; no origin discriminator is
-  added.
+  added. Slice 2 atomically replaces the backend contract's current additive-scatter fail-closed statement with only this exact domain and generated Gather closure; it cannot ship beforehand.
 
 ### Slice 3 — `VARIANCE` wire 112
 
-- Input rank is exactly one with extent `N` in `1..2^24`; axes are exactly `[0]`; correction is
-  exactly zero. Both keep-dimension forms use the same canonical scalar cell. All gradient flags
-  are false. Positive correction, empty axes, other ranks, and the existing variance cotangent stay
-  false.
-- A first device pass classifies every raw input before arithmetic. Any NaN or infinity publishes
-  NaN. A finite constant slice, treating the two zero encodings as equal, publishes exact `+0`.
-- Otherwise the source computes an increasing-ordinal all-terms-once sum, divides by the exact
-  binary32 encoding of `N`, computes exactly one subtraction and `d*d` per original contributor,
-  sums those squares in increasing order, and divides by the same exact `N`. Each named
-  `ADD/SUB/MUL/DIV` is one safe binary32 site; there is no clamp, reciprocal substitution, FMA,
-  stable-algorithm replacement, or final tolerance. The `2^24` bound makes the divisor conversion
-  exact.
+- Input rank is exactly one with extent `N=1`; axes are exactly `[0]`; correction is exactly zero.
+  Both keep-dimension forms use the same canonical scalar cell. All gradient flags are false.
+  Larger or empty domains, positive correction, other ranks, and the variance cotangent stay false.
+- There is no payload classifier or special-case publication. The source evaluates only the literal
+  formula: `mean=DIV(x,+1)`, `d=SUB(x,mean)`, `q=MUL(d,d)`, singleton square-sum leaf `q`, then
+  `DIV(q,+1)`. Every named operation is one safe binary32 site; there is no aggregate add, clamp,
+  reciprocal substitution, FMA, stable-algorithm replacement, or final tolerance.
+- The proof must derive NaN for NaN/infinity and exact `+0` for every finite input, including both zeros and subnormals under every permitted DAZ/FTZ choice, from those literal sites alone.
 
 ## Proof and source gates
 
 1. Add task-local `Task0069Binary32.lean` and `Task0069ReductionTree.lean`: total binary32 raw
-   classes; exact integer-to-binary32 count lemma through `2^24`; set-valued RNE/DAZ/FTZ primitive
-   relations; leaf-labelled binary trees/multisets; and the theorem that each source left chain is
-   a permitted all-terms-once tree. No `sorry`, axioms, native floating oracle, or general framework.
+   classes; exact typed-one facts; set-valued RNE/DAZ/FTZ primitive relations; leaf-labelled binary
+   trees/multisets; and the theorem that each source left chain is a permitted all-terms-once tree.
+   L1's leaves are exactly the ABS values, internal nodes correspond one-to-one with the `N-1`
+   source additions, and its singleton tree is the direct ABS leaf. No `sorry`, axioms, native
+   floating oracle, or general framework.
 2. Add per-slice Lean domain theorems. L1 proves raw ABS, point, class, and contributor obligations.
    Scatter proves base-plus-filtered-occurrence membership per target, duplicates retained,
-   unaddressed raw identity, and one writer. Variance proves guard precedence, exact divisor,
-   mean/deviation/square membership, and required special classes.
+   unaddressed raw identity, and one writer. Singleton variance proves literal-site membership and
+   all required special classes without preclassification.
 3. Bind the exact header, native dispatcher/preflight, compiler flags, function names, loop/site
    inventory, generated library, and proof inputs in a hash manifest plus source/compiler-site
    certificate. Compile with `MTLMathModeSafe`; reject fast math, reassociation outside the written
@@ -173,7 +172,8 @@ false, and submit a reviewed plan amendment rather than inventing architecture.
 - `native/metal-macos-arm64/src/synaptik_task0069_aggregate_kernels.h` and
   `synaptik_metal_foundation.m` — source-owned kernels, independent preflight, fixed dispatch.
 - Metal/Compiler/conformance/integration tests and active architecture/package documentation — exact
-  slice behavior, generated Gather closure, false boundaries, counts, and identity rejection.
+  slice behavior, generated Gather closure, false boundaries, counts, identity rejection, and the
+  Slice-2 atomic update to `backend-execution.md` additive-scatter and generated-gradient text.
 
 ## Acceptance and validation
 

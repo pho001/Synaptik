@@ -738,12 +738,13 @@ Independent cumulative code, security, and evidence review at exact clean `17750
 Metal Task 0069 is registered from clean `69c07e30` as Review needed. Its exact proposed frontier is
 the task-local binary32/contributor-tree proof substrate plus rank-one accelerator FLOAT32
 no-gradient `L1_NORM`; independently approved later checkpoints may consider rank-one
-`SCATTER_ADD`, including the exact generated Gather cotangent closure, and then correction-zero
-rank-one `VARIANCE`. Each slice uses a source-owned fixed custom route, advances identity and one
-capability/custom-catalog row independently, and preserves schema 15, ABI 5, thirteen exports,
-structural `101/14`, MPSGraph `75/35/5`, and every other false row. This is not a promise that all
-three slices will ship: a failed proof, source certificate, validation-before-mutation, packaged-
-dylib, or independent review gate leaves that row and every later serial slice false.
+`SCATTER_ADD`, including the exact generated Gather cotangent closure and an atomic backend-contract
+update, and then literal-formula singleton correction-zero `VARIANCE`. Each slice uses a
+source-owned fixed custom route, advances identity and one capability/custom-catalog row
+independently, and preserves schema 15, ABI 5, thirteen exports, structural `101/14`, MPSGraph
+`75/35/5`, and every other false row. This is not a promise that all three slices will ship: a
+failed proof, source certificate, validation-before-mutation, packaged-dylib, or independent review
+gate leaves that row and every later serial slice false.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly
