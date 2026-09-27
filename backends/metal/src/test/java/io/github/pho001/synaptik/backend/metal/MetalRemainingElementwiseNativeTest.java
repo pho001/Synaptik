@@ -1215,6 +1215,7 @@ class MetalRemainingElementwiseNativeTest {
     @Test
     void task0060WindowKernelsHonorCeilDepthMaskingAndWideGeometry() {
         Path library = configuredLibrary();
+        long wide = 1L << 32;
         assertArrayEquals(
                 bits(1, 0, 0, 0),
                 executeCustom(
@@ -1233,6 +1234,47 @@ class MetalRemainingElementwiseNativeTest {
                         new int[] {0},
                         new int[] {1},
                         List.of(bits(1, 2, 3, 4))).getFirst());
+        assertArrayEquals(
+                bits(0, 7, 0, 0),
+                executeCustom(
+                        library,
+                        NumericalProfile.STRICT_IEEE,
+                        new MetalMpsGraphProgram(List.of(
+                                MetalMpsGraphProgram.Node.generic(
+                                        MetalMpsGraphProgram.NodeKind.UNFOLD2D,
+                                        new int[] {0},
+                                        new int[] {1},
+                                        MetalMpsGraphProgram.AttributeKind.WINDOW_2D,
+                                        new long[] {
+                                            1, 2, 1, wide, 0, wide, 1, 1, 0
+                                        }))),
+                        List.of(
+                                typed(DataType.FLOAT32, 1, 1, 1, 1),
+                                typed(DataType.FLOAT32, 1, 2, 2)),
+                        new int[] {0},
+                        new int[] {1},
+                        List.of(bits(7))).getFirst());
+        assertArrayEquals(
+                bits(7),
+                executeCustom(
+                        library,
+                        NumericalProfile.STRICT_IEEE,
+                        new MetalMpsGraphProgram(List.of(
+                                MetalMpsGraphProgram.Node.generic(
+                                        MetalMpsGraphProgram.NodeKind.FOLD2D,
+                                        new int[] {0},
+                                        new int[] {1},
+                                        MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_2D,
+                                        new long[] {
+                                            4, 1, 1, 1, 1,
+                                            1, 2, 1, wide, 0, wide, 1, 1, 0
+                                        }))),
+                        List.of(
+                                typed(DataType.FLOAT32, 1, 2, 2),
+                                typed(DataType.FLOAT32, 1, 1, 1, 1)),
+                        new int[] {0},
+                        new int[] {1},
+                        List.of(bits(0, 7, 0, 0))).getFirst());
         assertArrayEquals(
                 bits(1, 0, 0, 0),
                 executeCustom(
@@ -1276,7 +1318,6 @@ class MetalRemainingElementwiseNativeTest {
                         new int[] {0},
                         new int[] {1},
                         List.of(bits(5, 7, 11))).getFirst());
-        long wide = 1L << 32;
         assertArrayEquals(
                 bits(2),
                 executeCustom(

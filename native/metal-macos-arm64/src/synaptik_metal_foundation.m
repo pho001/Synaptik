@@ -2871,9 +2871,6 @@ static MPSGraphImToColOpDescriptor *task0059_im2col_descriptor(
     if (!task0059_window_extent(inputH, kH, pH, sH, dH, ceil_mode, &hOut)
             || !task0059_window_extent(inputW, kW, pW, sW, dW, ceil_mode, &wOut))
         return nil;
-    if ((hOut - 1U) > UINT32_MAX / sH
-            || (wOut - 1U) > UINT32_MAX / sW)
-        return nil;
     uint64_t effectiveH = dH * (kH - 1U) + 1U;
     uint64_t effectiveW = dW * (kW - 1U) + 1U;
     if ((hOut - 1U) > (UINT64_MAX - effectiveH) / sH

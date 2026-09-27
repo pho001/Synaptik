@@ -277,11 +277,27 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void task0059JavaAndNativeRejectCeilWindowOriginsBeyondUint32() throws Throwable {
+    void task0059JavaAndNativeKeepWideCustomOriginsButRejectMpsGraph() throws Throwable {
         Path library = configuredLibrary();
         long uint32Max = 0xffff_ffffL;
         long hostilePositions = 1_073_741_825L;
         try (RawAbi abi = new RawAbi(library)) {
+            long wide = 1L << 32;
+            var feasibleWideUnfold2d = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.generic(
+                            MetalMpsGraphProgram.NodeKind.UNFOLD2D,
+                            new int[] {0},
+                            new int[] {1},
+                            MetalMpsGraphProgram.AttributeKind.WINDOW_2D,
+                            new long[] {1, 2, 1, wide, 0, wide, 1, 1, 0})));
+            assertTask0059WindowOriginRejected(
+                    abi,
+                    feasibleWideUnfold2d,
+                    List.of(
+                            descriptor(DataType.FLOAT32, 1, 1, 1, 1),
+                            descriptor(DataType.FLOAT32, 1, 2, 2)),
+                    "UNFOLD2D feasible wide custom origin");
+
             var unfold2d = new MetalMpsGraphProgram(List.of(
                     MetalMpsGraphProgram.Node.generic(
                             MetalMpsGraphProgram.NodeKind.UNFOLD2D,
