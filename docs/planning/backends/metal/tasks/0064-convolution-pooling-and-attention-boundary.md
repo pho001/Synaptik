@@ -2,11 +2,10 @@
 
 ## Status
 
-Implementation complete; cumulative review pending — independent plan review returned `APPROVE`
-at `994cd69199cdb5e2524e9b7f48bbdd0fac4a9094`, and production implementation landed at
-`58d1da7f`. The exact six-row cutover and its evidence are complete. Status becomes `Complete`
-only after documentation, package/full validation, and independent cumulative Class C review have
-no unresolved P0/P1/P2.
+Complete — the exact six-row production cutover, documentation, signed native package, focused
+Task-0059/0060/0064 evidence, complete Metal suite, and full test/build validation are complete
+through `d71ac005`. Independent cumulative and final-delta code, evidence, documentation, and
+security reviews report no unresolved P0/P1/P2 findings.
 
 ## Change class
 
