@@ -193,18 +193,22 @@ The following invariants must remain true:
   it unchanged. For a fixed occurrence domain, every backend's `STRICT_IEEE` capability and allowed
   behavior are subsets of its `ACCELERATOR` capability and allowed behavior. CPU realizes both
   profiles with identical exact behavior. Metal's common domain includes its exact unary, affine,
-  canonicalization, indexing, BOOL-domain, Task-0059 movement, and Task-0060 replacement/fold/
-  aggregate rows. Both profiles also realize no-gradient INT32/INT64 `MATMUL` pairs with
-  INT64-dominant promotion and modular result arithmetic. Under `ACCELERATOR`, Metal additionally
-  realizes the documented FLOAT32 arithmetic, scalar, reduction, and scan rows; every
-  positive-static FLOAT32 `MATMUL` vector, matrix, batched, and right-aligned broadcast geometry;
-  no-gradient BFLOAT16/FLOAT32 mixed `MATMUL` with FLOAT32 result; and same-type canonical
-  positive-rank FLOAT32 MSE forward execution for `NONE`, `SUM`, and `MEAN`. MATMUL operands are
-  canonical or authenticated local identity-prefix, last-two-axis transposes. Existing rank-two
-  FLOAT32 matrix products retain direct MPSGraph; all newly admitted geometries and carrier pairs
-  use the fixed custom program. MSE uses fixed MPSGraph subtraction, self-multiplication, and its
-  optional qualified full reduction. Strict floating MATMUL and MSE, generated MSE backward, every
-  other normalization/loss kind, and every other unsupported profile/operation pair fail closed.
+  canonicalization, indexing, BOOL-domain, Task-0059 movement, Task-0060 replacement/fold/
+  aggregate, ordering/top-K/arg-extrema, and exact FLOAT64/FLOAT32/BFLOAT16 maximum Pool2d/Pool3d
+  rows. Both profiles also realize no-gradient INT32/INT64 `MATMUL` pairs with INT64-dominant
+  promotion and modular result arithmetic. Under `ACCELERATOR`, Metal additionally realizes the
+  documented FLOAT32 arithmetic, scalar, reduction, and scan rows; every positive-static FLOAT32
+  `MATMUL` vector, matrix, batched, and right-aligned broadcast geometry; no-gradient
+  BFLOAT16/FLOAT32 mixed `MATMUL` with FLOAT32 result; same-type canonical positive-rank FLOAT32
+  MSE forward execution for `NONE`, `SUM`, and `MEAN`; FLOAT32-result grouped Conv2d/Conv3d over
+  FLOAT32/BFLOAT16 roles; and FLOAT32 average Pool2d/Pool3d. MATMUL operands are canonical or
+  authenticated local identity-prefix, last-two-axis transposes. Conv1d and Pool1d use only
+  authenticated local singleton-height compositions. Existing rank-two FLOAT32 matrix products
+  retain direct MPSGraph; all newly admitted MATMUL forms and convolution/pooling rows use the
+  fixed custom program. MSE uses fixed MPSGraph subtraction, self-multiplication, and its optional
+  qualified full reduction. Strict floating MATMUL, MSE, convolution, and average pooling;
+  generated MSE, Conv3d, and maximum-pool backward; attention; convolution transpose; and every
+  other unsupported profile/operation pair fail closed.
   Metal indexing validates complete bounds and scatter target
   uniqueness before dispatch or target writes and leaves targets unchanged on failure. Canonical
   cross-owner transfer supports all six current data types at ranks `0..16`; transfer coverage does

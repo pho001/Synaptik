@@ -1179,11 +1179,16 @@ This metadata can be structurally captured, and package-private verification now
 proves or retains its descriptor-only constraints. The current fail-closed CPU path advertises,
 lowers, prepares, and executes only the fully static, resolved-layout BFLOAT16/FLOAT32/FLOAT64
 grouped NCHW forward subset with exact group, channel, optional-bias, spatial, promoted-type, and
-injective-output relationships. Current package-private first-order autograd constructs every
+injective-output relationships. Metal separately admits the fully static accelerator
+FLOAT32-result grouped subset over FLOAT32/BFLOAT16 roles, including authenticated Conv1d
+singleton-height composition. Current package-private first-order autograd constructs every
 selected input, weight, and optional bias cotangent for grouped convolution through exact-group
-`unfold2d`, matrix contraction, reduction, and overlap-accumulating `fold2d`. Legal decomposition,
-saved values, dynamic binding, other-backend execution, and other algorithms remain planned in
-their owning layers.
+`unfold2d`, matrix contraction, reduction, and overlap-accumulating `fold2d`. It places explicit
+`contiguous()` materializations at the canonical-only contraction and fold boundaries without
+changing values, Shapes, types, or derivative semantics. Metal owns only separately selected
+all-FLOAT32 roles whose complete generated partition stays inside its primitive domain and whose
+input fold is non-overlapping. Legal decomposition, saved values, dynamic binding, other algorithms,
+joint or mixed gradients, and overlap accumulation remain planned in their owning layers.
 `Tensor.conv3d(weight, attrs)` and `Tensor.conv3d(weight, bias, attrs)` are current Model
 construction for one first-class grouped NCDHW `CONV3D` occurrence. Input, weight, optional bias,
 and result Shapes are `[N, C_in, D, H, W]`,
@@ -1196,9 +1201,10 @@ prove or retain its ordered channel and spatial obligations, and ordinary CSE, p
 diagnostics, and Planning handoff preserve the exact operation and ordered descriptors. The
 current fail-closed CPU path advertises, lowers, prepares, and executes only the fully static,
 resolved-layout BFLOAT16/FLOAT32/FLOAT64 grouped NCDHW forward subset with exact group, channel,
-optional-bias, spatial, promoted-type, and injective-output relationships. Draft 0006C remains
-separate: backward-capable requests containing `CONV3D` fail before derivative allocation.
-Dynamic binding, Conv3d gradients and adjoints, and other-backend execution remain planned.
+optional-bias, spatial, promoted-type, and injective-output relationships. Metal separately admits
+the fully static accelerator FLOAT32-result grouped subset over FLOAT32/BFLOAT16 roles. Draft
+0006C remains separate: backward-capable requests containing `CONV3D` fail before derivative
+allocation. Dynamic binding, Conv3d gradients and adjoints, and other algorithms remain planned.
 `Tensor.maxPool2d(attrs)` is current first-class NCHW maximum-pooling model construction. One
 `MAX_POOL2D` occurrence records exact ordered input `[input]`, `MaxPool2dAttrs`, one output at
 index zero, the unchanged floating type and gradient request, exact batch/channel Dimensions, and
@@ -1208,11 +1214,14 @@ ceiling-grid window, even when the terminal window is all-padding; padding exclu
 infinity empty windows, NaN propagation, signed-zero ordering, and first-logical-sample ties are
 semantic metadata. Package-private structural capture and descriptor verification are current.
 The CPU backend executes the fully static resolved-layout non-gradient subset through its direct
-schema-55 generated route. Current package-private first-order autograd
-reconstructs the exact first eligible logical winner from the original input and the
-same-occurrence public output, including padding exclusion and the specified NaN and signed-zero
-equality, then routes through public one-hot and overlap-accumulating fold expressions. It adds no
-saved-index output. Other concrete bindings, backends, and routes remain separately owned.
+schema-55 generated route. Metal executes the fully static FLOAT64/FLOAT32/BFLOAT16 subset under
+both profiles through its fixed custom program, preserving exact gradient metadata for later
+ownership decisions. Current package-private first-order autograd reconstructs the exact first
+eligible logical winner from the original input and the same-occurrence public output, including
+padding exclusion and the specified NaN and signed-zero equality, then routes through public
+one-hot and overlap-accumulating fold expressions. It adds no saved-index output. Current Metal
+generated maximum-pool backward remains fail-closed. Dynamic binding and other algorithms remain
+separately owned.
 `Tensor.averagePool2d(attrs)` is current first-class NCHW average-pooling model construction. One
 `AVERAGE_POOL2D` occurrence records exact ordered input `[input]`, `AveragePool2dAttrs`, one output
 at index zero, the unchanged floating type and gradient request, exact batch/channel Dimensions,
@@ -1223,11 +1232,13 @@ BFLOAT16 and FLOAT32, FLOAT64 accumulation/division for FLOAT64, one final divis
 documented NaN/infinity/signed-zero/all-padding policies. Dynamic spatial non-negativity remains a
 future compiler-validation or concrete-binding obligation. Package-private structural capture and
 descriptor verification are current. The CPU backend executes the fully static resolved-layout
-non-gradient subset through its direct schema-55 generated route. Current package-private
-first-order autograd divides by a logical typed
-`kernelHeight * kernelWidth` count and routes every window position through public expansion and
-overlap-accumulating fold expressions. Other concrete bindings, backends, algorithms, and routes
-remain separately owned.
+non-gradient subset through its direct schema-55 generated route. Metal executes fully static
+accelerator FLOAT32 through its fixed custom program. Current package-private first-order autograd
+divides by a logical typed `kernelHeight * kernelWidth` count and routes every window position
+through public expansion and overlap-accumulating fold expressions. Explicit `contiguous()`
+materializations make the expanded divisor, seed, columns, and fold result canonical without
+changing formula semantics. Metal owns only non-overlapping generated folds. Dynamic binding,
+overlap accumulation, and other algorithms remain separately owned.
 `Tensor.maxPool3d(attrs)` and `Tensor.averagePool3d(attrs)` are current Model construction for
 first-class rank-five NCDHW metadata. Each records exact ordered input `[input]`, its family-
 specific thirteen-field attrs reference, one output at index zero, the unchanged floating type
@@ -1249,12 +1260,17 @@ negative-infinity candidates, a separate direct-positive-zero in-bounds mask, an
 same-occurrence output. Its equality preserves dominant NaN, signed-zero ordering, real negative
 infinity, first-winner, and all-padding behavior before one-hot routing and `fold3d` accumulation.
 The maximum selector is a fixed non-differentiable mask for a later derivative stage, while the
-incoming branch remains differentiable. The CPU backend now advertises and prepares only the
-fully static resolved-layout non-gradient BFLOAT16/FLOAT32/FLOAT64 subset. Its schema-56 direct
-generated body uses scalar compute, optionally distributes complete output-cell ranges through
-caller-owned workers, and declares zero workspace or materialization. This does not extend
-Compiler semantics, execute gradients or `UNFOLD3D`/`FOLD3D`, establish public Engine execution,
-or imply dynamic, fused, vector, native, or cross-backend performance support.
+incoming branch remains differentiable. The CPU backend advertises and prepares only the fully
+static resolved-layout non-gradient BFLOAT16/FLOAT32/FLOAT64 subset. Its schema-56 direct generated
+body uses scalar compute, optionally distributes complete output-cell ranges through caller-owned
+workers, and declares zero workspace or materialization. Metal separately executes fully static
+maximum Pool3d for the same three carriers under both profiles and accelerator FLOAT32 average
+Pool3d through its fixed custom program. Explicit gradient-formula materialization produces
+canonical columns and results; Metal owns only non-overlapping average Pool3d cotangents and no
+generated maximum Pool3d backward. Dynamic binding and other algorithms remain separately owned.
+Pool3d constructibility preflight compares the materialized result's semantic type, Shape, and
+gradient eligibility with the requested input descriptor; canonical layout belongs to the explicit
+final `contiguous()` node rather than being required of the original affine input.
 `Tensor.sort(axis[, descending])` and `Tensor.argsort(axis[, descending])` currently construct
 distinct stable, one-input, one-output ordering expressions. Both normalize the axis, preserve the
 exact input Shape reference, leave layout unresolved, and use fixed NaN-last ordering in both

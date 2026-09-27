@@ -23,36 +23,48 @@ identical exact execution under both numerical profiles. The Metal backend expos
 `MetalBackendConfiguration`, `MetalBackendIntegration`, `MetalTraceObserver`, and a closed
 profile-qualified domain. Its common domain includes exact unary, affine, canonicalization,
 indexing, classification, BOOL, Task-0059 raw-movement, Task-0060 replacement/fold/aggregate,
-no-gradient promoted INT32/INT64 MATMUL, and Task-0063 ordering/top-K/numeric arg-extrema rows.
-SORT/ARGSORT/positive-K TOP_K admit all six carriers, while ARG_MIN/ARG_MAX admit the five numeric
-carriers, over canonical dense ranks `1..16` with positive unsigned-32-bit-bounded geometry and
-logical indices. UNFOLD_AXIS accepts canonical input rank 1..15, size 1..16, positive step, and size
-no larger than the selected extent; it returns the exact rank-plus-one floor-count Shape, preserves
-addressed FLOAT32 bits, and does not mutate or alias its source. Replacement scatter validates
-complete bounds then target uniqueness before dispatch and writes, preserves exact addressed-update
-and unaddressed-base bits, and leaves inputs unchanged.
+no-gradient promoted INT32/INT64 MATMUL, Task-0063 ordering/top-K/numeric arg-extrema, and exact
+FLOAT64/FLOAT32/BFLOAT16 maximum Pool2d/Pool3d rows. SORT/ARGSORT/positive-K TOP_K admit all six
+carriers, while ARG_MIN/ARG_MAX admit the five numeric carriers, over canonical dense ranks
+`1..16` with positive unsigned-32-bit-bounded geometry and logical indices. UNFOLD_AXIS accepts
+canonical input rank 1..15, size 1..16, positive step, and size no larger than the selected extent;
+it returns the exact rank-plus-one floor-count Shape, preserves addressed FLOAT32 bits, and does not
+mutate or alias its source. Replacement scatter validates complete bounds then target uniqueness
+before dispatch and writes, preserves exact addressed-update and unaddressed-base bits, and leaves
+inputs unchanged.
 Accelerator Metal additionally supports canonical tensor `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, and
 `MAX`; all six comparisons with local canonical BOOL publication; exact FLOAT32 scalar `MIN`,
 `MAX`, and `CLAMP`; canonical positive-rank no-gradient FLOAT32 scalar `ADD`, `SUB`, `MUL`, and
 `DIV`; canonical positive-rank no-gradient FLOAT32 `RECIPROCAL`; canonical `SUM`, `MEAN`, `MIN`,
 `MAX`, and `SUM_TO_SHAPE`; every exclusive/reverse `CUM_SUM` and `CUM_PROD` mode; every
-positive-static FLOAT32 MATMUL vector, matrix, batched, and broadcast geometry; and no-gradient
-BFLOAT16/FLOAT32 or FLOAT32/BFLOAT16 MATMUL with FLOAT32 result. Scalar arithmetic uses exact
-four-byte raw rank-one constants in source operand order; reciprocal uses one exact
-`+1.0f / input` division. Strict rejects every accelerator-only row before native preparation but
-retains the profile-common integral MATMUL rows. Graph feeds and public transfer boundaries support
-all six carriers. Exact Task-0059 SELECT/SLICE feeds and intermediates may use authenticated
-positive-stride, non-overlapping storage layouts with nonzero offsets and holes; other
-canonical-only operations retain their documented descriptor restrictions. Affine operations under
-either profile may consume exact zero-offset views produced earlier in the same maximal Metal
-partition. MATMUL may consume only canonical state or the exact local identity-prefix,
-last-two-axis `PERMUTE` view of a canonical source and always produces canonical state; the
-transpose may otherwise be published or used by another valid affine consumer.
-`CONTIGUOUS` converts available canonical or local affine-view state to canonical state before a
-subsequent canonical-only operation. Canonical and exact authenticated SELECT/SLICE
-publications for all six carriers may materialize to detached canonical host bytes. Caller ingress
-preserves exact physical storage bytes; cross-owner transfer accepts rank-0..16 static canonical or
-positive-stride non-overlapping layouts with checked physical spans.
+positive-static FLOAT32 MATMUL vector, matrix, batched, and broadcast geometry; no-gradient
+BFLOAT16/FLOAT32 or FLOAT32/BFLOAT16 MATMUL with FLOAT32 result; FLOAT32-result grouped
+Conv2d/Conv3d over FLOAT32/BFLOAT16 roles; and FLOAT32 average Pool2d/Pool3d. Convolution requires
+at least one FLOAT32 operand, accepts no-gradient mixed operands, and preserves exact all-FLOAT32
+gradient metadata. Maximum pooling preserves exact input/output gradient metadata under both
+profiles; average pooling does so under ACCELERATOR. All six convolution/pooling rows require
+fully static positive unsigned-32-bit-bounded geometry, symmetric padding, fixed NCHW/NCDHW
+layouts, and canonical values except authenticated local singleton-height Conv1d/Pool1d views.
+Maximum pooling fixes NaN-first, positive-zero-over-negative-zero, first-logical-winner raw-bit
+publication; average pooling uses the full kernel-position divisor and conceptual positive-zero
+padding.
+
+Scalar arithmetic uses exact four-byte raw rank-one constants in source operand order; reciprocal
+uses one exact `+1.0f / input` division. Strict rejects every accelerator-only row before native
+preparation but retains the profile-common integral MATMUL and maximum-pool rows. Graph feeds and
+public transfer boundaries support all six carriers. Exact Task-0059 SELECT/SLICE feeds and
+intermediates may use authenticated positive-stride, non-overlapping storage layouts with nonzero
+offsets and holes; other canonical-only operations retain their documented descriptor
+restrictions. Affine operations under either profile may consume exact zero-offset views produced
+earlier in the same maximal Metal partition. MATMUL may consume only canonical state or the exact
+local identity-prefix, last-two-axis `PERMUTE` view of a canonical source and always produces
+canonical state; the transpose may otherwise be published or used by another valid affine
+consumer. `CONTIGUOUS` converts available canonical or authenticated local affine-view state to
+canonical state before a subsequent canonical-only operation. External affine convolution/pooling
+feeds remain rejected. Canonical and exact authenticated SELECT/SLICE publications for all six
+carriers may materialize to detached canonical host bytes. Caller ingress preserves exact physical
+storage bytes; cross-owner transfer accepts rank-0..16 static canonical or positive-stride
+non-overlapping layouts with checked physical spans.
 `Engine.builder()` is the public explicit composition root for
 opened CPU and Metal integrations. It freezes their Planning inputs in registration order and
 supports a complete non-empty plan only when every partition has one exact registered owner. The
@@ -1333,14 +1345,18 @@ losing earlier rollback suppression. Events contain only the bounded trace DTO f
 no native path, handle, Tensor value, shape, exception, free-form string, or generic map.
 
 Metal retains a custom route for an eligible singleton `NEG` under either profile. A supported
-partition containing any Task-0052 node, exact custom movement/replacement/fold/aggregate node, or
-MATMUL outside the direct rank-two all-FLOAT32 slice uses the fixed shared custom whole-program
-resource with declared run-owned buffers and one synchronous Java/native invocation. Existing
-MPSGraph-compatible nodes may remain nested in that recipe; there is no per-node fallback. Other
-supported partitions use one typed whole-partition MPSGraph executable. The general accelerator
-FLOAT32 MATMUL domain also executes Compiler-generated explicitly seeded gradients for both
-operands through authenticated local last-two-axis transposes; this does not add implicit seeding
-or unrestricted Metal training support.
+partition containing any Task-0052 node, exact custom movement/replacement/fold/aggregate node,
+non-direct MATMUL, ordering/top-K/arg-extrema node, or Task-0064 convolution/pooling node uses the
+fixed shared custom whole-program resource with declared run-owned buffers and one synchronous
+Java/native invocation. Existing MPSGraph-compatible nodes may remain nested in that recipe; there
+is no per-node fallback. Other supported partitions use one typed whole-partition MPSGraph
+executable. The general accelerator FLOAT32 MATMUL domain also executes Compiler-generated
+explicitly seeded gradients for both operands through authenticated local last-two-axis
+transposes. Task-0064's primitive-closed cases additionally execute separately selected
+all-FLOAT32 Conv2d input, weight, or bias cotangents and non-overlapping FLOAT32 average
+Pool2d/Pool3d cotangents. Joint or mixed convolution gradients, overlap-accumulating folds,
+generated Conv3d or maximum-pool gradients, attention, and convolution transpose reject before
+preparation. This does not add implicit seeding or unrestricted Metal training support.
 
 `MetalLocalWorkloadTuning` publicly exposes opaque candidates, session compatibility, identities,
 decision encode/decode, and trial/selected `PartitionPreparation` for the exact two-route

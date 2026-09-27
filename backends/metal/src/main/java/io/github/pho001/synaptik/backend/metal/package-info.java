@@ -135,14 +135,29 @@
  * autotuning route. Floating value outputs retain input gradient metadata, index outputs are
  * no-grad, and generated ordering backward graphs receive no new ownership.</p>
  *
+ * <p>Task 0064 adds one fixed custom-program route for {@code CONV2D}, {@code CONV3D},
+ * {@code MAX_POOL2D}, {@code AVERAGE_POOL2D}, {@code MAX_POOL3D}, and
+ * {@code AVERAGE_POOL3D}. Convolution is ACCELERATOR-only with FLOAT32 output and
+ * FLOAT32/BFLOAT16 operands, at least one FLOAT32 operand, no-gradient mixed operands, and exact
+ * all-FLOAT32 gradient metadata. Maximum pooling is profile-common for FLOAT64, FLOAT32, and
+ * BFLOAT16 and preserves exact input/output gradient metadata; average pooling is
+ * ACCELERATOR-only FLOAT32. All six rows require fully static positive geometry bounded to
+ * unsigned 32 bits, exact symmetric padding and fixed layouts, and checked result geometry.
+ * Conv1d and Pool1d enter only through authenticated local singleton-height affine views.
+ * Maximum pooling fixes NaN-first, positive-zero-over-negative-zero, first-logical-winner, raw-bit
+ * publication; average pooling fixes a full-kernel divisor and conceptual positive-zero padding.
+ * Strict convolution/average pooling, generated maximum-pool or Conv3d gradients, mixed
+ * convolution gradients, overlap-accumulating generated folds, attention, and convolution
+ * transpose remain fail-closed.</p>
+ *
  * <p>The selected numerical profile participates in partition-plan, route, tuning,
  * decision-codec, and workload identity. Java rejects profile/schema mismatches before native
  * entry. ABI version five retains thirteen exports. Node schema version fifteen is one bounded
  * self-describing route-bearing image over stable type wires {@code 1..6}, operation wires
  * {@code 1..115}, attribute wires {@code 0..41}, and complete optional storage-layout geometry.
- * Native structural execution covers exactly 93 wires and leaves 22 nonexecutable. Production
- * capability is exactly 75 operation kinds and 40 remain false. Backend-local workload,
- * exact-policy, candidate, compatibility, route-policy, and codec identities are version
- * nineteen; schema fourteen and identity version eighteen fail closed.</p>
+ * Native structural execution covers exactly 99 wires and leaves 16 nonexecutable. Production
+ * capability is exactly 81 operation kinds and 34 remain false. Backend-local workload,
+ * exact-policy, candidate, compatibility, route-policy, and codec identities are version twenty;
+ * schema fourteen and identity version nineteen fail closed.</p>
  */
 package io.github.pho001.synaptik.backend.metal;

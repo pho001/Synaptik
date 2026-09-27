@@ -124,12 +124,15 @@ import java.util.Objects;
  * sum-to-Shape forms. The exact Task-0060 integral PROD and BOOL ALL/ANY domain below is profile-
  * common. Other strict reductions remain unsupported. Reduction and MSE inputs are canonical with
  * positive dimensions; canonical outputs may be rank zero only as locally produced results.
- * Binary inputs and outputs are canonical dense non-views with exact right-aligned broadcasting. The six exact
- * unary descriptor pairs are canonical. An affine or contiguous input may be canonical or an
- * exact resolved zero-offset logical view; complete-partition analysis authenticates every
- * admitted view as a prior local affine result. Every admitted occurrence uses checked positive
- * extents. GATHER requires its exact replacement-axis output formula and matched data/output
- * gradient flag; ONE_HOT appends its positive depth and is entirely non-differentiable.
+ * Binary inputs and outputs are canonical dense non-views with exact right-aligned broadcasting.
+ * The six exact unary descriptor pairs are canonical. An affine or contiguous input may be
+ * canonical or an exact resolved zero-offset logical view; complete-partition analysis
+ * authenticates every admitted view as a prior local affine result. Task-0064 convolution/pooling
+ * may additionally receive only the exact singleton-height view shape used by Conv1d/Pool1d;
+ * preparation authenticates its local producer and physical source.
+ * Every admitted occurrence uses checked positive extents. GATHER requires its exact replacement-
+ * axis output formula and matched data/output gradient flag; ONE_HOT appends its positive depth
+ * and is entirely non-differentiable.
  * SCATTER_ELEMENTS requires reduction NONE, equal indices/update Shapes, matching non-axis data
  * extents, exact data-shaped output, non-differentiable indices, and data/update gradient OR.
  * UNFOLD_AXIS requires a canonical rank {@code 1..15} input, size {@code 1..16}, exact floor-count
@@ -158,6 +161,18 @@ import java.util.Objects;
  * canonical, no-gradient, and shape-exact. Zero-length slice updates, scatter reductions,
  * colliding scatter destinations, overlapping folds, floating PROD, non-BOOL ALL/ANY, and
  * LOG_SUM_EXP through L2_NORM remain production-false.</p>
+ *
+ * <p>Task 0063 admits profile-common canonical dense {@code SORT}, {@code ARGSORT}, and
+ * positive-K {@code TOP_K} for all six carriers and {@code ARG_MAX}/{@code ARG_MIN} for the five
+ * numeric carriers. Task 0064 admits exact FLOAT64/FLOAT32/BFLOAT16 maximum Pool2d/Pool3d under
+ * both profiles. Accelerator additionally admits FLOAT32-result grouped Conv2d/Conv3d over
+ * FLOAT32/BFLOAT16 operands with at least one FLOAT32 role, plus FLOAT32 average Pool2d/Pool3d.
+ * Mixed convolution is no-gradient; all-FLOAT32 convolution and every pooling row require exact
+ * input/output gradient metadata. Every Task-0063/0064 geometry, count, coordinate, and dispatch
+ * width is fully static, positive where required, and bounded to unsigned 32 bits. Strict
+ * convolution/average pooling, alternate layouts, dynamic or empty geometry, attention,
+ * convolution transpose, generated Conv3d or maximum-pool backward, mixed convolution gradients,
+ * and overlap-accumulating generated folds remain unsupported.</p>
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
     private static final long UINT32_MAX = 0xffff_ffffL;

@@ -10,7 +10,7 @@ complete variable-cardinality operation, attribute, reference, dimension, gradie
 storage-layout metadata; no native type, shape, or layout inference is part of the boundary.
 
 The schema registry reserves operation wires `1..115` and attribute wires `0..41`. The native graph
-can structurally execute exactly 93 operation kinds; production capability remains exactly 75
+can structurally execute exactly 99 operation kinds; production capability remains exactly 81
 kinds. Task 0059 adds exact movement/indexing rows and complete positive-stride storage geometry.
 Task 0060 adds replacement/fold rows `72`, `76`, `80`, `82`, and `84` plus exact aggregate rows
 `106..108`. Task 0061 widens existing `MATMUL=15` without adding a wire: both profiles admit
@@ -18,31 +18,46 @@ no-gradient INT32/INT64 ordered pairs; accelerator additionally admits every pos
 FLOAT32 vector, matrix, batched, and broadcast geometry plus no-gradient BFLOAT16/FLOAT32 mixed
 pairs with FLOAT32 result. Existing all-FLOAT32 rank-two matrix products retain MPSGraph; every new
 MATMUL form selects the fixed custom program. Exact local identity-prefix, last-two-axis transpose
-inputs retain their physical source, offset, and strides. Task 0062 makes `MEAN_SQUARED_ERROR=85`
-executable only through the fixed MPSGraph composition `SUB(prediction, target)`, `MUL(delta,
-delta)`, and optional full `SUM` or `MEAN`; no opaque MSE selector is used. Java production admits
-only ACCELERATOR same-type canonical positive-rank FLOAT32 for `NONE`, `SUM`, and `MEAN`, preserves
-the input-gradient logical OR as output metadata, and claims no generated backward ownership.
-Task 0063 adds custom-only wires `94=SORT`, `95=ARGSORT`, `96=TOP_K`, `109=ARG_MAX`, and
-`110=ARG_MIN`. The first three admit all six carriers and the arg operations admit five numeric
-carriers. Ranks are in `1..16`; one-dimensional dispatch, every positive
-dimension/count/stride/extent/K, and every derived logical index are bounded to unsigned 32 bits
-before resource creation, while byte/span checks remain independently size-safe. The integer-only
-comparator preserves raw selected words, stable order, NaNs-last sorting, signed-zero order, top-K
-pair order, and NaN-preferred arg ties.
-One TOP_K step owns both values and INT64 indices. The remaining 40 production rows fail closed
-before native creation. A structurally valid registered operation without a native recipe returns
-the dedicated unsupported-operation status rather than masquerading as malformed input. Candidate
-and route identity are version 19. Java
+inputs retain their physical source, offset, and strides. Task 0062 makes
+`MEAN_SQUARED_ERROR=85` executable only through the fixed MPSGraph composition `SUB(prediction,
+target)`, `MUL(delta, delta)`, and optional full `SUM` or `MEAN`; no opaque MSE selector is used.
+Java production admits only ACCELERATOR same-type canonical positive-rank FLOAT32 for `NONE`,
+`SUM`, and `MEAN`, preserves the input-gradient logical OR as output metadata, and claims no
+generated backward ownership. Task 0063 adds custom-only wires `94=SORT`, `95=ARGSORT`,
+`96=TOP_K`, `109=ARG_MAX`, and `110=ARG_MIN`. The first three admit all six carriers and the arg
+operations admit five numeric carriers. Ranks are in `1..16`; one-dimensional dispatch, every
+positive dimension/count/stride/extent/K, and every derived logical index are bounded to unsigned
+32 bits before resource creation, while byte/span checks remain independently size-safe. The
+integer-only comparator preserves raw selected words, stable order, NaNs-last sorting, signed-zero
+order, top-K pair order, and NaN-preferred arg ties. One TOP_K step owns both values and INT64
+indices.
+
+Task 0064 adds custom-only wires `36=CONV2D`, `37=CONV3D`, `97=MAX_POOL2D`,
+`98=AVERAGE_POOL2D`, `99=MAX_POOL3D`, and `100=AVERAGE_POOL3D`. Convolution is
+ACCELERATOR-only with FLOAT32 output, FLOAT32/BFLOAT16 operands, at least one FLOAT32 operand,
+no-gradient mixed operands, and exact all-FLOAT32 gradient metadata. Maximum pooling is
+profile-common for FLOAT64/FLOAT32/BFLOAT16; average pooling is ACCELERATOR-only FLOAT32.
+All dimensions, counts, strides, dilations, paddings, spans, logical coordinates, and
+one-dimensional grid widths are positive or nonnegative as appropriate, fit unsigned 32 bits, and
+are validated before resource creation. Exact local singleton-height affine inputs authenticate
+Conv1d and Pool1d compositions without admitting external or general affine layouts. Convolution
+preserves every grouped term and bias placement. Maximum pooling publishes the raw word selected by
+NaN-first, positive-zero-over-negative-zero, first-logical-winner order with negative-infinity
+padding. Average pooling uses the full kernel-position divisor and conceptual positive-zero
+padding, including ceil-mode all-padding windows.
+
+The remaining 34 production rows fail closed before native creation. A structurally valid
+registered operation without a native recipe returns the dedicated unsupported-operation status
+rather than masquerading as malformed input. Candidate and route identity are version 20. Java
 owns exactly three prepared-route identities: custom singleton NEG wire 1, MPSGraph wire 2, and
 shared custom-program wire 3. Schema 15 embeds wire 2 or 3 in each graph image; schema 14 and every
 other schema or route value fail closed. The exhaustive Java structural catalog adds no native
 route selection, capability, autotuning, fallback, telemetry, or performance authority.
 
-For admitted nodes, the version-19 workload signature binds operation wire, source/target carrier
+For admitted nodes, the version-20 workload signature binds operation wire, source/target carrier
 types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes, exact
 scalar bits, variadic input/output order and count, and complete encoded storage-layout geometry.
-The schema-15 and identity-19 cutover has no compatibility reader or migration alias; identity 18
+The schema-15 and identity-20 cutover has no compatibility reader or migration alias; identity 19
 and earlier fail closed.
 
 ```text
@@ -244,6 +259,16 @@ row-major fixed-width modular multiplication. BOOL ALL/ANY
 use exact zero/one identities and stable row-major logical reduction. Empty axes are raw point
 copies on positive-dimensional or rank-zero tensors and never imply zero-extent support.
 
+Task 0064's six kernels are output-cell-owned and require no scratch, atomics, host calculation,
+repair, retry, or fallback. Convolution iterates groups and every kernel-position/channel term in
+fixed logical order, injects positive-zero padding as an ordinary multiplicand, and uses the
+optional bias as the initial accumulator. Mixed BFLOAT16/FLOAT32 inputs convert each source term
+to FLOAT32 before multiplication. Maximum pooling compares integer carrier keys, prefers every NaN
+over every number, positive zero over negative zero, and the first logical coordinate on ties, then
+copies the selected raw bits. Average pooling includes every padded kernel position in the fixed
+divisor, uses FLOAT32 accumulation and one final division, and preserves the specified all-negative-
+zero result. All writes remain one-writer and direct.
+
 The prior FLOAT32 scalar `ADD/SUB/MUL/DIV` and `RECIPROCAL` domain remains canonical rank `1..16`
 with equal input/output Shape and no-gradient input and output. Each scalar arithmetic recipe
 creates one exact four-byte raw FLOAT32 MPSGraph constant with Shape `[1]` and applies exactly one
@@ -255,12 +280,15 @@ input/output Shape and gradient eligibility, and no attributes.
 
 Raw structural fixtures additionally create prior wires `38`, `50`, `53..54`, `56..59`, and
 `65..68` only under ACCELERATOR, all Task-0059 wires `39` and `69..84` under both profiles,
-production-exact aggregate wires `106..108`, and structural-only wires `111..115`.
-Task-0059 recipes cover direct cast/index/pad/slice/concat/tile/im2col/col2im selectors and explicit
-stack, fold-axis, and 3D-window compositions. Task-0060 adds stable log-sum-exp, correction-aware
+production-exact convolution/pooling wires `36`, `37`, and `97..100`, aggregate wires `106..108`,
+and structural-only wires `111..115`. Task-0059 recipes cover direct
+cast/index/pad/slice/concat/tile/im2col/col2im selectors and explicit stack, fold-axis, and
+3D-window compositions. Task-0060 adds stable log-sum-exp, correction-aware
 variance/standard-deviation, and L1/L2 norm structural compositions. Task-0061 retains only
 all-FLOAT32 rank-two MATMUL in the MPSGraph recipe; typed custom forms are rejected by that route.
-Structural creation and execution do not widen production capability.
+Task-0064 direct/composed MPSGraph family metadata remains structural only; its six production
+rows always select the custom program. Structural creation and execution do not widen production
+capability.
 
 ### Status values
 
@@ -459,7 +487,7 @@ SYNAPTIK_METAL_TEST_LIBRARY="$PWD/$LIB" \
   ./gradlew :backends:metal:test --tests '*Metal*' --rerun-tasks
 SYNAPTIK_METAL_TEST_LIBRARY="$PWD/$LIB" \
   ./gradlew :testing:integration-tests:test \
-  --tests '*EngineExplicitCompositionMetalIntegrationTest' --rerun-tasks
+  --tests '*MetalIntegrationTest' --rerun-tasks
 ```
 
 The environment variable is required; ordinary sandboxed runs skip native-device cases. The
@@ -507,6 +535,19 @@ three publications including four-byte scalars, direct and nested-custom-program
 and independent sessions, input preservation, strict/excluded-domain and all eight neighboring
 normalization/loss-family rejection, and generated-backward rejection.
 
+Convolution/pooling coverage checks grouped biased and unbiased Conv2d/Conv3d, exact Conv1d and
+Pool1d singleton-height compositions, dilation/stride/padding/ceil geometry, mixed BFLOAT16 input
+widening, padding multiplied by infinity, all maximum carriers under both profiles, raw NaN
+payloads, signed-zero/tie/infinity ordering, fixed average divisors, all-padding windows,
+subnormals, and opposing infinities. Java/native malformed-image parity rejects bad types, ranks,
+attributes, Shapes, gradient metadata, external affine layouts, one-past unsigned-32-bit facts,
+and profile mismatches before resource creation. CPU-free public Engine evidence covers retained
+reuse, isolated sessions, direct and composed forward publication, separately selected Conv2d
+input/weight/bias cotangents, and non-overlapping average Pool2d/Pool3d cotangents. It also proves
+early rejection of strict convolution/average pooling, joint or mixed convolution gradients,
+overlap accumulation, generated Conv3d/maximum-pool gradients, attention, and convolution
+transpose.
+
 ## Boundaries
 
 The bridge itself implements no library discovery, package selection or extraction, Engine
@@ -523,6 +564,11 @@ because the result is FLOAT32. Affine operands address their authenticated physi
 directly; no hidden transpose materialization occurs. There is no tiling, atomics, autotuning,
 runtime route selection, retry, or fallback. Generated accelerator FLOAT32 gradients use the same
 admitted MATMUL domain but do not imply unrestricted Metal training.
+Task 0064 adds no strict convolution/average arithmetic, FLOAT64/BFLOAT16 convolution result,
+FLOAT64/BFLOAT16 average pooling, generated Conv3d or maximum-pool backward, overlap accumulation,
+attention, convolution transpose, asymmetric padding, alternate layouts, dynamic/empty geometry,
+general affine input, scratch, atomics, or host repair. The six admitted rows use only the fixed
+bounded custom kernels described above.
 
 The public Java Metal surface is `MetalCapabilityProvider`, `MetalBackendConfiguration`, and
 `MetalBackendIntegration`; Engine accepts an explicitly opened integration through

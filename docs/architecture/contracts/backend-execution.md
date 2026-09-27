@@ -244,26 +244,24 @@ and also supports canonical rank-zero through rank-sixteen targets for all six c
 host ingress preserves exact represented storage bytes; descriptor-aware execution, transfer, and
 publication paths validate logical BOOL values without treating storage holes as BOOL elements.
 
-The current common-profile Metal movement domain also includes bounded canonical FLOAT32
-`UNFOLD_AXIS`. Its input rank is 1..15, size is 1..16, step is positive, size does not exceed the
-selected extent, and its canonical output has the exact rank-plus-one floor-count Shape. It
-materializes addressed input representations in row-major output order, repeats overlaps, omits
-incomplete tails, applies no padding, and never aliases or mutates its source. This is forward-only:
-Metal admits no FOLD_AXIS, two- or three-dimensional window, or backward window route.
+The current common-profile Metal movement domain includes bounded canonical FLOAT32
+`UNFOLD_AXIS`; all-carrier Task-0059 CAST/indexing/pad/slice/concat/stack/tile and exact
+SELECT/SLICE storage layouts; FLOAT64/FLOAT32/BFLOAT16 UNFOLD2D/UNFOLD3D; and Task-0060
+non-overlap FOLD_AXIS/FOLD2D/FOLD3D. UNFOLD_AXIS input rank is 1..15, size is 1..16, step is
+positive, size does not exceed the selected extent, and its canonical output has the exact
+rank-plus-one floor-count Shape. Window folds admit only strides at least the effective dilated
+kernel, so each in-bounds contributor is a raw copy and uncovered output cells receive exact
+carrier zero. No overlapping fold route exists.
 
-The current common-profile Metal indexing domain is exact positive-rank axis `GATHER` from
-canonical `FLOAT32` data with canonical `INT32` indices, positive-rank `INT32`-to-`BOOL`
-`ONE_HOT`, and canonical positive-rank `FLOAT32`/`INT32`/`FLOAT32`
-`SCATTER_ELEMENTS/NONE` replacement. Scatter has ordered `[data, indices, updates]` inputs, a
-data-shaped canonical output, equal index/update Shape, and exact non-axis agreement with data.
-Metal validates every logical index in stable node then row-major ordinal order; each scatter
-completes bounds before complete-coordinate uniqueness. All checks precede MPSGraph tensor-data
-construction, selector dispatch, and target writes. Bounds publish the Model's exact
-`IndexOutOfBoundsException`; duplicates publish its exact `IllegalArgumentException`; every target
-and input remains unchanged on failure. Selector skip and overlap-winner behavior are never part of
-the contract. These are forward backend routes and do not add Compiler production, a complete
-backward path, arithmetic scatter, Scatter-ND, INT64 indices, general BOOL consumers, CPU fallback,
-or widened transfer.
+The current common-profile Metal indexing/replacement domain includes exact GATHER,
+GATHER_ELEMENTS, GATHER_ND, ONE_HOT, replacement SCATTER_ELEMENTS/SCATTER_ND, SELECT, SLICE, and
+SLICE_UPDATE rows over their documented carrier/index/layout subsets. Every logical index is
+validated in stable node then row-major ordinal order. Scatter replacement completes bounds and
+global destination-uniqueness checks before any initial copy, selector dispatch, or target write.
+Bounds publish the Model's exact `IndexOutOfBoundsException`; duplicates publish its exact
+`IllegalArgumentException`; every target and input remains unchanged on failure. Selector skip,
+arithmetic scatter, colliding replacement, and overlap-winner behavior are never part of the
+contract.
 
 Metal-specific optimizer execution belongs to Metal backend prepare/kernels, not to training.
 
@@ -316,23 +314,28 @@ one identical exact matrix and unchanged routes.
 
 Metal's common exact occurrence domain under both profiles contains the exact unary, affine,
 canonicalization, indexing, classification, BOOL, Task-0059 movement, Task-0060 replacement/fold/
-aggregate, and unsigned-32-bit-bounded ordering/top-K/numeric arg-extrema rows. Task 0059 includes
-nineteen proved CAST pairs and all-carrier SELECT/positive-step SLICE over resolved positive-stride
-non-overlapping layouts. Task 0060 includes all-carrier replacement SCATTER_ND/SLICE_UPDATE,
+aggregate, unsigned-32-bit-bounded ordering/top-K/numeric arg-extrema, and exact
+FLOAT64/FLOAT32/BFLOAT16 maximum Pool2d/Pool3d rows. Task 0059 includes nineteen proved CAST pairs
+and all-carrier SELECT/positive-step SLICE over resolved positive-stride non-overlapping layouts.
+Task 0060 includes all-carrier replacement SCATTER_ND/SLICE_UPDATE,
 FLOAT64/FLOAT32/BFLOAT16 non-overlap folds, modular INT32/INT64 PROD, and BOOL ALL/ANY. Both
 profiles also admit no-gradient INT32/INT64 MATMUL pairs with INT64-dominant promotion and modular
-result arithmetic. The accelerator-only set adds the
-documented FLOAT32 tensor/scalar arithmetic, comparisons, extrema, reductions, and scans; every
-positive-static FLOAT32 MATMUL vector, matrix, batched, and right-aligned broadcast geometry;
-no-gradient BFLOAT16/FLOAT32 or FLOAT32/BFLOAT16 MATMUL with FLOAT32 result; and same-type canonical
-positive-rank FLOAT32 MSE under `NONE`, `SUM`, or `MEAN`. MATMUL operands are canonical or
-authenticated local identity-prefix, last-two-axis transposes. Existing rank-two FLOAT32 matrix
-products retain direct MPSGraph; newly admitted MATMUL forms use the fixed custom program. The
-five ordering/arg-extrema kinds are custom-only and TOP_K retains both ordered outputs through one
+result arithmetic. The accelerator-only set adds the documented FLOAT32 tensor/scalar arithmetic,
+comparisons, extrema, reductions, and scans; every positive-static FLOAT32 MATMUL vector, matrix,
+batched, and right-aligned broadcast geometry; no-gradient BFLOAT16/FLOAT32 or
+FLOAT32/BFLOAT16 MATMUL with FLOAT32 result; same-type canonical positive-rank FLOAT32 MSE under
+`NONE`, `SUM`, or `MEAN`; FLOAT32-result grouped Conv2d/Conv3d over FLOAT32/BFLOAT16 roles; and
+FLOAT32 average Pool2d/Pool3d. MATMUL operands are canonical or authenticated local
+identity-prefix, last-two-axis transposes. Conv1d/Pool1d may use only authenticated local
+singleton-height views. Existing rank-two FLOAT32 matrix products retain direct MPSGraph; newly
+admitted MATMUL forms and all six convolution/pooling rows use the fixed custom program. The five
+ordering/arg-extrema kinds are custom-only and TOP_K retains both ordered outputs through one
 step. MSE uses one fixed MPSGraph `SUB -> MUL -> qualified full reduction` composition and grants
-no generated backward ownership; every other normalization or loss kind remains false. Strict
-capability remains a subset because every common occurrence has the same answer under accelerator;
-strict rejects every accelerator-only addition.
+no generated backward ownership. Metal generated gradients are limited to primitive-closed
+all-FLOAT32 Conv2d roles and non-overlapping FLOAT32 average-pool folds; Conv3d, maximum-pool,
+mixed/joint convolution, and overlapping-fold gradients remain fail-closed. Attention and
+convolution transpose remain unsupported. Strict capability remains a subset because every common
+occurrence has the same answer under accelerator; strict rejects every accelerator-only addition.
 Direct CPU/Metal transfer supports
 all six current data types at ranks `0..16` over canonical or resolved positive-stride
 non-overlapping storage layouts; BOOL validation visits logical elements only.
@@ -341,14 +344,14 @@ Accelerator operations must produce only results admitted by Model's total recur
 exact/discrete, primitive, aggregate, and composite-inheritance floors. Every other
 profile/operation occurrence fails closed before route selection; transporting profile identity
 never authorizes a result outside the Model-owned set. The shared custom-program route is realized
-by fixed reviewed safe-math/raw-word/integer/movement kernels behind one whole-program native
-invocation, with declared assigned buffers for every logical value and no hidden materialization,
-host staging, hot compilation, retry, or fallback.
+by fixed reviewed safe-math/raw-word/integer/movement/convolution/pooling kernels behind one
+whole-program native invocation, with declared assigned buffers for every logical value and no
+hidden materialization, host staging, hot compilation, retry, or fallback.
 
 The package uses ABI 5 with the same thirteen exports. Node schema 15 is one bounded
 self-describing, route-bearing image over type wires `1..6`, operation wires `1..115`, attribute
 wires `0..41`, and complete optional storage-layout geometry. Structural execution covers exactly
-93 kinds with 22 remaining nonexecutable; production capability is exactly 75 kinds with 40
+99 kinds with 16 remaining nonexecutable; production capability is exactly 81 kinds with 34
 remaining false. Workload, exact-policy, candidate, compatibility, route-policy, and codec
-identities are version nineteen; schema 14 and identity 18 fail closed. The complete-plan wrapper
+identities are version twenty; schema 14 and identity 19 fail closed. The complete-plan wrapper
 remains version one.

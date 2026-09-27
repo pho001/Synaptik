@@ -2,10 +2,11 @@
 
 ## Status
 
-Review needed — the plan-only audit is complete. This brief, the Metal master plan, and the project
-roadmap are the only authorized planning edits. No production, native, test, package, probe, or
-benchmark edit may begin until an independent Class C plan review returns `APPROVE`. That review
-will authorize one serial implementation without another approval checkpoint.
+Implementation complete; cumulative review pending — independent plan review returned `APPROVE`
+at `994cd69199cdb5e2524e9b7f48bbdd0fac4a9094`, and production implementation landed at
+`58d1da7f`. The exact six-row cutover and its evidence are complete. Status becomes `Complete`
+only after documentation, package/full validation, and independent cumulative Class C review have
+no unresolved P0/P1/P2.
 
 ## Change class
 
@@ -280,10 +281,13 @@ ignore or default.
 
 ### Compiler gradients and public callers
 
-Model and Compiler sources remain unchanged. Audit `StructuredOperationInference`,
-`ConvolutionLogicalLayoutClosure`, `AutogradPreflight`, `ConvolutionGradientRules`,
-`PoolingGradientRules`, `AttentionGradientRules`, `FirstOrderGradientCoverage`, public Tensor
-methods/results, and the NN convolution callers.
+Model and public Tensor sources remain unchanged. Compiler convolution and pooling formulas add
+only explicit `CONTIGUOUS` expression nodes at canonical primitive boundaries, and Pool3d
+constructibility preflight recognizes the resulting semantic descriptor; no operation, gradient
+meaning, public API, or backend-specific compiler branch is added. The implementation audited
+`StructuredOperationInference`, `ConvolutionLogicalLayoutClosure`, `AutogradPreflight`,
+`ConvolutionGradientRules`, `PoolingGradientRules`, `AttentionGradientRules`,
+`FirstOrderGradientCoverage`, public Tensor methods/results, and the NN convolution callers.
 
 Forward capability and complete derivative-partition capability are distinct:
 
@@ -373,10 +377,12 @@ one.
 
 ## Non-goals
 
-No Model, Compiler, public Tensor, NN, Config, Planning, Prepare, Runtime, Trace, or Engine API
-change; no operation/attribute/type wire; no ABI export; no general affine layout; no general
-multi-output widening; no dynamic or empty kernel; no benchmark; no selector rehabilitation; and no
-rewrite of historical blocked evidence. Task 0064 does not complete attention, Conv3d backward,
+No Model, public Tensor, NN, Config, Planning, Prepare, Runtime, Trace, or Engine API change; no
+operation/attribute/type wire; no ABI export; no general affine layout; no general multi-output
+widening; no dynamic or empty kernel; no benchmark; no selector rehabilitation; and no rewrite of
+historical blocked evidence. The only Compiler source change is explicit public-`CONTIGUOUS`
+formula materialization plus matching Pool3d preflight semantics required to expose the already
+specified primitive-closed gradients. Task 0064 does not complete attention, Conv3d backward,
 maximum-pool backward, overlap folds, or `CONV_TRANSPOSE`.
 
 ## Contracts
@@ -481,18 +487,22 @@ The planning-only revision changes exactly this brief, the Metal master plan, an
 codesign --force --sign - --identifier io.github.pho001.synaptik.metal.foundation native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib
 ./native/metal-macos-arm64/package-local.sh native/metal-macos-arm64/build/libsynaptik_metal_foundation.dylib
 ./native/metal-macos-arm64/verify-package.sh native/metal-macos-arm64/build/package-v1/macos-arm64
+./gradlew :backends:metal:verifyMetalNativePackage :backends:metal:metalNativeLocalZip \
+  -PsynaptikMetalNativePackage="$PWD/native/metal-macos-arm64/build/package-v1/macos-arm64"
 SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/package-v1/macos-arm64/libsynaptik_metal_foundation.dylib" ./gradlew :backends:metal:test
-./gradlew :modules:compiler:test --tests '*Convolution*' --tests '*Pool*' --tests '*Attention*'
+./gradlew :modules:compiler:test
 ./gradlew :testing:backend-conformance:test --tests '*Metal*'
 SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/package-v1/macos-arm64/libsynaptik_metal_foundation.dylib" ./gradlew :testing:integration-tests:test --tests '*ConvolutionPoolingMetalIntegrationTest*'
 ./gradlew :backends:metal:javadoc :testing:architecture-tests:test
+./gradlew test
+./gradlew build
 git diff --check
 ```
 
-No timing or benchmark command is authorized. No full repository build is planned absent an
-unexpected shared API/dependency/build change; the complete packaged Metal suite, focused Compiler
-contracts, conformance, public Engine, and architecture gates are stronger for this backend-local
-cutover.
+No timing or benchmark command is authorized. The complete packaged Metal and Compiler suites,
+focused conformance and public Engine proof, architecture/Javadoc gates, package verification, and
+full repository test/build commands close the implementation after the Compiler formula
+materialization change.
 
 ## Documentation and review impact
 
@@ -511,9 +521,12 @@ evidence may be reused unless remediation changes executable behavior.
 
 ## Planning result
 
-The audited maximal current cutover is six fixed custom convolution/pooling rows, not attention.
+The implemented maximal cutover is six fixed custom convolution/pooling rows, not attention.
 Attention remains blocked on the unproved exponential/softmax numerical core and incomplete opaque
 selector/output contract; convolution transpose remains blocked before Metal because no Model or
-registry contract exists. Current production remains unchanged at `75/40` capability, `93/22`
-structural execution, catalogs `75/35/5` and `52/63/0`, schema 15, identity 19, ABI 5, and thirteen
-exports until independent plan review approves and the implementation/evidence cutover completes.
+registry contract exists. Production is now `81/34` capability and `99/16` structural execution;
+catalogs are `75/35/5` MPSGraph and `58/57/0` custom. Schema 15, ABI 5, and thirteen exports remain
+fixed; backend-local identity is 20 and identity 19 fails closed. Implementation commit
+`58d1da7f` contains Java capability/lowering/preparation, six native kernels, Compiler
+materialization, raw ABI/security parity, source-backed numerical proof tests, and CPU-free public
+Engine forward/backward/negative evidence.

@@ -373,7 +373,7 @@ before extracting a package or widening another type.
 | 0061 | [General static MATMUL domain](tasks/0061-general-static-matmul-domain.md) | Complete | 0060 Complete at `a4fe4754`; current Model MATMUL/promotion and Compiler gradient contracts | Every concurrent Metal capability/schema/native/custom/route/package/shared-document scope and resumed 0053 production | None | Corrected plan `d81ec940` → implementation/proof from `3cc49d94` through final remediation `3913bac1` → independent cumulative code/evidence/security `APPROVE` with zero P0/P1/P2 | Native build/sign/package; 187 Metal, 278 Compiler, 8 conformance, and 25 public Engine tests; certificate, Javadoc, architecture, docs/diff | Adds general promoted integral and accelerator FLOAT32/mixed MATMUL without new wire/schema/ABI/export; retains rank-two FLOAT32 MPSGraph, including authenticated nested transposes, and routes only new forms through seven fixed custom signatures |
 | 0062 | [ACCELERATOR MSE and normalization/loss proof boundary](tasks/0062-accelerator-mse-and-normalization-loss-boundary.md) | Complete | 0061 Complete at reviewed head `3913bac1`; Model 0030/0031; current loss/normalization, Compiler-gradient, FLOAT32 primitive/reduction, catalog/schema/lifecycle contracts | Every concurrent Metal capability/schema/native/custom/route/package/shared-document scope and resumed 0053 production | None | Implementation/proof `1cf8a6ef` → documentation `3e0e4ea4` → nested-input remediation `b12dbe73` → evidence checkpoint `e80a03f6` → documentation remediation `06c57844` → independent cumulative code/evidence/security `APPROVE` with zero remaining P0/P1/P2 | Native build/sign/package/verification; 193 Metal, 9 conformance, 26 public Engine, and 9 architecture tests; Javadoc/docs/diff; identities/counts/exports | Implements only same-type FLOAT32 ACCELERATOR MSE `NONE`/`SUM`/`MEAN` through one fixed proved MPSGraph composition; keeps the other eight normalization/loss wires and generated backward fail-closed. |
 | 0063 | [Exact ordering and arg extrema](tasks/0063-exact-ordering-and-arg-extrema.md) | Complete | 0062 Complete through `06c57844`; current Model ordering/top-K/arg-extrema and Compiler-gradient contracts; completed six-carrier, INT64, schema-15, custom-program, catalog, lifecycle, and public Engine foundations | Every concurrent Metal capability/schema/native/custom-source/multi-output/route/package/shared-document scope and resumed 0053 production | None | Approved plan and external P1 unsigned-32-bit cap correction -> implementation/proof `9931d5f8` -> documentation `f7800a26` -> remediation `8a74b499` -> final source/test correction `86399d53` -> active-document reconciliation and external final cumulative `APPROVE` at `c80d79c0` with zero P0/P1/P2 | Native build/sign/package/verification; complete packaged Metal suite; Metal conformance; four-case Engine integration; Javadoc; architecture tests; documentation/link/diff checks; tracked full-width INT32 XOR key and clean worktree confirmed | Implements exact stable SORT/ARGSORT, exact TOP_K with sorted and coordinate-order multi-output publication, and first/last ARG_MAX/ARG_MIN across the specified six- or five-carrier domains. Custom-only routing, integer-only comparator paths, canonical dense positive-rank limits, and pre-resource `UINT32_MAX` rejection are landed. Current production is `75/40`, structural execution `93/22`, catalogs `75/35/5` and `52/63/0`, schema 15, identity 19, ABI 5. |
-| 0064 | [Convolution, pooling, and attention boundary](tasks/0064-convolution-pooling-and-attention-boundary.md) | Review needed | 0063 Complete through `c80d79c0`; current Model convolution/pooling/attention and Compiler-gradient contracts; retained 0030/0031/0033/0036 and 0053 blockers; completed schema-15/custom-program/fold/MATMUL/ordering/lifecycle/package foundations | Every concurrent Metal capability/schema/native/custom-source/catalog/candidate/route/preparation/package/shared-document scope and resumed 0053 production | None | Plan-only from base `bc8fb4a5baa188af86092b06a96bc4134a8a4eed`; no production edit until independent Class C plan approval, then one serial implementation | Planning Markdown/link/status/diff only; after approval: native/package, complete Metal, Compiler contracts, conformance, CPU-free Engine, Javadoc/architecture, count/identity/export audit, cumulative independent review | Plans fixed custom accelerator Conv2d/Conv3d and average Pool2d/3d plus exact both-profile max Pool2d/3d; keeps attention blocked on exp/softmax and selector/output proof, and records that ConvTranspose has no Model/registry contract. Current counts and identities do not change during planning. |
+| 0064 | [Convolution, pooling, and attention boundary](tasks/0064-convolution-pooling-and-attention-boundary.md) | Implementation complete; review pending | 0063 Complete through `c80d79c0`; approved plan `994cd69199cdb5e2524e9b7f48bbdd0fac4a9094`; current Model convolution/pooling/attention and Compiler-gradient contracts; retained 0030/0031/0033/0036 and 0053 blockers | Every concurrent Metal capability/schema/native/custom-source/catalog/candidate/route/preparation/package/shared-document scope and resumed 0053 production | None | Approved plan → implementation/proof `58d1da7f` → documentation/package/full validation → independent cumulative Class C review | Native/package, complete Metal and Compiler, conformance, CPU-free Engine, Javadoc/architecture, count/identity/export audit, repository test/build, cumulative independent review | Implements fixed custom accelerator Conv2d/Conv3d and average Pool2d/3d plus exact both-profile max Pool2d/3d; keeps attention blocked on exp/softmax and selector/output proof and ConvTranspose blocked by the absent Model/registry contract. |
 
 ## Dependency DAG and authorized frontiers
 
@@ -424,7 +424,7 @@ Completed profile spine and serial successors:
 `0060 (Complete) + current MATMUL/promotion/gradient contracts -> 0061 (Complete)`
 `0061 (Complete) + current loss/normalization and Compiler gradient contracts + proved FLOAT32 primitive/reduction routes -> 0062 (Complete)`
 `0062 (Complete) + current ordering/top-K/arg-extrema and Compiler gradient contracts + schema-15 custom-program/multi-output foundations -> 0063 (Complete)`
-`0063 (Complete) + current convolution/pooling/attention, gradient, and retained selector/proof evidence -> 0064 (Review needed; plan-only, no production before independent review)`
+`0063 (Complete) + current convolution/pooling/attention, gradient, and retained selector/proof evidence -> 0064 (implementation complete; cumulative review pending)`
 
 Historical 0006–0007 and 0009–0013 keep their recorded `Blocked` status and evidence. Blocked
 [0016](tasks/0016-profile-qualified-float32-abs-exp-sigmoid.md) keeps its failed three-operation
@@ -510,13 +510,12 @@ implementation `4f35576c`, conformance correction `4a5cbdef`, and final approved
 [per-wire route-evidence audit](tasks/0056-route-evidence-audit.md) cites an exact installed-header
 selector or finite composition and current Model semantic/signature source for every one of the
 115 rows. The current catalog remains MPSGraph
-`75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE`; Task 0061 advanced custom state to
-`47 AVAILABLE / 68 PENDING / 0 UNAVAILABLE-WITH-PROOF`. Task 0062 changes neither catalog. The
-closed route identity retains wires `1..3`; schema 15 embeds the fixed route, identities are version
-19, capability is `75 true / 40 false`, and custom catalog state is `52/63/0`. Package-private
-forcing remains result-set-only after fresh handoff authentication; the Task-0063 wires reject
-MPSGraph. There is no device, oracle, timing, benchmark, public API, hot
-fallback, retry, cache, or autotune behavior.
+`75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE`; Task 0064 advances custom state to
+`58 AVAILABLE / 57 PENDING / 0 UNAVAILABLE-WITH-PROOF`. The closed route identity retains wires
+`1..3`; schema 15 embeds the fixed route, identities are version 20, and capability is
+`81 true / 34 false`. Package-private forcing remains result-set-only after fresh handoff
+authentication; the Task-0063 and Task-0064 production rows reject MPSGraph. There is no device,
+oracle, timing, benchmark, public API, hot fallback, retry, cache, or autotune behavior.
 Every other Metal task retains its recorded status.
 These edges serialize shared Metal mutation; they do not claim that one operation family requires
 another.
@@ -549,10 +548,10 @@ another.
   prepared-route identity. Task 0057 advanced its candidate/codec identities to 15 and fixed the
   shared route name to `CUSTOM_PROGRAM`; Task 0059 advanced all backend-local identities to 16,
   Complete Task 0061 advanced them to 17, Complete Task 0062 advanced them to 18, and Complete
-  Task 0063 advanced them to 19. Review-needed Task 0064 plans identity 20 only after independent
-  plan approval and implementation; current identity remains 19. Catalog states still are not
-  correctness approval; local timing is never authority, and only the existing cold authenticated
-  handoff remains as a seam for separately approved controlled autotuning.
+  Task 0063 advanced them to 19, and implemented Task 0064 advances every backend-local identity to
+  20. Identity 19 and every older identity fail closed. Catalog states still are not correctness
+  approval; local timing is never authority, and only the existing cold authenticated handoff
+  remains as a seam for separately approved controlled autotuning.
 - Complete Metal 0044 owns its documentation/audit no-change record; no active owner may reinterpret
   its bounded report as a winner or production decision.
 - Complete Metal 0043 retains its reviewed benchmark implementation and evidence; Complete Metal
@@ -564,10 +563,11 @@ another.
   cumulative code, evidence, and security approval. Task 0063 is Complete through implementation
   `9931d5f8`, documentation `f7800a26`, remediation `8a74b499`, final source/test correction
   `86399d53`, and active-document reconciliation `c80d79c0`; external final cumulative review at
-  `c80d79c0` returned `APPROVE` with zero P0/P1/P2. Task 0064 is plan-only and `Review needed`;
-  it owns no production scope until independent plan approval, so no later Metal task is `Ready`.
-  Model 0028 owns the reduction semantic contract, Complete Model 0029 owns the MATMUL final-
-  publication semantic contract, and Complete Metal 0021–0025 retain reviewed implementations.
+  `c80d79c0` returned `APPROVE` with zero P0/P1/P2. Task 0064 has approved plan
+  `994cd69199cdb5e2524e9b7f48bbdd0fac4a9094` and implementation `58d1da7f`; cumulative review
+  remains the completion gate, so no later Metal task is `Ready`. Model 0028 owns the reduction
+  semantic contract, Complete Model 0029 owns the MATMUL final-publication semantic contract, and
+  Complete Metal 0021–0025 retain reviewed implementations.
 
 ## Milestones and current frontier
 
@@ -585,11 +585,12 @@ documentation/diff evidence, and independent Class C final `APPROVE` with zero f
 
 Current ABI 5 retains exactly thirteen exports and accepts one bounded schema-15 route-bearing
 program image. Type wires are `1..6`, operation wires are `1..115`, attribute wires are `0..41`,
-and workload/exact-policy/candidate/compatibility/route/codec identities are version nineteen.
+and workload/exact-policy/candidate/compatibility/route/codec identities are version twenty.
 Task 0055's schema-13/identity-14 foundation, Task 0056's structural catalog, Task 0057's
-schema-14/identity-15 route cutover, and Task 0059's schema-15/identity-16 cutover remain historical
-prerequisites. Task 0063 rejects identity 18 and every older identity while retaining exactly 75
-production kinds and 93 structurally executable kinds.
+schema-14/identity-15 route cutover, Task 0059's schema-15/identity-16 cutover, and Tasks
+0061–0063's identity-17 through identity-19 cutovers remain historical prerequisites. Task 0064
+rejects identity 19 and every older identity while retaining exactly 81 production kinds and 99
+structurally executable kinds.
 Complete Model 0028 owns the root-only exact-zero reduction rule. Complete Model 0029 owns the
 MATMUL-only final-publication exact-zero sign rule. Metal 0018 remains Blocked without production
 changes. Complete Metal 0022
@@ -648,12 +649,13 @@ UNFOLD3D/FOLD3D remain separate custom movement/overlap work. Metal 0037 remains
 probe: recurrent arithmetic is recursively reachable for `ACCELERATOR`, but direct RNN lacks
 runtime INT64 valid lengths, atomic validation, skipped padded work, positive-zero padding, and
 `finalHidden`; no complete recurrence, state-publication, GRU/LSTM, or gradient route proof exists.
-Schema 15, type wires `1..6`, operation wires `1..115`, attribute wires `0..41`, version-nineteen
+Schema 15, type wires `1..6`, operation wires `1..115`, attribute wires `0..41`, version-twenty
 identities, ABI 5, variable cardinality, and canonical or supported-storage-layout all-six
 rank-`0..16` cross-owner transfer are landed. The schema registry is not capability: BOOL
-consumption now includes the exact positive-rank ordering/top-K and logic/WHERE domains, integral
-MATMUL remains the only general INT arithmetic consumer, and loss ownership is the bounded
-accelerator MSE forward domain only.
+consumption includes the exact positive-rank ordering/top-K and logic/WHERE domains, integral
+MATMUL remains the only general INT arithmetic consumer, loss ownership is the bounded accelerator
+MSE forward domain only, and the six Task-0064 convolution/pooling rows use their fixed custom
+program rather than the historically blocked opaque direct/composed assumptions.
 Planning-only Task 0039 reserves no FLOAT16 value while Draft Model 0026 provides no public type or oracle.
 Task 0040 is Blocked after its one direct BFLOAT16 Gather run canonicalized required `0xffa6` to
 `0x7fc0`; its artifacts
@@ -688,17 +690,18 @@ structural execution to `88/27`, and backend-local identity to 18. Task 0063 is 
 implementation `9931d5f8`, documentation `f7800a26`, remediation `8a74b499`, final source/test
 correction `86399d53`, and active-document reconciliation `c80d79c0`. Its reviewed
 unsigned-32-bit-bounded custom cutover implements SORT/ARGSORT/TOP_K/ARG_MAX/ARG_MIN with no
-MPSGraph fallback. Current capability is `75/40`, structural execution is `93/22`, catalogs are
-`75/35/5` and `52/63/0`, and backend-local identity is 19; schema 15, ABI 5, and thirteen exports
-remain fixed. External final cumulative review at `c80d79c0` returned `APPROVE` with zero P0/P1/P2;
-Task 0053 remains Blocked on its external constructive-real bridge.
+MPSGraph fallback. That Task-0063 cutover advanced capability to `75/40`, structural execution to
+`93/22`, catalogs to `75/35/5` and `52/63/0`, and backend-local identity to 19. Schema 15, ABI 5,
+and thirteen exports remain fixed. External final cumulative review at `c80d79c0` returned
+`APPROVE` with zero P0/P1/P2; Task 0053 remains Blocked on its external constructive-real bridge.
 
-Task 0064 is registered as `Review needed` from planning base
-`bc8fb4a5baa188af86092b06a96bc4134a8a4eed`. Its plan audits wires 35..37 and 97..100, authorizes
-no production edit before independent review, and targets six fixed custom convolution/pooling
-rows while leaving attention and absent ConvTranspose contracts fail-closed. Current counts remain
-`75/40` capability, `93/22` structural execution, catalogs `75/35/5` and `52/63/0`, schema 15,
-identity 19, ABI 5, and thirteen exports.
+Task 0064 has approved plan `994cd69199cdb5e2524e9b7f48bbdd0fac4a9094` and production
+implementation `58d1da7f`. Its six fixed custom rows implement accelerator Conv2d/Conv3d and
+average Pool2d/Pool3d plus both-profile exact maximum Pool2d/Pool3d, while attention and absent
+ConvTranspose contracts remain fail-closed. Current capability is `81/34`, structural execution is
+`99/16`, catalogs are `75/35/5` MPSGraph and `58/57/0` custom, schema is 15, backend-local identity
+is 20, ABI is 5, and thirteen exports remain fixed. Package/full validation and independent
+cumulative Class C review remain its completion gate.
 
 Metal 0006 remains historically `Blocked` after its frozen direct-selector
 RECIPROCAL/LOG/SQRT/RSQRT/RELU/TANH special-class and sign gate failures. Complete Model 0030

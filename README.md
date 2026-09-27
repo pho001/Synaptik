@@ -25,24 +25,28 @@ executes non-empty single-owner plans or bounded mixed CPU/Metal plans through d
 owner-indexed representations and ordered transfer steps. Current cross-owner transfer supports
 fully static rank-0..16 values of all six carriers over canonical or approved positive-stride
 non-overlapping layouts. Metal executes a closed occurrence-specific matrix. Its common domain
-includes the exact unary, affine, canonicalization, indexing, BOOL, Task-0059 raw-movement,
-Task-0060 replacement/fold/aggregate, and unsigned-32-bit-bounded stable ordering, top-K, and
-numeric arg-extrema rows. `SORT`, `ARGSORT`, and `TOP_K` admit all six carriers; `ARG_MIN` and
-`ARG_MAX` admit the five numeric carriers. `ACCELERATOR` additionally admits the documented
-FLOAT32 arithmetic, reductions, scans, every positive-static FLOAT32 `MATMUL` vector, matrix,
-batched, and broadcast geometry, and same-type canonical positive-rank FLOAT32 MSE forward
-execution for `NONE`, `SUM`, and `MEAN`. Both profiles admit no-gradient promoted INT32/INT64
-`MATMUL`; accelerator also admits no-gradient BFLOAT16/FLOAT32 mixed pairs with FLOAT32 result.
-Canonical or authenticated local last-two-axis transpose operands are allowed. Existing rank-two
-FLOAT32 matrix products retain direct MPSGraph; new MATMUL geometries and carrier pairs use the
-fixed custom program. MSE uses fixed MPSGraph subtraction, self-multiplication, and optional full
-reduction and grants no generated backward ownership; every other normalization/loss kind remains
-false. Every unlisted occurrence fails closed. Eligible singleton negation retains its custom
-alternative. Exact custom nodes, including the five ordering/arg-extrema wires, fix their whole
-partition to one custom program with declared run-owned intermediates and direct targets; top-K
-publishes paired values and INT64 indices from one step. ABI 5, thirteen exports, and the schema-15
-operation and attribute registries remain fixed; backend-local route and workload identities are
-version 19.
+includes exact unary, affine, canonicalization, indexing, BOOL, Task-0059 raw-movement,
+Task-0060 replacement/fold/aggregate, unsigned-32-bit-bounded stable ordering, top-K, numeric
+arg-extrema, and exact FLOAT64/FLOAT32/BFLOAT16 maximum Pool2d/Pool3d rows. `SORT`, `ARGSORT`,
+and `TOP_K` admit all six carriers; `ARG_MIN` and `ARG_MAX` admit the five numeric carriers.
+`ACCELERATOR` additionally admits the documented FLOAT32 arithmetic, reductions, scans, every
+positive-static FLOAT32 `MATMUL` vector, matrix, batched, and broadcast geometry, same-type
+canonical positive-rank FLOAT32 MSE forward execution for `NONE`, `SUM`, and `MEAN`,
+FLOAT32-result grouped Conv2d/Conv3d over FLOAT32/BFLOAT16 roles, and FLOAT32 average
+Pool2d/Pool3d. Convolution mixed operands are no-gradient; all-FLOAT32 convolution and pooling
+preserve their exact supported gradient metadata. Both profiles admit no-gradient promoted
+INT32/INT64 `MATMUL`; accelerator also admits no-gradient BFLOAT16/FLOAT32 mixed pairs with
+FLOAT32 result. Canonical or authenticated local last-two-axis transpose MATMUL operands and the
+exact local singleton-height Conv1d/Pool1d compositions are allowed. Existing rank-two FLOAT32
+matrix products retain direct MPSGraph; new MATMUL geometries, carrier pairs, and all six
+convolution/pooling rows use the fixed custom program. MSE uses fixed MPSGraph subtraction,
+self-multiplication, and optional full reduction and grants no generated backward ownership.
+Strict convolution/average pooling, generated Conv3d and maximum-pool gradients, attention,
+convolution transpose, and every other unlisted occurrence fail closed. Eligible singleton
+negation retains its custom alternative. Exact custom nodes fix their whole partition to one
+custom program with declared run-owned intermediates and direct targets; top-K publishes paired
+values and INT64 indices from one step. ABI 5, thirteen exports, and the schema-15 operation and
+attribute registries remain fixed; backend-local route and workload identities are version 20.
 Standard-Metal convenience, generic plugin registration/discovery, CUDA, broader optimizers,
 durable persistence, and generic graph/plan tuning remain planned.
 Focused documentation identifies the exact current boundary for each area.
