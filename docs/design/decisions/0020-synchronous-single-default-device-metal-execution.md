@@ -117,10 +117,10 @@ session-compatibility context and explicitly carries no stable-device claim. The
 no mapping among them or to a physical device is introduced.
 
 Metal uses ABI 5 with the same thirteen export names, bounded route-bearing node schema 15, and
-version-17 workload, exact-policy, candidate, compatibility, route, and codec identities. Task
-0061's identity cutover changes none of this decision's device-identity semantics. Tuning remains
-session-scoped and non-persistent. No cache key, trace payload, or compatibility identity gains a
-physical-device fingerprint.
+version-18 workload, exact-policy, candidate, compatibility, route, and codec identities. Task
+0062's identity cutover rejects version 17 without changing this decision's device-identity
+semantics. Tuning remains session-scoped and non-persistent. No cache key, trace payload, or
+compatibility identity gains a physical-device fingerprint.
 
 ### Persistent immutable resources and no general pool
 

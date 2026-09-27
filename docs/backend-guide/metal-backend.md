@@ -94,9 +94,10 @@ capability -> Planning ownership -> Metal analysis and typed candidates
 Capability applies per occurrence. Preparation then authenticates the complete maximal partition
 that Planning forms: common exact-unary/affine/canonicalization/indexing/classification/logic/WHERE,
 movement/replacement/fold/aggregate, and integral-MATMUL graphs and, under accelerator, valid
-compositions with binary, comparison, extrema, scalar, reduction, scan, general FLOAT32 MATMUL, and
-mixed-carrier MATMUL nodes. A positive-rank reduction result may compose with other supported
-accelerator nodes; a scalar reduction result is a direct target only. Canonical BOOL comparison,
+compositions with binary, comparison, extrema, scalar, reduction, scan, general FLOAT32 MATMUL,
+mixed-carrier MATMUL, and same-type canonical positive-rank FLOAT32 MSE `NONE`/`SUM`/`MEAN` nodes.
+A positive-rank reduction or MSE `NONE` result may compose with other supported accelerator nodes;
+a scalar reduction or MSE `SUM`/`MEAN` result is a direct target only. Canonical BOOL comparison,
 ONE_HOT, classification, and logic values may publish or feed another admitted BOOL-domain node.
 A local transpose accepted as a MATMUL operand must be produced inside the same partition from a
 canonical source and must preserve identity leading axes while swapping exactly the final two; its
@@ -162,7 +163,7 @@ device discovery.
 
 | Stage or resource | Owner and current behavior |
 |---|---|
-| Capability truth | Public `MetalCapabilityProvider` reports the exact common unary, affine, canonicalization, indexing, BOOL-domain, Task-0059 movement, Task-0060 replacement/fold/aggregate, and promoted integral MATMUL rows under both profiles. Accelerator additionally reports the documented FLOAT32 arithmetic/reduction/scan rows, every positive-static FLOAT32 MATMUL geometry, and no-gradient BFLOAT16/FLOAT32 mixed MATMUL. |
+| Capability truth | Public `MetalCapabilityProvider` reports the exact common unary, affine, canonicalization, indexing, BOOL-domain, Task-0059 movement, Task-0060 replacement/fold/aggregate, and promoted integral MATMUL rows under both profiles. Accelerator additionally reports the documented FLOAT32 arithmetic/reduction/scan rows, every positive-static FLOAT32 MATMUL geometry, no-gradient BFLOAT16/FLOAT32 mixed MATMUL, and same-type canonical positive-rank FLOAT32 MSE for `NONE`, `SUM`, and `MEAN`. |
 | Native configuration and integration | Public `MetalBackendConfiguration` and `MetalBackendIntegration` belong to Metal. Metal validates configuration, opens native ownership, and rolls partial construction back before Engine can take the completed integration. |
 | Backend ownership | Planning chooses `owner = metal` and groups consecutive equal owners; it never selects MPSGraph or a custom kernel. |
 | Analysis | Package-private Metal code validates the complete partition, assigns stable structural value order, regenerates typed route candidates and session compatibility, authenticates any supplied decision, fixes one route, and declares that route's exact resources. |
