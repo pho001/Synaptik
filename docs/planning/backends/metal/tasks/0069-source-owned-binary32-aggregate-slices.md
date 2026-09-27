@@ -85,14 +85,14 @@ carrier, attribute, or gradient combination remain false.
 
 ### Slice 3 — `VARIANCE` wire 112
 
-- Input rank is exactly one with extent `N=1`; axes are exactly `[0]`; correction is exactly zero.
-  Both keep-dimension forms use the same canonical scalar cell. All gradient flags are false.
-  Larger or empty domains, positive correction, other ranks, and the variance cotangent stay false.
-- There is no payload classifier or special-case publication. The source evaluates only the literal
-  formula: `mean=DIV(x,+1)`, `d=SUB(x,mean)`, `q=MUL(d,d)`, singleton square-sum leaf `q`, then
-  `DIV(q,+1)`. Every named operation is one safe binary32 site; there is no aggregate add, clamp,
-  reciprocal substitution, FMA, stable-algorithm replacement, or final tolerance.
-- The proof must derive NaN for NaN/infinity and exact `+0` for every finite input, including both zeros and subnormals under every permitted DAZ/FTZ choice, from those literal sites alone.
+- Input rank is exactly one with extent `N=1`, axes exactly `[0]`, correction exactly zero, and no
+  gradient flags. Both keep forms target one canonical scalar cell; every other domain stays false.
+- Exactly one dispatched output thread owns that cell and stores once. With no payload classifier
+  or special publication, it evaluates only `mean=DIV(x,+1)`, `d=SUB(x,mean)`, `q=MUL(d,d)`, the
+  singleton square-sum leaf `q`, then `DIV(q,+1)`. Each name is one safe binary32 site; there is no
+  aggregate add, clamp, reciprocal substitution, FMA, stable replacement, or final tolerance.
+- The proof must derive NaN for NaN/infinity and exact `+0` for every finite input, including both
+  zeros and subnormals under every DAZ/FTZ choice, from those sites alone.
 
 ## Proof and source gates
 
@@ -104,17 +104,17 @@ carrier, attribute, or gradient combination remain false.
    floating oracle, or general framework.
 2. Add per-slice Lean domain theorems. L1 proves raw ABS, point, class, and contributor obligations.
    Scatter proves base-plus-filtered-occurrence membership per target, duplicates retained,
-   unaddressed raw identity, and one writer. Singleton variance proves literal-site membership and
-   all required special classes without preclassification.
+   unaddressed raw identity, and one writer. Singleton variance proves literal-site membership,
+   special classes, one-thread ownership, and one store without preclassification.
 3. Bind the exact header, native dispatcher/preflight, compiler flags, function names, loop/site
    inventory, generated library, and proof inputs in a hash manifest plus source/compiler-site
    certificate. Compile with `MTLMathModeSafe`; reject fast math, reassociation outside the written
    tree, contraction, hidden reduction, and unbound artifacts. Device regressions corroborate but
    never authorize an uncovered domain.
 4. Java and native independently authenticate profile, kind, attributes, carrier, rank, Shape,
-   canonical layout, gradient flags, exact counts/bytes, buffer distinctness, and correction/index
-   constraints before allocation or encoding. Whole-program scatter payload validation precedes
-   every dispatch and mutation; invalid execution preserves sentinels.
+   canonical layout, gradient flags, exact counts/bytes, buffer distinctness, dispatch/writer
+   geometry, and correction/index constraints before allocation or encoding. Whole-program scatter
+   payload validation precedes every dispatch and mutation; invalid execution preserves sentinels.
 5. Each slice lands as a separate identity/capability/source/proof/test/docs checkpoint and receives
    independent code, evidence, and security review. Failure leaves its row and every later serial
    slice false until a reviewed amendment; already shipped earlier slices remain valid.
@@ -179,10 +179,10 @@ false, and submit a reviewed plan amendment rather than inventing architecture.
 
 For each independently approved slice: its Lean proof and source certificate pass; the exact route
 executes through the public Engine on the packaged dylib; special classes, duplicate contributors,
-raw-copy cells, correction/count bounds, both keep-dimension forms where applicable, generated
-Gather closure, false neighboring domains, alias/error-before-mutation, identity rejection, and
-complete count partitions pass. Native build uses warnings as errors. Permanent tests defend these
-observable boundaries, not source text or incidental plumbing.
+raw-copy cells, correction/count bounds, one-writer/store-once, both keep forms where applicable,
+generated Gather closure, false neighboring domains, alias/error-before-mutation, identity
+rejection, and complete count partitions pass. Native builds use warnings as errors. Permanent
+tests defend these observable boundaries, not source text or incidental plumbing.
 
 Worker validation is the existing Task-0068 native/package matrix plus the new `0069` proof runner,
 complete `:backends:metal:test`, focused Compiler indexing/reduction/autograd tests, Metal
