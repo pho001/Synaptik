@@ -42,7 +42,7 @@ boundary; it does not promote Draft work to `Ready` or create a DAG edge.
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Required baseline Complete; optional 0004 Blocked and deferred | Resume 0004 only when both direct-BFLOAT16 application binary interface (ABI) and one-final-narrowing proofs exist. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Complete through profile realization 0017; 0007A1D Review needed; 0010D1 and 0011 Blocked | CPU 0017 completed at `372a8b98`; both profiles use identical exact CPU capability, routes, execution, and profile-separated identities. No CPU task is Ready. |
 | 11 | [`modules/engine`](modules/engine/master-plan.md) | Complete through numerical-profile spine 0018 | 0018 completed at `ce7a7dfa` plus `07a01b9c`; no Engine task is Ready. |
-| 12 | [`backends/metal`](backends/metal/master-plan.md) | Review needed at Task 0061; 0053 Blocked | [Metal 0061](backends/metal/tasks/0061-general-static-matmul-domain.md) has corrected approved plan `d81ec940` and implementation `3cc49d94`; package/docs/cumulative Class C review remain. Current capability is `69/46`, structural execution `87/28`, schema 15, identity 17, ABI 5, and thirteen exports. |
+| 12 | [`backends/metal`](backends/metal/master-plan.md) | Complete through Task 0061; 0053 Blocked | [Metal 0061](backends/metal/tasks/0061-general-static-matmul-domain.md) completed at corrected plan `d81ec940` and reviewed implementation head `3913bac1`; three independent cumulative reviews returned zero P0/P1/P2. Current capability is `69/46`, structural execution `87/28`, schema 15, identity 17, ABI 5, and thirteen exports. No Metal task is Ready. |
 
 | 13 | [`backends/cuda`](backends/cuda/master-plan.md) | Draft | Create a detailed 0001 brief only when CUDA becomes the authorized frontier. |
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | Define the first bounded mapping task only at an authorized frontier. |
@@ -657,17 +657,18 @@ matrix with narrowing, or infer capability from registered schema.
 
 ## Nearest next step
 
-Metal Task 0061 is Review needed at corrected approved plan `d81ec940` and implementation
-`3cc49d94`. Both profiles now admit every no-gradient INT32/INT64 ordered MATMUL pair with
-INT64-dominant promotion and modular result arithmetic. Accelerator additionally admits every
-positive-static FLOAT32 vector/matrix/batched/broadcast geometry with generated gradients and
-no-gradient BFLOAT16/FLOAT32 mixed pairs with FLOAT32 output. Exact local identity-prefix,
-last-two-axis transpose operands retain physical offset/stride provenance. Existing all-FLOAT32
-rank-two matrix products retain MPSGraph; seven fixed custom signatures cover newly admitted forms
-with no fallback, tiling, tuning, or hidden materialization. Capability remains `69 / 46`,
-structural execution `87 / 28`, and MPSGraph catalog `75 / 35 / 5`; custom catalog is
-`47 / 68 / 0`. Schema 15, ABI 5, and thirteen exports remain fixed; all backend-local identities
-advance to version 17 and reject version 16. Package/docs/cumulative Class C review remain.
+Metal Task 0061 is Complete at corrected approved plan `d81ec940` and reviewed implementation head
+`3913bac1`. Both profiles admit every no-gradient INT32/INT64 ordered MATMUL pair with INT64-dominant
+promotion and modular result arithmetic. Accelerator additionally admits every positive-static
+FLOAT32 vector/matrix/batched/broadcast geometry with generated gradients and no-gradient
+BFLOAT16/FLOAT32 mixed pairs with FLOAT32 output. Exact local identity-prefix, last-two-axis
+transpose operands retain physical offset/stride provenance. Existing all-FLOAT32 rank-two matrix
+products retain MPSGraph, including authenticated transposes nested in a custom program; seven
+fixed custom signatures cover only newly admitted forms. Capability remains `69 / 46`, structural
+execution `87 / 28`, MPSGraph catalog `75 / 35 / 5`, and custom catalog `47 / 68 / 0`. Schema 15,
+ABI 5, and thirteen exports remain fixed; all backend-local identities are version 17 and reject
+version 16. Independent cumulative code, evidence, and security reviews returned zero P0/P1/P2.
+No Metal task is Ready; Task 0053 remains Blocked on its external constructive-real bridge.
 
 Metal 0046 is Complete at independently approved implementation
 `4aad1ab6ced318107e65bb9beef0013f8a7ff6e5`. Its two opt-in module-local Gradle tasks directly

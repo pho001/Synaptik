@@ -2,8 +2,8 @@
 
 ## Status
 
-Ready for implementation after independent re-review of this corrected revision. Dependencies and
-the serial frontier are verified; zero review findings authorize launch.
+Complete at corrected approved plan `d81ec940` and reviewed implementation head `3913bac1`.
+Independent cumulative code, evidence, and security reviews returned zero P0/P1/P2.
 
 ## Change class
 
@@ -219,4 +219,26 @@ Class C reviews are mandatory.
 
 ## Result
 
-Empty until implementation completes after corrected-plan re-review.
+- Implemented through `3cc49d94`, `79a7aaff`, `9bd06972`, `092ef7b2`, `17abb160`,
+  `76ae5019`, `6ec0b359`, `d72e8317`, and final bounded capability remediation `3913bac1`.
+- Both profiles execute every positive-static no-gradient INT32/INT64 ordered pair with
+  INT64-dominant promotion and modular arithmetic. Accelerator executes the complete positive-static
+  FLOAT32 rank/vector/batch/broadcast domain with generated gradients plus both no-gradient
+  BFLOAT16/FLOAT32 orders. BFLOAT16/BFLOAT16, FLOAT64-result, strict floating, zero/dynamic,
+  malformed, and disallowed-gradient forms remain closed.
+- Existing rank-two same-type FLOAT32 direct and authenticated left/right/both-transpose MATMUL
+  remains MPSGraph, including inside a custom program. Newly admitted geometry and carrier pairs
+  use the seven fixed custom signatures with authenticated physical layout/provenance. Schema 15,
+  ABI 5, thirteen exports, `69/46` capability, `87/28` structural execution, `75/35/5` MPSGraph,
+  and `47/68/0` custom catalog are exact; all backend-local identities are 17 and reject 16.
+- Compiler vector/vector gradients retain scalar-vector MUL and the Model numerical result set.
+  The Metal-only closure is bounded to accelerator FLOAT32 rank-zero by rank-one MUL with rank-one
+  output; every unrelated scalar, rank, operation, profile, and gradient combination remains
+  closed. Public Engine proof covers both profiles' integers, general FLOAT32, biased and unbiased
+  batched linear, every vector/matrix gradient pairing including an explicit dot seed, and the
+  blocked floating families.
+- The final signed local package verified. Packaged-native validation passed 187 Metal, 278
+  Compiler, 8 Metal conformance, and 25 public Engine tests with zero failures or skips. Metal
+  Javadoc, architecture checks, the source/compiler-site certificate, and `git diff --check`
+  passed. Independent cumulative code, evidence, and security reviews of exact implementation
+  head `3913bac1` each returned `APPROVE` with zero P0/P1/P2.
